@@ -218,6 +218,7 @@ footer a{color:var(--orange);text-decoration:none}
   <a data-s="landmarks" onclick="showSection('landmarks',this)">🏛 Landmarks</a>
   <a data-s="neighborhoods" onclick="showSection('neighborhoods',this)">🗺 Neighborhoods</a>
   <a data-s="complaints" onclick="showSection('complaints',this)">📞 311 Data</a>
+  <a data-s="lamp" onclick="showSection('lamp',this)">🍺 Liquor Licenses</a>
 </nav>
 
 <!-- ══ SECTION 1: ADDRESS SEARCH ══ -->
@@ -2009,6 +2010,239 @@ function filter311Table() {
   }
 }
 
+<!-- ══ SECTION: LAMP LIQUOR LICENSES ══ -->
+<div class="section" id="section-lamp">
+  <div style="background:var(--navy);padding:18px 24px 14px;border-bottom:3px solid var(--orange)">
+    <h2 style="color:#fff;font-size:1rem;font-weight:700;margin-bottom:4px">Active Liquor Licenses — CB6</h2>
+    <p style="color:rgba(255,255,255,.65);font-size:.78rem;margin:0">Live pull from NYS Liquor Authority Mapping Project (LAMP). Filtered to the CB6 boundary.</p>
+  </div>
+
+  <div style="padding:16px 24px;background:#fff;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+    <div>
+      <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:4px">License Category</label>
+      <select id="lampCat" style="font-size:.85rem;padding:7px 10px;border:1.5px solid var(--border);border-radius:5px">
+        <option value="onsite">On-Site Consumption</option>
+        <option value="all">All License Types</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:4px">Status</label>
+      <select id="lampStatus" style="font-size:.85rem;padding:7px 10px;border:1.5px solid var(--border);border-radius:5px">
+        <option value="ACTIVE">Active</option>
+        <option value="PENDING">Pending</option>
+        <option value="BOTH">Active + Pending</option>
+      </select>
+    </div>
+    <button onclick="lampQuery()" id="lampBtn"
+      style="padding:8px 20px;background:var(--navy);color:#fff;border:none;border-radius:5px;font-size:.85rem;font-weight:700;cursor:pointer">
+      Pull from LAMP
+    </button>
+    <span id="lampStatusMsg" style="font-size:.8rem;color:var(--muted)">Ready — click Pull to fetch live data.</span>
+  </div>
+
+  <div id="lampProgress" style="display:none;height:5px;background:var(--border)">
+    <div id="lampBar" style="height:100%;background:var(--orange);width:0%;transition:width .3s"></div>
+  </div>
+
+  <div id="lampResults" style="display:none">
+    <div id="lampStats" style="display:flex;flex-wrap:wrap;gap:12px;padding:16px 24px;background:var(--off)"></div>
+
+    <div style="padding:0 24px 10px;background:#fff;display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-bottom:1px solid var(--border)">
+      <input type="text" id="lampSearch" placeholder="Search name, address, type…"
+        style="font-size:.83rem;padding:6px 10px;border:1.5px solid var(--border);border-radius:5px;width:220px"
+        oninput="lampFilter()">
+      <select id="lampBevFilter" onchange="lampFilter()"
+        style="font-size:.83rem;padding:6px 10px;border:1.5px solid var(--border);border-radius:5px">
+        <option value="">All Beverage Types</option>
+        <option value="Full Liquor">Full Liquor</option>
+        <option value="Wine &amp; Beer">Wine &amp; Beer</option>
+        <option value="Beer Only">Beer Only</option>
+        <option value="Special">Special</option>
+      </select>
+      <select id="lampTypeFilter" onchange="lampFilter()"
+        style="font-size:.83rem;padding:6px 10px;border:1.5px solid var(--border);border-radius:5px">
+        <option value="">All License Types</option>
+      </select>
+      <span id="lampCount" style="font-size:.75rem;color:var(--muted);margin-left:auto"></span>
+      <button onclick="lampExportCSV()"
+        style="padding:5px 14px;background:var(--orange);color:#fff;border:none;border-radius:5px;font-size:.78rem;font-weight:700;cursor:pointer">
+        Export CSV
+      </button>
+    </div>
+
+    <div style="overflow-x:auto;max-height:520px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.78rem;background:#fff">
+        <thead>
+          <tr style="background:var(--navy);position:sticky;top:0">
+            <th style="padding:8px 12px;text-align:left;color:#fff;font-weight:600;white-space:nowrap">License #</th>
+            <th style="padding:8px 12px;text-align:left;color:#fff;font-weight:600">Legal Name</th>
+            <th style="padding:8px 12px;text-align:left;color:#fff;font-weight:600">DBA</th>
+            <th style="padding:8px 12px;text-align:left;color:#fff;font-weight:600">Address</th>
+            <th style="padding:8px 12px;text-align:left;color:#fff;font-weight:600;white-space:nowrap">License Type</th>
+            <th style="padding:8px 12px;text-align:left;color:#fff;font-weight:600;white-space:nowrap">Bev. Auth.</th>
+            <th style="padding:8px 12px;text-align:left;color:#fff;font-weight:600">Status</th>
+          </tr>
+        </thead>
+        <tbody id="lampTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══ LAMP ══
+const LAMP_CB6 = [[-74.001744,40.692407],[-74.001798,40.69227],[-74.001818,40.692222],[-74.001969,40.691843],[-74.004409,40.692529],[-74.004794,40.691762],[-74.000699,40.690612],[-74.000962,40.690129],[-74.001853,40.690388],[-74.001963,40.690136],[-74.002976,40.690427],[-74.005342,40.691092],[-74.005759,40.690236],[-74.003409,40.689613],[-74.00382,40.68893],[-74.006365,40.68967],[-74.006784,40.688827],[-74.004593,40.688215],[-74.005004,40.687606],[-74.00742,40.688206],[-74.007833,40.687385],[-74.00563,40.686784],[-74.005882,40.686196],[-74.006441,40.686288],[-74.00702,40.686526],[-74.007545,40.686318],[-74.008164,40.686175],[-74.008354,40.6864],[-74.008598,40.686253],[-74.010116,40.685342],[-74.012176,40.684095],[-74.011783,40.68376],[-74.010773,40.684359],[-74.010086,40.683655],[-74.009671,40.683269],[-74.010609,40.682469],[-74.011863,40.681398],[-74.013018,40.680412],[-74.013742,40.680918],[-74.014105,40.681713],[-74.012135,40.682906],[-74.012624,40.683469],[-74.01282,40.683622],[-74.014868,40.682383],[-74.015321,40.682111],[-74.016788,40.681022],[-74.017469,40.680615],[-74.017725,40.680662],[-74.018991,40.679905],[-74.019281,40.679648],[-74.019553,40.679029],[-74.01944,40.678933],[-74.018579,40.678983],[-74.018283,40.678728],[-74.01827,40.678554],[-74.018411,40.678407],[-74.01843,40.677908],[-74.019083,40.67714],[-74.019952,40.677103],[-74.019769,40.676613],[-74.019121,40.676616],[-74.017977,40.676568],[-74.017877,40.6763],[-74.018018,40.675884],[-74.018537,40.675769],[-74.01841,40.675519],[-74.018884,40.675118],[-74.018806,40.675042],[-74.018757,40.675056],[-74.018522,40.675269],[-74.018387,40.675097],[-74.018171,40.675291],[-74.01815,40.675468],[-74.017834,40.675258],[-74.017924,40.675076],[-74.018045,40.674768],[-74.018176,40.674464],[-74.018115,40.674343],[-74.017802,40.674095],[-74.017923,40.673975],[-74.018011,40.673913],[-74.017752,40.674048],[-74.017293,40.673628],[-74.018801,40.672251],[-74.018168,40.671939],[-74.016708,40.673194],[-74.01544,40.674273],[-74.014964,40.674678],[-74.014579,40.674414],[-74.016321,40.672908],[-74.015119,40.672157],[-74.013951,40.673112],[-74.013364,40.673592],[-74.012976,40.673328],[-74.015686,40.671039],[-74.015596,40.67097],[-74.013873,40.671881],[-74.014369,40.671455],[-74.0152,40.670754],[-74.014274,40.671379],[-74.013552,40.671257],[-74.013098,40.671055],[-74.01262,40.670842],[-74.012459,40.670925],[-74.01227,40.670957],[-74.011912,40.670858],[-74.011754,40.670658],[-74.014242,40.669808],[-74.014062,40.669706],[-74.011625,40.670581],[-74.011514,40.670407],[-74.011622,40.670114],[-74.011543,40.669784],[-74.010873,40.66971],[-74.01091,40.66919],[-74.010338,40.669078],[-74.010357,40.668643],[-74.010877,40.668602],[-74.01228,40.665732],[-74.015937,40.665471],[-74.016026,40.664863],[-74.016487,40.664931],[-74.016688,40.665437],[-74.01751,40.671035],[-74.018883,40.671602],[-74.018763,40.671076],[-74.018576,40.670392],[-74.017887,40.66585],[-74.016903,40.664847],[-74.015749,40.664568],[-74.01154,40.665086],[-74.009854,40.668524],[-74.007087,40.668591],[-74.007797,40.66716],[-74.007548,40.667052],[-74.006803,40.668591],[-74.006029,40.669785],[-74.005439,40.670921],[-74.004754,40.670721],[-74.006046,40.668053],[-74.006307,40.667494],[-74.0069,40.666219],[-74.006871,40.666129],[-74.006774,40.666185],[-74.006227,40.667334],[-74.006002,40.66789],[-74.005864,40.667994],[-74.005102,40.667976],[-74.004403,40.667779],[-74.00363,40.667568],[-74.003695,40.667428],[-74.003191,40.667263],[-74.002895,40.667348],[-74.002215,40.668579],[-74.001415,40.668359],[-74.001057,40.668946],[-74.000303,40.668717],[-73.999911,40.669499],[-73.999311,40.670773],[-73.998926,40.671415],[-73.998619,40.67183],[-73.998541,40.671705],[-73.998344,40.67139],[-73.997989,40.670842],[-73.997715,40.670415],[-73.997577,40.670199],[-73.997116,40.669473],[-73.99693,40.669175],[-73.996752,40.669061],[-73.996403,40.669008],[-73.994036,40.667848],[-73.991795,40.666766],[-73.991663,40.666704],[-73.989313,40.665566],[-73.986951,40.664425],[-73.984592,40.663284],[-73.98223,40.662141],[-73.980172,40.661155],[-73.979819,40.661281],[-73.979654,40.661243],[-73.979351,40.661595],[-73.978349,40.662799],[-73.977343,40.664012],[-73.976334,40.665214],[-73.975337,40.666419],[-73.974331,40.667621],[-73.973323,40.668825],[-73.972317,40.670029],[-73.971325,40.671248],[-73.970854,40.671864],[-73.970407,40.672647],[-73.970879,40.672713],[-73.971051,40.672931],[-73.97132,40.673364],[-73.97147,40.673903],[-73.971465,40.674303],[-73.97143,40.674501],[-73.971307,40.674889],[-73.971049,40.675237],[-73.971423,40.675755],[-73.971886,40.676395],[-73.972445,40.677162],[-73.973053,40.677999],[-73.97431,40.679735],[-73.974691,40.680267],[-73.975143,40.680872],[-73.974504,40.680733],[-73.973978,40.680983],[-73.974391,40.681046],[-73.973956,40.68227],[-73.976209,40.68273],[-73.976667,40.682972],[-73.978704,40.683744],[-73.97876,40.683765],[-73.979617,40.682491],[-73.980462,40.681223],[-73.980556,40.681258],[-73.981966,40.681805],[-73.982573,40.68204],[-73.982732,40.682101],[-73.982854,40.682149],[-73.982416,40.682781],[-73.982891,40.682965],[-73.983961,40.683382],[-73.984088,40.683431],[-73.984221,40.683483],[-73.984374,40.683542],[-73.984798,40.682909],[-73.986995,40.683765],[-73.98689,40.683918],[-73.986723,40.684158],[-73.986563,40.684389],[-73.988204,40.685027],[-73.988712,40.685225],[-73.989069,40.68468],[-73.989128,40.684589],[-73.991059,40.685342],[-73.991332,40.685448],[-73.993929,40.686453],[-73.993604,40.687127],[-73.993268,40.687824],[-73.993005,40.688365],[-73.992686,40.689033],[-73.992364,40.68969],[-73.994361,40.690239],[-73.996233,40.690758],[-73.997769,40.691195],[-73.99803,40.691254],[-73.998938,40.691495],[-73.999365,40.691613],[-73.999513,40.691651],[-73.999915,40.691767],[-74.00019,40.691896],[-74.000623,40.692041],[-74.001794,40.692185],[-74.001744,40.692407]];
+
+const LAMP_ONSITE = ['OP','SL','RL','HL','CL','CT','CR','RW','HW','HB','CW','TW','WC','EB','MR','BP','VB','FV','BB','BW','CB'];
+const LAMP_BEV = {EB:'Beer Only',CB:'Beer Only',BP:'Beer Only',FV:'Beer Only',HB:'Beer Only',RW:'Wine & Beer',TW:'Wine & Beer',HW:'Wine & Beer',CW:'Wine & Beer',WC:'Wine & Beer',VB:'Wine & Beer',BW:'Wine & Beer',OP:'Full Liquor',HL:'Full Liquor',CL:'Full Liquor',CT:'Full Liquor',CR:'Full Liquor',VL:'Full Liquor',BB:'Full Liquor',SL:'Full Liquor',RL:'Full Liquor',MR:'Special'};
+const LAMP_BEV_COLORS = {'Full Liquor':'#8B0000','Wine & Beer':'#4B0082','Beer Only':'#C8860A','Special':'#1B5E20','Unknown':'#888'};
+
+let lampAllData = [], lampFiltered = [];
+
+function lampPIP(px, py) {
+  let inside = false;
+  for (let i=0,j=LAMP_CB6.length-1;i<LAMP_CB6.length;j=i++){const xi=LAMP_CB6[i][0],yi=LAMP_CB6[i][1],xj=LAMP_CB6[j][0],yj=LAMP_CB6[j][1];if(((yi>py)!==(yj>py))&&(px<(xj-xi)*(py-yi)/(yj-yi)+xi))inside=!inside;}
+  return inside;
+}
+
+function lampGetAttr(a,...keys){for(const k of keys)if(a[k]!=null&&a[k]!=='')return String(a[k]);return '';}
+
+function lampClassifyBev(a){
+  for(const k of ['LICENSE_CLASS_CODE','CLASS_CODE','LicenseClassCode','CLASSCD']){
+    if(a[k]){const v=String(a[k]).trim().toUpperCase();for(const[code,bev]of Object.entries(LAMP_BEV))if(v.startsWith(code))return bev;}
+  }
+  for(const k of ['LICENSE_TYPE_NAME','LicenseTypeName','PRIMOCAT']){
+    if(a[k]){const v=String(a[k]).trim().toUpperCase();for(const[code,bev]of Object.entries(LAMP_BEV))if(v.startsWith(code)||v.includes(code))return bev;}
+  }
+  return 'Unknown';
+}
+
+function lampSetStatus(msg,color='var(--muted)'){document.getElementById('lampStatusMsg').textContent=msg;document.getElementById('lampStatusMsg').style.color=color;}
+function lampSetBar(pct){document.getElementById('lampBar').style.width=pct+'%';}
+
+async function lampQuery(){
+  const btn=document.getElementById('lampBtn');
+  btn.disabled=true;
+  document.getElementById('lampProgress').style.display='block';
+  document.getElementById('lampResults').style.display='none';
+  lampAllData=[];
+  lampSetBar(5);lampSetStatus('Connecting to LAMP…');
+
+  const statusSel=document.getElementById('lampStatus').value;
+  let statusClause=statusSel==='BOTH'?"(LICENSE_STATUS='ACTIVE' OR LICENSE_STATUS='PENDING')":"LICENSE_STATUS='"+statusSel+"'";
+  const where="COUNTY='KINGS' AND "+statusClause;
+  const base='https://lamp.sla.ny.gov/ArcGIS/rest/services/sla/MapServer/4/query';
+
+  try{
+    let offset=0,exceeded=true;
+    while(exceeded){
+      lampSetStatus(`Fetching records ${offset+1}…`);
+      lampSetBar(Math.min(85,10+offset/50));
+      const params=new URLSearchParams({where,outFields:'*',returnGeometry:'true',resultOffset:offset,resultRecordCount:1000,f:'json',orderByFields:'OBJECTID'});
+      const resp=await fetch(base+'?'+params);
+      if(!resp.ok)throw new Error('HTTP '+resp.status);
+      const page=await resp.json();
+      if(page.error)throw new Error(page.error.message||JSON.stringify(page.error));
+      if(!page.features||page.features.length===0)break;
+      lampAllData.push(...page.features);
+      offset+=page.features.length;
+      exceeded=!!page.exceededTransferLimit;
+    }
+
+    lampSetStatus(`Got ${lampAllData.length} Kings County records. Filtering to CB6…`);
+    lampSetBar(92);
+
+    const lonField=['LONGITUDE','Longitude','longitude'].find(f=>lampAllData[0]?.attributes[f]!=null);
+    const latField=['LATITUDE','Latitude','latitude'].find(f=>lampAllData[0]?.attributes[f]!=null);
+
+    let cb6=lampAllData.filter(f=>{
+      let lon,lat;
+      if(f.geometry&&f.geometry.x!=null){lon=f.geometry.x;lat=f.geometry.y;}
+      else if(lonField&&latField){lon=parseFloat(f.attributes[lonField]);lat=parseFloat(f.attributes[latField]);}
+      else return false;
+      return lon&&lat&&!isNaN(lon)&&!isNaN(lat)&&lampPIP(lon,lat);
+    });
+
+    const catSel=document.getElementById('lampCat').value;
+    const typeField=['LICENSE_TYPE_NAME','LicenseTypeName','PRIMOCAT','LICENSE_CLASS_CODE'].find(f=>cb6[0]?.attributes[f]!=null);
+    if(catSel==='onsite'&&typeField){
+      cb6=cb6.filter(f=>{const v=(f.attributes[typeField]||'').trim().toUpperCase();return LAMP_ONSITE.some(t=>v.startsWith(t));});
+    }
+
+    lampSetBar(100);
+    lampSetStatus(`${cb6.length} licenses within CB6.`,'var(--green,#1a7a1a)');
+    lampAllData=cb6;
+    lampFiltered=cb6;
+
+    // Populate type filter
+    if(typeField){
+      const types=[...new Set(cb6.map(r=>r.attributes[typeField]))].filter(Boolean).sort();
+      const tf=document.getElementById('lampTypeFilter');
+      tf.innerHTML='<option value="">All License Types</option>';
+      types.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;tf.appendChild(o);});
+    }
+
+    lampRenderStats(cb6);
+    lampRenderTable(cb6);
+    document.getElementById('lampResults').style.display='block';
+  }catch(e){
+    lampSetStatus('Error: '+e.message,'#c00');
+  }
+  btn.disabled=false;
+  setTimeout(()=>document.getElementById('lampProgress').style.display='none',800);
+}
+
+function lampRenderStats(records){
+  const counts={};
+  records.forEach(r=>{const b=lampClassifyBev(r.attributes);counts[b]=(counts[b]||0)+1;});
+  document.getElementById('lampStats').innerHTML=
+    `<div style="background:#f0f4ff;border-left:3px solid var(--navy);padding:8px 14px;border-radius:4px"><div style="font-size:1.3rem;font-weight:700;color:var(--navy)">${records.length}</div><div style="font-size:.72rem;color:#666">Total in CB6</div></div>`+
+    Object.entries(counts).map(([b,n])=>`<div style="background:#f0f4ff;border-left:3px solid ${LAMP_BEV_COLORS[b]||'#888'};padding:8px 14px;border-radius:4px"><div style="font-size:1.3rem;font-weight:700;color:${LAMP_BEV_COLORS[b]||'#888'}">${n}</div><div style="font-size:.72rem;color:#666">${b}</div></div>`).join('');
+}
+
+function lampRenderTable(records){
+  const tbody=document.getElementById('lampTableBody');
+  const typeField=['LICENSE_TYPE_NAME','LicenseTypeName','PRIMOCAT','LICENSE_CLASS_CODE'].find(f=>records[0]?.attributes[f]!=null);
+  tbody.innerHTML=records.map(r=>{
+    const a=r.attributes;
+    const bev=lampClassifyBev(a);
+    const col=LAMP_BEV_COLORS[bev]||'#888';
+    return `<tr style="border-bottom:1px solid #eee">
+      <td style="padding:6px 12px;font-family:'DM Mono',monospace;font-size:.72rem;color:var(--muted);white-space:nowrap">${lampGetAttr(a,'SERIAL_NUMBER','LICENSE_PERMIT_ID','LicensePermitId')}</td>
+      <td style="padding:6px 12px;font-weight:600;font-size:.78rem">${lampGetAttr(a,'DOING_BUSINESS_AS','LEGAL_NAME','LegalName')}</td>
+      <td style="padding:6px 12px;font-size:.75rem;color:var(--muted)">${lampGetAttr(a,'DBA','Dba','TRADE_NAME')}</td>
+      <td style="padding:6px 12px;font-size:.75rem">${lampGetAttr(a,'ADDRESS','PREMISES_ADDRESS','PremisesAddress','ADDRESS_LINE1')}</td>
+      <td style="padding:6px 12px;font-size:.72rem;white-space:nowrap">${typeField?lampGetAttr(a,typeField):''}</td>
+      <td style="padding:6px 12px"><span style="padding:2px 8px;border-radius:10px;font-size:.69rem;font-weight:700;background:${col}22;color:${col}">${bev}</span></td>
+      <td style="padding:6px 12px;font-size:.72rem;color:var(--muted)">${lampGetAttr(a,'LICENSE_STATUS','LicenseStatus','STATUS')}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('lampCount').textContent=`${records.length} records`;
+}
+
+function lampFilter(){
+  const q=document.getElementById('lampSearch').value.toLowerCase();
+  const bev=document.getElementById('lampBevFilter').value;
+  const type=document.getElementById('lampTypeFilter').value;
+  const typeField=['LICENSE_TYPE_NAME','LicenseTypeName','PRIMOCAT','LICENSE_CLASS_CODE'].find(f=>lampFiltered[0]?.attributes[f]!=null);
+  const shown=lampAllData.filter(r=>{
+    const a=r.attributes;
+    const bevMatch=!bev||lampClassifyBev(a)===bev;
+    const typeMatch=!type||!typeField||a[typeField]===type;
+    const textMatch=!q||JSON.stringify(a).toLowerCase().includes(q);
+    return bevMatch&&typeMatch&&textMatch;
+  });
+  lampFiltered=shown;
+  lampRenderTable(shown);
+}
+
+function lampExportCSV(){
+  if(!lampFiltered.length)return;
+  const keys=Object.keys(lampFiltered[0].attributes);
+  const rows=[keys.join(','),...lampFiltered.map(r=>keys.map(k=>{const v=r.attributes[k];return'"'+(v==null?'':String(v).replace(/"/g,'""'))+'"';}).join(','))];
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv'}));
+  a.download='CB6_LAMP_Licenses.csv';a.click();
+}
 </script>
-</body>
-</html>
+
