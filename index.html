@@ -2359,14 +2359,16 @@ function filter311Table() {
 <!-- ══ SECTION: LAMP LIQUOR LICENSES ══ -->
 <div class="section" id="section-lamp">
   <div style="background:var(--navy);padding:18px 24px 14px;border-bottom:3px solid var(--orange)">
-    <h2 style="color:#fff;font-size:1rem;font-weight:700;margin-bottom:4px">Active Liquor Licenses — CB6</h2>
-    <p style="color:rgba(255,255,255,.65);font-size:.78rem;margin:0">Live pull from NYS Liquor Authority Mapping Project (LAMP). Filtered to the CB6 boundary.</p>
+    <h2 style="color:#fff;font-size:1rem;font-weight:700;margin-bottom:4px">Liquor Licenses — CB6</h2>
+    <p style="color:rgba(255,255,255,.65);font-size:.78rem;margin:0">Live data from the NYS Liquor Authority. Filtered to CB6. Full Liquor (bars &amp; restaurants) loaded by default — these are the licenses CB6 reviews.</p>
   </div>
   <div style="padding:16px 24px;background:#fff;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
     <div>
       <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:4px">License Category</label>
       <select id="lampCat" style="font-size:.85rem;padding:7px 10px;border:1.5px solid var(--border);border-radius:5px">
-        <option value="onsite">On-Site Consumption</option>
+        <option value="fullliquor">Full Liquor — Bars &amp; Restaurants</option>
+        <option value="onsite">All On-Premises (incl. Wine &amp; Beer)</option>
+        <option value="offpremises">Off-Premises (Liquor Stores, etc.)</option>
         <option value="all">All License Types</option>
       </select>
     </div>
@@ -2456,7 +2458,11 @@ async function lampQuery(){
     const lf=['LONGITUDE','Longitude','longitude'].find(f=>lampAllData[0]?.attributes[f]!=null);
     const la=['LATITUDE','Latitude','latitude'].find(f=>lampAllData[0]?.attributes[f]!=null);
     let cb6=lampAllData.filter(f=>{let lon,lat;if(f.geometry?.x!=null){lon=f.geometry.x;lat=f.geometry.y;}else if(lf&&la){lon=parseFloat(f.attributes[lf]);lat=parseFloat(f.attributes[la]);}else return false;return lon&&lat&&!isNaN(lon)&&!isNaN(lat)&&lampPIP(lon,lat);});
-    if(document.getElementById('lampCat').value==='onsite'){const tf=['LICENSE_TYPE_NAME','LicenseTypeName','PRIMOCAT','LICENSE_CLASS_CODE'].find(f=>cb6[0]?.attributes[f]!=null);if(tf)cb6=cb6.filter(f=>LAMP_ONSITE.some(t=>(f.attributes[tf]||'').trim().toUpperCase().startsWith(t)));}
+    const catVal=document.getElementById('lampCat').value;
+    const tf2=['LICENSE_TYPE_NAME','LicenseTypeName','PRIMOCAT','LICENSE_CLASS_CODE'].find(f=>cb6[0]?.attributes[f]!=null);
+    if(catVal==='fullliquor'){cb6=cb6.filter(f=>LAMP_ONSITE.some(t=>(f.attributes[tf2]||'').trim().toUpperCase().startsWith(t))&&lampBev(f.attributes)==='Full Liquor');}
+    else if(catVal==='onsite'){if(tf2)cb6=cb6.filter(f=>LAMP_ONSITE.some(t=>(f.attributes[tf2]||'').trim().toUpperCase().startsWith(t)));}
+    else if(catVal==='offpremises'){if(tf2)cb6=cb6.filter(f=>!LAMP_ONSITE.some(t=>(f.attributes[tf2]||'').trim().toUpperCase().startsWith(t)));}
     document.getElementById('lampBar').style.width='100%';
     lampStat(`${cb6.length} licenses within CB6.`,'#1a7a1a');
     lampAllData=lampFiltered=cb6;
