@@ -286,8 +286,70 @@ footer a{color:var(--orange);text-decoration:none}
     </div>
   </div>
 
-  <!-- Summary strip -->
-  <div id="c311Summary" style="display:none">
+  <!-- VIEW TOGGLE -->
+  <div style="display:flex;background:var(--navy);border-bottom:2px solid var(--orange)">
+    <button id="tab311Monthly" onclick="switch311Tab('monthly')" style="flex:1;padding:11px;background:var(--orange);border:none;color:#fff;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer">📋 Monthly Data</button>
+    <button id="tab311Trends" onclick="switch311Tab('trends')" style="flex:1;padding:11px;background:rgba(255,255,255,.07);border:none;color:rgba(255,255,255,.6);font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer">📈 Trends Over Time</button>
+  </div>
+
+  <!-- TRENDS PANEL -->
+  <div id="panel311Trends" style="display:none">
+
+    <!-- Controls -->
+    <div style="padding:16px 20px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">From Year</label>
+        <select id="trendFromYear" style="min-width:90px"></select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">To Year</label>
+        <select id="trendToYear" style="min-width:90px"></select>
+      </div>
+      <button onclick="loadTrends()" style="padding:9px 20px;background:var(--orange);color:#fff;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.88rem;font-weight:700;cursor:pointer;align-self:flex-end">Load Trends</button>
+      <div id="trendSpinner" style="display:none;align-self:flex-end;font-size:.75rem;font-family:'DM Mono',monospace;color:var(--muted)">Fetching data...</div>
+      <div id="trendError" style="display:none;color:#c81e1e;font-size:.78rem;font-family:'DM Mono',monospace;align-self:flex-end"></div>
+    </div>
+
+    <!-- Race chart -->
+    <div id="trendRacePanel" style="display:none;background:#fff;border-bottom:1px solid var(--border)">
+      <div style="padding:14px 20px 8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:.7rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:2px">Animated Bar Chart Race</div>
+          <div id="raceMonthLabel" style="font-size:1.4rem;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace;line-height:1"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button id="racePlayBtn" onclick="raceTogglePlay()" style="padding:8px 18px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:.82rem;font-weight:700;cursor:pointer;min-width:80px">▶ Play</button>
+          <button onclick="raceRestart()" style="padding:8px 12px;background:var(--off);color:var(--navy);border:1px solid var(--border);border-radius:6px;font-size:.82rem;cursor:pointer">↺</button>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:.7rem;font-family:'DM Mono',monospace;color:var(--muted)">Speed</span>
+            <input type="range" id="raceSpeed" min="200" max="2000" value="900" step="100"
+              style="width:80px;accent-color:var(--orange)" oninput="raceUpdateSpeed()">
+          </div>
+        </div>
+      </div>
+      <!-- Scrubber -->
+      <div style="padding:0 20px 10px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:.65rem;font-family:'DM Mono',monospace;color:var(--muted);white-space:nowrap" id="raceScrubMin"></span>
+        <input type="range" id="raceScrubber" min="0" value="0" style="flex:1;accent-color:var(--orange)" oninput="raceScrub(this.value)">
+        <span style="font-size:.65rem;font-family:'DM Mono',monospace;color:var(--muted);white-space:nowrap" id="raceScrubMax"></span>
+      </div>
+      <!-- Bars -->
+      <div id="raceBars" style="padding:0 20px 20px;display:flex;flex-direction:column;gap:7px"></div>
+    </div>
+
+    <!-- Line chart -->
+    <div id="trendLinePanel" style="display:none;padding:20px;background:var(--off)">
+      <div style="background:#fff;border-radius:10px;padding:16px 18px;border:1px solid var(--border)">
+        <div style="font-size:.7rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:12px">Monthly Complaints by Category — Line Chart</div>
+        <!-- Category toggles -->
+        <div id="lineToggles" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px"></div>
+        <div style="position:relative;height:260px">
+          <canvas id="trendLineChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </div>
     <div style="display:flex;background:#fff;border-bottom:1px solid var(--border);overflow-x:auto" id="c311SummaryStrip"></div>
 
     <!-- Category bars -->
@@ -334,6 +396,7 @@ footer a{color:var(--orange);text-decoration:none}
   </div>
   <div id="c311Error" style="display:none;padding:20px 24px;color:var(--no);font-family:'DM Mono',monospace;font-size:.8rem"></div>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 // ── API KEY ──
 const API_KEY = 'b913bdfb9c47466589d0f08c99c75b21';
@@ -1756,6 +1819,258 @@ function filter311Table() {
 
   if (rows.length > 500) {
     document.getElementById('c311TableBody').innerHTML += `<tr><td colspan="7" style="padding:12px 13px;text-align:center;font-size:.75rem;color:var(--muted);font-family:'DM Mono',monospace">Showing 500 of ${rows.length.toLocaleString()} — use the search to filter</td></tr>`;
+  }
+}
+
+// ── 311 TAB SWITCHER ──────────────────────────────────────────────────────
+function switch311Tab(tab) {
+  const monthly = tab === 'monthly';
+  document.getElementById('panel311Trends').style.display = monthly ? 'none' : 'block';
+  document.getElementById('c311Summary').style.display    = 'none'; // reset on switch
+  document.getElementById('c311Error').style.display      = 'none';
+  document.getElementById('tab311Monthly').style.background = monthly ? 'var(--orange)' : 'rgba(255,255,255,.07)';
+  document.getElementById('tab311Monthly').style.color    = monthly ? '#fff' : 'rgba(255,255,255,.6)';
+  document.getElementById('tab311Trends').style.background = monthly ? 'rgba(255,255,255,.07)' : 'var(--orange)';
+  document.getElementById('tab311Trends').style.color     = monthly ? 'rgba(255,255,255,.6)' : '#fff';
+}
+
+// ── TRENDS DATA & RACE ────────────────────────────────────────────────────
+(function initTrendYears() {
+  const now = new Date();
+  const fy = document.getElementById('trendFromYear');
+  const ty = document.getElementById('trendToYear');
+  for (let y = now.getFullYear(); y >= 2020; y--) {
+    [fy, ty].forEach(sel => {
+      const o = document.createElement('option');
+      o.value = y; o.textContent = y; sel.appendChild(o);
+    });
+  }
+  fy.value = '2022';
+  ty.value = now.getFullYear();
+})();
+
+let trendMonths = [];   // [{label:'Jan 2022', counts:{noise:32,...}}, ...]
+let raceFrame   = null;
+let raceIdx     = 0;
+let racePlaying = false;
+let raceIntervalMs = 900;
+let raceTimer   = null;
+let lineChart   = null;
+let hiddenCats  = new Set();
+
+async function loadTrends() {
+  const fromY = parseInt(document.getElementById('trendFromYear').value);
+  const toY   = parseInt(document.getElementById('trendToYear').value);
+  if (fromY > toY) { alert('From year must be ≤ To year'); return; }
+
+  document.getElementById('trendSpinner').style.display = 'block';
+  document.getElementById('trendError').style.display   = 'none';
+  document.getElementById('trendRacePanel').style.display = 'none';
+  document.getElementById('trendLinePanel').style.display = 'none';
+  raceStop();
+
+  try {
+    const start = `${fromY}-01-01T00:00:00`;
+    const end   = `${toY+1}-01-01T00:00:00`;
+    const url = `https://data.cityofnewyork.us/resource/erm2-nwe9.json?`
+      + `$select=date_trunc_ym(created_date)%20as%20mo,complaint_type,count(*)%20as%20n`
+      + `&$where=community_board='06%20BROOKLYN'%20AND%20created_date>='${start}'%20AND%20created_date<'${end}'`
+      + `&$group=mo,complaint_type&$limit=50000&$$app_token=${APP_TOKEN}`;
+
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`API ${resp.status}`);
+    const rows = await resp.json();
+
+    // Aggregate by month → category
+    const byMonth = {};
+    rows.forEach(r => {
+      const mo = (r.mo || '').substring(0, 7); // "2022-03"
+      if (!mo) return;
+      const cat = categorize(r.complaint_type);
+      if (!byMonth[mo]) byMonth[mo] = {};
+      byMonth[mo][cat] = (byMonth[mo][cat] || 0) + parseInt(r.n || 0);
+    });
+
+    const sorted = Object.keys(byMonth).sort();
+    const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    trendMonths = sorted.map(key => {
+      const [y, m] = key.split('-');
+      return { key, label: `${MONTHS_SHORT[parseInt(m)-1]} ${y}`, counts: byMonth[key] };
+    });
+
+    if (!trendMonths.length) throw new Error('No data returned for that range.');
+
+    buildLineChart();
+    raceIdx = 0;
+    buildRaceScrubber();
+    renderRaceFrame(0);
+    document.getElementById('trendRacePanel').style.display = 'block';
+    document.getElementById('trendLinePanel').style.display = 'block';
+  } catch(e) {
+    document.getElementById('trendError').textContent = '⚠ ' + e.message;
+    document.getElementById('trendError').style.display = 'block';
+  } finally {
+    document.getElementById('trendSpinner').style.display = 'none';
+  }
+}
+
+// ── BAR RACE ─────────────────────────────────────────────────────────────
+function buildRaceScrubber() {
+  const s = document.getElementById('raceScrubber');
+  s.max = trendMonths.length - 1;
+  s.value = 0;
+  document.getElementById('raceScrubMin').textContent = trendMonths[0].label;
+  document.getElementById('raceScrubMax').textContent = trendMonths[trendMonths.length-1].label;
+}
+
+function renderRaceFrame(idx) {
+  const mo = trendMonths[idx];
+  document.getElementById('raceMonthLabel').textContent = mo.label;
+  document.getElementById('raceScrubber').value = idx;
+
+  const cats = Object.keys(CAT_LABELS);
+  const vals = cats.map(c => ({ cat: c, n: mo.counts[c] || 0 }));
+  vals.sort((a, b) => b.n - a.n);
+  const maxN = vals[0]?.n || 1;
+
+  const container = document.getElementById('raceBars');
+  // Build or update bars
+  const html = vals.map((v, rank) => {
+    const pct = Math.max(2, (v.n / maxN) * 100);
+    const color = CAT_COLORS[v.cat] || '#ccc';
+    return `<div style="display:flex;align-items:center;gap:8px">
+      <div style="width:145px;font-size:.72rem;font-weight:600;color:var(--navy);text-align:right;flex-shrink:0">${CAT_LABELS[v.cat]}</div>
+      <div style="flex:1;background:#f0f0ee;border-radius:3px;height:24px;overflow:hidden;position:relative">
+        <div style="height:100%;width:${pct.toFixed(1)}%;background:${color};border-radius:3px;transition:width .35s ease;display:flex;align-items:center;padding-left:8px;min-width:2px">
+          ${v.n > 0 ? `<span style="font-size:.65rem;font-family:'DM Mono',monospace;color:#fff;font-weight:700;white-space:nowrap">${v.n.toLocaleString()}</span>` : ''}
+        </div>
+      </div>
+      <div style="font-size:.68rem;font-family:'DM Mono',monospace;color:var(--muted);width:38px;text-align:right;flex-shrink:0">${((v.n / Object.values(mo.counts).reduce((a,b)=>a+b,0)||1)*100).toFixed(0)}%</div>
+    </div>`;
+  }).join('');
+  container.innerHTML = html;
+}
+
+function raceTogglePlay() {
+  if (racePlaying) raceStop(); else racePlay();
+}
+
+function racePlay() {
+  if (raceIdx >= trendMonths.length - 1) raceIdx = 0;
+  racePlaying = true;
+  document.getElementById('racePlayBtn').textContent = '⏸ Pause';
+  raceAdvance();
+}
+
+function raceAdvance() {
+  if (!racePlaying) return;
+  renderRaceFrame(raceIdx);
+  if (raceIdx < trendMonths.length - 1) {
+    raceIdx++;
+    raceTimer = setTimeout(raceAdvance, raceIntervalMs);
+  } else {
+    raceStop();
+  }
+}
+
+function raceStop() {
+  racePlaying = false;
+  clearTimeout(raceTimer);
+  document.getElementById('racePlayBtn').textContent = '▶ Play';
+}
+
+function raceRestart() {
+  raceStop();
+  raceIdx = 0;
+  renderRaceFrame(0);
+}
+
+function raceScrub(val) {
+  raceStop();
+  raceIdx = parseInt(val);
+  renderRaceFrame(raceIdx);
+}
+
+function raceUpdateSpeed() {
+  const raw = parseInt(document.getElementById('raceSpeed').value);
+  raceIntervalMs = 2200 - raw; // invert so right = faster
+}
+
+// ── LINE CHART ─────────────────────────────────────────────────────────────
+function buildLineChart() {
+  if (lineChart) { lineChart.destroy(); lineChart = null; }
+
+  const labels  = trendMonths.map(m => m.label);
+  const cats    = Object.keys(CAT_LABELS);
+
+  // Build toggles
+  const toggleDiv = document.getElementById('lineToggles');
+  toggleDiv.innerHTML = cats.map(c => {
+    const color = CAT_COLORS[c] || '#ccc';
+    const hidden = hiddenCats.has(c);
+    return `<button onclick="toggleLineCat('${c}')" id="lineToggle_${c}"
+      style="padding:4px 10px;border-radius:12px;font-size:.7rem;font-weight:700;cursor:pointer;border:2px solid ${color};
+             background:${hidden ? 'transparent' : color};color:${hidden ? color : '#fff'};font-family:'DM Sans',sans-serif">
+      ${CAT_LABELS[c]}</button>`;
+  }).join('');
+
+  const datasets = cats.map(c => ({
+    label: CAT_LABELS[c],
+    data: trendMonths.map(m => m.counts[c] || 0),
+    borderColor: CAT_COLORS[c] || '#ccc',
+    backgroundColor: (CAT_COLORS[c] || '#ccc') + '22',
+    tension: 0.35,
+    fill: false,
+    pointRadius: labels.length > 36 ? 0 : 3,
+    borderWidth: 2,
+    hidden: hiddenCats.has(c),
+  }));
+
+  const ctx = document.getElementById('trendLineChart').getContext('2d');
+  lineChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => items[0].label,
+            label: item => ` ${item.dataset.label}: ${item.parsed.y.toLocaleString()}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { font: { size: 9, family: 'DM Mono' }, maxRotation: 45,
+            autoSkip: true, maxTicksLimit: 18 },
+          grid: { color: '#e5e2db' }
+        },
+        y: {
+          ticks: { font: { size: 9, family: 'DM Mono' } },
+          grid: { color: '#e5e2db' }
+        }
+      }
+    }
+  });
+}
+
+function toggleLineCat(cat) {
+  if (!lineChart) return;
+  const ds = lineChart.data.datasets.find(d => d.label === CAT_LABELS[cat]);
+  if (!ds) return;
+  ds.hidden = !ds.hidden;
+  if (ds.hidden) hiddenCats.add(cat); else hiddenCats.delete(cat);
+  lineChart.update();
+  // Update toggle button style
+  const color = CAT_COLORS[cat] || '#ccc';
+  const btn = document.getElementById(`lineToggle_${cat}`);
+  if (btn) {
+    btn.style.background = ds.hidden ? 'transparent' : color;
+    btn.style.color = ds.hidden ? color : '#fff';
   }
 }
 
