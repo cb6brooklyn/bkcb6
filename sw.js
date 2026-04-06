@@ -1,7 +1,5 @@
-const CACHE = "cb6-v4";
+const CACHE = "cb6-v5";
 const OFFLINE = [
-  "/bkcb6/",
-  "/bkcb6/index.html",
   "/bkcb6/og-image.png",
   "/bkcb6/manifest.json"
 ];
@@ -19,6 +17,15 @@ self.addEventListener("activate", e => {
 });
 
 self.addEventListener("fetch", e => {
+  const url = e.request.url;
+  // Never cache HTML — always fetch fresh
+  if (url.endsWith('.html') || url.includes('/bkcb6/') && !url.includes('.')) {
+    e.respondWith(
+      fetch(e.request).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+  // Network-first for everything else
   e.respondWith(
     fetch(e.request)
       .then(r => {
@@ -26,6 +33,6 @@ self.addEventListener("fetch", e => {
         caches.open(CACHE).then(c => c.put(e.request, clone));
         return r;
       })
-      .catch(() => caches.match(e.request).then(r => r || caches.match("/bkcb6/")))
+      .catch(() => caches.match(e.request))
   );
 });
