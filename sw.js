@@ -1,4 +1,4 @@
-const CACHE = "cb6-v2";
+const CACHE = "cb6-v3";
 const OFFLINE = [
   "/bkcb6/",
   "/bkcb6/index.html",
