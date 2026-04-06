@@ -16,10 +16,7 @@
 <title>📅 Calendar — CB6</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&display=swap');
-:root {
-  --navy:#0d1b4b; --orange:#f47920;
-  --off:#f8f7f4; --border:#e5e2db; --muted:#6b6760;
-}
+:root{--navy:#0d1b4b;--orange:#f47920;--off:#f8f7f4;--border:#e5e2db;--muted:#6b6760}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
 header{background:var(--navy);border-bottom:4px solid var(--orange)}
@@ -38,19 +35,49 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
 .cal-dow{text-align:center;font-size:.6rem;font-weight:700;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:6px 0}
 .cal-dow.wknd{color:var(--orange)}
-.cal-day{background:#fff;border:1.5px solid var(--border);border-radius:7px;min-height:88px;padding:7px 6px 6px;display:flex;flex-direction:column;gap:3px;transition:border-color .12s}
-.cal-day:hover{border-color:#aaa}
+/* Day cells */
+.cal-day{background:#fff;border:1.5px solid var(--border);border-radius:7px;min-height:88px;padding:7px 6px 6px;display:flex;flex-direction:column;gap:3px;cursor:pointer;transition:border-color .12s}
+.cal-day:hover{border-color:#999}
 .cal-day.today{border:2px solid var(--orange);background:#fffaf5}
-.cal-day.other-month{background:#f5f5f3;border-color:#ebe9e4}
+.cal-day.selected{border:2px solid var(--navy);background:#eef2ff}
+.cal-day.other-month{background:#f5f5f3;border-color:#ebe9e4;cursor:default}
 .cal-day.wknd-day{background:#fafaf8}
-.day-num{font-size:.7rem;font-weight:700;font-family:'DM Mono',monospace;color:var(--navy);line-height:1;margin-bottom:1px}
+.day-num{font-size:.7rem;font-weight:700;font-family:'DM Mono',monospace;color:var(--navy);line-height:1;margin-bottom:2px}
 .cal-day.today .day-num{color:var(--orange)}
-.cal-day.other-month .day-num{color:#bbb}
+.cal-day.other-month .day-num{color:#ccc}
+/* Desktop: text pills */
 .ev{border-radius:4px;padding:2px 5px;font-size:.58rem;font-weight:700;line-height:1.35;display:flex;align-items:center;gap:3px;overflow:hidden}
 .ev span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Mobile: dots */
+.dot-row{display:none;flex-wrap:wrap;gap:3px;margin-top:2px}
+.dot{width:9px;height:9px;border-radius:50%}
+/* Detail panel (mobile tap) */
+#day-detail{display:none;margin-top:12px;background:#fff;border:2px solid var(--navy);border-radius:10px;overflow:hidden}
+#detail-head{background:var(--navy);padding:10px 14px;display:flex;align-items:center;justify-content:space-between}
+#detail-head span{color:#fff;font-size:.9rem;font-weight:700}
+#detail-head button{background:none;border:none;color:rgba(255,255,255,.6);font-size:1.1rem;cursor:pointer;line-height:1;padding:0}
+#detail-body{padding:10px 14px;display:flex;flex-direction:column;gap:7px}
+.det-ev{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px}
+.det-ev-text{font-size:.82rem;font-weight:600;color:#fff;line-height:1.4}
+/* Legend */
 .legend{display:flex;flex-wrap:wrap;gap:8px;padding:11px 20px;background:var(--navy);border-top:1px solid rgba(255,255,255,.08)}
 .leg{display:flex;align-items:center;gap:5px;font-size:.64rem;font-weight:600;color:rgba(255,255,255,.75)}
 .leg-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+/* ── MOBILE ─────────────────────────────────────── */
+@media(max-width:600px){
+  .cal-wrap{padding:10px 8px}
+  .cal-grid{gap:3px}
+  .cal-dow{font-size:.55rem;padding:5px 0;letter-spacing:0}
+  .cal-day{min-height:54px;padding:5px 4px 4px;border-radius:5px;gap:0}
+  .day-num{font-size:.72rem}
+  .ev{display:none}
+  .dot-row{display:flex}
+  .cal-month{font-size:1rem;letter-spacing:.02em}
+  .cal-nav button{padding:8px 12px;font-size:.78rem}
+  .legend{gap:6px;padding:9px 12px}
+  .leg{font-size:.6rem}
+  .leg-dot{width:8px;height:8px}
+}
 </style>
 </head>
 <body>
@@ -90,6 +117,14 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   </div>
   <div class="cal-grid" id="cal-dow"></div>
   <div class="cal-grid" id="cal-body" style="margin-top:5px"></div>
+  <!-- Mobile tap detail panel -->
+  <div id="day-detail">
+    <div id="detail-head">
+      <span id="detail-title"></span>
+      <button onclick="closeDetail()">✕</button>
+    </div>
+    <div id="detail-body"></div>
+  </div>
 </div>
 
 <div style="padding:10px 24px;background:#f8f8f6;border-top:1px solid var(--border);font-size:.65rem;color:rgba(107,103,96,.4)">
@@ -215,17 +250,50 @@ function cell(d, key, other, today, weekend){
   if(other)   cls += ' other-month';
   if(today)   cls += ' today';
   if(weekend && !other) cls += ' wknd-day';
-  const evs = (EVENTS[key]||[]).map(ev=>{
+  const evs = EVENTS[key] || [];
+  const tap = other ? '' : `onclick="selectDay('${key}','${d}')"`;
+  // Desktop: text pills
+  const pills = evs.map(ev=>{
     const t = TYPES[ev.type]||TYPES.community;
     return `<div class="ev" style="background:${t.bg};color:${t.color}">${t.icon}<span>${ev.label}</span></div>`;
   }).join('');
-  return `<div class="${cls}"><div class="day-num">${d}</div>${evs}</div>`;
+  // Mobile: colored dots
+  const dots = evs.length
+    ? `<div class="dot-row">${evs.map(ev=>`<div class="dot" style="background:${(TYPES[ev.type]||TYPES.community).bg}"></div>`).join('')}</div>`
+    : '';
+  return `<div class="${cls}" ${tap}><div class="day-num">${d}</div>${pills}${dots}</div>`;
+}
+
+const MONTH_NAMES_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function selectDay(key, d){
+  const evs = EVENTS[key] || [];
+  // Highlight selected cell
+  document.querySelectorAll('.cal-day.selected').forEach(el=>el.classList.remove('selected'));
+  const cells = document.querySelectorAll('#cal-body .cal-day');
+  cells.forEach(el=>{if(el.getAttribute('onclick')===`selectDay('${key}','${d}')`)el.classList.add('selected');});
+  const panel = document.getElementById('day-detail');
+  if(!evs.length){ panel.style.display='none'; return; }
+  document.getElementById('detail-title').textContent =
+    `${MONTH_NAMES_LONG[viewMonth]} ${d}, ${viewYear}`;
+  document.getElementById('detail-body').innerHTML = evs.map(ev=>{
+    const t = TYPES[ev.type]||TYPES.community;
+    return `<div class="det-ev" style="background:${t.bg}"><span style="font-size:1.1rem">${t.icon}</span><div class="det-ev-text">${ev.label}</div></div>`;
+  }).join('');
+  panel.style.display = 'block';
+  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function closeDetail(){
+  document.getElementById('day-detail').style.display='none';
+  document.querySelectorAll('.cal-day.selected').forEach(el=>el.classList.remove('selected'));
 }
 
 function changeMonth(dir){
   viewMonth += dir;
   if(viewMonth>11){viewMonth=0;viewYear++;}
   if(viewMonth<0) {viewMonth=11;viewYear--;}
+  closeDetail();
   renderMonth();
 }
 
