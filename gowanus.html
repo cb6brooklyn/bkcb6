@@ -260,6 +260,7 @@ footer a{color:var(--orange);text-decoration:none}
     <div style="display:flex;flex-direction:column;gap:6px">
       <a href="#gowanus-map" style="color:#fff;font-size:.92rem;font-weight:800;text-decoration:none;padding:10px 14px;background:rgba(255,255,255,.1);border-radius:6px;border-left:4px solid var(--orange)">🗺 Gowanus Rezoning Map</a>
       <a href="#gowanus-ch9" style="color:#fff;font-size:.92rem;font-weight:800;text-decoration:none;padding:10px 14px;background:rgba(255,255,255,.1);border-radius:6px;border-left:4px solid var(--orange)">📋 Gowanus Rezoning Text</a>
+      <a href="#gowanus-timeline" style="color:#fff;font-size:.92rem;font-weight:800;text-decoration:none;padding:10px 14px;background:rgba(255,255,255,.1);border-radius:6px;border-left:4px solid var(--orange)">📅 Rezoning Timeline</a>
     </div>
   </div>
 
@@ -286,6 +287,13 @@ footer a{color:var(--orange);text-decoration:none}
       #gowanus-toc{display:block!important}
     }
   </style>
+
+  <!-- TIMELINE -->
+  <div id="gowanus-timeline" style="background:#fff;border-top:3px solid var(--orange);padding:20px 20px 28px">
+    <div style="font-size:.7rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:16px;border-left:3px solid var(--orange);padding-left:8px">Gowanus Rezoning Timeline (2018–2021)</div>
+    <div id="gowanus-tl-inner"></div>
+  </div>
+
 </div>
 
 <style>
@@ -459,5 +467,111 @@ footer a{color:var(--orange);text-decoration:none}
       </div>
     `;
   })();
+</script>
+
+<script>
+(function(){
+  const MILESTONES = [
+    { date:"2018", label:"Application Filed", desc:"DCP files application 2018K0382 to begin the Gowanus neighborhood planning study.", type:"pre", link:"https://zap.planning.nyc.gov/projects/2018K0382" },
+    { date:"2018–2020", label:"Bridging Gowanus", desc:"DCP holds community engagement sessions to gather input on the future of the Gowanus neighborhood.", type:"pre" },
+    { date:"Dec 7, 2020", label:"ULURP Certification Announced", desc:"DCP emails stakeholders that it expects to certify the rezoning into public review on January 19, 2021.", type:"pre" },
+    { date:"Jan 19, 2021", label:"Certification Blocked by TRO", desc:"Voice of Gowanus files lawsuit arguing virtual hearings violate the City Charter. A judge issues a temporary restraining order blocking certification.", type:"legal" },
+    { date:"Jan 29, 2021", label:"Court Partial Ruling", desc:"Judge allows DCP to release the land use application documents but not certify the rezoning. Legal dispute continues.", type:"legal" },
+    { date:"Feb 2021", label:"Zoning Text & Maps Published", desc:"DCP publishes proposed zoning text and maps on ZAP. The Special Gowanus Mixed Use District framework is made public.", type:"pre" },
+    { date:"Apr 19, 2021", label:"ULURP Certified", desc:"After the TRO is lifted, the City Planning Commission certifies the rezoning — officially starting the ULURP clock. 60-day CB window begins.", type:"ulurp", link:"https://zap.planning.nyc.gov/projects/2018K0382" },
+    { date:"Jun 3, 2021", label:"CB6 Public Hearing", desc:"CB6 holds a large hybrid in-person/online public hearing on the Gowanus Neighborhood Plan, with additional opportunities for public input ordered by the court.", type:"cb6" },
+    { date:"Jun 17, 2021", label:"CB6 Land Use Committee Vote", desc:"CB6's Land Use Committee votes 8–5 to approve the rezoning with a lengthy list of conditions, including NYCHA funding and a Gowanus Oversight Task Force.", type:"cb6" },
+    { date:"Jun 23, 2021", label:"CB6 Full Board Vote", desc:"CB6's Full Board votes 28–6 to approve with modifications. CB2, which covers a small portion of the area, voted to deny.", type:"cb6" },
+    { date:"Aug 13, 2021", label:"Borough President Announces Support", desc:"BP Eric Adams holds a press conference at Gowanus Houses announcing his support for the rezoning with conditions.", type:"bp" },
+    { date:"Aug 30, 2021", label:"Borough President Formal Approval", desc:"BP Adams issues formal approval with 38 recommendations, including deep affordability requirements and NYCHA repair commitments.", type:"bp" },
+    { date:"Sep 10, 2021", label:"Final Environmental Impact Statement", desc:"DCP releases the Final EIS responding to concerns about stormwater, CSO pollution, and flooding impacts on the Gowanus Canal Superfund site.", type:"cpc" },
+    { date:"Sep 22, 2021", label:"CPC Votes 9–0 to Approve", desc:"The City Planning Commission votes 9–0 (one abstention) in favor of the Gowanus Neighborhood Plan. 50-day City Council window begins.", type:"cpc" },
+    { date:"Oct 12, 2021", label:"City Council Public Hearing", desc:"The City Council holds a five-hour public hearing on the rezoning, with testimony from developers, neighbors, and stakeholders.", type:"council" },
+    { date:"Nov 10, 2021", label:"City Council Approves & Points of Agreement", desc:"City Council approves the rezoning. Simultaneously, Council Members Lander and Levin announce a Points of Agreement with the City covering NYCHA repairs, affordable housing, and the Gowanus Oversight Task Force.", type:"council", link:"https://gowanuscanalconservancy.org/rezoning/" },
+    { date:"Nov 23, 2021", label:"Mayor Signs Into Law", desc:"Mayor de Blasio signs the Gowanus Neighborhood Plan into law. The rezoning is official.", type:"final" },
+    { date:"Dec 2021", label:"Gowanus Oversight Task Force Formed", desc:"GOTF steering committee holds its first meeting to begin monitoring the 56 commitments made by the City during the rezoning process.", type:"final" },
+  ];
+
+  const TYPE_COLORS = {
+    pre:"#6b7280", legal:"#c81e1e", ulurp:"#6b21a8",
+    cb6:"#1a56db", bp:"#0891b2", cpc:"#f47920", council:"#2d6a4f", final:"#0d1b4b"
+  };
+  const TYPE_LABELS = {
+    pre:"Pre-ULURP", legal:"Legal Challenge", ulurp:"ULURP Start",
+    cb6:"CB6", bp:"Borough President", cpc:"City Planning Commission", council:"City Council", final:"Enacted"
+  };
+
+  let active = null;
+
+  const container = document.getElementById('gowanus-tl-inner');
+  if (!container) return;
+
+  // Legend
+  const legend = document.createElement('div');
+  legend.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px';
+  Object.entries(TYPE_LABELS).forEach(([k,v]) => {
+    const el = document.createElement('div');
+    el.style.cssText = `display:flex;align-items:center;gap:5px;font-size:.68rem;font-family:DM Mono,monospace;cursor:pointer`;
+    el.innerHTML = `<div style="width:10px;height:10px;border-radius:50%;background:${TYPE_COLORS[k]};flex-shrink:0"></div>${v}`;
+    legend.appendChild(el);
+  });
+  container.appendChild(legend);
+
+  // Timeline track
+  const track = document.createElement('div');
+  track.style.cssText = 'position:relative;padding-left:24px';
+
+  // Vertical line
+  const line = document.createElement('div');
+  line.style.cssText = 'position:absolute;left:8px;top:6px;bottom:6px;width:2px;background:#e5e2db';
+  track.appendChild(line);
+
+  MILESTONES.forEach((m, i) => {
+    const color = TYPE_COLORS[m.type] || '#ccc';
+
+    const row = document.createElement('div');
+    row.style.cssText = 'position:relative;margin-bottom:4px';
+
+    // Dot
+    const dot = document.createElement('div');
+    dot.style.cssText = `position:absolute;left:-20px;top:14px;width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 0 2px ${color};cursor:pointer;transition:transform .15s;z-index:1`;
+
+    // Header button
+    const btn = document.createElement('button');
+    btn.style.cssText = `width:100%;text-align:left;background:none;border:none;padding:8px 10px 8px 0;cursor:pointer;font-family:DM Sans,sans-serif;display:flex;align-items:baseline;gap:10px;border-radius:6px`;
+    btn.innerHTML = `
+      <span style="font-size:.65rem;font-family:DM Mono,monospace;color:#9ca3af;white-space:nowrap;flex-shrink:0;min-width:82px">${m.date}</span>
+      <span style="font-size:.84rem;font-weight:700;color:#0d1b4b;line-height:1.3">${m.label}</span>
+      <span style="font-size:.65rem;font-family:DM Mono,monospace;color:${color};margin-left:auto;padding:2px 7px;border-radius:10px;background:${color}18;white-space:nowrap;flex-shrink:0">${TYPE_LABELS[m.type]}</span>
+    `;
+
+    // Detail panel
+    const detail = document.createElement('div');
+    detail.style.cssText = `display:none;margin:0 0 6px 0;padding:10px 14px;background:${color}0d;border-left:3px solid ${color};border-radius:0 6px 6px 0;font-size:.78rem;color:#374151;line-height:1.6`;
+    let detailHTML = m.desc;
+    if (m.link) detailHTML += ` <a href="${m.link}" target="_blank" style="color:${color};font-weight:600;text-decoration:none">View ↗</a>`;
+    detail.innerHTML = detailHTML;
+
+    btn.onclick = () => {
+      const isOpen = detail.style.display === 'block';
+      // Close all
+      track.querySelectorAll('.tl-detail').forEach(d => d.style.display = 'none');
+      track.querySelectorAll('.tl-dot').forEach(d => d.style.transform = 'scale(1)');
+      if (!isOpen) {
+        detail.style.display = 'block';
+        dot.style.transform = 'scale(1.3)';
+      }
+    };
+    dot.classList.add('tl-dot');
+    detail.classList.add('tl-detail');
+
+    row.appendChild(dot);
+    row.appendChild(btn);
+    row.appendChild(detail);
+    track.appendChild(row);
+  });
+
+  container.appendChild(track);
+})();
 </script>
 </html>
