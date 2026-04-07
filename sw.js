@@ -1,4 +1,4 @@
-const CACHE = "cb6-v5";
+const CACHE = "cb6-v6";
 const OFFLINE = [
   "/bkcb6/og-image.png",
   "/bkcb6/manifest.json"
