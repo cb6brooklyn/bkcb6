@@ -1,55 +1,51 @@
+// Shared TOC: renders inline toggle after intro + back-to-top after sections
 (function(){
   const TOC = window.PAGE_TOC;
   if (!TOC || !TOC.length) return;
 
-  const btn = document.createElement('button');
-  btn.id = 'toc-btn';
-  btn.innerHTML = '☰ Contents';
-  btn.style.cssText = 'position:fixed;bottom:20px;right:16px;z-index:8000;background:#0d1b4b;color:#fff;border:2px solid #f47920;border-radius:24px;padding:9px 16px;font-family:"DM Sans",sans-serif;font-size:.78rem;font-weight:700;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.25);transition:transform .15s';
+  // ── INLINE TOC TOGGLE ────────────────────────────────────────────────
+  const anchor = document.getElementById('toc-insert');
+  if (anchor) {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'border-top:1px solid #e5e2db;background:#f8f7f4';
 
-  const backdrop = document.createElement('div');
-  backdrop.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:8001';
+    const btn = document.createElement('button');
+    btn.style.cssText = 'width:100%;padding:11px 20px;background:none;border:none;text-align:left;cursor:pointer;font-family:"DM Sans",sans-serif;display:flex;align-items:center;justify-content:space-between;font-size:.82rem;font-weight:700;color:#0d1b4b';
+    btn.innerHTML = '📋 Table of Contents <span style="font-size:.72rem;color:#6b6760;font-weight:400">▼</span>';
 
-  const panel = document.createElement('div');
-  panel.style.cssText = 'display:none;position:fixed;bottom:0;left:0;right:0;z-index:8002;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,.18);max-height:75vh;overflow-y:auto;font-family:"DM Sans",sans-serif';
+    const list = document.createElement('div');
+    list.style.cssText = 'display:none;padding:4px 0 12px';
 
-  panel.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px 10px;border-bottom:1px solid #e5e2db;position:sticky;top:0;background:#fff;z-index:1">
-      <div style="font-size:.7rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#0d1b4b;font-weight:700">On This Page</div>
-      <button id="toc-close" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#9ca3af;padding:4px;line-height:1">✕</button>
-    </div>
-    <div style="padding:8px 0 24px">
-      ${TOC.map(item => `
-        <a href="${item.href}" onclick="closeTOC()" style="display:flex;align-items:center;gap:12px;padding:12px 20px;text-decoration:none;border-bottom:1px solid #f3f0eb">
-          <span style="font-size:1rem;flex-shrink:0">${item.icon}</span>
-          <div>
-            <div style="font-size:.88rem;font-weight:700;color:#0d1b4b">${item.label}</div>
-            ${item.sub ? `<div style="font-size:.72rem;color:#6b6760;margin-top:1px">${item.sub}</div>` : ''}
-          </div>
-          <span style="margin-left:auto;color:#f47920;font-size:.8rem;font-weight:700">↓</span>
-        </a>`).join('')}
-    </div>
-  `;
+    TOC.forEach(item => {
+      const a = document.createElement('a');
+      a.href = item.href;
+      a.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 20px;text-decoration:none;border-bottom:1px solid #f0ede8';
+      a.innerHTML = `<span style="font-size:.9rem;flex-shrink:0">${item.icon}</span>
+        <div style="flex:1">
+          <div style="font-size:.82rem;font-weight:700;color:#0d1b4b">${item.label}</div>
+          ${item.sub ? `<div style="font-size:.7rem;color:#6b6760">${item.sub}</div>` : ''}
+        </div>
+        <span style="color:#f47920;font-size:.75rem;font-weight:700">↓</span>`;
+      a.onclick = () => { list.style.display='none'; btn.querySelector('span').textContent='▼'; };
+      list.appendChild(a);
+    });
 
-  document.body.appendChild(backdrop);
-  document.body.appendChild(panel);
-  document.body.appendChild(btn);
+    btn.onclick = () => {
+      const open = list.style.display === 'block';
+      list.style.display = open ? 'none' : 'block';
+      btn.querySelector('span').textContent = open ? '▼' : '▲';
+    };
 
-  function openTOC() {
-    panel.style.display = 'block';
-    backdrop.style.display = 'block';
-    btn.style.transform = 'scale(.95)';
+    wrap.appendChild(btn);
+    wrap.appendChild(list);
+    anchor.parentNode.insertBefore(wrap, anchor.nextSibling);
   }
-  window.closeTOC = function() {
-    panel.style.display = 'none';
-    backdrop.style.display = 'none';
-    btn.style.transform = 'scale(1)';
-  };
 
-  btn.onclick = openTOC;
-  backdrop.onclick = closeTOC;
-  document.addEventListener('DOMContentLoaded', () => {
-    const cl = document.getElementById('toc-close');
-    if (cl) cl.onclick = closeTOC;
+  // ── BACK TO TOP ──────────────────────────────────────────────────────
+  document.querySelectorAll('[data-back-top]').forEach(el => {
+    const div = document.createElement('div');
+    div.style.cssText = 'padding:8px 20px;background:#f8f7f4;border-top:1px solid #e5e2db;text-align:right';
+    div.innerHTML = '<a href="#" onclick="window.scrollTo({top:0,behavior:\'smooth\'});return false" style="font-size:.72rem;font-family:\'DM Mono\',monospace;color:#9ca3af;text-decoration:none;font-weight:600">↑ Back to top</a>';
+    el.parentNode.insertBefore(div, el.nextSibling);
   });
 })();
