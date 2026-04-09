@@ -608,102 +608,127 @@ footer a{color:var(--orange);text-decoration:none}
       </button><span style="font-size:.75rem;color:var(--muted)">▼</span>
       </button>
       <div style="display:none">
-        <div style="border:1px solid #e5e2db;border-radius:8px;overflow:hidden;margin:0 0 12px">
-  <button id="map-toggle-855" onclick="var c=document.getElementById('map-content-855');var open=c.style.display!=='none';c.style.display=open?'none':'block';this.querySelector('.arr').textContent=open?'▼':'▲'" style="width:100%;padding:12px 16px;background:#f8f7f4;border:none;text-align:left;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;justify-content:space-between;align-items:center;font-size:.85rem;font-weight:700;color:#0d1b4b">
-    <span>🗺 CB6 Land Use Group Map</span>
-    <span class="arr" style="font-size:.75rem;color:#6b6760">▼</span>
-  </button>
-  <div id="map-content-855" style="display:none">
-    <iframe width="100%" height="488" frameborder="0" title="Felt Map" src="https://felt.com/embed/map/CB6-Land-Use-Use-Group-Map-huVR9BOTuREuAV8Sqve147B?loc=40.66782%2C-74.00607%2C13.63z&legend=1&cooperativeGestures=1&link=1&geolocation=0&zoomControls=1&scaleBar=1" referrerpolicy="strict-origin-when-cross-origin" style="display:block"></iframe>
-    <div style="padding:8px 16px;background:#f8f7f4;border-top:1px solid #e5e2db;font-size:.7rem;color:#6b6760">
-      Map not loading? <a href="https://felt.com/map/CB6-Land-Use-Use-Group-Map-huVR9BOTuREuAV8Sqve147B" target="_blank" style="color:#f47920;font-weight:600">Open full map on Felt ↗</a>
-    </div>
-  </div>
-</div>
+        <!-- LEAFLET LAND USE MAP -->
+        <div id="lu-leaflet-wrap" style="position:relative;background:#f8f7f4;border-radius:8px;overflow:hidden;margin:0 0 12px;border:1px solid #e5e2db">
+          <div id="lu-map" style="width:100%;height:500px"></div>
+          <!-- Legend -->
+          <div id="lu-legend" style="position:absolute;bottom:28px;right:10px;background:rgba(255,255,255,.95);border:1px solid #e5e2db;border-radius:8px;padding:10px 14px;font-family:'DM Sans',sans-serif;font-size:.7rem;z-index:1000;max-width:200px;box-shadow:0 2px 8px rgba(0,0,0,.12)">
+            <div style="font-weight:700;color:#0d1b4b;margin-bottom:8px;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Land Use</div>
+            <div id="lu-legend-items"></div>
+          </div>
+        </div>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+        <script>
+        (function(){
+          if(window._luMapInit) return;
+          window._luMapInit = true;
+          const LU_COLORS = {
+            'One & Two Family':        '#f59e0b',
+            'Multi-Family Walkup':     '#3b82f6',
+            'Multi-Family Elevator':   '#1d4ed8',
+            'Mixed Residential/Commercial': '#8b5cf6',
+            'Commercial/Office':       '#f47920',
+            'Industrial/Manufacturing':'#6b7280',
+            'Public Facilities/Institutions':'#10b981',
+            'Parks/Open Space':        '#22c55e',
+            'Transportation/Utility':  '#94a3b8',
+            'Parking':                 '#fbbf24',
+            'Vacant Land':             '#e5e7eb',
+            'Unknown':                 '#d1d5db',
+          };
+          var map = L.map('lu-map', {
+            center: [40.674, -73.997],
+            zoom: 14,
+            zoomControl: true
+          });
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://carto.com">CARTO</a>',
+            subdomains: 'abcd', maxZoom: 19
+          }).addTo(map);
+
+          // CB6 boundary
+          fetch('https://cb6brooklyn.github.io/bkcb6/cb6_boundary.geojson')
+            .then(r=>r.json()).then(data=>{
+              L.geoJSON(data,{style:{color:'#f47920',weight:3,fill:false}}).addTo(map);
+            });
+
+          // Land use layer
+          fetch('https://cb6brooklyn.github.io/bkcb6/cb6_landuse_dissolved.geojson')
+            .then(r=>r.json()).then(data=>{
+              L.geoJSON(data,{
+                style:function(f){
+                  var c = LU_COLORS[f.properties.land_use] || '#ccc';
+                  return {color:'#fff',weight:0.5,fillColor:c,fillOpacity:0.7};
+                },
+                onEachFeature:function(f,layer){
+                  layer.bindPopup('<b>'+f.properties.land_use+'</b>');
+                }
+              }).addTo(map);
+              // Build legend
+              var leg = document.getElementById('lu-legend-items');
+              Object.entries(LU_COLORS).forEach(function([k,c]){
+                leg.innerHTML += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><div style="width:12px;height:12px;border-radius:2px;background:'+c+';flex-shrink:0"></div><span>'+k+'</span></div>';
+              });
+            });
+
+          // Zones overlay
+          fetch('https://cb6brooklyn.github.io/bkcb6/cb6_zones.geojson')
+            .then(r=>r.json()).then(data=>{
+              L.geoJSON(data,{
+                style:function(f){
+                  return {color:f.properties.zone_color,weight:2,fill:false,dashArray:'4,3',opacity:0.8};
+                },
+                onEachFeature:function(f,layer){
+                  layer.bindPopup('<b>'+f.properties.zone_name+'</b><br>'+f.properties.zone_type);
+                }
+              }).addTo(map);
+            });
+        })();
+        </script>
       </div>
     </div>
 
     <div id="lu-zoning-map" style="border-bottom:1px solid var(--border)">
       <button onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='none'?'block':'none';this.querySelector('span').textContent=d.style.display==='block'?'▲':'▼'" style="width:100%;padding:14px 20px;background:#fff;border:none;text-align:left;font-weight:700;color:var(--navy);cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;justify-content:space-between;align-items:center;font-size:.9rem">
-        🗺 Zoning District Map<span style="font-size:.75rem;color:var(--muted)">▲</span>
-      </button>
-      <div style="display:block">
-        <div style="border:1px solid #e5e2db;border-radius:8px;overflow:hidden;margin:0 0 12px">
-  <button id="map-toggle-856" onclick="var c=document.getElementById('map-content-856');var open=c.style.display!=='none';c.style.display=open?'none':'block';this.querySelector('.arr').textContent=open?'▼':'▲'" style="width:100%;padding:12px 16px;background:#f8f7f4;border:none;text-align:left;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;justify-content:space-between;align-items:center;font-size:.85rem;font-weight:700;color:#0d1b4b">
-    <span>🗺 CB6 Zoning District Map</span>
-    <span class="arr" style="font-size:.75rem;color:#6b6760">▼</span>
-  </button>
-  <div id="map-content-856" style="display:none">
-    <iframe width="100%" height="488" frameborder="0" title="Felt Map" src="https://felt.com/embed/map/CB6-Zoning-District-Map-ZfAJiLfERMW0N9Bgvk2HtPD?loc=40.67459%2C-73.99844%2C13.31z&legend=1&cooperativeGestures=1&link=1&geolocation=0&zoomControls=1&scaleBar=1" referrerpolicy="strict-origin-when-cross-origin" style="display:block"></iframe>
-    <div style="padding:8px 16px;background:#f8f7f4;border-top:1px solid #e5e2db;font-size:.7rem;color:#6b6760">
-      Map not loading? <a href="https://felt.com/map/CB6-Zoning-District-Map-ZfAJiLfERMW0N9Bgvk2HtPD" target="_blank" style="color:#f47920;font-weight:600">Open full map on Felt ↗</a>
-    </div>
-  </div>
-</div>
-      </div>
-    </div>
-
-    <div style="border-bottom:1px solid var(--border)">
-      <button onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='none'?'block':'none';this.querySelector('span').textContent=d.style.display==='block'?'▲':'▼'" style="width:100%;padding:14px 20px;background:#fff;border:none;text-align:left;font-weight:700;color:var(--navy);cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;justify-content:space-between;align-items:center;font-size:.9rem">
-        🗺 (R) Residential Zoning Map<span style="font-size:.75rem;color:var(--muted)">▼</span>
+        🗺 Zoning District Map — R, C, M Zones<span style="font-size:.75rem;color:var(--muted)">▼</span>
       </button>
       <div style="display:none">
-        <div style="border:1px solid #e5e2db;border-radius:8px;overflow:hidden;margin:0 0 12px">
-  <button id="map-toggle-857" onclick="var c=document.getElementById('map-content-857');var open=c.style.display!=='none';c.style.display=open?'none':'block';this.querySelector('.arr').textContent=open?'▼':'▲'" style="width:100%;padding:12px 16px;background:#f8f7f4;border:none;text-align:left;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;justify-content:space-between;align-items:center;font-size:.85rem;font-weight:700;color:#0d1b4b">
-    <span>🗺 R (Residential) Zoning in CB6</span>
-    <span class="arr" style="font-size:.75rem;color:#6b6760">▼</span>
-  </button>
-  <div id="map-content-857" style="display:none">
-    <iframe width="100%" height="488" frameborder="0" title="Felt Map" src="https://felt.com/embed/map/R-Zoning-in-CB6-x9Av9CEVDiQGa37PLv4NTjPB?loc=40.67944%2C-73.99818%2C13.68z&legend=1&cooperativeGestures=1&link=1&geolocation=0&zoomControls=1&scaleBar=1" referrerpolicy="strict-origin-when-cross-origin" style="display:block"></iframe>
-    <div style="padding:8px 16px;background:#f8f7f4;border-top:1px solid #e5e2db;font-size:.7rem;color:#6b6760">
-      Map not loading? <a href="https://felt.com/map/R-Zoning-in-CB6-x9Av9CEVDiQGa37PLv4NTjPB" target="_blank" style="color:#f47920;font-weight:600">Open full map on Felt ↗</a>
-    </div>
-  </div>
-</div>
+        <!-- LEAFLET ZONES MAP -->
+        <div style="position:relative;background:#f8f7f4;border-radius:8px;overflow:hidden;margin:0 0 12px;border:1px solid #e5e2db">
+          <div id="zones-map" style="width:100%;height:500px"></div>
+          <div style="position:absolute;bottom:28px;right:10px;background:rgba(255,255,255,.95);border:1px solid #e5e2db;border-radius:8px;padding:10px 14px;font-family:'DM Sans',sans-serif;font-size:.7rem;z-index:1000;box-shadow:0 2px 8px rgba(0,0,0,.12)">
+            <div style="font-weight:700;color:#0d1b4b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">Zone Types</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><div style="width:24px;height:3px;background:#4a90d9;border-top:2px dashed #4a90d9"></div><span>Residential (R)</span></div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><div style="width:24px;height:3px;background:#f5a623;border-top:2px dashed #f5a623"></div><span>Commercial (C)</span></div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><div style="width:24px;height:3px;background:#8b572a;border-top:2px dashed #8b572a"></div><span>Manufacturing (M)</span></div>
+            <div style="display:flex;align-items:center;gap:6px"><div style="width:24px;height:3px;background:#7ed321;border-top:2px dashed #7ed321"></div><span>Mixed Use (M/R)</span></div>
+          </div>
+        </div>
+        <script>
+        (function(){
+          if(window._zonesMapInit) return;
+          window._zonesMapInit = true;
+          var ZONE_COLORS = {Residential:'#4a90d9',Commercial:'#f5a623',Manufacturing:'#8b572a','Mixed-Use':'#7ed321'};
+          var map2 = L.map('zones-map',{center:[40.674,-73.997],zoom:14});
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+            attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19
+          }).addTo(map2);
+          fetch('https://cb6brooklyn.github.io/bkcb6/cb6_boundary.geojson')
+            .then(r=>r.json()).then(d=>{L.geoJSON(d,{style:{color:'#f47920',weight:3,fill:false}}).addTo(map2);});
+          fetch('https://cb6brooklyn.github.io/bkcb6/cb6_zones.geojson')
+            .then(r=>r.json()).then(d=>{
+              L.geoJSON(d,{
+                style:function(f){return {color:f.properties.zone_color,weight:2.5,fill:true,fillColor:f.properties.zone_color,fillOpacity:0.25,dashArray:'5,4'};},
+                onEachFeature:function(f,l){l.bindPopup('<b>'+f.properties.zone_name+'</b><br>'+f.properties.zone_type);}
+              }).addTo(map2);
+            });
+        })();
+        </script>
       </div>
     </div>
 
-    <div style="border-bottom:1px solid var(--border)">
-      <button onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='none'?'block':'none';this.querySelector('span').textContent=d.style.display==='block'?'▲':'▼'" style="width:100%;padding:14px 20px;background:#fff;border:none;text-align:left;font-weight:700;color:var(--navy);cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;justify-content:space-between;align-items:center;font-size:.9rem">
-        🗺 (C) Commercial Zoning Map<span style="font-size:.75rem;color:var(--muted)">▼</span>
-      </button>
-      <div style="display:none">
-        <div style="border:1px solid #e5e2db;border-radius:8px;overflow:hidden;margin:0 0 12px">
-  <button id="map-toggle-858" onclick="var c=document.getElementById('map-content-858');var open=c.style.display!=='none';c.style.display=open?'none':'block';this.querySelector('.arr').textContent=open?'▼':'▲'" style="width:100%;padding:12px 16px;background:#f8f7f4;border:none;text-align:left;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;justify-content:space-between;align-items:center;font-size:.85rem;font-weight:700;color:#0d1b4b">
-    <span>🗺 C (Commercial) Zoning in CB6</span>
-    <span class="arr" style="font-size:.75rem;color:#6b6760">▼</span>
-  </button>
-  <div id="map-content-858" style="display:none">
-    <iframe width="100%" height="488" frameborder="0" title="Felt Map" src="https://felt.com/embed/map/C-Commercial-Zoning-Districts-QtI7k6imRyCOtHBeLPJhNA?loc=40.67711%2C-73.995%2C13.85z&legend=1&cooperativeGestures=1&link=1&geolocation=0&zoomControls=1&scaleBar=1" referrerpolicy="strict-origin-when-cross-origin" style="display:block"></iframe>
-    <div style="padding:8px 16px;background:#f8f7f4;border-top:1px solid #e5e2db;font-size:.7rem;color:#6b6760">
-      Map not loading? <a href="https://felt.com/map/C-Commercial-Zoning-Districts-QtI7k6imRyCOtHBeLPJhNA" target="_blank" style="color:#f47920;font-weight:600">Open full map on Felt ↗</a>
-    </div>
-  </div>
-</div>
-      </div>
-    </div>
-
-    <div style="border-bottom:1px solid var(--border)">
-      <button onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='none'?'block':'none';this.querySelector('span').textContent=d.style.display==='block'?'▲':'▼'" style="width:100%;padding:14px 20px;background:#fff;border:none;text-align:left;font-weight:700;color:var(--navy);cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;justify-content:space-between;align-items:center;font-size:.9rem">
-        🗺 (M) Manufacturing Zoning Map<span style="font-size:.75rem;color:var(--muted)">▼</span>
-      </button>
-      <div style="display:none">
-        <div style="border:1px solid #e5e2db;border-radius:8px;overflow:hidden;margin:0 0 12px">
-  <button id="map-toggle-859" onclick="var c=document.getElementById('map-content-859');var open=c.style.display!=='none';c.style.display=open?'none':'block';this.querySelector('.arr').textContent=open?'▼':'▲'" style="width:100%;padding:12px 16px;background:#f8f7f4;border:none;text-align:left;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;justify-content:space-between;align-items:center;font-size:.85rem;font-weight:700;color:#0d1b4b">
-    <span>🗺 M (Manufacturing) Zoning in CB6</span>
-    <span class="arr" style="font-size:.75rem;color:#6b6760">▼</span>
-  </button>
-  <div id="map-content-859" style="display:none">
-    <iframe width="100%" height="488" frameborder="0" title="Felt Map" src="https://felt.com/embed/map/M-Zoning-in-CB6-9CEy9CTajRRt6QIsJqyJswGB?loc=40.67463%2C-73.99732%2C13.7z&legend=1&cooperativeGestures=1&link=1&geolocation=0&zoomControls=1&scaleBar=1" referrerpolicy="strict-origin-when-cross-origin" style="display:block"></iframe>
-    <div style="padding:8px 16px;background:#f8f7f4;border-top:1px solid #e5e2db;font-size:.7rem;color:#6b6760">
-      Map not loading? <a href="https://felt.com/map/M-Zoning-in-CB6-9CEy9CTajRRt6QIsJqyJswGB" target="_blank" style="color:#f47920;font-weight:600">Open full map on Felt ↗</a>
-    </div>
-  </div>
-</div>
-      </div>
-    </div>
-
-    <!-- ZONING CODE EXPLANATIONS -->
+    <div style="border-bottom:1px solid var(--border);display:none"><!-- R/C/M separate tabs removed — all in Zones map above -->
     <div style="border-bottom:1px solid var(--border)">
       <button onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='none'?'block':'none';this.querySelector('span').textContent=d.style.display==='block'?'▲':'▼'" style="width:100%;padding:14px 20px;background:#fff;border:none;text-align:left;font-weight:700;color:var(--navy);cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;justify-content:space-between;align-items:center;font-size:.9rem">
         📖 Zoning Code Explanations<span style="font-size:.75rem;color:var(--muted)">▼</span>
