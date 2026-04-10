@@ -1,5 +1,5 @@
 /**
- * CB6 City Charter Quiz — 10 questions
+ * CB6 City Charter Quiz  --  10 questions
  * Source: City Charter tab on govhub.html
  * Run createCityCharterQuiz() in Google Apps Script
  */
@@ -10,7 +10,7 @@ var CHARTER_TOTAL = 10;
 
 function getCharterRank(score) {
   var pct = Math.round((score / CHARTER_TOTAL) * 100);
-  if (pct === 100) return { role: 'Charter Commissioner', message: 'Perfect. You know the document that governs the city — and the history behind it.' };
+  if (pct === 100) return { role: 'Charter Commissioner', message: 'Perfect. You know the document that governs the city  --  and the history behind it.' };
   if (pct >= 80)   return { role: 'Civic Advocate', message: 'Strong grasp of charter history and structure. You understand why this stuff matters.' };
   if (pct >= 60)   return { role: 'Informed Citizen', message: 'You have the key pieces. A few gaps worth filling before the next ballot.' };
   if (pct >= 40)   return { role: 'Engaged Resident', message: 'Solid start. The charter page is worth another read.' };
@@ -23,11 +23,11 @@ function createCityCharterQuiz() {
       q: 'What is the NYC City Charter?',
       choices: [
         'A list of city agency phone numbers',
-        "The city's governing document — defining the structure of government, powers of elected officials, and how decisions get made",
+        "The city's governing document  --  defining the structure of government, powers of elected officials, and how decisions get made",
         'A state law passed by the Albany legislature',
         'The annual budget approved by the City Council'
       ],
-      answer: "The city's governing document — defining the structure of government, powers of elected officials, and how decisions get made",
+      answer: "The city's governing document  --  defining the structure of government, powers of elected officials, and how decisions get made",
       exp: 'The charter is described as "the city\'s constitution." It defines the powers of the Mayor, City Council, Borough Presidents, and Community Boards, and how land use and budgets work.'
     },
     {
@@ -45,7 +45,7 @@ function createCityCharterQuiz() {
       q: 'By what margin did Brooklyn vote in favor of consolidation into Greater New York in 1894?',
       choices: ['27 votes', '277 votes', '2,770 votes', 'Brooklyn voted against it'],
       answer: '277 votes',
-      exp: 'Brooklyn voted 64,744 in favor and 64,467 opposed — a margin of 277 votes out of more than 129,000 cast.'
+      exp: 'Brooklyn voted 64,744 in favor and 64,467 opposed  --  a margin of 277 votes out of more than 129,000 cast.'
     },
     {
       q: 'Who is most credited with pushing the consolidation of New York City forward?',
@@ -57,23 +57,23 @@ function createCityCharterQuiz() {
       q: 'The charter page describes what year as when community boards and ULURP were created?',
       choices: ['1898', '1938', '1975', '1989'],
       answer: '1975',
-      exp: 'A 1975 Charter Revision Commission created community boards and the Uniform Land Use Review Procedure — the public review process CB6 uses today.'
+      exp: 'A 1975 Charter Revision Commission created community boards and the Uniform Land Use Review Procedure  --  the public review process CB6 uses today.'
     },
     {
       q: 'What was the central issue targeted by the 2025 charter amendments?',
       choices: [
         'The number of community board members',
-        'Member deference — the informal practice letting a council member effectively veto development in their district',
+        'Member deference  --  the informal practice letting a council member effectively veto development in their district',
         'The length of the mayoral term',
         'The Borough President appointment process'
       ],
-      answer: 'Member deference — the informal practice letting a council member effectively veto development in their district',
+      answer: 'Member deference  --  the informal practice letting a council member effectively veto development in their district',
       exp: 'The central issue was member deference: by long-standing tradition, the full Council defers to the local member on land use. If a member says no, the project dies. The 2025 amendments created tracks that bypass this.'
     },
     {
       q: 'How many new ULURP pathways did the 2025 charter amendments create?',
-      choices: ['One', 'Two', 'Three', 'Four — including one taking effect in 2027'],
-      answer: 'Four — including one taking effect in 2027',
+      choices: ['One', 'Two', 'Three', 'Four  --  including one taking effect in 2027'],
+      answer: 'Four  --  including one taking effect in 2027',
       exp: 'The 2025 amendments created three immediate pathways (ELURP-CC, BSA fast-track, ELURP-CPC) plus a fourth Affordable Housing Fast Track taking effect in 2027 targeting the 12 districts with the lowest affordable housing production.'
     },
     {
@@ -82,10 +82,10 @@ function createCityCharterQuiz() {
         'Narrowly in favor',
         'Narrowly against',
         'Every single ED approved them',
-        'Split — some EDs approved, some rejected'
+        'Split  --  some EDs approved, some rejected'
       ],
       answer: 'Every single ED approved them',
-      exp: 'The charter page notes: "Every single ED in CB6 approved the pro-housing measures." Questions 2, 3, and 4 — the housing measures — passed with over 56% of the vote citywide.'
+      exp: 'The charter page notes: "Every single ED in CB6 approved the pro-housing measures." Questions 2, 3, and 4  --  the housing measures  --  passed with over 56% of the vote citywide.'
     },
     {
       q: 'What does the charter page say about Yonkers and why it did not get annexed into New York City?',
@@ -112,7 +112,7 @@ function createCityCharterQuiz() {
   ];
 
   var form = FormApp.create(CHARTER_TITLE)
-    .setDescription('10 questions on the NYC City Charter — what it is, how it has changed, and why it matters.\n\nSource: ' + CHARTER_URL)
+    .setDescription('10 questions on the NYC City Charter  --  what it is, how it has changed, and why it matters.\n\nSource: ' + CHARTER_URL)
     .setIsQuiz(true)
     .setCollectEmail(true)
     .setShuffleQuestions(false)
@@ -183,7 +183,7 @@ function onCityCharterSubmit(e) {
   if (email) {
     MailApp.sendEmail({
       to: email,
-      subject: 'CB6 Charter Quiz: ' + score + '/' + CHARTER_TOTAL + ' — ' + rank.role,
+      subject: 'CB6 Charter Quiz: ' + score + '/' + CHARTER_TOTAL + '  --  ' + rank.role,
       body: 'CB6 City Charter Quiz\n\n' +
         'Score: ' + score + '/' + CHARTER_TOTAL + ' (' + pct + '%)\n' +
         'Rank: ' + rank.role + '\n\n' +

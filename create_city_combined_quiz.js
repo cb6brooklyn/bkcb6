@@ -1,10 +1,10 @@
 /**
- * CB6 City Government & Charter Combined Quiz — 15 questions
+ * CB6 City Government & Charter Combined Quiz  --  15 questions
  * Source: Both NYC Gov and City Charter tabs on govhub.html
  * Run createCityCombinedQuiz() in Google Apps Script
  */
 
-var COMBINED_TITLE = 'CB6 City Government & Charter — Combined Quiz';
+var COMBINED_TITLE = 'CB6 City Government & Charter  --  Combined Quiz';
 var COMBINED_URL = 'https://bkcb6.app/govhub.html';
 var COMBINED_TOTAL = 15;
 
@@ -14,7 +14,7 @@ function getCombinedRank(score) {
   if (pct >= 80)  return { role: 'Deputy Mayor', message: 'You have a strong command of both the org chart and the charter. One more read closes the gap.' };
   if (pct >= 65)  return { role: 'Commissioner', message: 'You understand the system. A few pieces worth going back to sharpen.' };
   if (pct >= 50)  return { role: 'Deputy Commissioner', message: 'Solid foundation. The combined picture is worth another pass.' };
-  if (pct >= 30)  return { role: 'Community Liaison', message: 'You are engaged. Keep reading — both tabs have what you need.' };
+  if (pct >= 30)  return { role: 'Community Liaison', message: 'You are engaged. Keep reading  --  both tabs have what you need.' };
   return          { role: 'Resident', message: 'Start with the City Charter tab. Then the org chart. Then come back.' };
 }
 
@@ -25,11 +25,11 @@ function createCityCombinedQuiz() {
       q: 'The City Charter is described as what?',
       choices: [
         'The annual budget approved by the City Council',
-        "The city's governing document — its constitution",
+        "The city's governing document  --  its constitution",
         'A state law passed by the Albany legislature',
         'A list of zoning rules for each neighborhood'
       ],
-      answer: "The city's governing document — its constitution",
+      answer: "The city's governing document  --  its constitution",
       exp: 'The charter defines the structure of city government: the powers of the Mayor, City Council, Borough Presidents, and Community Boards, and the rules that govern how the city operates day to day.'
     },
     // From Org Chart tab
@@ -37,7 +37,7 @@ function createCityCombinedQuiz() {
       q: 'Which body passes local laws, adopts the city budget, and has final say on land use via ULURP?',
       choices: ['The Mayor\'s Office', 'The City Council', 'The Borough Presidents', 'The Community Boards'],
       answer: 'The City Council',
-      exp: 'The City Council — 51 members — passes local laws, adopts the budget, and has final say on land use via ULURP.'
+      exp: 'The City Council  --  51 members  --  passes local laws, adopts the budget, and has final say on land use via ULURP.'
     },
     // From Charter tab
     {
@@ -61,25 +61,25 @@ function createCityCombinedQuiz() {
         'Housing, transportation, and parks'
       ],
       answer: 'Land use, budgets, and local services',
-      exp: 'Community boards are advisory — not binding — on land use, budgets, and local services.'
+      exp: 'Community boards are advisory  --  not binding  --  on land use, budgets, and local services.'
     },
     // From Charter tab
     {
       q: 'By what margin did Brooklyn vote for consolidation into Greater New York in 1894?',
       choices: ['27 votes', '277 votes', '2,770 votes', 'Brooklyn voted against it'],
       answer: '277 votes',
-      exp: 'Brooklyn voted 64,744 in favor and 64,467 opposed — a margin of 277 votes out of more than 129,000 cast.'
+      exp: 'Brooklyn voted 64,744 in favor and 64,467 opposed  --  a margin of 277 votes out of more than 129,000 cast.'
     },
     // From Org Chart tab
     {
       q: 'Which agency designates and regulates historic landmarks and districts, and how many historic districts does CB6 have?',
       choices: [
-        'DCP — four historic districts',
-        'HPD — three historic districts',
-        'LPC — six historic districts',
-        'DOB — five historic districts'
+        'DCP  --  four historic districts',
+        'HPD  --  three historic districts',
+        'LPC  --  six historic districts',
+        'DOB  --  five historic districts'
       ],
-      answer: 'LPC — six historic districts',
+      answer: 'LPC  --  six historic districts',
       exp: 'The Landmarks Preservation Commission designates and regulates historic landmarks and districts. CB6 has six historic districts and reviews Certificate of Appropriateness applications.'
     },
     // From Charter tab
@@ -92,7 +92,7 @@ function createCityCombinedQuiz() {
         'Community board term limits'
       ],
       answer: 'Community boards and ULURP',
-      exp: 'The 1975 CRC created community boards and the Uniform Land Use Review Procedure — the public review process CB6 uses today.'
+      exp: 'The 1975 CRC created community boards and the Uniform Land Use Review Procedure  --  the public review process CB6 uses today.'
     },
     // From Org Chart tab
     {
@@ -123,11 +123,11 @@ function createCityCombinedQuiz() {
       q: 'The Public Advocate is first in line of mayoral succession. What is their primary role?',
       choices: [
         'Oversees the city budget',
-        'Ombudsman for New Yorkers — investigates complaints against city agencies',
+        'Ombudsman for New Yorkers  --  investigates complaints against city agencies',
         'Appoints community board members',
         'Chairs the City Planning Commission'
       ],
-      answer: 'Ombudsman for New Yorkers — investigates complaints against city agencies',
+      answer: 'Ombudsman for New Yorkers  --  investigates complaints against city agencies',
       exp: 'The Public Advocate is ombudsman for New Yorkers, investigates complaints against city agencies, and serves as first in line of mayoral succession.'
     },
     // From Charter tab
@@ -136,10 +136,10 @@ function createCityCombinedQuiz() {
       choices: [
         'Two, both immediate',
         'Three, all immediate',
-        'Four — three immediate, one taking effect in 2027',
-        'Five — one per borough'
+        'Four  --  three immediate, one taking effect in 2027',
+        'Five  --  one per borough'
       ],
-      answer: 'Four — three immediate, one taking effect in 2027',
+      answer: 'Four  --  three immediate, one taking effect in 2027',
       exp: 'Three pathways took effect immediately (ELURP-CC, BSA fast-track, ELURP-CPC) plus an Affordable Housing Fast Track taking effect in 2027, targeting the 12 community districts with the lowest affordable housing production.'
     },
     // From Org Chart tab
@@ -259,7 +259,7 @@ function onCityCombinedSubmit(e) {
   if (email) {
     MailApp.sendEmail({
       to: email,
-      subject: 'CB6 City Gov & Charter Quiz: ' + score + '/' + COMBINED_TOTAL + ' — ' + rank.role,
+      subject: 'CB6 City Gov & Charter Quiz: ' + score + '/' + COMBINED_TOTAL + '  --  ' + rank.role,
       body: 'CB6 City Government & Charter Combined Quiz\n\n' +
         'Score: ' + score + '/' + COMBINED_TOTAL + ' (' + pct + '%)\n' +
         'Rank: ' + rank.role + '\n\n' +
