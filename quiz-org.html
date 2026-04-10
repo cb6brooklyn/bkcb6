@@ -96,12 +96,15 @@ footer{padding:20px;text-align:center;font-size:.7rem;color:var(--muted);font-fa
     <div class="result-rank" id="result-rank"></div>
     <div class="result-score" id="result-score"></div>
     <div class="result-msg" id="result-msg"></div>
-    <div class="initials-row">
-      <input class="initials-input" id="initials-input" maxlength="4" placeholder="YOUR INITIALS" oninput="this.value=this.value.toUpperCase()">
-      <button class="initials-btn" onclick="submitInitials()">Add to Leaderboard</button>
+    <div style="margin-bottom:16px">
+      <input type="email" id="email-input" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;font-family:'DM Sans',sans-serif;margin-bottom:8px" placeholder="Email (optional -- get notified of new quizzes)">
+      <div class="initials-row">
+        <input class="initials-input" id="initials-input" maxlength="4" placeholder="INITIALS (optional)" oninput="this.value=this.value.toUpperCase()">
+        <button class="initials-btn" onclick="submitResult()">Submit</button>
+      </div>
+      <div class="result-note">Initials appear on the leaderboard. Email is only used to notify you of new quizzes.</div>
     </div>
-    <div class="result-note">Enter up to 4 initials to appear on the leaderboard. Leave blank to skip.</div>
-    <div class="submitted-note" id="submitted-note">Added to leaderboard!</div>
+    <div class="submitted-note" id="submitted-note">Submitted!</div>
     <button class="retry-btn" onclick="startQuiz()">Try Again</button>
   </div>
 
@@ -282,31 +285,43 @@ function showResult() {
   document.getElementById('result-score').textContent = score + ' / ' + QUESTIONS.length + ' correct (' + userPct + '%)';
   document.getElementById('result-msg').textContent = rank.msg;
 
-  // Record anonymous taker
-  recordTaker(score, userPct, rank.role, '');
+  // Result shown -- user submits via form below
 }
 
-function submitInitials() {
+var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyHc9TsqZBxhj7dgNpVPld_rg_JrPYE-OLqZF9jH8upJ_Ljfesfhki4VxHHBbMcGMx0Ww/exec';
+
+function submitResult() {
   if (submitted) return;
-  var initials = document.getElementById('initials-input').value.trim().toUpperCase();
-  if (!initials) return;
   submitted = true;
+  var initials = document.getElementById('initials-input').value.trim().toUpperCase();
+  var email = document.getElementById('email-input').value.trim();
   var rank = getRank(userPct);
-  recordTaker(userScore, userPct, rank.role, initials);
+
+  // Post to Google Sheet
+  fetch(WEB_APP_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      email: email,
+      initials: initials,
+      score: userScore,
+      pct: userPct,
+      role: rank.role,
+      quiz: 'NYC Gov Org Chart'
+    })
+  }).catch(function(e){ console.error(e); });
+
+  // Update local leaderboard and stats
+  saveLocal(userScore, userPct, rank.role, initials);
+
   document.getElementById('submitted-note').style.display = 'block';
   document.getElementById('initials-input').disabled = true;
+  document.getElementById('email-input').disabled = true;
 }
 
-function recordTaker(score, pct, role, initials) {
-  var url = 'https://api.anthropic.com/v1/messages';
-  // Use persistent storage instead
-  saveResult(score, pct, role, initials);
-}
-
-// Use artifact storage for leaderboard and stats
-async function saveResult(score, pct, role, initials) {
+async function saveLocal(score, pct, role, initials) {
   try {
-    // Load existing data
     var statsResult = await window.storage.get('org_quiz_stats');
     var stats = statsResult ? JSON.parse(statsResult.value) : {total: 0, scoreSum: 0};
     stats.total = (stats.total || 0) + 1;
