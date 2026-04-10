@@ -271,7 +271,7 @@ function onCityGovSubmit(e) {
     }
     if (item.getType() !== FormApp.ItemType.MULTIPLE_CHOICE) return;
     const mc = item.asMultipleChoiceItem();
-    const correct = (mc.getChoices().find(c => c.isCorrectAnswer()) || {getValue:()=>''}).getValue();
+    const correct = (mc.getChoices().find(c => c.isCorrectAnswer()) || {getValue: function(){return '';}}).getValue();
     const isCorrect = String(ir.getResponse()) === correct;
     const isBonus = title.startsWith('Bonus.');
     if (isBonus) { if (isCorrect) { bonusScore++; total++; } }
@@ -293,7 +293,7 @@ function onCityGovSubmit(e) {
     if (last > 2) lb.getRange(2,1,last-1,9).sort([{column:3,ascending:false},{column:9,ascending:true}]);
     if (lb.getLastRow() > 11) lb.deleteRows(12, lb.getLastRow()-11);
     const count = lb.getLastRow()-1;
-    if (count > 0) lb.getRange(2,1,count,1).setValues(Array.from({length:count},(_,i)=>[[i+1]]));
+    if (count > 0) lb.getRange(2,1,count,1).setValues(Array.from({length:count}, function(_,i){return [[i+1]];}));
   }
 
   if (email) {
