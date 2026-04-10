@@ -11,6 +11,7 @@
 <meta property="og:image" content="https://cb6brooklyn.github.io/bkcb6/icon-address.png">
 <meta property="og:url" content="https://cb6brooklyn.github.io/bkcb6/mydistricts.html">
 <title>🔍 Find Your District — CB6</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&display=swap');
 :root{--navy:#0d1b4b;--orange:#f47920;--border:#e5e2db;--muted:#6b6760;--off:#f8f7f4}
@@ -76,6 +77,8 @@ footer{padding:20px;font-size:.72rem;color:rgba(255,255,255,.4);text-align:cente
   <div class="spinner" id="spinner">Looking up address...</div>
   <div class="error" id="error"></div>
 </div>
+
+<div id="map-container" style="display:none;height:280px;width:100%;border-top:3px solid var(--orange)"></div>
 
 <div class="results" id="results" style="display:none"></div>
 
@@ -362,6 +365,11 @@ async function lookup() {
     const boroName = BORO_NAMES[boroCode];
     const displayAddr = (a.houseNumber||houseNum) + ' ' + (a.firstStreetNameNormalized||street) + ', ' + (a.uspsPreferredCityName||currentBoro) + ', NY ' + (a.zipCode||'');
 
+    // Show map if coordinates available
+    const lat = parseFloat(a.latitude || a.latitudeInternalLabel);
+    const lng = parseFloat(a.longitude || a.longitudeInternalLabel);
+    if (lat && lng) initMap(lat, lng, displayAddr);
+
     // State reps
     const saNum = parseInt(a.stateLegislativeDistrict || a.assemblyDistrict || 0);
     const ssNum = parseInt(a.stateSenatorialDistrict || 0);
@@ -458,6 +466,40 @@ window.addEventListener('DOMContentLoaded', () => {
     lookup();
   }
 });
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let districtMap = null;
+let mapMarker = null;
+
+function initMap(lat, lng, label) {
+  const container = document.getElementById('map-container');
+  container.style.display = 'block';
+
+  if (!districtMap) {
+    districtMap = L.map('map-container').setView([lat, lng], 15);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap © CARTO',
+      maxZoom: 19
+    }).addTo(districtMap);
+  } else {
+    districtMap.setView([lat, lng], 15);
+    if (mapMarker) districtMap.removeLayer(mapMarker);
+  }
+
+  const icon = L.divIcon({
+    className: '',
+    html: `<div style="background:var(--orange,#f47920);width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)"></div>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7]
+  });
+
+  mapMarker = L.marker([lat, lng], {icon}).addTo(districtMap)
+    .bindPopup(`<strong style="font-size:.82rem">${label}</strong>`, {maxWidth: 200})
+    .openPopup();
+
+  setTimeout(() => districtMap.invalidateSize(), 100);
+}
 </script>
 </body>
 </html>
