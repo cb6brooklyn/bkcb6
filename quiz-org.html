@@ -290,6 +290,14 @@ function showResult() {
 
 var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw2RxPJfT62lONzUnUmmkz4g3-GTXvqy6daI7dM3GtWemfKmm-albuQnv2XWs9kx9gH/exec';
 
+// localStorage-based storage since we can't reach the sheet
+function getStore(key, def) {
+  try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch(e) { return def; }
+}
+function setStore(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {}
+}
+
 function jsonp(url, callback) {
   var name = 'cb_' + Date.now();
   var sid = 'jsonp_' + name;
@@ -312,27 +320,43 @@ function submitResult() {
   var email = document.getElementById('email-input').value.trim();
   var rank = getRank(userPct);
 
-  var params = '?email=' + encodeURIComponent(email) +
-    '&initials=' + encodeURIComponent(initials) +
-    '&score=' + userScore +
-    '&pct=' + userPct +
-    '&role=' + encodeURIComponent(rank.role) +
-    '&quiz=' + encodeURIComponent('NYC Gov Org Chart') +
-    '&action=submit';
+  // Save to localStorage
+  var stats = getStore('org_stats', {total: 0, scoreSum: 0});
+  stats.total += 1;
+  stats.scoreSum += userScore;
+  setStore('org_stats', stats);
 
-  jsonp(WEB_APP_URL + params, function() {
-    setTimeout(loadLeaderboard, 1000);
-  });
+  if (initials) {
+    var lb = getStore('org_lb', []);
+    lb.push({initials: initials, score: userScore, pct: userPct, role: rank.role, ts: Date.now()});
+    lb.sort(function(a,b){ return b.score - a.score || a.ts - b.ts; });
+    lb = lb.slice(0, 10);
+    setStore('org_lb', lb);
+  }
+
+  // Also attempt to send to sheet (best effort)
+  try {
+    var params = '?email=' + encodeURIComponent(email) +
+      '&initials=' + encodeURIComponent(initials) +
+      '&score=' + userScore +
+      '&pct=' + userPct +
+      '&role=' + encodeURIComponent(rank.role) +
+      '&quiz=' + encodeURIComponent('NYC Gov Org Chart') +
+      '&action=submit';
+    jsonp(WEB_APP_URL + params, function(){});
+  } catch(err) {}
 
   document.getElementById('submitted-note').style.display = 'block';
   document.getElementById('initials-input').disabled = true;
   document.getElementById('email-input').disabled = true;
+  loadLeaderboard();
 }
 
 function loadLeaderboard() {
-  jsonp(WEB_APP_URL + '?action=leaderboard', function(data) {
-    renderLeaderboard(data);
-  });
+  var stats = getStore('org_stats', {total: 0, scoreSum: 0});
+  var lb = getStore('org_lb', []);
+  var avg = stats.total > 0 ? Math.round(stats.scoreSum / stats.total * 10) / 10 : 0;
+  renderLeaderboard({total: stats.total, avg: avg, leaderboard: lb});
 }
 
 function renderLeaderboard(data) {
