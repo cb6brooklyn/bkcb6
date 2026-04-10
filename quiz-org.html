@@ -288,7 +288,7 @@ function showResult() {
   // Result shown -- user submits via form below
 }
 
-var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyHc9TsqZBxhj7dgNpVPld_rg_JrPYE-OLqZF9jH8upJ_Ljfesfhki4VxHHBbMcGMx0Ww/exec';
+var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzrquOdpRViq5pElpWuhh5Mhc0UJ0ssx8s543_Qxo28tmGqNNhglgI-pYum7OunK_fQGQ/exec';
 
 function submitResult() {
   if (submitted) return;
@@ -320,55 +320,32 @@ function submitResult() {
   document.getElementById('email-input').disabled = true;
 }
 
-async function saveLocal(score, pct, role, initials) {
-  try {
-    var statsResult = await window.storage.get('org_quiz_stats');
-    var stats = statsResult ? JSON.parse(statsResult.value) : {total: 0, scoreSum: 0};
-    stats.total = (stats.total || 0) + 1;
-    stats.scoreSum = (stats.scoreSum || 0) + score;
-    await window.storage.set('org_quiz_stats', JSON.stringify(stats));
-
-    if (initials) {
-      var lbResult = await window.storage.get('org_quiz_lb');
-      var lb = lbResult ? JSON.parse(lbResult.value) : [];
-      lb.push({initials: initials, score: score, pct: pct, role: role, ts: Date.now()});
-      lb.sort(function(a,b){ return b.score - a.score || a.ts - b.ts; });
-      lb = lb.slice(0, 10);
-      await window.storage.set('org_quiz_lb', JSON.stringify(lb));
-    }
-
-    loadLeaderboard();
-  } catch(e) {
-    console.error('Storage error:', e);
-  }
+function saveLocal() {
+  // Reload leaderboard from sheet after a short delay to allow POST to complete
+  setTimeout(loadLeaderboard, 2000);
 }
 
-async function loadLeaderboard() {
-  try {
-    var statsResult = await window.storage.get('org_quiz_stats');
-    var stats = statsResult ? JSON.parse(statsResult.value) : {total: 0, scoreSum: 0};
-    document.getElementById('taker-count').textContent = stats.total || 0;
-    var avg = stats.total ? Math.round(stats.scoreSum / stats.total * 10) / 10 : '--';
-    document.getElementById('avg-score').textContent = avg !== '--' ? avg + '/10' : '--';
-
-    var lbResult = await window.storage.get('org_quiz_lb');
-    var lb = lbResult ? JSON.parse(lbResult.value) : [];
-    var lbEl = document.getElementById('leaderboard');
-    if (!lb.length) {
-      lbEl.innerHTML = '<div class="lb-empty">No entries yet. Be the first.</div>';
-    } else {
-      lbEl.innerHTML = lb.map(function(entry, i) {
-        return '<div class="lb-row">' +
-          '<div class="lb-rank">' + (i+1) + '</div>' +
-          '<div class="lb-initials">' + entry.initials + '</div>' +
-          '<div class="lb-score">' + entry.score + '/10</div>' +
-          '<div class="lb-role">' + entry.role + '</div>' +
-          '</div>';
-      }).join('');
-    }
-  } catch(e) {
-    console.error('Load error:', e);
-  }
+function loadLeaderboard() {
+  fetch(WEB_APP_URL)
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      document.getElementById('taker-count').textContent = data.total || 0;
+      document.getElementById('avg-score').textContent = data.avg ? data.avg + '/10' : '--';
+      var lbEl = document.getElementById('leaderboard');
+      if (!data.leaderboard || !data.leaderboard.length) {
+        lbEl.innerHTML = '<div class="lb-empty">No entries yet. Be the first.</div>';
+      } else {
+        lbEl.innerHTML = data.leaderboard.map(function(entry, i) {
+          return '<div class="lb-row">' +
+            '<div class="lb-rank">' + (i+1) + '</div>' +
+            '<div class="lb-initials">' + entry.initials + '</div>' +
+            '<div class="lb-score">' + entry.score + '/10</div>' +
+            '<div class="lb-role">' + entry.role + '</div>' +
+            '</div>';
+        }).join('');
+      }
+    })
+    .catch(function(e){ console.error('Load error:', e); });
 }
 
 // Init
