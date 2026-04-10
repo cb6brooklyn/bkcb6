@@ -290,6 +290,19 @@ function showResult() {
 
 var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxDEKVFsKsJrystK1Wvbz1GF-2KgCyhcxc7hOWnaySzt2FWk9zWrUqTSxCeFYZzDld_3w/exec';
 
+function jsonp(url, callback) {
+  var name = 'cb_' + Date.now();
+  window[name] = function(data) {
+    callback(data);
+    delete window[name];
+    document.getElementById('jsonp-script') && document.getElementById('jsonp-script').remove();
+  };
+  var s = document.createElement('script');
+  s.id = 'jsonp-script';
+  s.src = url + '&callback=' + name;
+  document.body.appendChild(s);
+}
+
 function submitResult() {
   if (submitted) return;
   submitted = true;
@@ -297,7 +310,6 @@ function submitResult() {
   var email = document.getElementById('email-input').value.trim();
   var rank = getRank(userPct);
 
-  // Post to Google Sheet
   var params = '?email=' + encodeURIComponent(email) +
     '&initials=' + encodeURIComponent(initials) +
     '&score=' + userScore +
@@ -305,29 +317,49 @@ function submitResult() {
     '&role=' + encodeURIComponent(rank.role) +
     '&quiz=' + encodeURIComponent('NYC Gov Org Chart') +
     '&action=submit';
-  new Image().src = WEB_APP_URL + params;
 
-  // Update local leaderboard and stats
-  saveLocal(userScore, userPct, rank.role, initials);
+  jsonp(WEB_APP_URL + params, function() {
+    setTimeout(loadLeaderboard, 1000);
+  });
 
   document.getElementById('submitted-note').style.display = 'block';
   document.getElementById('initials-input').disabled = true;
   document.getElementById('email-input').disabled = true;
 }
 
-function saveLocal() {
-  // Reload leaderboard from sheet after a short delay to allow POST to complete
-  setTimeout(loadLeaderboard, 2000);
+function loadLeaderboard() {
+  jsonp(WEB_APP_URL + '?action=leaderboard', function(data) {
+    renderLeaderboard(data);
+  });
 }
 
-function loadLeaderboard() {
+function renderLeaderboard(data) {
+  if (!data) return;
+  document.getElementById('taker-count').textContent = data.total || 0;
+  document.getElementById('avg-score').textContent = data.avg ? data.avg + '/10' : '--';
+  var lbEl = document.getElementById('leaderboard');
+  if (!data.leaderboard || !data.leaderboard.length) {
+    lbEl.innerHTML = '<div class="lb-empty">No entries yet. Be the first.</div>';
+  } else {
+    lbEl.innerHTML = data.leaderboard.map(function(entry, i) {
+      return '<div class="lb-row">' +
+        '<div class="lb-rank">' + (i+1) + '</div>' +
+        '<div class="lb-initials">' + entry.initials + '</div>' +
+        '<div class="lb-score">' + entry.score + '/10</div>' +
+        '<div class="lb-role">' + entry.role + '</div>' +
+        '</div>';
+    }).join('');
+  }
+}
+
+function loadLeaderboard_old() {
   fetch(WEB_APP_URL + '?callback=handleLB')
     .then(function(r){ return r.json(); })
     .then(function(data) {
       renderLeaderboard(data);
     })
     .catch(function() {
-      // fallback: try no-cors image ping won't work for GET data
+      // fallback
       // just show empty state
     });
 }
