@@ -1,5 +1,5 @@
 /**
- * CB6 City Government Org Chart Quiz — 10 questions
+ * CB6 City Government Org Chart Quiz  --  10 questions
  * Source: NYC Gov tab on govhub.html
  * Run createCityOrgQuiz() in Google Apps Script
  */
@@ -14,7 +14,7 @@ function getCityOrgRank(score) {
   if (pct >= 80)   return { role: 'Deputy Mayor', message: 'Strong command of how the city is organized. One more read and you are running a portfolio.' };
   if (pct >= 60)   return { role: 'Commissioner', message: 'You have the key pieces. A few gaps worth going back to fill.' };
   if (pct >= 40)   return { role: 'Deputy Commissioner', message: 'Solid start. The org chart is worth another pass.' };
-  return           { role: 'Community Liaison', message: 'You are in the room. Keep reading — it gets clearer fast.' };
+  return           { role: 'Community Liaison', message: 'You are in the room. Keep reading  --  it gets clearer fast.' };
 }
 
 function createCityOrgQuiz() {
@@ -32,7 +32,7 @@ function createCityOrgQuiz() {
       exp: 'The Public Advocate is ombudsman for New Yorkers and serves as first in line of mayoral succession.'
     },
     {
-      q: 'Community boards are described on the org chart as "advisory — not binding." On what three things?',
+      q: 'Community boards are described on the org chart as "advisory  --  not binding." On what three things?',
       choices: [
         'Zoning, elections, and public safety',
         'Land use, budgets, and local services',
@@ -40,7 +40,7 @@ function createCityOrgQuiz() {
         'Housing, transportation, and parks'
       ],
       answer: 'Land use, budgets, and local services',
-      exp: 'Community boards are advisory — not binding — on land use, budgets, and local services.'
+      exp: 'Community boards are advisory  --  not binding  --  on land use, budgets, and local services.'
     },
     {
       q: 'Which agency manages zoning and runs ULURP?',
@@ -62,13 +62,13 @@ function createCityOrgQuiz() {
         'The 76th and 78th Precincts'
       ],
       answer: 'The Gowanus Canal Superfund and Red Hook CSO facility',
-      exp: 'DEP manages the Gowanus Canal Superfund and Red Hook combined sewer overflow facility — both directly relevant to CB6.'
+      exp: 'DEP manages the Gowanus Canal Superfund and Red Hook combined sewer overflow facility  --  both directly relevant to CB6.'
     },
     {
       q: 'How many community boards are there citywide?',
       choices: ['51', '55', '59', '62'],
       answer: '59',
-      exp: 'There are 59 community boards citywide — one or more per community district in each borough.'
+      exp: 'There are 59 community boards citywide  --  one or more per community district in each borough.'
     },
     {
       q: 'Which deputy mayor oversees DCP, LPC, HPD, NYCHA, and OMB?',
@@ -107,7 +107,7 @@ function createCityOrgQuiz() {
   ];
 
   var form = FormApp.create(CITY_ORG_TITLE)
-    .setDescription('10 questions on the structure of NYC government — who does what and how it connects to CB6.\n\nSource: ' + CITY_ORG_URL)
+    .setDescription('10 questions on the structure of NYC government  --  who does what and how it connects to CB6.\n\nSource: ' + CITY_ORG_URL)
     .setIsQuiz(true)
     .setCollectEmail(true)
     .setShuffleQuestions(false)
@@ -179,7 +179,7 @@ function onCityOrgSubmit(e) {
   if (email) {
     MailApp.sendEmail({
       to: email,
-      subject: 'CB6 City Org Quiz: ' + score + '/' + CITY_ORG_TOTAL + ' — ' + rank.role,
+      subject: 'CB6 City Org Quiz: ' + score + '/' + CITY_ORG_TOTAL + '  --  ' + rank.role,
       body: 'CB6 City Government Org Chart Quiz\n\n' +
         'Score: ' + score + '/' + CITY_ORG_TOTAL + ' (' + pct + '%)\n' +
         'Rank: ' + rank.role + '\n\n' +
