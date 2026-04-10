@@ -1,113 +1,87 @@
 /**
- * CB6 City Government Org Chart Quiz  --  10 questions
- * Source: NYC Gov tab on govhub.html
+ * CB6 NYC Government Org Chart Quiz -- 10 questions
  * Run createCityOrgQuiz() in Google Apps Script
  */
 
-var CITY_ORG_TITLE = 'CB6 City Government Org Chart Quiz';
+var CITY_ORG_TITLE = 'CB6 NYC Government Org Chart Quiz';
 var CITY_ORG_URL = 'https://bkcb6.app/govhub.html';
 var CITY_ORG_TOTAL = 10;
 
 function getCityOrgRank(score) {
   var pct = Math.round((score / CITY_ORG_TOTAL) * 100);
-  if (pct === 100) return { role: 'Mayor', message: 'Perfect. You know the structure cold. The org chart is in your head.' };
-  if (pct >= 80)   return { role: 'Deputy Mayor', message: 'Strong command of how the city is organized. One more read and you are running a portfolio.' };
-  if (pct >= 60)   return { role: 'Commissioner', message: 'You have the key pieces. A few gaps worth going back to fill.' };
-  if (pct >= 40)   return { role: 'Deputy Commissioner', message: 'Solid start. The org chart is worth another pass.' };
-  return           { role: 'Community Liaison', message: 'You are in the room. Keep reading  --  it gets clearer fast.' };
+  if (pct === 100) return { role: 'Mayor', message: 'Perfect. You know the structure cold.' };
+  if (pct >= 80)   return { role: 'Deputy Mayor', message: 'Strong command of how the city is organized.' };
+  if (pct >= 60)   return { role: 'Commissioner', message: 'You have the key pieces. A few gaps worth filling.' };
+  if (pct >= 40)   return { role: 'Deputy Commissioner', message: 'Solid start. Worth another read.' };
+  return           { role: 'Community Liaison', message: 'You are in the room. Keep reading.' };
 }
 
 function createCityOrgQuiz() {
   var questions = [
     {
-      q: 'The City Council has final say on land use decisions. How many members does it have?',
-      choices: ['35', '45', '51', '59'],
+      q: 'Which citywide elected official functions as an independent financial watchdog, responsible for auditing city agencies and managing pension funds?',
+      choices: ['Public Advocate', 'Comptroller', 'Mayor', 'Borough President'],
+      answer: 'Comptroller',
+      exp: 'The Comptroller is independently elected and serves as the city\'s financial watchdog -- auditing agencies, managing pension funds, and reviewing contracts.'
+    },
+    {
+      q: 'The Department of City Planning (DCP) and the Landmarks Preservation Commission (LPC) are part of the portfolio of which Deputy Mayor?',
+      choices: ['Deputy Mayor for Housing & Planning', 'Deputy Mayor for Economic Justice', 'Deputy Mayor for Operations', 'First Deputy Mayor'],
+      answer: 'Deputy Mayor for Housing & Planning',
+      exp: 'DCP and LPC both fall under the Deputy Mayor for Housing & Planning (Leila Bozorg), along with NYCHA, HPD, DOB, PDC, and the Office to Protect Tenants.'
+    },
+    {
+      q: 'Who serves as first in line of mayoral succession in NYC?',
+      choices: ['Comptroller', 'Public Advocate', 'Speaker of the City Council', 'First Deputy Mayor'],
+      answer: 'Public Advocate',
+      exp: 'The Public Advocate is ombudsman for New Yorkers -- investigating complaints against city agencies -- and is first in line of mayoral succession.'
+    },
+    {
+      q: 'Which of the following is NOT a responsibility of Borough Presidents?',
+      choices: ['Appointing Community Board members', 'Advocating for borough needs', 'Independently directing District Attorneys', 'Serving an advisory role in land use'],
+      answer: 'Independently directing District Attorneys',
+      exp: 'District Attorneys are independently elected and not directed by anyone -- not the Mayor, not Borough Presidents. Borough Presidents appoint CB members, advocate for borough needs, and play an advisory role in land use.'
+    },
+    {
+      q: 'The Office of Gun Violence Prevention and the Office for Prevention of Hate Crimes fall under which Deputy Mayor?',
+      choices: ['First Deputy Mayor', 'Deputy Mayor for Health & Human Services', 'Deputy Mayor for Community Safety', 'Deputy Mayor for Economic Justice'],
+      answer: 'Deputy Mayor for Community Safety',
+      exp: 'The Deputy Mayor for Community Safety (Renita Francois) oversees the Office of Community Safety, which includes the Office of Gun Violence Prevention and the Office for Prevention of Hate Crimes.'
+    },
+    {
+      q: 'How many members comprise the NYC City Council?',
+      choices: ['5', '51', '59', '100'],
       answer: '51',
-      exp: 'The NYC City Council has 51 members. It passes local laws, adopts the budget, and has final say on land use via ULURP.'
+      exp: 'The NYC City Council has 51 members. It passes local laws, adopts the budget, and has a role in land use review.'
     },
     {
-      q: 'Which citywide elected official serves as first in line of mayoral succession?',
-      choices: ['The Comptroller', 'The Borough President', 'The Public Advocate', 'The City Council Speaker'],
-      answer: 'The Public Advocate',
-      exp: 'The Public Advocate is ombudsman for New Yorkers and serves as first in line of mayoral succession.'
-    },
-    {
-      q: 'Community boards are described on the org chart as "advisory  --  not binding." On what three things?',
-      choices: [
-        'Zoning, elections, and public safety',
-        'Land use, budgets, and local services',
-        'Contracts, permits, and inspections',
-        'Housing, transportation, and parks'
-      ],
-      answer: 'Land use, budgets, and local services',
-      exp: 'Community boards are advisory  --  not binding  --  on land use, budgets, and local services.'
-    },
-    {
-      q: 'Which agency manages zoning and runs ULURP?',
-      choices: [
-        'Department of Buildings',
-        'Department of City Planning',
-        'Landmarks Preservation Commission',
-        'Department of Housing Preservation & Development'
-      ],
-      answer: 'Department of City Planning',
-      exp: 'DCP develops land use policy, manages zoning, and runs ULURP. CB6 interacts with DCP on every land use application in the district.'
-    },
-    {
-      q: 'DEP manages water supply and wastewater. What two CB6-specific facilities are listed under DEP on the org chart?',
-      choices: [
-        'NYCHA Gowanus Houses and Wyckoff Gardens',
-        'The Gowanus Canal Superfund and Red Hook CSO facility',
-        'Prospect Park and the Columbia Street Waterfront',
-        'The 76th and 78th Precincts'
-      ],
-      answer: 'The Gowanus Canal Superfund and Red Hook CSO facility',
-      exp: 'DEP manages the Gowanus Canal Superfund and Red Hook combined sewer overflow facility  --  both directly relevant to CB6.'
-    },
-    {
-      q: 'How many community boards are there citywide?',
-      choices: ['51', '55', '59', '62'],
-      answer: '59',
-      exp: 'There are 59 community boards citywide  --  one or more per community district in each borough.'
-    },
-    {
-      q: 'Which deputy mayor oversees DCP, LPC, HPD, NYCHA, and OMB?',
-      choices: [
-        'Deputy Mayor for Housing & Planning',
-        'Deputy Mayor for Operations',
-        'First Deputy Mayor',
-        'Deputy Mayor for Economic Justice'
-      ],
+      q: 'Which Deputy Mayor is responsible for overseeing the NYPD and the Department of Correction?',
+      choices: ['Deputy Mayor for Operations', 'Deputy Mayor for Community Safety', 'First Deputy Mayor', 'Deputy Mayor for Health & Human Services'],
       answer: 'First Deputy Mayor',
-      exp: 'The First Deputy Mayor advises the Mayor on citywide matters and oversees OMB, DOF, DCP, LPC, NYCHA, HPD, and related agencies.'
+      exp: 'Under Executive Order No. 2, the First Deputy Mayor (Dean Fuleihan) supervises NYPD, DOC, DOF, OMB, CUNY, NYC Public Schools, and other agencies.'
     },
     {
-      q: 'LPC designates and regulates historic landmarks and districts. How many historic districts does CB6 have?',
-      choices: ['Two', 'Four', 'Six', 'Eight'],
-      answer: 'Six',
-      exp: 'CB6 has six historic districts and reviews Certificate of Appropriateness applications with LPC.'
+      q: 'The Administration for Children\'s Services (ACS) falls under which Deputy Mayor?',
+      choices: ['Deputy Mayor for Operations', 'Deputy Mayor for Economic Justice', 'Deputy Mayor for Health & Human Services', 'Deputy Mayor for Community Safety'],
+      answer: 'Deputy Mayor for Health & Human Services',
+      exp: 'ACS is part of the Health & Human Services portfolio (Helen Arteaga-Landaverde), along with H+H, DSS, DOHMH, DYCD, DFTA, and others.'
     },
     {
-      q: 'CB6 is served by two NYPD precincts. Which are they?',
-      choices: [
-        '72nd and 84th Precincts',
-        '76th and 78th Precincts',
-        '68th and 76th Precincts',
-        '78th and 84th Precincts'
-      ],
-      answer: '76th and 78th Precincts',
-      exp: 'The 76th Precinct covers Carroll Gardens and Red Hook; the 78th Precinct covers Park Slope and Gowanus.'
+      q: 'Which Deputy Mayor\'s portfolio includes the Department of Transportation (DOT), the Department of Sanitation (DSNY), and FDNY?',
+      choices: ['Deputy Mayor for Community Safety', 'Deputy Mayor for Operations', 'First Deputy Mayor', 'Deputy Mayor for Health & Human Services'],
+      answer: 'Deputy Mayor for Operations',
+      exp: 'The Deputy Mayor for Operations (Julia Kerson) oversees the agencies that keep the city running day to day -- DOT, DSNY, FDNY, DEP, DPR, DDC, DCAS, OEM, and others.'
     },
     {
-      q: 'Borough Presidents appoint community board members. Who appoints CB6 members?',
-      choices: ['The Mayor', 'The City Council', 'Antonio Reynoso', 'The CB6 Chair'],
-      answer: 'Antonio Reynoso',
-      exp: 'Brooklyn Borough President Antonio Reynoso appoints CB6 members with City Council input.'
+      q: 'The Department of Consumer & Worker Protection (DCWP) and the Taxi & Limousine Commission (TLC) are overseen by which Deputy Mayor?',
+      choices: ['Leila Bozorg, Deputy Mayor for Housing & Planning', 'Julia Su, Deputy Mayor for Economic Justice', 'Helen Arteaga-Landaverde, Deputy Mayor for Health & Human Services', 'Renita Francois, Deputy Mayor for Community Safety'],
+      answer: 'Julia Su, Deputy Mayor for Economic Justice',
+      exp: 'DCWP and TLC are both part of the Economic Justice portfolio (Julia Su), along with EDC, SBS, DCLA, MOME, CHR, OIA, and others.'
     }
   ];
 
   var form = FormApp.create(CITY_ORG_TITLE)
-    .setDescription('10 questions on the structure of NYC government  --  who does what and how it connects to CB6.\n\nSource: ' + CITY_ORG_URL)
+    .setDescription('10 questions on the structure of NYC government.\n\nSource: ' + CITY_ORG_URL)
     .setIsQuiz(true)
     .setCollectEmail(true)
     .setShuffleQuestions(false)
@@ -125,8 +99,8 @@ function createCityOrgQuiz() {
       .setChoices(q.choices.map(function(c) { return item.createChoice(c, c === q.answer); }))
       .setRequired(true)
       .setPoints(1)
-      .setFeedbackForCorrect(FormApp.createFeedback().setText('Correct. ' + q.exp).addLink(CITY_ORG_URL, 'Review the page').build())
-      .setFeedbackForIncorrect(FormApp.createFeedback().setText('Not quite. Correct answer: ' + q.answer + '. ' + q.exp).addLink(CITY_ORG_URL, 'Review the page').build());
+      .setFeedbackForCorrect(FormApp.createFeedback().setText('Correct. ' + q.exp).addLink(CITY_ORG_URL, 'Review the source').build())
+      .setFeedbackForIncorrect(FormApp.createFeedback().setText('Not quite. Correct answer: ' + q.answer + '. ' + q.exp).addLink(CITY_ORG_URL, 'Review the source').build());
   }
 
   form.addTextItem()
@@ -162,7 +136,9 @@ function onCityOrgSubmit(e) {
     var mc = item.asMultipleChoiceItem();
     var choices = mc.getChoices();
     var correct = '';
-    for (var j = 0; j < choices.length; j++) { if (choices[j].isCorrectAnswer()) { correct = choices[j].getValue(); break; } }
+    for (var j = 0; j < choices.length; j++) {
+      if (choices[j].isCorrectAnswer()) { correct = choices[j].getValue(); break; }
+    }
     if (String(ir.getResponse()) === correct) { score++; } else { wrong++; }
   }
 
@@ -173,14 +149,13 @@ function onCityOrgSubmit(e) {
 
   var statsSheet = ss.getSheetByName('Stats') || ss.insertSheet('Stats');
   var cell = statsSheet.getRange(1,1);
-  var total = (Number(cell.getValue()) || 0) + 1;
-  cell.setValue(total);
+  cell.setValue((Number(cell.getValue()) || 0) + 1);
 
   if (email) {
     MailApp.sendEmail({
       to: email,
-      subject: 'CB6 City Org Quiz: ' + score + '/' + CITY_ORG_TOTAL + '  --  ' + rank.role,
-      body: 'CB6 City Government Org Chart Quiz\n\n' +
+      subject: 'CB6 NYC Gov Org Chart Quiz: ' + score + '/' + CITY_ORG_TOTAL + ' -- ' + rank.role,
+      body: 'CB6 NYC Government Org Chart Quiz\n\n' +
         'Score: ' + score + '/' + CITY_ORG_TOTAL + ' (' + pct + '%)\n' +
         'Rank: ' + rank.role + '\n\n' +
         rank.message + '\n\n' +
