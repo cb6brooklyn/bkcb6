@@ -278,6 +278,1509 @@ function setGlossFilter(f) {
 renderGloss();
 </script>
 
+
+<!-- WORD JUMBLE QUIZ -->
+<div id="word-jumble-section" style="margin-top:32px;padding:0 0 40px">
+<style>
+
+    :root {
+      --navy:    #1a2744;
+      --blue:    #2563eb;
+      --gold:    #f59e0b;
+      --green:   #16a34a;
+      --red:     #dc2626;
+      --light:   #f0f4ff;
+      --border:  #e2e8f0;
+      --muted:   #64748b;
+      --white:   #ffffff;
+      --orange:  #ea580c;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--light);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 24px 16px 40px;
+    }
+
+    /* ── Header ── */
+    .quiz-header {
+      width: 100%; max-width: 580px;
+      background: var(--navy);
+      border-radius: 16px 16px 0 0;
+      padding: 18px 24px 16px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .header-icon { font-size: 1.9rem; line-height: 1; }
+    .header-text h1 { font-size: 1.1rem; font-weight: 800; color: var(--white); letter-spacing: 0.2px; }
+    .header-text p  { font-size: 0.75rem; color: rgba(255,255,255,0.55); margin-top: 2px; }
+    .header-badge {
+      margin-left: auto;
+      background: var(--gold); color: var(--navy);
+      font-size: 0.7rem; font-weight: 700;
+      padding: 4px 10px; border-radius: 20px; white-space: nowrap;
+    }
+
+    /* ── Card ── */
+    .card {
+      width: 100%; max-width: 580px;
+      background: var(--white);
+      border-radius: 0 0 16px 16px;
+      box-shadow: 0 8px 40px rgba(26,39,68,0.12);
+      padding: 26px 26px 22px;
+    }
+
+    /* ── Progress ── */
+    .progress-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px;
+    }
+    .progress-label { font-size: 0.75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .score-badge { background: var(--navy); color: var(--white); font-weight: 700; font-size: 0.75rem; padding: 3px 12px; border-radius: 20px; }
+    .progress-bar-bg { height: 5px; background: var(--border); border-radius: 99px; overflow: hidden; margin-bottom: 22px; }
+    .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--blue), #1d4ed8); border-radius: 99px; transition: width 0.4s ease; }
+
+    /* ── Category Tag ── */
+    .category-tag {
+      display: inline-block; font-size: 0.65rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      padding: 3px 9px; border-radius: 4px; margin-bottom: 12px;
+    }
+    .cat-zoning   { background: #dbeafe; color: #1e40af; }
+    .cat-process  { background: #dcfce7; color: #166534; }
+    .cat-env      { background: #d1fae5; color: #065f46; }
+    .cat-preserve { background: #fef3c7; color: #92400e; }
+    .cat-housing  { background: #ede9fe; color: #5b21b6; }
+    .cat-agency   { background: #fee2e2; color: #991b1b; }
+
+    /* ── Jumbled Word ── */
+    .jumble-label { font-size: 0.7rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+    .jumbled-word {
+      font-size: 2.5rem; font-weight: 900; letter-spacing: 8px;
+      color: var(--navy); margin-bottom: 4px; min-height: 52px;
+      word-break: break-all; transition: color 0.25s;
+    }
+    .jumbled-word.correct { color: var(--green); }
+    .jumbled-word.wrong   { color: var(--red); animation: shake 0.4s ease; }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%      { transform: translateX(-7px); }
+      40%      { transform: translateX(7px); }
+      60%      { transform: translateX(-5px); }
+      80%      { transform: translateX(5px); }
+    }
+
+    /* ── Hint Box ── */
+    .hint-box {
+      background: #fffbeb; border-left: 3px solid var(--gold);
+      border-radius: 0 8px 8px 0; padding: 10px 14px;
+      font-size: 0.82rem; color: #78350f; line-height: 1.55;
+      margin-bottom: 16px; display: none;
+    }
+    .hint-box.visible { display: block; }
+
+    /* ── Definition Reveal (shown on correct) ── */
+    .def-reveal {
+      background: #f0fdf4; border: 1.5px solid #86efac;
+      border-radius: 10px; padding: 14px 16px;
+      margin-bottom: 16px; display: none;
+      animation: fadeIn 0.35s ease;
+    }
+    .def-reveal.visible { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .def-reveal-term {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.8px; color: var(--green); margin-bottom: 6px;
+    }
+    .def-reveal-text {
+      font-size: 0.84rem; color: #166534; line-height: 1.6; margin-bottom: 10px;
+    }
+    .def-reveal-link {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.78rem; font-weight: 600; color: var(--blue);
+      text-decoration: none; border-bottom: 1px solid rgba(37,99,235,0.3);
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .def-reveal-link:hover { color: #1d4ed8; border-color: #1d4ed8; }
+    .def-reveal-link svg { flex-shrink: 0; }
+
+    /* ── Input ── */
+    .input-row { display: flex; gap: 10px; margin-bottom: 12px; }
+    .answer-input {
+      flex: 1; padding: 12px 15px;
+      font-size: 1rem; font-family: 'Inter', sans-serif; font-weight: 700;
+      border: 2px solid var(--border); border-radius: 10px; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      text-transform: uppercase; letter-spacing: 2px; color: var(--navy);
+    }
+    .answer-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+    .answer-input.correct { border-color: var(--green); background: #f0fdf4; }
+    .answer-input.wrong   { border-color: var(--red);   background: #fef2f2; }
+    .answer-input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .btn-check {
+      padding: 12px 18px; background: var(--navy); color: var(--white);
+      font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 700;
+      border: none; border-radius: 10px; cursor: pointer;
+      transition: background 0.2s, transform 0.1s; white-space: nowrap; min-width: 88px;
+    }
+    .btn-check:hover  { background: #243460; }
+    .btn-check:active { transform: scale(0.97); }
+
+    /* ── Feedback ── */
+    .feedback { font-size: 0.85rem; font-weight: 600; min-height: 18px; margin-bottom: 12px; }
+    .feedback.correct { color: var(--green); }
+    .feedback.wrong   { color: var(--red); }
+
+    /* ── Secondary Buttons ── */
+    .btn-row { display: flex; gap: 8px; }
+    .btn-secondary {
+      flex: 1; padding: 8px 10px;
+      font-family: 'Inter', sans-serif; font-size: 0.78rem; font-weight: 600;
+      border-radius: 8px; border: 1.5px solid var(--border);
+      background: var(--white); color: var(--muted); cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .btn-secondary:hover { background: var(--light); border-color: #cbd5e1; color: var(--navy); }
+    .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Game / Results screens ── */
+    .game-screen.hidden { display: none; }
+    .results-screen { display: none; }
+    .results-screen.visible { display: block; }
+
+    /* ── Results ── */
+    .results-top { text-align: center; padding-bottom: 18px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
+    .results-emoji { font-size: 3.2rem; margin-bottom: 8px; }
+    .results-title { font-size: 1.35rem; font-weight: 800; color: var(--navy); margin-bottom: 5px; }
+    .results-score { font-size: 2.8rem; font-weight: 900; color: var(--blue); line-height: 1; margin-bottom: 5px; }
+    .results-sub   { font-size: 0.85rem; color: var(--muted); }
+
+    .results-list-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 10px; }
+    .result-item {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      padding: 10px 0; border-bottom: 1px solid #f1f5f9; gap: 10px;
+    }
+    .result-item:last-child { border-bottom: none; }
+    .ri-left { flex: 1; min-width: 0; }
+    .ri-word { font-weight: 700; font-size: 0.85rem; color: var(--navy); letter-spacing: 0.5px; }
+    .ri-def  { font-size: 0.73rem; color: var(--muted); line-height: 1.45; margin-top: 3px; }
+    .ri-link {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 0.72rem; font-weight: 600; color: var(--blue);
+      text-decoration: none; margin-top: 5px;
+      border-bottom: 1px solid rgba(37,99,235,0.25);
+    }
+    .ri-link:hover { color: #1d4ed8; }
+    .ri-status { font-size: 1rem; flex-shrink: 0; padding-top: 2px; }
+
+    .btn-play-again {
+      width: 100%; margin-top: 18px; padding: 14px;
+      background: var(--navy); color: var(--white);
+      font-family: 'Inter', sans-serif; font-size: 0.92rem; font-weight: 700;
+      border: none; border-radius: 10px; cursor: pointer;
+      transition: background 0.2s, transform 0.1s; letter-spacing: 0.3px;
+    }
+    .btn-play-again:hover  { background: #243460; }
+    .btn-play-again:active { transform: scale(0.98); }
+
+    /* ── Sign-up Button ── */
+    .btn-signup {
+      display: block; width: 100%; margin-top: 10px; padding: 13px;
+      background: var(--gold); color: var(--navy);
+      font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 700;
+      border: none; border-radius: 10px; cursor: pointer;
+      text-align: center; text-decoration: none;
+      transition: background 0.2s, transform 0.1s; letter-spacing: 0.2px;
+    }
+    .btn-signup:hover  { background: #d97706; }
+    .btn-signup:active { transform: scale(0.98); }
+
+    /* ── Initials / Leaderboard ── */
+    .lb-section {
+      margin-top: 22px; border-top: 1px solid var(--border); padding-top: 18px;
+    }
+    .lb-section-title {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.8px; color: var(--muted); margin-bottom: 12px;
+    }
+    .initials-row {
+      display: flex; gap: 10px; margin-bottom: 10px;
+    }
+    .initials-input {
+      flex: 1; padding: 11px 14px;
+      font-size: 1rem; font-family: 'Inter', sans-serif; font-weight: 800;
+      border: 2px solid var(--border); border-radius: 10px; outline: none;
+      text-transform: uppercase; letter-spacing: 4px; color: var(--navy);
+      transition: border-color 0.2s, box-shadow 0.2s;
+      text-align: center;
+    }
+    .initials-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+    .initials-input:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-submit-score {
+      padding: 11px 18px; background: var(--blue); color: var(--white);
+      font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 700;
+      border: none; border-radius: 10px; cursor: pointer;
+      transition: background 0.2s, transform 0.1s; white-space: nowrap;
+    }
+    .btn-submit-score:hover  { background: #1d4ed8; }
+    .btn-submit-score:active { transform: scale(0.97); }
+    .btn-submit-score:disabled { opacity: 0.5; cursor: not-allowed; }
+    .submitted-note {
+      font-size: 0.78rem; color: var(--green); font-weight: 600;
+      margin-bottom: 14px; display: none;
+    }
+    .submitted-note.visible { display: block; }
+
+    /* Leaderboard table */
+    .lb-header {
+      display: grid; grid-template-columns: 32px 1fr 64px;
+      padding: 6px 10px; background: var(--navy); border-radius: 8px 8px 0 0;
+      font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.8px; color: rgba(255,255,255,0.6);
+    }
+    .lb-body { border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; overflow: hidden; }
+    .lb-row {
+      display: grid; grid-template-columns: 32px 1fr 64px;
+      padding: 9px 10px; align-items: center;
+      border-bottom: 1px solid #f1f5f9; font-size: 0.82rem;
+      transition: background 0.15s;
+    }
+    .lb-row:last-child { border-bottom: none; }
+    .lb-row.gold   { background: #fffbeb; }
+    .lb-row.silver { background: #f8fafc; }
+    .lb-row.bronze { background: #fff7ed; }
+    .lb-row.highlight { background: #eff6ff !important; }
+    .lb-rank { font-weight: 800; color: var(--muted); font-size: 0.78rem; }
+    .lb-rank.r1 { color: #d97706; }
+    .lb-rank.r2 { color: #64748b; }
+    .lb-rank.r3 { color: #b45309; }
+    .lb-initials { font-weight: 800; color: var(--navy); letter-spacing: 2px; font-size: 0.9rem; }
+    .lb-score { font-weight: 700; color: var(--blue); text-align: right; font-size: 0.82rem; }
+    .lb-empty { padding: 18px; text-align: center; color: var(--muted); font-size: 0.82rem; font-style: italic; }
+
+    /* ── Footer ── */
+    .quiz-footer {
+      width: 100%; max-width: 580px; text-align: center;
+      margin-top: 10px; font-size: 0.7rem; color: #94a3b8;
+    }
+    .quiz-footer a { color: #94a3b8; text-decoration: underline; }
+  
+</style>
+<!-- HEADER -->
+<div class="quiz-header">
+  <div class="header-icon">📖</div>
+  <div class="header-text">
+    <h1>CB6 Glossary Word Jumble</h1>
+    <p>Brooklyn Community Board 6 — Land Use &amp; Zoning</p>
+  </div>
+  <div class="header-badge">Quiz</div>
+</div>
+
+<!-- CARD -->
+<div class="card">
+
+  <!-- ══ GAME SCREEN ══ -->
+  <div class="game-screen" id="gameScreen">
+
+    <div class="progress-row">
+      <span class="progress-label" id="progressLabel">Word 1 of 15</span>
+      <span class="score-badge" id="scoreBadge">Score: 0</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+    </div>
+
+    <div id="categoryTag" class="category-tag cat-zoning">Land Use &amp; Zoning</div>
+
+    <div class="jumble-label">Unscramble this term</div>
+    <div class="jumbled-word" id="jumbledWord">&#8203;</div>
+
+    <!-- Hint (before answer) -->
+    <div class="hint-box" id="hintBox"></div>
+
+    <!-- Definition reveal (after correct answer) -->
+    <div class="def-reveal" id="defReveal">
+      <div class="def-reveal-term" id="defRevealTerm"></div>
+      <div class="def-reveal-text" id="defRevealText"></div>
+      <a class="def-reveal-link" id="defRevealLink" href="#" target="_blank">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        View in Glossary
+      </a>
+    </div>
+
+    <div class="feedback" id="feedback"></div>
+
+    <div class="input-row">
+      <input
+        class="answer-input" id="answerInput" type="text"
+        placeholder="Type your answer..."
+        autocomplete="off" autocorrect="off" spellcheck="false"
+      />
+      <button class="btn-check" id="btnCheck">Check</button>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-secondary" id="btnHint">💡 Hint</button>
+      <button class="btn-secondary" id="btnSkip">⏭ Skip</button>
+      <button class="btn-secondary" id="btnShuffle">🔀 Reshuffle</button>
+    </div>
+
+  </div>
+
+  <!-- ══ RESULTS SCREEN ══ -->
+  <div class="results-screen" id="resultsScreen">
+    <div class="results-top">
+      <div class="results-emoji" id="resultsEmoji">🏆</div>
+      <div class="results-title" id="resultsTitle">Quiz Complete!</div>
+      <div class="results-score" id="resultsScore">0 / 15</div>
+      <div class="results-sub" id="resultsSub"></div>
+    </div>
+    <div class="results-list-title">Your Results</div>
+    <div id="resultsList"></div>
+    <button class="btn-play-again" id="btnPlayAgain">🔄 Play Again</button>
+    <a class="btn-signup" href="https://docs.google.com/forms/d/1So02DHCINVIxHzq3ZKYe_wSdWGjO-9a34SJQyEEM4yU/viewform" target="_blank">✉️ Sign up to find out about more jumbles</a>
+
+    <!-- ══ LEADERBOARD SECTION ══ -->
+    <div class="lb-section" id="lbSection">
+      <div class="lb-section-title">🏆 Leaderboard — Enter your initials</div>
+      <div class="initials-row">
+        <input class="initials-input" id="initialsInput" type="text" maxlength="3"
+          placeholder="ABC" autocomplete="off" autocorrect="off" spellcheck="false" />
+        <button class="btn-submit-score" id="btnSubmitScore">Submit Score</button>
+      </div>
+      <div class="submitted-note" id="submittedNote">✅ Score submitted! You're on the board.</div>
+      <div class="lb-header">
+        <span>#</span><span>Name</span><span style="text-align:right">Score</span>
+      </div>
+      <div class="lb-body" id="lbBody"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- SIGN-UP (below game screen too) -->
+<div style="width:100%;max-width:580px;margin-top:12px;">
+  <a class="btn-signup" href="https://docs.google.com/forms/d/1So02DHCINVIxHzq3ZKYe_wSdWGjO-9a34SJQyEEM4yU/viewform" target="_blank">✉️ Sign up to find out about more jumbles</a>
+</div>
+
+<!-- FOOTER -->
+<div class="quiz-footer" style="margin-top:10px;">
+  Terms sourced from <a href="https://bkcb6.app/glossary.html" target="_blank">bkcb6.app/glossary.html</a>
+</div>
+
+<script>
+// ── Glossary data — term, category, full definition, and deep-link slug ──
+const WORDS = [
+  {
+    word: "VARIANCE",
+    cat: "process", catLabel: "Process & Approval",
+    def: "Relief from zoning rules granted where strict compliance would create practical difficulty or hardship. For area variances (bulk), all five findings under ZR §72-21 must be proven. Granted by the Board of Standards and Appeals, not the CPC.",
+    slug: "variance"
+  },
+  {
+    word: "ZONING",
+    cat: "zoning", catLabel: "Land Use & Zoning",
+    def: "The system of district-based rules that regulates land use and development across New York City. Zoning determines what can be built, how large, and for what purpose on any given lot. The NYC Zoning Resolution has been in place since 1961.",
+    slug: "zoning"
+  },
+  {
+    word: "SCOPING",
+    cat: "env", catLabel: "Environmental Review",
+    def: "The process by which the lead agency and the public define the range of issues and alternatives to be studied in a Draft EIS. CB6 can participate in scoping to ensure relevant neighborhood concerns are included.",
+    slug: "scoping"
+  },
+  {
+    word: "FINDINGS",
+    cat: "process", catLabel: "Process & Approval",
+    def: "Specific criteria that an agency must affirmatively determine before granting a discretionary approval. If required findings cannot be made, approval must be denied.",
+    slug: "findings"
+  },
+  {
+    word: "HARDSHIP",
+    cat: "preserve", catLabel: "Preservation",
+    def: "A finding that the cost of LPC-compliant preservation would make a property economically undevelopable. An owner can apply for a hardship determination from LPC, which may allow modifications to otherwise required preservation standards.",
+    slug: "hardship"
+  },
+  {
+    word: "BULK",
+    cat: "zoning", catLabel: "Land Use & Zoning",
+    def: "The size and shape of a building as controlled by zoning regulations — including lot size, floor area ratio (FAR), lot coverage, open space, yards, height, and setback requirements.",
+    slug: "bulk"
+  },
+  {
+    word: "ULURP",
+    cat: "process", catLabel: "Process & Approval",
+    def: "The Uniform Land Use Review Procedure — the city's formal public review process for major land use actions. CB6 has a 60-day window to hold a public hearing and issue an advisory recommendation.",
+    slug: "ulurp"
+  },
+  {
+    word: "CEQR",
+    cat: "env", catLabel: "Environmental Review",
+    def: "City Environmental Quality Review — New York City's environmental review process for discretionary actions, assessing potential impacts on land use, traffic, noise, air quality, and historic resources.",
+    slug: "ceqr"
+  },
+  {
+    word: "AUTHORIZATION",
+    cat: "process", catLabel: "Process & Approval",
+    def: "A discretionary action by the City Planning Commission that modifies specified zoning requirements when required findings are met. Less involved than a special permit, and does not require a full ULURP vote by the City Council.",
+    slug: "authorization"
+  },
+  {
+    word: "REZONING",
+    cat: "zoning", catLabel: "Land Use & Zoning",
+    def: "A change to the official NYC Zoning Map — changing a district's boundaries or classification. Commonly called a rezoning. Goes through ULURP and requires City Council approval.",
+    slug: "zoning+map+amendment"
+  },
+  {
+    word: "AFFORDABLE",
+    cat: "housing", catLabel: "Housing & Finance",
+    def: "Housing where costs (rent or purchase price) are restricted based on income. Generally defined as costing no more than 30% of a household's gross income. NYC uses AMI thresholds to define affordability levels.",
+    slug: "affordable+housing"
+  },
+  {
+    word: "SEQRA",
+    cat: "env", catLabel: "Environmental Review",
+    def: "New York State Environmental Quality Review Act — state law requiring all government agencies to assess environmental impacts of discretionary actions before approving them. CEQR is NYC's local implementation.",
+    slug: "seqra"
+  },
+  {
+    word: "NYCHA",
+    cat: "agency", catLabel: "Agencies & Acronyms",
+    def: "New York City Housing Authority — the city agency that owns and manages public housing. CB6 includes two NYCHA developments: Gowanus Houses (1,134 units) and Wyckoff Gardens (528 units).",
+    slug: "nycha"
+  },
+  {
+    word: "OVERLAY",
+    cat: "zoning", catLabel: "Land Use & Zoning",
+    def: "A C1 or C2 district mapped within a residential zoning district to allow neighborhood-serving retail and related commercial uses on ground floors. Common in areas like Park Slope and Carroll Gardens.",
+    slug: "commercial+overlay"
+  },
+  {
+    word: "LANDMARK",
+    cat: "preserve", catLabel: "Preservation",
+    def: "A building, structure, or site designated by the Landmarks Preservation Commission (LPC) for its historical, cultural, aesthetic, or architectural significance. Exterior changes require LPC approval.",
+    slug: "historic+district"
+  }
+];
+
+const GLOSSARY_BASE = "https://bkcb6.app/glossary.html#";
+
+const CAT_CLASS = {
+  zoning:   'cat-zoning',
+  process:  'cat-process',
+  env:      'cat-env',
+  preserve: 'cat-preserve',
+  housing:  'cat-housing',
+  agency:   'cat-agency'
+};
+
+// ── State ──
+let queue = [];
+let currentIndex = 0;
+let score = 0;
+let results = [];
+let answered = false;
+
+// ── DOM refs ──
+const gameScreen    = document.getElementById('gameScreen');
+const resultsScreen = document.getElementById('resultsScreen');
+const jumbledWordEl = document.getElementById('jumbledWord');
+const hintBox       = document.getElementById('hintBox');
+const defReveal     = document.getElementById('defReveal');
+const defRevealTerm = document.getElementById('defRevealTerm');
+const defRevealText = document.getElementById('defRevealText');
+const defRevealLink = document.getElementById('defRevealLink');
+const feedbackEl    = document.getElementById('feedback');
+const answerInput   = document.getElementById('answerInput');
+const btnCheck      = document.getElementById('btnCheck');
+const btnHint       = document.getElementById('btnHint');
+const btnSkip       = document.getElementById('btnSkip');
+const btnShuffle    = document.getElementById('btnShuffle');
+const btnPlayAgain  = document.getElementById('btnPlayAgain');
+const progressLabel = document.getElementById('progressLabel');
+const scoreBadge    = document.getElementById('scoreBadge');
+const progressFill  = document.getElementById('progressFill');
+const categoryTag   = document.getElementById('categoryTag');
+
+// ── Helpers ──
+function shuffle(str) {
+  const arr = str.split('');
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr.join('');
+}
+
+function jumble(word) {
+  let result, attempts = 0;
+  do { result = shuffle(word); attempts++; }
+  while (result === word && attempts < 30);
+  return result;
+}
+
+function buildQueue() {
+  queue = [...WORDS].sort(() => Math.random() - 0.5);
+  queue = queue.map(item => ({ ...item, jumbled: jumble(item.word) }));
+}
+
+function updateProgress() {
+  progressLabel.textContent = `Word ${currentIndex + 1} of ${queue.length}`;
+  scoreBadge.textContent    = `Score: ${score}`;
+  progressFill.style.width  = `${(currentIndex / queue.length) * 100}%`;
+}
+
+function loadWord() {
+  answered = false;
+
+  // Reset all UI to clean blank state
+  hintBox.classList.remove('visible');
+  hintBox.innerHTML = '';
+  defReveal.classList.remove('visible');
+  feedbackEl.textContent = '';
+  feedbackEl.className   = 'feedback';
+  answerInput.value      = '';
+  answerInput.className  = 'answer-input';
+  answerInput.disabled   = false;
+  jumbledWordEl.className = 'jumbled-word';
+  btnCheck.textContent   = 'Check';
+  btnHint.disabled    = false;
+  btnSkip.disabled    = false;
+  btnShuffle.disabled = false;
+
+  const current = queue[currentIndex];
+  jumbledWordEl.textContent = current.jumbled;
+  categoryTag.textContent   = current.catLabel;
+  categoryTag.className     = 'category-tag ' + (CAT_CLASS[current.cat] || 'cat-zoning');
+
+  updateProgress();
+  answerInput.focus();
+}
+
+function showFeedback(type, msg) {
+  feedbackEl.innerHTML  = msg;
+  feedbackEl.className  = `feedback ${type}`;
+}
+
+function revealDefinition(item) {
+  defRevealTerm.textContent = item.word;
+  defRevealText.textContent = item.def;
+  defRevealLink.href        = GLOSSARY_BASE + item.slug;
+  defReveal.classList.add('visible');
+}
+
+function nextWord() {
+  currentIndex++;
+  if (currentIndex >= queue.length) {
+    showResults();
+  } else {
+    loadWord();
+  }
+}
+
+function checkAnswer() {
+  if (answered) { nextWord(); return; }
+
+  const current    = queue[currentIndex];
+  const userAnswer = answerInput.value.trim().toUpperCase();
+
+  if (!userAnswer) {
+    showFeedback('wrong', 'Please enter an answer first.');
+    return;
+  }
+
+  if (userAnswer === current.word) {
+    score++;
+    answered = true;
+    results.push({ ...current, correct: true });
+
+    jumbledWordEl.className = 'jumbled-word correct';
+    answerInput.className   = 'answer-input correct';
+    answerInput.disabled    = true;
+    btnHint.disabled        = true;
+    btnSkip.disabled        = true;
+    btnShuffle.disabled     = true;
+    hintBox.classList.remove('visible'); // hide hint if open
+
+    showFeedback('correct', '✅ Correct!');
+    scoreBadge.textContent = `Score: ${score}`;
+    revealDefinition(current);
+    btnCheck.textContent = 'Next →';
+
+  } else {
+    jumbledWordEl.className = 'jumbled-word wrong';
+    answerInput.className   = 'answer-input wrong';
+    showFeedback('wrong', '❌ Not quite — try again!');
+    setTimeout(() => {
+      jumbledWordEl.className = 'jumbled-word';
+      answerInput.className   = 'answer-input';
+    }, 500);
+  }
+}
+
+function skipWord() {
+  if (answered) { nextWord(); return; }
+  const current = queue[currentIndex];
+  results.push({ ...current, correct: false });
+
+  answered = true;
+  answerInput.disabled = true;
+  btnHint.disabled     = true;
+  btnShuffle.disabled  = true;
+  btnSkip.disabled     = true;
+
+  showFeedback('wrong', `The answer was: <strong>${current.word}</strong>`);
+  revealDefinition(current);
+  btnCheck.textContent = 'Next →';
+}
+
+// ── window.storage helpers ──
+const LB_KEY      = 'jumble_lb';
+const ALL_KEY     = 'jumble_all';
+const STATS_KEY   = 'jumble_stats';
+
+async function getStore(key, def) {
+  try { const r = await window.storage.get(key); return r ? JSON.parse(r.value) : def; } catch(e) { return def; }
+}
+async function setStore(key, val) {
+  try { await window.storage.set(key, JSON.stringify(val)); } catch(e) {}
+}
+
+function renderLeaderboard(highlightTs) {
+  const lb   = getStore(LB_KEY, []);
+  const body = document.getElementById('lbBody');
+  if (!lb.length) {
+    body.innerHTML = '<div class="lb-empty">No entries yet — be the first!</div>';
+    return;
+  }
+  const rankClass = ['r1','r2','r3'];
+  const rowClass  = ['gold','silver','bronze'];
+  body.innerHTML = lb.map((e, i) => {
+    const hi = highlightTs && e.ts === highlightTs ? ' highlight' : '';
+    return `<div class="lb-row ${rowClass[i]||''}${hi}">
+      <div class="lb-rank ${rankClass[i]||''}">${i+1}</div>
+      <div class="lb-initials">${e.initials}</div>
+      <div class="lb-score">${e.score}/${e.total}</div>
+    </div>`;
+  }).join('');
+}
+
+function showResults() {
+  progressFill.style.width = '100%';
+  gameScreen.classList.add('hidden');
+  resultsScreen.classList.add('visible');
+
+  const total = queue.length;
+  document.getElementById('resultsScore').textContent = `${score} / ${total}`;
+
+  const pct = score / total;
+  let emoji, title, sub;
+  if      (pct === 1)    { emoji = '🏆'; title = 'Perfect Score!';    sub = 'You know your CB6 terminology inside out!'; }
+  else if (pct >= 0.8)   { emoji = '🎉'; title = 'Excellent!';        sub = 'Strong command of land use vocabulary!'; }
+  else if (pct >= 0.6)   { emoji = '👍'; title = 'Good Job!';         sub = 'Solid performance — keep reviewing the glossary!'; }
+  else if (pct >= 0.4)   { emoji = '📚'; title = 'Keep Practicing!';  sub = 'Review the glossary at bkcb6.app and try again.'; }
+  else                   { emoji = '🔍'; title = 'Time to Study!';    sub = 'The glossary at bkcb6.app is a great place to start.'; }
+
+  document.getElementById('resultsEmoji').textContent = emoji;
+  document.getElementById('resultsTitle').textContent = title;
+  document.getElementById('resultsSub').textContent   = sub;
+
+  // Reset leaderboard submission UI
+  const initialsInput  = document.getElementById('initialsInput');
+  const btnSubmitScore = document.getElementById('btnSubmitScore');
+  const submittedNote  = document.getElementById('submittedNote');
+  initialsInput.value    = '';
+  initialsInput.disabled = false;
+  btnSubmitScore.disabled = false;
+  submittedNote.classList.remove('visible');
+  renderLeaderboard(null);
+
+  const list = document.getElementById('resultsList');
+  list.innerHTML = '';
+  results.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'result-item';
+    const shortDef = r.def.length > 100 ? r.def.substring(0, 100) + '…' : r.def;
+    div.innerHTML = `
+      <div class="ri-left">
+        <div class="ri-word">${r.word}</div>
+        <div class="ri-def">${shortDef}</div>
+        <a class="ri-link" href="${GLOSSARY_BASE}${r.slug}" target="_blank">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          View in Glossary
+        </a>
+      </div>
+      <div class="ri-status">${r.correct ? '✅' : '❌'}</div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function startGame() {
+  // Full clean reset
+  score        = 0;
+  currentIndex = 0;
+  results      = [];
+  answered     = false;
+
+  buildQueue();
+
+  // Reset progress UI
+  progressFill.style.width = '0%';
+  scoreBadge.textContent   = 'Score: 0';
+
+  // Show game, hide results
+  gameScreen.classList.remove('hidden');
+  resultsScreen.classList.remove('visible');
+
+  loadWord();
+}
+
+// ── Events ──
+btnCheck.addEventListener('click', checkAnswer);
+
+btnHint.addEventListener('click', () => {
+  if (answered) return;
+  hintBox.innerHTML = '<strong>Hint:</strong> ' + queue[currentIndex].def;
+  hintBox.classList.add('visible');
+});
+
+btnSkip.addEventListener('click', skipWord);
+
+btnShuffle.addEventListener('click', () => {
+  if (answered) return;
+  queue[currentIndex].jumbled = jumble(queue[currentIndex].word);
+  jumbledWordEl.textContent   = queue[currentIndex].jumbled;
+});
+
+btnPlayAgain.addEventListener('click', startGame);
+
+// ── Leaderboard submission ──
+document.getElementById('btnSubmitScore').addEventListener('click', () => {
+  const initialsInput  = document.getElementById('initialsInput');
+  const btnSubmitScore = document.getElementById('btnSubmitScore');
+  const submittedNote  = document.getElementById('submittedNote');
+
+  const initials = initialsInput.value.trim().toUpperCase().replace(/[^A-Z]/g, '').substring(0, 3);
+  if (!initials) {
+    initialsInput.focus();
+    initialsInput.style.borderColor = 'var(--red)';
+    setTimeout(() => { initialsInput.style.borderColor = ''; }, 1000);
+    return;
+  }
+
+  const total = queue.length;
+  const ts    = Date.now();
+
+  // Update stats
+  const stats = getStore(STATS_KEY, { total: 0, scoreSum: 0 });
+  stats.total    += 1;
+  stats.scoreSum += score;
+  setStore(STATS_KEY, stats);
+
+  // Save to ALL scores (never trimmed)
+  const allScores = getStore(ALL_KEY, []);
+  allScores.push({ initials, score, total, ts });
+  setStore(ALL_KEY, allScores);
+
+  // Save to top-10 leaderboard
+  let lb = getStore(LB_KEY, []);
+  lb.push({ initials, score, total, ts });
+  lb.sort((a, b) => b.score - a.score || a.ts - b.ts);
+  lb = lb.slice(0, 10);
+  setStore(LB_KEY, lb);
+
+  // Lock UI and show confirmation
+  initialsInput.disabled  = true;
+  btnSubmitScore.disabled = true;
+  submittedNote.classList.add('visible');
+
+  renderLeaderboard(ts);
+});
+
+document.getElementById('initialsInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btnSubmitScore').click();
+});
+
+answerInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') checkAnswer();
+});
+
+// ── Admin panel (press Shift+A+L+L to reveal) ──
+let adminKeySeq = [];
+const ADMIN_SEQ = ['A','L','L'];
+
+document.addEventListener('keydown', e => {
+  adminKeySeq.push(e.key.toUpperCase());
+  if (adminKeySeq.length > ADMIN_SEQ.length) adminKeySeq.shift();
+  if (adminKeySeq.join('') === ADMIN_SEQ.join('') && e.shiftKey) {
+    toggleAdminPanel();
+  }
+});
+
+function toggleAdminPanel() {
+  let panel = document.getElementById('adminPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'adminPanel';
+    panel.style.cssText = [
+      'position:fixed','bottom:0','left:0','right:0',
+      'background:#1a2744','color:#fff','padding:20px 24px',
+      'max-height:60vh','overflow-y:auto','z-index:9999',
+      'font-family:Inter,sans-serif','font-size:0.8rem',
+      'border-top:3px solid #f59e0b','box-shadow:0 -4px 30px rgba(0,0,0,0.4)'
+    ].join(';');
+    document.body.appendChild(panel);
+  }
+
+  if (panel.style.display === 'block') {
+    panel.style.display = 'none';
+    return;
+  }
+
+  const all = getStore(ALL_KEY, []);
+  const stats = getStore(STATS_KEY, { total: 0, scoreSum: 0 });
+  const avg = stats.total > 0 ? (stats.scoreSum / stats.total).toFixed(1) : '--';
+
+  let html = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <strong style="font-size:0.9rem;color:#f59e0b">🔒 Admin — All Scores (${all.length} total)</strong>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span style="color:rgba(255,255,255,0.5);font-size:0.72rem">Avg: ${avg}/15</span>
+        <button onclick="exportCSV()" style="background:#f59e0b;color:#1a2744;border:none;padding:5px 12px;border-radius:6px;font-weight:700;cursor:pointer;font-size:0.75rem">⬇️ Export CSV</button>
+        <button onclick="document.getElementById('adminPanel').style.display='none'" style="background:rgba(255,255,255,0.1);color:#fff;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.75rem">✕ Close</button>
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="color:rgba(255,255,255,0.5);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.8px">
+          <th style="text-align:left;padding:4px 8px">#</th>
+          <th style="text-align:left;padding:4px 8px">Initials</th>
+          <th style="text-align:center;padding:4px 8px">Score</th>
+          <th style="text-align:center;padding:4px 8px">%</th>
+          <th style="text-align:left;padding:4px 8px">Date &amp; Time</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  // Sort all by score desc, then by time asc
+  const sorted = [...all].sort((a, b) => b.score - a.score || a.ts - b.ts);
+  sorted.forEach((e, i) => {
+    const d   = new Date(e.ts);
+    const dt  = d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) +
+                ' ' + d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+    const pct = Math.round(e.score / e.total * 100);
+    const bg  = i % 2 === 0 ? 'rgba(255,255,255,0.04)' : 'transparent';
+    html += `<tr style="background:${bg}">
+      <td style="padding:5px 8px;color:rgba(255,255,255,0.4)">${i+1}</td>
+      <td style="padding:5px 8px;font-weight:800;letter-spacing:2px;color:#f59e0b">${e.initials}</td>
+      <td style="padding:5px 8px;text-align:center;font-weight:700;color:#60a5fa">${e.score}/${e.total}</td>
+      <td style="padding:5px 8px;text-align:center;color:${pct>=80?'#4ade80':pct>=50?'#fbbf24':'#f87171'}">${pct}%</td>
+      <td style="padding:5px 8px;color:rgba(255,255,255,0.55);font-size:0.72rem">${dt}</td>
+    </tr>`;
+  });
+
+  if (!all.length) {
+    html += `<tr><td colspan="5" style="padding:16px;text-align:center;color:rgba(255,255,255,0.4);font-style:italic">No submissions yet.</td></tr>`;
+  }
+
+  html += '</tbody></table>';
+  panel.innerHTML = html;
+  panel.style.display = 'block';
+}
+
+function exportCSV() {
+  const all = getStore(ALL_KEY, []);
+  if (!all.length) { alert('No scores to export yet.'); return; }
+  const sorted = [...all].sort((a, b) => b.score - a.score || a.ts - b.ts);
+  const rows = [['Rank','Initials','Score','Total','Percent','Date','Time']];
+  sorted.forEach((e, i) => {
+    const d   = new Date(e.ts);
+    const pct = Math.round(e.score / e.total * 100);
+    rows.push([
+      i + 1,
+      e.initials,
+      e.score,
+      e.total,
+      pct + '%',
+      d.toLocaleDateString('en-US'),
+      d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })
+    ]);
+  });
+  const csv  = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'jumble-scores.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Init ──
+startGame();
+</script>
+</div>
+<script>
+
+// ── Glossary data — term, category, full definition, and deep-link slug ──
+const WORDS = [
+  {
+    word: "VARIANCE",
+    cat: "process", catLabel: "Process & Approval",
+    def: "Relief from zoning rules granted where strict compliance would create practical difficulty or hardship. For area variances (bulk), all five findings under ZR §72-21 must be proven. Granted by the Board of Standards and Appeals, not the CPC.",
+    slug: "variance"
+  },
+  {
+    word: "ZONING",
+    cat: "zoning", catLabel: "Land Use & Zoning",
+    def: "The system of district-based rules that regulates land use and development across New York City. Zoning determines what can be built, how large, and for what purpose on any given lot. The NYC Zoning Resolution has been in place since 1961.",
+    slug: "zoning"
+  },
+  {
+    word: "SCOPING",
+    cat: "env", catLabel: "Environmental Review",
+    def: "The process by which the lead agency and the public define the range of issues and alternatives to be studied in a Draft EIS. CB6 can participate in scoping to ensure relevant neighborhood concerns are included.",
+    slug: "scoping"
+  },
+  {
+    word: "FINDINGS",
+    cat: "process", catLabel: "Process & Approval",
+    def: "Specific criteria that an agency must affirmatively determine before granting a discretionary approval. If required findings cannot be made, approval must be denied.",
+    slug: "findings"
+  },
+  {
+    word: "HARDSHIP",
+    cat: "preserve", catLabel: "Preservation",
+    def: "A finding that the cost of LPC-compliant preservation would make a property economically undevelopable. An owner can apply for a hardship determination from LPC, which may allow modifications to otherwise required preservation standards.",
+    slug: "hardship"
+  },
+  {
+    word: "BULK",
+    cat: "zoning", catLabel: "Land Use & Zoning",
+    def: "The size and shape of a building as controlled by zoning regulations — including lot size, floor area ratio (FAR), lot coverage, open space, yards, height, and setback requirements.",
+    slug: "bulk"
+  },
+  {
+    word: "ULURP",
+    cat: "process", catLabel: "Process & Approval",
+    def: "The Uniform Land Use Review Procedure — the city's formal public review process for major land use actions. CB6 has a 60-day window to hold a public hearing and issue an advisory recommendation.",
+    slug: "ulurp"
+  },
+  {
+    word: "CEQR",
+    cat: "env", catLabel: "Environmental Review",
+    def: "City Environmental Quality Review — New York City's environmental review process for discretionary actions, assessing potential impacts on land use, traffic, noise, air quality, and historic resources.",
+    slug: "ceqr"
+  },
+  {
+    word: "AUTHORIZATION",
+    cat: "process", catLabel: "Process & Approval",
+    def: "A discretionary action by the City Planning Commission that modifies specified zoning requirements when required findings are met. Less involved than a special permit, and does not require a full ULURP vote by the City Council.",
+    slug: "authorization"
+  },
+  {
+    word: "REZONING",
+    cat: "zoning", catLabel: "Land Use & Zoning",
+    def: "A change to the official NYC Zoning Map — changing a district's boundaries or classification. Commonly called a rezoning. Goes through ULURP and requires City Council approval.",
+    slug: "zoning+map+amendment"
+  },
+  {
+    word: "AFFORDABLE",
+    cat: "housing", catLabel: "Housing & Finance",
+    def: "Housing where costs (rent or purchase price) are restricted based on income. Generally defined as costing no more than 30% of a household's gross income. NYC uses AMI thresholds to define affordability levels.",
+    slug: "affordable+housing"
+  },
+  {
+    word: "SEQRA",
+    cat: "env", catLabel: "Environmental Review",
+    def: "New York State Environmental Quality Review Act — state law requiring all government agencies to assess environmental impacts of discretionary actions before approving them. CEQR is NYC's local implementation.",
+    slug: "seqra"
+  },
+  {
+    word: "NYCHA",
+    cat: "agency", catLabel: "Agencies & Acronyms",
+    def: "New York City Housing Authority — the city agency that owns and manages public housing. CB6 includes two NYCHA developments: Gowanus Houses (1,134 units) and Wyckoff Gardens (528 units).",
+    slug: "nycha"
+  },
+  {
+    word: "OVERLAY",
+    cat: "zoning", catLabel: "Land Use & Zoning",
+    def: "A C1 or C2 district mapped within a residential zoning district to allow neighborhood-serving retail and related commercial uses on ground floors. Common in areas like Park Slope and Carroll Gardens.",
+    slug: "commercial+overlay"
+  },
+  {
+    word: "LANDMARK",
+    cat: "preserve", catLabel: "Preservation",
+    def: "A building, structure, or site designated by the Landmarks Preservation Commission (LPC) for its historical, cultural, aesthetic, or architectural significance. Exterior changes require LPC approval.",
+    slug: "historic+district"
+  }
+];
+
+const GLOSSARY_BASE = "https://bkcb6.app/glossary.html#";
+
+const CAT_CLASS = {
+  zoning:   'cat-zoning',
+  process:  'cat-process',
+  env:      'cat-env',
+  preserve: 'cat-preserve',
+  housing:  'cat-housing',
+  agency:   'cat-agency'
+};
+
+// ── State ──
+let queue = [];
+let currentIndex = 0;
+let score = 0;
+let results = [];
+let answered = false;
+
+// ── DOM refs ──
+const gameScreen    = document.getElementById('gameScreen');
+const resultsScreen = document.getElementById('resultsScreen');
+const jumbledWordEl = document.getElementById('jumbledWord');
+const hintBox       = document.getElementById('hintBox');
+const defReveal     = document.getElementById('defReveal');
+const defRevealTerm = document.getElementById('defRevealTerm');
+const defRevealText = document.getElementById('defRevealText');
+const defRevealLink = document.getElementById('defRevealLink');
+const feedbackEl    = document.getElementById('feedback');
+const answerInput   = document.getElementById('answerInput');
+const btnCheck      = document.getElementById('btnCheck');
+const btnHint       = document.getElementById('btnHint');
+const btnSkip       = document.getElementById('btnSkip');
+const btnShuffle    = document.getElementById('btnShuffle');
+const btnPlayAgain  = document.getElementById('btnPlayAgain');
+const progressLabel = document.getElementById('progressLabel');
+const scoreBadge    = document.getElementById('scoreBadge');
+const progressFill  = document.getElementById('progressFill');
+const categoryTag   = document.getElementById('categoryTag');
+
+// ── Helpers ──
+function shuffle(str) {
+  const arr = str.split('');
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr.join('');
+}
+
+function jumble(word) {
+  let result, attempts = 0;
+  do { result = shuffle(word); attempts++; }
+  while (result === word && attempts < 30);
+  return result;
+}
+
+function buildQueue() {
+  queue = [...WORDS].sort(() => Math.random() - 0.5);
+  queue = queue.map(item => ({ ...item, jumbled: jumble(item.word) }));
+}
+
+function updateProgress() {
+  progressLabel.textContent = `Word ${currentIndex + 1} of ${queue.length}`;
+  scoreBadge.textContent    = `Score: ${score}`;
+  progressFill.style.width  = `${(currentIndex / queue.length) * 100}%`;
+}
+
+function loadWord() {
+  answered = false;
+
+  // Reset all UI to clean blank state
+  hintBox.classList.remove('visible');
+  hintBox.innerHTML = '';
+  defReveal.classList.remove('visible');
+  feedbackEl.textContent = '';
+  feedbackEl.className   = 'feedback';
+  answerInput.value      = '';
+  answerInput.className  = 'answer-input';
+  answerInput.disabled   = false;
+  jumbledWordEl.className = 'jumbled-word';
+  btnCheck.textContent   = 'Check';
+  btnHint.disabled    = false;
+  btnSkip.disabled    = false;
+  btnShuffle.disabled = false;
+
+  const current = queue[currentIndex];
+  jumbledWordEl.textContent = current.jumbled;
+  categoryTag.textContent   = current.catLabel;
+  categoryTag.className     = 'category-tag ' + (CAT_CLASS[current.cat] || 'cat-zoning');
+
+  updateProgress();
+  answerInput.focus();
+}
+
+function showFeedback(type, msg) {
+  feedbackEl.innerHTML  = msg;
+  feedbackEl.className  = `feedback ${type}`;
+}
+
+function revealDefinition(item) {
+  defRevealTerm.textContent = item.word;
+  defRevealText.textContent = item.def;
+  defRevealLink.href        = GLOSSARY_BASE + item.slug;
+  defReveal.classList.add('visible');
+}
+
+function nextWord() {
+  currentIndex++;
+  if (currentIndex >= queue.length) {
+    showResults();
+  } else {
+    loadWord();
+  }
+}
+
+function checkAnswer() {
+  if (answered) { nextWord(); return; }
+
+  const current    = queue[currentIndex];
+  const userAnswer = answerInput.value.trim().toUpperCase();
+
+  if (!userAnswer) {
+    showFeedback('wrong', 'Please enter an answer first.');
+    return;
+  }
+
+  if (userAnswer === current.word) {
+    score++;
+    answered = true;
+    results.push({ ...current, correct: true });
+
+    jumbledWordEl.className = 'jumbled-word correct';
+    answerInput.className   = 'answer-input correct';
+    answerInput.disabled    = true;
+    btnHint.disabled        = true;
+    btnSkip.disabled        = true;
+    btnShuffle.disabled     = true;
+    hintBox.classList.remove('visible'); // hide hint if open
+
+    showFeedback('correct', '✅ Correct!');
+    scoreBadge.textContent = `Score: ${score}`;
+    revealDefinition(current);
+    btnCheck.textContent = 'Next →';
+
+  } else {
+    jumbledWordEl.className = 'jumbled-word wrong';
+    answerInput.className   = 'answer-input wrong';
+    showFeedback('wrong', '❌ Not quite — try again!');
+    setTimeout(() => {
+      jumbledWordEl.className = 'jumbled-word';
+      answerInput.className   = 'answer-input';
+    }, 500);
+  }
+}
+
+function skipWord() {
+  if (answered) { nextWord(); return; }
+  const current = queue[currentIndex];
+  results.push({ ...current, correct: false });
+
+  answered = true;
+  answerInput.disabled = true;
+  btnHint.disabled     = true;
+  btnShuffle.disabled  = true;
+  btnSkip.disabled     = true;
+
+  showFeedback('wrong', `The answer was: <strong>${current.word}</strong>`);
+  revealDefinition(current);
+  btnCheck.textContent = 'Next →';
+}
+
+// ── window.storage helpers ──
+
+
+async function getStore(key, def) {
+  try { const r = await window.storage.get(key); return r ? JSON.parse(r.value) : def; } catch(e) { return def; }
+}
+async function setStore(key, val) {
+  try { await window.storage.set(key, JSON.stringify(val)); } catch(e) {}
+} catch(e) {}
+}
+
+async function renderLeaderboard(highlightTs) {
+  const lb = await getStore(LB_KEY, []);
+  const body = document.getElementById('lbBody');
+  if (!lb.length) {
+    body.innerHTML = '<div class="lb-empty">No entries yet — be the first!</div>';
+    return;
+  }
+  const rankClass = ['r1','r2','r3'];
+  const rowClass  = ['gold','silver','bronze'];
+  body.innerHTML = lb.map((e, i) => {
+    const hi = highlightTs && e.ts === highlightTs ? ' highlight' : '';
+    return `<div class="lb-row ${rowClass[i]||''}${hi}">
+      <div class="lb-rank ${rankClass[i]||''}">${i+1}</div>
+      <div class="lb-initials">${e.initials}</div>
+      <div class="lb-score">${e.score}/${e.total}</div>
+    </div>`;
+  }).join('');
+}
+
+function showResults() {
+  progressFill.style.width = '100%';
+  gameScreen.classList.add('hidden');
+  resultsScreen.classList.add('visible');
+
+  const total = queue.length;
+  document.getElementById('resultsScore').textContent = `${score} / ${total}`;
+
+  const pct = score / total;
+  let emoji, title, sub;
+  if      (pct === 1)    { emoji = '🏆'; title = 'Perfect Score!';    sub = 'You know your CB6 terminology inside out!'; }
+  else if (pct >= 0.8)   { emoji = '🎉'; title = 'Excellent!';        sub = 'Strong command of land use vocabulary!'; }
+  else if (pct >= 0.6)   { emoji = '👍'; title = 'Good Job!';         sub = 'Solid performance — keep reviewing the glossary!'; }
+  else if (pct >= 0.4)   { emoji = '📚'; title = 'Keep Practicing!';  sub = 'Review the glossary at bkcb6.app and try again.'; }
+  else                   { emoji = '🔍'; title = 'Time to Study!';    sub = 'The glossary at bkcb6.app is a great place to start.'; }
+
+  document.getElementById('resultsEmoji').textContent = emoji;
+  document.getElementById('resultsTitle').textContent = title;
+  document.getElementById('resultsSub').textContent   = sub;
+
+  // Reset leaderboard submission UI
+  const initialsInput  = document.getElementById('initialsInput');
+  const btnSubmitScore = document.getElementById('btnSubmitScore');
+  const submittedNote  = document.getElementById('submittedNote');
+  initialsInput.value    = '';
+  initialsInput.disabled = false;
+  btnSubmitScore.disabled = false;
+  submittedNote.classList.remove('visible');
+  renderLeaderboard(null);
+
+  const list = document.getElementById('resultsList');
+  list.innerHTML = '';
+  results.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'result-item';
+    const shortDef = r.def.length > 100 ? r.def.substring(0, 100) + '…' : r.def;
+    div.innerHTML = `
+      <div class="ri-left">
+        <div class="ri-word">${r.word}</div>
+        <div class="ri-def">${shortDef}</div>
+        <a class="ri-link" href="${GLOSSARY_BASE}${r.slug}" target="_blank">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          View in Glossary
+        </a>
+      </div>
+      <div class="ri-status">${r.correct ? '✅' : '❌'}</div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function startGame() {
+  // Full clean reset
+  score        = 0;
+  currentIndex = 0;
+  results      = [];
+  answered     = false;
+
+  buildQueue();
+
+  // Reset progress UI
+  progressFill.style.width = '0%';
+  scoreBadge.textContent   = 'Score: 0';
+
+  // Show game, hide results
+  gameScreen.classList.remove('hidden');
+  resultsScreen.classList.remove('visible');
+
+  loadWord();
+}
+
+// ── Events ──
+btnCheck.addEventListener('click', checkAnswer);
+
+btnHint.addEventListener('click', () => {
+  if (answered) return;
+  hintBox.innerHTML = '<strong>Hint:</strong> ' + queue[currentIndex].def;
+  hintBox.classList.add('visible');
+});
+
+btnSkip.addEventListener('click', skipWord);
+
+btnShuffle.addEventListener('click', () => {
+  if (answered) return;
+  queue[currentIndex].jumbled = jumble(queue[currentIndex].word);
+  jumbledWordEl.textContent   = queue[currentIndex].jumbled;
+});
+
+btnPlayAgain.addEventListener('click', startGame);
+
+// ── Leaderboard submission ──
+document.getElementById('btnSubmitScore').addEventListener('click', async () => {
+  const initialsInput  = document.getElementById('initialsInput');
+  const btnSubmitScore = document.getElementById('btnSubmitScore');
+  const submittedNote  = document.getElementById('submittedNote');
+
+  const initials = initialsInput.value.trim().toUpperCase().replace(/[^A-Z]/g, '').substring(0, 3);
+  if (!initials) {
+    initialsInput.focus();
+    initialsInput.style.borderColor = 'var(--red)';
+    setTimeout(() => { initialsInput.style.borderColor = ''; }, 1000);
+    return;
+  }
+
+  const total = queue.length;
+  const ts    = Date.now();
+
+  // Update stats
+  const stats = await getStore(STATS_KEY, { total: 0, scoreSum: 0 });
+  stats.total    += 1;
+  stats.scoreSum += score;
+  await setStore(STATS_KEY, stats);
+
+  // Save to ALL scores (never trimmed)
+  const allScores = await getStore(ALL_KEY, []);
+  allScores.push({ initials, score, total, ts });
+  await setStore(ALL_KEY, allScores);
+
+  // Save to top-10 leaderboard
+  let lb = await getStore(LB_KEY, []);
+  lb.push({ initials, score, total, ts });
+  lb.sort((a, b) => b.score - a.score || a.ts - b.ts);
+  lb = lb.slice(0, 10);
+  await setStore(LB_KEY, lb);
+
+  // Lock UI and show confirmation
+  initialsInput.disabled  = true;
+  btnSubmitScore.disabled = true;
+  submittedNote.classList.add('visible');
+
+  renderLeaderboard(ts);
+});
+
+document.getElementById('initialsInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btnSubmitScore').click();
+});
+
+answerInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') checkAnswer();
+});
+
+// ── Admin panel (press Shift+A+L+L to reveal) ──
+let adminKeySeq = [];
+const ADMIN_SEQ = ['A','L','L'];
+
+document.addEventListener('keydown', e => {
+  adminKeySeq.push(e.key.toUpperCase());
+  if (adminKeySeq.length > ADMIN_SEQ.length) adminKeySeq.shift();
+  if (adminKeySeq.join('') === ADMIN_SEQ.join('') && e.shiftKey) {
+    toggleAdminPanel();
+  }
+});
+
+async function toggleAdminPanel() {
+  let panel = document.getElementById('adminPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'adminPanel';
+    panel.style.cssText = [
+      'position:fixed','bottom:0','left:0','right:0',
+      'background:#1a2744','color:#fff','padding:20px 24px',
+      'max-height:60vh','overflow-y:auto','z-index:9999',
+      'font-family:Inter,sans-serif','font-size:0.8rem',
+      'border-top:3px solid #f59e0b','box-shadow:0 -4px 30px rgba(0,0,0,0.4)'
+    ].join(';');
+    document.body.appendChild(panel);
+  }
+
+  if (panel.style.display === 'block') {
+    panel.style.display = 'none';
+    return;
+  }
+
+  const all = getStore(ALL_KEY, []);
+  const stats = await getStore(STATS_KEY, { total: 0, scoreSum: 0 });
+  const avg = stats.total > 0 ? (stats.scoreSum / stats.total).toFixed(1) : '--';
+
+  let html = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <strong style="font-size:0.9rem;color:#f59e0b">🔒 Admin — All Scores (${all.length} total)</strong>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span style="color:rgba(255,255,255,0.5);font-size:0.72rem">Avg: ${avg}/15</span>
+        <button onclick="exportCSV()" style="background:#f59e0b;color:#1a2744;border:none;padding:5px 12px;border-radius:6px;font-weight:700;cursor:pointer;font-size:0.75rem">⬇️ Export CSV</button>
+        <button onclick="document.getElementById('adminPanel').style.display='none'" style="background:rgba(255,255,255,0.1);color:#fff;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.75rem">✕ Close</button>
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="color:rgba(255,255,255,0.5);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.8px">
+          <th style="text-align:left;padding:4px 8px">#</th>
+          <th style="text-align:left;padding:4px 8px">Initials</th>
+          <th style="text-align:center;padding:4px 8px">Score</th>
+          <th style="text-align:center;padding:4px 8px">%</th>
+          <th style="text-align:left;padding:4px 8px">Date &amp; Time</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  // Sort all by score desc, then by time asc
+  const sorted = [...all].sort((a, b) => b.score - a.score || a.ts - b.ts);
+  sorted.forEach((e, i) => {
+    const d   = new Date(e.ts);
+    const dt  = d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) +
+                ' ' + d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+    const pct = Math.round(e.score / e.total * 100);
+    const bg  = i % 2 === 0 ? 'rgba(255,255,255,0.04)' : 'transparent';
+    html += `<tr style="background:${bg}">
+      <td style="padding:5px 8px;color:rgba(255,255,255,0.4)">${i+1}</td>
+      <td style="padding:5px 8px;font-weight:800;letter-spacing:2px;color:#f59e0b">${e.initials}</td>
+      <td style="padding:5px 8px;text-align:center;font-weight:700;color:#60a5fa">${e.score}/${e.total}</td>
+      <td style="padding:5px 8px;text-align:center;color:${pct>=80?'#4ade80':pct>=50?'#fbbf24':'#f87171'}">${pct}%</td>
+      <td style="padding:5px 8px;color:rgba(255,255,255,0.55);font-size:0.72rem">${dt}</td>
+    </tr>`;
+  });
+
+  if (!all.length) {
+    html += `<tr><td colspan="5" style="padding:16px;text-align:center;color:rgba(255,255,255,0.4);font-style:italic">No submissions yet.</td></tr>`;
+  }
+
+  html += '</tbody></table>';
+  panel.innerHTML = html;
+  panel.style.display = 'block';
+}
+
+async function exportCSV() {
+  const all = await getStore(ALL_KEY, []);
+  if (!all.length) { alert('No scores to export yet.'); return; }
+  const sorted = [...all].sort((a, b) => b.score - a.score || a.ts - b.ts);
+  const rows = [['Rank','Initials','Score','Total','Percent','Date','Time']];
+  sorted.forEach((e, i) => {
+    const d   = new Date(e.ts);
+    const pct = Math.round(e.score / e.total * 100);
+    rows.push([
+      i + 1,
+      e.initials,
+      e.score,
+      e.total,
+      pct + '%',
+      d.toLocaleDateString('en-US'),
+      d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })
+    ]);
+  });
+  const csv  = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'jumble-scores.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Init ──
+startGame();
+
+</script>
+
 </body>
 <script>window.PAGE_TOC=[
   {href:"#glossary-intro",icon:"📖",label:"Overview",sub:"About this glossary"},
