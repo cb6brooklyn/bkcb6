@@ -359,10 +359,16 @@ footer a{color:var(--orange);text-decoration:none}
   <!-- Find your ED -->
   <div style="padding:20px 24px;background:#f8f8f6;border-bottom:1px solid var(--border)">
     <div style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px">Find Your Election District</div>
-    <p style="font-size:.8rem;color:var(--muted);margin-bottom:12px">Enter your address in the <strong>Find Your Address</strong> tab to see how your specific ED voted — or search below by ED number.</p>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input type="text" id="addrInput" placeholder="Enter your address (e.g. 250 Baltic Street)"
+             style="flex:1;padding:9px 12px;font-size:.85rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif"
+             onkeydown="if(event.key==='Enter')lookupEDFromAddr()">
+      <button onclick="lookupEDFromAddr()" style="padding:9px 14px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap">Find ED</button>
+    </div>
+    <div id="edAddrResult" style="font-size:.78rem;color:var(--navy);margin-bottom:8px;min-height:18px"></div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <input type="text" id="searchED" placeholder="Search ED e.g. 052/064 or just 64" 
-             style="font-size:.85rem;max-width:260px" oninput="applyFilters()">
+      <input type="text" id="searchED" placeholder="Or search by ED e.g. 052/044"
+             style="font-size:.85rem;max-width:200px" oninput="applyFilters()">
       <select id="filterAD" style="font-size:.85rem" onchange="applyFilters()">
         <option value="">All Assembly Districts</option>
         <option value="44">AD 44</option>
@@ -475,6 +481,36 @@ function parseAddress(raw) {
   const m = clean.match(/^(\d+[A-Za-z]?)\s+(.+)/);
   if (m) return {houseNumber:m[1], street:m[2].trim()};
   return null;
+}
+
+async function lookupEDFromAddr() {
+  const input = document.getElementById('addrInput').value.trim();
+  const resultDiv = document.getElementById('edAddrResult');
+  if (!input) return;
+  resultDiv.textContent = 'Looking up...';
+  try {
+    const parsed = parseAddress(input);
+    if (!parsed) throw new Error('Could not parse address');
+    const url = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(parsed.houseNumber)}&street=${encodeURIComponent(parsed.street)}&borough=Brooklyn`;
+    const resp = await fetch(url, { headers: { 'Ocp-Apim-Subscription-Key': API_KEY } });
+    if (!resp.ok) throw new Error('API error ' + resp.status);
+    const data = await resp.json();
+    const a = data.address;
+    if (!a) throw new Error('Address not found');
+    const ed = parseInt(a.electionDistrict);
+    const ad = parseInt(a.assemblyDistrict);
+    const inCB6 = CB6_EDS.some(e => e.ad === ad && e.ed === ed);
+    if (!inCB6) { resultDiv.textContent = 'That address is outside CB6.'; return; }
+    // Set filters
+    const filterAD = document.getElementById('filterAD');
+    const searchED = document.getElementById('searchED');
+    if (filterAD) filterAD.value = ad;
+    if (searchED) searchED.value = String(ed).padStart(3,'0');
+    applyFilters();
+    resultDiv.innerHTML = '<strong style="color:var(--yes)">&#10003; Found:</strong> ED ' + ed + ' / AD ' + ad;
+  } catch(e) {
+    resultDiv.textContent = '⚠ ' + e.message;
+  }
 }
 
 async function lookupAddress() {
