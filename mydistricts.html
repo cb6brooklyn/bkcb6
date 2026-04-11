@@ -374,6 +374,10 @@ async function lookup() {
     const lat = parseFloat(a.latitude || a.latitudeInternalLabel);
     const lng = parseFloat(a.longitude || a.longitudeInternalLabel);
 
+    // Election district
+    const edNum = parseInt(a.electionDistrict || 0);
+    const adNum = parseInt(a.stateLegislativeDistrict || a.assemblyDistrict || 0);
+
     // State reps
     const saNum = parseInt(a.stateLegislativeDistrict || a.assemblyDistrict || 0);
     const ssNum = parseInt(a.stateSenatorialDistrict || 0);
@@ -395,7 +399,7 @@ async function lookup() {
 
     document.getElementById('split-container').style.display = 'block';
     results.style.display = 'block';
-    if (lat && lng) initMap(lat, lng, displayAddr, popupHtml);
+    if (lat && lng) initMap(lat, lng, displayAddr, popupHtml, edNum, adNum);
 
     const addr = displayAddr;
 
@@ -429,6 +433,13 @@ async function lookup() {
           <div style="font-size:.75rem;color:#6b6760;margin-top:4px;line-height:1.5">Passes local laws, approves the city budget, final say on land use.</div>
           ${cdInfo ? `<a href="${cdInfo[1]}" target="_blank" style="display:inline-block;margin-top:8px;padding:6px 14px;border-radius:6px;background:#0d7490;color:#fff;font-size:.75rem;font-weight:700;text-decoration:none">Visit Council Member's Page ↗</a>` : ''}
         </div>
+
+        ${edNum ? `<div class="district-card" style="border-left-color:#f47920">
+          <div class="dc-type" style="color:#f47920">Election District</div>
+          <div class="dc-compact">ED ${String(edNum).padStart(3,'0')} · AD ${adNum}</div>
+          <div style="font-size:.75rem;color:#6b6760;margin-top:4px;line-height:1.5">Your local voting unit. See how your ED voted in recent elections.</div>
+          <a href="elections.html?address=${encodeURIComponent(displayAddr)}&borough=${encodeURIComponent(currentBoro)}" style="display:inline-block;margin-top:8px;padding:6px 14px;border-radius:6px;background:#f47920;color:#fff;font-size:.75rem;font-weight:700;text-decoration:none">See ED election results ↗</a>
+        </div>` : ''}
 
         <div style="font-size:.7rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--orange);font-weight:700;margin:16px 0 8px">State Government</div>
 
@@ -488,36 +499,85 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+.leaflet-tooltip.ed-addr-label {
+  background: rgba(13,27,75,.85);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: .72rem;
+  font-weight: 700;
+  font-family: 'DM Sans', sans-serif;
+  padding: 3px 7px;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,.3);
+}
+.leaflet-tooltip.ed-addr-label::before { border-top-color: rgba(13,27,75,.85); }
+</style>
 <script>
-let districtMap = null;
-let mapMarker = null;
+var _districtMap = null;
 
-function initMap(lat, lng, label, popupHtml) {
+async function initMap(lat, lng, label, popupHtml, edNum, adNum) {
   const container = document.getElementById('map-container');
+  if (!container) return;
 
-  if (!districtMap) {
-    districtMap = L.map('map-container').setView([lat, lng], 15);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '© OpenStreetMap © CARTO',
-      maxZoom: 19
-    }).addTo(districtMap);
-  } else {
-    districtMap.setView([lat, lng], 15);
-    if (mapMarker) districtMap.removeLayer(mapMarker);
+  if (_districtMap) { _districtMap.remove(); _districtMap = null; }
+
+  const map = L.map(container, { zoomControl: true, attributionControl: false });
+  _districtMap = map;
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+
+  // Address pin with tooltip
+  if (lat && lng) {
+    L.circleMarker([lat, lng], {
+      radius: 7, fillColor: '#f47920', color: '#fff', weight: 2, fillOpacity: 1
+    }).addTo(map)
+    .bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -8], className: 'ed-addr-label' })
+    .openTooltip();
   }
 
-  const icon = L.divIcon({
-    className: '',
-    html: `<div style="background:#f47920;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)"></div>`,
-    iconSize: [16, 16],
-    iconAnchor: [8, 8]
-  });
+  // ED boundaries (only if Brooklyn address — cb6_eds.geojson covers CB6 only)
+  if (edNum && adNum) {
+    try {
+      const resp = await fetch('cb6_eds.geojson');
+      const geojson = await resp.json();
+      const targetKey = adNum + '-' + edNum;
+      let bounds = null;
 
-  mapMarker = L.marker([lat, lng], {icon}).addTo(districtMap)
-    .bindPopup(popupHtml || label, {maxWidth: 240})
-    .openPopup();
+      L.geoJSON(geojson, {
+        style: function(feature) {
+          const isTarget = feature.properties.key === targetKey;
+          return {
+            fillColor: isTarget ? '#1d4ed8' : '#94a3b8',
+            fillOpacity: isTarget ? 0.25 : 0.08,
+            color: isTarget ? '#1d4ed8' : '#94a3b8',
+            weight: isTarget ? 2.5 : 0.8
+          };
+        },
+        onEachFeature: function(feature, layer) {
+          const isTarget = feature.properties.key === targetKey;
+          if (isTarget) bounds = layer.getBounds();
+          const center = layer.getBounds().getCenter();
+          const lbl = L.divIcon({
+            className: '',
+            html: '<div style="font-size:' + (isTarget ? '9px' : '7px') + ';font-weight:' + (isTarget ? '800' : '600') + ';color:' + (isTarget ? '#1d4ed8' : '#64748b') + ';white-space:nowrap;text-shadow:0 0 2px #fff,0 0 2px #fff">ED ' + feature.properties.ed + '</div>',
+            iconAnchor: [12, 6]
+          });
+          L.marker(center, { icon: lbl, interactive: false }).addTo(map);
+        }
+      }).addTo(map);
 
-  setTimeout(() => districtMap.invalidateSize(), 150);
+      if (bounds) map.fitBounds(bounds, { padding: [20, 20] });
+      else if (lat && lng) map.setView([lat, lng], 15);
+    } catch(e) {
+      if (lat && lng) map.setView([lat, lng], 15);
+    }
+  } else {
+    if (lat && lng) map.setView([lat, lng], 15);
+  }
+
+  setTimeout(() => map.invalidateSize(), 150);
 }
 </script>
 </body>
