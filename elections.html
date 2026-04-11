@@ -222,6 +222,8 @@ footer a{color:var(--orange);text-decoration:none}
 .section{display:block!important;max-width:100%}
 </style>
 
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 <header>
@@ -483,6 +485,65 @@ function parseAddress(raw) {
   return null;
 }
 
+var _edMap = null;
+
+async function renderEDMap(ed, ad, lat, lng) {
+  var container = document.getElementById('ed-map');
+  if (!container) return;
+
+  // Destroy previous map instance
+  if (_edMap) { _edMap.remove(); _edMap = null; }
+
+  var map = L.map(container, {zoomControl:false, attributionControl:false});
+  _edMap = map;
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19
+  }).addTo(map);
+
+  // Add pin
+  if (lat && lng) {
+    L.circleMarker([lat, lng], {
+      radius: 7, fillColor: '#f47920', color: '#fff',
+      weight: 2, fillOpacity: 1
+    }).addTo(map);
+  }
+
+  // Load ED boundaries and highlight the matching one
+  try {
+    var resp = await fetch('cb6_eds.geojson');
+    var geojson = await resp.json();
+    var targetKey = ad + '-' + ed;
+    var bounds = null;
+
+    L.geoJSON(geojson, {
+      style: function(feature) {
+        var isTarget = feature.properties.key === targetKey;
+        return {
+          fillColor: isTarget ? '#1d4ed8' : '#94a3b8',
+          fillOpacity: isTarget ? 0.25 : 0.08,
+          color: isTarget ? '#1d4ed8' : '#94a3b8',
+          weight: isTarget ? 2.5 : 0.8
+        };
+      },
+      onEachFeature: function(feature, layer) {
+        if (feature.properties.key === targetKey) {
+          bounds = layer.getBounds();
+        }
+      }
+    }).addTo(map);
+
+    if (bounds) {
+      map.fitBounds(bounds, {padding: [20,20]});
+    } else if (lat && lng) {
+      map.setView([lat, lng], 15);
+    }
+  } catch(e) {
+    console.error('ED map error:', e);
+    if (lat && lng) map.setView([lat, lng], 15);
+  }
+}
+
 async function lookupEDFromAddr() {
   const input = document.getElementById('addrInput').value.trim();
   const resultDiv = document.getElementById('edAddrResult');
@@ -509,6 +570,8 @@ async function lookupEDFromAddr() {
     if (filterAD) filterAD.value = ad;
     if (searchED) searchED.value = String(ed).padStart(3,'0');
     applyFilters();
+    // Render ED map
+    setTimeout(function() { renderEDMap(ed, ad, lat, lng); }, 50);
 
     // Vote results for ALL races for this ED
     const key = ad + '-' + ed;
@@ -571,7 +634,8 @@ async function lookupEDFromAddr() {
       + '<div style="font-size:.75rem;color:var(--muted);margin-bottom:4px">ED ' + ed + ' &middot; AD ' + ad + '</div>'
       + '<div style="font-size:.72rem;font-weight:700;color:var(--navy);background:#fff8f0;border-left:3px solid var(--orange);padding:5px 10px;border-radius:0 4px 4px 0;margin-bottom:4px">These are the results for the Election District (ED) for ' + input + ', which is ED ' + ed + '.</div>'
       + voteHTML
-      + '<div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap">' + mapLink + ' ' + distLink + '</div>'
+      + '<div id="ed-map" style="height:220px;border-radius:6px;margin-top:10px;overflow:hidden"></div>'
+      + '<div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap">' + distLink + '</div>'
       + '</div>';
   } catch(e) {
     resultDiv.innerHTML = '<span style="color:var(--no);font-size:.78rem">&#9888; ' + e.message + '</span>';
