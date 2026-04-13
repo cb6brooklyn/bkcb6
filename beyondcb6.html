@@ -153,6 +153,18 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   </div>
 </div>
 
+<!-- INLINE CB MAP -->
+<div id="cb-map-wrap" style="position:relative;background:#e8edf2">
+  <div id="cb-inline-map" style="height:520px;width:100%"></div>
+  <div id="cb-map-tooltip" style="display:none;position:absolute;bottom:16px;left:16px;z-index:1000;background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 2px 10px rgba(0,0,0,.15);font-family:'DM Sans',sans-serif;min-width:200px;pointer-events:none">
+    <div id="cmt-badge" style="background:#0d1b4b;color:#fff;font-weight:700;font-family:'DM Mono',monospace;display:inline-block;padding:3px 9px;border-radius:5px;font-size:.78rem;margin-bottom:6px"></div>
+    <div id="cmt-name" style="font-size:.9rem;font-weight:700;color:#0d1b4b"></div>
+    <div id="cmt-hood" style="font-size:.72rem;color:#6b6760;font-family:'DM Mono',monospace;margin-top:2px"></div>
+    <a id="cmt-link" href="#" style="display:inline-block;margin-top:8px;padding:6px 12px;background:#f47920;color:#fff;border-radius:5px;font-size:.75rem;font-weight:700;text-decoration:none">View Profile →</a>
+  </div>
+  <a href="cbmap.html" style="position:absolute;top:12px;right:12px;z-index:1000;background:#fff;border-radius:6px;padding:6px 12px;font-size:.72rem;font-family:'DM Mono',monospace;font-weight:700;color:#0d1b4b;text-decoration:none;box-shadow:0 1px 4px rgba(0,0,0,.12)">Open full map ↗</a>
+</div>
+
 <div class="page-wrap">
 
   <div class="toc-wrap">
@@ -161,7 +173,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
       <span class="toc-arr">▼</span>
     </button>
     <div class="toc-body">
-      <a href="cbmap.html">🗺 Interactive CB Map<span class="toc-entry-sub">Hover &amp; click all 59 districts</span></a>
+      <a href="#cb-map-wrap">🗺 NYC Community Board Map<span class="toc-entry-sub">Hover &amp; click all 59 districts</span></a>
       <a href="#sec-economy">🏙 Citywide Economic &amp; Housing Overview<span class="toc-entry-sub">Income, rent burden, housing production</span></a>
       <a href="#sec-rent-map">🗺 Median Rent by Community Board<span class="toc-entry-sub">NYC rent map by CB</span></a>
       <a href="#sec-crashes">🚗 Traffic Crashes — NYC Citywide<span class="toc-entry-sub">Crash Count data</span></a>
@@ -226,6 +238,11 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
       <span class="drop-arr">▼</span>
     </button>
     <div class="drop-body">
+      <div class="map-header">
+        <h3>2025 Results by Community Board — NYC</h3>
+        <a href="cbmap.html" target="_blank">Open full CB map ↗</a>
+      </div>
+      <div id="elec-map" style="height:460px;width:100%"></div>
       <div class="chart-section-label">NYC by CB — Overview</div>
       <div class="chart-grid">
         <div class="chart-item"><img src="charts/ballot_questions_combined_community-board_wins.png" alt="Ballot questions by CB" loading="lazy"></div>
@@ -321,5 +338,150 @@ async function doSearch(){
 }
 document.getElementById('addrInput').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
 </script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const CB_DATA_INLINE = {
+  '101':{name:'Financial District',boro:'Manhattan',short:'mn',num:1},
+  '102':{name:'Greenwich Village / SoHo',boro:'Manhattan',short:'mn',num:2},
+  '103':{name:'Lower East Side / Chinatown',boro:'Manhattan',short:'mn',num:3},
+  '104':{name:'Clinton / Chelsea',boro:'Manhattan',short:'mn',num:4},
+  '105':{name:'Midtown',boro:'Manhattan',short:'mn',num:5},
+  '106':{name:'Stuyvesant Town / Turtle Bay',boro:'Manhattan',short:'mn',num:6},
+  '107':{name:'Upper West Side',boro:'Manhattan',short:'mn',num:7},
+  '108':{name:'Upper East Side',boro:'Manhattan',short:'mn',num:8},
+  '109':{name:'Morningside Heights / Hamilton Heights',boro:'Manhattan',short:'mn',num:9},
+  '110':{name:'Central Harlem',boro:'Manhattan',short:'mn',num:10},
+  '111':{name:'East Harlem',boro:'Manhattan',short:'mn',num:11},
+  '112':{name:'Washington Heights / Inwood',boro:'Manhattan',short:'mn',num:12},
+  '201':{name:'Mott Haven / Melrose',boro:'Bronx',short:'bx',num:1},
+  '202':{name:'Hunts Point / Longwood',boro:'Bronx',short:'bx',num:2},
+  '203':{name:'Morrisania / Crotona',boro:'Bronx',short:'bx',num:3},
+  '204':{name:'Highbridge / Concourse',boro:'Bronx',short:'bx',num:4},
+  '205':{name:'Fordham / University Heights',boro:'Bronx',short:'bx',num:5},
+  '206':{name:'Belmont / East Tremont',boro:'Bronx',short:'bx',num:6},
+  '207':{name:'Kingsbridge Heights / Bedford',boro:'Bronx',short:'bx',num:7},
+  '208':{name:'Riverdale / Fieldston',boro:'Bronx',short:'bx',num:8},
+  '209':{name:'Parkchester / Soundview',boro:'Bronx',short:'bx',num:9},
+  '210':{name:'Throgs Neck / Co-op City',boro:'Bronx',short:'bx',num:10},
+  '211':{name:'Morris Park / Bronxdale',boro:'Bronx',short:'bx',num:11},
+  '212':{name:'Williamsbridge / Baychester',boro:'Bronx',short:'bx',num:12},
+  '301':{name:'Greenpoint / Williamsburg',boro:'Brooklyn',short:'bk',num:1},
+  '302':{name:'Fort Greene / Brooklyn Heights',boro:'Brooklyn',short:'bk',num:2},
+  '303':{name:'Bedford Stuyvesant',boro:'Brooklyn',short:'bk',num:3},
+  '304':{name:'Bushwick',boro:'Brooklyn',short:'bk',num:4},
+  '305':{name:'East New York / Starrett City',boro:'Brooklyn',short:'bk',num:5},
+  '306':{name:'Park Slope / Carroll Gardens',boro:'Brooklyn',short:'bk',num:6},
+  '307':{name:'Sunset Park',boro:'Brooklyn',short:'bk',num:7},
+  '308':{name:'Crown Heights / Prospect Heights',boro:'Brooklyn',short:'bk',num:8},
+  '309':{name:'South Crown Heights / Lefferts Gardens',boro:'Brooklyn',short:'bk',num:9},
+  '310':{name:'Bay Ridge / Dyker Heights',boro:'Brooklyn',short:'bk',num:10},
+  '311':{name:'Bensonhurst',boro:'Brooklyn',short:'bk',num:11},
+  '312':{name:'Borough Park',boro:'Brooklyn',short:'bk',num:12},
+  '313':{name:'Coney Island',boro:'Brooklyn',short:'bk',num:13},
+  '314':{name:'Flatbush / Midwood',boro:'Brooklyn',short:'bk',num:14},
+  '315':{name:'Sheepshead Bay',boro:'Brooklyn',short:'bk',num:15},
+  '316':{name:'Brownsville',boro:'Brooklyn',short:'bk',num:16},
+  '317':{name:'East Flatbush',boro:'Brooklyn',short:'bk',num:17},
+  '318':{name:'Flatlands / Canarsie',boro:'Brooklyn',short:'bk',num:18},
+  '401':{name:'Astoria',boro:'Queens',short:'qn',num:1},
+  '402':{name:'Woodside / Sunnyside',boro:'Queens',short:'qn',num:2},
+  '403':{name:'Jackson Heights',boro:'Queens',short:'qn',num:3},
+  '404':{name:'Elmhurst / Corona',boro:'Queens',short:'qn',num:4},
+  '405':{name:'Ridgewood / Maspeth',boro:'Queens',short:'qn',num:5},
+  '406':{name:'Rego Park / Forest Hills',boro:'Queens',short:'qn',num:6},
+  '407':{name:'Flushing / Whitestone',boro:'Queens',short:'qn',num:7},
+  '408':{name:'Hillcrest / Fresh Meadows',boro:'Queens',short:'qn',num:8},
+  '409':{name:'Kew Gardens / Woodhaven',boro:'Queens',short:'qn',num:9},
+  '410':{name:'South Ozone Park / Howard Beach',boro:'Queens',short:'qn',num:10},
+  '411':{name:'Bayside / Little Neck',boro:'Queens',short:'qn',num:11},
+  '412':{name:'Jamaica / Hollis',boro:'Queens',short:'qn',num:12},
+  '413':{name:'Queens Village',boro:'Queens',short:'qn',num:13},
+  '414':{name:'Rockaway / Broad Channel',boro:'Queens',short:'qn',num:14},
+  '501':{name:'St. George / Stapleton',boro:'Staten Island',short:'si',num:1},
+  '502':{name:'South Beach / Willowbrook',boro:'Staten Island',short:'si',num:2},
+  '503':{name:'Tottenville / Great Kills',boro:'Staten Island',short:'si',num:3},
+};
+const BORO_COLORS_I = {'Manhattan':'#4f7cac','Bronx':'#e07b39','Brooklyn':'#0d1b4b','Queens':'#5a9e6f','Staten Island':'#9b6b9e'};
+
+function makeInlineMap(mapId, tooltipId, height) {
+  const el = document.getElementById(mapId);
+  if (!el) return null;
+  el.style.height = height || '500px';
+  const m = L.map(el, {center:[40.7,-73.97],zoom:10,zoomControl:true,scrollWheelZoom:false});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',maxZoom:18}).addTo(m);
+  return m;
+}
+
+function loadCBLayer(map, tooltipEl, onClick) {
+  let activeLayer = null;
+  fetch('nyc_cb_boundaries.geojson')
+    .then(r=>r.json())
+    .then(data=>{
+      const standard = {...data, features: data.features.filter(f=>CB_DATA_INLINE[f.properties.boro_cd])};
+      const gj = L.geoJSON(standard, {
+        style(feat){
+          const code=feat.properties.boro_cd, cb=CB_DATA_INLINE[code];
+          const isCB6=code==='306';
+          const col=isCB6?'#f47920':(BORO_COLORS_I[cb?.boro]||'#888');
+          return{fillColor:col,fillOpacity:isCB6?.55:.3,color:col,weight:isCB6?2:1,opacity:.8};
+        },
+        onEachFeature(feat,layer){
+          const code=feat.properties.boro_cd, cb=CB_DATA_INLINE[code];
+          if(!cb) return;
+          layer.on('mouseover',function(){
+            if(activeLayer!==this) this.setStyle({fillOpacity:.65,weight:2.5,color:'#f47920',fillColor:'#f47920'});
+            this.bringToFront();
+            if(tooltipEl){
+              document.getElementById(tooltipEl+'-badge').textContent=cb.boro.slice(0,2).toUpperCase()+' CB'+cb.num;
+              document.getElementById(tooltipEl+'-name').textContent=cb.boro+' CB'+cb.num;
+              document.getElementById(tooltipEl+'-hood').textContent=cb.name;
+              document.getElementById(tooltipEl+'-link').href='cb-'+cb.short+'-'+cb.num+'.html';
+              document.getElementById(tooltipEl).style.display='block';
+            }
+          });
+          layer.on('mouseout',function(){
+            if(activeLayer!==this) gj.resetStyle(this);
+          });
+          layer.on('click',function(){
+            if(activeLayer&&activeLayer!==this) gj.resetStyle(activeLayer);
+            activeLayer=this;
+            this.setStyle({fillOpacity:.7,weight:2.5,color:'#d4631a',fillColor:'#f47920'});
+            if(onClick) onClick(code,cb);
+          });
+          layer.bindTooltip(`<strong>${cb.boro} CB${cb.num}</strong><br><span style="font-size:.78em;color:#555">${cb.name}</span>`,{sticky:true,className:'cb-tt'});
+        }
+      }).addTo(map);
+    });
+}
+
+// Inline map (always visible after boro buttons)
+const inlineMap = makeInlineMap('cb-inline-map', null, '520px');
+if(inlineMap){
+  loadCBLayer(inlineMap, 'cmt', function(code,cb){
+    document.getElementById('cmt-badge').textContent=cb.boro.slice(0,2).toUpperCase()+' CB'+cb.num;
+    document.getElementById('cmt-name').textContent=cb.boro+' CB'+cb.num;
+    document.getElementById('cmt-hood').textContent=cb.name;
+    document.getElementById('cmt-link').href='cb-'+cb.short+'-'+cb.num+'.html';
+    document.getElementById('cb-map-tooltip').style.display='block';
+  });
+}
+
+// Election map (init when dropdown opens)
+let elecMapInit=false;
+const origToggle=window.toggleDrop;
+window.toggleDrop=function(btn){
+  origToggle(btn);
+  const sec=btn.closest('.drop-section');
+  if(sec&&sec.id==='sec-elections'&&!elecMapInit){
+    elecMapInit=true;
+    const em=makeInlineMap('elec-map',null,'460px');
+    if(em) loadCBLayer(em,null,function(code,cb){
+      window.location.href='cb-'+cb.short+'-'+cb.num+'.html';
+    });
+  }
+};
+</script>
+<style>.cb-tt{background:#fff;border:1px solid #e5e2db;border-radius:6px;padding:7px 10px;font-family:'DM Sans',sans-serif;font-size:.8rem;color:#0d1b4b;box-shadow:0 2px 6px rgba(0,0,0,.1)}</style>
 </body>
 </html>
