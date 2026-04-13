@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:title" content="NYC Community Board Map">
+<meta property="og:description" content="Interactive map of all 59 NYC community board districts. Click any district to view its CB profile.">
+<meta property="og:url" content="https://cb6brooklyn.github.io/bkcb6/cbmap.html">
+<title>NYC Community Board Map — CB6 & Beyond</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+:root{--navy:#0d1b4b;--orange:#f47920;--orange-dark:#d4631a;--off:#f8f7f4;--border:#e5e2db;--muted:#6b6760}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
+header{background:var(--navy);border-bottom:4px solid var(--orange);position:relative;z-index:1000}
+.hdr{display:flex;align-items:center;max-width:1400px;margin:0 auto}
+.hdr-text{padding:12px 20px}
+.hdr-text h1{font-size:1.1rem;font-weight:700;color:#fff}
+.hdr-text h1 span{color:var(--orange)}
+.hdr-text p{font-size:.7rem;color:rgba(255,255,255,.5);font-family:'DM Mono',monospace;margin-top:2px;letter-spacing:.04em;text-transform:uppercase}
+.breadcrumb{background:var(--navy);padding:7px 16px;border-bottom:1px solid rgba(255,255,255,.1);position:relative;z-index:1000}
+.breadcrumb a{color:rgba(255,255,255,.6);font-size:.75rem;font-weight:600;text-decoration:none;font-family:'DM Mono',monospace}
+.breadcrumb a:hover{color:var(--orange)}
+.breadcrumb span{color:rgba(255,255,255,.25);margin:0 6px;font-size:.75rem}
+
+/* MAP LAYOUT */
+.map-layout{display:flex;height:calc(100vh - 88px)}
+#map{flex:1;min-width:0}
+
+/* SIDEBAR */
+.sidebar{width:300px;flex-shrink:0;background:#fff;border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;z-index:500}
+.sidebar-top{padding:16px 18px;border-bottom:1px solid var(--border)}
+.sidebar-top h3{font-size:.82rem;font-weight:700;color:var(--navy);margin-bottom:4px}
+.sidebar-top p{font-size:.72rem;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5}
+.cb-card{padding:18px;flex:1;overflow-y:auto;display:none}
+.cb-card.show{display:block}
+.cb-badge{background:var(--navy);color:#fff;font-size:1.6rem;font-weight:700;font-family:'DM Mono',monospace;width:56px;height:56px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+.cb-card h2{font-size:1.1rem;font-weight:700;color:var(--navy);margin-bottom:4px}
+.cb-card .cb-boro{font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:14px}
+.cb-stat{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}
+.cb-stat-label{font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.cb-stat-value{font-size:.85rem;font-weight:600;color:var(--navy)}
+.cb-link{display:inline-block;margin-top:16px;padding:10px 18px;background:var(--orange);color:#fff;border-radius:6px;font-size:.82rem;font-weight:700;text-decoration:none;width:100%;text-align:center}
+.cb-link:hover{background:var(--orange-dark)}
+.crash-link{display:inline-block;margin-top:8px;padding:9px 18px;background:#fff;color:var(--navy);border:1.5px solid var(--border);border-radius:6px;font-size:.78rem;font-weight:600;text-decoration:none;width:100%;text-align:center}
+.crash-link:hover{border-color:var(--navy);background:var(--off)}
+.hint{padding:18px;color:var(--muted);font-size:.8rem;line-height:1.6;font-family:'DM Mono',monospace}
+.hint strong{display:block;color:var(--navy);font-size:.82rem;font-family:'DM Sans',sans-serif;font-weight:700;margin-bottom:6px}
+
+/* BORO LEGEND */
+.legend{position:absolute;bottom:24px;left:24px;z-index:1000;background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 2px 10px rgba(0,0,0,.12);font-size:.72rem;font-family:'DM Mono',monospace}
+.legend-title{font-weight:700;color:var(--navy);font-family:'DM Sans',sans-serif;font-size:.78rem;margin-bottom:8px}
+.legend-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;color:var(--navy)}
+.legend-row:last-child{margin-bottom:0}
+.legend-swatch{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.1);flex-shrink:0}
+
+/* MOBILE */
+@media(max-width:700px){
+  .map-layout{flex-direction:column;height:auto}
+  #map{height:55vh}
+  .sidebar{width:100%;border-left:none;border-top:1px solid var(--border);height:auto;min-height:200px}
+  .legend{bottom:12px;left:12px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr">
+    <div class="hdr-text">
+      <h1>Brooklyn <span>Community Board 6</span></h1>
+      <p>CB6 &amp; Beyond — NYC CB Map</p>
+    </div>
+  </div>
+</header>
+<div class="breadcrumb">
+  <a href="index.html">Home</a>
+  <span>›</span>
+  <a href="beyondcb6.html">CB6 &amp; Beyond</a>
+  <span>›</span>
+  <a href="#">CB Map</a>
+</div>
+
+<div class="map-layout">
+  <div id="map"></div>
+
+  <div class="sidebar">
+    <div class="sidebar-top">
+      <h3>NYC Community Board Map</h3>
+      <p>Hover to preview a district.<br>Click to see its full profile.</p>
+    </div>
+    <div class="hint" id="hint">
+      <strong>59 Community Boards</strong>
+      Tap or click any district on the map to view its CB profile — chair, district manager, economic data, election results, and more.
+    </div>
+    <div class="cb-card" id="cbCard">
+      <div class="cb-badge" id="cardBadge"></div>
+      <h2 id="cardName"></h2>
+      <div class="cb-boro" id="cardBoro"></div>
+      <div class="cb-stat">
+        <span class="cb-stat-label">Chairperson</span>
+        <span class="cb-stat-value" id="cardChair"></span>
+      </div>
+      <div class="cb-stat">
+        <span class="cb-stat-label">District Manager</span>
+        <span class="cb-stat-value" id="cardDM"></span>
+      </div>
+      <a class="cb-link" id="cardLink" href="#">View Full CB Profile →</a>
+      <a class="crash-link" id="cardCrash" href="#" target="_blank">Crash Count Data ↗</a>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ── CB DATA ──────────────────────────────────────────────────────────────────
+// Keyed by boro_cd string. Names from Furman/orgchart. Staff from OC_CB_STAFF.
+const CB_DATA = {
+  // MANHATTAN
+  '101':{name:'Financial District',boro:'Manhattan',short:'mn',num:1,chair:'Tammy Meltzer',dm:'Zach Bohmer'},
+  '102':{name:'Greenwich Village / SoHo',boro:'Manhattan',short:'mn',num:2,chair:'Valerie De La Rosa',dm:'Mark Diller'},
+  '103':{name:'Lower East Side / Chinatown',boro:'Manhattan',short:'mn',num:3,chair:'Andrea Gordillo',dm:'Susan Stetzer'},
+  '104':{name:'Clinton / Chelsea',boro:'Manhattan',short:'mn',num:4,chair:'Jessica Chait',dm:'Jesse Bodine'},
+  '105':{name:'Midtown',boro:'Manhattan',short:'mn',num:5,chair:'Bradley Sherburne',dm:'Marisa Mack'},
+  '106':{name:'Stuyvesant Town / Turtle Bay',boro:'Manhattan',short:'mn',num:6,chair:'Sandra McKee',dm:'Jesús Pérez'},
+  '107':{name:'Upper West Side',boro:'Manhattan',short:'mn',num:7,chair:'Alex Morgan Bell',dm:'Maxwell Vandervliet'},
+  '108':{name:'Upper East Side',boro:'Manhattan',short:'mn',num:8,chair:'Valerie S. Mason',dm:'Ian Mcknight'},
+  '109':{name:'Morningside Heights / Hamilton Heights',boro:'Manhattan',short:'mn',num:9,chair:'Xavier A. Santiago',dm:'Angel D. Mescain'},
+  '110':{name:'Central Harlem',boro:'Manhattan',short:'mn',num:10,chair:'Marquis Harrison',dm:'Vacant'},
+  '111':{name:'East Harlem',boro:'Manhattan',short:'mn',num:11,chair:'Cynthia Rodriguez',dm:'Jeremy Warneke'},
+  '112':{name:'Washington Heights / Inwood',boro:'Manhattan',short:'mn',num:12,chair:'Eleazar Bueno',dm:'Ebenezer Smith'},
+  // BRONX
+  '201':{name:'Mott Haven / Melrose',boro:'Bronx',short:'bx',num:1,chair:'Dealice Fuller',dm:'Johana Pulgarin'},
+  '202':{name:'Hunts Point / Longwood',boro:'Bronx',short:'bx',num:2,chair:'Roberto Crespo',dm:'Rafael Acevedo'},
+  '203':{name:'Morrisania / Crotona',boro:'Bronx',short:'bx',num:3,chair:'Joetta Brown',dm:'Etta F. Ritter'},
+  '204':{name:'Highbridge / Concourse',boro:'Bronx',short:'bx',num:4,chair:'Beverly Bond',dm:'Leonardo Coello'},
+  '205':{name:'Fordham / University Heights',boro:'Bronx',short:'bx',num:5,chair:'Angel Caballero',dm:'Ken Brown'},
+  '206':{name:'Belmont / East Tremont',boro:'Bronx',short:'bx',num:6,chair:'Evonne Capers',dm:'Rafael Moure-Punnett'},
+  '207':{name:'Kingsbridge Heights / Bedford',boro:'Bronx',short:'bx',num:7,chair:'Leurys Acosta',dm:'Karla Cabrera Carrera'},
+  '208':{name:'Riverdale / Fieldston',boro:'Bronx',short:'bx',num:8,chair:'Julie Reyes',dm:'Farrah Kule Rubin'},
+  '209':{name:'Parkchester / Soundview',boro:'Bronx',short:'bx',num:9,chair:'Mohammed Mujumder',dm:'William Rivera'},
+  '210':{name:'Throgs Neck / Co-op City',boro:'Bronx',short:'bx',num:10,chair:'Betty Braton',dm:'Karyn Petersen'},
+  '211':{name:'Morris Park / Bronxdale',boro:'Bronx',short:'bx',num:11,chair:'Laurie Windsor',dm:'Marnee Elias-Pavia'},
+  '212':{name:'Williamsbridge / Baychester',boro:'Bronx',short:'bx',num:12,chair:'Irsa Weatherspoon',dm:'Michelle George'},
+  // BROOKLYN
+  '301':{name:'Greenpoint / Williamsburg',boro:'Brooklyn',short:'bk',num:1,chair:'Paola M. Martinez',dm:'Anthony R. Jordan'},
+  '302':{name:'Fort Greene / Brooklyn Heights',boro:'Brooklyn',short:'bk',num:2,chair:'Lenny H. Singletary III',dm:'Taya Mueller'},
+  '303':{name:'Bedford Stuyvesant',boro:'Brooklyn',short:'bk',num:3,chair:'Anthony Buissereth',dm:'Nadeen Gayle'},
+  '304':{name:'Bushwick',boro:'Brooklyn',short:'bk',num:4,chair:'Robert Camacho',dm:'Celestina Leon'},
+  '305':{name:'East New York / Starrett City',boro:'Brooklyn',short:'bk',num:5,chair:'Anatole Ashraf',dm:'Debra Markell Kleinert'},
+  '306':{name:'Park Slope / Carroll Gardens',boro:'Brooklyn',short:'bk',num:6,chair:'Eric McClure',dm:'Mike Racioppo'},
+  '307':{name:'Sunset Park',boro:'Brooklyn',short:'bk',num:7,chair:'Chuck Apelian',dm:'Marilyn McAndrews'},
+  '308':{name:'Crown Heights / Prospect Heights',boro:'Brooklyn',short:'bk',num:8,chair:'Julio Peña III',dm:'Jeremy Laufer'},
+  '309':{name:'South Crown Heights / Lefferts Gardens',boro:'Brooklyn',short:'bk',num:9,chair:'Fred P. Baptiste',dm:'Dante Arnwine'},
+  '310':{name:'Bay Ridge / Dyker Heights',boro:'Brooklyn',short:'bk',num:10,chair:'Sandy Vallas',dm:'Josephine Beckmann'},
+  '311':{name:'Bensonhurst',boro:'Brooklyn',short:'bk',num:11,chair:'Paul DiBenedett',dm:'Joseph Marziliano'},
+  '312':{name:'Borough Park',boro:'Brooklyn',short:'bk',num:12,chair:'Yidel Perlstein',dm:'Barry Spitzer'},
+  '313':{name:'Coney Island',boro:'Brooklyn',short:'bk',num:13,chair:'Jeffrey Sanoff',dm:'Eddie Mark'},
+  '314':{name:'Flatbush / Midwood',boro:'Brooklyn',short:'bk',num:14,chair:'Karl-Henry Cesar',dm:'Shawn Alyse Campbell'},
+  '315':{name:'Sheepshead Bay',boro:'Brooklyn',short:'bk',num:15,chair:'Theresa Scavo',dm:'Laura Singer'},
+  '316':{name:'Brownsville',boro:'Brooklyn',short:'bk',num:16,chair:'Margaret Brewer',dm:'Sydone Thompson'},
+  '317':{name:'East Flatbush',boro:'Brooklyn',short:'bk',num:17,chair:'Rodrick F. Daley',dm:'Sherif Fraser'},
+  '318':{name:'Flatlands / Canarsie',boro:'Brooklyn',short:'bk',num:18,chair:'Naomi Hopkins',dm:'Sue Ann Partnow'},
+  // QUEENS
+  '401':{name:'Astoria',boro:'Queens',short:'qn',num:1,chair:'Evie Hantzopoulos',dm:'Florence Koulouris'},
+  '402':{name:'Woodside / Sunnyside',boro:'Queens',short:'qn',num:2,chair:'Joseph Russo',dm:'Matthew Cruz'},
+  '403':{name:'Jackson Heights',boro:'Queens',short:'qn',num:3,chair:'Sherry Algredo',dm:'James McClleland'},
+  '404':{name:'Elmhurst / Corona',boro:'Queens',short:'qn',num:4,chair:'Marialena Giampino',dm:'Christian Cassagnol'},
+  '405':{name:'Ridgewood / Maspeth',boro:'Queens',short:'qn',num:5,chair:'Vincent Arcuri, Jr.',dm:'Gary Giordano'},
+  '406':{name:'Rego Park / Forest Hills',boro:'Queens',short:'qn',num:6,chair:'Heather Beers-Dimitriadis',dm:'Christine Nolan'},
+  '407':{name:'Flushing / Whitestone',boro:'Queens',short:'qn',num:7,chair:'Martha Taylor',dm:'Marie Adam-Ovide'},
+  '408':{name:'Hillcrest / Fresh Meadows',boro:'Queens',short:'qn',num:8,chair:'Edmund Rosenbaum',dm:'Giovanna A. Reid'},
+  '409':{name:'Kew Gardens / Woodhaven',boro:'Queens',short:'qn',num:9,chair:'Alice Lowman',dm:'Melinda Perkins'},
+  '410':{name:'South Ozone Park / Howard Beach',boro:'Queens',short:'qn',num:10,chair:'Beatriz Coronel',dm:'George Torres'},
+  '411':{name:'Bayside / Little Neck',boro:'Queens',short:'qn',num:11,chair:'Rev. Carlene Thorbs',dm:'Yvonne Reddick'},
+  '412':{name:'Jamaica / Hollis',boro:'Queens',short:'qn',num:12,chair:'Bryan Block',dm:'Mark McMillan'},
+  '413':{name:'Queens Village',boro:'Queens',short:'qn',num:13,chair:'Dolores Orr',dm:'Felicia Johnson'},
+  '414':{name:'Rockaway / Broad Channel',boro:'Queens',short:'qn',num:14,chair:'Beatriz Coronel',dm:'George Torres'},
+  // STATEN ISLAND
+  '501':{name:'St. George / Stapleton',boro:'Staten Island',short:'si',num:1,chair:'Nicholas Siclari',dm:'Joan Cusack'},
+  '502':{name:'South Beach / Willowbrook',boro:'Staten Island',short:'si',num:2,chair:'Fred R. Guinta',dm:'Debra Derrico'},
+  '503':{name:'Tottenville / Great Kills',boro:'Staten Island',short:'si',num:3,chair:'Frank Morano',dm:'Charlene Wagner'},
+};
+
+// Borough colors
+const BORO_COLORS = {
+  'Manhattan': '#4f7cac',
+  'Bronx':     '#e07b39',
+  'Brooklyn':  '#0d1b4b',
+  'Queens':    '#5a9e6f',
+  'Staten Island': '#9b6b9e',
+};
+const BORO_LIGHT = {
+  'Manhattan': '#b8cfea',
+  'Bronx':     '#f5c9a6',
+  'Brooklyn':  '#8fa3c8',
+  'Queens':    '#a8d4b5',
+  'Staten Island': '#d4b8d4',
+};
+
+function getBoroFromCode(code) {
+  const d = parseInt(code[0]);
+  return ['','Manhattan','Bronx','Brooklyn','Queens','Staten Island'][d] || '';
+}
+
+// Init map
+const map = L.map('map', {
+  center: [40.7, -73.97],
+  zoom: 11,
+  zoomControl: true,
+});
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CARTO',
+  maxZoom: 18,
+}).addTo(map);
+
+let activeLayer = null;
+let geojsonLayer = null;
+
+function showCard(code) {
+  const cb = CB_DATA[code];
+  if (!cb) return;
+  document.getElementById('hint').style.display = 'none';
+  const card = document.getElementById('cbCard');
+  card.classList.add('show');
+  document.getElementById('cardBadge').textContent = cb.num;
+  document.getElementById('cardName').textContent = cb.boro + ' CB' + cb.num;
+  document.getElementById('cardBoro').textContent = cb.name;
+  document.getElementById('cardChair').textContent = cb.chair || '—';
+  document.getElementById('cardDM').textContent = cb.dm || '—';
+  document.getElementById('cardLink').href = 'cb-' + cb.short + '-' + cb.num + '.html';
+  document.getElementById('cardCrash').href = 'https://crashcount.nyc/community-board/' + code + '/';
+}
+
+function styleFeature(feat, highlighted) {
+  const code = feat.properties.boro_cd;
+  const boro = getBoroFromCode(code);
+  const isCB6 = code === '306';
+  return {
+    fillColor: highlighted ? '#f47920' : (isCB6 ? '#f47920' : (BORO_COLORS[boro] || '#888')),
+    fillOpacity: highlighted ? 0.7 : (isCB6 ? 0.55 : 0.35),
+    color: highlighted ? '#d4631a' : (isCB6 ? '#f47920' : (BORO_COLORS[boro] || '#555')),
+    weight: highlighted ? 2.5 : (isCB6 ? 2 : 1),
+    opacity: 1,
+  };
+}
+
+fetch('nyc_cb_boundaries.geojson')
+  .then(r => r.json())
+  .then(data => {
+    // Filter to only the 59 standard CBs (skip park districts 226-228, 355-356, etc.)
+    const standard = {...data, features: data.features.filter(f => CB_DATA[f.properties.boro_cd])};
+
+    geojsonLayer = L.geoJSON(standard, {
+      style: feat => styleFeature(feat, false),
+      onEachFeature(feat, layer) {
+        const code = feat.properties.boro_cd;
+        const cb = CB_DATA[code];
+        if (!cb) return;
+
+        layer.on('mouseover', function(e) {
+          if (activeLayer !== this) {
+            this.setStyle(styleFeature(feat, true));
+          }
+          this.bringToFront();
+          showCard(code);
+        });
+
+        layer.on('mouseout', function() {
+          if (activeLayer !== this) {
+            geojsonLayer.resetStyle(this);
+          }
+        });
+
+        layer.on('click', function() {
+          if (activeLayer && activeLayer !== this) {
+            geojsonLayer.resetStyle(activeLayer);
+          }
+          activeLayer = this;
+          this.setStyle(styleFeature(feat, true));
+          showCard(code);
+        });
+
+        // Tooltip on hover
+        layer.bindTooltip(
+          `<strong>${cb.boro} CB${cb.num}</strong><br><span style="font-size:.8em;color:#555">${cb.name}</span>`,
+          {sticky: true, direction: 'auto', className: 'cb-tooltip'}
+        );
+      }
+    }).addTo(map);
+  });
+
+// Borough legend
+const legendEl = document.createElement('div');
+legendEl.className = 'legend';
+legendEl.innerHTML = '<div class="legend-title">Borough</div>' +
+  Object.entries(BORO_COLORS).map(([b,c]) =>
+    `<div class="legend-row"><div class="legend-swatch" style="background:${c}"></div>${b}</div>`
+  ).join('') +
+  '<div class="legend-row"><div class="legend-swatch" style="background:#f47920"></div>CB6 / Selected</div>';
+document.getElementById('map').appendChild(legendEl);
+</script>
+<style>
+.cb-tooltip{background:#fff;border:1px solid #e5e2db;border-radius:6px;padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:.82rem;color:#0d1b4b;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.cb-tooltip strong{font-weight:700}
+</style>
+</body>
+</html>
