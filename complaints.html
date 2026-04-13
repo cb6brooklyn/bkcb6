@@ -222,6 +222,7 @@ footer a{color:var(--orange);text-decoration:none}
 .section{display:block!important;max-width:100%}
 </style>
 
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 </head>
 <body>
 <header>
@@ -308,16 +309,18 @@ footer a{color:var(--orange);text-decoration:none}
         <h4 style="font-size:.7rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:14px">Complaints by Category</h4>
         <div id="c311CatBars"></div>
       </div>
-      <div id="c311FeltMap" style="display:none">
-        <div class="map-header" style="background:#fff">
+      <div style="background:#fff;border-bottom:1px solid var(--border)">
+        <div class="map-header" style="background:#fff;padding:14px 24px 10px">
           <div class="mh-top">
-            <h3 id="c311MapTitle">311 Map</h3>
-            <span class="mh-sub" id="c311MapSub"></span>
-            <a class="mh-link" id="c311MapLink" href="#" target="_blank">Open full map ↗</a>
+            <h3 id="c311LeafletTitle" style="font-size:.9rem;font-weight:700;color:var(--navy)">311 Complaints Map</h3>
+            <span class="mh-sub" id="c311LeafletSub" style="font-size:.72rem;font-family:'DM Mono',monospace;color:var(--muted)"></span>
           </div>
+          <div class="map-tags" id="c311MapLegend" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
         </div>
-        <iframe id="c311MapIframe" class="map-iframe" src="" height="500" title="311 Map"></iframe>
+        <div id="c311LeafletMap" style="height:480px;width:100%"></div>
       </div>
+
+      <div id="c311FeltMap" style="display:none">
       <div style="padding:16px 24px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center">
         <h4 style="font-size:.7rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Complaints</h4>
         <input type="text" id="c311Search" placeholder="Search address or complaint type..." style="flex:1;max-width:400px;font-size:.82rem" oninput="filter311Table()">
@@ -1787,6 +1790,7 @@ function renderC311(year, month, catFilter) {
     document.getElementById('c311FeltMap').style.display = 'none';
   }
 
+  render311Map(c311Filtered);
   filter311Table();
   document.getElementById('c311Summary').style.display = 'block';
 }
@@ -2080,6 +2084,84 @@ function toggleLineCat(cat) {
   }
 }
 
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// --- LEAFLET 311 MAP ---
+let c311Map = null;
+let c311MarkerLayer = null;
+
+function initC311Map() {
+  if (c311Map) return;
+  c311Map = L.map('c311LeafletMap', {
+    center: [40.678, -73.988],
+    zoom: 13,
+    scrollWheelZoom: false
+  });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CARTO',
+    maxZoom: 19
+  }).addTo(c311Map);
+  c311MarkerLayer = L.layerGroup().addTo(c311Map);
+}
+
+function render311Map(data) {
+  initC311Map();
+  c311MarkerLayer.clearLayers();
+
+  const withCoords = data.filter(d => d.lat && d.lng);
+
+  // Build legend from categories present
+  const cats = {};
+  withCoords.forEach(d => { cats[d.cat] = (cats[d.cat]||0)+1; });
+
+  const legendEl = document.getElementById('c311MapLegend');
+  legendEl.innerHTML = Object.entries(cats)
+    .sort((a,b) => b[1]-a[1])
+    .map(([cat,n]) => {
+      const col = CAT_COLORS[cat] || '#ccc';
+      const lbl = CAT_LABELS[cat] || cat;
+      return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:.7rem;font-family:'DM Mono',monospace;color:#333;background:#f8f7f4;padding:3px 8px;border-radius:4px;border:1px solid #e5e2db">
+        <span style="width:10px;height:10px;border-radius:50%;background:${col};display:inline-block;flex-shrink:0"></span>${lbl} <span style="color:#6b6760">(${n})</span>
+      </span>`;
+    }).join('');
+
+  const sub = document.getElementById('c311LeafletSub');
+  sub.textContent = withCoords.length.toLocaleString() + ' of ' + data.length.toLocaleString() + ' complaints with coordinates';
+
+  // Add circle markers
+  withCoords.forEach(d => {
+    const col = CAT_COLORS[d.cat] || '#ccc';
+    const marker = L.circleMarker([d.lat, d.lng], {
+      radius: 5,
+      fillColor: col,
+      color: '#fff',
+      weight: 1,
+      opacity: 1,
+      fillOpacity: 0.8
+    });
+    marker.bindPopup(
+      `<div style="font-family:'DM Sans',sans-serif;font-size:.82rem;min-width:180px">
+        <div style="font-weight:700;color:#0d1b4b;margin-bottom:4px">${d.complaint_type}</div>
+        <div style="color:#6b6760;font-size:.75rem;margin-bottom:2px">${d.descriptor}</div>
+        <div style="font-size:.75rem;color:#333;margin-top:6px">📍 ${d.address}</div>
+        <div style="font-size:.72rem;color:#6b6760;margin-top:2px">🗓 ${d.date} · ${d.status}</div>
+      </div>`,
+      { maxWidth: 260 }
+    );
+    c311MarkerLayer.addLayer(marker);
+  });
+
+  // Fit bounds if we have points
+  if (withCoords.length > 0) {
+    try {
+      c311Map.fitBounds(c311MarkerLayer.getBounds(), { padding: [20, 20], maxZoom: 15 });
+    } catch(e) {}
+  }
+
+  // Force size recalc in case it was hidden
+  setTimeout(() => { if(c311Map) c311Map.invalidateSize(); }, 100);
+}
 </script>
 </body>
 <script>window.PAGE_TOC=[{href:"#complaints-intro",icon:"📞",label:"Overview",sub:"CB6 311 data"},{href:"#panel311Trends",icon:"📈",label:"Trends Over Time",sub:"Multi-year trends"},{href:"#panel311Monthly",icon:"📋",label:"Monthly Data",sub:"Monthly breakdown"}];</script>
