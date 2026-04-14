@@ -406,32 +406,41 @@ footer a{color:var(--orange);text-decoration:none}
 
   <!-- REPORTS PANEL -->
   <div id="panel311Reports" style="display:none">
-    <div style="padding:16px 20px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-      <div style="display:flex;flex-direction:column;gap:3px">
-        <label style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Year</label>
-        <select id="rptYear" style="min-width:90px"></select>
+    <div style="padding:16px 20px;background:#fff;border-bottom:1px solid var(--border)">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <label style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Year</label>
+          <select id="rptYear" style="min-width:90px"></select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <label style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Period</label>
+          <select id="rptMonth" style="min-width:140px">
+            <option value="00">Full Year</option>
+            <option value="01">January</option>
+            <option value="02">February</option>
+            <option value="03">March</option>
+            <option value="04">April</option>
+            <option value="05">May</option>
+            <option value="06">June</option>
+            <option value="07">July</option>
+            <option value="08">August</option>
+            <option value="09">September</option>
+            <option value="10">October</option>
+            <option value="11">November</option>
+            <option value="12">December</option>
+          </select>
+        </div>
+        <button onclick="loadReport()" style="padding:9px 20px;background:var(--orange);color:#fff;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.88rem;font-weight:700;cursor:pointer;align-self:flex-end">Generate Report</button>
+        <div id="rptSpinner" style="display:none;align-self:flex-end;font-size:.75rem;font-family:'DM Mono',monospace;color:var(--muted)">Fetching data…</div>
+        <div id="rptError" style="display:none;color:#c81e1e;font-size:.78rem;font-family:'DM Mono',monospace;align-self:flex-end"></div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:3px">
-        <label style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Period</label>
-        <select id="rptMonth" style="min-width:140px">
-          <option value="00">Full Year</option>
-          <option value="01">January</option>
-          <option value="02">February</option>
-          <option value="03">March</option>
-          <option value="04">April</option>
-          <option value="05">May</option>
-          <option value="06">June</option>
-          <option value="07">July</option>
-          <option value="08">August</option>
-          <option value="09">September</option>
-          <option value="10">October</option>
-          <option value="11">November</option>
-          <option value="12">December</option>
-        </select>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:12px">
+        <span style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Cached reports:</span>
+        <span id="rptCacheCount" style="font-size:.72rem;font-family:'DM Mono',monospace;color:var(--navy);font-weight:700">0</span>
+        <button onclick="generateAllReports()" id="rptGenAllBtn" style="padding:6px 14px;background:var(--navy);color:#fff;border:none;border-radius:5px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer">⬇ Cache All Available Reports</button>
+        <button onclick="clearReportCache()" style="padding:6px 14px;background:#fff;color:var(--navy);border:1px solid var(--border);border-radius:5px;font-family:'DM Sans',sans-serif;font-size:.78rem;cursor:pointer">Clear Cache</button>
+        <span id="rptGenProgress" style="font-size:.72rem;font-family:'DM Mono',monospace;color:var(--muted)"></span>
       </div>
-      <button onclick="loadReport()" style="padding:9px 20px;background:var(--orange);color:#fff;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.88rem;font-weight:700;cursor:pointer;align-self:flex-end">Generate Report</button>
-      <div id="rptSpinner" style="display:none;align-self:flex-end;font-size:.75rem;font-family:'DM Mono',monospace;color:var(--muted)">Fetching data…</div>
-      <div id="rptError" style="display:none;color:#c81e1e;font-size:.78rem;font-family:'DM Mono',monospace;align-self:flex-end"></div>
     </div>
     <div id="rptOut" style="padding:0 0 40px"></div>
   </div><!-- end panel311Reports -->
@@ -2131,6 +2140,130 @@ function toggleLineCat(cat) {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 // ── REPORTS ────────────────────────────────────────────────────────────────
+const RPT_CACHE_PREFIX = 'cb6_311_rpt_';
+
+function rptCacheKey(year, month) { return RPT_CACHE_PREFIX + year + '_' + month; }
+
+function rptCacheSave(year, month, data, prior) {
+  try {
+    sessionStorage.setItem(rptCacheKey(year, month), JSON.stringify({data, prior, ts: Date.now()}));
+    updateCacheCount();
+  } catch(e) {}
+}
+
+function rptCacheLoad(year, month) {
+  try {
+    const raw = sessionStorage.getItem(rptCacheKey(year, month));
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+
+function updateCacheCount() {
+  let n = 0;
+  for (let i = 0; i < sessionStorage.length; i++) {
+    if (sessionStorage.key(i).startsWith(RPT_CACHE_PREFIX)) n++;
+  }
+  const el = document.getElementById('rptCacheCount');
+  if (el) el.textContent = n;
+}
+
+function clearReportCache() {
+  const keys = [];
+  for (let i = 0; i < sessionStorage.length; i++) {
+    if (sessionStorage.key(i).startsWith(RPT_CACHE_PREFIX)) keys.push(sessionStorage.key(i));
+  }
+  keys.forEach(k => sessionStorage.removeItem(k));
+  updateCacheCount();
+  document.getElementById('rptGenProgress').textContent = 'Cache cleared.';
+}
+
+// All available periods: 2020-01 through current month minus 1
+function availablePeriods() {
+  const now = new Date();
+  const periods = [];
+  // Last complete month
+  const lastComplete = new Date(now.getFullYear(), now.getMonth(), 1);
+  lastComplete.setMonth(lastComplete.getMonth() - 1);
+
+  for (let y = 2020; y <= lastComplete.getFullYear(); y++) {
+    const maxM = y === lastComplete.getFullYear() ? lastComplete.getMonth() + 1 : 12;
+    for (let m = 1; m <= maxM; m++) {
+      periods.push({ year: String(y), month: String(m).padStart(2,'0') });
+    }
+    if (y <= lastComplete.getFullYear()) {
+      periods.push({ year: String(y), month: '00' }); // full year
+    }
+  }
+  return periods;
+}
+
+async function generateAllReports() {
+  const btn  = document.getElementById('rptGenAllBtn');
+  const prog = document.getElementById('rptGenProgress');
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+
+  const periods = availablePeriods();
+  let done = 0, skipped = 0;
+
+  for (const {year, month} of periods) {
+    if (rptCacheLoad(year, month)) { skipped++; continue; }
+    prog.textContent = `Fetching ${month === '00' ? year + ' annual' : MONTH_NAMES[parseInt(month)-1] + ' ' + year}… (${done+skipped+1}/${periods.length})`;
+    try {
+      const {data, prior} = await fetchReportData(year, month);
+      rptCacheSave(year, month, data, prior);
+      done++;
+    } catch(e) {
+      // skip failed periods silently
+    }
+    // Small delay to avoid rate limiting
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  btn.disabled = false;
+  btn.textContent = '⬇ Cache All Available Reports';
+  prog.textContent = `Done — ${done} fetched, ${skipped} already cached. ${done+skipped} total.`;
+  updateCacheCount();
+}
+
+async function fetchReportData(year, month) {
+  const isFullYear = month === '00';
+  let start, end, priorStart, priorEnd;
+
+  if (isFullYear) {
+    start = `${year}-01-01T00:00:00`;
+    end   = `${parseInt(year)+1}-01-01T00:00:00`;
+    priorStart = `${parseInt(year)-1}-01-01T00:00:00`;
+    priorEnd   = `${year}-01-01T00:00:00`;
+  } else {
+    start = `${year}-${month}-01T00:00:00`;
+    const endDate = new Date(parseInt(year), parseInt(month), 1);
+    end = `${endDate.getFullYear()}-${String(endDate.getMonth()+1).padStart(2,'0')}-01T00:00:00`;
+    priorStart = `${parseInt(year)-1}-${month}-01T00:00:00`;
+    const pe = new Date(parseInt(year)-1, parseInt(month), 1);
+    priorEnd = `${pe.getFullYear()}-${String(pe.getMonth()+1).padStart(2,'0')}-01T00:00:00`;
+  }
+
+  const base = 'https://data.cityofnewyork.us/resource/erm2-nwe9.json';
+  const qs = (s, e) => `${base}?$where=community_board='06 BROOKLYN' AND created_date>='${s}' AND created_date<'${e}'&$limit=50000&$$app_token=${APP_TOKEN}`;
+
+  const [r1, r2] = await Promise.all([fetch(qs(start,end)), fetch(qs(priorStart,priorEnd))]);
+  if (!r1.ok) throw new Error(`API ${r1.status}`);
+
+  const parse = arr => arr.map(d => ({
+    date:  (d.created_date||'').substring(0,10),
+    hour:  d.created_date ? parseInt(d.created_date.substring(11,13)) : null,
+    dow:   d.created_date ? new Date(d.created_date.substring(0,10)).getDay() : null,
+    month: (d.created_date||'').substring(5,7),
+    complaint_type: d.complaint_type||'',
+    cat:   categorize(d.complaint_type||'')
+  }));
+
+  const raw1 = await r1.json();
+  const raw2 = r2.ok ? await r2.json() : [];
+  return { data: parse(raw1), prior: parse(raw2) };
+}
+
 (function initRptYears() {
   const sel = document.getElementById('rptYear');
   const now = new Date();
@@ -2141,8 +2274,8 @@ function toggleLineCat(cat) {
   }
   sel.value = now.getFullYear();
   const rptM = document.getElementById('rptMonth');
-  // Default: current month, but warn if not yet released
   rptM.value = String(now.getMonth() + 1).padStart(2, '0');
+  updateCacheCount();
 })();
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -2157,7 +2290,6 @@ async function loadReport() {
   const now = new Date();
   const isFullYear = month === '00';
 
-  // Reports release on the 1st of the following month
   if (!isFullYear) {
     const releaseDate = new Date(parseInt(year), parseInt(month), 1);
     if (releaseDate > now) {
@@ -2169,39 +2301,20 @@ async function loadReport() {
     }
   }
   err.style.display = 'none';
+
+  // Check cache first
+  const cached = rptCacheLoad(year, month);
+  if (cached) {
+    renderReport(cached.data, cached.prior, year, month, isFullYear);
+    return;
+  }
+
   spin.style.display = 'block';
   out.innerHTML = '';
-
   try {
-    let start, end;
-    if (isFullYear) {
-      start = `${year}-01-01T00:00:00`;
-      end   = `${parseInt(year)+1}-01-01T00:00:00`;
-    } else {
-      start = `${year}-${month}-01T00:00:00`;
-      const endDate = new Date(parseInt(year), parseInt(month), 1);
-      end = `${endDate.getFullYear()}-${String(endDate.getMonth()+1).padStart(2,'0')}-01T00:00:00`;
-    }
-
-    const [resp, priorResp] = await Promise.all([
-      fetch(`https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=community_board='06 BROOKLYN' AND created_date>='${start}' AND created_date<'${end}'&$limit=50000&$$app_token=${APP_TOKEN}`),
-      fetch(`https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=community_board='06 BROOKLYN' AND created_date>='${isFullYear ? parseInt(year)-1 : parseInt(year)-1}-${isFullYear ? '01' : month}-01T00:00:00' AND created_date<'${isFullYear ? year : parseInt(year)-1}-${isFullYear ? '01' : parseInt(month)===12 ? '01' : String(parseInt(month)+1).padStart(2,'0')}-01T00:00:00'&$limit=50000&$$app_token=${APP_TOKEN}`)
-    ]);
-
-    if (!resp.ok) throw new Error(`API ${resp.status}`);
-    const raw      = await resp.json();
-    const priorRaw = priorResp.ok ? await priorResp.json() : [];
-
-    const parse = arr => arr.map(d => ({
-      date: (d.created_date||'').substring(0,10),
-      hour: d.created_date ? parseInt(d.created_date.substring(11,13)) : null,
-      dow:  d.created_date ? new Date(d.created_date.substring(0,10)).getDay() : null,
-      month: (d.created_date||'').substring(5,7),
-      complaint_type: d.complaint_type||'',
-      cat: categorize(d.complaint_type||'')
-    }));
-
-    renderReport(parse(raw), parse(priorRaw), year, month, isFullYear);
+    const {data, prior} = await fetchReportData(year, month);
+    rptCacheSave(year, month, data, prior);
+    renderReport(data, prior, year, month, isFullYear);
   } catch(e) {
     err.textContent = '⚠ ' + e.message;
     err.style.display = 'block';
