@@ -383,7 +383,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 </div>
 
 <div class="boro-drop-section" id="sec-landuse">
-  <button class="boro-drop-toggle" onclick="boroToggle(this)">
+  <button class="boro-drop-toggle" id="bk-borough-landuse-toggle" onclick="(function(btn){var body=btn.nextElementSibling;var open=body.classList.toggle('open');btn.classList.toggle('open',open);if(open){if(typeof window.__initBKLandUseMap==='function'){window.__initBKLandUseMap();}}})(this)">
     🏘 Brooklyn Land Use Map
     <span class="boro-drop-arr">▼</span>
   </button>
@@ -1336,5 +1336,66 @@ function copyEmbed(type){
 })();
 </script>
 
+
+<script>
+window.__initBKLandUseMap = (function(){
+  var done = false;
+  return function(){
+    if (done) return;
+    done = true;
+    var noteEl = document.getElementById('bk-borough-landuse-note');
+    var mapEl = document.getElementById('bk-borough-landuse-map');
+    if (!mapEl) return;
+    if (typeof L === 'undefined') {
+      if (noteEl) noteEl.textContent = 'Map library not loaded. Please refresh.';
+      return;
+    }
+    var map = L.map(mapEl, {center:[40.65,-73.95], zoom:12, scrollWheelZoom:false});
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+      attribution:'© OpenStreetMap © CARTO', maxZoom:19
+    }).addTo(map);
+
+    var COLORS = {'01':'#FEFFA8','02':'#FCB842','03':'#B16E00','04':'#ff8341','05':'#fc2929','06':'#E362FB','07':'#E0BEEB','08':'#44A3D5','09':'#78D271','10':'#BAB8B6','11':'#555555'};
+    var LABELS = {'01':'One & Two Family','02':'Multi-Family Walk-Up','03':'Multi-Family Elevator','04':'Mixed Residential/Commercial','05':'Commercial/Office','06':'Industrial/Manufacturing','07':'Transportation/Utility','08':'Public Facilities','09':'Open Space','10':'Parking','11':'Vacant Land'};
+
+    function norm(v){ var s=String(v==null?'':v).replace(/\.0+$/,''); return s.length===1?'0'+s:s; }
+
+    function loadParcels(){
+      var b = map.getBounds();
+      var zoom = map.getZoom();
+      if (zoom < 14) {
+        if (noteEl) noteEl.textContent = 'Zoom in further to load individual tax lot parcels (zoom 14+).';
+        return;
+      }
+      if (noteEl) noteEl.textContent = 'Loading parcels…';
+      var url = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?' +
+        'where=1%3D1&geometry=' + encodeURIComponent(JSON.stringify({xmin:b.getWest(),ymin:b.getSouth(),xmax:b.getEast(),ymax:b.getNorth(),spatialReference:{wkid:4326}})) +
+        '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects' +
+        '&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson&resultRecordCount=500&outSR=4326';
+
+      fetch(url).then(function(r){return r.json();}).then(function(data){
+        if (window.__bkLandUseLayer) map.removeLayer(window.__bkLandUseLayer);
+        window.__bkLandUseLayer = L.geoJSON(data, {
+          style: function(f){
+            var code = norm(f.properties && f.properties.LandUse);
+            return {fillColor: COLORS[code]||'#9aa0a6', fillOpacity:0.75, color:'#fff', weight:0.5};
+          },
+          onEachFeature: function(f, layer){
+            var code = norm(f.properties && f.properties.LandUse);
+            layer.bindPopup('<strong>'+(LABELS[code]||'Unknown')+'</strong><br><span style="font-size:.8rem;color:#666">'+(f.properties.Address||'')+'</span>');
+          }
+        }).addTo(map);
+        if (noteEl) noteEl.textContent = (data.features||[]).length + ' parcels loaded. Click any lot for details.';
+      }).catch(function(){
+        if (noteEl) noteEl.textContent = 'Could not load parcels. Try zooming in more.';
+      });
+    }
+
+    map.on('moveend zoomend', loadParcels);
+    if (noteEl) noteEl.textContent = 'Zoom in to level 14+ to load individual tax lot parcels.';
+    setTimeout(function(){ map.invalidateSize(); }, 100);
+  };
+})();
+</script>
 </body>
 </html>
