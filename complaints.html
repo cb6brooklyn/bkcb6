@@ -2561,9 +2561,15 @@ function renderReport(data, prior, year, month, isFullYear) {
   const periodLabel = isFullYear ? `${year} Full Year` : `${MONTH_NAMES[parseInt(month)-1]} ${year}`;
   const priorLabel  = isFullYear ? `${parseInt(year)-1} Full Year` : `${MONTH_NAMES[parseInt(month)-1]} ${parseInt(year)-1}`;
   const total = data.length, priorTotal = prior.length;
-  const pctChange = priorTotal ? (((total-priorTotal)/priorTotal)*100).toFixed(1) : null;
+  // Only show YoY % for completed periods
+  const now = new Date();
+  const monthComplete = isFullYear
+    ? parseInt(year) < now.getFullYear()
+    : (parseInt(year) < now.getFullYear()) || (parseInt(year) === now.getFullYear() && parseInt(month) < now.getMonth() + 1);
+  const pctChange = (priorTotal && monthComplete) ? (((total-priorTotal)/priorTotal)*100).toFixed(1) : null;
   const changeDir = pctChange > 0 ? '▲' : '▼';
   const changeCol = pctChange > 0 ? '#c81e1e' : '#166534';
+  const inProgressNote = !isFullYear && !monthComplete ? `<span style="font-size:.68rem;color:#6b6760;font-family:'DM Mono',monospace">Month in progress</span>` : '';
 
   const cats={}, priorCats={}, types={};
   data.forEach(d  => { cats[d.cat]=(cats[d.cat]||0)+1; types[d.complaint_type]=(types[d.complaint_type]||0)+1; });
@@ -2595,11 +2601,11 @@ function renderReport(data, prior, year, month, isFullYear) {
 
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border);border-bottom:1px solid var(--border)">
   ${[
-    ['Total Complaints', total.toLocaleString(), pctChange!==null?`<span style="color:${changeCol}">${changeDir} ${Math.abs(pctChange)}% vs ${priorLabel}</span>`:''],
+    ['Total Complaints', total.toLocaleString(), pctChange!==null?`<span style="color:${changeCol}">${changeDir} ${Math.abs(pctChange)}% vs ${priorLabel}</span>`:inProgressNote||''],
     ['Top Category', `<span style="color:${CAT_COLORS[catEntries[0]?.[0]]||'var(--navy)'}">${CAT_LABELS[catEntries[0]?.[0]]||'—'}</span>`, (catEntries[0]?.[1]||0).toLocaleString()+' complaints'],
     ['Peak Hour', peakHourLabel, hours[peakHour].toLocaleString()+' complaints'],
     ['Busiest Day', peakDay, days[days.indexOf(Math.max(...days))].toLocaleString()+' complaints'],
-    [isFullYear?'Daily Average':'vs Prior Year', isFullYear?(total/365).toFixed(1):(pctChange!==null?`<span style="color:${changeCol}">${changeDir}${Math.abs(pctChange)}%</span>`:'—'), isFullYear?'per day':priorTotal.toLocaleString()+' in '+priorLabel]
+    [isFullYear?'Daily Average':monthComplete?'vs Prior Year':'Month Status', isFullYear?(total/365).toFixed(1):monthComplete?(pctChange!==null?`<span style="color:${changeCol}">${changeDir}${Math.abs(pctChange)}%</span>`:'—'):'In Progress', isFullYear?'per day':monthComplete?priorTotal.toLocaleString()+' in '+priorLabel:'Data through today only']
   ].map(([lbl,val,sub])=>`
     <div style="background:#fff;padding:16px 20px">
       <div style="font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:4px">${lbl}</div>
