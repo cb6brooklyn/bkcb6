@@ -11,6 +11,7 @@
   };
   var configs = [
     {key:'bike', icon:'🚲', title:'Bike Map', source:'https://www.nyc.gov/html/dot/html/bicyclists/bikemaps.shtml', note:'Bike routes clipped to the current boundary.', id:'sec-bike-map'},
+    {key:'bus', icon:'🚌', title:'Bus Map', source:'https://data.ny.gov/Transportation/MTA-Bus-Routes/8vgb-zm6e', note:'Current MTA bus route shapes clipped to the current boundary.', id:'sec-bus-map'},
     {key:'subway', icon:'🚇', title:'Subway Map', source:'https://data.ny.gov/Transportation/MTA-Subway-Stations/39hk-dx4f', note:'Subway stations within the current boundary.', id:'sec-subway-map'},
     {key:'truck', icon:'🚚', title:'Truck Route Map', source:'https://www.nyc.gov/html/dot/html/motorist/trucks.shtml', note:'Official truck route segments clipped to the current boundary.', id:'sec-truck-map'},
     {key:'speed', icon:'🛣', title:'Speed Limit Map', source:'https://data.cityofnewyork.us/Transportation/VZV-Speed-Limits/qtik-bcvk', note:'Posted speed-limit segments clipped to the current boundary.', id:'sec-speed-map'}
@@ -111,6 +112,7 @@
     if (!legend) return;
     var items = {
       bike:[['#1d4ed8','Protected'],['#0f766e','Greenway'],['#f59e0b','Buffered / Conventional'],['#6b7280','Shared / Link'],['#ef4444','Retired']],
+      bus:[['#2563eb','Local'],['#c1121f','SBS'],['#6a1b9a','Express'],['#f77f00','Limited'],['#f4a261','School']],
       subway:[['#0d1b4b','Subway Station'],['#f47920','ADA Accessible']],
       truck:[['#0d9488','Through'],['#2563eb','Local'],['#f59e0b','Limited Local']],
       speed:[['#2a9d8f','20 mph or less'],['#4c78a8','25 mph'],['#f4a261','30 mph'],['#e63946','35+ mph'],['#111827','School Zone']]
@@ -120,6 +122,18 @@
 
   function escapeHtml(value){
     return String(value == null ? '' : value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function busColor(props){
+    var raw = String(props.route_color || '').trim();
+    if (raw && raw.charAt(0) !== '#') raw = '#' + raw;
+    if (/^#[0-9a-fA-F]{6}$/.test(raw)) return raw;
+    var t = String(props.route_type || '').toLowerCase();
+    if (t === 'sbs') return '#c1121f';
+    if (t === 'express') return '#6a1b9a';
+    if (t === 'limited') return '#f77f00';
+    if (t === 'school' || t === 'school limited') return '#f4a261';
+    return '#2563eb';
   }
 
   function bikeColor(props){
@@ -153,6 +167,7 @@
 
   function linePopup(kind, props){
     if (kind === 'bike') return '<strong>'+escapeHtml(props.street || 'Bike Route')+'</strong><br>'+escapeHtml([props.fromstreet, props.tostreet].filter(Boolean).join(' to '))+'<br><span style="font-size:.8rem;color:#666">'+escapeHtml([props.status, props.ft_facilit || props.tf_facilit || props.allclasses, props.grnwy].filter(Boolean).join(' · '))+'</span>';
+    if (kind === 'bus') return '<strong>'+escapeHtml(props.route_short_name || props.route_id || 'Bus Route')+'</strong><br>'+escapeHtml(props.route_long_name || '')+'<br><span style="font-size:.8rem;color:#666">'+escapeHtml([props.route_type, props.direction, props.route_description].filter(Boolean).join(' · '))+'</span>';
     if (kind === 'truck') return '<strong>'+escapeHtml(props.street || 'Truck Route')+'</strong><br><span style="font-size:.8rem;color:#666">'+escapeHtml([props.routetype, props.nyc_reg].filter(Boolean).join(' · '))+'</span>';
     return '<strong>'+escapeHtml(props.street || 'Speed Limit Segment')+'</strong><br><span style="font-size:.8rem;color:#666">Posted: '+escapeHtml(props.postvz_sl || '—')+' mph'+(String(props.postvz_sg || '').toUpperCase()==='YES' ? ' · School Zone' : '')+'</span>';
   }
@@ -176,7 +191,7 @@
         if (layer.getBounds && layer.getBounds().isValid()) map.fitBounds(layer.getBounds().pad(0.12));
         else if (boundaryLayer.getBounds().isValid()) map.fitBounds(boundaryLayer.getBounds().pad(0.08));
       } else {
-        var styleFn = kind === 'bike' ? function(f){return {color:bikeColor(f.properties || {}),weight:4,opacity:0.9};} : kind === 'truck' ? function(f){return {color:truckColor(f.properties || {}),weight:4,opacity:0.9};} : function(f){return {color:speedColor(f.properties || {}),weight:String((f.properties || {}).postvz_sg || '').toUpperCase()==='YES' ? 5 : 4,opacity:0.9,dashArray:String((f.properties || {}).postvz_sg || '').toUpperCase()==='YES' ? '8 4' : null};};
+        var styleFn = kind === 'bike' ? function(f){return {color:bikeColor(f.properties || {}),weight:4,opacity:0.9};} : kind === 'bus' ? function(f){return {color:busColor(f.properties || {}),weight:String((f.properties || {}).route_type || '').toLowerCase()==='express' ? 5 : 4,opacity:0.88,dashArray:String((f.properties || {}).route_type || '').toLowerCase()==='school' ? '7 4' : null};} : kind === 'truck' ? function(f){return {color:truckColor(f.properties || {}),weight:4,opacity:0.9};} : function(f){return {color:speedColor(f.properties || {}),weight:String((f.properties || {}).postvz_sg || '').toUpperCase()==='YES' ? 5 : 4,opacity:0.9,dashArray:String((f.properties || {}).postvz_sg || '').toUpperCase()==='YES' ? '8 4' : null};};
         var layer = L.geoJSON(section,{style:styleFn,onEachFeature:function(feature, layer){layer.bindPopup(linePopup(kind, feature.properties || {}));}}).addTo(map);
         if (layer.getBounds && layer.getBounds().isValid()) map.fitBounds(layer.getBounds().pad(0.12));
         else if (boundaryLayer.getBounds().isValid()) map.fitBounds(boundaryLayer.getBounds().pad(0.08));
