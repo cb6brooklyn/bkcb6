@@ -520,22 +520,36 @@ window.__cbbk7LandUseInit = (function(){
 
 <script>
 function cbToggle(btn){
-  const body=btn.nextElementSibling;
-  const open=body.classList.toggle('open');
-  btn.classList.toggle('open',open);
-  if(open && body.querySelector('#cb7-zoning-map')){
-    if(!window.cb7ZoningMap && typeof window.initializeCb7ZoningMap==='function' && !window.cb7ZoningMapLoading){
-      window.initializeCb7ZoningMap();
+  const body = btn.nextElementSibling;
+  if (!body) return;
+  const open = body.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  if (!open) return;
+
+  const zoningMapEl = body.querySelector('[id$="-zoning-map"]');
+  if (zoningMapEl) {
+    const initName = Object.keys(window).find(function(key){
+      return /^initializeCb.*ZoningMap$/.test(key) && typeof window[key] === 'function';
+    });
+    if (initName) {
+      try { window[initName](); } catch (err) { console.error(err); }
     }
-    setTimeout(function(){
-      if(window.cb7ZoningMap){
-        window.cb7ZoningMap.invalidateSize();
-        if(window.cb7ZoningBounds){
-          window.cb7ZoningMap.fitBounds(window.cb7ZoningBounds,{padding:[18,18]});
+  }
+
+  setTimeout(function(){
+    Object.keys(window).forEach(function(key){
+      var value = window[key];
+      if (!value || typeof value.invalidateSize !== 'function' || !/Map$/.test(key)) return;
+      try { value.invalidateSize(); } catch (err) {}
+      if (typeof value.fitBounds === 'function') {
+        var boundsKey = key.replace(/Map$/, 'Bounds');
+        var bounds = window[boundsKey];
+        if (bounds && typeof bounds.isValid === 'function' && bounds.isValid()) {
+          try { value.fitBounds(bounds, {padding:[18,18]}); } catch (err) {}
         }
       }
-    },220);
-  }
+    });
+  }, 240);
 }
 function cbToc(){
   const b=document.getElementById('cb-toc-body');
@@ -841,7 +855,7 @@ function cbToc(){
       var boardCode = containingBoard && containingBoard.properties && containingBoard.properties.boro_cd ? String(containingBoard.properties.boro_cd) : '';
       var boardLabel = boardCode ? getBoardLabelFromBoroCd(boardCode) : 'Unknown';
       var boardPage = boardCode ? getBoardPageFromBoroCd(boardCode) : null;
-      var insideCb7 = boardCode === '307';
+      var insideCb7 = boardCode === String((function(){var match = window.location.pathname.match(/cb\-(bk|bx|mn|qn|si)\-(\d+)\.html/i);if(!match) return '';var boroughDigits = {bk:'3',bx:'2',mn:'1',qn:'4',si:'5'};return String((boroughDigits[match[1].toLowerCase()] || '')) + String(parseInt(match[2], 10)).padStart(2, '0');})());
 
       var zoningFeature = findContainingFeature((window.cb7ZoningData && window.cb7ZoningData.features) || [], lng, lat);
       var mapZoneLabel = zoningFeature ? getZoneLabel(zoningFeature.properties || {}) : '';
