@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -6,7 +6,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Brooklyn Community Board 6">
 <meta property="og:title" content="Find Permits — Brooklyn Community Board 6">
-<meta property="og:description" content="Search permits issued on a selected day across Brooklyn Community Board 6 using official NYC Open Data permit records.">
+<meta property="og:description" content="Search DOB and DOT permits issued on a selected day across Brooklyn Community Board 6 using official NYC permit records.">
 <meta property="og:url" content="https://cb6brooklyn.github.io/bkcb6/permits.html">
 <title>Find Permits — CB6</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -27,6 +27,8 @@
   --blue-bg:#dbeafe;
   --red:#b91c1c;
   --red-bg:#fee2e2;
+  --amber:#92400e;
+  --amber-bg:#ffedd5;
   --shadow:0 10px 28px rgba(13,27,75,.08);
 }
 *{box-sizing:border-box}
@@ -62,13 +64,14 @@ main{max-width:1280px;margin:0 auto;padding:24px 22px 48px}
 .btn-secondary{background:#fff;border:1.5px solid var(--border);color:var(--navy)}
 .btn-secondary:hover{border-color:#cfc8bc;background:#faf9f7}
 .status-row{padding:14px 22px;background:#fbfbfa;border-bottom:1px solid var(--border);display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-.status-msg{font-size:.84rem;color:var(--muted)}
+.status-msg{font-size:.84rem;color:var(--muted);max-width:840px;line-height:1.55}
 .status-msg strong{color:var(--navy)}
 .badges{display:flex;gap:8px;flex-wrap:wrap}
 .badge{padding:6px 10px;border-radius:999px;font-size:.68rem;font-weight:700;font-family:'DM Mono',monospace}
 .badge.green{background:var(--green-bg);color:var(--green)}
 .badge.blue{background:var(--blue-bg);color:var(--blue)}
 .badge.red{background:var(--red-bg);color:var(--red)}
+.badge.amber{background:var(--amber-bg);color:var(--amber)}
 .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;padding:22px;border-bottom:1px solid var(--border)}
 .stat{background:var(--off);border:1px solid var(--border);border-radius:14px;padding:16px 16px 14px}
 .stat .label{font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;font-family:'DM Mono',monospace;color:var(--muted)}
@@ -89,6 +92,7 @@ tbody tr:hover{background:#fcfbf9}
 .source-pill{display:inline-block;padding:4px 8px;border-radius:999px;font-size:.66rem;font-family:'DM Mono',monospace;font-weight:700}
 .source-bis{background:var(--blue-bg);color:var(--blue)}
 .source-now{background:var(--green-bg);color:var(--green)}
+.source-dot{background:var(--amber-bg);color:var(--amber)}
 .source-link{color:var(--orange);font-weight:700;text-decoration:none}
 .source-link:hover{text-decoration:underline}
 .map-wrap{height:560px;background:#eef3f8}
@@ -121,11 +125,11 @@ tbody tr:hover{background:#fcfbf9}
     <div class="hero">
       <div class="hero-copy">
         <h1><span>Find Permits</span> in Brooklyn Community Board 6</h1>
-        <p>This page shows permits issued on a selected day across Brooklyn Community Board 6 using official New York City permit records. Version 1 combines legacy BIS permit issuance data with DOB NOW approved-permit records so the board can monitor day-to-day activity across Carroll Gardens, Cobble Hill, Gowanus, Park Slope, and Red Hook.</p>
+        <p>This page shows permits issued on a selected day across Brooklyn Community Board 6 using official New York City permit records. It now combines legacy BIS permit issuance data, DOB NOW approved-permit records, and NYC DOT street construction permits from the NYC Streets ecosystem so the board can monitor building and roadway activity across Carroll Gardens, Cobble Hill, Gowanus, Park Slope, and Red Hook.</p>
       </div>
       <div class="hero-meta">
         <div class="meta-pill"><span class="label">District</span><span class="value" id="metaBoardName">BK CB6</span></div>
-        <div class="meta-pill"><span class="label">Sources</span><span class="value">BIS + DOB NOW</span></div>
+        <div class="meta-pill"><span class="label">Sources</span><span class="value">BIS + DOB NOW + DOT</span></div>
         <div class="meta-pill"><span class="label">Default View</span><span class="value">Today</span></div>
       </div>
     </div>
@@ -136,8 +140,8 @@ tbody tr:hover{background:#fcfbf9}
   <section class="panel">
     <div class="controls">
       <p class="section-kicker">District-wide permit lookup</p>
-      <h2>Search all permits issued on a selected date.</h2>
-      <p>The default search is today. You can change the date, keep the result limited to official Brooklyn Community Board 6 records, and optionally filter the returned list by an address or street name. The page is structured so additional community-board configurations and more permit datasets can be added later without changing the user experience.</p>
+      <h2>Search permits issued on a selected date.</h2>
+      <p>The default search is today. You can change the date, keep the result limited to official Brooklyn Community Board 6 records, and optionally filter the returned list by an address or street name. DOB sources are filtered by their published community-board codes, while the NYC DOT street-permit feed is filtered to CB6 by intersecting permit geometry with the official district boundary.</p>
       <div class="control-grid">
         <div class="field">
           <label for="permitDate">Issued date</label>
@@ -153,6 +157,7 @@ tbody tr:hover{background:#fcfbf9}
             <option value="all">All permit records</option>
             <option value="DOB NOW">DOB NOW only</option>
             <option value="BIS">BIS only</option>
+            <option value="NYC Streets / DOT">NYC Streets / DOT only</option>
           </select>
         </div>
       </div>
@@ -166,17 +171,19 @@ tbody tr:hover{background:#fcfbf9}
       <div class="status-msg" id="statusMsg"><strong>Ready.</strong> Choose a date or run the default search for today.</div>
       <div class="badges">
         <span class="badge green">District filter: CB6</span>
-        <span class="badge blue">Official source: NYC Open Data</span>
-        <span class="badge red">Version 1: building permits only</span>
+        <span class="badge blue">Official sources: NYC Open Data</span>
+        <span class="badge amber">NYC Streets / DOT included</span>
+        <span class="badge red">Static page: no sign-in required</span>
       </div>
     </div>
 
     <div class="summary" id="summaryStrip">
       <div class="stat"><div class="label">Selected date</div><div class="value" id="statDate">—</div><div class="sub">Permits issued on the selected day.</div></div>
-      <div class="stat"><div class="label">Total results</div><div class="value" id="statTotal">0</div><div class="sub">Combined records across both permit systems.</div></div>
+      <div class="stat"><div class="label">Total results</div><div class="value" id="statTotal">0</div><div class="sub">Combined records across building and street permit systems.</div></div>
       <div class="stat"><div class="label">DOB NOW</div><div class="value" id="statDobNow">0</div><div class="sub">Current DOB NOW construction permit records.</div></div>
       <div class="stat"><div class="label">BIS</div><div class="value" id="statBis">0</div><div class="sub">Legacy BIS permit issuance records.</div></div>
-      <div class="stat"><div class="label">Mapped locations</div><div class="value" id="statMapped">0</div><div class="sub">Rows with latitude and longitude available.</div></div>
+      <div class="stat"><div class="label">NYC Streets / DOT</div><div class="value" id="statDot">0</div><div class="sub">Street construction permits intersecting the CB6 boundary.</div></div>
+      <div class="stat"><div class="label">Mapped locations</div><div class="value" id="statMapped">0</div><div class="sub">Rows with coordinates or geometry available for mapping.</div></div>
     </div>
 
     <div class="result-layout">
@@ -212,7 +219,7 @@ tbody tr:hover{background:#fcfbf9}
         <div class="card-head">
           <div>
             <h3>Map</h3>
-            <p>Locations appear here when permit rows include coordinates.</p>
+            <p>Permit locations appear here when rows include coordinates or line geometry. The CB6 boundary is shown for reference.</p>
           </div>
           <div class="mono" id="mapCount">0 pins</div>
         </div>
@@ -222,9 +229,9 @@ tbody tr:hover{background:#fcfbf9}
   </section>
 
   <section class="note-box">
-    <p class="section-kicker">Version 1 structure</p>
+    <p class="section-kicker">Current structure</p>
     <h3>What this page does now, and how it can scale.</h3>
-    <p>This first release is intentionally simple. It focuses on district-wide daily permit discovery, which is the fastest way to spot new construction activity across the board. The implementation already separates board settings, source fetch logic, normalization, and rendering, so future versions can add more boards, more permit types, and an address-history mode without rebuilding the page from scratch.</p>
+    <p>This release keeps the interface simple while expanding the permit coverage meaningfully. It now combines DOB building permits with DOT street permits, which makes the page more useful for day-to-day public oversight. The implementation keeps board settings, source fetch logic, geometry filtering, normalization, and rendering separate so the same pattern can be extended to additional boards or additional permit systems later.</p>
     <table>
       <thead>
         <tr>
@@ -236,13 +243,13 @@ tbody tr:hover{background:#fcfbf9}
       <tbody>
         <tr>
           <td>Geography</td>
-          <td>Brooklyn Community Board 6 by official community-board code.</td>
+          <td>Brooklyn Community Board 6 by official community-board codes and the official CB6 boundary file.</td>
           <td>Add more board configurations and switch them by query string or navigation.</td>
         </tr>
         <tr>
           <td>Permits</td>
-          <td>DOB building permits from BIS and DOB NOW.</td>
-          <td>Add DOT street activity, scaffolding, liquor, event, and other public permit feeds.</td>
+          <td>DOB building permits from BIS and DOB NOW plus NYC DOT street construction permits used by NYC Streets.</td>
+          <td>Add scaffolding, liquor, event, and other public permit feeds.</td>
         </tr>
         <tr>
           <td>Lookup mode</td>
@@ -251,11 +258,13 @@ tbody tr:hover{background:#fcfbf9}
         </tr>
       </tbody>
     </table>
-    <p class="footer-note">Data caveat: BIS and DOB NOW store permit records in different schemas, so this page normalizes the main fields needed for public viewing. Some records may not include map coordinates, and some property-owner names are abbreviated in the source data.</p>
+    <p class="footer-note">Data caveat: BIS, DOB NOW, and DOT street permits use different schemas, so this page normalizes the main fields needed for public viewing. DOT rows are filtered into CB6 by geometry intersection; rows without usable geometry cannot be placed on the map and may be excluded from the DOT district filter if their location cannot be verified precisely.</p>
   </section>
 </main>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://unpkg.com/proj4@2.12.1/dist/proj4.js"></script>
+<script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
 <script>
 const BOARD_CONFIG = {
   key: 'bkcb6',
@@ -264,6 +273,7 @@ const BOARD_CONFIG = {
   borough: 'BROOKLYN',
   bisCommunityBoard: '306',
   dobNowCommunityBoard: '306',
+  boundaryPath: 'data/cb6_boundary.geojson',
   center: [40.6785, -73.9944],
   zoom: 13
 };
@@ -283,13 +293,18 @@ const dom = {
   statTotal: document.getElementById('statTotal'),
   statDobNow: document.getElementById('statDobNow'),
   statBis: document.getElementById('statBis'),
+  statDot: document.getElementById('statDot'),
   statMapped: document.getElementById('statMapped'),
   metaBoardName: document.getElementById('metaBoardName')
 };
 
+const DOT_STATE_PLANE_CRS = '+proj=lcc +lat_1=41.03333333333333 +lat_2=40.66666666666666 +lat_0=40.16666666666666 +lon_0=-74 +x_0=300000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs';
+
 let allPermits = [];
 let map;
 let markersLayer;
+let boundaryLayer;
+let boundaryFeature = null;
 
 function setDefaultDate() {
   const params = new URLSearchParams(window.location.search);
@@ -354,6 +369,23 @@ function buildDobNowUrl(isoDate) {
   return `https://data.cityofnewyork.us/resource/rbx6-tga4.json?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$limit=5000`;
 }
 
+function getDotDatasetId(isoDate) {
+  return isoDate >= '2022-01-01' ? 'tqtj-sjs8' : 'c9sj-fmsg';
+}
+
+function buildDotUrl(isoDate) {
+  const datasetId = getDotDatasetId(isoDate);
+  const start = `${isoDate}T00:00:00.000`;
+  const end = `${nextIsoDate(isoDate)}T00:00:00.000`;
+  const select = [
+    'permitnumber','applicationtrackingid','permitissuedate','issuedworkstartdate','issuedworkenddate','boroughname',
+    'permithousenumber','onstreetname','fromstreetname','tostreetname','permitteename','permitstatusshortdesc',
+    'permittypedesc','permitseriesshortdesc','permitlocationcomments','permitpurposecomments','wkt'
+  ].join(',');
+  const where = `boroughname='${BOARD_CONFIG.borough}' AND permitissuedate >= '${start}' AND permitissuedate < '${end}'`;
+  return `https://data.cityofnewyork.us/resource/${datasetId}.json?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$limit=10000`;
+}
+
 function normalizeBisRow(row) {
   const address = [row.house__, row.street_name].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
   return {
@@ -401,16 +433,217 @@ function safeRows(data) {
   return Array.isArray(data) ? data : [];
 }
 
+async function fetchJsonRows(url, label) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${label} request failed with status ${response.status}.`);
+  return safeRows(await response.json());
+}
+
+function splitTopLevel(text) {
+  const parts = [];
+  let depth = 0;
+  let current = '';
+  for (const char of text) {
+    if (char === '(') depth += 1;
+    if (char === ')') depth -= 1;
+    if (char === ',' && depth === 0) {
+      parts.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
+function stripOuterParens(text) {
+  const trimmed = String(text || '').trim();
+  return trimmed.replace(/^\(/, '').replace(/\)$/, '');
+}
+
+function parseCoordPair(text) {
+  const values = String(text || '').trim().split(/\s+/).map(Number).filter(Number.isFinite);
+  if (values.length < 2) return null;
+  return [values[0], values[1]];
+}
+
+function parseCoordList(text) {
+  return String(text || '').split(',').map(parseCoordPair).filter(Boolean);
+}
+
+function parseWkt(wkt) {
+  if (!wkt) return null;
+  const trimmed = String(wkt).trim();
+  const match = trimmed.match(/^([A-Z]+)(?:\s+Z)?\s*(.*)$/i);
+  if (!match) return null;
+  const type = match[1].toUpperCase();
+  const body = match[2].trim();
+  if (!body || body.toUpperCase() === 'EMPTY') return null;
+
+  if (type === 'POINT') {
+    return { type: 'Point', coordinates: parseCoordPair(stripOuterParens(body)) };
+  }
+  if (type === 'LINESTRING') {
+    return { type: 'LineString', coordinates: parseCoordList(stripOuterParens(body)) };
+  }
+  if (type === 'MULTILINESTRING') {
+    return {
+      type: 'MultiLineString',
+      coordinates: splitTopLevel(stripOuterParens(body)).map(part => parseCoordList(stripOuterParens(part))).filter(part => part.length)
+    };
+  }
+  if (type === 'POLYGON') {
+    return {
+      type: 'Polygon',
+      coordinates: splitTopLevel(stripOuterParens(body)).map(part => parseCoordList(stripOuterParens(part))).filter(part => part.length)
+    };
+  }
+  if (type === 'MULTIPOLYGON') {
+    return {
+      type: 'MultiPolygon',
+      coordinates: splitTopLevel(stripOuterParens(body)).map(part => {
+        return splitTopLevel(stripOuterParens(part)).map(ring => parseCoordList(stripOuterParens(ring))).filter(ring => ring.length);
+      }).filter(part => part.length)
+    };
+  }
+  return null;
+}
+
+function transformCoordinateTree(coords) {
+  if (!Array.isArray(coords)) return coords;
+  if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+    const converted = proj4(DOT_STATE_PLANE_CRS, 'WGS84', [coords[0], coords[1]]);
+    return [Number(converted[0]), Number(converted[1])];
+  }
+  return coords.map(transformCoordinateTree);
+}
+
+function convertDotGeometryToWgs84(geometry) {
+  if (!geometry || !geometry.coordinates) return null;
+  try {
+    return {
+      type: geometry.type,
+      coordinates: transformCoordinateTree(geometry.coordinates)
+    };
+  } catch (err) {
+    console.warn('Could not convert DOT geometry to WGS84.', err, geometry);
+    return null;
+  }
+}
+
+function geometryToLatLng(geometry) {
+  if (!geometry) return { lat: NaN, lng: NaN };
+  try {
+    if (geometry.type === 'Point' && Array.isArray(geometry.coordinates)) {
+      return { lng: Number(geometry.coordinates[0]), lat: Number(geometry.coordinates[1]) };
+    }
+    const centerFeature = turf.center(turf.feature(geometry));
+    const coords = centerFeature && centerFeature.geometry && centerFeature.geometry.coordinates;
+    if (Array.isArray(coords) && coords.length >= 2) {
+      return { lng: Number(coords[0]), lat: Number(coords[1]) };
+    }
+  } catch (err) {
+    console.warn('Could not compute geometry center.', err);
+  }
+  return { lat: NaN, lng: NaN };
+}
+
+async function ensureBoundaryLoaded() {
+  if (boundaryFeature) return boundaryFeature;
+  const response = await fetch(BOARD_CONFIG.boundaryPath);
+  if (!response.ok) throw new Error(`Boundary request failed with status ${response.status}.`);
+  const data = await response.json();
+  const feature = Array.isArray(data.features) ? data.features[0] : data;
+  if (!feature || !feature.geometry) throw new Error('Boundary file did not contain a usable feature.');
+  boundaryFeature = feature;
+  if (!boundaryLayer) {
+    boundaryLayer = L.geoJSON(boundaryFeature, {
+      style: {
+        color: '#f47920',
+        weight: 2,
+        opacity: 0.95,
+        fillColor: '#f47920',
+        fillOpacity: 0.04
+      }
+    }).addTo(map);
+  }
+  return boundaryFeature;
+}
+
+function dotAddress(row) {
+  const base = [row.permithousenumber, row.onstreetname].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  const fromTo = [row.fromstreetname, row.tostreetname].filter(Boolean);
+  if (base && fromTo.length === 2) return `${base} (between ${fromTo[0]} and ${fromTo[1]})`;
+  if (base) return base;
+  if (row.onstreetname && fromTo.length === 2) return `${row.onstreetname} between ${fromTo[0]} and ${fromTo[1]}`;
+  return row.permitlocationcomments || row.onstreetname || 'Street location not provided';
+}
+
+function normalizeDotRow(row) {
+  const geometry = convertDotGeometryToWgs84(parseWkt(row.wkt));
+  const center = geometryToLatLng(geometry);
+  return {
+    source: 'NYC Streets / DOT',
+    issued_date: row.permitissuedate ? row.permitissuedate.slice(0, 10) : '',
+    issued_display: row.permitissuedate ? row.permitissuedate.slice(0, 10) : '',
+    address: dotAddress(row),
+    permit_type: row.permittypedesc || row.permitseriesshortdesc || 'Street permit',
+    owner_or_applicant: row.permitteename || '—',
+    status: row.permitstatusshortdesc || '—',
+    reference: row.permitnumber || row.applicationtrackingid || '',
+    detail_url: '',
+    lat: center.lat,
+    lng: center.lng,
+    raw_type: row.permittypedesc || row.permitseriesshortdesc || 'Street permit',
+    sort_key: row.permitissuedate || '',
+    block: '',
+    lot: '',
+    geojson_geometry: geometry,
+    route_text: [row.onstreetname, row.fromstreetname, row.tostreetname, row.permitlocationcomments, row.permitpurposecomments].filter(Boolean).join(' | ')
+  };
+}
+
+function intersectsBoundary(geometry) {
+  if (!geometry || !boundaryFeature) return false;
+  try {
+    return turf.booleanIntersects(turf.feature(geometry), boundaryFeature);
+  } catch (err) {
+    console.warn('Geometry intersection failed.', err, geometry);
+    return false;
+  }
+}
+
+async function fetchDotData(isoDate) {
+  await ensureBoundaryLoaded();
+  const rows = await fetchJsonRows(buildDotUrl(isoDate), 'NYC Streets / DOT');
+  return rows
+    .map(normalizeDotRow)
+    .filter(row => row.geojson_geometry && intersectsBoundary(row.geojson_geometry));
+}
+
 async function fetchPermitsForDate(isoDate) {
-  const [bisResp, dobNowResp] = await Promise.all([
-    fetch(buildBisUrl(isoDate)),
-    fetch(buildDobNowUrl(isoDate))
-  ]);
-  if (!bisResp.ok) throw new Error(`BIS request failed with status ${bisResp.status}.`);
-  if (!dobNowResp.ok) throw new Error(`DOB NOW request failed with status ${dobNowResp.status}.`);
-  const bisData = safeRows(await bisResp.json()).map(normalizeBisRow);
-  const dobNowData = safeRows(await dobNowResp.json()).map(normalizeDobNowRow);
-  return { bisData, dobNowData, combined: [...dobNowData, ...bisData].sort((a, b) => String(b.sort_key).localeCompare(String(a.sort_key)) || a.address.localeCompare(b.address)) };
+  const tasks = [
+    { key: 'bisData', label: 'BIS', promise: fetchJsonRows(buildBisUrl(isoDate), 'BIS').then(rows => rows.map(normalizeBisRow)) },
+    { key: 'dobNowData', label: 'DOB NOW', promise: fetchJsonRows(buildDobNowUrl(isoDate), 'DOB NOW').then(rows => rows.map(normalizeDobNowRow)) },
+    { key: 'dotData', label: 'NYC Streets / DOT', promise: fetchDotData(isoDate) }
+  ];
+
+  const results = { bisData: [], dobNowData: [], dotData: [], warnings: [] };
+  const settled = await Promise.allSettled(tasks.map(task => task.promise));
+
+  settled.forEach((outcome, index) => {
+    const task = tasks[index];
+    if (outcome.status === 'fulfilled') {
+      results[task.key] = outcome.value;
+    } else {
+      results.warnings.push(outcome.reason && outcome.reason.message ? outcome.reason.message : `${task.label} data could not be loaded.`);
+    }
+  });
+
+  results.combined = [...results.dotData, ...results.dobNowData, ...results.bisData]
+    .sort((a, b) => String(b.sort_key).localeCompare(String(a.sort_key)) || a.address.localeCompare(b.address));
+  return results;
 }
 
 function getFilteredPermits() {
@@ -419,7 +652,7 @@ function getFilteredPermits() {
   return allPermits.filter(row => {
     if (source !== 'all' && row.source !== source) return false;
     if (!text) return true;
-    return `${row.address} ${row.permit_type} ${row.owner_or_applicant} ${row.reference}`.toLowerCase().includes(text);
+    return `${row.address} ${row.permit_type} ${row.owner_or_applicant} ${row.reference} ${row.route_text || ''}`.toLowerCase().includes(text);
   });
 }
 
@@ -429,6 +662,7 @@ function updateSummary(allRows, filteredRows, isoDate) {
   dom.statTotal.textContent = filteredRows.length.toLocaleString();
   dom.statDobNow.textContent = allRows.filter(r => r.source === 'DOB NOW').length.toLocaleString();
   dom.statBis.textContent = allRows.filter(r => r.source === 'BIS').length.toLocaleString();
+  dom.statDot.textContent = allRows.filter(r => r.source === 'NYC Streets / DOT').length.toLocaleString();
   dom.statMapped.textContent = mapped.length.toLocaleString();
   dom.tableCount.textContent = `${filteredRows.length.toLocaleString()} record${filteredRows.length === 1 ? '' : 's'}`;
   dom.mapCount.textContent = `${mapped.length.toLocaleString()} pin${mapped.length === 1 ? '' : 's'}`;
@@ -443,7 +677,7 @@ function renderTable(rows) {
     return;
   }
   dom.tableBody.innerHTML = rows.map(row => {
-    const sourceClass = row.source === 'DOB NOW' ? 'source-now' : 'source-bis';
+    const sourceClass = row.source === 'DOB NOW' ? 'source-now' : (row.source === 'BIS' ? 'source-bis' : 'source-dot');
     const refHtml = row.detail_url
       ? `<a class="source-link" href="${row.detail_url}" target="_blank" rel="noopener">${escapeHtml(row.reference || 'Open record')}</a>`
       : escapeHtml(row.reference || '—');
@@ -466,17 +700,22 @@ function renderMap(rows) {
   markersLayer.clearLayers();
   const mapped = rows.filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng));
   if (!mapped.length) {
-    map.setView(BOARD_CONFIG.center, BOARD_CONFIG.zoom);
+    if (boundaryLayer) {
+      map.fitBounds(boundaryLayer.getBounds(), { padding: [18, 18] });
+    } else {
+      map.setView(BOARD_CONFIG.center, BOARD_CONFIG.zoom);
+    }
     document.querySelector('#permitMap').setAttribute('data-empty', '1');
     return;
   }
   const bounds = [];
   mapped.forEach(row => {
+    const isDot = row.source === 'NYC Streets / DOT';
     const marker = L.circleMarker([row.lat, row.lng], {
-      radius: row.source === 'DOB NOW' ? 7 : 6,
+      radius: isDot ? 6.5 : (row.source === 'DOB NOW' ? 7 : 6),
       weight: 1.5,
-      color: row.source === 'DOB NOW' ? '#2d6a4f' : '#1d4ed8',
-      fillColor: row.source === 'DOB NOW' ? '#7ad7a2' : '#7fb0ff',
+      color: isDot ? '#92400e' : (row.source === 'DOB NOW' ? '#2d6a4f' : '#1d4ed8'),
+      fillColor: isDot ? '#fdba74' : (row.source === 'DOB NOW' ? '#7ad7a2' : '#7fb0ff'),
       fillOpacity: 0.88
     }).bindPopup(
       `<div style="min-width:220px">
@@ -489,6 +728,11 @@ function renderMap(rows) {
     markersLayer.addLayer(marker);
     bounds.push([row.lat, row.lng]);
   });
+  if (boundaryLayer) bounds.push(...boundaryLayer.getBounds().toBBoxString().split(',').reduce((acc, value, index, arr) => {
+    if (index === 0) acc.push([Number(arr[1]), Number(arr[0])]);
+    if (index === 2) acc.push([Number(arr[3]), Number(arr[2])]);
+    return acc;
+  }, []));
   map.fitBounds(bounds, { padding: [24, 24] });
 }
 
@@ -518,8 +762,10 @@ async function runSearch() {
     renderFilteredResults();
     if (!allPermits.length) {
       setStatus(`No permit records were returned for ${formatHumanDate(isoDate)}. Try another day.`, 'No results.');
+    } else if (result.warnings.length) {
+      setStatus(`Loaded ${allPermits.length.toLocaleString()} permit record${allPermits.length === 1 ? '' : 's'} for ${formatHumanDate(isoDate)}, but one or more sources had problems: ${result.warnings.join(' ')}`, 'Loaded with warning.');
     } else {
-      setStatus(`Loaded ${allPermits.length.toLocaleString()} permit record${allPermits.length === 1 ? '' : 's'} from BIS and DOB NOW for ${formatHumanDate(isoDate)}.`, 'Loaded.');
+      setStatus(`Loaded ${allPermits.length.toLocaleString()} permit record${allPermits.length === 1 ? '' : 's'} from BIS, DOB NOW, and NYC Streets / DOT for ${formatHumanDate(isoDate)}.`, 'Loaded.');
     }
   } catch (err) {
     console.error(err);
@@ -540,10 +786,16 @@ function handleToday() {
   runSearch();
 }
 
-function init() {
+async function init() {
   dom.metaBoardName.textContent = BOARD_CONFIG.shortTitle;
   setDefaultDate();
   initMap();
+  try {
+    await ensureBoundaryLoaded();
+  } catch (err) {
+    console.error(err);
+    setStatus('The CB6 boundary file could not be loaded, so DOT street permits may be unavailable until the page is refreshed.', 'Boundary warning.');
+  }
   dom.loadBtn.addEventListener('click', runSearch);
   dom.todayBtn.addEventListener('click', handleToday);
   dom.addressFilter.addEventListener('input', renderFilteredResults);
