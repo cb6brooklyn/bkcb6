@@ -126,11 +126,11 @@
     return '' +
       '<div class="eyebrow">2025 Mayor by Community Board</div>' +
       '<h4>' + district.district_label + '</h4>' +
-      '<p class="lead">' + district.district_label + ' — ' + district.winner_name + ' won this CB district ' + formatPct(district.mamdani_pct) + ' to ' + formatPct(district.cuomo_pct) + ' for Cuomo and ' + formatPct(district.sliwa_pct) + ' for Sliwa.</p>' +
+      '<p class="lead">' + district.district_label + ' — ' + district.winner_name + ' won this CB district ' + formatPct(district.mamdani_pct) + ' to ' + formatPct(district.cuomo_pct) + ' for Cuomo and ' + formatPct(district.sliwa_pct) + ' for Sliwa, and carried ' + district.winner_ed_count + ' of ' + district.total_eds + ' election districts here.</p>' +
       '<div class="winner-margin-chip"><span class="winner-margin-chip-dot" style="background:' + winnerColor(district) + '"></span><strong>' + winnerSentence + '</strong></div>' +
       '<div class="winner-margin-stat-grid">' +
         '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Winner</span><span class="winner-margin-stat-value">' + district.winner_name + ' by ' + formatPct(district.margin_pct) + '</span></div>' +
-        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">EDs won by ' + district.winner_name + '</span><span class="winner-margin-stat-value">' + district.winner_ed_count + ' of ' + district.total_eds + '</span></div>' +
+        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Election districts carried</span><span class="winner-margin-stat-value">' + district.winner_name + ': ' + district.winner_ed_count + ' of ' + district.total_eds + '</span></div>' +
         '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Mamdani</span><span class="winner-margin-stat-value">' + formatPct(district.mamdani_pct) + '</span></div>' +
         '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Cuomo</span><span class="winner-margin-stat-value">' + formatPct(district.cuomo_pct) + '</span></div>' +
       '</div>' +
@@ -142,13 +142,13 @@
     return '' +
       '<div class="eyebrow">2025 Mayor by Community Board</div>' +
       '<h4>' + label + ' map</h4>' +
-      '<p class="lead">Hover or click a community board district to see the full Mamdani, Cuomo, and Sliwa split and a plain-language line showing exactly how many election districts the winning candidate carried there.</p>' +
+      '<p class="lead">Hover or click a community board district to see the full Mamdani, Cuomo, and Sliwa split and a plain-language line such as “Mamdani won 74 of 75 election districts in BKCB6.”</p>' +
       '<div class="winner-margin-stat-grid">' +
         '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Navy scale</span><span class="winner-margin-stat-value">Mamdani winning margin</span></div>' +
         '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Orange scale</span><span class="winner-margin-stat-value">Cuomo winning margin</span></div>' +
       '</div>' +
       '<div class="winner-margin-chip"><span class="winner-margin-chip-dot" style="background:' + SLIWA + '"></span>Sliwa is included in the hover summary percentages.</div>' +
-      '<div class="winner-margin-note">The deeper the color, the wider the winning margin in that district.</div>';
+      '<div class="winner-margin-note">Click any district and the panel will state exactly how many election districts the winning candidate carried there.</div>';
   }
 
   function ensureCard(container, mapLabel, maxMargin) {
@@ -157,7 +157,7 @@
     card.className = 'winner-margin-card';
     card.innerHTML = '' +
       '<h3>' + mapLabel + ' Mayor Winner-Margin Map by Community Board</h3>' +
-      '<p>Each community board is shaded by the winning candidate\'s percentage margin. Navy indicates a Mamdani win, orange indicates a Cuomo win, and the legend shows the numeric margin scale used for the shading. Hover or click a district for the full community-board result and the number of election districts the winner carried there.</p>' +
+      '<p>Each community board is shaded by the winning candidate\'s percentage margin. Navy indicates a Mamdani win, orange indicates a Cuomo win, and the legend shows the numeric margin scale used for the shading. Hover or click a district for the full community-board result, including exactly how many election districts the winner carried there.</p>' +
       '<div class="winner-margin-layout">' +
         '<div>' +
           '<div class="winner-margin-map" data-role="map"></div>' +
@@ -199,7 +199,7 @@
         setDetail(detailEl, district, boroughName);
       }
     });
-    layer.bindTooltip(district.district_label + ' · ' + district.winner_name + ' +' + formatPct(district.margin_pct), { sticky: true, direction: 'top' });
+    layer.bindTooltip(district.district_label + ' · ' + district.winner_name + ' +' + formatPct(district.margin_pct) + ' · ' + district.winner_ed_count + ' of ' + district.total_eds + ' EDs', { sticky: true, direction: 'top' });
   }
 
   function renderMap(root, geojson, data) {
