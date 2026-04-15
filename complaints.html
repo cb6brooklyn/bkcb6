@@ -2639,11 +2639,11 @@ function renderReport(data, prior, year, month, isFullYear) {
 
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border);border-bottom:1px solid var(--border)">
   ${[
-    ['Total Complaints', total.toLocaleString(), pctChange!==null?`<span style="color:${changeCol}">${changeDir} ${Math.abs(pctChange)}% vs ${priorMatchLabel}</span>`:''],
+    ['Total Complaints', total.toLocaleString(), monthComplete&&pctChange!==null?`<span style="color:${changeCol}">${changeDir} ${Math.abs(pctChange)}% vs ${priorMatchLabel}</span>`:''],
     ['Top Category', `<span style="color:${CAT_COLORS[catEntries[0]?.[0]]||'var(--navy)'}">${CAT_LABELS[catEntries[0]?.[0]]||'—'}</span>`, (catEntries[0]?.[1]||0).toLocaleString()+' complaints'],
     ['Peak Hour', peakHourLabel, hours[peakHour].toLocaleString()+' complaints'],
     ['Busiest Day', peakDay, days[days.indexOf(Math.max(...days))].toLocaleString()+' complaints'],
-    [isFullYear?'Daily Average':monthComplete?'vs Prior Year':`vs ${priorMatchLabel}`, isFullYear?(total/365).toFixed(1):(pctChange!==null?`<span style="color:${changeCol}">${changeDir}${Math.abs(pctChange)}%</span>`:'—'), isFullYear?'per day':priorTotal.toLocaleString()+' complaints']
+    [isFullYear?'Daily Average':'Daily Average', isFullYear?(total/365).toFixed(1):(total/(new Date().getDate())).toFixed(1), isFullYear?'per day':monthComplete?priorTotal.toLocaleString()+' in '+priorMatchLabel:'per day so far']
   ].map(([lbl,val,sub])=>`
     <div style="background:#fff;padding:16px 20px">
       <div style="font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:4px">${lbl}</div>
@@ -2657,10 +2657,10 @@ function renderReport(data, prior, year, month, isFullYear) {
     <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px">Complaints by Category</div>
     <div style="position:relative;height:200px"><canvas id="${ids.cat}"></canvas></div>
   </div>
-  <div style="background:#fff;border-radius:10px;padding:18px;border:1px solid var(--border)">
-    <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px">Year-over-Year — ${periodLabel} vs ${priorMatchLabel}</div>
-    <div style="position:relative;height:200px"><canvas id="${ids.yoy}"></canvas></div>
-  </div>
+  ${monthComplete ? `<div style="background:#fff;border-radius:10px;padding:18px;border:1px solid var(--border)">
+    <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px">Year-over-Year — \${periodLabel} vs \${priorMatchLabel}</div>
+    <div style="position:relative;height:200px"><canvas id="\${ids.yoy}"></canvas></div>
+  </div>` : ''}
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 20px 20px;background:var(--off)">
@@ -2710,6 +2710,9 @@ ${isFullYear?`
       <div style="font-size:.6rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Complaint Locations \u2014 ${periodLabel}</div>
       <span id="${ids.mapSub}" style="font-size:.7rem;font-family:\'DM Mono\',monospace;color:var(--muted)"></span>
     </div>
+    <div style="padding:8px 18px 10px;display:flex;flex-wrap:wrap;gap:6px;background:#fafaf8;border-bottom:1px solid var(--border)">
+      ${Object.entries(CAT_COLORS).map(([cat,col])=>\`<span style="display:inline-flex;align-items:center;gap:4px;font-size:.7rem;font-family:'DM Mono',monospace;color:#333"><span style="width:10px;height:10px;border-radius:50%;background:\${col};display:inline-block;flex-shrink:0"></span>\${CAT_LABELS[cat]||cat}</span>\`).join('')}
+    </div>
     <div id="${ids.map}" style="height:460px;width:100%"></div>
   </div>
 </div>`;
@@ -2724,15 +2727,18 @@ ${isFullYear?`
       options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ font:{size:10}, boxWidth:10 } } } }
     });
 
-    const yoyLabels = Object.keys(CAT_LABELS);
-    new Chart(document.getElementById(ids.yoy), {
-      type:'bar',
-      data:{ labels:yoyLabels.map(c=>CAT_LABELS[c]), datasets:[
-        { label:periodLabel, data:yoyLabels.map(c=>cats[c]||0), backgroundColor:'rgba(13,27,75,0.8)' },
-        { label:priorLabel,  data:yoyLabels.map(c=>priorCats[c]||0), backgroundColor:'rgba(244,121,32,0.7)' }
-      ]},
-      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ font:{size:9} } } }, scales:{ x:{ ticks:{ font:{size:8}, maxRotation:45 } }, y:{ beginAtZero:true, ticks:{ font:{size:9} } } } }
-    });
+    // YoY chart — only for completed periods
+    if (monthComplete && document.getElementById(ids.yoy)) {
+      const yoyLabels = Object.keys(CAT_LABELS);
+      new Chart(document.getElementById(ids.yoy), {
+        type:'bar',
+        data:{ labels:yoyLabels.map(k=>CAT_LABELS[k]), datasets:[
+          { label:periodLabel, data:yoyLabels.map(k=>cats[k]||0), backgroundColor:'rgba(13,27,75,0.8)' },
+          { label:priorMatchLabel, data:yoyLabels.map(k=>priorCats[k]||0), backgroundColor:'rgba(244,121,32,0.7)' }
+        ]},
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ font:{size:9} } } }, scales:{ x:{ ticks:{ font:{size:8}, maxRotation:45 } }, y:{ beginAtZero:true, ticks:{ font:{size:9} } } } }
+      });
+    }
 
     const hrLabels = Array.from({length:24},(_,i)=>i===0?'12a':i<12?`${i}a`:i===12?'12p':`${i-12}p`);
     new Chart(document.getElementById(ids.hr), {
