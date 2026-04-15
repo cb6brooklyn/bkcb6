@@ -16,7 +16,7 @@
       dataPath: 'data/mayor_cb_winner_margin.json',
       eyebrow: '2025 Mayor by Community Board',
       cardTitle: 'Mayor Winner-Margin Map by Community Board',
-      intro: 'Each community board is shaded by the winning candidate\'s percentage margin. Navy indicates a Mamdani win, orange indicates a Cuomo win, and the legend shows the numeric margin scale used for the shading. Hover or click a district for the full community-board result, including exactly how many election districts the winner carried there.',
+      intro: 'This map shows the winning candidate\'s percentage margin in each community board. Navy marks a Mamdani win and orange marks a Cuomo win.',
       legendTitle: 'Winning margin by community board',
       navyLabel: 'Mamdani',
       orangeLabel: 'Cuomo',
@@ -28,8 +28,8 @@
       noLabel: 'Cuomo',
       thirdLabel: 'Sliwa',
       thirdPctKey: 'sliwa_pct',
-      fallbackLead: 'Hover or click a community board district to see the full Mamdani, Cuomo, and Sliwa split and a plain-language line such as “Mamdani won 74 of 75 election districts in BKCB6.”',
-      fallbackNote: 'Click any district and the panel will state exactly how many election districts the winning candidate carried there.',
+      fallbackLead: 'Select a community board to see the Mamdani, Cuomo, and Sliwa vote split there.',
+      fallbackNote: 'Select any district to see the winner, the vote split, and how many election districts the winner carried there.',
       leadBuilder: function (district) {
         return district.district_label + ' — ' + district.winner_name + ' won this CB district ' + formatPct(district.mamdani_pct) + ' to ' + formatPct(district.cuomo_pct) + ' for Cuomo and ' + formatPct(district.sliwa_pct) + ' for Sliwa, and carried ' + district.winner_ed_count + ' of ' + district.total_eds + ' election districts here.';
       },
@@ -41,7 +41,7 @@
       dataPath: 'data/ballot_q2_cb_winner_margin.json',
       eyebrow: '2025 Ballot Question 2 by Community Board',
       cardTitle: 'Question 2 Approval Margin Map by Community Board',
-      intro: 'Each community board is shaded by the winning side\'s percentage margin. Navy indicates Yes / Approve, orange indicates No / Disapprove, and the legend shows the numeric margin scale used for the shading. Hover or click a district for the full community-board result, including exactly how many election districts the winning side carried there.',
+      intro: 'This map shows the approval margin in each community board. Navy marks Yes / Approve and orange marks No / Disapprove.',
       legendTitle: 'Approval margin by community board',
       navyLabel: 'Yes / Approve',
       orangeLabel: 'No / Disapprove',
@@ -51,8 +51,8 @@
       noPctKey: 'no_pct',
       yesLabel: 'Yes / Approve',
       noLabel: 'No / Disapprove',
-      fallbackLead: 'Hover or click a community board district to see the full Yes / Approve versus No / Disapprove split and a plain-language line such as “Yes / Approve won 42 of 59 election districts in BKCB6.”',
-      fallbackNote: 'Click any district and the panel will state exactly how many election districts the winning side carried there.',
+      fallbackLead: 'Select a community board to see the Yes / Approve and No / Disapprove vote split there.',
+      fallbackNote: 'Select any district to see the winning side, the vote split, and how many election districts that side carried there.',
       leadBuilder: function (district) {
         return district.district_label + ' — ' + district.winner_name + ' won this CB district ' + formatPct(district.yes_pct) + ' to ' + formatPct(district.no_pct) + ', and carried ' + district.winner_ed_count + ' of ' + district.total_eds + ' election districts here.';
       },
@@ -64,7 +64,7 @@
       dataPath: 'data/ballot_q3_cb_winner_margin.json',
       eyebrow: '2025 Ballot Question 3 by Community Board',
       cardTitle: 'Question 3 Approval Margin Map by Community Board',
-      intro: 'Each community board is shaded by the winning side\'s percentage margin. Navy indicates Yes / Approve, orange indicates No / Disapprove, and the legend shows the numeric margin scale used for the shading. Hover or click a district for the full community-board result, including exactly how many election districts the winning side carried there.',
+      intro: 'This map shows the approval margin in each community board. Navy marks Yes / Approve and orange marks No / Disapprove.',
       legendTitle: 'Approval margin by community board',
       navyLabel: 'Yes / Approve',
       orangeLabel: 'No / Disapprove',
@@ -74,8 +74,8 @@
       noPctKey: 'no_pct',
       yesLabel: 'Yes / Approve',
       noLabel: 'No / Disapprove',
-      fallbackLead: 'Hover or click a community board district to see the full Yes / Approve versus No / Disapprove split and a plain-language line such as “Yes / Approve won 42 of 59 election districts in BKCB6.”',
-      fallbackNote: 'Click any district and the panel will state exactly how many election districts the winning side carried there.',
+      fallbackLead: 'Select a community board to see the Yes / Approve and No / Disapprove vote split there.',
+      fallbackNote: 'Select any district to see the winning side, the vote split, and how many election districts that side carried there.',
       leadBuilder: function (district) {
         return district.district_label + ' — ' + district.winner_name + ' won this CB district ' + formatPct(district.yes_pct) + ' to ' + formatPct(district.no_pct) + ', and carried ' + district.winner_ed_count + ' of ' + district.total_eds + ' election districts here.';
       },
@@ -87,7 +87,7 @@
       dataPath: 'data/ballot_q4_cb_winner_margin.json',
       eyebrow: '2025 Ballot Question 4 by Community Board',
       cardTitle: 'Question 4 Approval Margin Map by Community Board',
-      intro: 'Each community board is shaded by the winning side\'s percentage margin. Navy indicates Yes / Approve, orange indicates No / Disapprove, and the legend shows the numeric margin scale used for the shading. Hover or click a district for the full community-board result, including exactly how many election districts the winning side carried there.',
+      intro: 'This map shows the approval margin in each community board. Navy marks Yes / Approve and orange marks No / Disapprove.',
       legendTitle: 'Approval margin by community board',
       navyLabel: 'Yes / Approve',
       orangeLabel: 'No / Disapprove',
@@ -97,8 +97,8 @@
       noPctKey: 'no_pct',
       yesLabel: 'Yes / Approve',
       noLabel: 'No / Disapprove',
-      fallbackLead: 'Hover or click a community board district to see the full Yes / Approve versus No / Disapprove split and a plain-language line such as “Yes / Approve won 42 of 59 election districts in BKCB6.”',
-      fallbackNote: 'Click any district and the panel will state exactly how many election districts the winning side carried there.',
+      fallbackLead: 'Select a community board to see the Yes / Approve and No / Disapprove vote split there.',
+      fallbackNote: 'Select any district to see the winning side, the vote split, and how many election districts that side carried there.',
       leadBuilder: function (district) {
         return district.district_label + ' — ' + district.winner_name + ' won this CB district ' + formatPct(district.yes_pct) + ' to ' + formatPct(district.no_pct) + ', and carried ' + district.winner_ed_count + ' of ' + district.total_eds + ' election districts here.';
       },
@@ -278,7 +278,7 @@
         '<div class="winner-margin-stat"><span class="winner-margin-stat-label">' + config.noLabel + '</span><span class="winner-margin-stat-value">' + formatPct(district[config.noPctKey]) + '</span></div>' +
       '</div>' +
       thirdLine +
-      '<div class="winner-margin-note">Hover or click any community board district to compare the winner, the margin, and exactly how many election districts the winning side carried there.</div>';
+      '<div class="winner-margin-note">Select any community board to compare the winner, the margin, and the number of election districts carried there.</div>';
   }
 
   function fallbackHtml(label, config) {
