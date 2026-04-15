@@ -49,8 +49,26 @@ function winnerChip(row, meta) {
   return `<span class="winner-chip"><span class="swatch" style="background:${color}"></span>${label}</span>`;
 }
 
+function isBkcb6(row) {
+  return String(row.district_label || '').trim().toUpperCase() === 'BKCB6';
+}
+
 function boardLabel(row) {
-  return `${row.district_label} <span style="color:#64748b">· ${row.district_name.replace(' Community Board', '')}</span>`;
+  const label = `${row.district_label} <span style="color:#64748b">· ${row.district_name.replace(' Community Board', '')}</span>`;
+  return isBkcb6(row) ? `<strong>${label}</strong>` : label;
+}
+
+function bkcb6Summary(sorted, selectedSide, geography) {
+  const index = sorted.findIndex((row) => isBkcb6(row));
+  if (index === -1) {
+    return `<div class="rank-note"><strong>BKCB6</strong> is not part of the <strong>${geography.label}</strong> ranking view.</div>`;
+  }
+  const row = sorted[index];
+  return `<div class="rank-note"><strong>BKCB6</strong> ranks <strong>#${index + 1}</strong> in <strong>${geography.label}</strong> when ordered by <strong>${selectedSide.label}</strong> vote share. Its ${selectedSide.label} share is <strong>${pct(row[selectedSide.key])}</strong>, with a winning margin of <strong>${pct(row.margin_pct)}</strong>.</div>`;
+}
+
+function rowClass(row) {
+  return isBkcb6(row) ? ' class="bkcb6-row" style="background:rgba(13,27,75,.08);font-weight:700;"' : '';
 }
 
 function getRowsForGeography(data, geography) {
@@ -100,6 +118,7 @@ function buildDonutCard(rows, meta, geography) {
 function buildTable(rows, meta, selectedSide, geography) {
   const sorted = sortRows(rows, selectedSide.key);
   return `
+    ${bkcb6Summary(sorted, selectedSide, geography)}
     <div class="rank-note">Showing ${sorted.length} community boards for <strong>${geography.label}</strong>. Rankings are ordered by <strong>${selectedSide.label}</strong> vote share, so the citywide view runs 1–59 and each borough view resets to its own board count.</div>
     <div class="rank-table-wrap">
       <table class="rank-table">
@@ -116,7 +135,7 @@ function buildTable(rows, meta, selectedSide, geography) {
         </thead>
         <tbody>
           ${sorted.map((row, index) => `
-            <tr>
+            <tr${rowClass(row)}>
               <td><span class="rank-badge">${index + 1}</span></td>
               <td>${boardLabel(row)}</td>
               <td>${row.borough_name}</td>
