@@ -39,8 +39,8 @@
     },
     Q2: {
       dataPath: 'data/ballot_q2_cb_winner_margin.json',
-      eyebrow: '2025 Ballot Question 2 by Community Board',
-      cardTitle: 'Question 2 Approval Margin Map by Community Board',
+      eyebrow: 'Question 2 by Community Board',
+      cardTitle: 'Question 2 — Fast Track Affordable Housing to Build More Affordable Housing Across the City',
       intro: 'This map shows the approval margin in each community board. Navy marks Yes / Approve and orange marks No / Disapprove.',
       legendTitle: 'Approval margin by community board',
       navyLabel: 'Yes / Approve',
@@ -62,8 +62,8 @@
     },
     Q3: {
       dataPath: 'data/ballot_q3_cb_winner_margin.json',
-      eyebrow: '2025 Ballot Question 3 by Community Board',
-      cardTitle: 'Question 3 Approval Margin Map by Community Board',
+      eyebrow: 'Question 3 by Community Board',
+      cardTitle: 'Question 3 — Simplify Review of Modest Housing and Infrastructure Projects',
       intro: 'This map shows the approval margin in each community board. Navy marks Yes / Approve and orange marks No / Disapprove.',
       legendTitle: 'Approval margin by community board',
       navyLabel: 'Yes / Approve',
@@ -85,8 +85,8 @@
     },
     Q4: {
       dataPath: 'data/ballot_q4_cb_winner_margin.json',
-      eyebrow: '2025 Ballot Question 4 by Community Board',
-      cardTitle: 'Question 4 Approval Margin Map by Community Board',
+      eyebrow: 'Question 4 by Community Board',
+      cardTitle: 'Question 4 — Establish an Affordable Housing Appeals Board with Council, Borough, and Citywide Representation',
       intro: 'This map shows the approval margin in each community board. Navy marks Yes / Approve and orange marks No / Disapprove.',
       legendTitle: 'Approval margin by community board',
       navyLabel: 'Yes / Approve',

@@ -8,21 +8,21 @@ const RACE_META = {
   },
   Q2: {
     file: 'data/ballot_q2_cb_winner_margin.json',
-    title: 'Q2 — Fast Track Affordable Housing',
+    title: 'Question 2 — Fast Track Affordable Housing to Build More Affordable Housing Across the City',
     subtitle: 'Ranking boards most pro Yes / Approve or most pro No / Disapprove.',
     sideA: { slug: 'yes', label: 'Yes / Approve', key: 'yes_pct', winnerValue: 'yes', color: '#0d1b4b' },
     sideB: { slug: 'no', label: 'No / Disapprove', key: 'no_pct', winnerValue: 'no', color: '#f47920' }
   },
   Q3: {
     file: 'data/ballot_q3_cb_winner_margin.json',
-    title: 'Q3 — Project Review',
+    title: 'Question 3 — Simplify Review of Modest Housing and Infrastructure Projects',
     subtitle: 'Ranking boards most pro Yes / Approve or most pro No / Disapprove.',
     sideA: { slug: 'yes', label: 'Yes / Approve', key: 'yes_pct', winnerValue: 'yes', color: '#0d1b4b' },
     sideB: { slug: 'no', label: 'No / Disapprove', key: 'no_pct', winnerValue: 'no', color: '#f47920' }
   },
   Q4: {
     file: 'data/ballot_q4_cb_winner_margin.json',
-    title: 'Q4 — Appeals Board',
+    title: 'Question 4 — Establish an Affordable Housing Appeals Board with Council, Borough, and Citywide Representation',
     subtitle: 'Ranking boards most pro Yes / Approve or most pro No / Disapprove.',
     sideA: { slug: 'yes', label: 'Yes / Approve', key: 'yes_pct', winnerValue: 'yes', color: '#0d1b4b' },
     sideB: { slug: 'no', label: 'No / Disapprove', key: 'no_pct', winnerValue: 'no', color: '#f47920' }
