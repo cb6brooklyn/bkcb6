@@ -12,6 +12,7 @@
   var configs = [
     {key:'bike', icon:'🚲', title:'Bike Map', source:'https://www.nyc.gov/html/dot/html/bicyclists/bikemaps.shtml', note:'Bike routes clipped to the current boundary.', id:'sec-bike-map'},
     {key:'bus', icon:'🚌', title:'Bus Map', source:'https://data.ny.gov/Transportation/MTA-Bus-Routes/8vgb-zm6e', note:'Current MTA bus route shapes clipped to the current boundary.', id:'sec-bus-map'},
+    {key:'busstops', icon:'🚏', title:'Bus Stops Map', source:'https://data.ny.gov/', note:'Current MTA bus stops within the current boundary.', id:'sec-bus-stops-map'},
     {key:'subway', icon:'🚇', title:'Subway Map', source:'https://data.ny.gov/Transportation/MTA-Subway-Stations/39hk-dx4f', note:'Subway stations within the current boundary.', id:'sec-subway-map'},
     {key:'truck', icon:'🚚', title:'Truck Route Map', source:'https://www.nyc.gov/html/dot/html/motorist/trucks.shtml', note:'Official truck route segments clipped to the current boundary.', id:'sec-truck-map'},
     {key:'speed', icon:'🛣', title:'Speed Limit Map', source:'https://data.cityofnewyork.us/Transportation/VZV-Speed-Limits/qtik-bcvk', note:'Posted speed-limit segments clipped to the current boundary.', id:'sec-speed-map'}
@@ -113,6 +114,7 @@
     var items = {
       bike:[['#1d4ed8','Protected'],['#0f766e','Greenway'],['#f59e0b','Buffered / Conventional'],['#6b7280','Shared / Link'],['#ef4444','Retired']],
       bus:[['#2563eb','Local'],['#c1121f','SBS'],['#6a1b9a','Express'],['#f77f00','Limited'],['#f4a261','School']],
+      busstops:[['#2563eb','Local Stop'],['#f59e0b','Timepoint'],['#c1121f','CBD Stop']],
       subway:[['#0d1b4b','Subway Station'],['#f47920','ADA Accessible']],
       truck:[['#0d9488','Through'],['#2563eb','Local'],['#f59e0b','Limited Local']],
       speed:[['#2a9d8f','20 mph or less'],['#4c78a8','25 mph'],['#f4a261','30 mph'],['#e63946','35+ mph'],['#111827','School Zone']]
@@ -160,6 +162,12 @@
     return '#e63946';
   }
 
+
+  function busStopColor(props){
+    if (String(props.is_cbd || '').toLowerCase() === 'true') return '#c1121f';
+    if (String(props.timepoint || '').toLowerCase() === 'true') return '#f59e0b';
+    return '#2563eb';
+  }
   function subwayColor(props){
     var ada = String(props.ada || '').toLowerCase();
     return (ada === 'true' || ada === 'yes' || ada === '1') ? '#f47920' : '#0d1b4b';
@@ -168,6 +176,7 @@
   function linePopup(kind, props){
     if (kind === 'bike') return '<strong>'+escapeHtml(props.street || 'Bike Route')+'</strong><br>'+escapeHtml([props.fromstreet, props.tostreet].filter(Boolean).join(' to '))+'<br><span style="font-size:.8rem;color:#666">'+escapeHtml([props.status, props.ft_facilit || props.tf_facilit || props.allclasses, props.grnwy].filter(Boolean).join(' · '))+'</span>';
     if (kind === 'bus') return '<strong>'+escapeHtml(props.route_short_name || props.route_id || 'Bus Route')+'</strong><br>'+escapeHtml(props.route_long_name || '')+'<br><span style="font-size:.8rem;color:#666">'+escapeHtml([props.route_type, props.direction, props.route_description].filter(Boolean).join(' · '))+'</span>';
+    if (kind === 'busstops') return '<strong>'+escapeHtml(props.stop_name || 'Bus Stop')+'</strong><br><span style="font-size:.8rem;color:#666">Stop ID: '+escapeHtml(props.stop_id || '—')+'</span><br><span style="font-size:.8rem;color:#666">Routes: '+escapeHtml((props.routes || []).join(', ') || '—')+'</span><br><span style="font-size:.8rem;color:#666">'+escapeHtml([props.direction, String(props.timepoint || '').toLowerCase()==='true' ? 'Timepoint' : '', String(props.is_cbd || '').toLowerCase()==='true' ? 'CBD Stop' : ''].filter(Boolean).join(' · '))+'</span>';
     if (kind === 'truck') return '<strong>'+escapeHtml(props.street || 'Truck Route')+'</strong><br><span style="font-size:.8rem;color:#666">'+escapeHtml([props.routetype, props.nyc_reg].filter(Boolean).join(' · '))+'</span>';
     return '<strong>'+escapeHtml(props.street || 'Speed Limit Segment')+'</strong><br><span style="font-size:.8rem;color:#666">Posted: '+escapeHtml(props.postvz_sl || '—')+' mph'+(String(props.postvz_sg || '').toUpperCase()==='YES' ? ' · School Zone' : '')+'</span>';
   }
@@ -186,8 +195,8 @@
       state.maps[kind] = map;
       L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',maxZoom:19}).addTo(map);
       var boundaryLayer = L.geoJSON(boundary,{style:function(){return {color:'#0d1b4b',weight:2,fill:false,opacity:0.95};}}).addTo(map);
-      if (kind === 'subway'){
-        var layer = L.geoJSON(section,{pointToLayer:function(feature, latlng){return L.circleMarker(latlng,{radius:6,color:'#ffffff',weight:1,fillColor:subwayColor(feature.properties || {}),fillOpacity:0.95});},onEachFeature:function(feature, layer){var p = feature.properties || {};layer.bindPopup('<strong>'+escapeHtml(p.stop_name || 'Station')+'</strong><br><span style="font-size:.8rem;color:#666">'+escapeHtml([p.line, p.daytime_routes, p.structure].filter(Boolean).join(' · '))+'</span>');}}).addTo(map);
+      if (kind === 'subway' || kind === 'busstops'){
+        var layer = L.geoJSON(section,{pointToLayer:function(feature, latlng){var p = feature.properties || {}; return L.circleMarker(latlng,{radius:kind === 'busstops' ? (String(p.timepoint || '').toLowerCase()==='true' ? 6 : 5) : 6,color:'#ffffff',weight:1,fillColor:kind === 'busstops' ? busStopColor(p) : subwayColor(p),fillOpacity:0.95});},onEachFeature:function(feature, layer){var p = feature.properties || {}; if (kind === 'subway') layer.bindPopup('<strong>'+escapeHtml(p.stop_name || 'Station')+'</strong><br><span style="font-size:.8rem;color:#666">'+escapeHtml([p.line, p.daytime_routes, p.structure].filter(Boolean).join(' · '))+'</span>'); else layer.bindPopup(linePopup(kind, p));}}).addTo(map);
         if (layer.getBounds && layer.getBounds().isValid()) map.fitBounds(layer.getBounds().pad(0.12));
         else if (boundaryLayer.getBounds().isValid()) map.fitBounds(boundaryLayer.getBounds().pad(0.08));
       } else {
