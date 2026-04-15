@@ -2250,6 +2250,7 @@ async function generateAllReports() {
 
 async function fetchReportData(year, month) {
   const isFullYear = month === '00';
+  const now = new Date();
   let start, end, priorStart, priorEnd;
 
   if (isFullYear) {
@@ -2259,11 +2260,26 @@ async function fetchReportData(year, month) {
     priorEnd   = `${year}-01-01T00:00:00`;
   } else {
     start = `${year}-${month}-01T00:00:00`;
-    const endDate = new Date(parseInt(year), parseInt(month), 1);
-    end = `${endDate.getFullYear()}-${String(endDate.getMonth()+1).padStart(2,'0')}-01T00:00:00`;
-    priorStart = `${parseInt(year)-1}-${month}-01T00:00:00`;
-    const pe = new Date(parseInt(year)-1, parseInt(month), 1);
-    priorEnd = `${pe.getFullYear()}-${String(pe.getMonth()+1).padStart(2,'0')}-01T00:00:00`;
+    // For in-progress months, end at today; for completed months, end at month boundary
+    const monthComplete = (parseInt(year) < now.getFullYear()) ||
+      (parseInt(year) === now.getFullYear() && parseInt(month) < now.getMonth() + 1);
+    let endDate;
+    if (monthComplete) {
+      endDate = new Date(parseInt(year), parseInt(month), 1);
+      end = `${endDate.getFullYear()}-${String(endDate.getMonth()+1).padStart(2,'0')}-01T00:00:00`;
+      // Prior: same full month last year
+      priorStart = `${parseInt(year)-1}-${month}-01T00:00:00`;
+      const pe = new Date(parseInt(year)-1, parseInt(month), 1);
+      priorEnd = `${pe.getFullYear()}-${String(pe.getMonth()+1).padStart(2,'0')}-01T00:00:00`;
+    } else {
+      // In-progress: end at today (midnight)
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      end = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}T00:00:00`;
+      // Prior: same month last year, same number of days (Apr 1–14 2025)
+      priorStart = `${parseInt(year)-1}-${month}-01T00:00:00`;
+      const priorToday = new Date(parseInt(year)-1, now.getMonth(), now.getDate() + 1);
+      priorEnd = `${priorToday.getFullYear()}-${String(priorToday.getMonth()+1).padStart(2,'0')}-${String(priorToday.getDate()).padStart(2,'0')}T00:00:00`;
+    }
   }
 
   const base = 'https://data.cityofnewyork.us/resource/erm2-nwe9.json';
@@ -2566,10 +2582,15 @@ function renderReport(data, prior, year, month, isFullYear) {
   const monthComplete = isFullYear
     ? parseInt(year) < now.getFullYear()
     : (parseInt(year) < now.getFullYear()) || (parseInt(year) === now.getFullYear() && parseInt(month) < now.getMonth() + 1);
-  const pctChange = (priorTotal && monthComplete) ? (((total-priorTotal)/priorTotal)*100).toFixed(1) : null;
+  const pctChange = priorTotal ? (((total-priorTotal)/priorTotal)*100).toFixed(1) : null;
   const changeDir = pctChange > 0 ? '▲' : '▼';
   const changeCol = pctChange > 0 ? '#c81e1e' : '#166534';
-  const inProgressNote = !isFullYear && !monthComplete ? `<span style="font-size:.68rem;color:#6b6760;font-family:'DM Mono',monospace">Month in progress</span>` : '';
+  // For in-progress months, label shows the matched date range
+  const todayStr = `${MONTH_NAMES[now.getMonth()].slice(0,3)} ${now.getDate()}`;
+  const priorMatchLabel = !isFullYear && !monthComplete
+    ? `${MONTH_NAMES[parseInt(month)-1]} 1–${now.getDate()}, ${parseInt(year)-1}`
+    : priorLabel;
+  const inProgressNote = '';
 
   const cats={}, priorCats={}, types={};
   data.forEach(d  => { cats[d.cat]=(cats[d.cat]||0)+1; types[d.complaint_type]=(types[d.complaint_type]||0)+1; });
@@ -2601,11 +2622,11 @@ function renderReport(data, prior, year, month, isFullYear) {
 
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border);border-bottom:1px solid var(--border)">
   ${[
-    ['Total Complaints', total.toLocaleString(), pctChange!==null?`<span style="color:${changeCol}">${changeDir} ${Math.abs(pctChange)}% vs ${priorLabel}</span>`:inProgressNote||''],
+    ['Total Complaints', total.toLocaleString(), pctChange!==null?`<span style="color:${changeCol}">${changeDir} ${Math.abs(pctChange)}% vs ${priorMatchLabel}</span>`:''],
     ['Top Category', `<span style="color:${CAT_COLORS[catEntries[0]?.[0]]||'var(--navy)'}">${CAT_LABELS[catEntries[0]?.[0]]||'—'}</span>`, (catEntries[0]?.[1]||0).toLocaleString()+' complaints'],
     ['Peak Hour', peakHourLabel, hours[peakHour].toLocaleString()+' complaints'],
     ['Busiest Day', peakDay, days[days.indexOf(Math.max(...days))].toLocaleString()+' complaints'],
-    [isFullYear?'Daily Average':monthComplete?'vs Prior Year':'Month Status', isFullYear?(total/365).toFixed(1):monthComplete?(pctChange!==null?`<span style="color:${changeCol}">${changeDir}${Math.abs(pctChange)}%</span>`:'—'):'In Progress', isFullYear?'per day':monthComplete?priorTotal.toLocaleString()+' in '+priorLabel:'Data through today only']
+    [isFullYear?'Daily Average':monthComplete?'vs Prior Year':`vs ${priorMatchLabel}`, isFullYear?(total/365).toFixed(1):(pctChange!==null?`<span style="color:${changeCol}">${changeDir}${Math.abs(pctChange)}%</span>`:'—'), isFullYear?'per day':priorTotal.toLocaleString()+' complaints']
   ].map(([lbl,val,sub])=>`
     <div style="background:#fff;padding:16px 20px">
       <div style="font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:4px">${lbl}</div>
@@ -2620,7 +2641,7 @@ function renderReport(data, prior, year, month, isFullYear) {
     <div style="position:relative;height:200px"><canvas id="${ids.cat}"></canvas></div>
   </div>
   <div style="background:#fff;border-radius:10px;padding:18px;border:1px solid var(--border)">
-    <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px">Year-over-Year — ${periodLabel} vs ${priorLabel}</div>
+    <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px">Year-over-Year — ${periodLabel} vs ${priorMatchLabel}</div>
     <div style="position:relative;height:200px"><canvas id="${ids.yoy}"></canvas></div>
   </div>
 </div>
