@@ -128,12 +128,12 @@
       '.winner-margin-stat-value{display:block;color:#111827;font-size:.92rem;font-weight:700;line-height:1.4}',
       '.winner-margin-legend{display:flex;flex-direction:column;gap:10px;margin-top:12px;font-size:.72rem;color:#4b5563}',
       '.winner-margin-legend-title{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;font-weight:700}',
-      '.winner-margin-legend-row{display:grid;grid-template-columns:112px minmax(0,1fr) 42px;gap:8px;align-items:center}',
+      '.winner-margin-legend-subtitle{font-size:.68rem;line-height:1.5;color:#6b7280;margin-top:-4px}',
+      '.winner-margin-legend-row{display:grid;grid-template-columns:112px minmax(0,1fr);gap:8px;align-items:center}',
       '.winner-margin-legend-label{font-size:.72rem;font-weight:700;color:#374151}',
       '.winner-margin-legend-bar{position:relative;height:12px;border-radius:999px;border:1px solid rgba(17,24,39,.08);overflow:hidden}',
       '.winner-margin-legend-scale{position:absolute;inset:0}',
       '.winner-margin-legend-tick{position:absolute;top:14px;transform:translateX(-50%);font-size:.63rem;color:#6b7280;white-space:nowrap}',
-      '.winner-margin-legend-end{font-size:.72rem;font-weight:700;color:#374151;text-align:right}',
       '.winner-margin-legend-scale.navy{background:linear-gradient(90deg,' + NAVY_LIGHT + ' 0%,' + NAVY_DARK + ' 100%)}',
       '.winner-margin-legend-scale.orange{background:linear-gradient(90deg,' + ORANGE_LIGHT + ' 0%,' + ORANGE_DARK + ' 100%)}',
       '.winner-margin-chip{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;color:#374151}',
@@ -219,30 +219,43 @@
     return district[config.winnerKey] === config.navyWinnerValue ? NAVY_DARK : ORANGE_DARK;
   }
 
+  function roundedLegendMax(maxMargin) {
+    var value = maxMargin || 0;
+    if (!value) return 0;
+    return Math.ceil(value / 5) * 5;
+  }
+
+  function legendTickLabel(value) {
+    if (!value) return '0%';
+    var rounded = Math.round(value * 10) / 10;
+    return (Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace(/\.0$/, '')) + '%';
+  }
+
   function legendHtml(maxMargin, config) {
-    var maxLabel = formatMarginLabel(maxMargin || 0);
+    var legendMax = roundedLegendMax(maxMargin || 0);
+    var midpointLabel = legendTickLabel(legendMax / 2);
+    var maxLabel = legendTickLabel(legendMax);
     return '' +
       '<div class="winner-margin-legend">' +
         '<div class="winner-margin-legend-title">' + config.legendTitle + '</div>' +
+        '<div class="winner-margin-legend-subtitle">Color intensity runs from 0% up to about ' + maxLabel + ' on this map.</div>' +
         '<div class="winner-margin-legend-row">' +
           '<span class="winner-margin-legend-label">' + config.navyLabel + '</span>' +
           '<div class="winner-margin-legend-bar">' +
             '<span class="winner-margin-legend-scale navy"></span>' +
             '<span class="winner-margin-legend-tick" style="left:0%">0%</span>' +
-            '<span class="winner-margin-legend-tick" style="left:50%">' + formatMarginLabel((maxMargin || 0) / 2) + '</span>' +
+            '<span class="winner-margin-legend-tick" style="left:50%">' + midpointLabel + '</span>' +
             '<span class="winner-margin-legend-tick" style="left:100%">' + maxLabel + '</span>' +
           '</div>' +
-          '<span class="winner-margin-legend-end">' + maxLabel + '</span>' +
         '</div>' +
         '<div class="winner-margin-legend-row">' +
           '<span class="winner-margin-legend-label">' + config.orangeLabel + '</span>' +
           '<div class="winner-margin-legend-bar">' +
             '<span class="winner-margin-legend-scale orange"></span>' +
             '<span class="winner-margin-legend-tick" style="left:0%">0%</span>' +
-            '<span class="winner-margin-legend-tick" style="left:50%">' + formatMarginLabel((maxMargin || 0) / 2) + '</span>' +
+            '<span class="winner-margin-legend-tick" style="left:50%">' + midpointLabel + '</span>' +
             '<span class="winner-margin-legend-tick" style="left:100%">' + maxLabel + '</span>' +
           '</div>' +
-          '<span class="winner-margin-legend-end">' + maxLabel + '</span>' +
         '</div>' +
       '</div>';
   }
