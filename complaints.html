@@ -2176,7 +2176,14 @@ function rptCacheSave(year, month, data, prior) {
 function rptCacheLoad(year, month) {
   try {
     const raw = sessionStorage.getItem(rptCacheKey(year, month));
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Invalidate cache if data is missing lat/lng (old format)
+    if (parsed.data && parsed.data.length > 0 && parsed.data[0].lat === undefined) {
+      sessionStorage.removeItem(rptCacheKey(year, month));
+      return null;
+    }
+    return parsed;
   } catch(e) { return null; }
 }
 
@@ -2758,17 +2765,16 @@ ${isFullYear?`
       if (rptMapSub) rptMapSub.textContent = withCoords.length.toLocaleString() + ' of ' + data.length.toLocaleString() + ' complaints plotted';
       const rptMap = L.map(rptMapEl, { center:[40.678,-73.988], zoom:13, scrollWheelZoom:false });
       L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution:'© OpenStreetMap © CARTO', maxZoom:19 }).addTo(rptMap);
-      // CB6 boundary
       if (typeof CB6_BOUNDARY !== 'undefined') {
         L.polygon(CB6_BOUNDARY, { color:'#0d1b4b', weight:2, opacity:0.8, fillOpacity:0.03 }).addTo(rptMap);
       }
-      const markers = L.layerGroup().addTo(rptMap);
-      withCoords.forEach(d => {
-        L.circleMarker([d.lat, d.lng], {
-          radius:4, fillColor:CAT_COLORS[d.cat]||'#ccc', color:'#fff', weight:1, opacity:1, fillOpacity:0.8
-        }).bindPopup(`<div style="font-family:'DM Sans',sans-serif;font-size:.82rem"><strong>${d.complaint_type}</strong><br><span style="color:#6b6760;font-size:.75rem">${d.descriptor}</span><br><div style="font-size:.75rem;margin-top:4px">📍 ${d.address}<br>🗓 ${d.date}</div></div>`).addTo(markers);
-      });
       if (withCoords.length > 0) {
+        const markers = L.layerGroup().addTo(rptMap);
+        withCoords.forEach(d => {
+          L.circleMarker([d.lat, d.lng], {
+            radius:4, fillColor:CAT_COLORS[d.cat]||'#ccc', color:'#fff', weight:1, opacity:1, fillOpacity:0.8
+          }).bindPopup(`<div style="font-family:'DM Sans',sans-serif;font-size:.82rem"><strong>${d.complaint_type}</strong><br><span style="color:#6b6760;font-size:.75rem">${d.descriptor}</span><br><div style="font-size:.75rem;margin-top:4px">📍 ${d.address}<br>🗓 ${d.date}</div></div>`).addTo(markers);
+        });
         try { rptMap.fitBounds(markers.getBounds(), { padding:[20,20], maxZoom:15 }); } catch(e){}
       }
       setTimeout(() => { rptMap.invalidateSize(); }, 150);
