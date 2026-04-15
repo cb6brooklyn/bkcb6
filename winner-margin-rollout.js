@@ -6,8 +6,107 @@
   var SLIWA = '#cc0000';
   var BASE_OUTLINE = '#ffffff';
   var ACTIVE_OUTLINE = '#111827';
-  var boroughMaps = {};
   var DEFAULT_CITY_LABEL = 'New York City';
+  var geojsonPromise = null;
+  var dataCache = {};
+  var roots = [];
+
+  var RACE_CONFIG = {
+    MAYOR: {
+      dataPath: 'data/mayor_cb_winner_margin.json',
+      eyebrow: '2025 Mayor by Community Board',
+      cardTitle: 'Mayor Winner-Margin Map by Community Board',
+      intro: 'Each community board is shaded by the winning candidate\'s percentage margin. Navy indicates a Mamdani win, orange indicates a Cuomo win, and the legend shows the numeric margin scale used for the shading. Hover or click a district for the full community-board result, including exactly how many election districts the winner carried there.',
+      legendTitle: 'Winning margin by community board',
+      navyLabel: 'Mamdani',
+      orangeLabel: 'Cuomo',
+      winnerKey: 'winner',
+      navyWinnerValue: 'mamdani',
+      yesPctKey: 'mamdani_pct',
+      noPctKey: 'cuomo_pct',
+      yesLabel: 'Mamdani',
+      noLabel: 'Cuomo',
+      thirdLabel: 'Sliwa',
+      thirdPctKey: 'sliwa_pct',
+      fallbackLead: 'Hover or click a community board district to see the full Mamdani, Cuomo, and Sliwa split and a plain-language line such as “Mamdani won 74 of 75 election districts in BKCB6.”',
+      fallbackNote: 'Click any district and the panel will state exactly how many election districts the winning candidate carried there.',
+      leadBuilder: function (district) {
+        return district.district_label + ' — ' + district.winner_name + ' won this CB district ' + formatPct(district.mamdani_pct) + ' to ' + formatPct(district.cuomo_pct) + ' for Cuomo and ' + formatPct(district.sliwa_pct) + ' for Sliwa, and carried ' + district.winner_ed_count + ' of ' + district.total_eds + ' election districts here.';
+      },
+      tooltipBuilder: function (district) {
+        return district.district_label + ' · ' + district.winner_name + ' +' + formatPct(district.margin_pct) + ' · ' + district.winner_ed_count + ' of ' + district.total_eds + ' EDs';
+      }
+    },
+    Q2: {
+      dataPath: 'data/ballot_q2_cb_winner_margin.json',
+      eyebrow: '2025 Ballot Question 2 by Community Board',
+      cardTitle: 'Question 2 Approval Margin Map by Community Board',
+      intro: 'Each community board is shaded by the winning side\'s percentage margin. Navy indicates Yes / Approve, orange indicates No / Disapprove, and the legend shows the numeric margin scale used for the shading. Hover or click a district for the full community-board result, including exactly how many election districts the winning side carried there.',
+      legendTitle: 'Approval margin by community board',
+      navyLabel: 'Yes / Approve',
+      orangeLabel: 'No / Disapprove',
+      winnerKey: 'winner',
+      navyWinnerValue: 'yes',
+      yesPctKey: 'yes_pct',
+      noPctKey: 'no_pct',
+      yesLabel: 'Yes / Approve',
+      noLabel: 'No / Disapprove',
+      fallbackLead: 'Hover or click a community board district to see the full Yes / Approve versus No / Disapprove split and a plain-language line such as “Yes / Approve won 42 of 59 election districts in BKCB6.”',
+      fallbackNote: 'Click any district and the panel will state exactly how many election districts the winning side carried there.',
+      leadBuilder: function (district) {
+        return district.district_label + ' — ' + district.winner_name + ' won this CB district ' + formatPct(district.yes_pct) + ' to ' + formatPct(district.no_pct) + ', and carried ' + district.winner_ed_count + ' of ' + district.total_eds + ' election districts here.';
+      },
+      tooltipBuilder: function (district) {
+        return district.district_label + ' · ' + district.winner_name + ' +' + formatPct(district.margin_pct) + ' · ' + district.winner_ed_count + ' of ' + district.total_eds + ' EDs';
+      }
+    },
+    Q3: {
+      dataPath: 'data/ballot_q3_cb_winner_margin.json',
+      eyebrow: '2025 Ballot Question 3 by Community Board',
+      cardTitle: 'Question 3 Approval Margin Map by Community Board',
+      intro: 'Each community board is shaded by the winning side\'s percentage margin. Navy indicates Yes / Approve, orange indicates No / Disapprove, and the legend shows the numeric margin scale used for the shading. Hover or click a district for the full community-board result, including exactly how many election districts the winning side carried there.',
+      legendTitle: 'Approval margin by community board',
+      navyLabel: 'Yes / Approve',
+      orangeLabel: 'No / Disapprove',
+      winnerKey: 'winner',
+      navyWinnerValue: 'yes',
+      yesPctKey: 'yes_pct',
+      noPctKey: 'no_pct',
+      yesLabel: 'Yes / Approve',
+      noLabel: 'No / Disapprove',
+      fallbackLead: 'Hover or click a community board district to see the full Yes / Approve versus No / Disapprove split and a plain-language line such as “Yes / Approve won 42 of 59 election districts in BKCB6.”',
+      fallbackNote: 'Click any district and the panel will state exactly how many election districts the winning side carried there.',
+      leadBuilder: function (district) {
+        return district.district_label + ' — ' + district.winner_name + ' won this CB district ' + formatPct(district.yes_pct) + ' to ' + formatPct(district.no_pct) + ', and carried ' + district.winner_ed_count + ' of ' + district.total_eds + ' election districts here.';
+      },
+      tooltipBuilder: function (district) {
+        return district.district_label + ' · ' + district.winner_name + ' +' + formatPct(district.margin_pct) + ' · ' + district.winner_ed_count + ' of ' + district.total_eds + ' EDs';
+      }
+    },
+    Q4: {
+      dataPath: 'data/ballot_q4_cb_winner_margin.json',
+      eyebrow: '2025 Ballot Question 4 by Community Board',
+      cardTitle: 'Question 4 Approval Margin Map by Community Board',
+      intro: 'Each community board is shaded by the winning side\'s percentage margin. Navy indicates Yes / Approve, orange indicates No / Disapprove, and the legend shows the numeric margin scale used for the shading. Hover or click a district for the full community-board result, including exactly how many election districts the winning side carried there.',
+      legendTitle: 'Approval margin by community board',
+      navyLabel: 'Yes / Approve',
+      orangeLabel: 'No / Disapprove',
+      winnerKey: 'winner',
+      navyWinnerValue: 'yes',
+      yesPctKey: 'yes_pct',
+      noPctKey: 'no_pct',
+      yesLabel: 'Yes / Approve',
+      noLabel: 'No / Disapprove',
+      fallbackLead: 'Hover or click a community board district to see the full Yes / Approve versus No / Disapprove split and a plain-language line such as “Yes / Approve won 42 of 59 election districts in BKCB6.”',
+      fallbackNote: 'Click any district and the panel will state exactly how many election districts the winning side carried there.',
+      leadBuilder: function (district) {
+        return district.district_label + ' — ' + district.winner_name + ' won this CB district ' + formatPct(district.yes_pct) + ' to ' + formatPct(district.no_pct) + ', and carried ' + district.winner_ed_count + ' of ' + district.total_eds + ' election districts here.';
+      },
+      tooltipBuilder: function (district) {
+        return district.district_label + ' · ' + district.winner_name + ' +' + formatPct(district.margin_pct) + ' · ' + district.winner_ed_count + ' of ' + district.total_eds + ' EDs';
+      }
+    }
+  };
 
   function injectStyles() {
     if (document.getElementById('winner-margin-rollout-styles')) return;
@@ -73,14 +172,6 @@
     });
   }
 
-  function marginFill(district, maxMargin) {
-    var ratio = Math.max(0.14, Math.min(1, (district.margin_pct || 0) / (maxMargin || 1)));
-    if (district.winner === 'mamdani') {
-      return mixColor(NAVY_LIGHT, NAVY_DARK, ratio);
-    }
-    return mixColor(ORANGE_LIGHT, ORANGE_DARK, ratio);
-  }
-
   function formatPct(value) {
     return Number(value || 0).toFixed(1).replace('.0', '') + '%';
   }
@@ -89,120 +180,163 @@
     return '+' + formatPct(value || 0);
   }
 
-  function winnerColor(district) {
-    return district.winner === 'mamdani' ? NAVY_DARK : ORANGE_DARK;
+  function getActiveTabRace() {
+    var activeTab = document.querySelector('.q-tab.active[data-q]');
+    return activeTab ? String(activeTab.getAttribute('data-q') || '').toUpperCase() : '';
   }
 
-  function legendHtml(maxMargin) {
+  function resolveRace(root) {
+    var requested = String(root.getAttribute('data-race') || 'MAYOR').toUpperCase();
+    if (requested === 'ACTIVE') {
+      requested = String(document.body.getAttribute('data-winner-margin-race') || getActiveTabRace() || 'MAYOR').toUpperCase();
+    }
+    return RACE_CONFIG[requested] ? requested : 'MAYOR';
+  }
+
+  function loadGeojson() {
+    if (!geojsonPromise) {
+      geojsonPromise = fetch('community-district-boundaries.geojson').then(function (r) { return r.json(); });
+    }
+    return geojsonPromise;
+  }
+
+  function loadData(race) {
+    if (!dataCache[race]) {
+      dataCache[race] = fetch(RACE_CONFIG[race].dataPath).then(function (r) { return r.json(); });
+    }
+    return dataCache[race];
+  }
+
+  function marginFill(district, maxMargin, config) {
+    var ratio = Math.max(0.14, Math.min(1, (district.margin_pct || 0) / (maxMargin || 1)));
+    if (district[config.winnerKey] === config.navyWinnerValue) {
+      return mixColor(NAVY_LIGHT, NAVY_DARK, ratio);
+    }
+    return mixColor(ORANGE_LIGHT, ORANGE_DARK, ratio);
+  }
+
+  function winnerColor(district, config) {
+    return district[config.winnerKey] === config.navyWinnerValue ? NAVY_DARK : ORANGE_DARK;
+  }
+
+  function legendHtml(maxMargin, config) {
     var maxLabel = formatMarginLabel(maxMargin || 0);
     return '' +
       '<div class="winner-margin-legend">' +
-        '<div class="winner-margin-legend-title">Winning margin by community board</div>' +
+        '<div class="winner-margin-legend-title">' + config.legendTitle + '</div>' +
         '<div class="winner-margin-legend-row">' +
-          '<span class="winner-margin-legend-label">Mamdani</span>' +
+          '<span class="winner-margin-legend-label">' + config.navyLabel + '</span>' +
           '<div class="winner-margin-legend-bar">' +
             '<span class="winner-margin-legend-scale navy"></span>' +
             '<span class="winner-margin-legend-tick" style="left:0%">0%</span>' +
-            '<span class="winner-margin-legend-tick" style="left:50%">'+ formatMarginLabel((maxMargin || 0) / 2) +'</span>' +
-            '<span class="winner-margin-legend-tick" style="left:100%">'+ maxLabel +'</span>' +
+            '<span class="winner-margin-legend-tick" style="left:50%">' + formatMarginLabel((maxMargin || 0) / 2) + '</span>' +
+            '<span class="winner-margin-legend-tick" style="left:100%">' + maxLabel + '</span>' +
           '</div>' +
-          '<span class="winner-margin-legend-end">'+ maxLabel +'</span>' +
+          '<span class="winner-margin-legend-end">' + maxLabel + '</span>' +
         '</div>' +
         '<div class="winner-margin-legend-row">' +
-          '<span class="winner-margin-legend-label">Cuomo</span>' +
+          '<span class="winner-margin-legend-label">' + config.orangeLabel + '</span>' +
           '<div class="winner-margin-legend-bar">' +
             '<span class="winner-margin-legend-scale orange"></span>' +
             '<span class="winner-margin-legend-tick" style="left:0%">0%</span>' +
-            '<span class="winner-margin-legend-tick" style="left:50%">'+ formatMarginLabel((maxMargin || 0) / 2) +'</span>' +
-            '<span class="winner-margin-legend-tick" style="left:100%">'+ maxLabel +'</span>' +
+            '<span class="winner-margin-legend-tick" style="left:50%">' + formatMarginLabel((maxMargin || 0) / 2) + '</span>' +
+            '<span class="winner-margin-legend-tick" style="left:100%">' + maxLabel + '</span>' +
           '</div>' +
-          '<span class="winner-margin-legend-end">'+ maxLabel +'</span>' +
+          '<span class="winner-margin-legend-end">' + maxLabel + '</span>' +
         '</div>' +
       '</div>';
   }
 
-  function detailHtml(district) {
+  function detailHtml(district, config) {
     var winnerSentence = district.winner_name + ' won ' + district.winner_ed_count + ' of ' + district.total_eds + ' election districts in ' + district.district_label + '.';
+    var thirdLine = '';
+    if (config.thirdLabel && config.thirdPctKey) {
+      thirdLine = '<div class="winner-margin-chip"><span class="winner-margin-chip-dot" style="background:' + SLIWA + '"></span>' + config.thirdLabel + ' ' + formatPct(district[config.thirdPctKey]) + '</div>';
+    }
     return '' +
-      '<div class="eyebrow">2025 Mayor by Community Board</div>' +
+      '<div class="eyebrow">' + config.eyebrow + '</div>' +
       '<h4>' + district.district_label + '</h4>' +
-      '<p class="lead">' + district.district_label + ' — ' + district.winner_name + ' won this CB district ' + formatPct(district.mamdani_pct) + ' to ' + formatPct(district.cuomo_pct) + ' for Cuomo and ' + formatPct(district.sliwa_pct) + ' for Sliwa, and carried ' + district.winner_ed_count + ' of ' + district.total_eds + ' election districts here.</p>' +
-      '<div class="winner-margin-chip"><span class="winner-margin-chip-dot" style="background:' + winnerColor(district) + '"></span><strong>' + winnerSentence + '</strong></div>' +
+      '<p class="lead">' + config.leadBuilder(district) + '</p>' +
+      '<div class="winner-margin-chip"><span class="winner-margin-chip-dot" style="background:' + winnerColor(district, config) + '"></span><strong>' + winnerSentence + '</strong></div>' +
       '<div class="winner-margin-stat-grid">' +
         '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Winner</span><span class="winner-margin-stat-value">' + district.winner_name + ' by ' + formatPct(district.margin_pct) + '</span></div>' +
         '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Election districts carried</span><span class="winner-margin-stat-value">' + district.winner_name + ': ' + district.winner_ed_count + ' of ' + district.total_eds + '</span></div>' +
-        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Mamdani</span><span class="winner-margin-stat-value">' + formatPct(district.mamdani_pct) + '</span></div>' +
-        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Cuomo</span><span class="winner-margin-stat-value">' + formatPct(district.cuomo_pct) + '</span></div>' +
+        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">' + config.yesLabel + '</span><span class="winner-margin-stat-value">' + formatPct(district[config.yesPctKey]) + '</span></div>' +
+        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">' + config.noLabel + '</span><span class="winner-margin-stat-value">' + formatPct(district[config.noPctKey]) + '</span></div>' +
       '</div>' +
-      '<div class="winner-margin-chip"><span class="winner-margin-chip-dot" style="background:' + SLIWA + '"></span>Sliwa ' + formatPct(district.sliwa_pct) + '</div>' +
-      '<div class="winner-margin-note">Hover or click any community board district to compare the winner, the margin, and exactly how many election districts the winning candidate carried there.</div>';
+      thirdLine +
+      '<div class="winner-margin-note">Hover or click any community board district to compare the winner, the margin, and exactly how many election districts the winning side carried there.</div>';
   }
 
-  function fallbackHtml(label) {
+  function fallbackHtml(label, config) {
     return '' +
-      '<div class="eyebrow">2025 Mayor by Community Board</div>' +
+      '<div class="eyebrow">' + config.eyebrow + '</div>' +
       '<h4>' + label + ' map</h4>' +
-      '<p class="lead">Hover or click a community board district to see the full Mamdani, Cuomo, and Sliwa split and a plain-language line such as “Mamdani won 74 of 75 election districts in BKCB6.”</p>' +
+      '<p class="lead">' + config.fallbackLead + '</p>' +
       '<div class="winner-margin-stat-grid">' +
-        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Navy scale</span><span class="winner-margin-stat-value">Mamdani winning margin</span></div>' +
-        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Orange scale</span><span class="winner-margin-stat-value">Cuomo winning margin</span></div>' +
+        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Navy scale</span><span class="winner-margin-stat-value">' + config.navyLabel + ' winning margin</span></div>' +
+        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Orange scale</span><span class="winner-margin-stat-value">' + config.orangeLabel + ' winning margin</span></div>' +
       '</div>' +
-      '<div class="winner-margin-chip"><span class="winner-margin-chip-dot" style="background:' + SLIWA + '"></span>Sliwa is included in the hover summary percentages.</div>' +
-      '<div class="winner-margin-note">Click any district and the panel will state exactly how many election districts the winning candidate carried there.</div>';
+      '<div class="winner-margin-note">' + config.fallbackNote + '</div>';
   }
 
-  function ensureCard(container, mapLabel, maxMargin) {
-    if (container.querySelector('.winner-margin-card')) return;
-    var card = document.createElement('div');
-    card.className = 'winner-margin-card';
-    card.innerHTML = '' +
-      '<h3>' + mapLabel + ' Mayor Winner-Margin Map by Community Board</h3>' +
-      '<p>Each community board is shaded by the winning candidate\'s percentage margin. Navy indicates a Mamdani win, orange indicates a Cuomo win, and the legend shows the numeric margin scale used for the shading. Hover or click a district for the full community-board result, including exactly how many election districts the winner carried there.</p>' +
+  function buildCardHtml(mapLabel, data, config) {
+    return '' +
+      '<h3>' + mapLabel + ' ' + config.cardTitle + '</h3>' +
+      '<p>' + config.intro + '</p>' +
       '<div class="winner-margin-layout">' +
         '<div>' +
           '<div class="winner-margin-map" data-role="map"></div>' +
-          legendHtml(maxMargin) +
+          legendHtml(data.max_margin_pct, config) +
         '</div>' +
         '<div class="winner-margin-detail" data-role="detail"></div>' +
       '</div>';
-    container.insertBefore(card, container.firstChild);
   }
 
-  function setDetail(detailEl, district, mapLabel) {
-    detailEl.innerHTML = district ? detailHtml(district) : fallbackHtml(mapLabel);
+  function setDetail(detailEl, district, mapLabel, config) {
+    detailEl.innerHTML = district ? detailHtml(district, config) : fallbackHtml(mapLabel, config);
   }
 
-  function mapStyle(feature, districtData, maxMargin) {
+  function mapStyle(feature, districtData, maxMargin, config) {
     var district = districtData[feature.properties.boro_cd];
     return {
       color: BASE_OUTLINE,
       weight: 1.2,
-      fillColor: district ? marginFill(district, maxMargin) : '#d1d5db',
+      fillColor: district ? marginFill(district, maxMargin, config) : '#d1d5db',
       fillOpacity: district ? 0.92 : 0.45
     };
   }
 
-  function bindInteractions(layer, district, detailEl, boroughName) {
+  function bindInteractions(layer, district, detailEl, mapLabel, config) {
     layer.on({
       mouseover: function () {
         layer.setStyle({ weight: 2.6, color: ACTIVE_OUTLINE, fillOpacity: 1 });
         if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
           layer.bringToFront();
         }
-        setDetail(detailEl, district, boroughName);
+        setDetail(detailEl, district, mapLabel, config);
       },
       mouseout: function () {
         if (!layer._map) return;
         layer.setStyle({ weight: 1.2, color: BASE_OUTLINE, fillOpacity: 0.92 });
       },
       click: function () {
-        setDetail(detailEl, district, boroughName);
+        setDetail(detailEl, district, mapLabel, config);
       }
     });
-    layer.bindTooltip(district.district_label + ' · ' + district.winner_name + ' +' + formatPct(district.margin_pct) + ' · ' + district.winner_ed_count + ' of ' + district.total_eds + ' EDs', { sticky: true, direction: 'top' });
+    layer.bindTooltip(config.tooltipBuilder(district), { sticky: true, direction: 'top' });
   }
 
-  function renderMap(root, geojson, data) {
+  function teardownRoot(root) {
+    if (root._winnerMarginMap) {
+      root._winnerMarginMap.remove();
+      root._winnerMarginMap = null;
+    }
+    var existing = root.querySelector('.winner-margin-card');
+    if (existing) existing.remove();
+  }
+
+  function renderMap(root, geojson, data, config, race) {
     var boroughSlug = root.getAttribute('data-borough');
     var isCitywide = !boroughSlug || boroughSlug === 'citywide' || boroughSlug === 'all';
     var mapLabel = root.getAttribute('data-borough-name') || (isCitywide ? DEFAULT_CITY_LABEL : boroughSlug);
@@ -210,18 +344,20 @@
     var boroughRows = isCitywide ? Object.keys(districtData).map(function (key) { return districtData[key]; }) : ((data.boroughs && data.boroughs[boroughSlug]) || []);
     if (!boroughRows.length) return;
 
-    ensureCard(root, mapLabel, data.max_margin_pct);
+    teardownRoot(root);
+    root.setAttribute('data-rendered-race', race);
+
+    var card = document.createElement('div');
+    card.className = 'winner-margin-card';
+    card.innerHTML = buildCardHtml(mapLabel, data, config);
+    root.insertBefore(card, root.firstChild);
+
     var mapEl = root.querySelector('[data-role="map"]');
     var detailEl = root.querySelector('[data-role="detail"]');
-    setDetail(detailEl, null, mapLabel);
-
-    var mapKey = isCitywide ? 'citywide' : boroughSlug;
-    if (boroughMaps[mapKey]) {
-      boroughMaps[mapKey].remove();
-    }
+    setDetail(detailEl, null, mapLabel, config);
 
     var map = L.map(mapEl, { zoomControl: false, attributionControl: false, scrollWheelZoom: false });
-    boroughMaps[mapKey] = map;
+    root._winnerMarginMap = map;
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       maxZoom: 19
     }).addTo(map);
@@ -231,18 +367,18 @@
       features: geojson.features.filter(function (feature) {
         var code = String(feature.properties.boro_cd || '');
         if (!districtData[code]) return false;
-        return isCitywide ? true : code.charAt(0) === boroughRows[0].boro_cd.charAt(0);
+        return isCitywide ? true : boroughRows.length && code.charAt(0) === boroughRows[0].boro_cd.charAt(0);
       })
     };
 
     var layer = L.geoJSON(filtered, {
       style: function (feature) {
-        return mapStyle(feature, districtData, data.max_margin_pct);
+        return mapStyle(feature, districtData, data.max_margin_pct, config);
       },
       onEachFeature: function (feature, eachLayer) {
         var district = districtData[String(feature.properties.boro_cd)];
         if (district) {
-          bindInteractions(eachLayer, district, detailEl, mapLabel);
+          bindInteractions(eachLayer, district, detailEl, mapLabel, config);
         }
       }
     }).addTo(map);
@@ -250,20 +386,32 @@
     map.fitBounds(layer.getBounds(), { padding: isCitywide ? [24, 24] : [14, 14] });
   }
 
-  function init() {
-    injectStyles();
-    var roots = Array.prototype.slice.call(document.querySelectorAll('[data-winner-margin-root]'));
-    if (!roots.length || typeof L === 'undefined') return;
-    Promise.all([
-      fetch('community-district-boundaries.geojson').then(function (r) { return r.json(); }),
-      fetch('data/mayor_cb_winner_margin.json').then(function (r) { return r.json(); })
-    ]).then(function (payload) {
-      var geojson = payload[0];
-      var data = payload[1];
-      roots.forEach(function (root) { renderMap(root, geojson, data); });
+  function renderRoot(root, geojson) {
+    var race = resolveRace(root);
+    var config = RACE_CONFIG[race];
+    root.setAttribute('data-pending-race', race);
+    loadData(race).then(function (data) {
+      if (root.getAttribute('data-pending-race') !== race) return;
+      renderMap(root, geojson, data, config, race);
+    }).catch(function (err) {
+      console.error('Winner-margin map data error:', race, err);
+    });
+  }
+
+  function rerenderAll() {
+    loadGeojson().then(function (geojson) {
+      roots.forEach(function (root) { renderRoot(root, geojson); });
     }).catch(function (err) {
       console.error('Winner-margin map error:', err);
     });
+  }
+
+  function init() {
+    injectStyles();
+    roots = Array.prototype.slice.call(document.querySelectorAll('[data-winner-margin-root]'));
+    if (!roots.length || typeof L === 'undefined') return;
+    rerenderAll();
+    document.addEventListener('winner-margin-race-change', rerenderAll);
   }
 
   if (document.readyState === 'loading') {
