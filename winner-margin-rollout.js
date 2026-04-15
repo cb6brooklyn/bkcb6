@@ -7,6 +7,7 @@
   var BASE_OUTLINE = '#ffffff';
   var ACTIVE_OUTLINE = '#111827';
   var boroughMaps = {};
+  var DEFAULT_CITY_LABEL = 'New York City';
 
   function injectStyles() {
     if (document.getElementById('winner-margin-rollout-styles')) return;
@@ -26,9 +27,14 @@
       '.winner-margin-stat{background:#fff;border:1px solid var(--border,#e5e2db);border-radius:8px;padding:10px 12px}',
       '.winner-margin-stat-label{display:block;font-size:.68rem;letter-spacing:.04em;text-transform:uppercase;color:#6b7280;margin-bottom:4px}',
       '.winner-margin-stat-value{display:block;color:#111827;font-size:.92rem;font-weight:700;line-height:1.4}',
-      '.winner-margin-legend{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:12px;font-size:.72rem;color:#4b5563}',
-      '.winner-margin-legend-bar{display:flex;align-items:center;gap:8px}',
-      '.winner-margin-legend-scale{width:124px;height:10px;border-radius:999px;border:1px solid rgba(17,24,39,.08)}',
+      '.winner-margin-legend{display:flex;flex-direction:column;gap:10px;margin-top:12px;font-size:.72rem;color:#4b5563}',
+      '.winner-margin-legend-title{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;font-weight:700}',
+      '.winner-margin-legend-row{display:grid;grid-template-columns:112px minmax(0,1fr) 42px;gap:8px;align-items:center}',
+      '.winner-margin-legend-label{font-size:.72rem;font-weight:700;color:#374151}',
+      '.winner-margin-legend-bar{position:relative;height:12px;border-radius:999px;border:1px solid rgba(17,24,39,.08);overflow:hidden}',
+      '.winner-margin-legend-scale{position:absolute;inset:0}',
+      '.winner-margin-legend-tick{position:absolute;top:14px;transform:translateX(-50%);font-size:.63rem;color:#6b7280;white-space:nowrap}',
+      '.winner-margin-legend-end{font-size:.72rem;font-weight:700;color:#374151;text-align:right}',
       '.winner-margin-legend-scale.navy{background:linear-gradient(90deg,' + NAVY_LIGHT + ' 0%,' + NAVY_DARK + ' 100%)}',
       '.winner-margin-legend-scale.orange{background:linear-gradient(90deg,' + ORANGE_LIGHT + ' 0%,' + ORANGE_DARK + ' 100%)}',
       '.winner-margin-chip{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;color:#374151}',
@@ -79,59 +85,91 @@
     return Number(value || 0).toFixed(1).replace('.0', '') + '%';
   }
 
+  function formatMarginLabel(value) {
+    return '+' + formatPct(value || 0);
+  }
+
+  function winnerColor(district) {
+    return district.winner === 'mamdani' ? NAVY_DARK : ORANGE_DARK;
+  }
+
+  function legendHtml(maxMargin) {
+    var maxLabel = formatMarginLabel(maxMargin || 0);
+    return '' +
+      '<div class="winner-margin-legend">' +
+        '<div class="winner-margin-legend-title">Winning margin by community board</div>' +
+        '<div class="winner-margin-legend-row">' +
+          '<span class="winner-margin-legend-label">Mamdani</span>' +
+          '<div class="winner-margin-legend-bar">' +
+            '<span class="winner-margin-legend-scale navy"></span>' +
+            '<span class="winner-margin-legend-tick" style="left:0%">0%</span>' +
+            '<span class="winner-margin-legend-tick" style="left:50%">'+ formatMarginLabel((maxMargin || 0) / 2) +'</span>' +
+            '<span class="winner-margin-legend-tick" style="left:100%">'+ maxLabel +'</span>' +
+          '</div>' +
+          '<span class="winner-margin-legend-end">'+ maxLabel +'</span>' +
+        '</div>' +
+        '<div class="winner-margin-legend-row">' +
+          '<span class="winner-margin-legend-label">Cuomo</span>' +
+          '<div class="winner-margin-legend-bar">' +
+            '<span class="winner-margin-legend-scale orange"></span>' +
+            '<span class="winner-margin-legend-tick" style="left:0%">0%</span>' +
+            '<span class="winner-margin-legend-tick" style="left:50%">'+ formatMarginLabel((maxMargin || 0) / 2) +'</span>' +
+            '<span class="winner-margin-legend-tick" style="left:100%">'+ maxLabel +'</span>' +
+          '</div>' +
+          '<span class="winner-margin-legend-end">'+ maxLabel +'</span>' +
+        '</div>' +
+      '</div>';
+  }
+
   function detailHtml(district) {
-    var winnerSentence = district.winner === 'mamdani'
-      ? district.winner_name + ' won ' + district.winner_ed_count + ' of ' + district.total_eds + ' election districts in ' + district.district_label + '.'
-      : district.winner_name + ' won ' + district.winner_ed_count + ' of ' + district.total_eds + ' election districts in ' + district.district_label + '.';
+    var winnerSentence = district.winner_name + ' won ' + district.winner_ed_count + ' of ' + district.total_eds + ' election districts in ' + district.district_label + '.';
     return '' +
       '<div class="eyebrow">2025 Mayor by Community Board</div>' +
       '<h4>' + district.district_label + '</h4>' +
-      '<p class="lead">' + district.district_label + ' — ' + district.winner_name + ' won this CB district ' + formatPct(district.mamdani_pct) + ' to ' + formatPct(district.cuomo_pct) + ' for Cuomo and ' + formatPct(district.sliwa_pct) + ' for Sliwa. ' + winnerSentence + '</p>' +
+      '<p class="lead">' + district.district_label + ' — ' + district.winner_name + ' won this CB district ' + formatPct(district.mamdani_pct) + ' to ' + formatPct(district.cuomo_pct) + ' for Cuomo and ' + formatPct(district.sliwa_pct) + ' for Sliwa.</p>' +
+      '<div class="winner-margin-chip"><span class="winner-margin-chip-dot" style="background:' + winnerColor(district) + '"></span><strong>' + winnerSentence + '</strong></div>' +
       '<div class="winner-margin-stat-grid">' +
         '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Winner</span><span class="winner-margin-stat-value">' + district.winner_name + ' by ' + formatPct(district.margin_pct) + '</span></div>' +
-        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">EDs carried</span><span class="winner-margin-stat-value">' + district.winner_ed_count + ' of ' + district.total_eds + '</span></div>' +
+        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">EDs won by ' + district.winner_name + '</span><span class="winner-margin-stat-value">' + district.winner_ed_count + ' of ' + district.total_eds + '</span></div>' +
         '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Mamdani</span><span class="winner-margin-stat-value">' + formatPct(district.mamdani_pct) + '</span></div>' +
         '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Cuomo</span><span class="winner-margin-stat-value">' + formatPct(district.cuomo_pct) + '</span></div>' +
       '</div>' +
       '<div class="winner-margin-chip"><span class="winner-margin-chip-dot" style="background:' + SLIWA + '"></span>Sliwa ' + formatPct(district.sliwa_pct) + '</div>' +
-      '<div class="winner-margin-note">Hover or click any community board district to compare the winner, the margin, and how many election districts that candidate carried.</div>';
+      '<div class="winner-margin-note">Hover or click any community board district to compare the winner, the margin, and exactly how many election districts the winning candidate carried there.</div>';
   }
 
   function fallbackHtml(label) {
     return '' +
       '<div class="eyebrow">2025 Mayor by Community Board</div>' +
       '<h4>' + label + ' map</h4>' +
-      '<p class="lead">Hover or click a community board district to see the full Mamdani, Cuomo, and Sliwa split, plus how many election districts the winning candidate carried.</p>' +
+      '<p class="lead">Hover or click a community board district to see the full Mamdani, Cuomo, and Sliwa split and a plain-language line showing exactly how many election districts the winning candidate carried there.</p>' +
       '<div class="winner-margin-stat-grid">' +
-        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Navy</span><span class="winner-margin-stat-value">Stronger Mamdani margin</span></div>' +
-        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Orange</span><span class="winner-margin-stat-value">Stronger Cuomo margin</span></div>' +
+        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Navy scale</span><span class="winner-margin-stat-value">Mamdani winning margin</span></div>' +
+        '<div class="winner-margin-stat"><span class="winner-margin-stat-label">Orange scale</span><span class="winner-margin-stat-value">Cuomo winning margin</span></div>' +
       '</div>' +
       '<div class="winner-margin-chip"><span class="winner-margin-chip-dot" style="background:' + SLIWA + '"></span>Sliwa is included in the hover summary percentages.</div>' +
       '<div class="winner-margin-note">The deeper the color, the wider the winning margin in that district.</div>';
   }
 
-  function ensureCard(container, boroughName) {
+  function ensureCard(container, mapLabel, maxMargin) {
     if (container.querySelector('.winner-margin-card')) return;
     var card = document.createElement('div');
     card.className = 'winner-margin-card';
     card.innerHTML = '' +
-      '<h3>' + boroughName + ' Mayor Winner-Margin Map by Community Board</h3>' +
-      '<p>Navy districts show where Mamdani won, orange districts show where Cuomo won, and the color intensity increases with the size of the winning margin. Hover or click a district for the full community-board result and election-district win count.</p>' +
+      '<h3>' + mapLabel + ' Mayor Winner-Margin Map by Community Board</h3>' +
+      '<p>Each community board is shaded by the winning candidate\'s percentage margin. Navy indicates a Mamdani win, orange indicates a Cuomo win, and the legend shows the numeric margin scale used for the shading. Hover or click a district for the full community-board result and the number of election districts the winner carried there.</p>' +
       '<div class="winner-margin-layout">' +
         '<div>' +
           '<div class="winner-margin-map" data-role="map"></div>' +
-          '<div class="winner-margin-legend">' +
-            '<div class="winner-margin-legend-bar"><span>Less</span><span class="winner-margin-legend-scale navy"></span><span>More Mamdani</span></div>' +
-            '<div class="winner-margin-legend-bar"><span>Less</span><span class="winner-margin-legend-scale orange"></span><span>More Cuomo</span></div>' +
-          '</div>' +
+          legendHtml(maxMargin) +
         '</div>' +
         '<div class="winner-margin-detail" data-role="detail"></div>' +
       '</div>';
     container.insertBefore(card, container.firstChild);
   }
 
-  function setDetail(detailEl, district, boroughName) {
-    detailEl.innerHTML = district ? detailHtml(district) : fallbackHtml(boroughName);
+  function setDetail(detailEl, district, mapLabel) {
+    detailEl.innerHTML = district ? detailHtml(district) : fallbackHtml(mapLabel);
   }
 
   function mapStyle(feature, districtData, maxMargin) {
@@ -166,22 +204,24 @@
 
   function renderMap(root, geojson, data) {
     var boroughSlug = root.getAttribute('data-borough');
-    var boroughName = root.getAttribute('data-borough-name') || boroughSlug;
+    var isCitywide = !boroughSlug || boroughSlug === 'citywide' || boroughSlug === 'all';
+    var mapLabel = root.getAttribute('data-borough-name') || (isCitywide ? DEFAULT_CITY_LABEL : boroughSlug);
     var districtData = data.districts || {};
-    var boroughRows = (data.boroughs && data.boroughs[boroughSlug]) || [];
+    var boroughRows = isCitywide ? Object.keys(districtData).map(function (key) { return districtData[key]; }) : ((data.boroughs && data.boroughs[boroughSlug]) || []);
     if (!boroughRows.length) return;
 
-    ensureCard(root, boroughName);
+    ensureCard(root, mapLabel, data.max_margin_pct);
     var mapEl = root.querySelector('[data-role="map"]');
     var detailEl = root.querySelector('[data-role="detail"]');
-    setDetail(detailEl, null, boroughName);
+    setDetail(detailEl, null, mapLabel);
 
-    if (boroughMaps[boroughSlug]) {
-      boroughMaps[boroughSlug].remove();
+    var mapKey = isCitywide ? 'citywide' : boroughSlug;
+    if (boroughMaps[mapKey]) {
+      boroughMaps[mapKey].remove();
     }
 
     var map = L.map(mapEl, { zoomControl: false, attributionControl: false, scrollWheelZoom: false });
-    boroughMaps[boroughSlug] = map;
+    boroughMaps[mapKey] = map;
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       maxZoom: 19
     }).addTo(map);
@@ -190,7 +230,8 @@
       type: 'FeatureCollection',
       features: geojson.features.filter(function (feature) {
         var code = String(feature.properties.boro_cd || '');
-        return code.charAt(0) === boroughRows[0].boro_cd.charAt(0) && districtData[code];
+        if (!districtData[code]) return false;
+        return isCitywide ? true : code.charAt(0) === boroughRows[0].boro_cd.charAt(0);
       })
     };
 
@@ -201,12 +242,12 @@
       onEachFeature: function (feature, eachLayer) {
         var district = districtData[String(feature.properties.boro_cd)];
         if (district) {
-          bindInteractions(eachLayer, district, detailEl, boroughName);
+          bindInteractions(eachLayer, district, detailEl, mapLabel);
         }
       }
     }).addTo(map);
 
-    map.fitBounds(layer.getBounds(), { padding: [14, 14] });
+    map.fitBounds(layer.getBounds(), { padding: isCitywide ? [24, 24] : [14, 14] });
   }
 
   function init() {
