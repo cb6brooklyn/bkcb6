@@ -339,10 +339,18 @@ footer a{color:var(--orange);text-decoration:none}
       </div>
 
       <div id="c311FeltMap" style="display:none">
-      <div style="padding:16px 24px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center">
-        <h4 style="font-size:.7rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Complaints</h4>
-        <input type="text" id="c311Search" placeholder="Search address or complaint type..." style="flex:1;max-width:400px;font-size:.82rem" oninput="filter311Table()">
-        <span id="c311Count" style="font-size:.72rem;font-family:'DM Mono',monospace;color:var(--muted)"></span>
+      <div style="padding:16px 24px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <h4 style="font-size:.7rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-right:4px">Complaints</h4>
+        <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:220px;max-width:360px">
+          <label for="c311SearchLocation" style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Location</label>
+          <input type="text" id="c311SearchLocation" placeholder="Search street, address, or block..." style="width:100%;font-size:.82rem" oninput="filter311Table()">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:220px;max-width:360px">
+          <label for="c311SearchType" style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Complaint Type</label>
+          <input type="text" id="c311SearchType" placeholder="Search complaint type or descriptor..." style="width:100%;font-size:.82rem" oninput="filter311Table()">
+        </div>
+        <button type="button" onclick="clear311Search()" style="padding:9px 14px;background:#fff;color:var(--navy);border:1px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer">Clear</button>
+        <span id="c311Count" style="font-size:.72rem;font-family:'DM Mono',monospace;color:var(--muted);margin-left:auto"></span>
       </div>
       <div style="overflow-x:auto;padding:0 24px 40px">
         <table style="width:100%;border-collapse:collapse;font-size:.8rem;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)">
@@ -1856,13 +1864,30 @@ function renderC311(year, month, catFilter) {
   document.getElementById('c311Summary').style.display = 'block';
 }
 
+function get311SearchResults() {
+  const locationSearch = (document.getElementById('c311SearchLocation')?.value || '').trim().toLowerCase();
+  const typeSearch = (document.getElementById('c311SearchType')?.value || '').trim().toLowerCase();
+
+  return c311Filtered.filter(d => {
+    const matchesLocation = !locationSearch || `${d.address} ${d.agency}`.toLowerCase().includes(locationSearch);
+    const matchesType = !typeSearch || `${d.complaint_type} ${d.descriptor} ${d.cat}`.toLowerCase().includes(typeSearch);
+    return matchesLocation && matchesType;
+  });
+}
+
+function clear311Search() {
+  const locationInput = document.getElementById('c311SearchLocation');
+  const typeInput = document.getElementById('c311SearchType');
+  if (locationInput) locationInput.value = '';
+  if (typeInput) typeInput.value = '';
+  filter311Table();
+}
+
 function filter311Table() {
-  const search = (document.getElementById('c311Search').value||'').toLowerCase();
-  const rows = search
-    ? c311Filtered.filter(d => (d.address+d.complaint_type+d.descriptor+d.agency).toLowerCase().includes(search))
-    : c311Filtered;
+  const rows = get311SearchResults();
 
   document.getElementById('c311Count').textContent = `${rows.length.toLocaleString()} complaints`;
+  render311Map(rows);
 
   if (!rows.length) {
     document.getElementById('c311TableBody').innerHTML = '';
@@ -1871,7 +1896,6 @@ function filter311Table() {
   }
   document.getElementById('c311NoResults').style.display = 'none';
 
-  const catFilter = document.getElementById('c311Cat').value;
   document.getElementById('c311TableBody').innerHTML = rows.slice(0, 500).map(d => {
     const cat = d.cat;
     const color = CAT_COLORS[cat] || '#ccc';
@@ -1889,7 +1913,7 @@ function filter311Table() {
   }).join('');
 
   if (rows.length > 500) {
-    document.getElementById('c311TableBody').innerHTML += `<tr><td colspan="7" style="padding:12px 13px;text-align:center;font-size:.75rem;color:var(--muted);font-family:'DM Mono',monospace">Showing 500 of ${rows.length.toLocaleString()} — use the search to filter</td></tr>`;
+    document.getElementById('c311TableBody').innerHTML += `<tr><td colspan="7" style="padding:12px 13px;text-align:center;font-size:.75rem;color:var(--muted);font-family:'DM Mono',monospace">Showing 500 of ${rows.length.toLocaleString()} — narrow the location or complaint-type search to see more</td></tr>`;
   }
 }
 
