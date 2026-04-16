@@ -117,12 +117,12 @@ tbody tr:hover{background:#fcfbf9}
     <div class="hero">
       <div class="hero-copy">
         <h1><span>Find Permits</span> in Brooklyn Community Board 6</h1>
-        <p>This page shows permits issued on a selected day across Brooklyn Community Board 6 using official New York City permit records. It now combines legacy BIS permit issuance data, DOB NOW approved-permit records, and NYC DOT street construction permits from the NYC Streets ecosystem so the board can monitor building and roadway activity across Carroll Gardens, Cobble Hill, Gowanus, Park Slope, and Red Hook.</p>
+        <p>This page shows permits active on a selected day across Brooklyn Community Board 6 using official New York City permit records. It combines legacy BIS permit issuance data, DOB NOW approved-permit records, and NYC DOT street construction permits from the NYC Streets ecosystem so the board can monitor building and roadway activity across Carroll Gardens, Cobble Hill, Gowanus, Park Slope, and Red Hook. When a record includes a valid permit window, the page carries that permit forward across later covered dates so visitors can look ahead using the latest published data.</p>
       </div>
       <div class="hero-meta">
         <div class="meta-pill"><span class="label">District</span><span class="value" id="metaBoardName">BK CB6</span></div>
         <div class="meta-pill"><span class="label">Sources</span><span class="value">BIS + DOB NOW + DOT</span></div>
-        <div class="meta-pill"><span class="label">Default View</span><span class="value">Latest data</span></div>
+        <div class="meta-pill"><span class="label">Default View</span><span class="value">Today</span></div>
       </div>
     </div>
   </div>
@@ -132,11 +132,11 @@ tbody tr:hover{background:#fcfbf9}
   <section class="panel">
     <div class="controls">
       <p class="section-kicker">District-wide permit lookup</p>
-      <h2>Search permits issued on a selected date.</h2>
-      <p>The default search opens on the most recent date with published permit activity. You can change the date, keep the result limited to official Brooklyn Community Board 6 records, and optionally filter the returned list by an address or street name. DOB sources are filtered by their published community-board codes, while the NYC DOT street-permit feed is filtered to CB6 by intersecting permit geometry with the official district boundary.</p>
+      <h2>Search permits active on a selected date.</h2>
+      <p>The default search opens on today. When the source data includes a permit window, the page shows that record on every covered day, so a search for a future date can still surface permits that are already published and scheduled to remain active. DOB sources are filtered by their published community-board codes, while the NYC DOT street-permit feed is filtered to CB6 by intersecting permit geometry with the official district boundary.</p>
       <div class="control-grid">
         <div class="field">
-          <label for="permitDate">Issued date</label>
+          <label for="permitDate">Date</label>
           <input class="input" id="permitDate" type="date">
         </div>
         <div class="field">
@@ -160,7 +160,7 @@ tbody tr:hover{background:#fcfbf9}
     </div>
 
     <div class="status-row">
-      <div class="status-msg" id="statusMsg"><strong>Ready.</strong> Choose a date or load the most recent published permit day.</div>
+      <div class="status-msg" id="statusMsg"><strong>Ready.</strong> Choose a date to see permits active in CB6 on that day.</div>
       <div class="badges">
         <span class="badge green">District filter: CB6</span>
         <span class="badge blue">Official sources: NYC Open Data</span>
@@ -170,7 +170,7 @@ tbody tr:hover{background:#fcfbf9}
     </div>
 
     <div class="summary" id="summaryStrip">
-      <div class="stat"><div class="label">Selected date</div><div class="value" id="statDate">—</div><div class="sub">Permits issued on the selected day.</div></div>
+      <div class="stat"><div class="label">Selected date</div><div class="value" id="statDate">—</div><div class="sub">Permits active on the selected day.</div></div>
       <div class="stat"><div class="label">Total results</div><div class="value" id="statTotal">0</div><div class="sub">Combined records across building and street permit systems.</div></div>
       <div class="stat"><div class="label">DOB NOW</div><div class="value" id="statDobNow">0</div><div class="sub">Current DOB NOW construction permit records.</div></div>
       <div class="stat"><div class="label">BIS</div><div class="value" id="statBis">0</div><div class="sub">Legacy BIS permit issuance records.</div></div>
@@ -203,7 +203,7 @@ tbody tr:hover{background:#fcfbf9}
             <thead>
               <tr>
                 <th>Source</th>
-                <th>Issued</th>
+                <th>Issued / Window</th>
                 <th>Address</th>
                 <th>Permit / Work Type</th>
                 <th>Owner / Applicant</th>
@@ -268,6 +268,7 @@ let boundaryLayer;
 let boundaryFeature = null;
 let dobNowRecentFeed = null;
 let dotRecentFeed = null;
+const bisRecentFeedCache = {};
 
 function localIsoDate() {
   const now = new Date();
@@ -306,6 +307,18 @@ function formatBisDate(isoDate) {
   return `${m}/${d}/${y}`;
 }
 
+function normalizeDateOnly(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  const match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (match) {
+    const [, mm, dd, yyyy] = match;
+    return `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+  }
+  return '';
+}
+
 function nextIsoDate(isoDate) {
   const d = new Date(isoDate + 'T00:00:00');
   d.setDate(d.getDate() + 1);
@@ -325,22 +338,34 @@ function escapeHtml(value) {
 function buildBisUrl(isoDate) {
   const dateStr = formatBisDate(isoDate);
   const select = [
-    'permit_si_no','issuance_date','borough','house__','street_name','community_board','permit_status','permit_type',
+    'permit_si_no','issuance_date','expiration_date','job_start_date','borough','house__','street_name','community_board','permit_status','permit_type',
     'owner_s_business_name','permittee_s_business_name','job__','block','lot','bin__','gis_latitude','gis_longitude'
   ].join(',');
   const where = `borough='${BOARD_CONFIG.borough}' AND community_board='${BOARD_CONFIG.bisCommunityBoard}' AND issuance_date='${dateStr}'`;
   return `https://data.cityofnewyork.us/resource/ipu4-2q9a.json?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$limit=5000`;
 }
 
+function buildBisRecentUrl(isoDate) {
+  const year = Number((isoDate || '').slice(0, 4)) || Number(localIsoDate().slice(0, 4));
+  const years = [year, year - 1, year - 2];
+  const select = [
+    'permit_si_no','issuance_date','expiration_date','job_start_date','borough','house__','street_name','community_board','permit_status','permit_type',
+    'owner_s_business_name','permittee_s_business_name','job__','block','lot','bin__','gis_latitude','gis_longitude'
+  ].join(',');
+  const yearClause = years.map(value => `issuance_date like '%/${value}'`).join(' OR ');
+  const where = `borough='${BOARD_CONFIG.borough}' AND community_board='${BOARD_CONFIG.bisCommunityBoard}' AND (${yearClause})`;
+  return `https://data.cityofnewyork.us/resource/ipu4-2q9a.json?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$limit=50000`;
+}
+
 function buildDobNowUrl(isoDate) {
   const start = `${isoDate}T00:00:00.000`;
   const end = `${nextIsoDate(isoDate)}T00:00:00.000`;
   const select = [
-    'job_filing_number','issued_date','approved_date','borough','house_no','street_name','c_b_no','community_board',
+    'job_filing_number','issued_date','expired_date','approved_date','borough','house_no','street_name','c_b_no','community_board',
     'work_type','permit_status','owner_business_name','owner_name','applicant_business_name','applicant_first_name',
     'applicant_last_name','tracking_number','block','lot','bin','latitude','longitude'
   ].join(',');
-  const where = `borough='${BOARD_CONFIG.borough}' AND c_b_no='${BOARD_CONFIG.dobNowCommunityBoard}' AND issued_date >= '${start}' AND issued_date < '${end}'`;
+  const where = `borough='${BOARD_CONFIG.borough}' AND c_b_no='${BOARD_CONFIG.dobNowCommunityBoard}' AND issued_date < '${end}' AND (expired_date IS NULL OR expired_date >= '${start}')`;
   return `https://data.cityofnewyork.us/resource/rbx6-tga4.json?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$limit=5000`;
 }
 
@@ -358,14 +383,14 @@ async function fetchDobNowData(isoDate) {
     try {
       const rows = await getDobNowRecentFeed();
       return rows
-        .filter(row => String(row.issued_date || '').slice(0, 10) === isoDate)
-        .map(normalizeDobNowRow);
+        .map(normalizeDobNowRow)
+        .filter(row => rowActiveOnDate(row, isoDate));
     } catch (err) {
       console.warn('DOB NOW local feed could not be loaded, falling back to the live API.', err);
     }
   }
   const rows = await fetchJsonRows(buildDobNowUrl(isoDate), 'DOB NOW');
-  return rows.map(normalizeDobNowRow);
+  return rows.map(normalizeDobNowRow).filter(row => rowActiveOnDate(row, isoDate));
 }
 
 function getDotDatasetId(isoDate) {
@@ -381,16 +406,38 @@ function buildDotUrl(isoDate) {
     'permithousenumber','onstreetname','fromstreetname','tostreetname','permitteename','permitstatusshortdesc',
     'permittypedesc','permitseriesshortdesc','permitlocationcomments','permitpurposecomments','wkt'
   ].join(',');
-  const where = `boroughname='${BOARD_CONFIG.borough}' AND permitissuedate >= '${start}' AND permitissuedate < '${end}'`;
+  const where = `boroughname='${BOARD_CONFIG.borough}' AND ((issuedworkstartdate IS NOT NULL AND issuedworkenddate IS NOT NULL AND issuedworkstartdate < '${end}' AND issuedworkenddate >= '${start}') OR (permitissuedate >= '${start}' AND permitissuedate < '${end}'))`;
   return `https://data.cityofnewyork.us/resource/${datasetId}.json?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$limit=10000`;
+}
+
+function buildActiveWindowLabel(startIso, endIso) {
+  if (startIso && endIso && startIso !== endIso) return `${formatHumanDate(startIso)} → ${formatHumanDate(endIso)}`;
+  if (endIso && !startIso) return `Through ${formatHumanDate(endIso)}`;
+  if (startIso && !endIso) return `From ${formatHumanDate(startIso)}`;
+  return '';
+}
+
+function rowActiveOnDate(row, isoDate) {
+  const issued = normalizeDateOnly(row.issued_date);
+  const start = normalizeDateOnly(row.active_start_date || issued);
+  const end = normalizeDateOnly(row.active_end_date || issued);
+  if (start && isoDate < start) return false;
+  if (end && isoDate > end) return false;
+  if (!start && !end && issued) return issued === isoDate;
+  return true;
 }
 
 function normalizeBisRow(row) {
   const address = [row.house__, row.street_name].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  const issuedDate = normalizeDateOnly(row.issuance_date);
+  const expirationDate = normalizeDateOnly(row.expiration_date);
   return {
     source: 'BIS',
-    issued_date: row.issuance_date ? row.issuance_date.split('T')[0] : '',
-    issued_display: row.issuance_date || '',
+    issued_date: issuedDate,
+    issued_display: issuedDate || row.issuance_date || '',
+    active_start_date: issuedDate,
+    active_end_date: expirationDate,
+    active_window_label: buildActiveWindowLabel(issuedDate, expirationDate),
     address,
     permit_type: row.permit_type || 'Permit',
     owner_or_applicant: row.owner_s_business_name || row.permittee_s_business_name || '—',
@@ -409,10 +456,15 @@ function normalizeBisRow(row) {
 function normalizeDobNowRow(row) {
   const address = [row.house_no, row.street_name].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
   const applicantName = [row.applicant_first_name, row.applicant_last_name].filter(Boolean).join(' ').trim();
+  const issuedDate = normalizeDateOnly(row.issued_date);
+  const expiredDate = normalizeDateOnly(row.expired_date);
   return {
     source: 'DOB NOW',
-    issued_date: row.issued_date ? row.issued_date.slice(0, 10) : '',
-    issued_display: row.issued_date ? row.issued_date.slice(0, 10) : '',
+    issued_date: issuedDate,
+    issued_display: issuedDate || '',
+    active_start_date: issuedDate,
+    active_end_date: expiredDate,
+    active_window_label: buildActiveWindowLabel(issuedDate, expiredDate),
     address,
     permit_type: row.work_type || 'Permit',
     owner_or_applicant: row.owner_business_name || row.owner_name || row.applicant_business_name || applicantName || '—',
@@ -582,10 +634,16 @@ function dotAddress(row) {
 function normalizeDotRow(row) {
   const geometry = convertDotGeometryToWgs84(parseWkt(row.wkt));
   const center = geometryToLatLng(geometry);
+  const issuedDate = normalizeDateOnly(row.permitissuedate);
+  const activeStartDate = normalizeDateOnly(row.issuedworkstartdate) || issuedDate;
+  const activeEndDate = normalizeDateOnly(row.issuedworkenddate) || issuedDate;
   return {
     source: 'NYC Streets / DOT',
-    issued_date: row.permitissuedate ? row.permitissuedate.slice(0, 10) : '',
-    issued_display: row.permitissuedate ? row.permitissuedate.slice(0, 10) : '',
+    issued_date: issuedDate,
+    issued_display: issuedDate || '',
+    active_start_date: activeStartDate,
+    active_end_date: activeEndDate,
+    active_window_label: buildActiveWindowLabel(activeStartDate, activeEndDate),
     address: dotAddress(row),
     permit_type: row.permittypedesc || row.permitseriesshortdesc || 'Street permit',
     owner_or_applicant: row.permitteename || '—',
@@ -595,7 +653,7 @@ function normalizeDotRow(row) {
     lat: center.lat,
     lng: center.lng,
     raw_type: row.permittypedesc || row.permitseriesshortdesc || 'Street permit',
-    sort_key: row.permitissuedate || '',
+    sort_key: row.issuedworkstartdate || row.permitissuedate || '',
     block: '',
     lot: '',
     geojson_geometry: geometry,
@@ -611,6 +669,14 @@ function intersectsBoundary(geometry) {
     console.warn('Geometry intersection failed.', err, geometry);
     return false;
   }
+}
+
+async function getBisRecentFeed(isoDate) {
+  const year = Number((isoDate || '').slice(0, 4)) || Number(localIsoDate().slice(0, 4));
+  const cacheKey = `${year}-${year - 1}-${year - 2}`;
+  if (bisRecentFeedCache[cacheKey]) return bisRecentFeedCache[cacheKey];
+  bisRecentFeedCache[cacheKey] = fetchJsonRows(buildBisRecentUrl(isoDate), 'BIS');
+  return bisRecentFeedCache[cacheKey];
 }
 
 async function getDotRecentFeed() {
@@ -640,8 +706,8 @@ async function fetchDotData(isoDate) {
       const localRows = await getDotRecentFeed();
       normalized.push(
         ...localRows
-          .filter(row => String(row.permitissuedate || '').slice(0, 10) === isoDate)
           .map(normalizeDotRow)
+          .filter(row => rowActiveOnDate(row, isoDate))
           .filter(row => row.geojson_geometry && intersectsBoundary(row.geojson_geometry))
       );
     } catch (err) {
@@ -653,6 +719,7 @@ async function fetchDotData(isoDate) {
     normalized.push(
       ...liveRows
         .map(normalizeDotRow)
+        .filter(row => rowActiveOnDate(row, isoDate))
         .filter(row => row.geojson_geometry && intersectsBoundary(row.geojson_geometry))
     );
   } catch (err) {
@@ -662,9 +729,24 @@ async function fetchDotData(isoDate) {
   return dedupeDotRows(normalized);
 }
 
+async function fetchBisData(isoDate) {
+  if (isoDate >= '2024-01-01') {
+    try {
+      const rows = await getBisRecentFeed(isoDate);
+      return rows
+        .map(normalizeBisRow)
+        .filter(row => rowActiveOnDate(row, isoDate));
+    } catch (err) {
+      console.warn('Recent BIS cache could not be loaded, falling back to an exact-day BIS query.', err);
+    }
+  }
+  const rows = await fetchJsonRows(buildBisUrl(isoDate), 'BIS');
+  return rows.map(normalizeBisRow).filter(row => rowActiveOnDate(row, isoDate));
+}
+
 async function fetchPermitsForDate(isoDate) {
   const tasks = [
-    { key: 'bisData', label: 'BIS', promise: fetchJsonRows(buildBisUrl(isoDate), 'BIS').then(rows => rows.map(normalizeBisRow)) },
+    { key: 'bisData', label: 'BIS', promise: fetchBisData(isoDate) },
     { key: 'dobNowData', label: 'DOB NOW', promise: fetchDobNowData(isoDate) },
     { key: 'dotData', label: 'NYC Streets / DOT', promise: fetchDotData(isoDate) }
   ];
@@ -707,7 +789,7 @@ function updateSummary(allRows, filteredRows, isoDate) {
   dom.tableCount.textContent = `${filteredRows.length.toLocaleString()} record${filteredRows.length === 1 ? '' : 's'}`;
   dom.mapCount.textContent = `${mapped.length.toLocaleString()} pin${mapped.length === 1 ? '' : 's'}`;
   dom.tableSubhead.textContent = filteredRows.length
-    ? `Showing ${filteredRows.length.toLocaleString()} permit record${filteredRows.length === 1 ? '' : 's'} for ${BOARD_CONFIG.title} on ${formatHumanDate(isoDate)}.`
+    ? `Showing ${filteredRows.length.toLocaleString()} permit record${filteredRows.length === 1 ? '' : 's'} active in ${BOARD_CONFIG.title} on ${formatHumanDate(isoDate)}.`
     : `No permit records matched the current filters for ${formatHumanDate(isoDate)}.`;
 }
 
@@ -724,9 +806,10 @@ function renderTable(rows) {
     const mapLink = Number.isFinite(row.lat) && Number.isFinite(row.lng)
       ? `<div style="margin-top:6px"><a class="source-link" href="https://maps.google.com/?q=${row.lat},${row.lng}" target="_blank" rel="noopener">View map</a></div>`
       : '';
+    const issuedWindowHtml = `<div class="mono">${escapeHtml(row.issued_display || '—')}</div>${row.active_window_label ? `<div style="margin-top:4px;font-size:.74rem;color:#6b6760">${escapeHtml(row.active_window_label)}</div>` : ''}`;
     return `<tr>
       <td><span class="source-pill ${sourceClass}">${escapeHtml(row.source)}</span></td>
-      <td class="mono">${escapeHtml(row.issued_display || '—')}</td>
+      <td>${issuedWindowHtml}</td>
       <td><strong>${escapeHtml(row.address || '—')}</strong>${mapLink}</td>
       <td><span class="type-pill">${escapeHtml(row.permit_type || 'Permit')}</span></td>
       <td>${escapeHtml(row.owner_or_applicant || '—')}</td>
@@ -763,6 +846,7 @@ function renderMap(rows) {
         <div style="font-size:.95rem;font-weight:700;color:#0d1b4b;margin-top:4px">${escapeHtml(row.address || 'Address unavailable')}</div>
         <div style="font-size:.82rem;color:#2c3a57;margin-top:6px">${escapeHtml(row.permit_type || 'Permit')}</div>
         <div style="font-size:.8rem;color:#6b6760;margin-top:4px">Issued: ${escapeHtml(row.issued_display || '—')}</div>
+        ${row.active_window_label ? `<div style="font-size:.78rem;color:#6b6760;margin-top:4px">Window: ${escapeHtml(row.active_window_label)}</div>` : ''}
       </div>`
     );
     markersLayer.addLayer(marker);
@@ -813,7 +897,7 @@ async function runSearch(preloadedResult = null, options = {}) {
     return;
   }
   dom.loadBtn.disabled = true;
-  setStatus(`Loading official permit records for ${BOARD_CONFIG.shortTitle} on ${formatHumanDate(isoDate)}.`, 'Searching…');
+  setStatus(`Loading official permit records active in ${BOARD_CONFIG.shortTitle} on ${formatHumanDate(isoDate)}.`, 'Searching…');
   dom.tableBody.innerHTML = '<tr><td colspan="7" class="empty">Loading permit data…</td></tr>';
   try {
     const result = preloadedResult || await fetchPermitsForDate(isoDate);
@@ -824,9 +908,9 @@ async function runSearch(preloadedResult = null, options = {}) {
     if (!allPermits.length) {
       setStatus(`No permit records were returned for ${formatHumanDate(isoDate)}. Try another day.`, 'No results.');
     } else if (result.warnings.length) {
-      setStatus(`${fallbackNotice}Loaded ${allPermits.length.toLocaleString()} permit record${allPermits.length === 1 ? '' : 's'} for ${formatHumanDate(isoDate)}, but one or more sources had problems: ${result.warnings.join(' ')}`, 'Loaded with warning.');
+      setStatus(`${fallbackNotice}Loaded ${allPermits.length.toLocaleString()} permit record${allPermits.length === 1 ? '' : 's'} active on ${formatHumanDate(isoDate)}, but one or more sources had problems: ${result.warnings.join(' ')}`, 'Loaded with warning.');
     } else {
-      setStatus(`${fallbackNotice}Loaded ${allPermits.length.toLocaleString()} permit record${allPermits.length === 1 ? '' : 's'} from BIS, DOB NOW, and NYC Streets / DOT for ${formatHumanDate(isoDate)}.`, 'Loaded.');
+      setStatus(`${fallbackNotice}Loaded ${allPermits.length.toLocaleString()} permit record${allPermits.length === 1 ? '' : 's'} active on ${formatHumanDate(isoDate)} from BIS, DOB NOW, and NYC Streets / DOT.`, 'Loaded.');
     }
   } catch (err) {
     console.error(err);
@@ -845,7 +929,7 @@ function handleToday() {
 
 async function init() {
   dom.metaBoardName.textContent = BOARD_CONFIG.shortTitle;
-  const hasExplicitDate = setDefaultDate();
+  setDefaultDate();
   initMap();
   try {
     await ensureBoundaryLoaded();
@@ -859,26 +943,10 @@ async function init() {
   dom.sourceFilter.addEventListener('change', renderFilteredResults);
   dom.date.addEventListener('keydown', (event) => { if (event.key === 'Enter') runSearch(); });
   dom.addressFilter.addEventListener('keydown', (event) => { if (event.key === 'Enter') runSearch(); });
-
-  if (!hasExplicitDate) {
-    try {
-      setStatus('Looking for the most recent date with published permit activity for CB6.', 'Loading…');
-      const latest = await findLatestAvailableResult(dom.date.value, 14);
-      dom.date.value = latest.isoDate;
-      const fallbackNotice = latest.usedFallback
-        ? (latest.usedAnyPermitFallback
-            ? 'Showing the most recent published permit day with any permit activity.'
-            : 'Showing the most recent published permit day with building permit activity instead of a DOT-only same-day view.')
-        : '';
-      await runSearch(latest.result, { fallbackNotice });
-      return;
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
+  setStatus(`Loading permit records active on ${formatHumanDate(dom.date.value)}.`, 'Loading…');
   runSearch();
 }
+
 
 document.addEventListener('DOMContentLoaded', init);
 </script>

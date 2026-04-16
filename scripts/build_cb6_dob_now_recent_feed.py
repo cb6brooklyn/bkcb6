@@ -9,6 +9,7 @@ import requests
 BASE_URL = "https://data.cityofnewyork.us/resource/rbx6-tga4.json"
 SELECT_FIELDS = [
     "issued_date",
+    "expired_date",
     "house_no",
     "street_name",
     "work_type",
@@ -58,6 +59,7 @@ def fetch_all_rows() -> list[dict]:
 def clean_row(row: dict) -> dict:
     return {
         "issued_date": row.get("issued_date", ""),
+        "expired_date": row.get("expired_date", ""),
         "house_no": row.get("house_no", ""),
         "street_name": row.get("street_name", ""),
         "work_type": row.get("work_type", ""),
@@ -79,7 +81,7 @@ def main() -> None:
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source": "NYC Open Data rbx6-tga4",
-        "description": "CB6 Brooklyn DOB NOW permits issued on or after 2026-01-01.",
+        "description": "CB6 Brooklyn DOB NOW permits issued on or after 2026-01-01, including expiration dates for active-window lookups.",
         "record_count": len(rows),
         "rows": rows,
     }
