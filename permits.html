@@ -164,6 +164,7 @@ tbody tr:hover{background:#fcfbf9}
             <option value="NYC Streets / DOT">NYC Streets / DOT only</option>
             <option value="Permitted Events">Permitted events only</option>
             <option value="Street Resurfacing">Street resurfacing only</option>
+            <option value="Film Permits">Film permits only</option>
           </select>
         </div>
       </div>
@@ -371,7 +372,8 @@ const MAP_SOURCE_META = {
   'BIS': { label: 'BIS', stroke: '#1d4ed8', fill: '#60a5fa' },
   'NYC Streets / DOT': { label: 'NYC Streets / DOT', stroke: '#9a3412', fill: '#f47920' },
   'Permitted Events': { label: 'Permitted events', stroke: '#1d4ed8', fill: '#93c5fd' },
-  'Street Resurfacing': { label: 'Street resurfacing', stroke: '#7c2d12', fill: '#fb7185' }
+  'Street Resurfacing': { label: 'Street resurfacing', stroke: '#7c2d12', fill: '#fb7185' },
+  'Film Permits': { label: 'Film permits', stroke: '#4338ca', fill: '#818cf8' }
 };
 
 const mapLayerState = Object.fromEntries(Object.keys(MAP_SOURCE_META).map(source => [source, true]));
@@ -426,12 +428,14 @@ function buildPermitSearchText(row) {
 
 function buildFilmSearchText(row) {
   return [
+    row.source,
     row.category,
     row.subcategory,
     row.address,
     row.agency,
     row.reference,
     row.active_window_label,
+    row.event_type,
     row.community_boards.join(' '),
     row.police_precincts.join(' '),
     row.zip_codes.join(' ')
@@ -844,7 +848,13 @@ function normalizeResurfacingRow(row) {
 function normalizeFilmRow(row) {
   const activeStartDate = normalizeDateOnly(row.start_datetime);
   const activeEndDate = normalizeDateOnly(row.end_datetime) || activeStartDate;
+  const geometry = row && row.geojson_geometry && typeof row.geojson_geometry === 'object' ? row.geojson_geometry : null;
+  const center = geometry ? geometryToLatLng(geometry) : {
+    lat: parseFloat(row.latitude),
+    lng: parseFloat(row.longitude)
+  };
   return {
+    source: 'Film Permits',
     category: row.category || 'Production',
     subcategory: row.subcategory || '—',
     address: row.parking_held || 'Location not provided',
@@ -858,7 +868,10 @@ function normalizeFilmRow(row) {
     zip_codes: Array.isArray(row.zip_codes) ? row.zip_codes : [],
     sort_key: row.start_datetime || row.end_datetime || '',
     event_type: row.event_type || '',
-    entered_on: row.entered_on || ''
+    entered_on: row.entered_on || '',
+    lat: Number.isFinite(center.lat) ? center.lat : NaN,
+    lng: Number.isFinite(center.lng) ? center.lng : NaN,
+    geojson_geometry: geometry
   };
 }
 
@@ -1177,9 +1190,13 @@ function getFilteredPermits() {
 }
 
 function getFilteredFilmPermits() {
+  const source = dom.sourceFilter.value;
   const text = (dom.addressFilter.value || '').trim();
   const rows = Array.isArray(allFilmPermits) ? allFilmPermits : [];
-  return rows.filter(row => matchesTokenizedSearch(buildFilmSearchText(row), text));
+  return rows.filter(row => {
+    if (source !== 'all' && source !== 'Film Permits') return false;
+    return matchesTokenizedSearch(buildFilmSearchText(row), text);
+  });
 }
 
 function updateSummary(allRows, filteredRows, isoDate) {
@@ -1310,10 +1327,11 @@ function renderFilteredResults() {
   const filmPermitRows = Array.isArray(allFilmPermits) ? allFilmPermits : [];
   const rows = getFilteredPermits();
   const filmRows = getFilteredFilmPermits();
-  const mapRows = getMapRows(rows);
+  const combinedRows = [...rows, ...filmRows];
+  const mapRows = getMapRows(combinedRows);
   updateSummary(permitRows, rows, dom.date.value);
   renderTable(rows);
-  renderMapLayerControls(rows);
+  renderMapLayerControls(combinedRows);
   renderMap(mapRows);
   updateFilmSummary(filmPermitRows, filmRows, dom.date.value);
   renderFilmTable(filmRows);
