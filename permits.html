@@ -91,6 +91,13 @@ tbody td{padding:12px;border-bottom:1px solid var(--border);vertical-align:top;f
 tbody tr:hover{background:#fcfbf9}
 .mono{font-family:'DM Mono',monospace}
 .type-pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#fff3e0;color:#a34d09;font-size:.67rem;font-family:'DM Mono',monospace;font-weight:700}
+.type-pill.event-sport-youth{background:#dbeafe;color:#1d4ed8}
+.type-pill.event-sport-adult{background:#c7d2fe;color:#3730a3}
+.type-pill.event-street-fair{background:#fee2e2;color:#b91c1c}
+.type-pill.event-market{background:#dcfce7;color:#166534}
+.type-pill.event-parade-race{background:#ede9fe;color:#6d28d9}
+.type-pill.event-special{background:#fef3c7;color:#92400e}
+.type-pill.event-other{background:#e0f2fe;color:#0f766e}
 .source-pill{display:inline-block;padding:4px 8px;border-radius:999px;font-size:.66rem;font-family:'DM Mono',monospace;font-weight:700}
 .source-bis{background:var(--blue-bg);color:var(--blue)}
 .source-now{background:var(--green-bg);color:var(--green)}
@@ -101,9 +108,11 @@ tbody tr:hover{background:#fcfbf9}
 .source-link:hover{text-decoration:underline}
 .map-tools{padding:14px 16px;border-bottom:1px solid var(--border);display:grid;gap:14px;background:#fcfbf8}
 .map-tools p{margin:0;font-size:.76rem;color:var(--muted);line-height:1.5}
+.legend-section{display:grid;gap:8px}
 .legend-row,.layer-toggle-row{display:flex;flex-wrap:wrap;gap:10px}
 .legend-item,.layer-toggle{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:999px;background:#fff;font-size:.74rem;color:#2c3a57}
 .legend-swatch{width:12px;height:12px;border-radius:999px;border:2px solid currentColor;box-sizing:border-box;display:inline-block;background:currentColor;opacity:.92}
+.legend-count{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted)}
 .layer-toggle{cursor:pointer;user-select:none}
 .layer-toggle input{margin:0}
 .layer-toggle-count{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted)}
@@ -209,9 +218,13 @@ tbody tr:hover{background:#fcfbf9}
           <div class="mono" id="mapCount">0 pins</div>
         </div>
         <div class="map-tools">
-          <div>
+          <div class="legend-section">
             <p><strong>Legend.</strong> Each mapped source uses a distinct color so visitors can identify permit and activity types at a glance.</p>
             <div class="legend-row" id="mapLegend"></div>
+          </div>
+          <div class="legend-section">
+            <p><strong>Event types.</strong> Street fairs, sports, markets, parades, and other event records use their own colors in the map and listings.</p>
+            <div class="legend-row" id="eventSubtypeLegend"></div>
           </div>
           <div>
             <p><strong>Visible layers.</strong> Turn sources on or off to focus the map on the permit types you want to see.</p>
@@ -331,6 +344,7 @@ const dom = {
   tableSubhead: document.getElementById('tableSubhead'),
   mapCount: document.getElementById('mapCount'),
   mapLegend: document.getElementById('mapLegend'),
+  eventSubtypeLegend: document.getElementById('eventSubtypeLegend'),
   mapLayerControls: document.getElementById('mapLayerControls'),
   statDate: document.getElementById('statDate'),
   statTotal: document.getElementById('statTotal'),
@@ -374,6 +388,16 @@ const MAP_SOURCE_META = {
   'Permitted Events': { label: 'Permitted events', stroke: '#1d4ed8', fill: '#93c5fd' },
   'Street Resurfacing': { label: 'Street resurfacing', stroke: '#7c2d12', fill: '#fb7185' },
   'Film Permits': { label: 'Film permits', stroke: '#4338ca', fill: '#818cf8' }
+};
+
+const EVENT_TYPE_META = {
+  sport_youth: { label: 'Youth sports', stroke: '#1d4ed8', fill: '#93c5fd', pillClass: 'event-sport-youth' },
+  sport_adult: { label: 'Adult sports', stroke: '#3730a3', fill: '#a5b4fc', pillClass: 'event-sport-adult' },
+  street_fair: { label: 'Street fairs', stroke: '#b91c1c', fill: '#fca5a5', pillClass: 'event-street-fair' },
+  farmers_market: { label: 'Farmers markets', stroke: '#166534', fill: '#86efac', pillClass: 'event-market' },
+  parade_race: { label: 'Parades & races', stroke: '#6d28d9', fill: '#c4b5fd', pillClass: 'event-parade-race' },
+  special_event: { label: 'Special events', stroke: '#92400e', fill: '#fcd34d', pillClass: 'event-special' },
+  other_event: { label: 'Other events', stroke: '#0f766e', fill: '#67e8f9', pillClass: 'event-other' }
 };
 
 const mapLayerState = Object.fromEntries(Object.keys(MAP_SOURCE_META).map(source => [source, true]));
@@ -453,10 +477,47 @@ function initMap() {
   renderMapLegend();
 }
 
+function eventSubtypeKey(value) {
+  const text = String(value || '').trim().toLowerCase();
+  if (!text) return 'other_event';
+  if (/farmers market/.test(text)) return 'farmers_market';
+  if (/street event|street fair/.test(text)) return 'street_fair';
+  if (/parade|athletic race|tour/.test(text)) return 'parade_race';
+  if (/sport\s*-\s*youth/.test(text)) return 'sport_youth';
+  if (/sport\s*-\s*adult/.test(text)) return 'sport_adult';
+  if (/special event/.test(text)) return 'special_event';
+  return 'other_event';
+}
+
+function getEventTypeMeta(rowOrType) {
+  const rawValue = typeof rowOrType === 'string'
+    ? rowOrType
+    : (rowOrType?.event_type || rowOrType?.raw_type || rowOrType?.permit_type || '');
+  return EVENT_TYPE_META[eventSubtypeKey(rawValue)] || EVENT_TYPE_META.other_event;
+}
+
+function getPermitTypePillClass(row) {
+  if (row?.source === 'Permitted Events') {
+    return `type-pill ${getEventTypeMeta(row).pillClass}`;
+  }
+  return 'type-pill';
+}
+
 function renderMapLegend() {
   dom.mapLegend.innerHTML = Object.entries(MAP_SOURCE_META).map(([source, meta]) => {
     const style = `color:${meta.stroke};background:${meta.fill};border-color:${meta.stroke}`;
     return `<span class="legend-item"><span class="legend-swatch" style="${style}"></span>${escapeHtml(meta.label)}</span>`;
+  }).join('');
+}
+
+function renderEventSubtypeLegend(rows = []) {
+  const counts = Object.fromEntries(Object.keys(EVENT_TYPE_META).map(key => [key, 0]));
+  rows.filter(row => row?.source === 'Permitted Events').forEach(row => {
+    counts[eventSubtypeKey(row.event_type || row.raw_type || row.permit_type)] += 1;
+  });
+  dom.eventSubtypeLegend.innerHTML = Object.entries(EVENT_TYPE_META).map(([key, meta]) => {
+    const style = `color:${meta.stroke};background:${meta.fill};border-color:${meta.stroke}`;
+    return `<span class="legend-item"><span class="legend-swatch" style="${style}"></span>${escapeHtml(meta.label)}<span class="legend-count">${counts[key].toLocaleString()}</span></span>`;
   }).join('');
 }
 
@@ -501,12 +562,13 @@ function getMarkerStyle(row) {
     };
   }
   if (row?.source === 'Permitted Events') {
+    const meta = getEventTypeMeta(row);
     return {
       radius: 7,
-      color: '#1d4ed8',
+      color: meta.stroke,
       weight: 2,
       opacity: 1,
-      fillColor: '#60a5fa',
+      fillColor: meta.fill,
       fillOpacity: 0.92
     };
   }
@@ -793,27 +855,32 @@ function normalizePermittedEventRow(row) {
   const activeStartDate = normalizeDateOnly(row.start_datetime);
   const activeEndDate = normalizeDateOnly(row.end_datetime) || activeStartDate;
   const locationBits = [row.address || row.event_location, row.event_street_side].filter(Boolean);
+  const eventType = row.event_type || 'Permitted event';
+  const eventMeta = getEventTypeMeta(eventType);
   return {
     source: 'Permitted Events',
+    event_type: eventType,
+    event_subtype_key: eventSubtypeKey(eventType),
+    event_subtype_label: eventMeta.label,
     issued_date: activeStartDate,
     issued_display: activeStartDate || '',
     active_start_date: activeStartDate,
     active_end_date: activeEndDate,
     active_window_label: buildDateTimeWindowLabel(row.start_datetime, row.end_datetime),
     address: locationBits.join(' — ') || 'Location not provided',
-    permit_type: row.event_type || 'Permitted event',
+    permit_type: eventType,
     owner_or_applicant: row.event_agency || '—',
     status: row.street_closure_type || 'Scheduled',
     reference: row.event_id || '—',
     detail_url: '',
     lat: parseFloat(row.lat),
     lng: parseFloat(row.lng),
-    raw_type: row.event_type || 'Permitted event',
+    raw_type: eventType,
     sort_key: row.start_datetime || row.end_datetime || '',
     block: '',
     lot: '',
     geojson_geometry: row.geojson_geometry || null,
-    route_text: [row.event_name, row.event_location, row.event_street_side].filter(Boolean).join(' | ')
+    route_text: [row.event_name, row.event_location, row.event_street_side, eventMeta.label].filter(Boolean).join(' | ')
   };
 }
 
@@ -1229,11 +1296,15 @@ function renderTable(rows) {
       ? `<div style="margin-top:6px"><a class="source-link" href="https://maps.google.com/?q=${row.lat},${row.lng}" target="_blank" rel="noopener">View map</a></div>`
       : '';
     const issuedWindowHtml = `<div class="mono">${escapeHtml(row.issued_display || '—')}</div>${row.active_window_label ? `<div style="margin-top:4px;font-size:.74rem;color:#6b6760">${escapeHtml(row.active_window_label)}</div>` : ''}`;
+    const typePillClass = getPermitTypePillClass(row);
+    const subtypeNote = row.source === 'Permitted Events' && row.event_subtype_label && row.event_subtype_label !== row.permit_type
+      ? `<div style="margin-top:6px;color:#6b6760;font-size:.76rem">${escapeHtml(row.event_subtype_label)}</div>`
+      : '';
     return `<tr>
       <td><span class="source-pill ${sourceClass}">${escapeHtml(row.source)}</span></td>
       <td>${issuedWindowHtml}</td>
       <td><strong>${escapeHtml(row.address || '—')}</strong>${mapLink}</td>
-      <td><span class="type-pill">${escapeHtml(row.permit_type || 'Permit')}</span></td>
+      <td><span class="${typePillClass}">${escapeHtml(row.permit_type || 'Permit')}</span>${subtypeNote}</td>
       <td>${escapeHtml(row.owner_or_applicant || '—')}</td>
       <td>${escapeHtml(row.status || '—')}</td>
       <td class="mono">${refHtml}</td>
@@ -1332,6 +1403,7 @@ function renderFilteredResults() {
   updateSummary(permitRows, rows, dom.date.value);
   renderTable(rows);
   renderMapLayerControls(combinedRows);
+  renderEventSubtypeLegend(mapRows);
   renderMap(mapRows);
   updateFilmSummary(filmPermitRows, filmRows, dom.date.value);
   renderFilmTable(filmRows);
