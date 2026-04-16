@@ -275,6 +275,7 @@ const BOARD_CONFIG = {
   dobNowCommunityBoard: '306',
   boundaryPath: 'data/cb6_boundary.geojson',
   dobNowRecentPath: 'data/cb6_dob_now_recent.json',
+  dotRecentPath: 'data/cb6_dot_recent.json',
   center: [40.6785, -73.9944],
   zoom: 13
 };
@@ -307,6 +308,7 @@ let markersLayer;
 let boundaryLayer;
 let boundaryFeature = null;
 let dobNowRecentFeed = null;
+let dotRecentFeed = null;
 
 function localIsoDate() {
   const now = new Date();
@@ -652,12 +654,53 @@ function intersectsBoundary(geometry) {
   }
 }
 
+async function getDotRecentFeed() {
+  if (dotRecentFeed) return dotRecentFeed;
+  const response = await fetch(BOARD_CONFIG.dotRecentPath);
+  if (!response.ok) throw new Error(`NYC Streets / DOT local feed request failed with status ${response.status}.`);
+  const payload = await response.json();
+  dotRecentFeed = safeRows(payload && payload.rows);
+  return dotRecentFeed;
+}
+
+function dedupeDotRows(rows) {
+  const seen = new Set();
+  return rows.filter(row => {
+    const key = row.reference || `${row.issued_date}|${row.address}|${row.route_text}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 async function fetchDotData(isoDate) {
   await ensureBoundaryLoaded();
-  const rows = await fetchJsonRows(buildDotUrl(isoDate), 'NYC Streets / DOT');
-  return rows
-    .map(normalizeDotRow)
-    .filter(row => row.geojson_geometry && intersectsBoundary(row.geojson_geometry));
+  const normalized = [];
+  if (isoDate >= '2026-01-01') {
+    try {
+      const localRows = await getDotRecentFeed();
+      normalized.push(
+        ...localRows
+          .filter(row => String(row.permitissuedate || '').slice(0, 10) === isoDate)
+          .map(normalizeDotRow)
+          .filter(row => row.geojson_geometry && intersectsBoundary(row.geojson_geometry))
+      );
+    } catch (err) {
+      console.warn('NYC Streets / DOT local feed could not be loaded.', err);
+    }
+  }
+  try {
+    const liveRows = await fetchJsonRows(buildDotUrl(isoDate), 'NYC Streets / DOT');
+    normalized.push(
+      ...liveRows
+        .map(normalizeDotRow)
+        .filter(row => row.geojson_geometry && intersectsBoundary(row.geojson_geometry))
+    );
+  } catch (err) {
+    if (!normalized.length) throw err;
+    console.warn('NYC Open Data DOT query failed; using same-domain DOT feed only.', err);
+  }
+  return dedupeDotRows(normalized);
 }
 
 async function fetchPermitsForDate(isoDate) {
