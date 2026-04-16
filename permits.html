@@ -100,6 +100,9 @@ tbody tr:hover{background:#fcfbf9}
 .map-empty,.empty{padding:28px 18px;color:var(--muted);font-size:.84rem;line-height:1.6}
 .leaflet-container{font-family:'DM Sans',sans-serif}
 .leaflet-popup-content{margin:12px 14px}
+.permit-logo-icon{background:transparent;border:none}
+.permit-logo-badge{width:34px;height:34px;border-radius:999px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px rgba(13,27,75,.24),0 0 0 2px rgba(255,255,255,.96);overflow:hidden}
+.permit-logo-badge img{width:26px;height:26px;object-fit:contain;display:block}
 @media (max-width: 980px){
   .map-wrap{height:360px}
 }
@@ -329,6 +332,12 @@ let dobNowRecentFeed = null;
 let dotRecentFeed = null;
 let filmPermitsFeed = null;
 const bisRecentFeedCache = {};
+const LOGO_ICON_PATHS = {
+  dob: 'assets/permit-icons/dob-logo.png',
+  dot: 'assets/permit-icons/dot-logo.png',
+  film: 'assets/permit-icons/film-logo.png'
+};
+const markerIconCache = {};
 
 function localIsoDate() {
   const now = new Date();
@@ -354,6 +363,29 @@ function initMap() {
   }).addTo(map);
   markersLayer = L.layerGroup().addTo(map);
   map.setView(BOARD_CONFIG.center, BOARD_CONFIG.zoom);
+}
+
+function getLogoKeyForRow(row) {
+  if (!row) return 'dob';
+  if (row.source === 'NYC Streets / DOT') return 'dot';
+  if (row.source === 'DOB NOW' || row.source === 'BIS') return 'dob';
+  if (row.category || /media|entertainment|film/i.test(String(row.agency || ''))) return 'film';
+  return 'dob';
+}
+
+function getMarkerIcon(row) {
+  const key = getLogoKeyForRow(row);
+  if (!markerIconCache[key]) {
+    const src = LOGO_ICON_PATHS[key] || LOGO_ICON_PATHS.dob;
+    markerIconCache[key] = L.divIcon({
+      className: 'permit-logo-icon',
+      html: `<div class="permit-logo-badge"><img src="${src}" alt="${key.toUpperCase()} permit marker"></div>`,
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+      popupAnchor: [0, -16]
+    });
+  }
+  return markerIconCache[key];
 }
 
 function formatHumanDate(isoDate) {
@@ -995,21 +1027,18 @@ function renderMap(rows) {
     document.querySelector('#permitMap').setAttribute('data-empty', '1');
     return;
   }
+  document.querySelector('#permitMap').removeAttribute('data-empty');
   const bounds = [];
   mapped.forEach(row => {
-    const isDot = row.source === 'NYC Streets / DOT';
-    const marker = L.circleMarker([row.lat, row.lng], {
-      radius: isDot ? 6.5 : (row.source === 'DOB NOW' ? 7 : 6),
-      weight: 1.5,
-      color: isDot ? '#92400e' : (row.source === 'DOB NOW' ? '#2d6a4f' : '#1d4ed8'),
-      fillColor: isDot ? '#fdba74' : (row.source === 'DOB NOW' ? '#7ad7a2' : '#7fb0ff'),
-      fillOpacity: 0.88
-    }).bindPopup(
+    const sourceLabel = row.source || row.agency || row.category || 'Permit';
+    const permitLabel = row.permit_type || row.subcategory || row.category || 'Permit';
+    const issueLabel = row.issued_display || row.active_window_label || '—';
+    const marker = L.marker([row.lat, row.lng], { icon: getMarkerIcon(row), keyboard: false }).bindPopup(
       `<div style="min-width:220px">
-        <div style="font-size:.72rem;font-family:'DM Mono',monospace;color:#6b6760;text-transform:uppercase;letter-spacing:.06em">${escapeHtml(row.source)}</div>
+        <div style="font-size:.72rem;font-family:'DM Mono',monospace;color:#6b6760;text-transform:uppercase;letter-spacing:.06em">${escapeHtml(sourceLabel)}</div>
         <div style="font-size:.95rem;font-weight:700;color:#0d1b4b;margin-top:4px">${escapeHtml(row.address || 'Address unavailable')}</div>
-        <div style="font-size:.82rem;color:#2c3a57;margin-top:6px">${escapeHtml(row.permit_type || 'Permit')}</div>
-        <div style="font-size:.8rem;color:#6b6760;margin-top:4px">Issued: ${escapeHtml(row.issued_display || '—')}</div>
+        <div style="font-size:.82rem;color:#2c3a57;margin-top:6px">${escapeHtml(permitLabel)}</div>
+        <div style="font-size:.8rem;color:#6b6760;margin-top:4px">Issued / start: ${escapeHtml(issueLabel)}</div>
         ${row.active_window_label ? `<div style="font-size:.78rem;color:#6b6760;margin-top:4px">Window: ${escapeHtml(row.active_window_label)}</div>` : ''}
       </div>`
     );
