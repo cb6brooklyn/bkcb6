@@ -98,6 +98,14 @@ tbody tr:hover{background:#fcfbf9}
 .source-resurfacing{background:#ffe4e6;color:#be123c}
 .source-link{color:var(--orange);font-weight:700;text-decoration:none}
 .source-link:hover{text-decoration:underline}
+.map-tools{padding:14px 16px;border-bottom:1px solid var(--border);display:grid;gap:14px;background:#fcfbf8}
+.map-tools p{margin:0;font-size:.76rem;color:var(--muted);line-height:1.5}
+.legend-row,.layer-toggle-row{display:flex;flex-wrap:wrap;gap:10px}
+.legend-item,.layer-toggle{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:999px;background:#fff;font-size:.74rem;color:#2c3a57}
+.legend-swatch{width:12px;height:12px;border-radius:999px;border:2px solid currentColor;box-sizing:border-box;display:inline-block;background:currentColor;opacity:.92}
+.layer-toggle{cursor:pointer;user-select:none}
+.layer-toggle input{margin:0}
+.layer-toggle-count{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted)}
 .map-wrap{height:560px;background:#eef3f8}
 .map-empty,.empty{padding:28px 18px;color:var(--muted);font-size:.84rem;line-height:1.6}
 .leaflet-container{font-family:'DM Sans',sans-serif}
@@ -196,6 +204,16 @@ tbody tr:hover{background:#fcfbf9}
             <p>Permit, event, and resurfacing locations within the CB6 boundary for the selected day.</p>
           </div>
           <div class="mono" id="mapCount">0 pins</div>
+        </div>
+        <div class="map-tools">
+          <div>
+            <p><strong>Legend.</strong> Each mapped source uses a distinct color so visitors can identify permit and activity types at a glance.</p>
+            <div class="legend-row" id="mapLegend"></div>
+          </div>
+          <div>
+            <p><strong>Visible layers.</strong> Turn sources on or off to focus the map on the permit types you want to see.</p>
+            <div class="layer-toggle-row" id="mapLayerControls"></div>
+          </div>
         </div>
         <div id="permitMap" class="map-wrap" aria-label="Permit map"></div>
       </aside>
@@ -310,6 +328,8 @@ const dom = {
   tableCount: document.getElementById('tableCount'),
   tableSubhead: document.getElementById('tableSubhead'),
   mapCount: document.getElementById('mapCount'),
+  mapLegend: document.getElementById('mapLegend'),
+  mapLayerControls: document.getElementById('mapLayerControls'),
   statDate: document.getElementById('statDate'),
   statTotal: document.getElementById('statTotal'),
   statDobNow: document.getElementById('statDobNow'),
@@ -345,6 +365,16 @@ let resurfacingFeed = null;
 let filmPermitsFeed = null;
 const bisRecentFeedCache = {};
 
+const MAP_SOURCE_META = {
+  'DOB NOW': { label: 'DOB NOW', stroke: '#0f766e', fill: '#14b8a6' },
+  'BIS': { label: 'BIS', stroke: '#1d4ed8', fill: '#60a5fa' },
+  'NYC Streets / DOT': { label: 'NYC Streets / DOT', stroke: '#9a3412', fill: '#f47920' },
+  'Permitted Events': { label: 'Permitted events', stroke: '#1d4ed8', fill: '#93c5fd' },
+  'Street Resurfacing': { label: 'Street resurfacing', stroke: '#7c2d12', fill: '#fb7185' }
+};
+
+const mapLayerState = Object.fromEntries(Object.keys(MAP_SOURCE_META).map(source => [source, true]));
+
 function localIsoDate() {
   const now = new Date();
   const yyyy = now.getFullYear();
@@ -369,9 +399,46 @@ function initMap() {
   }).addTo(map);
   markersLayer = L.layerGroup().addTo(map);
   map.setView(BOARD_CONFIG.center, BOARD_CONFIG.zoom);
+  renderMapLegend();
+}
+
+function renderMapLegend() {
+  dom.mapLegend.innerHTML = Object.entries(MAP_SOURCE_META).map(([source, meta]) => {
+    const style = `color:${meta.stroke};background:${meta.fill};border-color:${meta.stroke}`;
+    return `<span class="legend-item"><span class="legend-swatch" style="${style}"></span>${escapeHtml(meta.label)}</span>`;
+  }).join('');
+}
+
+function renderMapLayerControls(rows = []) {
+  const counts = Object.fromEntries(Object.keys(MAP_SOURCE_META).map(source => [source, 0]));
+  rows.forEach(row => {
+    if (counts[row.source] !== undefined) counts[row.source] += 1;
+  });
+  dom.mapLayerControls.innerHTML = Object.entries(MAP_SOURCE_META).map(([source, meta]) => {
+    const checked = mapLayerState[source] ? 'checked' : '';
+    const style = `color:${meta.stroke};background:${meta.fill};border-color:${meta.stroke}`;
+    return `<label class="layer-toggle"><input type="checkbox" class="map-layer-checkbox" data-source="${escapeHtml(source)}" ${checked}><span class="legend-swatch" style="${style}"></span><span>${escapeHtml(meta.label)}</span><span class="layer-toggle-count">${counts[source].toLocaleString()}</span></label>`;
+  }).join('');
+  dom.mapLayerControls.querySelectorAll('.map-layer-checkbox').forEach(input => {
+    input.addEventListener('change', event => {
+      const source = event.target.getAttribute('data-source');
+      mapLayerState[source] = event.target.checked;
+      renderFilteredResults();
+    });
+  });
 }
 
 function getMarkerStyle(row) {
+  if (row?.source === 'BIS') {
+    return {
+      radius: 7,
+      color: '#1d4ed8',
+      weight: 2,
+      opacity: 1,
+      fillColor: '#60a5fa',
+      fillOpacity: 0.92
+    };
+  }
   if (row?.source === 'NYC Streets / DOT') {
     return {
       radius: 7,
@@ -1081,7 +1148,6 @@ function updateSummary(allRows, filteredRows, isoDate) {
   dom.statResurfacing.textContent = allRows.filter(r => r.source === 'Street Resurfacing').length.toLocaleString();
   dom.statMapped.textContent = mapped.length.toLocaleString();
   dom.tableCount.textContent = `${filteredRows.length.toLocaleString()} record${filteredRows.length === 1 ? '' : 's'}`;
-  dom.mapCount.textContent = `${mapped.length.toLocaleString()} pin${mapped.length === 1 ? '' : 's'}`;
   dom.tableSubhead.textContent = filteredRows.length
     ? `Showing ${filteredRows.length.toLocaleString()} active construction, street, event, and resurfacing record${filteredRows.length === 1 ? '' : 's'} in ${BOARD_CONFIG.title} on ${formatHumanDate(isoDate)}.`
     : `No active records matched the current filters for ${formatHumanDate(isoDate)}.`;
@@ -1154,6 +1220,7 @@ function renderFilmTable(rows) {
 function renderMap(rows) {
   markersLayer.clearLayers();
   const mapped = rows.filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng));
+  dom.mapCount.textContent = `${mapped.length.toLocaleString()} visible pin${mapped.length === 1 ? '' : 's'}`;
   if (!mapped.length) {
     if (boundaryLayer) {
       map.fitBounds(boundaryLayer.getBounds(), { padding: [18, 18] });
@@ -1189,12 +1256,18 @@ function renderMap(rows) {
   map.fitBounds(bounds, { padding: [24, 24] });
 }
 
+function getMapRows(rows) {
+  return rows.filter(row => mapLayerState[row.source] !== false);
+}
+
 function renderFilteredResults() {
   const rows = getFilteredPermits();
   const filmRows = getFilteredFilmPermits();
+  const mapRows = getMapRows(rows);
   updateSummary(allPermits, rows, dom.date.value);
   renderTable(rows);
-  renderMap(rows);
+  renderMapLayerControls(rows);
+  renderMap(mapRows);
   updateFilmSummary(allFilmPermits, filmRows, dom.date.value);
   renderFilmTable(filmRows);
 }
