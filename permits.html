@@ -831,15 +831,20 @@ function setStatus(message, strong) {
 async function findLatestAvailableResult(startIsoDate, maxLookbackDays = 14) {
   let probeDate = startIsoDate;
   let lastResult = null;
+  let fallbackAny = null;
   for (let i = 0; i <= maxLookbackDays; i += 1) {
     const result = await fetchPermitsForDate(probeDate);
-    if (result.combined.length) {
-      return { isoDate: probeDate, result, usedFallback: i > 0 };
+    const hasBuildingPermit = (result.dobNowData && result.dobNowData.length) || (result.bisData && result.bisData.length);
+    if (hasBuildingPermit) {
+      return { isoDate: probeDate, result, usedFallback: i > 0, usedAnyPermitFallback: false };
+    }
+    if (!fallbackAny && result.combined.length) {
+      fallbackAny = { isoDate: probeDate, result, usedFallback: i > 0, usedAnyPermitFallback: true };
     }
     lastResult = result;
     probeDate = previousIsoDate(probeDate);
   }
-  return { isoDate: startIsoDate, result: lastResult || { combined: [], warnings: [] }, usedFallback: false };
+  return fallbackAny || { isoDate: startIsoDate, result: lastResult || { combined: [], warnings: [] }, usedFallback: false, usedAnyPermitFallback: false };
 }
 
 async function runSearch(preloadedResult = null, options = {}) {
@@ -902,7 +907,9 @@ async function init() {
       const latest = await findLatestAvailableResult(dom.date.value, 14);
       dom.date.value = latest.isoDate;
       const fallbackNotice = latest.usedFallback
-        ? 'Showing the most recent published permit day instead of an empty same-day search.'
+        ? (latest.usedAnyPermitFallback
+            ? 'Showing the most recent published permit day with any permit activity.'
+            : 'Showing the most recent published permit day with building permit activity instead of a DOT-only same-day view.')
         : '';
       await runSearch(latest.result, { fallbackNotice });
       return;
