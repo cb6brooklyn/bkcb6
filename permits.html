@@ -130,7 +130,7 @@ tbody tr:hover{background:#fcfbf9}
       <div class="hero-meta">
         <div class="meta-pill"><span class="label">District</span><span class="value" id="metaBoardName">BK CB6</span></div>
         <div class="meta-pill"><span class="label">Sources</span><span class="value">BIS + DOB NOW + DOT</span></div>
-        <div class="meta-pill"><span class="label">Default View</span><span class="value">Today</span></div>
+        <div class="meta-pill"><span class="label">Default View</span><span class="value">Latest data</span></div>
       </div>
     </div>
   </div>
@@ -141,7 +141,7 @@ tbody tr:hover{background:#fcfbf9}
     <div class="controls">
       <p class="section-kicker">District-wide permit lookup</p>
       <h2>Search permits issued on a selected date.</h2>
-      <p>The default search is today. You can change the date, keep the result limited to official Brooklyn Community Board 6 records, and optionally filter the returned list by an address or street name. DOB sources are filtered by their published community-board codes, while the NYC DOT street-permit feed is filtered to CB6 by intersecting permit geometry with the official district boundary.</p>
+      <p>The default search opens on the most recent date with published permit activity. You can change the date, keep the result limited to official Brooklyn Community Board 6 records, and optionally filter the returned list by an address or street name. DOB sources are filtered by their published community-board codes, while the NYC DOT street-permit feed is filtered to CB6 by intersecting permit geometry with the official district boundary.</p>
       <div class="control-grid">
         <div class="field">
           <label for="permitDate">Issued date</label>
@@ -168,7 +168,7 @@ tbody tr:hover{background:#fcfbf9}
     </div>
 
     <div class="status-row">
-      <div class="status-msg" id="statusMsg"><strong>Ready.</strong> Choose a date or run the default search for today.</div>
+      <div class="status-msg" id="statusMsg"><strong>Ready.</strong> Choose a date or load the most recent published permit day.</div>
       <div class="badges">
         <span class="badge green">District filter: CB6</span>
         <span class="badge blue">Official sources: NYC Open Data</span>
@@ -317,7 +317,9 @@ function localIsoDate() {
 function setDefaultDate() {
   const params = new URLSearchParams(window.location.search);
   const dateParam = params.get('date');
-  dom.date.value = /^\d{4}-\d{2}-\d{2}$/.test(dateParam || '') ? dateParam : localIsoDate();
+  const hasExplicitDate = /^\d{4}-\d{2}-\d{2}$/.test(dateParam || '');
+  dom.date.value = hasExplicitDate ? dateParam : localIsoDate();
+  return hasExplicitDate;
 }
 
 function initMap() {
@@ -344,6 +346,12 @@ function formatBisDate(isoDate) {
 function nextIsoDate(isoDate) {
   const d = new Date(isoDate + 'T00:00:00');
   d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function previousIsoDate(isoDate) {
+  const d = new Date(isoDate + 'T00:00:00');
+  d.setDate(d.getDate() - 1);
   return d.toISOString().slice(0, 10);
 }
 
@@ -751,7 +759,21 @@ function setStatus(message, strong) {
   dom.statusMsg.innerHTML = `<strong>${escapeHtml(strong)}</strong> ${escapeHtml(message)}`;
 }
 
-async function runSearch() {
+async function findLatestAvailableResult(startIsoDate, maxLookbackDays = 14) {
+  let probeDate = startIsoDate;
+  let lastResult = null;
+  for (let i = 0; i <= maxLookbackDays; i += 1) {
+    const result = await fetchPermitsForDate(probeDate);
+    if (result.combined.length) {
+      return { isoDate: probeDate, result, usedFallback: i > 0 };
+    }
+    lastResult = result;
+    probeDate = previousIsoDate(probeDate);
+  }
+  return { isoDate: startIsoDate, result: lastResult || { combined: [], warnings: [] }, usedFallback: false };
+}
+
+async function runSearch(preloadedResult = null, options = {}) {
   const isoDate = dom.date.value;
   if (!isoDate) {
     setStatus('Please select a valid date before searching.', 'Missing date.');
@@ -761,15 +783,16 @@ async function runSearch() {
   setStatus(`Loading official permit records for ${BOARD_CONFIG.shortTitle} on ${formatHumanDate(isoDate)}.`, 'Searching…');
   dom.tableBody.innerHTML = '<tr><td colspan="7" class="empty">Loading permit data…</td></tr>';
   try {
-    const result = await fetchPermitsForDate(isoDate);
+    const result = preloadedResult || await fetchPermitsForDate(isoDate);
+    const fallbackNotice = options.fallbackNotice ? `${options.fallbackNotice} ` : '';
     allPermits = result.combined;
     renderFilteredResults();
     if (!allPermits.length) {
       setStatus(`No permit records were returned for ${formatHumanDate(isoDate)}. Try another day.`, 'No results.');
     } else if (result.warnings.length) {
-      setStatus(`Loaded ${allPermits.length.toLocaleString()} permit record${allPermits.length === 1 ? '' : 's'} for ${formatHumanDate(isoDate)}, but one or more sources had problems: ${result.warnings.join(' ')}`, 'Loaded with warning.');
+      setStatus(`${fallbackNotice}Loaded ${allPermits.length.toLocaleString()} permit record${allPermits.length === 1 ? '' : 's'} for ${formatHumanDate(isoDate)}, but one or more sources had problems: ${result.warnings.join(' ')}`, 'Loaded with warning.');
     } else {
-      setStatus(`Loaded ${allPermits.length.toLocaleString()} permit record${allPermits.length === 1 ? '' : 's'} from BIS, DOB NOW, and NYC Streets / DOT for ${formatHumanDate(isoDate)}.`, 'Loaded.');
+      setStatus(`${fallbackNotice}Loaded ${allPermits.length.toLocaleString()} permit record${allPermits.length === 1 ? '' : 's'} from BIS, DOB NOW, and NYC Streets / DOT for ${formatHumanDate(isoDate)}.`, 'Loaded.');
     }
   } catch (err) {
     console.error(err);
@@ -788,7 +811,7 @@ function handleToday() {
 
 async function init() {
   dom.metaBoardName.textContent = BOARD_CONFIG.shortTitle;
-  setDefaultDate();
+  const hasExplicitDate = setDefaultDate();
   initMap();
   try {
     await ensureBoundaryLoaded();
@@ -802,6 +825,22 @@ async function init() {
   dom.sourceFilter.addEventListener('change', renderFilteredResults);
   dom.date.addEventListener('keydown', (event) => { if (event.key === 'Enter') runSearch(); });
   dom.addressFilter.addEventListener('keydown', (event) => { if (event.key === 'Enter') runSearch(); });
+
+  if (!hasExplicitDate) {
+    try {
+      setStatus('Looking for the most recent date with published permit activity for CB6.', 'Loading…');
+      const latest = await findLatestAvailableResult(dom.date.value, 14);
+      dom.date.value = latest.isoDate;
+      const fallbackNotice = latest.usedFallback
+        ? 'Showing the most recent published permit day instead of an empty same-day search.'
+        : '';
+      await runSearch(latest.result, { fallbackNotice });
+      return;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   runSearch();
 }
 
