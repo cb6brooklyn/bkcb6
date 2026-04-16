@@ -54,6 +54,7 @@ main{max-width:1280px;margin:0 auto;padding:24px 22px 48px}
 .section-kicker{margin:0 0 8px;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;font-family:'DM Mono',monospace;color:var(--muted)}
 .controls h2{margin:0;font-size:1.12rem;line-height:1.3}
 .controls p{margin:10px 0 0;color:var(--muted);font-size:.9rem;line-height:1.65;max-width:900px}
+.filter-note{margin-top:12px;font-size:.78rem;color:var(--muted);line-height:1.6;max-width:980px}
 .control-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:18px}
 .field label{display:block;margin-bottom:6px;font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;font-family:'DM Mono',monospace;color:var(--muted)}
 .input,.select{width:100%;padding:12px 14px;border:1.5px solid #d7d2c9;border-radius:10px;background:#fff;color:var(--navy);font:inherit}
@@ -144,15 +145,15 @@ tbody tr:hover{background:#fcfbf9}
     <div class="controls">
       <p class="section-kicker">District-wide permit lookup</p>
       <h2>Search permits active on a selected date.</h2>
-      <p>The default search opens on today. When the source data includes an active window, the page shows that record on every covered day, so a search for a future date can still surface work and events that are already published and scheduled to remain active. DOB sources are filtered by their published community-board codes, the NYC DOT street-permit feed is filtered to CB6 by intersecting permit geometry with the official district boundary, and the permitted-events and resurfacing feeds are drawn from official NYC Open Data sources filtered to the district. The separate film-permit section below uses the same selected date and address filter.</p>
+      <p>The default search opens on today for a first-time visit. When the source data includes an active window, the page shows that record on every covered day, so a search for a future date can still surface work and events that are already published and scheduled to remain active. DOB sources are filtered by their published community-board codes, the NYC DOT street-permit feed is filtered to CB6 by intersecting permit geometry with the official district boundary, and the permitted-events and resurfacing feeds are drawn from official NYC Open Data sources filtered to the district. The separate film-permit section below uses the same selected date and search field.</p>
       <div class="control-grid">
         <div class="field">
           <label for="permitDate">Date</label>
           <input class="input" id="permitDate" type="date">
         </div>
         <div class="field">
-          <label for="addressFilter">Address filter</label>
-          <input class="input" id="addressFilter" type="text" placeholder="Optional: 291 Union or Hicks">
+          <label for="addressFilter">Search records</label>
+          <input class="input" id="addressFilter" type="text" placeholder="Address, permit type, owner, reference, or keyword">
         </div>
         <div class="field">
           <label for="sourceFilter">Dataset</label>
@@ -170,10 +171,11 @@ tbody tr:hover{background:#fcfbf9}
         <button class="btn btn-primary" id="loadBtn" type="button">Find permits</button>
         <button class="btn btn-secondary" id="todayBtn" type="button">Use today</button>
       </div>
+      <p class="filter-note">The search box filters the map, the construction records list, and the film-permit list by address, permit type, owner or agency, status, reference number, and other searchable text on each record.</p>
     </div>
 
     <div class="status-row">
-      <div class="status-msg" id="statusMsg"><strong>Ready.</strong> Choose a date to see permits active in CB6 on that day.</div>
+      <div class="status-msg" id="statusMsg"><strong>Ready.</strong> Choose a date and optionally search by address, permit type, or keyword to narrow the active records.</div>
       <div class="badges">
         <span class="badge green">District filter: CB6</span>
         <span class="badge blue">Official sources: NYC Open Data</span>
@@ -389,6 +391,52 @@ function setDefaultDate() {
   const hasExplicitDate = /^\d{4}-\d{2}-\d{2}$/.test(dateParam || '');
   dom.date.value = hasExplicitDate ? dateParam : localIsoDate();
   return hasExplicitDate;
+}
+
+function getSearchTokens(value) {
+  return String(value || '')
+    .toLowerCase()
+    .trim()
+    .split(/[\s,;|/]+/)
+    .filter(Boolean);
+}
+
+function matchesTokenizedSearch(value, query) {
+  const tokens = getSearchTokens(query);
+  if (!tokens.length) return true;
+  const haystack = String(value || '').toLowerCase();
+  return tokens.every(token => haystack.includes(token));
+}
+
+function buildPermitSearchText(row) {
+  return [
+    row.source,
+    row.address,
+    row.permit_type,
+    row.owner_or_applicant,
+    row.status,
+    row.reference,
+    row.route_text,
+    row.issued_display,
+    row.active_window_label,
+    row.bin,
+    row.block,
+    row.lot
+  ].filter(Boolean).join(' ');
+}
+
+function buildFilmSearchText(row) {
+  return [
+    row.category,
+    row.subcategory,
+    row.address,
+    row.agency,
+    row.reference,
+    row.active_window_label,
+    row.community_boards.join(' '),
+    row.police_precincts.join(' '),
+    row.zip_codes.join(' ')
+  ].filter(Boolean).join(' ');
 }
 
 function initMap() {
@@ -1121,20 +1169,18 @@ async function fetchPermitsForDate(isoDate) {
 
 function getFilteredPermits() {
   const source = dom.sourceFilter.value;
-  const text = (dom.addressFilter.value || '').trim().toLowerCase();
-  return allPermits.filter(row => {
+  const text = (dom.addressFilter.value || '').trim();
+  const rows = Array.isArray(allPermits) ? allPermits : [];
+  return rows.filter(row => {
     if (source !== 'all' && row.source !== source) return false;
-    if (!text) return true;
-    return `${row.address} ${row.permit_type} ${row.owner_or_applicant} ${row.reference} ${row.route_text || ''}`.toLowerCase().includes(text);
+    return matchesTokenizedSearch(buildPermitSearchText(row), text);
   });
 }
 
 function getFilteredFilmPermits() {
-  const text = (dom.addressFilter.value || '').trim().toLowerCase();
-  return allFilmPermits.filter(row => {
-    if (!text) return true;
-    return `${row.address} ${row.category} ${row.subcategory} ${row.reference} ${row.community_boards.join(' ')} ${row.police_precincts.join(' ')} ${row.zip_codes.join(' ')}`.toLowerCase().includes(text);
-  });
+  const text = (dom.addressFilter.value || '').trim();
+  const rows = Array.isArray(allFilmPermits) ? allFilmPermits : [];
+  return rows.filter(row => matchesTokenizedSearch(buildFilmSearchText(row), text));
 }
 
 function updateSummary(allRows, filteredRows, isoDate) {
@@ -1261,14 +1307,16 @@ function getMapRows(rows) {
 }
 
 function renderFilteredResults() {
+  const permitRows = Array.isArray(allPermits) ? allPermits : [];
+  const filmPermitRows = Array.isArray(allFilmPermits) ? allFilmPermits : [];
   const rows = getFilteredPermits();
   const filmRows = getFilteredFilmPermits();
   const mapRows = getMapRows(rows);
-  updateSummary(allPermits, rows, dom.date.value);
+  updateSummary(permitRows, rows, dom.date.value);
   renderTable(rows);
   renderMapLayerControls(rows);
   renderMap(mapRows);
-  updateFilmSummary(allFilmPermits, filmRows, dom.date.value);
+  updateFilmSummary(filmPermitRows, filmRows, dom.date.value);
   renderFilmTable(filmRows);
 }
 
