@@ -274,6 +274,7 @@ const BOARD_CONFIG = {
   bisCommunityBoard: '306',
   dobNowCommunityBoard: '306',
   boundaryPath: 'data/cb6_boundary.geojson',
+  dobNowRecentPath: 'data/cb6_dob_now_recent.json',
   center: [40.6785, -73.9944],
   zoom: 13
 };
@@ -305,6 +306,7 @@ let map;
 let markersLayer;
 let boundaryLayer;
 let boundaryFeature = null;
+let dobNowRecentFeed = null;
 
 function localIsoDate() {
   const now = new Date();
@@ -379,6 +381,30 @@ function buildDobNowUrl(isoDate) {
   ].join(',');
   const where = `borough='${BOARD_CONFIG.borough}' AND c_b_no='${BOARD_CONFIG.dobNowCommunityBoard}' AND issued_date >= '${start}' AND issued_date < '${end}'`;
   return `https://data.cityofnewyork.us/resource/rbx6-tga4.json?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$limit=5000`;
+}
+
+async function getDobNowRecentFeed() {
+  if (dobNowRecentFeed) return dobNowRecentFeed;
+  const response = await fetch(BOARD_CONFIG.dobNowRecentPath);
+  if (!response.ok) throw new Error(`DOB NOW local feed request failed with status ${response.status}.`);
+  const payload = await response.json();
+  dobNowRecentFeed = safeRows(payload && payload.rows);
+  return dobNowRecentFeed;
+}
+
+async function fetchDobNowData(isoDate) {
+  if (isoDate >= '2026-01-01') {
+    try {
+      const rows = await getDobNowRecentFeed();
+      return rows
+        .filter(row => String(row.issued_date || '').slice(0, 10) === isoDate)
+        .map(normalizeDobNowRow);
+    } catch (err) {
+      console.warn('DOB NOW local feed could not be loaded, falling back to the live API.', err);
+    }
+  }
+  const rows = await fetchJsonRows(buildDobNowUrl(isoDate), 'DOB NOW');
+  return rows.map(normalizeDobNowRow);
 }
 
 function getDotDatasetId(isoDate) {
@@ -637,7 +663,7 @@ async function fetchDotData(isoDate) {
 async function fetchPermitsForDate(isoDate) {
   const tasks = [
     { key: 'bisData', label: 'BIS', promise: fetchJsonRows(buildBisUrl(isoDate), 'BIS').then(rows => rows.map(normalizeBisRow)) },
-    { key: 'dobNowData', label: 'DOB NOW', promise: fetchJsonRows(buildDobNowUrl(isoDate), 'DOB NOW').then(rows => rows.map(normalizeDobNowRow)) },
+    { key: 'dobNowData', label: 'DOB NOW', promise: fetchDobNowData(isoDate) },
     { key: 'dotData', label: 'NYC Streets / DOT', promise: fetchDotData(isoDate) }
   ];
 
