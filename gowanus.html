@@ -274,27 +274,81 @@ footer a{color:var(--orange);text-decoration:none}
   <div id="map-content-814" style="display:block">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/proj4@2.12.1/dist/proj4.js"></script>
+<script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
 <style>
-.gowanus-maps-wrap{display:flex;gap:0;border-radius:0 0 8px 8px;overflow:hidden}
-.gowanus-map-panel{flex:1;min-width:0;position:relative}
-.gowanus-map-title{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:1000;background:rgba(13,27,75,.85);color:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;padding:4px 12px;border-radius:12px;white-space:nowrap;pointer-events:none}
-.gowanus-legend{position:absolute;bottom:10px;left:8px;z-index:1000;background:rgba(255,255,255,.94);border-radius:7px;padding:8px 10px;font-family:'DM Sans',sans-serif;max-height:200px;overflow-y:auto;box-shadow:0 2px 8px rgba(0,0,0,.15);min-width:140px}
-.gowanus-legend-title{font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;margin-bottom:5px;font-weight:700}
-@media(max-width:600px){.gowanus-maps-wrap{flex-direction:column}}
+.gowanus-map-controls{padding:16px 18px;background:#fcfbf8;border-bottom:1px solid #e5e2db;display:grid;gap:12px}
+.gowanus-map-controls-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.gowanus-layer-kicker{font-size:.62rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;margin-bottom:5px}
+.gowanus-layer-note{font-size:.78rem;color:#6b6760;line-height:1.55;max-width:760px}
+.gowanus-map-link{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:999px;background:#eef2ff;border:1px solid #c7d2fe;color:#0d1b4b;font-size:.76rem;font-weight:700;text-decoration:none;white-space:nowrap}
+.gowanus-layer-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.gowanus-layer-action-group,.gowanus-layer-toggle-group,.gowanus-permit-legend{display:flex;gap:8px;flex-wrap:wrap}
+.gowanus-action-btn,.gowanus-layer-toggle{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid #e5e2db;border-radius:999px;background:#fff;color:#2c3a57;font-family:'DM Sans',sans-serif;font-size:.74rem;font-weight:700;cursor:pointer;transition:all .15s ease}
+.gowanus-action-btn:hover,.gowanus-layer-toggle:hover{border-color:#cbd5e1;background:#f8fafc}
+.gowanus-layer-toggle.active{background:#0d1b4b;border-color:#0d1b4b;color:#fff}
+.gowanus-layer-toggle.inactive{opacity:.7}
+.gowanus-layer-swatch{width:11px;height:11px;border-radius:999px;display:inline-block;border:2px solid currentColor;box-sizing:border-box;background:currentColor;opacity:.92}
+.gowanus-layer-swatch.zoning{border-radius:2px;background:#d85c0a;color:#d85c0a}
+.gowanus-layer-swatch.landuse{background:#a855f7;color:#a855f7}
+.gowanus-layer-swatch.permits{background:#14b8a6;color:#14b8a6}
+.gowanus-permit-status{font-size:.74rem;color:#6b6760;line-height:1.5}
+.gowanus-permit-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid #e5e2db;border-radius:999px;background:#fff;font-size:.7rem;color:#2c3a57}
+.gowanus-maps-wrap{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;padding:18px;background:linear-gradient(180deg,#faf9f6 0%,#fff 100%)}
+.gowanus-map-panel{position:relative;border:1px solid #e5e2db;border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 2px 10px rgba(15,23,42,.05)}
+.gowanus-map-heading{padding:14px 16px 10px;background:#fff;border-bottom:1px solid #e5e2db}
+.gowanus-map-heading strong{display:block;font-size:.88rem;color:#0d1b4b}
+.gowanus-map-heading span{display:block;font-size:.72rem;color:#6b6760;margin-top:4px}
+.gowanus-map-stage{height:520px;width:100%}
+.gowanus-legend{position:absolute;bottom:12px;left:12px;z-index:1000;background:rgba(255,255,255,.96);border-radius:10px;padding:9px 11px;font-family:'DM Sans',sans-serif;max-height:220px;overflow-y:auto;box-shadow:0 3px 12px rgba(0,0,0,.16);min-width:158px;transition:opacity .15s ease}
+.gowanus-legend-title{font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;margin-bottom:6px;font-weight:700}
+.gowanus-legend.is-muted{opacity:.42}
+.leaflet-container{font-family:'DM Sans',sans-serif}
+.leaflet-popup-content{margin:12px 14px}
+@media(max-width:980px){.gowanus-maps-wrap{grid-template-columns:1fr}.gowanus-map-stage{height:420px}}
+@media(max-width:640px){.gowanus-map-controls{padding:14px}.gowanus-map-heading{padding:12px 14px 9px}.gowanus-map-stage{height:360px}}
 </style>
-<div class="gowanus-maps-wrap">
-  <div class="gowanus-map-panel">
-    <div class="gowanus-map-title">🏘 Land Use</div>
-    <div id="gowanus-lu-map" style="height:520px;width:100%"></div>
-    <div class="gowanus-legend">
-      <div class="gowanus-legend-title">Land Use</div>
-      <div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#f9d84b;display:inline-block;flex-shrink:0"></span>One & Two Family</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#fb923c;display:inline-block;flex-shrink:0"></span>Multi-Family Walkup</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block;flex-shrink:0"></span>Multi-Family Elevator</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#a855f7;display:inline-block;flex-shrink:0"></span>Mixed Res/Commercial</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#3b82f6;display:inline-block;flex-shrink:0"></span>Commercial/Office</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#be185d;display:inline-block;flex-shrink:0"></span>Industrial/Manufacturing</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#64748b;display:inline-block;flex-shrink:0"></span>Transportation/Utility</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#06b6d4;display:inline-block;flex-shrink:0"></span>Public Facilities</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#22c55e;display:inline-block;flex-shrink:0"></span>Open Space/Recreation</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#94a3b8;display:inline-block;flex-shrink:0"></span>Parking</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#e2e8f0;display:inline-block;flex-shrink:0"></span>Vacant Land</div></div>
+<div class="gowanus-map-controls">
+  <div class="gowanus-map-controls-top">
+    <div>
+      <div class="gowanus-layer-kicker">Map layers</div>
+      <div class="gowanus-layer-note">Toggle zoning, land use / use groups, and mapped permits active today or later in the rezoning area.</div>
+    </div>
+    <a class="gowanus-map-link" href="gowanus-permits.html">Open permit search →</a>
+  </div>
+  <div class="gowanus-layer-toolbar">
+    <div class="gowanus-layer-action-group">
+      <button type="button" class="gowanus-action-btn" data-action="all">All</button>
+      <button type="button" class="gowanus-action-btn" data-action="none">None</button>
+    </div>
+    <div class="gowanus-layer-toggle-group">
+      <button type="button" class="gowanus-layer-toggle active" data-layer="zoning" aria-pressed="true"><span class="gowanus-layer-swatch zoning"></span>Zoning layer</button>
+      <button type="button" class="gowanus-layer-toggle active" data-layer="landuse" aria-pressed="true"><span class="gowanus-layer-swatch landuse"></span>Land Use / Use Groups layer</button>
+      <button type="button" class="gowanus-layer-toggle active" data-layer="permits" aria-pressed="true"><span class="gowanus-layer-swatch permits"></span>Permits layer <span id="gowanus-permit-count">(0)</span></button>
     </div>
   </div>
-  <div class="gowanus-map-panel" style="border-left:2px solid #e5e2db">
-    <div class="gowanus-map-title">🗺 Zoning Districts</div>
-    <div id="gowanus-zone-map" style="height:520px;width:100%"></div>
-    <div class="gowanus-legend">
+  <div class="gowanus-permit-status" id="gowanus-permit-status">Loading current and future mapped permits in the rezoning area.</div>
+  <div class="gowanus-permit-legend">
+    <span class="gowanus-permit-chip"><span class="gowanus-layer-swatch permits" style="color:#14b8a6;background:#14b8a6"></span>DOB NOW</span>
+    <span class="gowanus-permit-chip"><span class="gowanus-layer-swatch permits" style="color:#60a5fa;background:#60a5fa"></span>BIS</span>
+    <span class="gowanus-permit-chip"><span class="gowanus-layer-swatch permits" style="color:#f59e0b;background:#f59e0b"></span>NYC Streets / DOT</span>
+    <span class="gowanus-permit-chip"><span class="gowanus-layer-swatch permits" style="color:#93c5fd;background:#93c5fd"></span>Permitted Events</span>
+    <span class="gowanus-permit-chip"><span class="gowanus-layer-swatch permits" style="color:#fb7185;background:#fb7185"></span>Street Resurfacing</span>
+  </div>
+</div>
+<div class="gowanus-maps-wrap">
+  <div class="gowanus-map-panel">
+    <div class="gowanus-map-heading"><strong>Land Use / Use Groups</strong><span>Tax lots, rezoning boundary, NYCHA sites, and current / future permit pins.</span></div>
+    <div id="gowanus-lu-map" class="gowanus-map-stage"></div>
+    <div class="gowanus-legend" id="gowanus-lu-legend">
+      <div class="gowanus-legend-title">Land Use</div>
+      <div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#f9d84b;display:inline-block;flex-shrink:0"></span>One &amp; Two Family</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#fb923c;display:inline-block;flex-shrink:0"></span>Multi-Family Walkup</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block;flex-shrink:0"></span>Multi-Family Elevator</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#a855f7;display:inline-block;flex-shrink:0"></span>Mixed Res/Commercial</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#3b82f6;display:inline-block;flex-shrink:0"></span>Commercial/Office</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#be185d;display:inline-block;flex-shrink:0"></span>Industrial/Manufacturing</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#64748b;display:inline-block;flex-shrink:0"></span>Transportation/Utility</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#06b6d4;display:inline-block;flex-shrink:0"></span>Public Facilities</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#22c55e;display:inline-block;flex-shrink:0"></span>Open Space/Recreation</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#94a3b8;display:inline-block;flex-shrink:0"></span>Parking</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem"><span style="width:10px;height:10px;border-radius:50%;background:#e2e8f0;display:inline-block;flex-shrink:0"></span>Vacant Land</div></div>
+    </div>
+  </div>
+  <div class="gowanus-map-panel">
+    <div class="gowanus-map-heading"><strong>Zoning Districts</strong><span>Zoning, rezoning boundary, NYCHA sites, and current / future permit pins.</span></div>
+    <div id="gowanus-zone-map" class="gowanus-map-stage"></div>
+    <div class="gowanus-legend" id="gowanus-zone-legend">
       <div class="gowanus-legend-title">Zone</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 8px"><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#e84040;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>C4-3A</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#cf0000;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>C4-4A</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#c60000;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>C4-4D</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#a00000;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>C6-1</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#ccc;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>C6-2</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#ccc;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>C6-2A</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#dab8da;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>M1-1</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#a8dfa8;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>M1-1/R5</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#cc9acc;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>M1-2</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#be7cbe;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>M1-4</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#74c476;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>M1-4/R6A</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#41ab5d;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>M1-4/R6B</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#238b45;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>M1-4/R7-2</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#006d2c;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>M1-4/R7A</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#00441b;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>M1-4/R7X</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#b05eb0;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>M1-5</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#8b3a8b;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>M2-1</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#7a247a;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>M2-3</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#5a005a;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>M3-1</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#ccc;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>PARK</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#f9d84b;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>R5</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#f4c145;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>R5B</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#f4a83a;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>R6</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#ef8c23;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>R6A</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#e87d18;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>R6B</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#d85c0a;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>R7-3</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#e06b10;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>R7A</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#d85c0a;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>R7B</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#d85c0a;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>R7D</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#cf4d04;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>R8A</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#cf4d04;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>R8B</div><div style="display:flex;align-items:center;gap:4px;font-size:.65rem;white-space:nowrap"><span style="width:12px;height:12px;border-radius:2px;background:#c64000;display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>R8X</div></div>
     </div>
@@ -302,93 +356,633 @@ footer a{color:var(--orange);text-decoration:none}
 </div>
 <script>
 (function(){
-  var LU_COLORS = {"01": "#f9d84b", "02": "#fb923c", "03": "#ef4444", "04": "#a855f7", "05": "#3b82f6", "06": "#be185d", "07": "#64748b", "08": "#06b6d4", "09": "#22c55e", "10": "#94a3b8", "11": "#e2e8f0"};
-  var LU_LABELS = {"01": "One & Two Family", "02": "Multi-Family Walkup", "03": "Multi-Family Elevator", "04": "Mixed Res/Commercial", "05": "Commercial/Office", "06": "Industrial/Manufacturing", "07": "Transportation/Utility", "08": "Public Facilities", "09": "Open Space/Recreation", "10": "Parking", "11": "Vacant Land"};
-  var ZONE_COLORS = {"R5": "#f9d84b", "R5B": "#f4c145", "R5D": "#f4c145", "R6": "#f4a83a", "R6A": "#ef8c23", "R6B": "#e87d18", "R7": "#e06b10", "R7A": "#e06b10", "R7B": "#d85c0a", "R7D": "#d85c0a", "R7-3": "#d85c0a", "R8": "#cf4d04", "R8A": "#cf4d04", "R8B": "#cf4d04", "R8X": "#c64000", "R9": "#bd3300", "C4-3A": "#e84040", "C4-4A": "#cf0000", "C4-4D": "#c60000", "C6-1": "#a00000", "M1-1": "#dab8da", "M1-2": "#cc9acc", "M1-4": "#be7cbe", "M1-5": "#b05eb0", "M2-1": "#8b3a8b", "M2-3": "#7a247a", "M3-1": "#5a005a", "M1-1/R5": "#a8dfa8", "M1-4/R6A": "#74c476", "M1-4/R6B": "#41ab5d", "M1-4/R7-2": "#238b45", "M1-4/R7A": "#006d2c", "M1-4/R7X": "#00441b", "M1-6A/R8": "#9b509b"};
+  if (typeof L === 'undefined') return;
+
+  var LU_COLORS = {"01":"#f9d84b","02":"#fb923c","03":"#ef4444","04":"#a855f7","05":"#3b82f6","06":"#be185d","07":"#64748b","08":"#06b6d4","09":"#22c55e","10":"#94a3b8","11":"#e2e8f0"};
+  var LU_LABELS = {"01":"One & Two Family","02":"Multi-Family Walkup","03":"Multi-Family Elevator","04":"Mixed Res/Commercial","05":"Commercial/Office","06":"Industrial/Manufacturing","07":"Transportation/Utility","08":"Public Facilities","09":"Open Space/Recreation","10":"Parking","11":"Vacant Land"};
+  var ZONE_COLORS = {"R5":"#f9d84b","R5B":"#f4c145","R5D":"#f4c145","R6":"#f4a83a","R6A":"#ef8c23","R6B":"#e87d18","R7":"#e06b10","R7A":"#e06b10","R7B":"#d85c0a","R7D":"#d85c0a","R7-3":"#d85c0a","R8":"#cf4d04","R8A":"#cf4d04","R8B":"#cf4d04","R8X":"#c64000","R9":"#bd3300","C4-3A":"#e84040","C4-4A":"#cf0000","C4-4D":"#c60000","C6-1":"#a00000","M1-1":"#dab8da","M1-2":"#cc9acc","M1-4":"#be7cbe","M1-5":"#b05eb0","M2-1":"#8b3a8b","M2-3":"#7a247a","M3-1":"#5a005a","M1-1/R5":"#a8dfa8","M1-4/R6A":"#74c476","M1-4/R6B":"#41ab5d","M1-4/R7-2":"#238b45","M1-4/R7A":"#006d2c","M1-4/R7X":"#00441b","M1-6A/R8":"#9b509b"};
+  var BOARD_CONFIG = {
+    boundaryPath: 'data/gowanus_rezoning_boundary.geojson',
+    lotsLookupPath: 'data/gowanus_rezoning_lots_lookup.json',
+    dobNowRecentPath: 'data/cb6_dob_now_recent.json',
+    dotRecentPath: 'data/cb6_dot_recent.json',
+    permittedEventsPath: 'data/cb6_permitted_events.json',
+    resurfacingPath: 'data/cb6_street_resurfacing.json',
+    borough: 'BROOKLYN',
+    bisCommunityBoard: '306',
+    dobNowCommunityBoard: '306'
+  };
+  var DOT_STATE_PLANE_CRS = '+proj=lcc +lat_1=41.03333333333333 +lat_2=40.66666666666666 +lat_0=40.16666666666666 +lon_0=-74 +x_0=300000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs';
+  var PERMIT_SOURCE_META = {
+    'DOB NOW': { stroke:'#0f766e', fill:'#14b8a6' },
+    'BIS': { stroke:'#1d4ed8', fill:'#60a5fa' },
+    'NYC Streets / DOT': { stroke:'#b45309', fill:'#f59e0b' },
+    'Permitted Events': { stroke:'#1d4ed8', fill:'#93c5fd' },
+    'Street Resurfacing': { stroke:'#7c2d12', fill:'#fb7185' }
+  };
+  var NYCHA = [
+    { name:'NYCHA Gowanus Houses', lat:40.68388, lng:-73.98825 },
+    { name:'NYCHA Wyckoff Gardens', lat:40.68258, lng:-73.98357 },
+    { name:'NYCHA Red Hook Houses East', lat:40.67525, lng:-74.00446 },
+    { name:'NYCHA Red Hook Houses West', lat:40.67578, lng:-74.00746 }
+  ];
   var CENTER = [40.6760, -73.9880];
   var ZOOM = 15;
+  var TODAY = localIsoDate();
+  var layerState = { zoning:true, landuse:true, permits:true };
+  var gowanusLotKeys = null;
+  var boundaryFeature = null;
+  var bisRecentFeedPromise = null;
+  var dobNowRecentFeed = null;
+  var dotRecentFeed = null;
+  var permittedEventsFeed = null;
+  var resurfacingFeed = null;
+  var zoningLayer = null;
+  var landUseLayer = L.layerGroup();
+  var permitLayerLu = L.layerGroup();
+  var permitLayerZone = L.layerGroup();
+  var luBoundaryLayer = null;
+  var zoneBoundaryLayer = null;
+  var luLegend = document.getElementById('gowanus-lu-legend');
+  var zoneLegend = document.getElementById('gowanus-zone-legend');
+  var permitStatus = document.getElementById('gowanus-permit-status');
+  var permitCount = document.getElementById('gowanus-permit-count');
 
-  // Create both maps
-  var luMap = L.map('gowanus-lu-map',{center:CENTER,zoom:ZOOM,scrollWheelZoom:false,zoomControl:false});
-  var zoneMap = L.map('gowanus-zone-map',{center:CENTER,zoom:ZOOM,scrollWheelZoom:false});
-
+  var luMap = L.map('gowanus-lu-map', { center:CENTER, zoom:ZOOM, scrollWheelZoom:false, zoomControl:false });
+  var zoneMap = L.map('gowanus-zone-map', { center:CENTER, zoom:ZOOM, scrollWheelZoom:false });
   var tile = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-  var attr = '© OpenStreetMap © CARTO';
-  L.tileLayer(tile,{attribution:attr,maxZoom:19}).addTo(luMap);
-  L.tileLayer(tile,{attribution:attr,maxZoom:19}).addTo(zoneMap);
+  L.tileLayer(tile, { attribution:'© OpenStreetMap © CARTO', maxZoom:19 }).addTo(luMap);
+  L.tileLayer(tile, { attribution:'© OpenStreetMap © CARTO', maxZoom:19 }).addTo(zoneMap);
 
-  // Sync maps
   var syncing = false;
   function syncMaps(src, dst) {
     src.on('moveend', function() {
-      if (syncing) return; syncing = true;
-      dst.setView(src.getCenter(), src.getZoom(), {animate:false});
+      if (syncing) return;
+      syncing = true;
+      dst.setView(src.getCenter(), src.getZoom(), { animate:false });
       syncing = false;
     });
   }
   syncMaps(luMap, zoneMap);
   syncMaps(zoneMap, luMap);
 
-  // Load Gowanus rezoning boundary on both maps
-  fetch('gowanus-boundary.json').then(function(r){return r.json();}).then(function(bnd){
-    var style = {color:'#0d1b4b',weight:2.5,opacity:1,fill:false,dashArray:'6,4'};
-    L.geoJSON(bnd, {style:function(){return style;}}).addTo(luMap);
-    L.geoJSON(bnd, {style:function(){return style;}}).addTo(zoneMap);
+  var zoneLabelStyle = document.createElement('style');
+  zoneLabelStyle.textContent = '.zone-label{background:transparent;border:none;box-shadow:none;font-weight:700;font-size:.62rem;color:#fff;text-shadow:1px 1px 0 rgba(0,0,0,.6),-1px -1px 0 rgba(0,0,0,.6),1px -1px 0 rgba(0,0,0,.6),-1px 1px 0 rgba(0,0,0,.6);padding:0}';
+  document.head.appendChild(zoneLabelStyle);
+
+  var nychaIcon = L.divIcon({ html:'<div style="background:#1d4ed8;color:#fff;font-size:12px;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">🏠</div>', className:'', iconSize:[26,26], iconAnchor:[13,13] });
+  NYCHA.forEach(function(site) {
+    L.marker([site.lat, site.lng], { icon:nychaIcon }).bindPopup('<b>' + escapeHtml(site.name) + '</b><br><small>NYCHA Public Housing</small>').addTo(luMap);
+    L.marker([site.lat, site.lng], { icon:nychaIcon }).bindPopup('<b>' + escapeHtml(site.name) + '</b><br><small>NYCHA Public Housing</small>').addTo(zoneMap);
   });
 
-  // NYCHA markers on both
-  var NYCHA = [{"name": "NYCHA Gowanus Houses", "lat": 40.68388, "lng": -73.98825}, {"name": "NYCHA Wyckoff Gardens", "lat": 40.68258, "lng": -73.98357}, {"name": "NYCHA Red Hook Houses East", "lat": 40.67525, "lng": -74.00446}, {"name": "NYCHA Red Hook Houses West", "lat": 40.67578, "lng": -74.00746}];
-  var nychaIcon = L.divIcon({html:'<div style="background:#1d4ed8;color:#fff;font-size:12px;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">🏠</div>',className:'',iconSize:[26,26],iconAnchor:[13,13]});
-  NYCHA.forEach(function(n){
-    L.marker([n.lat,n.lng],{icon:nychaIcon}).bindPopup('<b>'+n.name+'</b><br><small>NYCHA Public Housing</small>').addTo(luMap);
-    L.marker([n.lat,n.lng],{icon:nychaIcon}).bindPopup('<b>'+n.name+'</b><br><small>NYCHA Public Housing</small>').addTo(zoneMap);
-  });
-
-  // Zoning polygons
-  fetch('gowanus-zoning.json').then(function(r){return r.json();}).then(function(data){
-    L.geoJSON(data, {
+  fetch('gowanus-zoning.json').then(function(r) { return r.json(); }).then(function(data) {
+    zoningLayer = L.geoJSON(data, {
       style: function(feat) {
         var z = feat.properties.ZONEDIST || '';
-        return {
-          fillColor: ZONE_COLORS[z] || '#ddd',
-          fillOpacity: 0.65,
-          color: '#fff',
-          weight: 1,
-          opacity: 0.8
-        };
+        return { fillColor:ZONE_COLORS[z] || '#ddd', fillOpacity:0.65, color:'#fff', weight:1, opacity:0.8 };
       },
       onEachFeature: function(feat, layer) {
         var z = feat.properties.ZONEDIST || '';
-        layer.bindTooltip(z, {permanent:true,direction:'center',className:'zone-label'});
-        layer.bindPopup('<div style="font-family:sans-serif;font-size:.82rem"><b style="color:'+( ZONE_COLORS[z]||'#333')+'">'+z+'</b></div>');
+        layer.bindTooltip(z, { permanent:true, direction:'center', className:'zone-label' });
+        layer.bindPopup('<div style="font-family:sans-serif;font-size:.82rem"><b style="color:' + (ZONE_COLORS[z] || '#333') + '">' + escapeHtml(z) + '</b></div>');
       }
-    }).addTo(zoneMap);
-  });
+    });
+    applyLayerVisibility();
+  }).catch(function(err){ console.warn('Gowanus zoning layer failed to load.', err); });
 
-  // Land use dots (async)
-  fetch('gowanus-pluto.json').then(function(r){return r.json();}).then(function(lots){
-    var layer = L.layerGroup().addTo(luMap);
-    lots.forEach(function(l){
-      var lat=l[0],lng=l[1],lu=l[2],zone=l[3],addr=l[4],owner=l[5],floors=l[6],yr=l[7],units=l[8];
+  fetch('gowanus-pluto.json').then(function(r) { return r.json(); }).then(function(lots) {
+    lots.forEach(function(l) {
+      var lat = l[0], lng = l[1], lu = l[2], zone = l[3], addr = l[4], owner = l[5], floors = l[6], yr = l[7], units = l[8];
       var col = LU_COLORS[lu] || '#94a3b8';
       var lbl = LU_LABELS[lu] || 'Unknown';
-      L.circleMarker([lat,lng],{radius:4,fillColor:col,color:'#fff',weight:0.8,opacity:1,fillOpacity:0.85})
+      L.circleMarker([lat, lng], { radius:4, fillColor:col, color:'#fff', weight:0.8, opacity:1, fillOpacity:0.85 })
         .bindPopup(
           '<div style="font-family:sans-serif;font-size:.8rem;min-width:190px">'
-          +'<div style="font-weight:700;color:#0d1b4b;margin-bottom:3px">'+(addr||'—')+'</div>'
-          +'<div style="display:inline-block;background:'+col+';color:#fff;padding:1px 7px;border-radius:4px;font-size:.68rem;margin-bottom:4px">'+lbl+'</div>'
-          +(zone?'<span style="font-size:.68rem;color:#6b6760;margin-left:5px;font-family:monospace">'+zone+'</span>':'')
-          +(owner?'<div style="font-size:.7rem;color:#555;margin-top:2px">'+owner+'</div>':'')
-          +(floors?'<div style="font-size:.7rem;color:#555">'+floors+' fl'+(yr?' · '+yr:'')+(units?' · '+units+' units':'')+'</div>':'')
-          +'</div>',{maxWidth:260})
-        .addTo(layer);
+          + '<div style="font-weight:700;color:#0d1b4b;margin-bottom:3px">' + escapeHtml(addr || '—') + '</div>'
+          + '<div style="display:inline-block;background:' + col + ';color:#fff;padding:1px 7px;border-radius:4px;font-size:.68rem;margin-bottom:4px">' + escapeHtml(lbl) + '</div>'
+          + (zone ? '<span style="font-size:.68rem;color:#6b6760;margin-left:5px;font-family:monospace">' + escapeHtml(zone) + '</span>' : '')
+          + (owner ? '<div style="font-size:.7rem;color:#555;margin-top:2px">' + escapeHtml(owner) + '</div>' : '')
+          + (floors ? '<div style="font-size:.7rem;color:#555">' + escapeHtml(String(floors)) + ' fl' + (yr ? ' · ' + escapeHtml(String(yr)) : '') + (units ? ' · ' + escapeHtml(String(units)) + ' units' : '') + '</div>' : '')
+          + '</div>', { maxWidth:260 }
+        )
+        .addTo(landUseLayer);
+    });
+    applyLayerVisibility();
+  }).catch(function(err){ console.warn('Gowanus land use layer failed to load.', err); });
+
+  document.querySelectorAll('.gowanus-action-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var mode = btn.getAttribute('data-action');
+      var active = mode === 'all';
+      layerState.zoning = active;
+      layerState.landuse = active;
+      layerState.permits = active;
+      applyLayerVisibility();
     });
   });
 
-  // Zone label CSS
-  var style = document.createElement('style');
-  style.textContent = '.zone-label{background:transparent;border:none;box-shadow:none;font-weight:700;font-size:.62rem;color:#fff;text-shadow:1px 1px 0 rgba(0,0,0,.6),-1px -1px 0 rgba(0,0,0,.6),1px -1px 0 rgba(0,0,0,.6),-1px 1px 0 rgba(0,0,0,.6);padding:0}';
-  document.head.appendChild(style);
+  document.querySelectorAll('.gowanus-layer-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var key = btn.getAttribute('data-layer');
+      layerState[key] = !layerState[key];
+      applyLayerVisibility();
+    });
+  });
+
+  ensureBoundaryLoaded().then(function(){
+    return loadPermitLayers(TODAY);
+  }).catch(function(err){
+    console.error(err);
+    permitStatus.textContent = 'Permit layer could not be loaded right now.';
+  });
+
+  function applyLayerVisibility() {
+    toggleLayer(luMap, landUseLayer, layerState.landuse);
+    toggleLayer(zoneMap, zoningLayer, layerState.zoning);
+    toggleLayer(luMap, permitLayerLu, layerState.permits);
+    toggleLayer(zoneMap, permitLayerZone, layerState.permits);
+    if (luLegend) luLegend.classList.toggle('is-muted', !layerState.landuse);
+    if (zoneLegend) zoneLegend.classList.toggle('is-muted', !layerState.zoning);
+    document.querySelectorAll('.gowanus-layer-toggle').forEach(function(btn) {
+      var key = btn.getAttribute('data-layer');
+      var on = !!layerState[key];
+      btn.classList.toggle('active', on);
+      btn.classList.toggle('inactive', !on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  function toggleLayer(map, layer, shouldShow) {
+    if (!layer) return;
+    if (shouldShow) {
+      if (!map.hasLayer(layer)) map.addLayer(layer);
+    } else if (map.hasLayer(layer)) {
+      map.removeLayer(layer);
+    }
+  }
+
+  function localIsoDate() {
+    var now = new Date();
+    var yyyy = now.getFullYear();
+    var mm = String(now.getMonth() + 1).padStart(2, '0');
+    var dd = String(now.getDate()).padStart(2, '0');
+    return yyyy + '-' + mm + '-' + dd;
+  }
+
+  function nextIsoDate(isoDate) {
+    var d = new Date(isoDate + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function normalizeDateOnly(value) {
+    var text = String(value || '').trim();
+    if (!text) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+    if (/^\d{4}-\d{2}-\d{2}T/.test(text)) return text.slice(0, 10);
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(text)) {
+      var parts = text.split('/');
+      return parts[2] + '-' + parts[0] + '-' + parts[1];
+    }
+    var parsed = new Date(text);
+    return isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
+  }
+
+  function formatHumanDateTime(value) {
+    if (!value) return '—';
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return String(value);
+    return d.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
+  }
+
+  function buildActiveWindowLabel(startIso, endIso) {
+    if (startIso && endIso && startIso !== endIso) return startIso + ' → ' + endIso;
+    if (endIso && !startIso) return 'Through ' + endIso;
+    return startIso || endIso || '';
+  }
+
+  function buildDateTimeWindowLabel(startValue, endValue) {
+    if (startValue && endValue) return formatHumanDateTime(startValue) + ' → ' + formatHumanDateTime(endValue);
+    if (endValue) return 'Through ' + formatHumanDateTime(endValue);
+    return startValue ? formatHumanDateTime(startValue) : '';
+  }
+
+  function getRowDateParts(row) {
+    var issued = normalizeDateOnly(row.issued_date);
+    var start = normalizeDateOnly(row.active_start_date || issued);
+    var end = normalizeDateOnly(row.active_end_date || issued);
+    return { issued:issued, start:start, end:end };
+  }
+
+  function rowCurrentOrFuture(row, isoDate) {
+    var dates = getRowDateParts(row);
+    if (dates.end) return dates.end >= isoDate;
+    if (dates.start) return dates.start >= isoDate;
+    return !!dates.issued && dates.issued >= isoDate;
+  }
+
+  function buildLotKey(block, lot) {
+    var blockText = String(block || '').trim();
+    var rawLot = String(lot || '').trim();
+    var lotText = rawLot.replace(/^0+/, '') || rawLot;
+    return blockText && lotText ? blockText + '-' + lotText : '';
+  }
+
+  function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, function(ch) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch];
+    });
+  }
+
+  function getPermitMarkerStyle(row) {
+    var meta = PERMIT_SOURCE_META[row.source] || { stroke:'#0d1b4b', fill:'#f47920' };
+    return { radius:7, color:meta.stroke, weight:2, fillColor:meta.fill, fillOpacity:0.92, opacity:1 };
+  }
+
+  function getBisRecentFeed() {
+    if (bisRecentFeedPromise) return bisRecentFeedPromise;
+    var year = Number(TODAY.slice(0, 4));
+    var years = [year, year - 1, year - 2];
+    var select = [
+      'permit_si_no','issuance_date','expiration_date','job_start_date','borough','house__','street_name','community_board','permit_status','permit_type',
+      'owner_s_business_name','permittee_s_business_name','job__','block','lot','bin__','gis_latitude','gis_longitude'
+    ].join(',');
+    var yearClause = years.map(function(value) { return "issuance_date like '%/" + value + "'"; }).join(' OR ');
+    var where = "borough='" + BOARD_CONFIG.borough + "' AND community_board='" + BOARD_CONFIG.bisCommunityBoard + "' AND (" + yearClause + ')';
+    var url = 'https://data.cityofnewyork.us/resource/ipu4-2q9a.json?$select=' + encodeURIComponent(select) + '&$where=' + encodeURIComponent(where) + '&$limit=50000';
+    bisRecentFeedPromise = fetchJsonRows(url, 'BIS');
+    return bisRecentFeedPromise;
+  }
+
+  function getDobNowRecentFeed() {
+    if (dobNowRecentFeed) return Promise.resolve(dobNowRecentFeed);
+    return fetch(BOARD_CONFIG.dobNowRecentPath).then(function(response) {
+      if (!response.ok) throw new Error('DOB NOW local feed request failed with status ' + response.status + '.');
+      return response.json();
+    }).then(function(payload) {
+      dobNowRecentFeed = safeRows(payload && payload.rows);
+      return dobNowRecentFeed;
+    });
+  }
+
+  function getDotRecentFeed() {
+    if (dotRecentFeed) return Promise.resolve(dotRecentFeed);
+    return fetch(BOARD_CONFIG.dotRecentPath).then(function(response) {
+      if (!response.ok) throw new Error('NYC Streets / DOT local feed request failed with status ' + response.status + '.');
+      return response.json();
+    }).then(function(payload) {
+      dotRecentFeed = safeRows(payload && payload.rows);
+      return dotRecentFeed;
+    });
+  }
+
+  function getPermittedEventsFeed() {
+    if (permittedEventsFeed) return Promise.resolve(permittedEventsFeed);
+    return fetch(BOARD_CONFIG.permittedEventsPath).then(function(response) {
+      if (!response.ok) throw new Error('Permitted events feed request failed with status ' + response.status + '.');
+      return response.json();
+    }).then(function(payload) {
+      permittedEventsFeed = safeRows(payload && payload.rows);
+      return permittedEventsFeed;
+    });
+  }
+
+  function getResurfacingFeed() {
+    if (resurfacingFeed) return Promise.resolve(resurfacingFeed);
+    return fetch(BOARD_CONFIG.resurfacingPath).then(function(response) {
+      if (!response.ok) throw new Error('Street resurfacing feed request failed with status ' + response.status + '.');
+      return response.json();
+    }).then(function(payload) {
+      resurfacingFeed = safeRows(payload && payload.rows);
+      return resurfacingFeed;
+    });
+  }
+
+  function safeRows(data) {
+    return Array.isArray(data) ? data : [];
+  }
+
+  function fetchJsonRows(url, label) {
+    return fetch(url).then(function(response) {
+      if (!response.ok) throw new Error(label + ' request failed with status ' + response.status + '.');
+      return response.json();
+    }).then(safeRows);
+  }
+
+  function ensureBoundaryLoaded() {
+    if (boundaryFeature) return Promise.resolve(boundaryFeature);
+    return fetch(BOARD_CONFIG.boundaryPath).then(function(response) {
+      if (!response.ok) throw new Error('Boundary request failed with status ' + response.status + '.');
+      return response.json();
+    }).then(function(data) {
+      boundaryFeature = Array.isArray(data.features) ? data.features[0] : data;
+      if (!boundaryFeature || !boundaryFeature.geometry) throw new Error('Boundary file did not contain a usable feature.');
+      var style = { color:'#0d1b4b', weight:2.5, opacity:1, fillColor:'#f47920', fillOpacity:0.04, dashArray:'6,4' };
+      luBoundaryLayer = L.geoJSON(boundaryFeature, { style:function(){ return style; } }).addTo(luMap);
+      zoneBoundaryLayer = L.geoJSON(boundaryFeature, { style:function(){ return style; } }).addTo(zoneMap);
+      return boundaryFeature;
+    });
+  }
+
+  function getGowanusLotsLookup() {
+    if (gowanusLotKeys) return Promise.resolve(gowanusLotKeys);
+    return fetch(BOARD_CONFIG.lotsLookupPath).then(function(response) {
+      if (!response.ok) throw new Error('Gowanus lots lookup request failed with status ' + response.status + '.');
+      return response.json();
+    }).then(function(rows) {
+      gowanusLotKeys = new Set(safeRows(rows).map(function(row) { return buildLotKey(row.block, row.lot); }).filter(Boolean));
+      return gowanusLotKeys;
+    });
+  }
+
+  function pointWithinBoundary(lat, lng) {
+    if (!boundaryFeature || !Number.isFinite(lat) || !Number.isFinite(lng) || typeof turf === 'undefined') return false;
+    try {
+      return turf.booleanPointInPolygon(turf.point([lng, lat]), boundaryFeature);
+    } catch (err) {
+      console.warn('Point boundary test failed.', err);
+      return false;
+    }
+  }
+
+  function intersectsBoundary(geometry) {
+    if (!geometry || !boundaryFeature || typeof turf === 'undefined') return false;
+    try {
+      return turf.booleanIntersects(turf.feature(geometry), boundaryFeature);
+    } catch (err) {
+      console.warn('Geometry intersection failed.', err);
+      return false;
+    }
+  }
+
+  function rowMatchesGowanusArea(row) {
+    if (!row) return false;
+    if (row.geojson_geometry && intersectsBoundary(row.geojson_geometry)) return true;
+    if (pointWithinBoundary(row.lat, row.lng)) return true;
+    var lotKey = buildLotKey(row.block, row.lot);
+    return !!(lotKey && gowanusLotKeys && gowanusLotKeys.has(lotKey));
+  }
+
+  function normalizeBisRow(row) {
+    var address = [row.house__, row.street_name].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    var issuedDate = normalizeDateOnly(row.issuance_date);
+    var expirationDate = normalizeDateOnly(row.expiration_date);
+    return {
+      source:'BIS',
+      issued_date:issuedDate,
+      active_start_date:issuedDate,
+      active_end_date:expirationDate,
+      active_window_label:buildActiveWindowLabel(issuedDate, expirationDate),
+      address:address,
+      permit_type:row.permit_type || 'Permit',
+      owner_or_applicant:row.owner_s_business_name || row.permittee_s_business_name || '—',
+      status:row.permit_status || '—',
+      reference:row.permit_si_no || row.job__ || '',
+      lat:parseFloat(row.gis_latitude),
+      lng:parseFloat(row.gis_longitude),
+      sort_key:row.issuance_date || '',
+      block:row.block || '',
+      lot:row.lot || ''
+    };
+  }
+
+  function normalizeDobNowRow(row) {
+    var address = [row.house_no, row.street_name].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    var applicantName = [row.applicant_first_name, row.applicant_last_name].filter(Boolean).join(' ').trim();
+    var issuedDate = normalizeDateOnly(row.issued_date);
+    var expiredDate = normalizeDateOnly(row.expired_date);
+    return {
+      source:'DOB NOW',
+      issued_date:issuedDate,
+      active_start_date:issuedDate,
+      active_end_date:expiredDate,
+      active_window_label:buildActiveWindowLabel(issuedDate, expiredDate),
+      address:address,
+      permit_type:row.work_type || 'Permit',
+      owner_or_applicant:row.owner_business_name || row.owner_name || row.applicant_business_name || applicantName || '—',
+      status:row.permit_status || '—',
+      reference:row.job_filing_number || row.tracking_number || '',
+      lat:parseFloat(row.latitude),
+      lng:parseFloat(row.longitude),
+      sort_key:row.issued_date || '',
+      block:row.block || '',
+      lot:row.lot || ''
+    };
+  }
+
+  function normalizePermittedEventRow(row) {
+    var activeStartDate = normalizeDateOnly(row.start_datetime);
+    var activeEndDate = normalizeDateOnly(row.end_datetime) || activeStartDate;
+    var locationBits = [row.address, row.event_name].filter(Boolean);
+    return {
+      source:'Permitted Events',
+      issued_date:activeStartDate,
+      active_start_date:activeStartDate,
+      active_end_date:activeEndDate,
+      active_window_label:buildDateTimeWindowLabel(row.start_datetime, row.end_datetime),
+      address:locationBits.join(' — ') || 'Location not provided',
+      permit_type:row.event_type || 'Permitted event',
+      owner_or_applicant:row.event_agency || '—',
+      status:row.street_closure_type || 'Scheduled',
+      reference:row.event_id || '',
+      lat:parseFloat(row.lat),
+      lng:parseFloat(row.lng),
+      sort_key:row.start_datetime || ''
+    };
+  }
+
+  function normalizeResurfacingRow(row) {
+    var geometry = convertDotGeometryToWgs84(parseWkt(row.location_wkt));
+    var center = geometryToLatLng(geometry);
+    var isoDate = normalizeDateOnly(row.date);
+    return {
+      source:'Street Resurfacing',
+      issued_date:isoDate,
+      active_start_date:isoDate,
+      active_end_date:isoDate,
+      active_window_label:buildActiveWindowLabel(isoDate, isoDate),
+      address:row.address || 'Street location not provided',
+      permit_type:row.work_type || 'Street resurfacing',
+      owner_or_applicant:row.crew_type || row.area || '—',
+      status:row.shift_type || row.day || 'Scheduled',
+      reference:row.segmentid || '',
+      lat:center.lat,
+      lng:center.lng,
+      sort_key:row.date || '',
+      geojson_geometry:geometry
+    };
+  }
+
+  function dotAddress(row) {
+    var base = [row.permithousenumber, row.onstreetname].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    var fromTo = [row.fromstreetname, row.tostreetname].filter(Boolean);
+    if (base && fromTo.length === 2) return base + ' (between ' + fromTo[0] + ' and ' + fromTo[1] + ')';
+    if (base) return base;
+    if (row.onstreetname && fromTo.length === 2) return row.onstreetname + ' between ' + fromTo[0] + ' and ' + fromTo[1];
+    return row.permitlocationcomments || row.onstreetname || 'Street location not provided';
+  }
+
+  function normalizeDotRow(row) {
+    var geometry = convertDotGeometryToWgs84(parseWkt(row.wkt));
+    var center = geometryToLatLng(geometry);
+    var issuedDate = normalizeDateOnly(row.permitissuedate);
+    var activeStartDate = normalizeDateOnly(row.issuedworkstartdate) || issuedDate;
+    var activeEndDate = normalizeDateOnly(row.issuedworkenddate) || issuedDate;
+    return {
+      source:'NYC Streets / DOT',
+      issued_date:issuedDate,
+      active_start_date:activeStartDate,
+      active_end_date:activeEndDate,
+      active_window_label:buildActiveWindowLabel(activeStartDate, activeEndDate),
+      address:dotAddress(row),
+      permit_type:row.permittypedesc || row.permitseriesshortdesc || 'Street permit',
+      owner_or_applicant:row.permitteename || '—',
+      status:row.permitstatusshortdesc || '—',
+      reference:row.permitnumber || row.applicationtrackingid || '',
+      lat:center.lat,
+      lng:center.lng,
+      sort_key:row.issuedworkstartdate || row.permitissuedate || '',
+      geojson_geometry:geometry
+    };
+  }
+
+  function loadPermitLayers(isoDate) {
+    return getGowanusLotsLookup().then(function() {
+      var tasks = [
+        { label:'BIS', promise:getBisRecentFeed().then(function(rows){ return rows.map(normalizeBisRow).filter(rowMatchesGowanusArea).filter(function(row){ return rowCurrentOrFuture(row, isoDate); }); }) },
+        { label:'DOB NOW', promise:getDobNowRecentFeed().then(function(rows){ return rows.map(normalizeDobNowRow).filter(rowMatchesGowanusArea).filter(function(row){ return rowCurrentOrFuture(row, isoDate); }); }) },
+        { label:'NYC Streets / DOT', promise:getDotRecentFeed().then(function(rows){ return rows.map(normalizeDotRow).filter(function(row){ return row.geojson_geometry && intersectsBoundary(row.geojson_geometry) && rowCurrentOrFuture(row, isoDate); }); }) },
+        { label:'Permitted events', promise:getPermittedEventsFeed().then(function(rows){ return rows.map(normalizePermittedEventRow).filter(rowMatchesGowanusArea).filter(function(row){ return rowCurrentOrFuture(row, isoDate); }); }) },
+        { label:'Street resurfacing', promise:getResurfacingFeed().then(function(rows){ return rows.map(normalizeResurfacingRow).filter(rowMatchesGowanusArea).filter(function(row){ return rowCurrentOrFuture(row, isoDate); }); }) }
+      ];
+      return Promise.allSettled(tasks.map(function(task){ return task.promise; })).then(function(results) {
+        var combined = [];
+        var warnings = [];
+        results.forEach(function(result, index) {
+          if (result.status === 'fulfilled') combined = combined.concat(result.value);
+          else warnings.push(tasks[index].label + ' data could not be loaded.');
+        });
+        combined.sort(function(a, b) {
+          return String(b.sort_key || '').localeCompare(String(a.sort_key || '')) || String(a.address || '').localeCompare(String(b.address || ''));
+        });
+        renderPermitLayers(combined, warnings);
+      });
+    });
+  }
+
+  function renderPermitLayers(rows, warnings) {
+    permitLayerLu.clearLayers();
+    permitLayerZone.clearLayers();
+    var bounds = [];
+    rows.forEach(function(row) {
+      if (!Number.isFinite(row.lat) || !Number.isFinite(row.lng)) return;
+      var popupHtml = '<div style="min-width:220px">'
+        + '<div style="font-size:.72rem;font-family:\'DM Mono\',monospace;color:#6b6760;text-transform:uppercase;letter-spacing:.06em">' + escapeHtml(row.source) + '</div>'
+        + '<div style="font-size:.95rem;font-weight:700;color:#0d1b4b;margin-top:4px">' + escapeHtml(row.address || 'Address unavailable') + '</div>'
+        + '<div style="font-size:.82rem;color:#2c3a57;margin-top:6px">' + escapeHtml(row.permit_type || 'Permit') + '</div>'
+        + (row.active_window_label ? '<div style="font-size:.78rem;color:#6b6760;margin-top:4px">Window: ' + escapeHtml(row.active_window_label) + '</div>' : '')
+        + '</div>';
+      L.circleMarker([row.lat, row.lng], getPermitMarkerStyle(row)).bindPopup(popupHtml).addTo(permitLayerLu);
+      L.circleMarker([row.lat, row.lng], getPermitMarkerStyle(row)).bindPopup(popupHtml).addTo(permitLayerZone);
+      bounds.push([row.lat, row.lng]);
+    });
+    permitCount.textContent = '(' + rows.length.toLocaleString() + ')';
+    if (warnings.length) {
+      permitStatus.textContent = rows.length.toLocaleString() + ' mapped current / future permit records loaded. Some feeds were unavailable.';
+    } else {
+      permitStatus.textContent = rows.length.toLocaleString() + ' mapped permit, street, event, and resurfacing records are active today or later in the rezoning area.';
+    }
+    applyLayerVisibility();
+    if (bounds.length) {
+      var fitBounds = L.latLngBounds(bounds).pad(0.08);
+      luMap.fitBounds(fitBounds, { animate:false, maxZoom:15 });
+      zoneMap.fitBounds(fitBounds, { animate:false, maxZoom:15 });
+    }
+  }
+
+  function splitTopLevel(text) {
+    var parts = [];
+    var depth = 0;
+    var current = '';
+    String(text || '').split('').forEach(function(ch) {
+      if (ch === '(') depth += 1;
+      if (ch === ')') depth -= 1;
+      if (ch === ',' && depth === 0) {
+        parts.push(current);
+        current = '';
+      } else {
+        current += ch;
+      }
+    });
+    if (current) parts.push(current);
+    return parts;
+  }
+
+  function stripOuterParens(text) {
+    return String(text || '').trim().replace(/^\(/, '').replace(/\)$/, '');
+  }
+
+  function parseCoordPair(text) {
+    var values = String(text || '').trim().split(/\s+/).map(Number).filter(Number.isFinite);
+    if (values.length < 2) return null;
+    return values.slice(0, 2);
+  }
+
+  function parseCoordList(text) {
+    return String(text || '').split(',').map(parseCoordPair).filter(Boolean);
+  }
+
+  function parseWkt(wkt) {
+    if (!wkt) return null;
+    var trimmed = String(wkt).trim();
+    if (trimmed.indexOf('POINT') === 0) return { type:'Point', coordinates: parseCoordPair(stripOuterParens(trimmed.slice(5))) };
+    if (trimmed.indexOf('LINESTRING') === 0) return { type:'LineString', coordinates: parseCoordList(stripOuterParens(trimmed.slice(10))) };
+    if (trimmed.indexOf('MULTILINESTRING') === 0) {
+      return { type:'MultiLineString', coordinates: splitTopLevel(stripOuterParens(trimmed.slice(15))).map(function(part){ return parseCoordList(stripOuterParens(part)); }).filter(Boolean) };
+    }
+    if (trimmed.indexOf('POLYGON') === 0) {
+      return { type:'Polygon', coordinates: splitTopLevel(stripOuterParens(trimmed.slice(7))).map(function(part){ return parseCoordList(stripOuterParens(part)); }).filter(Boolean) };
+    }
+    if (trimmed.indexOf('MULTIPOLYGON') === 0) {
+      return { type:'MultiPolygon', coordinates: splitTopLevel(stripOuterParens(trimmed.slice(12))).map(function(poly){
+        return splitTopLevel(stripOuterParens(poly)).map(function(part){ return parseCoordList(stripOuterParens(part)); }).filter(Boolean);
+      }).filter(Boolean) };
+    }
+    return null;
+  }
+
+  function transformCoordinateTree(coords) {
+    if (!Array.isArray(coords)) return coords;
+    if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+      var converted = proj4(DOT_STATE_PLANE_CRS, 'WGS84', [coords[0], coords[1]]);
+      return [Number(converted[0]), Number(converted[1])];
+    }
+    return coords.map(transformCoordinateTree);
+  }
+
+  function convertDotGeometryToWgs84(geometry) {
+    if (!geometry || !geometry.coordinates || typeof proj4 === 'undefined') return geometry;
+    try {
+      return { type:geometry.type, coordinates:transformCoordinateTree(geometry.coordinates) };
+    } catch (err) {
+      console.warn('Coordinate conversion failed.', err);
+      return geometry;
+    }
+  }
+
+  function geometryToLatLng(geometry) {
+    if (!geometry) return { lat:NaN, lng:NaN };
+    try {
+      if (geometry.type === 'Point') return { lng:Number(geometry.coordinates[0]), lat:Number(geometry.coordinates[1]) };
+      var centerFeature = turf.center(turf.feature(geometry));
+      var coords = centerFeature && centerFeature.geometry && centerFeature.geometry.coordinates;
+      if (Array.isArray(coords) && coords.length >= 2) return { lng:Number(coords[0]), lat:Number(coords[1]) };
+    } catch (err) {
+      console.warn('Geometry centroid failed.', err);
+    }
+    return { lat:NaN, lng:NaN };
+  }
 })();
 </script>
   </div>
