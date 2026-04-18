@@ -101,9 +101,20 @@ body{background:#1a1208;min-height:100vh;font-family:'DM Sans',sans-serif;overfl
         <div class="bc-title">📋 Elected Officials Reference</div>
         <div class="bc-sub">228 NYC representatives</div>
       </div>
-      <input class="bc-search" id="el-search" type="text" placeholder="Search name or district…" oninput="elRender()">
     </div>
+    <!-- Address search -->
+    <div style="margin-bottom:8px">
+      <div style="font-size:.57rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.1em;color:#c9a22788;margin-bottom:5px">📍 Find Your Reps by Address</div>
+      <div style="display:flex;gap:8px">
+        <input class="bc-search" id="lib-addr" type="text" placeholder="e.g. 250 Baltic St, Brooklyn" style="flex:1" onkeydown="if(event.key==='Enter')libAddrSearch()">
+        <button id="lib-addr-btn" onclick="libAddrSearch()" style="padding:7px 13px;background:#c9a227;color:#1a0e08;border:none;border-radius:6px;font-family:'DM Mono',monospace;font-size:.78rem;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">Search</button>
+      </div>
+      <div id="lib-addr-err" style="display:none;margin-top:5px;font-size:.72rem;font-family:'DM Mono',monospace;color:#c0392b"></div>
+    </div>
+    <!-- Name/district search -->
+    <input class="bc-search" id="el-search" type="text" placeholder="Or search by name or district…" oninput="elRender()">
   </div>
+  <div id="lib-addr-results"></div>
   <div class="bc-cats" id="el-cats"></div>
   <div class="bc-count" id="el-count"></div>
   <div id="el-shelves"></div>
@@ -313,6 +324,115 @@ document.addEventListener('click',()=>{
   if(elOpenCard){elOpenCard.classList.remove('show');elOpenCard=null;elOpenIdx=null;}
   if(rdOpenCard){rdOpenCard.classList.remove('show');rdOpenCard=null;rdOpenIdx=null;}
 });
+
+// ── ADDRESS SEARCH ────────────────────────────────────────────────────────────
+const LIB_API_KEY = 'b913bdfb9c47466589d0f08c99c75b21';
+const LIB_CONGRESS_MAP = {3:'suozzi',5:'meeks',6:'meng',7:'velazquez',8:'jeffries',9:'clarke',10:'goldman',11:'malliotakis',12:'nadler',13:'espaillat',14:'aoc',15:'torres',16:'latimer'};
+const LIB_BP_MAP = {'3':'reynoso','2':'gibson','1':'hoylman','4':'richards','5':'fossella'};
+
+async function libAddrSearch() {
+  const input = document.getElementById('lib-addr').value.trim();
+  const errEl = document.getElementById('lib-addr-err');
+  const btn   = document.getElementById('lib-addr-btn');
+  const panel = document.getElementById('lib-addr-results');
+  errEl.style.display='none'; panel.innerHTML='';
+  if(!input) return;
+
+  const hm = input.match(/^(\d+[A-Za-z]?)\s+(.+)/);
+  if(!hm) { errEl.textContent='Try: 250 Baltic St, Brooklyn'; errEl.style.display='block'; return; }
+
+  const hn = hm[1];
+  let st = hm[2].replace(/,?\s*(brooklyn|manhattan|queens|bronx|staten island|new york|ny)\b.*/i,'').trim();
+  const bmap={brooklyn:'Brooklyn',bronx:'Bronx',manhattan:'Manhattan',queens:'Queens','staten island':'Staten Island'};
+  let boro='Brooklyn';
+  for(const[k,v] of Object.entries(bmap)){if(input.toLowerCase().includes(k)){boro=v;break;}}
+
+  btn.disabled=true; btn.textContent='…';
+  try {
+    const url=`https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(hn)}&street=${encodeURIComponent(st)}&borough=${encodeURIComponent(boro)}`;
+    const resp=await fetch(url,{headers:{'Ocp-Apim-Subscription-Key':LIB_API_KEY}});
+    const data=await resp.json();
+    const a=data.address;
+    if(!a||a.geosupportReturnCode2==='11') throw new Error('Address not found. Try full street name.');
+    const bcd=a.communityDistrict;
+    if(!bcd) throw new Error('District not found.');
+
+    const bd=bcd.charAt(0), cbNum=parseInt(bcd.slice(1));
+    const pfxMap={'3':'CB','2':'BX_CB','1':'MN_CB','4':'QN_CB','5':'SI_CB'};
+    const pfx=pfxMap[bd]||'CB';
+    const ed = a.electionDistrict ? parseInt(a.electionDistrict) : null;
+
+    // Build reps list in order: ED, CB, Council, Assembly, Senate, House
+    const reps = [];
+    if(ed) reps.push({label:'Election District',sub:`ED ${ed}`,src:null,href:null,special:'ed'});
+
+    const cbKey=pfx+cbNum+'_540';
+    const cbTile=EL_TILES.find(t=>t.matchKey===cbKey);
+    if(cbTile) reps.push({label:'Community Board',sub:cbTile.spine.replace(/\\n/g,' '),src:cbTile.src,href:cbTile.href,scheme:cbTile.scheme});
+
+    if(a.cityCouncilDistrict){const t=EL_TILES.find(x=>x.matchKey===`CD${parseInt(a.cityCouncilDistrict)}`);if(t) reps.push({label:'City Council',sub:t.spine.replace(/\\n/g,' '),src:t.src,href:t.href,scheme:t.scheme});}
+    if(a.assemblyDistrict){const t=EL_TILES.find(x=>x.matchKey===`AD${parseInt(a.assemblyDistrict)}`);if(t) reps.push({label:'State Assembly',sub:t.spine.replace(/\\n/g,' '),src:t.src,href:t.href,scheme:t.scheme});}
+    if(a.stateSenatorialDistrict){const t=EL_TILES.find(x=>x.matchKey===`SD${parseInt(a.stateSenatorialDistrict)}`);if(t) reps.push({label:'State Senate',sub:t.spine.replace(/\\n/g,' '),src:t.src,href:t.href,scheme:t.scheme});}
+    if(a.congressionalDistrict){const ck=LIB_CONGRESS_MAP[parseInt(a.congressionalDistrict)];const t=ck?EL_TILES.find(x=>x.matchKey===ck):null;if(t) reps.push({label:'US House',sub:t.spine.replace(/\\n/g,' '),src:t.src,href:t.href,scheme:t.scheme});}
+
+    // Render panel
+    const wrap=document.createElement('div');
+    wrap.style.cssText='background:rgba(0,0,0,.3);border-top:1px solid #5a3010;padding:14px 16px 16px';
+
+    const hdrDiv=document.createElement('div');
+    hdrDiv.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:12px';
+    hdrDiv.innerHTML=`<div style="font-size:.7rem;font-family:'DM Mono',monospace;font-weight:700;color:#c9a227;text-transform:uppercase;letter-spacing:.08em">${a.houseNumberDisplay||hn} ${a.streetName||st}</div><button onclick="document.getElementById('lib-addr-results').innerHTML='';document.getElementById('lib-addr').value=''" style="background:rgba(255,255,255,.1);border:none;border-radius:4px;color:#c9a22788;padding:3px 8px;cursor:pointer;font-size:.65rem;font-family:'DM Mono',monospace">✕</button>`;
+    wrap.appendChild(hdrDiv);
+
+    const grid=document.createElement('div');
+    grid.style.cssText='display:grid;grid-template-columns:repeat(3,1fr);gap:10px';
+
+    reps.forEach(rep => {
+      const s=rep.scheme?(SCHEMES[rep.scheme]||SCHEMES.BK):null;
+      const borderColor=s?s.cap:'#c9a227';
+      const cell=document.createElement('div');
+      cell.style.cssText='display:flex;flex-direction:column;align-items:center;gap:3px';
+
+      if(rep.special==='ed') {
+        const box=document.createElement('div');
+        box.style.cssText=`width:100%;aspect-ratio:1/1;background:#132D65;border:2.5px solid #F47920;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px`;
+        box.innerHTML=`<span style="font-size:.5rem;font-family:'DM Mono',monospace;color:#F47920;text-transform:uppercase;letter-spacing:.05em">Election</span><span style="font-size:.5rem;font-family:'DM Mono',monospace;color:#F47920;text-transform:uppercase;letter-spacing:.05em">District</span><span style="font-size:1.1rem;font-weight:800;color:#fff;font-family:'DM Sans',sans-serif">${rep.sub.replace('ED ','')}</span>`;
+        cell.appendChild(box);
+      } else {
+        const link=document.createElement('a');
+        link.href=rep.href||'#'; link.target='_blank'; link.rel='noopener noreferrer';
+        link.style.cssText='width:100%;display:block;text-decoration:none';
+        const imgWrap=document.createElement('div');
+        imgWrap.style.cssText=`aspect-ratio:1/1;border:2.5px solid ${borderColor};border-radius:8px;overflow:hidden;background:#fff;transition:transform .15s`;
+        imgWrap.onmouseenter=()=>{imgWrap.style.transform='translateY(-3px)';};
+        imgWrap.onmouseleave=()=>{imgWrap.style.transform='none';};
+        const img=document.createElement('img');
+        img.src=rep.src; img.alt=rep.sub;
+        img.style.cssText='width:100%;height:100%;object-fit:contain;padding:4px;box-sizing:border-box;display:block';
+        img.onerror=()=>{img.style.display='none';};
+        imgWrap.appendChild(img); link.appendChild(imgWrap); cell.appendChild(link);
+      }
+
+      const lbl=document.createElement('div');
+      lbl.style.cssText="font-size:.55rem;font-family:'DM Mono',monospace;color:#c9a22799;text-align:center;line-height:1.2;font-weight:700;text-transform:uppercase";
+      lbl.textContent=rep.label; cell.appendChild(lbl);
+
+      const sub=document.createElement('div');
+      sub.style.cssText="font-size:.55rem;font-family:'DM Mono',monospace;color:#c9a22766;text-align:center;line-height:1.2";
+      sub.textContent=rep.sub; cell.appendChild(sub);
+
+      grid.appendChild(cell);
+    });
+
+    wrap.appendChild(grid);
+    panel.appendChild(wrap);
+
+  } catch(e) {
+    errEl.textContent='⚠ '+e.message; errEl.style.display='block';
+  } finally {
+    btn.disabled=false; btn.textContent='Search';
+  }
+}
 
 // Initial render
 elRender();
