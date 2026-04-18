@@ -138,6 +138,14 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     <input class="bkdir-addr-input" id="bkdir-addr" type="text" placeholder="e.g. 350 Jay St, Brooklyn">
     <button class="bkdir-addr-btn" id="bkdir-addr-btn" onclick="bkdirAddrSearch()">Search</button>
   </div>
+<div style="padding:8px 20px 10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+  <span style="font-size:.55rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-right:4px">Borough colors:</span>
+  <span style="display:inline-flex;align-items:center;gap:3px"><span style="display:inline-block;width:10px;height:18px;background:#132D65;border:2px solid #F47920;border-radius:2px"></span><span style="font-size:.58rem;font-family:'DM Mono',monospace;color:var(--muted)">BK</span></span>
+  <span style="display:inline-flex;align-items:center;gap:3px"><span style="display:inline-block;width:10px;height:18px;background:#fff;border:2px solid #132D65;border-radius:2px"></span><span style="font-size:.58rem;font-family:'DM Mono',monospace;color:var(--muted)">BX</span></span>
+  <span style="display:inline-flex;align-items:center;gap:3px"><span style="display:inline-block;width:10px;height:18px;background:#F47920;border:2px solid #132D65;border-radius:2px"></span><span style="font-size:.58rem;font-family:'DM Mono',monospace;color:var(--muted)">MN</span></span>
+  <span style="display:inline-flex;align-items:center;gap:3px"><span style="display:inline-block;width:10px;height:18px;background:#fff;border:2px solid #F47920;border-radius:2px"></span><span style="font-size:.58rem;font-family:'DM Mono',monospace;color:var(--muted)">QNS</span></span>
+  <span style="display:inline-flex;align-items:center;gap:3px"><span style="display:inline-block;width:10px;height:18px;background:#B91C1C;border:2px solid #fff;outline:1px solid #B91C1C;border-radius:2px"></span><span style="font-size:.58rem;font-family:'DM Mono',monospace;color:var(--muted)">SI</span></span>
+</div>
   <div class="bkdir-msg err" id="bkdir-err"></div>
   <div class="bkdir-msg ok" id="bkdir-ok"></div>
   <input class="bkdir-text-input" id="bkdir-text" type="text" placeholder="Search by name, district, borough..." oninput="bkdirFilter()" style="margin-bottom:8px">
@@ -240,7 +248,7 @@ function render() {
         lbl.style.cssText = `display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 2px`;
         tile.label.split('\\n').forEach(line => {
           const s = document.createElement('span');
-          s.style.cssText = `font-size:8px;font-family:'DM Mono',monospace;font-weight:900;color:#ffffff;letter-spacing:.06em;text-transform:uppercase;line-height:1.2;text-align:center`;
+          s.style.cssText = `font-size:9px;font-family:'DM Mono',monospace;font-weight:900;color:#f5e27a;letter-spacing:.06em;text-transform:uppercase;line-height:1.25;text-align:center`;
           s.textContent = line;
           lbl.appendChild(s);
         });
@@ -426,7 +434,7 @@ window.bkdirAddrSearch = async function() {
 
     okEl.textContent='✓ '+matched.length+' reps for this address — shown below and highlighted on shelf';
     okEl.classList.add('show');
-    renderResults(matched);
+    renderResults(matched, a);
     render();
   } catch(e) {
     errEl.textContent='⚠ '+e.message; errEl.classList.add('show');
@@ -443,35 +451,118 @@ function clearResults() {
   render();
 }
 
-function renderResults(matched) {
+function renderResults(matched, addrData) {
   const panel=document.getElementById('bkdir-results-panel');
-  const ORDER=["Community Boards","NYC Council","State Assembly","State Senate","U.S. Congress","Borough Presidents","Citywide"];
-  const grouped={};
-  matched.forEach(t=>{if(!grouped[t.category]) grouped[t.category]=[];grouped[t.category].push(t);});
 
-  const wrap=document.createElement('div'); wrap.className='bkdir-results';
+  // Build structured list: ED, CB, Council, Assembly, Senate, House, (BP, Citywide excluded from top panel)
+  const a = addrData || {};
+  const bcd = a.communityDistrict || '';
+  const bd = bcd.charAt(0);
+  const cbNum = parseInt(bcd.slice(1)||'0');
+  const ed = a.electionDistrict ? parseInt(a.electionDistrict) : null;
+  const cd = a.cityCouncilDistrict ? parseInt(a.cityCouncilDistrict) : null;
+  const ad = a.assemblyDistrict ? parseInt(a.assemblyDistrict) : null;
+  const sd = a.stateSenatorialDistrict ? parseInt(a.stateSenatorialDistrict) : null;
+  const cong = a.congressionalDistrict ? parseInt(a.congressionalDistrict) : null;
+  const pfxMap={'3':'CB','2':'BX_CB','1':'MN_CB','4':'QN_CB','5':'SI_CB'};
+  const pfx = pfxMap[bd] || 'CB';
 
-  const hdr=document.createElement('div'); hdr.className='bkdir-results-hdr';
-  hdr.innerHTML=`<div><div class="bkdir-results-title">Your Representatives</div><div class="bkdir-results-count">${matched.length} reps for this address</div></div><button class="bkdir-results-close" onclick="bkdirClearResults()">✕ Clear</button>`;
+  // Primary reps in display order
+  const primaryReps = [];
+
+  // ED — no tile image, just label card
+  if(ed) {
+    primaryReps.push({label:'Election District', sub:`ED ${ed}`, src:null, href:null, special:'ed'});
+  }
+
+  // CB
+  const cbKey = pfx+cbNum+'_540';
+  const cbTile = TILES.find(t=>t.matchKey===cbKey);
+  if(cbTile) primaryReps.push({label:'Community Board', sub:cbTile.spine.replace(/\n/g,' '), src:cbTile.src, href:cbTile.href, scheme:cbTile.scheme});
+
+  // Council
+  if(cd) {
+    const t=TILES.find(x=>x.matchKey===`CD${cd}`);
+    if(t) primaryReps.push({label:'City Council', sub:t.spine.replace(/\n/g,' '), src:t.src, href:t.href, scheme:t.scheme});
+  }
+  // Assembly
+  if(ad) {
+    const t=TILES.find(x=>x.matchKey===`AD${ad}`);
+    if(t) primaryReps.push({label:'State Assembly', sub:t.spine.replace(/\n/g,' '), src:t.src, href:t.href, scheme:t.scheme});
+  }
+  // Senate
+  if(sd) {
+    const t=TILES.find(x=>x.matchKey===`SD${sd}`);
+    if(t) primaryReps.push({label:'State Senate', sub:t.spine.replace(/\n/g,' '), src:t.src, href:t.href, scheme:t.scheme});
+  }
+  // House
+  if(cong) {
+    const ck=CONGRESS_MAP[cong];
+    const t=ck?TILES.find(x=>x.matchKey===ck):null;
+    if(t) primaryReps.push({label:'US House', sub:t.spine.replace(/\n/g,' '), src:t.src, href:t.href, scheme:t.scheme});
+  }
+
+  // Build panel
+  const wrap = document.createElement('div');
+  wrap.style.cssText='background:#fff;border:2px solid #132D65;border-radius:10px;margin:0 20px 12px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.1)';
+
+  const hdr = document.createElement('div');
+  hdr.style.cssText='background:#132D65;padding:10px 14px;display:flex;justify-content:space-between;align-items:center';
+  hdr.innerHTML=`<div>
+    <div style="font-size:.57rem;font-family:'DM Mono',monospace;color:#F47920;text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px">Your Representatives</div>
+    <div style="font-size:.82rem;font-weight:700;color:#fff;font-family:'DM Sans',sans-serif">${a.houseNumberDisplay||''} ${a.streetName||''}</div>
+  </div>
+  <button onclick="bkdirClearResults()" style="background:rgba(255,255,255,.15);border:none;border-radius:5px;color:#fff;padding:5px 9px;cursor:pointer;font-size:.7rem;font-family:'DM Mono',monospace">✕ Clear</button>`;
   wrap.appendChild(hdr);
 
-  ORDER.filter(c=>grouped[c]).forEach(cat=>{
-    const s=document.createElement('div'); s.className='bkdir-results-section';
-    s.innerHTML=`<div class="bkdir-results-label">${CAT_ICONS[cat]||''} ${cat}</div>`;
-    const tiles=document.createElement('div'); tiles.className='bkdir-results-tiles';
-    grouped[cat].forEach(t=>{
-      const scheme=SCHEMES[t.scheme]||SCHEMES.citywide;
-      const isW=scheme.white;
-      tiles.innerHTML+=`<a class="bkdir-results-tile" href="${t.href}" target="_blank" rel="noopener noreferrer">
-        <div class="bkdir-results-tile-img" style="border:2px solid ${scheme.cap}">
-          <img src="${t.src}" alt="${t.alt}" onerror="this.style.display='none'">
-        </div>
-        <div class="bkdir-results-tile-lbl">${t.spine.replace(/\n/g,' ')}</div>
-      </a>`;
-    });
-    s.appendChild(tiles); wrap.appendChild(s);
+  // Grid of rep tiles
+  const grid = document.createElement('div');
+  grid.style.cssText='display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:14px';
+
+  primaryReps.forEach(rep => {
+    const scheme = rep.scheme ? (SCHEMES[rep.scheme]||SCHEMES.BK) : null;
+    const borderColor = scheme ? scheme.cap : '#132D65';
+
+    const cell = document.createElement('div');
+    cell.style.cssText='display:flex;flex-direction:column;align-items:center;gap:4px';
+
+    if(rep.special==='ed') {
+      // ED — no logo, show styled card
+      const box = document.createElement('div');
+      box.style.cssText=`width:100%;aspect-ratio:1/1;background:#132D65;border:2px solid #F47920;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px`;
+      box.innerHTML=`<span style="font-size:.55rem;font-family:'DM Mono',monospace;color:#F47920;text-transform:uppercase;letter-spacing:.06em">Election</span><span style="font-size:.55rem;font-family:'DM Mono',monospace;color:#F47920;text-transform:uppercase;letter-spacing:.06em">District</span><span style="font-size:1.1rem;font-weight:800;color:#fff;font-family:'DM Sans',sans-serif">${rep.sub.replace('ED ','')}</span>`;
+      cell.appendChild(box);
+    } else {
+      const link = document.createElement('a');
+      link.href=rep.href||'#'; link.target='_blank'; link.rel='noopener noreferrer';
+      link.style.cssText='width:100%;display:block;text-decoration:none';
+      const imgWrap = document.createElement('div');
+      imgWrap.style.cssText=`aspect-ratio:1/1;border:2.5px solid ${borderColor};border-radius:8px;overflow:hidden;background:#fff;transition:transform .15s,box-shadow .15s`;
+      imgWrap.onmouseenter=()=>{imgWrap.style.transform='translateY(-3px)';imgWrap.style.boxShadow=`0 8px 20px ${borderColor}55`;};
+      imgWrap.onmouseleave=()=>{imgWrap.style.transform='none';imgWrap.style.boxShadow='none';};
+      const img = document.createElement('img');
+      img.src=rep.src; img.alt=rep.sub;
+      img.style.cssText='width:100%;height:100%;object-fit:contain;padding:4px;box-sizing:border-box;display:block';
+      img.onerror=()=>{img.style.display='none';};
+      imgWrap.appendChild(img);
+      link.appendChild(imgWrap);
+      cell.appendChild(link);
+    }
+
+    const lbl = document.createElement('div');
+    lbl.style.cssText='font-size:.58rem;font-family:"DM Mono",monospace;color:#555;text-align:center;line-height:1.2;font-weight:700';
+    lbl.textContent=rep.label;
+    cell.appendChild(lbl);
+
+    const sub = document.createElement('div');
+    sub.style.cssText='font-size:.55rem;font-family:"DM Mono",monospace;color:#888;text-align:center;line-height:1.2';
+    sub.textContent=rep.sub;
+    cell.appendChild(sub);
+
+    grid.appendChild(cell);
   });
 
+  wrap.appendChild(grid);
   panel.innerHTML=''; panel.appendChild(wrap);
 }
 
