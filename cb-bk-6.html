@@ -832,6 +832,63 @@ function walkCoords2(coords, bounds){
 }
 
 // ADDRESS SEARCH
+var plyDobCache = null;
+
+function loadDobData(){
+  if(plyDobCache) return Promise.resolve(plyDobCache);
+  return fetch('data/cb6_dob_now_recent.json').then(function(r){return r.json();}).then(function(d){
+    plyDobCache = d.rows || [];
+    return plyDobCache;
+  }).catch(function(){ return []; });
+}
+
+function matchDobPermits(rows, block, lot, houseNo, streetName){
+  var blk = String(block||'').replace(/^0+/,'');
+  var lt  = String(lot||'').replace(/^0+/,'');
+  var hn  = String(houseNo||'').trim().toUpperCase();
+  var st  = String(streetName||'').trim().toUpperCase();
+
+  // First try block+lot match (most precise)
+  var byBBL = rows.filter(function(r){
+    return String(r.block||'').replace(/^0+/,'') === blk && String(r.lot||'').replace(/^0+/,'') === lt;
+  });
+  if(byBBL.length) return byBBL;
+
+  // Fallback: house number + street name match
+  return rows.filter(function(r){
+    var rHn = String(r.house_no||'').trim().toUpperCase();
+    var rSt = String(r.street_name||'').trim().toUpperCase();
+    return rHn === hn && (rSt === st || st.indexOf(rSt) !== -1 || rSt.indexOf(st) !== -1);
+  });
+}
+
+function renderDobRow(permits){
+  if(!permits || !permits.length) return '<span style="color:#888">No permits on file (2026 YTD)</span>';
+
+  // Group by work type, show counts
+  var groups = {};
+  permits.forEach(function(p){
+    var wt = p.work_type || 'Other';
+    var status = p.permit_status || '';
+    if(!groups[wt]) groups[wt] = {issued:0, signedoff:0, latest:p.issued_date};
+    if(status === 'Permit Issued') groups[wt].issued++;
+    else if(status === 'Signed-off') groups[wt].signedoff++;
+    if(p.issued_date > groups[wt].latest) groups[wt].latest = p.issued_date;
+  });
+
+  var lines = Object.keys(groups).sort().map(function(wt){
+    var g = groups[wt];
+    var parts = [];
+    if(g.issued) parts.push('<span style="color:#2d6a4f;font-weight:600">'+g.issued+' active</span>');
+    if(g.signedoff) parts.push('<span style="color:#888">'+g.signedoff+' signed-off</span>');
+    var date = g.latest ? g.latest.slice(0,10) : '';
+    return '<div style="margin-bottom:2px"><strong>'+escH(wt)+'</strong> — '+parts.join(', ')+(date?' <span style="color:#aaa;font-size:.7rem">'+date+'</span>':'')+'</div>';
+  });
+
+  // Add BIS link if we have block/lot (passed as data attr on container)
+  return lines.join('')+'<div style="margin-top:5px"><a href="#" id="ply-bis-link" target="_blank" style="color:#f47920;font-size:.72rem;font-family:DM Mono,monospace">View full permit history on DOB BIS ↗</a></div>';
+}
+
 window.plyAddrSearch = function(){
   var addr = document.getElementById('ply-addr-input').value.trim();
   if(!addr) return;
@@ -848,14 +905,21 @@ window.plyAddrSearch = function(){
         walkCoords2(g,bd);
         var env={xmin:bd.minLng,ymin:bd.minLat,xmax:bd.maxLng,ymax:bd.maxLat,spatialReference:{wkid:4326}};
         return fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(env))+'&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&f=pgeojson').then(function(r){return r.json();});
-      })
+      }),
+    loadDobData()
   ]).then(function(res){
-    var geo=res[0]; var zdata=res[1];
+    var geo=res[0], zdata=res[1], dobRows=res[2];
     if(!geo.features||!geo.features.length){ resDiv.innerHTML='<span style="color:#c81e1e;font-size:.78rem">Address not found.</span>'; return; }
+
     var feat=geo.features[0];
     var lat=feat.geometry.coordinates[1], lng=feat.geometry.coordinates[0];
     var lbl=feat.properties.label||addr;
-    var bbl=feat.properties.addendum&&feat.properties.addendum.pad&&feat.properties.addendum.pad.bbl;
+    var pad=feat.properties.addendum&&feat.properties.addendum.pad||{};
+    var bbl=pad.bbl||'';
+    var bblNum=String(bbl).replace(/\D/g,'');
+    var block=bblNum.slice(1,6), lot=bblNum.slice(6,10);
+    var houseNo=pad.house_number||feat.properties.housenumber||'';
+    var streetName=pad.street_name||feat.properties.street||'';
 
     // Find zoning
     var zone='—';
@@ -871,7 +935,11 @@ window.plyAddrSearch = function(){
       if(pipCheck2(lng,lat,f)) lm=f.properties.area_name||f.properties.AREA_NAME||'Historic District';
     });
 
-    // Fetch land use from PLUTO if BBL available
+    // Match DOB permits
+    var permits = matchDobPermits(dobRows, block, lot, houseNo, streetName);
+    var dobHtml = renderDobRow(permits);
+
+    // Fetch land use from PLUTO
     var luPromise = bbl
       ? fetch('https://data.cityofnewyork.us/resource/64uk-42ks.json?bbl='+encodeURIComponent(bbl)+'&$select=landuse,address').then(function(r){return r.json();}).catch(function(){return[];})
       : Promise.resolve([]);
@@ -883,23 +951,36 @@ window.plyAddrSearch = function(){
         lu=(LU_LABELS[c]||'Unknown')+' ('+c+')';
       }
 
+      // Build BIS URL
+      var bisUrl = block && lot
+        ? 'https://a810-bisweb.nyc.gov/bisweb/PropertyProfileOverviewServlet?boro=3&block='+block+'&lot='+lot
+        : 'https://a810-bisweb.nyc.gov/bisweb/';
+      var dobFinal = dobHtml.replace('href="#" id="ply-bis-link"', 'href="'+bisUrl+'"');
+
       if(plySearchMarker) plyMap.removeLayer(plySearchMarker);
 
       var inLm = lm!=='None';
+
+      function buildTable(){
+        return '<table style="border-collapse:collapse;width:100%">'+
+          pRow('🧭','Zoning','<strong>'+escH(zone)+'</strong>')+
+          pRow('🏘','Land Use',escH(lu))+
+          pRow('🏛','Landmark',inLm?'<strong style="color:#b5862b">'+escH(lm)+'</strong>':'<span style="color:#888">None</span>')+
+          pRow('🏗','DOB Permits',dobFinal)+
+          '</table>';
+      }
+
       var card=
-        '<div style="font-family:DM Sans,sans-serif;min-width:230px;max-width:290px">'+
+        '<div style="font-family:DM Sans,sans-serif;min-width:260px;max-width:320px">'+
         '<div style="font-weight:700;font-size:.85rem;color:#0d1b4b;background:#fff7f0;border-bottom:2px solid #f47920;padding:6px 10px;border-radius:8px 8px 0 0">📍 '+escH(lbl)+'</div>'+
-        '<table style="border-collapse:collapse;width:100%">'+
-        pRow('🧭','Zoning','<strong>'+escH(zone)+'</strong>')+
-        pRow('🏘','Land Use',escH(lu))+
-        pRow('🏛','Landmark',inLm?'<strong style="color:#b5862b">'+escH(lm)+'</strong>':'<span style="color:#888">None</span>')+
-        '</table></div>';
+        buildTable()+
+        '</div>';
 
       plySearchMarker=L.marker([lat,lng],{
         icon:L.divIcon({
           className:'',
-          html:'<div style="background:#fff;border:2px solid #f47920;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.22);overflow:hidden">'+card+'</div>',
-          iconSize:[290,1],iconAnchor:[0,0]
+          html:'<div style="background:#fff;border:2px solid #f47920;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.25);overflow:hidden;max-height:420px;overflow-y:auto">'+card+'</div>',
+          iconSize:[320,1],iconAnchor:[0,0]
         }),
         zIndexOffset:9999
       }).addTo(plyMap);
@@ -908,11 +989,7 @@ window.plyAddrSearch = function(){
       resDiv.style.cssText='display:block;padding:11px 16px;background:#fff;border-bottom:2px solid #f47920';
       resDiv.innerHTML=
         '<div style="font-family:DM Sans,sans-serif;font-weight:700;font-size:.82rem;color:#0d1b4b;margin-bottom:7px">'+escH(lbl)+'</div>'+
-        '<table style="border-collapse:collapse;width:100%;font-size:.78rem">'+
-        pRow('🧭','Zoning','<strong>'+escH(zone)+'</strong>')+
-        pRow('🏘','Land Use',escH(lu))+
-        pRow('🏛','Landmark',inLm?'<strong style="color:#b5862b">'+escH(lm)+'</strong>':'<span style="color:#888">None</span>')+
-        '</table>';
+        buildTable();
     });
   }).catch(function(e){ console.error(e); resDiv.innerHTML='<span style="color:#c81e1e;font-size:.78rem">Search failed.</span>'; });
 };
