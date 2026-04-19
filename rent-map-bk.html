@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Brooklyn Median Rent by Community Board — bkcb6.app</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh;display:flex;flex-direction:column}
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700&display=swap');
+.top-bar{background:#0d1b4b;border-bottom:3px solid #f47920;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:12px;flex-wrap:wrap}
+.top-bar h1{font-size:.95rem;font-weight:700;color:#fff}
+.top-bar h1 span{color:#f47920}
+.controls{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.rent-btn{padding:5px 12px;font-size:.75rem;font-family:'DM Sans',sans-serif;font-weight:600;border:1px solid rgba(255,255,255,.3);border-radius:20px;background:transparent;color:rgba(255,255,255,.7);cursor:pointer;transition:all .15s}
+.rent-btn:hover{border-color:#fff;color:#fff}
+.rent-btn.active{background:#f47920;color:#fff;border-color:#f47920}
+.legend{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 16px;background:rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0}
+.legend-item{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;color:rgba(255,255,255,.8)}
+.legend-swatch{width:11px;height:11px;border-radius:2px;display:inline-block;flex-shrink:0}
+#map{flex:1}
+.back-link{font-size:.72rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.5);text-decoration:none;white-space:nowrap}
+.back-link:hover{color:#f47920}
+.source{font-size:.65rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.35);padding:4px 16px;flex-shrink:0;background:#0d1b4b}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <h1>Brooklyn Median Rent by <span>Community Board</span></h1>
+  <div class="controls">
+    <button class="rent-btn" onclick="toggle('studio',this)">Studio</button>
+    <button class="rent-btn active" onclick="toggle('1br',this)">1BR</button>
+    <button class="rent-btn" onclick="toggle('2br',this)">2BR</button>
+    <button class="rent-btn" onclick="toggle('3br',this)">3BR+</button>
+    <button class="rent-btn" onclick="toggle('all',this)">All Units</button>
+  </div>
+  <a class="back-link" href="cb-bk-6.html#sec-rent">← Back to CB6</a>
+</div>
+<div class="legend">
+  <span style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.4);margin-right:4px">Rent Tier</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#67000D"></span>Most Expensive</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#A50F15"></span>Expensive</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#EF3B2C"></span>Mid Range</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#FC9272"></span>Less Expensive</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#FEE0D2"></span>Least Expensive</span>
+</div>
+<div id="map"></div>
+<div class="source">Source: StreetEasy median asking rent, Feb 2026 &nbsp;|&nbsp; bkcb6.app</div>
+
+<script>
+var map = L.map('map', {scrollWheelZoom: true}).setView([40.645, -73.96], 11);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; CARTO',
+  subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+var mode = '1br';
+var layer = null;
+var data = null;
+
+fetch('data/bk-rents.geojson').then(r=>r.json()).then(function(d){
+  data = d;
+  drawLayer();
+});
+
+function getFill(props) {
+  return {studio:props.fill_studio,'1br':props.fill_1br,'2br':props.fill_2br,'3br':props.fill_3br,'all':props.fill_1br}[mode] || '#ccc';
+}
+
+function getTooltip(props) {
+  var rentKey = {studio:'rent_studio','1br':'rent_1br','2br':'rent_2br','3br':'rent_3br','all':'rent_all'}[mode];
+  var labelKey = {studio:'label_studio','1br':'label_1br','2br':'label_2br','3br':'label_3br','all':'label_all'}[mode];
+  var rent = props[rentKey] ? '$' + props[rentKey].toLocaleString() + '/mo' : 'N/A';
+  var isCB6 = props.cb_code === 'CB6';
+  return '<div style="font-family:DM Sans,sans-serif;min-width:170px">' +
+    '<div style="font-weight:700;font-size:.92rem;color:#0d1b4b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:6px">' +
+    (isCB6 ? '★ ' : '') + 'Brooklyn ' + props.cb_code + '</div>' +
+    '<div style="font-size:.75rem;color:#555;margin-bottom:5px">' + (props.neighborhoods||'') + '</div>' +
+    '<div style="font-size:1.05rem;font-weight:700;color:#0d1b4b">' + rent + '</div>' +
+    '<div style="font-size:.7rem;color:#888;margin-top:2px">' + (props[labelKey]||'') + '</div>' +
+    '</div>';
+}
+
+function drawLayer() {
+  if (layer) map.removeLayer(layer);
+  layer = L.geoJSON(data, {
+    style: function(feat) {
+      var isCB6 = feat.properties.cb_code === 'CB6';
+      return {fillColor: getFill(feat.properties), fillOpacity: 0.8, color: isCB6 ? '#f47920' : '#fff', weight: isCB6 ? 3 : 1};
+    },
+    onEachFeature: function(feat, lyr) {
+      lyr.bindTooltip(getTooltip(feat.properties), {sticky:true, opacity:1});
+      lyr.on('mouseover', function(){ if(feat.properties.cb_code!=='CB6') lyr.setStyle({fillOpacity:.95,weight:2,color:'#333'}); });
+      lyr.on('mouseout', function(){ layer.resetStyle(lyr); });
+    }
+  }).addTo(map);
+}
+
+function toggle(m, btn) {
+  mode = m;
+  document.querySelectorAll('.rent-btn').forEach(b=>{ b.classList.remove('active'); });
+  btn.classList.add('active');
+  if (data) drawLayer();
+}
+</script>
+</body>
+</html>
