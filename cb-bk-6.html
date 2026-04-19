@@ -608,20 +608,23 @@ var LM_PALETTE = ['#b5862b','#8b5e2a','#c4973b','#7a5c1e','#d4a843','#6b4f1a','#
 
 window.planningInit = function() {
   if(plyReady) return;
-  // Wait until the map container actually has height before initializing
+  // Check the drop-body parent is open before initializing Leaflet
   var el = document.getElementById('ply-map');
-  if(!el || el.offsetHeight < 10) {
+  if(!el) return;
+  var body = el.closest('.drop-body');
+  if(body && !body.classList.contains('open')) {
     setTimeout(window.planningInit, 100);
     return;
   }
   plyReady = true;
   var note = document.getElementById('ply-note');
   if(note) note.textContent = 'Loading map data…';
+  // Give browser one frame to paint before Leaflet measures the container
+  setTimeout(function(){
+    plyMap = window.plyMap = L.map('ply-map', {scrollWheelZoom:false}).setView([40.664,-73.988],13);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(plyMap);
 
-  plyMap = window.plyMap = L.map('ply-map', {scrollWheelZoom:false}).setView([40.664,-73.988],13);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(plyMap);
-
-  // Load CB6 boundary
+    // Load CB6 boundary
   fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}).then(function(d){
     var cb6 = (d.features||[]).find(function(f){ return String(f.properties&&f.properties.boro_cd)==='306'; });
     if(cb6){
@@ -651,7 +654,8 @@ window.planningInit = function() {
   // Land use loads on map move (zoom-dependent tiles)
   // land use loads full district on demand, no viewport listener needed
 
-  document.getElementById('ply-addr-input').addEventListener('keydown',function(e){if(e.key==='Enter') plyAddrSearch();});
+    document.getElementById('ply-addr-input').addEventListener('keydown',function(e){if(e.key==='Enter') plyAddrSearch();});
+  }, 50);
 };
 
 function loadZoning(){
