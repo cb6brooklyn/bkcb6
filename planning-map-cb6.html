@@ -91,7 +91,8 @@ Promise.all([
   var cb6=(bdata.features||[]).find(function(f){return String(f.properties&&f.properties.boro_cd)==='306';});
   if(cb6){
     boundaryLayer=L.geoJSON(cb6,{style:function(){return{color:'#f47920',weight:2.5,fill:false};}}).addTo(map);
-    map.fitBounds(boundaryLayer.getBounds(),{padding:[18,18]});
+    window.cb6Bounds=boundaryLayer.getBounds();
+    map.fitBounds(window.cb6Bounds,{padding:[18,18]});
     var g=cb6.geometry.coordinates,b={minLat:90,maxLat:-90,minLng:180,maxLng:-180};
     walkC(g,b);
     var env={xmin:b.minLng,ymin:b.minLat,xmax:b.maxLng,ymax:b.maxLat,spatialReference:{wkid:4326}};
@@ -183,7 +184,17 @@ function setMain(which,btn){
 function loadLU(){
   var zoom=map.getZoom();var note=document.getElementById('note');
   if(zoom<14){if(note)note.textContent='Zoom in to level 14+ to load tax lots.';return;}
-  var b=map.getBounds();if(note)note.textContent='Loading parcels…';
+  // Clamp to CB6 bounds — never query outside the district
+  var b=map.getBounds();
+  if(window.cb6Bounds){
+    var cb=window.cb6Bounds;
+    b=L.latLngBounds(
+      [Math.max(b.getSouth(),cb.getSouth()), Math.max(b.getWest(),cb.getWest())],
+      [Math.min(b.getNorth(),cb.getNorth()), Math.min(b.getEast(),cb.getEast())]
+    );
+    if(!b.isValid()){if(note)note.textContent='Pan into CB6 to load parcels.';return;}
+  }
+  if(note)note.textContent='Loading parcels…';
   fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?where=1%3D1&geometry='+encodeURIComponent(JSON.stringify({xmin:b.getWest(),ymin:b.getSouth(),xmax:b.getEast(),ymax:b.getNorth(),spatialReference:{wkid:4326}}))+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson&resultRecordCount=500&outSR=4326')
     .then(function(r){return r.json();}).then(function(d){
       if(luLayer)map.removeLayer(luLayer);
