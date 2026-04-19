@@ -98,8 +98,8 @@ Promise.all([
     var env={xmin:b.minLng,ymin:b.minLat,xmax:b.maxLng,ymax:b.maxLat,spatialReference:{wkid:4326}};
     fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(env))+'&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&f=pgeojson')
       .then(function(r){return r.json();}).then(function(zd){
-        zoningData=zd; buildZoningLayer(); setMain('zoning',document.querySelector('.plyr-btn'));
-        document.getElementById('note').textContent='Hover over any feature for details.';
+        zoningData=zd; buildZoningLayer();
+        document.getElementById('note').textContent='Hover over any district for its zoning code.';
       });
   }
   lmData=ldata;
@@ -110,7 +110,8 @@ Promise.all([
 function buildZoningLayer(){
   if(zoningLayer)map.removeLayer(zoningLayer);
   zoningLayer=L.geoJSON(zoningData,{style:function(f){var lbl=getZLbl(f.properties||{});var cat=getZCat(lbl);return{color:'#fff',weight:.8,fillColor:ZONE_COLORS[cat],fillOpacity:zoningVisible[cat]?.6:0};},onEachFeature:function(f,l){var lbl=getZLbl(f.properties||{});l.bindTooltip('<strong>'+normZ(lbl)+'</strong>',{sticky:true,opacity:1});l.on('mouseover',function(){l.setStyle({weight:1.8,fillOpacity:.85});});l.on('mouseout',function(){zoningLayer.resetStyle(l);});}});
-  if(activeMain==='zoning')zoningLayer.addTo(map);
+  if(activeMain==='zoning') zoningLayer.addTo(map);
+  if(boundaryLayer) boundaryLayer.bringToFront();
   updateLegend();
 }
 function buildLmLayer(){
@@ -175,9 +176,17 @@ function setMain(which,btn){
   if(zoningLayer)map.removeLayer(zoningLayer);
   if(luLayer)map.removeLayer(luLayer);
   if(lmLayer)map.removeLayer(lmLayer);
-  if(which==='zoning'&&zoningLayer)zoningLayer.addTo(map);
-  else if(which==='landuse')loadLU();
-  else if(which==='landmarks'&&lmLayer)lmLayer.addTo(map);
+  if(which==='zoning'){
+    if(zoningLayer) zoningLayer.addTo(map);
+    var n=document.getElementById('note');
+    if(n) n.textContent='Hover over any district for its zoning code.';
+  } else if(which==='landuse'){
+    loadLU();
+  } else if(which==='landmarks'){
+    if(lmLayer) lmLayer.addTo(map);
+    var n=document.getElementById('note');
+    if(n) n.textContent='LPC-designated historic districts. Hover for details.';
+  }
   buildSubToggles();updateLegend();
   if(boundaryLayer)boundaryLayer.bringToFront();
 }
