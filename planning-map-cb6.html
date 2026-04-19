@@ -191,28 +191,49 @@ function setMain(which,btn){
   if(boundaryLayer)boundaryLayer.bringToFront();
 }
 function loadLU(){
-  var zoom=map.getZoom();var note=document.getElementById('note');
-  if(zoom<14){if(note)note.textContent='Zoom in to level 14+ to load tax lots.';return;}
-  // Clamp to CB6 bounds — never query outside the district
-  var b=map.getBounds();
-  if(window.cb6Bounds){
-    var cb=window.cb6Bounds;
-    b=L.latLngBounds(
-      [Math.max(b.getSouth(),cb.getSouth()), Math.max(b.getWest(),cb.getWest())],
-      [Math.min(b.getNorth(),cb.getNorth()), Math.min(b.getEast(),cb.getEast())]
-    );
-    if(!b.isValid()){if(note)note.textContent='Pan into CB6 to load parcels.';return;}
+  var note = document.getElementById('note');
+  if(luLayer){ if(note) note.textContent='Land use loaded. Toggle use groups above.'; return; }
+  if(note) note.textContent='Loading all CB6 parcels (this may take a moment)…';
+  var env = {xmin:-74.017,ymin:40.658,xmax:-73.965,ymax:40.695,spatialReference:{wkid:4326}};
+  var allFeatures = [];
+  function fetchPage(offset){
+    var url = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?' +
+      'where=1%3D1&geometry='+encodeURIComponent(JSON.stringify(env))+
+      '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects' +
+      '&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson' +
+      '&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326';
+    fetch(url).then(function(r){return r.json();}).then(function(data){
+      var feats = data.features || [];
+      allFeatures = allFeatures.concat(feats);
+      if(note) note.textContent='Loading parcels… '+allFeatures.length+' so far';
+      if(feats.length === 2000){
+        fetchPage(offset + 2000);
+      } else {
+        buildLuLayer(allFeatures);
+        if(note) note.textContent = allFeatures.length+' parcels loaded. Toggle use groups above.';
+      }
+    }).catch(function(){if(note) note.textContent='Could not load parcels.';});
   }
-  if(note)note.textContent='Loading parcels…';
-  fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?where=1%3D1&geometry='+encodeURIComponent(JSON.stringify({xmin:b.getWest(),ymin:b.getSouth(),xmax:b.getEast(),ymax:b.getNorth(),spatialReference:{wkid:4326}}))+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson&resultRecordCount=500&outSR=4326')
-    .then(function(r){return r.json();}).then(function(d){
-      if(luLayer)map.removeLayer(luLayer);
-      luLayer=L.geoJSON(d,{style:function(f){var c=normLU(f.properties&&f.properties.LandUse);return{fillColor:LU_COLORS[c]||'#9aa0a6',fillOpacity:luVisible[c]?.78:0,color:'#fff',weight:.5};},onEachFeature:function(f,l){var c=normLU(f.properties&&f.properties.LandUse);l.bindTooltip('<strong>'+(LU_LABELS[c]||'Unknown')+'</strong><br><span style="font-size:.75rem;color:#555">'+(f.properties.Address||'')+'</span>',{sticky:true,opacity:1});}}).addTo(map);
-      if(boundaryLayer)boundaryLayer.bringToFront();
-      if(note)note.textContent=(d.features||[]).length+' parcels loaded.';
-    }).catch(function(){if(note)note.textContent='Could not load parcels.';});
+  fetchPage(0);
 }
-map.on('moveend zoomend',function(){if(activeMain==='landuse')loadLU();});
+
+function buildLuLayer(features){
+  if(luLayer){ map.removeLayer(luLayer); luLayer=null; }
+  var gj = {type:'FeatureCollection', features: features};
+  luLayer = L.geoJSON(gj,{
+    style:function(f){
+      var c=normLU(f.properties&&f.properties.LandUse);
+      return{fillColor:LU_COLORS[c]||'#9aa0a6',fillOpacity:luVisible[c]?0.78:0,color:'#fff',weight:0.5};
+    },
+    onEachFeature:function(f,l){
+      var c=normLU(f.properties&&f.properties.LandUse);
+      l.bindTooltip('<strong>'+(LU_LABELS[c]||'Unknown')+'</strong><br><span style="font-size:.75rem;color:#555">'+(f.properties.Address||'')+'</span>',{sticky:true,opacity:1});
+    }
+  }).addTo(map);
+  if(boundaryLayer) boundaryLayer.bringToFront();
+}
+
+// land use loads full district on demand
 
 // Address search
 function pRow(icon,label,val){return'<tr style="border-bottom:1px solid #f0efed"><td style="padding:6px 10px 6px 0;vertical-align:top;white-space:nowrap"><span style="font-size:.85rem">'+icon+'</span><span style="font-size:.63rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-left:4px">'+label+'</span></td><td style="padding:6px 0;font-size:.78rem;color:#0d1b4b;line-height:1.4">'+val+'</td></tr>';}
