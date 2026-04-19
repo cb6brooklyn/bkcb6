@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BKCB6 — Zoning Map</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:#0d1b4b}
+body{display:flex;flex-direction:column}
+.top-bar{background:#0d1b4b;border-bottom:3px solid #f47920;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-shrink:0}
+.top-bar h1{font-size:.92rem;font-weight:700;color:#fff;white-space:nowrap}
+.top-bar h1 span{color:#f47920}
+.search-row{display:flex;gap:6px;flex:1;min-width:200px}
+.search-row input{flex:1;font-family:'DM Sans',sans-serif;font-size:.83rem;padding:6px 11px;border:none;border-radius:6px;background:rgba(255,255,255,.12);color:#fff;outline:none}
+.search-row input::placeholder{color:rgba(255,255,255,.4)}
+.search-row button{padding:6px 14px;background:#f47920;color:#fff;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer}
+.back-link{font-size:.7rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.45);text-decoration:none}
+.back-link:hover{color:#f47920}
+.addr-result{display:none;padding:10px 14px;background:#fff;border-bottom:2px solid #f47920;flex-shrink:0;font-family:'DM Sans',sans-serif;font-size:.82rem}
+.sub-row{padding:7px 14px;background:#f0f4ff;border-bottom:1px solid #dde5f0;display:flex;flex-wrap:wrap;gap:5px;align-items:center;flex-shrink:0}
+.sub-row span{font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-right:2px}
+.zbtn{padding:4px 10px;font-size:.71rem;font-family:'DM Sans',sans-serif;font-weight:600;border:1.5px solid #ccc;border-radius:16px;background:#fff;color:#555;cursor:pointer;transition:all .15s}
+.zbtn.on{background:var(--sc);color:#fff;border-color:var(--sc)}
+.legend-bar{padding:5px 14px;background:#fafaf8;border-bottom:1px solid #e5e2db;display:flex;flex-wrap:wrap;gap:7px;align-items:center;flex-shrink:0}
+.li{display:inline-flex;align-items:center;gap:4px;font-size:.71rem;color:#444}
+.ls{display:inline-block;width:14px;height:10px;border-radius:2px}
+#map{flex:1;min-height:0}
+.note-bar{padding:4px 14px;font-size:.65rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.35);background:#0d1b4b;flex-shrink:0}
+.note-bar a{color:#f47920;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <h1>BKCB6 <span>Zoning Map</span></h1>
+  <div class="search-row">
+    <input id="s-input" type="text" placeholder="Search a CB6 address…"/>
+    <button onclick="doSearch()">Search</button>
+  </div>
+  <a class="back-link" href="cb-bk-6.html#sec-planning">← Back to CB6</a>
+</div>
+<div class="addr-result" id="s-result"></div>
+<div class="sub-row">
+  <span>Show</span>
+  <button class="zbtn on" onclick="tog('R',this)" style="--sc:#f4a261">Residential</button>
+  <button class="zbtn on" onclick="tog('C',this)" style="--sc:#4c78a8">Commercial</button>
+  <button class="zbtn on" onclick="tog('M',this)" style="--sc:#7b61ff">Manufacturing</button>
+  <button class="zbtn on" onclick="tog('P',this)" style="--sc:#66a61e">Parks</button>
+  <button class="zbtn on" onclick="tog('O',this)" style="--sc:#9aa0a6">Special/Other</button>
+</div>
+<div class="legend-bar" id="legend"></div>
+<div id="map"></div>
+<div class="note-bar" id="note">Loading zoning data… &nbsp;|&nbsp; <a href="cb-bk-6.html#sec-planning">Back to CB6 profile ↗</a></div>
+<script>
+var map=L.map('map',{scrollWheelZoom:true}).setView([40.664,-73.988],13);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+var COLORS={R:'#f4a261',C:'#4c78a8',M:'#7b61ff',P:'#66a61e',O:'#9aa0a6'};
+var LABELS={R:'Residential',C:'Commercial',M:'Manufacturing',P:'Parks',O:'Special/Other'};
+var vis={R:true,C:true,M:true,P:true,O:true};
+var zoningLayer=null,zoningData=null,boundaryLayer=null,searchMarker=null;
+function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function getZLbl(p){return p.zonedist||p.ZONEDIST||p.zone_dist||p.label||'Unknown';}
+function getZCat(l){var c=String(l||'').toUpperCase().trim();if(c.indexOf('PARK')!==-1)return'P';if(c[0]==='M')return'M';if(c[0]==='C')return'C';if(c[0]==='R')return'R';return'O';}
+function normZ(l){var c=String(l||'').toUpperCase().trim();if(/^[RCM]\d[A-Z]?$/.test(c))return c[0]+'-'+c.slice(1);return c;}
+function buildLayer(){
+  if(zoningLayer)map.removeLayer(zoningLayer);
+  zoningLayer=L.geoJSON(zoningData,{
+    style:function(f){var l=getZLbl(f.properties||{});var c=getZCat(l);return{color:'#fff',weight:.8,fillColor:COLORS[c],fillOpacity:vis[c]?.6:0};},
+    onEachFeature:function(f,l){var lb=getZLbl(f.properties||{});l.bindTooltip('<strong>'+normZ(lb)+'</strong>',{sticky:true,opacity:1});l.on('mouseover',function(){l.setStyle({weight:1.8,fillOpacity:.85});});l.on('mouseout',function(){zoningLayer.resetStyle(l);});}
+  }).addTo(map);
+  if(boundaryLayer)boundaryLayer.bringToFront();
+  updateLegend();
+}
+function updateLegend(){
+  document.getElementById('legend').innerHTML=Object.keys(vis).filter(function(k){return vis[k];}).map(function(k){return'<span class="li"><span class="ls" style="background:'+COLORS[k]+'"></span>'+LABELS[k]+'</span>';}).join('');
+}
+function tog(k,btn){vis[k]=!vis[k];btn.classList.toggle('on');buildLayer();}
+function walkC(c,b){if(!Array.isArray(c))return;if(typeof c[0]==='number'){b.minLat=Math.min(b.minLat,c[1]);b.maxLat=Math.max(b.maxLat,c[1]);b.minLng=Math.min(b.minLng,c[0]);b.maxLng=Math.max(b.maxLng,c[0]);return;}c.forEach(function(p){walkC(p,b);});}
+function pip(lng,lat,feat){var g=feat.geometry;if(!g)return false;var rings=g.type==='Polygon'?[g.coordinates]:g.coordinates;for(var p=0;p<rings.length;p++){var o=rings[p][0],inside=false;for(var i=0,j=o.length-1;i<o.length;j=i++){var xi=o[i][0],yi=o[i][1],xj=o[j][0],yj=o[j][1];if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))inside=!inside;}if(inside)return true;}return false;}
+fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}).then(function(bd){
+  var cb6=(bd.features||[]).find(function(f){return String(f.properties&&f.properties.boro_cd)==='306';});
+  if(cb6){
+    boundaryLayer=L.geoJSON(cb6,{style:function(){return{color:'#f47920',weight:2.5,fill:false};}}).addTo(map);
+    map.fitBounds(boundaryLayer.getBounds(),{padding:[18,18]});
+    var g=cb6.geometry.coordinates,b={minLat:90,maxLat:-90,minLng:180,maxLng:-180};
+    walkC(g,b);
+    var env={xmin:b.minLng,ymin:b.minLat,xmax:b.maxLng,ymax:b.maxLat,spatialReference:{wkid:4326}};
+    fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(env))+'&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&f=pgeojson')
+      .then(function(r){return r.json();}).then(function(d){
+        zoningData=d;buildLayer();
+        document.getElementById('note').textContent='Hover any district for its zoning code. Toggle categories above.';
+      });
+  }
+});
+function pRow(icon,label,val){return'<tr style="border-bottom:1px solid #f0efed"><td style="padding:5px 10px 5px 0;white-space:nowrap"><span style="font-size:.85rem">'+icon+'</span><span style="font-size:.63rem;font-family:DM Mono,monospace;text-transform:uppercase;color:#888;margin-left:4px">'+label+'</span></td><td style="padding:5px 0;font-size:.78rem;color:#0d1b4b">'+val+'</td></tr>';}
+function doSearch(){
+  var addr=document.getElementById('s-input').value.trim();if(!addr)return;
+  var res=document.getElementById('s-result');res.style.display='block';res.innerHTML='Searching…';
+  fetch('https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(addr)+'&size=1').then(function(r){return r.json();}).then(function(geo){
+    if(!geo.features||!geo.features.length){res.innerHTML='Address not found.';return;}
+    var feat=geo.features[0],lat=feat.geometry.coordinates[1],lng=feat.geometry.coordinates[0],lbl=feat.properties.label||addr;
+    var zone='—';
+    (zoningData&&zoningData.features||[]).forEach(function(f){if(zone!=='—')return;if(pip(lng,lat,f))zone=normZ(getZLbl(f.properties||{}));});
+    if(searchMarker)map.removeLayer(searchMarker);
+    var card='<div style="font-family:DM Sans,sans-serif;min-width:220px"><div style="font-weight:700;font-size:.85rem;color:#0d1b4b;border-bottom:2px solid #f47920;padding-bottom:4px;margin-bottom:6px">📍 '+escH(lbl)+'</div><table style="border-collapse:collapse;width:100%">'+pRow('🧭','Zoning','<strong>'+escH(zone)+'</strong>')+'</table></div>';
+    searchMarker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div style="background:#fff;border:2px solid #f47920;border-radius:8px;padding:10px 12px;box-shadow:0 4px 20px rgba(0,0,0,.25)">'+card+'</div>',iconSize:[240,1],iconAnchor:[0,0]}),zIndexOffset:9999}).addTo(map);
+    map.setView([lat,lng],16);
+    res.innerHTML='<strong>'+escH(lbl)+'</strong> — Zoning: <strong>'+escH(zone)+'</strong>';
+  }).catch(function(){res.innerHTML='Search failed.';});
+}
+document.getElementById('s-input').addEventListener('keydown',function(e){if(e.key==='Enter')doSearch();});
+updateLegend();
+</script>
+</body>
+</html>
