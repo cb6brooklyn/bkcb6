@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CB6 Election Districts — bkcb6.app</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh;display:flex;flex-direction:column}
+.top-bar{background:#0d1b4b;border-bottom:3px solid #f47920;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;flex-shrink:0}
+.top-bar h1{font-size:.95rem;font-weight:700;color:#fff;flex:1}
+.top-bar h1 span{color:#f47920}
+.controls{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.map-btn{padding:5px 12px;font-size:.73rem;font-family:'DM Sans',sans-serif;font-weight:600;border:1px solid rgba(255,255,255,.3);border-radius:20px;background:transparent;color:rgba(255,255,255,.7);cursor:pointer;transition:all .15s;white-space:nowrap}
+.map-btn:hover{border-color:#fff;color:#fff}
+.map-btn.active{background:#f47920;color:#fff;border-color:#f47920}
+.legend{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 16px;background:rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0;font-size:.72rem}
+.li{display:inline-flex;align-items:center;gap:4px;color:rgba(255,255,255,.8)}
+.ls{width:11px;height:11px;border-radius:2px;display:inline-block;flex-shrink:0}
+.legend-label{font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.4);margin-right:4px}
+#map{flex:1}
+.back-link{font-size:.72rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.5);text-decoration:none;white-space:nowrap}
+.back-link:hover{color:#f47920}
+.source{font-size:.65rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.35);padding:4px 16px;flex-shrink:0;background:#0d1b4b}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <h1>Brooklyn <span>CB6</span> — Election Districts</h1>
+  <div class="controls" id="controls">
+    <span style="font-size:.65rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.06em">Color by</span>
+    <button class="map-btn active" onclick="setMode('mayor',this)">Mayor</button>
+    <button class="map-btn" onclick="setMode('public_advocate',this)">Pub. Advocate</button>
+    <button class="map-btn" onclick="setMode('comptroller',this)">Comptroller</button>
+    <button class="map-btn" onclick="setMode('q1',this)">Q1</button>
+    <button class="map-btn" onclick="setMode('q2',this)">Q2</button>
+    <button class="map-btn" onclick="setMode('q3',this)">Q3</button>
+    <button class="map-btn" onclick="setMode('q4',this)">Q4</button>
+    <button class="map-btn" onclick="setMode('q5',this)">Q5</button>
+    <button class="map-btn" onclick="setMode('q6',this)">Q6</button>
+    <button class="map-btn" onclick="setMode('primary_mayor',this)">Primary Mayor</button>
+  </div>
+  <a class="back-link" href="cb-bk-6.html#sec-results">← Back to CB6</a>
+</div>
+
+<div class="legend" id="legend"></div>
+<div id="map"></div>
+<div class="source">Source: NYC Board of Elections, 2025 General &amp; Primary Elections &nbsp;|&nbsp; bkcb6.app</div>
+
+<script>
+var map = L.map('map', {scrollWheelZoom: true}).setView([40.664, -73.988], 13);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; CARTO', subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+// Add subtle street labels on top
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+  subdomains: 'abcd', maxZoom: 19, pane: 'shadowPane'
+}).addTo(map);
+
+var mode = 'mayor';
+var layer = null;
+var data = null;
+
+// Color schemes
+var COLORS = {
+  // General races — Mamdani=blue, Cuomo=red, Williams=blue, etc.
+  mayor: {
+    'Mamdani': '#1a56db',
+    'Cuomo': '#c81e1e',
+    'default': '#888'
+  },
+  public_advocate: {
+    'Williams': '#1a56db',
+    'default': '#c81e1e'
+  },
+  comptroller: {
+    'Levine': '#1a56db',
+    'default': '#c81e1e'
+  },
+  // Questions: Yes=green, No=red
+  q: {
+    'Yes-approve!': '#2d6a4f',
+    'No-disapprove!': '#c81e1e',
+    'default': '#888'
+  },
+  // Primary
+  primary_mayor: {
+    'Mamdani': '#1a56db',
+    'Lander': '#7b5ea7',
+    'default': '#888'
+  }
+};
+
+var LEGENDS = {
+  mayor: [['#1a56db','Mamdani'],['#c81e1e','Cuomo']],
+  public_advocate: [['#1a56db','Williams'],['#c81e1e','Other']],
+  comptroller: [['#1a56db','Levine'],['#c81e1e','Other']],
+  q: [['#2d6a4f','Yes / Approve'],['#c81e1e','No / Disapprove']],
+  primary_mayor: [['#1a56db','Mamdani'],['#7b5ea7','Lander'],['#888','Other']]
+};
+
+var MODE_META = {
+  mayor:          {winner:'general_mayor_winner',   text:'general_mayor',        colors:COLORS.mayor,          legend:LEGENDS.mayor,          label:'2025 General — Mayor'},
+  public_advocate:{winner:'general_public_advocate_winner', text:'general_public_advocate', colors:COLORS.public_advocate, legend:LEGENDS.public_advocate, label:'2025 General — Public Advocate'},
+  comptroller:    {winner:'general_comptroller_winner', text:'general_comptroller', colors:COLORS.comptroller,    legend:LEGENDS.comptroller,    label:'2025 General — Comptroller'},
+  q1:             {winner:'question_1_winner',       text:'question_1',           colors:COLORS.q,              legend:LEGENDS.q,              label:'2025 General — Q1: Olympic Sports Complex'},
+  q2:             {winner:'question_2_winner',       text:'question_2',           colors:COLORS.q,              legend:LEGENDS.q,              label:'2025 General — Q2: Fast Track Affordable Housing'},
+  q3:             {winner:'question_3_winner',       text:'question_3',           colors:COLORS.q,              legend:LEGENDS.q,              label:'2025 General — Q3: Simplify Housing & Infrastructure Review'},
+  q4:             {winner:'question_4_winner',       text:'question_4',           colors:COLORS.q,              legend:LEGENDS.q,              label:'2025 General — Q4: Affordable Housing Appeals Board'},
+  q5:             {winner:'question_5_winner',       text:'question_5',           colors:COLORS.q,              legend:LEGENDS.q,              label:'2025 General — Q5: Digital City Map'},
+  q6:             {winner:'question_6_winner',       text:'question_6',           colors:COLORS.q,              legend:LEGENDS.q,              label:'2025 General — Q6: Move Local Elections'},
+  primary_mayor:  {winner:'dem_primary_mayor_winner',text:'dem_primary_mayor',   colors:COLORS.primary_mayor,  legend:LEGENDS.primary_mayor,  label:'2025 Dem Primary — Mayor'}
+};
+
+fetch('data/cb6-ed-results.geojson').then(r=>r.json()).then(function(d){
+  data = d;
+  drawLayer();
+  updateLegend();
+});
+
+function getFill(props) {
+  var meta = MODE_META[mode];
+  var winner = props[meta.winner] || '';
+  // Normalize winner to match color key
+  var w = winner.split('-')[0]; // handles 'Yes-approve!' -> 'Yes'
+  if (meta.colors[winner]) return meta.colors[winner];
+  // Try first word
+  var first = winner.split(' ')[0];
+  if (meta.colors[first]) return meta.colors[first];
+  return meta.colors['default'] || '#888';
+}
+
+function getTooltip(props) {
+  var meta = MODE_META[mode];
+  var text = props[meta.text] || '';
+  return '<div style="font-family:DM Sans,sans-serif;max-width:260px">' +
+    '<div style="font-weight:700;font-size:.88rem;color:#0d1b4b;border-bottom:2px solid #f47920;padding-bottom:4px;margin-bottom:7px">' + props.popup_title + '</div>' +
+    '<div style="font-size:.75rem;color:#555;font-weight:600;margin-bottom:3px">' + meta.label + '</div>' +
+    '<div style="font-size:.78rem;color:#222;line-height:1.4">' + text + '</div>' +
+    '</div>';
+}
+
+function drawLayer() {
+  if (layer) map.removeLayer(layer);
+  layer = L.geoJSON(data, {
+    style: function(feat) {
+      return {
+        fillColor: getFill(feat.properties),
+        fillOpacity: 0.72,
+        color: '#fff',
+        weight: 1.5
+      };
+    },
+    onEachFeature: function(feat, lyr) {
+      lyr.bindTooltip(getTooltip(feat.properties), {sticky:true, opacity:1, maxWidth:280});
+      lyr.on('mouseover', function(){ lyr.setStyle({fillOpacity:.92, weight:2.5, color:'#0d1b4b'}); });
+      lyr.on('mouseout', function(){ layer.resetStyle(lyr); });
+      // ED label
+      var center = lyr.getBounds().getCenter();
+      L.marker(center, {
+        icon: L.divIcon({
+          className:'',
+          html:'<div style="font-size:9px;font-family:DM Mono,monospace;color:#fff;text-shadow:0 0 3px rgba(0,0,0,.8);font-weight:700;white-space:nowrap;pointer-events:none">' + (feat.properties.ed_label||'').replace('AD ','').replace(' ED ','/') + '</div>',
+          iconAnchor:[12,6]
+        })
+      }).addTo(map);
+    }
+  }).addTo(map);
+}
+
+function updateLegend() {
+  var meta = MODE_META[mode];
+  var html = '<span class="legend-label">Winner</span>';
+  meta.legend.forEach(function(item){
+    html += '<span class="li"><span class="ls" style="background:'+item[0]+'"></span>'+item[1]+'</span>';
+  });
+  document.getElementById('legend').innerHTML = html;
+}
+
+function setMode(m, btn) {
+  mode = m;
+  document.querySelectorAll('.map-btn').forEach(b=>{ b.classList.remove('active'); });
+  btn.classList.add('active');
+  if (data) { drawLayer(); updateLegend(); }
+}
+</script>
+</body>
+</html>
