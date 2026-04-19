@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BKCB6 — Landmarks Map</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:#0d1b4b}
+body{display:flex;flex-direction:column}
+.top-bar{background:#0d1b4b;border-bottom:3px solid #f47920;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-shrink:0}
+.top-bar h1{font-size:.92rem;font-weight:700;color:#fff;white-space:nowrap}
+.top-bar h1 span{color:#f47920}
+.search-row{display:flex;gap:6px;flex:1;min-width:200px}
+.search-row input{flex:1;font-family:'DM Sans',sans-serif;font-size:.83rem;padding:6px 11px;border:none;border-radius:6px;background:rgba(255,255,255,.12);color:#fff;outline:none}
+.search-row input::placeholder{color:rgba(255,255,255,.4)}
+.search-row button{padding:6px 14px;background:#f47920;color:#fff;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer}
+.back-link{font-size:.7rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.45);text-decoration:none}
+.back-link:hover{color:#f47920}
+.addr-result{display:none;padding:10px 14px;background:#fff;border-bottom:2px solid #f47920;flex-shrink:0;font-family:'DM Sans',sans-serif;font-size:.82rem}
+.sub-row{padding:7px 14px;background:#fdfaf3;border-bottom:1px solid #ede5c8;display:flex;flex-wrap:wrap;gap:5px;align-items:center;flex-shrink:0}
+.sub-row span{font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-right:2px}
+.lmbtn{padding:4px 10px;font-size:.71rem;font-family:'DM Sans',sans-serif;font-weight:600;border:1.5px solid #ccc;border-radius:16px;background:#fff;color:#555;cursor:pointer;transition:all .15s}
+.lmbtn.on{background:var(--sc);color:#fff;border-color:var(--sc)}
+.legend-bar{padding:5px 14px;background:#fafaf8;border-bottom:1px solid #e5e2db;display:flex;flex-wrap:wrap;gap:7px;align-items:center;flex-shrink:0}
+.li{display:inline-flex;align-items:center;gap:4px;font-size:.71rem;color:#444}
+.ls{display:inline-block;width:14px;height:10px;border-radius:2px}
+#map{flex:1;min-height:0}
+.note-bar{padding:4px 14px;font-size:.65rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.35);background:#0d1b4b;flex-shrink:0}
+.note-bar a{color:#f47920;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <h1>BKCB6 <span>Historic Districts</span></h1>
+  <div class="search-row">
+    <input id="s-input" type="text" placeholder="Search a CB6 address…"/>
+    <button onclick="doSearch()">Search</button>
+  </div>
+  <a class="back-link" href="cb-bk-6.html#sec-planning">← Back to CB6</a>
+</div>
+<div class="addr-result" id="s-result"></div>
+<div class="sub-row" id="sub-row"><span>Districts</span></div>
+<div class="legend-bar" id="legend"></div>
+<div id="map"></div>
+<div class="note-bar" id="note">Loading historic districts… &nbsp;|&nbsp; <a href="cb-bk-6.html#sec-planning">Back to CB6 profile ↗</a></div>
+<script>
+var map=L.map('map',{scrollWheelZoom:true}).setView([40.664,-73.988],13);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+var PAL=['#b5862b','#8b5e2a','#c4973b','#7a5c1e','#d4a843','#6b4f1a','#e0b84f','#5c4216'];
+var lmData=null,lmLayer=null,lmVis={},boundaryLayer=null,searchMarker=null;
+function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function pip(lng,lat,feat){var g=feat.geometry;if(!g)return false;var rings=g.type==='Polygon'?[g.coordinates]:g.coordinates;for(var p=0;p<rings.length;p++){var o=rings[p][0],inside=false;for(var i=0,j=o.length-1;i<o.length;j=i++){var xi=o[i][0],yi=o[i][1],xj=o[j][0],yj=o[j][1];if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))inside=!inside;}if(inside)return true;}return false;}
+function buildLayer(){
+  if(lmLayer)map.removeLayer(lmLayer);
+  var names=Object.keys(lmVis);
+  lmLayer=L.geoJSON(lmData,{
+    style:function(f){var n=f.properties.area_name||'';var i=names.indexOf(n);var c=PAL[i%PAL.length];return{color:c,weight:2.5,fillColor:c,fillOpacity:lmVis[n]?.3:0,opacity:lmVis[n]?1:0};},
+    onEachFeature:function(f,l){var n=f.properties.area_name||'';var lp=f.properties.lp_number||'';l.bindTooltip('<strong>'+escH(n)+'</strong>'+(lp?'<br><span style="font-size:.75rem;color:#888">LPC: '+lp+'</span>':''),{sticky:true,opacity:1});l.on('mouseover',function(){l.setStyle({fillOpacity:.5,weight:3});});l.on('mouseout',function(){buildLayer();});}
+  }).addTo(map);
+  if(boundaryLayer)boundaryLayer.bringToFront();
+  updateLegend();
+}
+function updateLegend(){
+  var names=Object.keys(lmVis);
+  document.getElementById('legend').innerHTML=names.map(function(n,i){var c=PAL[i%PAL.length];var s=n.replace(' Historic District','').replace(' Extension',' Ext.');return'<span class="li"><span class="ls" style="background:'+c+';opacity:'+(lmVis[n]?'1':'.3')+'"></span>'+s+'</span>';}).join('');
+}
+function buildToggles(){
+  var sub=document.getElementById('sub-row');
+  sub.innerHTML='<span style="font-size:.58rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-right:2px">Districts</span>';
+  var names=Object.keys(lmVis);
+  names.forEach(function(name,i){
+    var col=PAL[i%PAL.length];
+    var btn=document.createElement('button');
+    btn.className='lmbtn on';
+    btn.style.setProperty('--sc',col);
+    btn.textContent=name.replace(' Historic District','').replace(' Extension',' Ext.');
+    btn.title=name;
+    btn.onclick=function(){lmVis[name]=!lmVis[name];btn.classList.toggle('on');buildLayer();};
+    sub.appendChild(btn);
+  });
+}
+Promise.all([
+  fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}),
+  fetch('historic_districts_by_cb_files/bk_cb6_historic_districts.geojson').then(function(r){return r.json();})
+]).then(function(res){
+  var bdata=res[0],ldata=res[1];
+  var cb6=(bdata.features||[]).find(function(f){return String(f.properties&&f.properties.boro_cd)==='306';});
+  if(cb6){
+    boundaryLayer=L.geoJSON(cb6,{style:function(){return{color:'#f47920',weight:2.5,fill:false};}}).addTo(map);
+    map.fitBounds(boundaryLayer.getBounds(),{padding:[18,18]});
+  }
+  lmData=ldata;
+  (ldata.features||[]).forEach(function(f,i){var n=f.properties.area_name||'District '+(i+1);lmVis[n]=true;});
+  buildToggles();buildLayer();
+  document.getElementById('note').textContent='LPC-designated historic districts in CB6. Hover for details.';
+});
+function pRow(icon,label,val){return'<tr style="border-bottom:1px solid #f0efed"><td style="padding:5px 10px 5px 0;white-space:nowrap"><span style="font-size:.85rem">'+icon+'</span><span style="font-size:.63rem;font-family:DM Mono,monospace;text-transform:uppercase;color:#888;margin-left:4px">'+label+'</span></td><td style="padding:5px 0;font-size:.78rem;color:#0d1b4b">'+val+'</td></tr>';}
+function doSearch(){
+  var addr=document.getElementById('s-input').value.trim();if(!addr)return;
+  var res=document.getElementById('s-result');res.style.display='block';res.innerHTML='Searching…';
+  fetch('https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(addr)+'&size=1').then(function(r){return r.json();}).then(function(geo){
+    if(!geo.features||!geo.features.length){res.innerHTML='Address not found.';return;}
+    var feat=geo.features[0],lat=feat.geometry.coordinates[1],lng=feat.geometry.coordinates[0],lbl=feat.properties.label||addr;
+    var lm='None';
+    (lmData&&lmData.features||[]).forEach(function(f){if(lm!=='None')return;if(pip(lng,lat,f))lm=f.properties.area_name||'Historic District';});
+    var inLm=lm!=='None';
+    if(searchMarker)map.removeLayer(searchMarker);
+    var card='<div style="font-family:DM Sans,sans-serif;min-width:220px"><div style="font-weight:700;font-size:.85rem;color:#0d1b4b;border-bottom:2px solid #f47920;padding-bottom:4px;margin-bottom:6px">📍 '+escH(lbl)+'</div><table style="border-collapse:collapse;width:100%">'+pRow('🏛','Landmark',inLm?'<strong style="color:#b5862b">'+escH(lm)+'</strong>':'<span style="color:#888">Not in a historic district</span>')+'</table></div>';
+    searchMarker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div style="background:#fff;border:2px solid #f47920;border-radius:8px;padding:10px 12px;box-shadow:0 4px 20px rgba(0,0,0,.25)">'+card+'</div>',iconSize:[260,1],iconAnchor:[0,0]}),zIndexOffset:9999}).addTo(map);
+    map.setView([lat,lng],16);
+    res.innerHTML='<strong>'+escH(lbl)+'</strong> — '+( inLm?'In <strong style="color:#b5862b">'+escH(lm)+'</strong>':'Not in a historic district');
+  }).catch(function(){res.innerHTML='Search failed.';});
+}
+document.getElementById('s-input').addEventListener('keydown',function(e){if(e.key==='Enter')doSearch();});
+</script>
+</body>
+</html>
