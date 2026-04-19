@@ -189,7 +189,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 
     <a href="#sec-overview">📍 District Overview<span class="toc-entry-sub">Economic context and key data</span></a>
     <a href="#sec-intro">📋 About This Page<span class="toc-entry-sub">Economic context and key data</span></a><a href="#sec-rent">🏠 Rental Ranking Map<span class="toc-entry-sub">Median rent by community board</span></a>
-    <a href="#sec-furman">📊 Furman Center Data<span class="toc-entry-sub">Income, rents, housing, crime</span></a><a href="#sec-elections">🗺 Maps &amp; Election Results<span class="toc-entry-sub">ED map, districts, results, chart</span></a>
+    <a href="#sec-furman">📊 Furman Center Data<span class="toc-entry-sub">Income, rents, housing, crime</span></a><a href="#sec-elections">🗺 Maps &amp; Election Results<span class="toc-entry-sub">ED map, districts, results, chart</span></a><a href="#sec-transport">🚦 Roads, Bikes, Buses &amp; More<span class="toc-entry-sub">Speed limits, bike routes, transit, trucks</span></a>
   </div>
 </div>
 <div class="cb-intro-card" id="sec-intro">
@@ -1661,6 +1661,232 @@ function copyEmbed(type){
 </script>
 </div>
 <script src="parks-rollout.js"></script>
+<script>
+// Neutralise the rollout script so it doesn't inject duplicate sections
+(function(){
+  var _orig = HTMLElement.prototype.insertAdjacentElement;
+  HTMLElement.prototype.insertAdjacentElement = function(pos, el){
+    if (el && el.getAttribute && el.getAttribute('data-transport-rollout') === 'true') return el;
+    return _orig.call(this, pos, el);
+  };
+})();
+</script>
 <script src="transport-rollout.js?v=202604150119"></script>
+
+<!-- COMBINED TRANSPORT SECTION -->
+<div class="drop-section" id="sec-transport">
+<button class="drop-toggle" onclick="cbToggle(this);transportInit()">
+  🚦 BKCB6 — Roads, Bikes, Buses &amp; More
+  <span class="drop-arr">▼</span>
+  <a class="drop-share" href="#sec-transport" onclick="event.stopPropagation();history.replaceState(null,'','#sec-transport')">🔗</a>
+</button>
+<div class="drop-body">
+
+<!-- LAYER TOGGLES -->
+<div style="padding:10px 14px;background:#f8f7f4;border-bottom:1px solid #e5e2db;display:flex;flex-wrap:wrap;gap:7px;align-items:center">
+  <span style="font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em;color:#888;margin-right:2px">Show</span>
+  <button class="trn-btn trn-active" onclick="trnToggle('speed',this)" style="--tc:#2a9d8f">🛣 Speed Limits</button>
+  <button class="trn-btn" onclick="trnToggle('bike',this)" style="--tc:#1d4ed8">🚲 Bike Routes</button>
+  <button class="trn-btn" onclick="trnToggle('bus',this)" style="--tc:#2563eb">🚌 Bus Routes</button>
+  <button class="trn-btn" onclick="trnToggle('busstops',this)" style="--tc:#f59e0b">🚏 Bus Stops</button>
+  <button class="trn-btn" onclick="trnToggle('subway',this)" style="--tc:#0d1b4b">🚇 Subway</button>
+  <button class="trn-btn" onclick="trnToggle('truck',this)" style="--tc:#0d9488">🚚 Truck Routes</button>
+</div>
+
+<!-- LEGEND -->
+<div id="trn-legend" style="padding:6px 14px;background:#fafaf8;border-bottom:1px solid #e5e2db;display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:30px"></div>
+
+<!-- STATS BAR -->
+<div id="trn-stats" style="padding:6px 14px 8px;background:#fff;border-bottom:1px solid #e5e2db;display:flex;flex-wrap:wrap;gap:14px;min-height:28px"></div>
+
+<!-- MAP -->
+<div id="trn-map" style="height:500px;width:100%;background:#e8edf2"></div>
+
+<!-- SOURCE -->
+<div style="padding:6px 14px;font-size:.65rem;font-family:'DM Mono',monospace;color:#999;border-top:1px solid #e5e2db">
+  Sources: NYC DOT · MTA · NYC Open Data
+  &nbsp;|&nbsp; <a href="https://data.cityofnewyork.us/Transportation/VZV_Speed-Limits/7kdb-64em" target="_blank" style="color:#f47920;text-decoration:none">Speed Limits ↗</a>
+  &nbsp;·&nbsp; <a href="https://data.cityofnewyork.us/Transportation/Bicycle-Routes/7vsa-caz7" target="_blank" style="color:#f47920;text-decoration:none">Bike Routes ↗</a>
+  &nbsp;·&nbsp; <a href="https://data.ny.gov/Transportation/MTA-Bus-Routes/8vgb-zm6e" target="_blank" style="color:#f47920;text-decoration:none">Bus Routes ↗</a>
+</div>
+
+</div>
+</div>
+
+<style>
+.trn-btn{padding:5px 11px;font-size:.73rem;font-family:'DM Sans',sans-serif;font-weight:600;border:1.5px solid #ccc;border-radius:20px;background:#fff;color:#555;cursor:pointer;transition:all .15s;white-space:nowrap}
+.trn-btn:hover{border-color:var(--tc,#555);color:var(--tc,#555)}
+.trn-btn.trn-active{background:var(--tc,#555);border-color:var(--tc,#555);color:#fff}
+.trn-legend-item{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;color:#444}
+.trn-swatch-line{display:inline-block;width:22px;height:4px;border-radius:2px;flex-shrink:0}
+.trn-swatch-dot{display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid #fff;box-shadow:0 0 0 1px #ccc;flex-shrink:0}
+.trn-stat{display:flex;flex-direction:column;gap:1px}
+.trn-stat-label{font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#888}
+.trn-stat-value{font-size:.82rem;font-weight:700;color:#0d1b4b;font-family:'DM Mono',monospace}
+</style>
+
+<script>
+(function(){
+var trnReady = false;
+var trnMap = null;
+var trnLayers = {};
+var trnVisible = {speed:true,bike:false,bus:false,busstops:false,subway:false,truck:false};
+var trnData = null;
+
+var LEGENDS = {
+  speed:[
+    {color:'#2a9d8f',label:'20 mph or less',type:'line'},
+    {color:'#4c78a8',label:'25 mph',type:'line'},
+    {color:'#f4a261',label:'30 mph',type:'line'},
+    {color:'#e63946',label:'35+ mph',type:'line'},
+    {color:'#111827',label:'School Zone',type:'line',dash:true}
+  ],
+  bike:[
+    {color:'#1d4ed8',label:'Protected',type:'line'},
+    {color:'#0f766e',label:'Greenway',type:'line'},
+    {color:'#f59e0b',label:'Buffered / Conventional',type:'line'},
+    {color:'#6b7280',label:'Shared / Link',type:'line'},
+    {color:'#ef4444',label:'Retired',type:'line'}
+  ],
+  bus:[
+    {color:'#2563eb',label:'Local',type:'line'},
+    {color:'#c1121f',label:'SBS',type:'line'},
+    {color:'#6a1b9a',label:'Express',type:'line'},
+    {color:'#f77f00',label:'Limited',type:'line'}
+  ],
+  busstops:[
+    {color:'#2563eb',label:'Local Stop',type:'dot'},
+    {color:'#f59e0b',label:'Timepoint',type:'dot'},
+    {color:'#c1121f',label:'CBD Stop',type:'dot'}
+  ],
+  subway:[
+    {color:'#0d1b4b',label:'Station',type:'dot'},
+    {color:'#f47920',label:'ADA Accessible',type:'dot'}
+  ],
+  truck:[
+    {color:'#0d9488',label:'Through Route',type:'line'},
+    {color:'#2563eb',label:'Local Route',type:'line'},
+    {color:'#f59e0b',label:'Limited Local',type:'line'}
+  ]
+};
+
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function speedColor(p){ var sl=parseInt(p.postvz_sl||0,10); if(sl<=20&&sl>0)return'#2a9d8f'; if(sl<=25)return'#4c78a8'; if(sl<=30)return'#f4a261'; return'#e63946'; }
+function bikeColor(p){ var t=[p.ft_facilit,p.tf_facilit,p.facilitycl,p.allclasses,p.grnwy,p.status].join(' ').toLowerCase(); if(t.includes('retired'))return'#ef4444'; if(t.includes('greenway'))return'#0f766e'; if(t.includes('protected'))return'#1d4ed8'; if(t.includes('buffered')||t.includes('conventional'))return'#f59e0b'; return'#6b7280'; }
+function busColor(p){ var r=String(p.route_color||'').trim(); if(r&&r[0]!=='#')r='#'+r; if(/^#[0-9a-fA-F]{6}$/.test(r))return r; var t=String(p.route_type||'').toLowerCase(); if(t==='sbs')return'#c1121f'; if(t==='express')return'#6a1b9a'; if(t==='limited')return'#f77f00'; return'#2563eb'; }
+function busStopColor(p){ if(String(p.is_cbd||'').toLowerCase()==='true')return'#c1121f'; if(String(p.timepoint||'').toLowerCase()==='true')return'#f59e0b'; return'#2563eb'; }
+function subwayColor(p){ var a=String(p.ada||'').toLowerCase(); return(a==='true'||a==='yes'||a==='1')?'#f47920':'#0d1b4b'; }
+function truckColor(p){ var t=String(p.routetype||'').toLowerCase(); if(t==='through')return'#0d9488'; if(t==='local')return'#2563eb'; return'#f59e0b'; }
+
+function buildLayer(kind, geojson) {
+  if (kind === 'subway' || kind === 'busstops') {
+    return L.geoJSON(geojson, {
+      pointToLayer: function(feat, latlng) {
+        var p = feat.properties||{};
+        var col = kind==='subway' ? subwayColor(p) : busStopColor(p);
+        return L.circleMarker(latlng, {radius:kind==='busstops'?5:7, color:'#fff', weight:1.5, fillColor:col, fillOpacity:0.95});
+      },
+      onEachFeature: function(feat, lyr) {
+        var p = feat.properties||{};
+        if(kind==='subway') {
+          lyr.bindTooltip('<strong>'+escHtml(p.stop_name||'Station')+'</strong><br><span style="font-size:.75rem;color:#555">'+escHtml([p.line,p.daytime_routes,p.structure].filter(Boolean).join(' · '))+'</span>', {sticky:true,opacity:1});
+        } else {
+          lyr.bindTooltip('<strong>'+escHtml(p.stop_name||'Bus Stop')+'</strong><br><span style="font-size:.75rem;color:#555">Routes: '+escHtml((p.routes||[]).join(', ')||'—')+'</span>', {sticky:true,opacity:1});
+        }
+      }
+    });
+  } else {
+    var styleFn = {
+      speed: function(f){var p=f.properties||{}; return{color:speedColor(p),weight:String(p.postvz_sg||'').toUpperCase()==='YES'?5:3.5,opacity:0.9,dashArray:String(p.postvz_sg||'').toUpperCase()==='YES'?'8 4':null};},
+      bike:  function(f){return{color:bikeColor(f.properties||{}),weight:3.5,opacity:0.9};},
+      bus:   function(f){var p=f.properties||{}; return{color:busColor(p),weight:String(p.route_type||'').toLowerCase()==='express'?5:3.5,opacity:0.85};},
+      truck: function(f){return{color:truckColor(f.properties||{}),weight:3.5,opacity:0.9};}
+    }[kind];
+    return L.geoJSON(geojson, {
+      style: styleFn,
+      onEachFeature: function(feat, lyr) {
+        var p = feat.properties||{};
+        var tip = '';
+        if(kind==='speed') tip = '<strong>'+escHtml(p.street||'Segment')+'</strong><br><span style="font-size:.75rem;color:#555">Posted: '+escHtml(p.postvz_sl||'—')+' mph'+(String(p.postvz_sg||'').toUpperCase()==='YES'?' · School Zone':'')+'</span>';
+        else if(kind==='bike') tip = '<strong>'+escHtml(p.street||'Bike Route')+'</strong><br><span style="font-size:.75rem;color:#555">'+escHtml([p.status,p.ft_facilit||p.allclasses,p.grnwy].filter(Boolean).join(' · '))+'</span>';
+        else if(kind==='bus') tip = '<strong>'+escHtml(p.route_short_name||p.route_id||'Bus Route')+'</strong><br><span style="font-size:.75rem;color:#555">'+escHtml(p.route_long_name||'')+'<br>'+escHtml([p.route_type,p.direction].filter(Boolean).join(' · '))+'</span>';
+        else if(kind==='truck') tip = '<strong>'+escHtml(p.street||'Truck Route')+'</strong><br><span style="font-size:.75rem;color:#555">'+escHtml([p.routetype,p.nyc_reg].filter(Boolean).join(' · '))+'</span>';
+        lyr.bindTooltip(tip, {sticky:true,opacity:1});
+      }
+    });
+  }
+}
+
+function updateLegend() {
+  var html = '';
+  Object.keys(trnVisible).forEach(function(k){
+    if(!trnVisible[k]) return;
+    (LEGENDS[k]||[]).forEach(function(item){
+      if(item.type==='dot') {
+        html += '<span class="trn-legend-item"><span class="trn-swatch-dot" style="background:'+item.color+'"></span>'+item.label+'</span>';
+      } else {
+        html += '<span class="trn-legend-item"><span class="trn-swatch-line" style="background:'+item.color+(item.dash?';background:repeating-linear-gradient(90deg,'+item.color+' 0,'+item.color+' 6px,transparent 6px,transparent 10px)':'')+'"></span>'+item.label+'</span>';
+      }
+    });
+  });
+  document.getElementById('trn-legend').innerHTML = html || '<span style="font-size:.72rem;color:#aaa;font-family:DM Mono,monospace">Toggle layers above to see legend</span>';
+}
+
+function updateStats() {
+  if(!trnData) return;
+  var html = '';
+  Object.keys(trnVisible).forEach(function(k){
+    if(!trnVisible[k]) return;
+    var summary = (trnData[k]||{}).summary||[];
+    summary.filter(function(s){return s.label!=='Boundary';}).forEach(function(s){
+      html += '<div class="trn-stat"><span class="trn-stat-label">'+escHtml(s.label)+'</span><span class="trn-stat-value">'+escHtml(s.value)+'</span></div>';
+    });
+  });
+  document.getElementById('trn-stats').innerHTML = html;
+}
+
+window.transportInit = function() {
+  if(trnReady) return;
+  trnReady = true;
+
+  trnMap = L.map('trn-map', {scrollWheelZoom:false}).setView([40.664,-73.988],13);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(trnMap);
+
+  fetch('transport-data/cb-bk-6.json').then(function(r){return r.json();}).then(function(d){
+    trnData = d;
+
+    // CB6 boundary outline
+    if(d.boundary) L.geoJSON(d.boundary,{style:function(){return{color:'#f47920',weight:2.5,fill:false,opacity:1};}}).addTo(trnMap);
+
+    // Pre-build all layers but only add visible ones
+    Object.keys(trnVisible).forEach(function(k){
+      if(d[k] && d[k].features) {
+        trnLayers[k] = buildLayer(k, d[k]);
+        if(trnVisible[k]) trnLayers[k].addTo(trnMap);
+      }
+    });
+
+    updateLegend();
+    updateStats();
+    setTimeout(function(){trnMap.invalidateSize();},150);
+  }).catch(function(e){
+    console.error('Transport data load failed:', e);
+  });
+};
+
+window.trnToggle = function(kind, btn) {
+  trnVisible[kind] = !trnVisible[kind];
+  btn.classList.toggle('trn-active');
+  if(!trnMap) return;
+  if(trnLayers[kind]) {
+    trnVisible[kind] ? trnLayers[kind].addTo(trnMap) : trnMap.removeLayer(trnLayers[kind]);
+  }
+  updateLegend();
+  updateStats();
+};
+
+})();
+</script>
 </body>
 </html>
