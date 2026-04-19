@@ -1895,9 +1895,10 @@ window.trnToggle = function(kind, btn) {
 
 // ── ADDRESS SEARCH ──────────────────────────────────────────────
 var trnSearchMarker = null;
+var trnSubwayAll = null; // full NYC subway dataset
 
 function haversine(lat1, lng1, lat2, lng2) {
-  var R = 3959 * 5280; // feet
+  var R = 3959 * 5280;
   var dLat = (lat2-lat1)*Math.PI/180;
   var dLng = (lng2-lng1)*Math.PI/180;
   var a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
@@ -1908,7 +1909,6 @@ function ptDist(lat, lng, feat) {
   var c = feat.geometry.coordinates;
   var type = feat.geometry.type;
   if(type === 'Point') return haversine(lat, lng, c[1], c[0]);
-  // LineString or MultiLineString: check all segment midpoints
   var coords = type === 'MultiLineString' ? c.reduce(function(a,b){return a.concat(b);}, []) : c;
   var best = Infinity;
   for(var i=0;i<coords.length;i++) {
@@ -1932,19 +1932,46 @@ function fmtDist(ft) {
   return (ft/5280).toFixed(2) + ' mi';
 }
 
-function speedAtPoint(lat, lng, features) {
-  // Find the speed segment closest to the point
-  return nearest(lat, lng, features);
-}
-
 function bikeType(p) {
   var t = [p.ft_facilit, p.tf_facilit, p.facilitycl, p.allclasses, p.grnwy].join(' ').toLowerCase();
-  if(t.includes('protected')) return 'Protected Bike Lane';
-  if(t.includes('greenway')) return 'Greenway';
-  if(t.includes('buffered')) return 'Buffered Bike Lane';
-  if(t.includes('conventional')) return 'Conventional Bike Lane';
-  if(t.includes('shared')) return 'Shared Lane';
+  if(t.indexOf('protected') !== -1) return 'Protected Bike Lane';
+  if(t.indexOf('greenway') !== -1) return 'Greenway';
+  if(t.indexOf('buffered') !== -1) return 'Buffered Bike Lane';
+  if(t.indexOf('conventional') !== -1) return 'Conventional Bike Lane';
+  if(t.indexOf('shared') !== -1) return 'Shared Lane';
   return p.allclasses || p.ft_facilit || 'Bike Route';
+}
+
+// Line badge colors for subway routes
+var lineColors = {
+  '1':'#EE352E','2':'#EE352E','3':'#EE352E',
+  '4':'#00933C','5':'#00933C','6':'#00933C',
+  '7':'#B933AD',
+  'A':'#0039A6','C':'#0039A6','E':'#0039A6',
+  'B':'#FF6319','D':'#FF6319','F':'#FF6319','M':'#FF6319',
+  'G':'#6CBE45',
+  'J':'#996633','Z':'#996633',
+  'L':'#A7A9AC',
+  'N':'#FCCC0A','Q':'#FCCC0A','R':'#FCCC0A','W':'#FCCC0A',
+  'S':'#808183'
+};
+
+function lineBadges(routes) {
+  if(!routes) return '';
+  return routes.split(' ').map(function(r){
+    var bg = lineColors[r] || '#555';
+    return '<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:'+bg+';color:#fff;font-size:.65rem;font-weight:700;font-family:DM Sans,sans-serif;margin-right:2px">'+r+'</span>';
+  }).join('');
+}
+
+function row(icon, label, val) {
+  return '<tr style="border-bottom:1px solid #f0efed">' +
+    '<td style="padding:7px 12px 7px 0;vertical-align:top;white-space:nowrap">'+
+      '<span style="font-size:.88rem">'+icon+'</span>'+
+      '<span style="font-size:.65rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-left:4px">'+label+'</span>'+
+    '</td>'+
+    '<td style="padding:7px 0;font-size:.8rem;color:#0d1b4b;font-weight:600;line-height:1.4">'+val+'</td>'+
+  '</tr>';
 }
 
 window.trnAddrSearch = function() {
@@ -1954,112 +1981,120 @@ window.trnAddrSearch = function() {
   resDiv.style.display = 'block';
   resDiv.innerHTML = '<span style="color:#888;font-family:DM Mono,monospace;font-size:.78rem">Searching...</span>';
 
-  fetch('https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(addr)+'&size=1')
-    .then(function(r){return r.json();})
-    .then(function(d){
-      if(!d.features||!d.features.length){
-        resDiv.innerHTML = '<span style="color:#c81e1e;font-size:.78rem">Address not found.</span>';
-        return;
+  // Load full subway dataset if not yet loaded, then geocode
+  var subwayPromise = trnSubwayAll
+    ? Promise.resolve(trnSubwayAll)
+    : fetch('data/nyc-subway-stations.geojson').then(function(r){return r.json();}).then(function(d){trnSubwayAll=d.features;return trnSubwayAll;});
+
+  Promise.all([
+    fetch('https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(addr)+'&size=1').then(function(r){return r.json();}),
+    subwayPromise
+  ]).then(function(results) {
+    var geo = results[0];
+    if(!geo.features||!geo.features.length){
+      resDiv.innerHTML = '<span style="color:#c81e1e;font-size:.78rem">Address not found.</span>';
+      return;
+    }
+    var feat = geo.features[0];
+    var lat = feat.geometry.coordinates[1];
+    var lng = feat.geometry.coordinates[0];
+    var lbl = feat.properties.label || addr;
+
+    if(!trnData) {
+      resDiv.innerHTML = '<span style="color:#c81e1e;font-size:.78rem">Map still loading — open the section first, then search.</span>';
+      return;
+    }
+
+    var nearSpeed  = nearest(lat, lng, (trnData.speed||{}).features);
+    var nearBike   = nearest(lat, lng, (trnData.bike||{}).features);
+    var nearStop   = nearest(lat, lng, (trnData.busstops||{}).features);
+    var nearSubway = nearest(lat, lng, trnSubwayAll);
+
+    // Speed
+    var speedVal = '—';
+    if(nearSpeed) {
+      var sl = nearSpeed.feat.properties.postvz_sl || '—';
+      var sg = String(nearSpeed.feat.properties.postvz_sg||'').toUpperCase()==='YES';
+      var st = nearSpeed.feat.properties.street || 'nearby street';
+      speedVal = '<strong>'+sl+' mph</strong> on '+st+(sg?' <span style="background:#111827;color:#fff;font-size:.65rem;padding:1px 5px;border-radius:3px">School Zone</span>':'')+'<br><span style="color:#888;font-size:.73rem">'+fmtDist(nearSpeed.dist)+' away</span>';
+    }
+
+    // Bike
+    var bikeVal = '—';
+    if(nearBike) {
+      var bp = nearBike.feat.properties;
+      var bt = bikeType(bp);
+      bikeVal = '<strong>'+bt+'</strong> on '+(bp.street||'nearby street')+'<br><span style="color:#888;font-size:.73rem">'+fmtDist(nearBike.dist)+' away</span>';
+    }
+
+    // Bus stop
+    var busVal = '—';
+    if(nearStop) {
+      var sp = nearStop.feat.properties;
+      var routes = (sp.routes||[]).slice(0,6).join(', ');
+      busVal = '<strong>'+(sp.stop_name||'Bus Stop')+'</strong>'+(routes?'<br><span style="color:#555;font-size:.73rem">Routes: '+routes+'</span>':'')+'<br><span style="color:#888;font-size:.73rem">'+fmtDist(nearStop.dist)+' away</span>';
+    }
+
+    // Subway — from full NYC dataset
+    var subwayVal = '—';
+    if(nearSubway) {
+      var sbp = nearSubway.feat.properties;
+      subwayVal = lineBadges(sbp.daytime_routes)+'<strong style="margin-left:4px">'+(sbp.stop_name||'Station')+'</strong><br><span style="color:#888;font-size:.73rem">'+fmtDist(nearSubway.dist)+' away</span>';
+    }
+
+    // Remove old marker
+    if(trnSearchMarker) trnMap.removeLayer(trnSearchMarker);
+
+    // Build card
+    var card =
+      '<div style="font-family:DM Sans,sans-serif;min-width:240px;max-width:300px">'+
+      '<div style="font-weight:700;font-size:.85rem;color:#0d1b4b;background:#fff7f0;border-bottom:2px solid #f47920;padding:7px 10px;margin:-1px -1px 0;border-radius:8px 8px 0 0">📍 '+escHtml(lbl)+'</div>'+
+      '<table style="border-collapse:collapse;width:100%;padding:4px 0">'+
+      row('🛣','Speed',speedVal)+
+      row('🚲','Bike',bikeVal)+
+      row('🚏','Bus Stop',busVal)+
+      row('🚇','Subway',subwayVal)+
+      '</table></div>';
+
+    trnSearchMarker = L.marker([lat, lng], {
+      icon: L.divIcon({
+        className:'',
+        html:'<div style="background:#fff;border:2px solid #f47920;border-radius:8px;padding:0;box-shadow:0 4px 20px rgba(0,0,0,.25);overflow:hidden;pointer-events:auto">'+card+'</div>',
+        iconSize:[300,1],
+        iconAnchor:[0,0]
+      }),
+      zIndexOffset: 9999
+    }).addTo(trnMap);
+
+    trnMap.setView([lat, lng], 15);
+
+    // Result bar below search
+    resDiv.style.cssText = 'display:block;padding:12px 16px;background:#fff;border-bottom:2px solid #f47920';
+    resDiv.innerHTML =
+      '<div style="font-family:DM Sans,sans-serif;font-weight:700;font-size:.82rem;color:#0d1b4b;margin-bottom:8px">'+escHtml(lbl)+'</div>'+
+      '<table style="border-collapse:collapse;width:100%;font-size:.78rem">'+
+      row('🛣','Speed',speedVal)+
+      row('🚲','Bike',bikeVal)+
+      row('🚏','Bus Stop',busVal)+
+      row('🚇','Subway',subwayVal)+
+      '</table>';
+
+    // Auto-enable layers
+    ['speed','bike','busstops'].forEach(function(k){
+      if(!trnVisible[k] && trnLayers[k]) {
+        trnVisible[k] = true;
+        trnLayers[k].addTo(trnMap);
+        document.querySelectorAll('.trn-btn').forEach(function(b){
+          if(b.getAttribute('onclick') && b.getAttribute('onclick').indexOf("'"+k+"'") !== -1) b.classList.add('trn-active');
+        });
       }
-      var feat = d.features[0];
-      var lat = feat.geometry.coordinates[1];
-      var lng = feat.geometry.coordinates[0];
-      var lbl = feat.properties.label || addr;
-
-      if(!trnData) {
-        resDiv.innerHTML = '<span style="color:#888;font-size:.78rem">Map still loading — open the section first.</span>';
-        return;
-      }
-
-      // Find nearest features
-      var nearSpeed  = nearest(lat, lng, (trnData.speed||{}).features);
-      var nearBike   = nearest(lat, lng, (trnData.bike||{}).features);
-      var nearStop   = nearest(lat, lng, (trnData.busstops||{}).features);
-      var nearSubway = nearest(lat, lng, (trnData.subway||{}).features);
-
-      // Speed info
-      var speedInfo = '—';
-      if(nearSpeed) {
-        var sl = nearSpeed.feat.properties.postvz_sl || '—';
-        var sg = String(nearSpeed.feat.properties.postvz_sg||'').toUpperCase()==='YES';
-        var st = nearSpeed.feat.properties.street || '';
-        speedInfo = sl + ' mph on ' + st + (sg ? ' (School Zone)' : '') + ' — ' + fmtDist(nearSpeed.dist) + ' away';
-      }
-
-      // Bike info
-      var bikeInfo = '—';
-      if(nearBike) {
-        var bp = nearBike.feat.properties;
-        bikeInfo = bikeType(bp) + ' on ' + (bp.street||'nearby street') + ' — ' + fmtDist(nearBike.dist) + ' away';
-      }
-
-      // Bus stop info
-      var busInfo = '—';
-      if(nearStop) {
-        var sp = nearStop.feat.properties;
-        var routes = (sp.routes||[]).slice(0,5).join(', ');
-        busInfo = (sp.stop_name||'Bus Stop') + (routes ? ' ('+routes+')' : '') + ' — ' + fmtDist(nearStop.dist) + ' away';
-      }
-
-      // Subway info
-      var subwayInfo = '—';
-      if(nearSubway) {
-        var sbp = nearSubway.feat.properties;
-        var trains = sbp.daytime_routes ? ' ('+sbp.daytime_routes+')' : '';
-        subwayInfo = (sbp.stop_name||'Station') + trains + ' — ' + fmtDist(nearSubway.dist) + ' away';
-      }
-
-      // Remove old marker
-      if(trnSearchMarker) trnMap.removeLayer(trnSearchMarker);
-
-      // Place marker with popup card
-      var cardHtml =
-        '<div style="font-family:DM Sans,sans-serif;min-width:220px">' +
-        '<div style="font-weight:700;font-size:.85rem;color:#0d1b4b;border-bottom:2px solid #f47920;padding-bottom:4px;margin-bottom:8px">'+lbl+'</div>' +
-        '<table style="border-collapse:collapse;width:100%;font-size:.76rem">' +
-        '<tr><td style="color:#888;padding:3px 10px 3px 0;white-space:nowrap;vertical-align:top">🛣 Speed</td><td style="font-weight:600;color:#0d1b4b">'+speedInfo+'</td></tr>' +
-        '<tr><td style="color:#888;padding:3px 10px 3px 0;white-space:nowrap;vertical-align:top">🚲 Bike</td><td style="font-weight:600;color:#0d1b4b">'+bikeInfo+'</td></tr>' +
-        '<tr><td style="color:#888;padding:3px 10px 3px 0;white-space:nowrap;vertical-align:top">🚏 Bus</td><td style="font-weight:600;color:#0d1b4b">'+busInfo+'</td></tr>' +
-        '<tr><td style="color:#888;padding:3px 10px 3px 0;white-space:nowrap;vertical-align:top">🚇 Subway</td><td style="font-weight:600;color:#0d1b4b">'+subwayInfo+'</td></tr>' +
-        '</table></div>';
-
-      trnSearchMarker = L.marker([lat, lng], {
-        icon: L.divIcon({
-          className:'',
-          html: '<div style="background:#fff;border:2px solid #f47920;border-radius:8px;padding:9px 11px;box-shadow:0 3px 14px rgba(0,0,0,.18)">'+cardHtml+'</div>',
-          iconAnchor: [0, 0]
-        })
-      }).addTo(trnMap);
-
-      trnMap.setView([lat, lng], 15);
-
-      // Also show compact summary below search bar
-      resDiv.innerHTML =
-        '<div style="font-family:DM Sans,sans-serif;font-size:.78rem;color:#0d1b4b;font-weight:700;margin-bottom:6px">'+lbl+'</div>' +
-        '<div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:.76rem">' +
-        '<span style="color:#888">🛣 Speed</span><span>'+speedInfo+'</span>' +
-        '<span style="color:#888">🚲 Bike</span><span>'+bikeInfo+'</span>' +
-        '<span style="color:#888">🚏 Bus</span><span>'+busInfo+'</span>' +
-        '<span style="color:#888">🚇 Subway</span><span>'+subwayInfo+'</span>' +
-        '</div>';
-
-      // Auto-enable relevant layers
-      ['speed','bike','busstops','subway'].forEach(function(k){
-        if(!trnVisible[k] && trnLayers[k]) {
-          trnVisible[k] = true;
-          trnLayers[k].addTo(trnMap);
-          document.querySelectorAll('.trn-btn').forEach(function(b){
-            if(b.getAttribute('onclick') && b.getAttribute('onclick').includes("'"+k+"'")) b.classList.add('trn-active');
-          });
-        }
-      });
-      updateLegend();
-      updateStats();
-    })
-    .catch(function(e){
-      console.error(e);
-      resDiv.innerHTML = '<span style="color:#c81e1e;font-size:.78rem">Search failed.</span>';
     });
+    updateLegend();
+    updateStats();
+  }).catch(function(e){
+    console.error(e);
+    resDiv.innerHTML = '<span style="color:#c81e1e;font-size:.78rem">Search failed.</span>';
+  });
 };
 
 document.getElementById('trn-addr-input').addEventListener('keydown', function(e){ if(e.key==='Enter') trnAddrSearch(); });
