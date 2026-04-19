@@ -78,15 +78,15 @@ fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}).then(func
   if(!cb6)return;
   boundaryLayer=L.geoJSON(cb6,{style:function(){return{color:'#f47920',weight:2.5,fill:false};}}).addTo(map);
   map.fitBounds(boundaryLayer.getBounds(),{padding:[18,18]});
-  var env={xmin:-74.017,ymin:40.658,xmax:-73.965,ymax:40.695,spatialReference:{wkid:4326}};
+  // Use exact CB6 boundary polygon for spatial filter
   var allFeats=[];
-  function fetchPage(offset){
+  function fetchPage(offset, geomStr){
     if(note)note.textContent='Loading parcels… '+allFeats.length+' loaded';
-    fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?where=1%3D1&geometry='+encodeURIComponent(JSON.stringify(env))+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326')
+    fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?where=1%3D1&geometry='+encodeURIComponent(geomStr)+'&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelContains&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326')
       .then(function(r){return r.json();}).then(function(d){
         var feats=d.features||[];
         allFeats=allFeats.concat(feats);
-        if(feats.length===2000){fetchPage(offset+2000);}
+        if(feats.length===2000){fetchPage(offset+2000, geomStr);}
         else{
           luLayer=L.geoJSON({type:'FeatureCollection',features:allFeats},{
             style:function(f){var c=normLU(f.properties&&f.properties.LandUse);return{fillColor:COLORS[c]||'#9aa0a6',fillOpacity:vis[c]?.78:0,color:'#fff',weight:.5};},
@@ -97,7 +97,10 @@ fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}).then(func
         }
       }).catch(function(){if(note)note.textContent='Could not load parcels.';});
   }
-  fetchPage(0);
+  // Build geometry string from boundary
+  var ring = cb6.geometry.coordinates[0];
+  var geomObj = {rings:[ring], spatialReference:{wkid:4326}};
+  fetchPage(0, JSON.stringify(geomObj));
 });
 function pRow(icon,label,val){return'<tr style="border-bottom:1px solid #f0efed"><td style="padding:5px 10px 5px 0;white-space:nowrap"><span style="font-size:.85rem">'+icon+'</span><span style="font-size:.63rem;font-family:DM Mono,monospace;text-transform:uppercase;color:#888;margin-left:4px">'+label+'</span></td><td style="padding:5px 0;font-size:.78rem;color:#0d1b4b">'+val+'</td></tr>';}
 function doSearch(){
@@ -122,5 +125,156 @@ function doSearch(){
 document.getElementById('s-input').addEventListener('keydown',function(e){if(e.key==='Enter')doSearch();});
 updateLegend();
 </script>
+
+<!-- REFERENCE GLOSSARY -->
+<div style="border-top:3px solid #0d1b4b;background:#fff">
+  <div style="padding:10px 14px;background:#0d1b4b;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+    <span style="font-size:.82rem;font-weight:700;color:#fff;flex:1">📖 Land Use, Zoning &amp; Agency Reference</span>
+    <input id="ref-search" type="text" placeholder="Search terms, agencies, acronyms…"
+      oninput="refFilter()"
+      style="flex:1;min-width:160px;font-family:'DM Sans',sans-serif;font-size:.82rem;padding:6px 10px;border:none;border-radius:6px;background:rgba(255,255,255,.12);color:#fff;outline:none"/>
+  </div>
+  <div style="padding:6px 14px;background:#f8f7f4;border-bottom:1px solid #e5e2db;display:flex;flex-wrap:wrap;gap:5px;align-items:center">
+    <button class="ref-cat-btn ref-cat-active" onclick="refSetCat('all',this)">All</button>
+    <button class="ref-cat-btn" onclick="refSetCat('zoning',this)">Zoning</button>
+    <button class="ref-cat-btn" onclick="refSetCat('process',this)">Process</button>
+    <button class="ref-cat-btn" onclick="refSetCat('agency',this)">Agencies</button>
+    <button class="ref-cat-btn" onclick="refSetCat('housing',this)">Housing</button>
+    <button class="ref-cat-btn" onclick="refSetCat('preservation',this)">Preservation</button>
+    <button class="ref-cat-btn" onclick="refSetCat('env',this)">Environment</button>
+    <button class="ref-cat-btn" onclick="refSetCat('lu',this)">Land Use Types</button>
+  </div>
+  <div id="ref-count" style="padding:4px 14px;font-size:.65rem;font-family:'DM Mono',monospace;color:#888;background:#fafaf8;border-bottom:1px solid #e5e2db"></div>
+  <div id="ref-list" style="max-height:420px;overflow-y:auto;-webkit-overflow-scrolling:touch"></div>
+  <div style="padding:8px 14px;background:#f8f7f4;border-top:1px solid #e5e2db;font-size:.72rem;font-family:'DM Sans',sans-serif;color:#555">
+    <a href="glossary.html" target="_blank" style="color:#f47920;font-weight:700;text-decoration:none">Open full Glossary ↗</a>
+    &nbsp;·&nbsp;
+    <a href="landuse.html" target="_blank" style="color:#f47920;font-weight:700;text-decoration:none">Land Use &amp; Zoning Guide ↗</a>
+  </div>
+</div>
+
+<style>
+.ref-cat-btn{padding:3px 9px;font-size:.7rem;font-family:'DM Sans',sans-serif;font-weight:600;border:1.5px solid #ccc;border-radius:14px;background:#fff;color:#555;cursor:pointer;transition:all .15s;white-space:nowrap}
+.ref-cat-btn.ref-cat-active{background:#0d1b4b;border-color:#0d1b4b;color:#fff}
+.ref-entry{padding:10px 14px;border-bottom:1px solid #f0ede8;cursor:pointer}
+.ref-entry:hover{background:#faf9f6}
+.ref-entry-term{font-weight:700;font-size:.82rem;color:#0d1b4b}
+.ref-entry-cat{font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em;padding:1px 6px;border-radius:8px;margin-left:6px;vertical-align:middle}
+.ref-entry-def{font-size:.76rem;color:#555;line-height:1.5;margin-top:5px;display:none}
+.ref-entry.open .ref-entry-def{display:block}
+.ref-entry-arr{float:right;color:#ccc;font-size:.78rem;transition:transform .15s}
+.ref-entry.open .ref-entry-arr{transform:rotate(180deg)}
+</style>
+
+<script>
+(function(){
+var REF_CAT_COLORS={zoning:'#4c78a8',process:'#2d6a4f',agency:'#7b5ea7',housing:'#f47920',preservation:'#b5862b',env:'#0d9488',lu:'#444'};
+var REF_CAT_LABELS={zoning:'Zoning',process:'Process',agency:'Agency',housing:'Housing',preservation:'Preservation',env:'Environment',lu:'Land Use Type'};
+
+TERMS = [
+  // LAND USE & ZONING
+  {term:"Air Rights / Development Rights / TDR",cat:"zoning",tags:"transfer development rights tdr floor area unused",def:"The unused floor area permitted on a zoning lot beyond what is already built. In some circumstances, those unused development rights may be transferred to another lot — often to allow a neighboring property to build larger than its own zoning would otherwise permit."},
+  {term:"As-of-Right",cat:"zoning",tags:"discretionary approval zoning compliant no review",def:"A proposal that complies with all applicable zoning rules and does not require discretionary approval from the City Planning Commission or Board of Standards and Appeals. As-of-right projects can proceed directly to a building permit without community board or public review."},
+  {term:"Authorization",cat:"process",tags:"cpc city planning commission modify discretionary",def:"A discretionary action by the City Planning Commission that modifies specified zoning requirements when required findings are met. Less involved than a special permit, and does not require a full ULURP vote by the City Council."},
+  {term:"Base Height",cat:"zoning",tags:"building height setback street wall bulk",def:"The maximum permitted height of a building's street wall before any required setback. Once a building reaches its base height, it must step back from the street before continuing upward."},
+  {term:"Bulk",cat:"zoning",tags:"size shape lot coverage far height setback open space yards",def:"The size and shape of a building as controlled by zoning regulations — including lot size, floor area ratio (FAR), lot coverage, open space, yards, height, and setback requirements. Bulk regulations determine how large and in what form a building can be built."},
+  {term:"Commercial Overlay",cat:"zoning",tags:"C1 C2 retail commercial residential district",def:"A C1 or C2 district mapped within a residential zoning district to allow neighborhood-serving retail and related commercial uses on ground floors. Common in areas like Park Slope and Carroll Gardens."},
+  {term:"Floor Area Ratio (FAR)",cat:"zoning",tags:"far building size density floor area lot area",def:"The primary zoning control for building size: total building floor area divided by the area of the zoning lot. A FAR of 2.0 on a 5,000 sq ft lot allows up to 10,000 sq ft of floor area. Higher FAR = larger buildings permitted."},
+  {term:"Restrictive Declaration",cat:"zoning",tags:"covenant conditions mitigation remediation binding recorded",def:"A recorded legal covenant that binds current and future property owners to specific conditions, mitigation requirements, environmental remediation, or other obligations tied to a project approval. It runs with the land."},
+  {term:"Special Permit",cat:"process",tags:"cpc bsa use bulk parking modification discretionary findings",def:"A discretionary approval that allows modification of use, bulk, or parking rules when specific findings are met. Some special permits go through the City Planning Commission via ULURP; others go to the BSA. CB6 reviews and votes on CPC special permits."},
+  {term:"Variance",cat:"process",tags:"bsa hardship relief zoning 72-21 practical difficulty",def:"Relief from zoning rules granted where strict compliance would create practical difficulty or hardship. For area variances (bulk), all five findings under ZR §72-21 must be proven. Granted by the Board of Standards and Appeals, not the CPC."},
+  {term:"Zoning",cat:"zoning",tags:"land use district rules development regulations",def:"The system of district-based rules that regulates land use and development across New York City. Zoning determines what can be built, how large, and for what purpose on any given lot. The NYC Zoning Resolution has been in place since 1961, built on the foundation of the 1916 resolution."},
+  {term:"Zoning Lot",cat:"zoning",tags:"lot parcel tax block development site",def:"The unit of land to which zoning regulations apply. A zoning lot may consist of one or more tax lots. FAR, coverage, and other bulk controls are calculated based on the zoning lot, not individual tax lots."},
+  {term:"Zoning Text Amendment",cat:"process",tags:"zoning resolution change modify text ulurp",def:"A change to the text of the NYC Zoning Resolution itself — as opposed to a map change. Text amendments can apply citywide or be limited to specific areas. They go through ULURP and require City Council approval."},
+  {term:"Zoning Map Amendment",cat:"process",tags:"rezoning map change district boundary ulurp",def:"A change to the official NYC Zoning Map — changing a district's boundaries or classification. Commonly called a rezoning. Goes through ULURP and requires City Council approval."},
+  {term:"Special District",cat:"zoning",tags:"special purpose district overlay custom rules gowanus",def:"A zoning overlay that supplements standard district regulations with custom rules tailored to a specific neighborhood or area. The Special Gowanus Mixed Use District (SGM) created by the 2021 rezoning is one example."},
+  {term:"Use Group",cat:"zoning",tags:"use permitted residential commercial manufacturing group category",def:"The NYC Zoning Resolution organizes permitted uses into numbered groups (UG 1 through UG 18). Each zoning district permits certain use groups. For example, residential districts permit UG 1–4; manufacturing districts permit UGs up to 18."},
+  // ENVIRONMENTAL REVIEW
+  {term:"CEQR",cat:"env",tags:"city environmental quality review environmental impact",def:"City Environmental Quality Review — New York City's environmental review process for discretionary actions, implementing SEQRA at the city level. CEQR assesses whether a proposed action may have significant adverse environmental impacts in areas including land use, traffic, noise, air quality, and historic resources."},
+  {term:"SEQRA / SEQR",cat:"env",tags:"state environmental quality review dec nysdec",def:"New York State Environmental Quality Review Act — state law requiring all government agencies to assess environmental impacts of discretionary actions before approving them. CEQR is New York City's local implementation. Applies to rezonings, special permits, and other discretionary approvals."},
+  {term:"Environmental Assessment Form (EAF)",cat:"env",tags:"eaf environmental assessment seqr ceqr significance",def:"A standardized form used under SEQR/CEQR to assess whether a proposed action may have significant environmental impacts. Applicants complete Part 1; the lead agency completes Parts 2 and 3. The EAF determines whether a full Environmental Impact Statement is required."},
+  {term:"Environmental Impact Statement (EIS)",cat:"env",tags:"eis draft final environmental impact positive declaration",def:"A detailed study of a proposed action's potential environmental impacts, required when a lead agency issues a Positive Declaration under SEQR/CEQR. Includes a draft EIS (public comment period), scoping, and final EIS. CB6 can participate in scoping and comment on the draft."},
+  {term:"Negative Declaration",cat:"env",tags:"neg dec no significant impact seqr ceqr determination",def:"A formal determination that a proposed action will not have a significant adverse impact on the environment. A Negative Declaration means no Environmental Impact Statement is required and the project can move forward through other approvals."},
+  {term:"Positive Declaration",cat:"env",tags:"pos dec significant impact eis required seqr",def:"A formal determination that a proposed action may have significant adverse environmental impacts. A Positive Declaration triggers the requirement for a full Environmental Impact Statement (EIS)."},
+  {term:"Conditioned Negative Declaration",cat:"env",tags:"cnd conditions mitigate impact seqr",def:"A SEQR determination that a proposed action would have environmental impacts, but that enforceable conditions imposed on the project can reduce those impacts to a level below significance. Less common than a straight Negative Declaration."},
+  {term:"Lead Agency",cat:"env",tags:"seqr ceqr lead coordinating agency environmental review",def:"The government agency designated to coordinate the SEQR/CEQR environmental review when multiple agencies have approval authority over an action. The lead agency conducts the EAF review, makes the significance determination, and, if required, oversees the EIS process."},
+  {term:"Scoping",cat:"env",tags:"eis scope draft seqr ceqr public comment",def:"The process by which the lead agency and the public define the range of issues and alternatives to be studied in a Draft EIS. CB6 can participate in scoping to ensure relevant neighborhood concerns — like flooding, traffic, or historic resources — are included."},
+  // PRESERVATION
+  {term:"Certificate of Appropriateness (CoA)",cat:"preservation",tags:"lpc landmarks appropriateness approval exterior work",def:"Approval from the Landmarks Preservation Commission that proposed exterior work on a landmarked building or property within a historic district is appropriate to the character of the landmark. CB6's Landmarks & Land Use Committee reviews CoA applications and submits an advisory recommendation before the LPC public hearing."},
+  {term:"Landmarks Preservation Commission (LPC)",cat:"preservation",tags:"lpc landmarks historic district designation",def:"The city agency responsible for designating and regulating landmarks and historic districts in New York City. LPC designates individual landmarks, interior landmarks, scenic landmarks, and historic districts. CB6 has 6 historic districts within its boundaries."},
+  {term:"Historic District",cat:"preservation",tags:"lpc historic district designation architecture character",def:"A defined area designated by the LPC for its architectural, cultural, or historic significance. Exterior changes to buildings within a historic district generally require a Certificate of Appropriateness from LPC. In CB6, major historic districts include Park Slope, Cobble Hill, Carroll Gardens, and Boerum Hill."},
+  {term:"Certificate of No Effect (CNE)",cat:"preservation",tags:"lpc no effect minor work permit",def:"An LPC approval for minor work on a landmarked property or within a historic district that has no effect on the protected architectural features. Less involved than a full Certificate of Appropriateness."},
+  {term:"Hardship",cat:"preservation",tags:"lpc hardship economic landmark relief",def:"A finding that the cost of LPC-compliant preservation would make a property economically undevelopable. An owner can apply for a hardship determination from LPC, which may allow modifications to otherwise required preservation standards."},
+  {term:"Transfer of Development Rights (TDR)",cat:"preservation",tags:"tdr air rights development rights landmarks transfer",def:"The ability to transfer unused development rights from a landmark site to a receiving lot. TDRs are commonly used to compensate landmark owners who cannot build to their full FAR while allowing a neighboring site to build larger. Requires LPC and CPC approval."},
+  // PROCESS & APPROVAL
+  {term:"ULURP",cat:"process",tags:"ulurp uniform land use review procedure rezoning public review",def:"The Uniform Land Use Review Procedure — the city's formal public review process for major land use actions including rezonings, special permits, acquisitions, dispositions, and city map changes. ULURP gives CB6 a 60-day window to hold a public hearing and issue an advisory recommendation."},
+  {term:"Discretionary Action",cat:"process",tags:"discretionary approval decision agency review",def:"An action that requires a government agency to make a judgment-based decision — as opposed to ministerial or as-of-right approvals. Discretionary actions typically require ULURP, SEQR/CEQR review, or both. CB6 reviews discretionary actions within its boundaries."},
+  {term:"Pre-Certification",cat:"process",tags:"pre cert ulurp before certification dcp community engagement",def:"The period before a ULURP application is officially certified by DCP and the public review clock starts. DCP may require community engagement, environmental review, or other steps during pre-certification. CB6 often engages with applicants during this phase."},
+  {term:"Uniform Land Use Review Procedure (ULURP)",cat:"process",tags:"ulurp community board borough president cpc city council",def:"See ULURP. The formal public review sequence: Community Board (60 days) → Borough President (30 days) → City Planning Commission (60 days) → City Council (50 days) → Mayor (5 days). CB6's vote is advisory but part of the official record."},
+  {term:"Findings",cat:"process",tags:"findings determination required approval bsa cpc",def:"Specific criteria that an agency must affirmatively determine before granting a discretionary approval. For example, all five BSA variance findings under ZR §72-21 must be met. If required findings cannot be made, approval must be denied."},
+  // HOUSING & FINANCE
+  {term:"Mandatory Inclusionary Housing (MIH)",cat:"housing",tags:"mih affordable housing rezoning inclusionary units ami",def:"A city program, adopted in 2016, that requires a percentage of units in newly-rezoned areas to be permanently affordable. Several options exist, including 25% of units at 60% AMI or 30% at 80% AMI. MIH applies to all rezonings that allow residential use."},
+  {term:"Area Median Income (AMI)",cat:"housing",tags:"ami income affordable housing hud median",def:"The midpoint of a region's income distribution, set annually by HUD for the New York metro area. Affordable housing programs set rents or sale prices as a percentage of AMI. 100% AMI for a family of four in NYC is roughly $130,000."},
+  {term:"Affordable Housing",cat:"housing",tags:"affordable units ami income restricted housing",def:"Housing where costs (rent or purchase price) are restricted based on income. Generally defined as costing no more than 30% of a household's gross income. NYC uses AMI thresholds to define affordability levels across different programs."},
+  {term:"421-a",cat:"housing",tags:"421a tax exemption affordable new construction expired",def:"A property tax exemption program for new residential construction tied to affordability requirements. Originally created in 1971. Expired in June 2022. Successor legislation has been debated but not enacted as of 2025."},
+  {term:"Housing Connect",cat:"housing",tags:"housing connect lottery affordable nyc application",def:"NYC's official platform for affordable housing lottery applications. Residents can apply for income-restricted units across the city. CB6's Rental Rankings & Housing tab includes direct links to active lotteries."},
+  {term:"NYCHA",cat:"agency",tags:"nycha public housing authority gowanus houses wyckoff",def:"New York City Housing Authority — the city agency that owns and manages public housing developments. CB6 includes two NYCHA developments: Gowanus Houses (1,134 units) and Wyckoff Gardens (528 units). Both were central to the Gowanus rezoning negotiations."},
+];
+
+var LU_ENTRIES=[
+  {term:'One & Two Family (01)',cat:'lu',tags:'residential single family detached row house',def:'Tax lots with one- or two-family residential buildings. The most common building type in CB6 — 4,802 lots, predominantly in Park Slope, Carroll Gardens, and Cobble Hill.'},
+  {term:'Multi-Family Walk-Up (02)',cat:'lu',tags:'residential walkup brownstone tenement apartment',def:'Residential buildings with 3+ units and no elevator. Includes brownstones, tenements, and small apartment buildings. 5,370 lots — the dominant building type in CB6.'},
+  {term:'Multi-Family Elevator (03)',cat:'lu',tags:'residential elevator high rise apartment',def:'Residential buildings with 3+ units served by elevators. 141 lots in CB6, concentrated near Atlantic Ave and Flatbush.'},
+  {term:'Mixed Residential / Commercial (04)',cat:'lu',tags:'mixed use ground floor retail residential storefront',def:'Buildings combining residential (upper floors) with commercial (ground floor). 1,722 lots. Common on Fifth Ave, Smith St, and Court St corridors.'},
+  {term:'Commercial / Office (05)',cat:'lu',tags:'commercial office retail business',def:'Primarily commercial or office use. 249 lots along 4th Ave, 5th Ave, Smith St, and Court St.'},
+  {term:'Industrial / Manufacturing (06)',cat:'lu',tags:'industrial manufacturing warehouse factory m zone gowanus',def:'Manufacturing, warehousing, and heavy commercial uses. 472 lots concentrated in Gowanus and Red Hook.'},
+  {term:'Public Facilities & Institutions (08)',cat:'lu',tags:'school hospital library government civic nycha',def:'Schools, hospitals, libraries, government buildings, houses of worship. 167 lots. Includes Gowanus Houses and Wyckoff Gardens (NYCHA).'},
+  {term:'Open Space & Recreation (09)',cat:'lu',tags:'park playground open space recreation',def:'Parks, playgrounds, and open recreational spaces. Includes Prospect Park and Coffey Park.'},
+  {term:'Parking (10)',cat:'lu',tags:'parking lot garage surface',def:'Lots used primarily for surface parking or parking structures.'},
+  {term:'Vacant Land (11)',cat:'lu',tags:'vacant empty undeveloped lot gowanus',def:'Lots with no significant structure. In CB6, concentrated around the Gowanus Canal where environmental remediation affects buildability. 357 lots.'},
+];
+
+var ALL_ENTRIES=TERMS.concat(LU_ENTRIES);
+var refCat='all';
+
+function escR(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function highlight(text,query){if(!query)return escR(text);var re=new RegExp('('+query.replace(/[.*+?^${}()|[\]\]/g,'\$&')+')','gi');return escR(text).replace(re,'<mark style="background:#fff3cd;padding:0 1px;border-radius:2px">$1</mark>');}
+
+function refRender(entries,query){
+  var list=document.getElementById('ref-list');
+  var count=document.getElementById('ref-count');
+  if(!entries.length){list.innerHTML='<div style="padding:16px;color:#888;font-size:.78rem">No matching entries.</div>';count.textContent='0 entries';return;}
+  count.textContent=entries.length+' entr'+(entries.length===1?'y':'ies');
+  list.innerHTML=entries.map(function(e){
+    var col=REF_CAT_COLORS[e.cat]||'#888';
+    var lbl=REF_CAT_LABELS[e.cat]||e.cat;
+    return '<div class="ref-entry" onclick="this.classList.toggle('open')">'+
+      '<div class="ref-entry-term"><span class="ref-entry-arr">▼</span>'+highlight(e.term,query)+
+      '<span class="ref-entry-cat" style="background:'+col+'22;color:'+col+'">'+lbl+'</span></div>'+
+      '<div class="ref-entry-def">'+highlight(e.def,query)+'</div></div>';
+  }).join('');
+}
+
+function getFiltered(){
+  var q=(document.getElementById('ref-search').value||'').trim().toLowerCase();
+  return ALL_ENTRIES.filter(function(e){
+    if(refCat!=='all'&&e.cat!==refCat)return false;
+    if(!q)return true;
+    return(e.term+' '+e.def+' '+(e.tags||'')).toLowerCase().indexOf(q)!==-1;
+  });
+}
+
+window.refFilter=function(){refRender(getFiltered(),(document.getElementById('ref-search').value||'').trim());};
+window.refSetCat=function(cat,btn){
+  refCat=cat;
+  document.querySelectorAll('.ref-cat-btn').forEach(function(b){b.classList.remove('ref-cat-active');});
+  btn.classList.add('ref-cat-active');
+  refRender(getFiltered(),(document.getElementById('ref-search').value||'').trim());
+};
+
+refRender(ALL_ENTRIES,'');
+})();
+</script>
+
 </body>
 </html>
