@@ -1682,6 +1682,13 @@ function copyEmbed(type){
 </button>
 <div class="drop-body">
 
+<!-- ADDRESS SEARCH -->
+<div style="padding:10px 14px;background:#0d1b4b;border-bottom:2px solid #f47920;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+  <input id="trn-addr-input" type="text" placeholder="Enter a CB6 address to look up speed, transit &amp; bike..." style="flex:1;min-width:200px;font-family:'DM Sans',sans-serif;font-size:.85rem;padding:7px 12px;border:none;border-radius:6px;outline:none;background:rgba(255,255,255,.1);color:#fff" />
+  <button onclick="trnAddrSearch()" style="padding:7px 16px;background:#f47920;color:#fff;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.83rem;font-weight:700;cursor:pointer;white-space:nowrap">Search</button>
+</div>
+<div id="trn-addr-result" style="display:none;padding:10px 14px;background:#fff;border-bottom:1px solid #e5e2db"></div>
+
 <!-- LAYER TOGGLES -->
 <div style="padding:10px 14px;background:#f8f7f4;border-bottom:1px solid #e5e2db;display:flex;flex-wrap:wrap;gap:7px;align-items:center">
   <span style="font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em;color:#888;margin-right:2px">Show</span>
@@ -1885,6 +1892,177 @@ window.trnToggle = function(kind, btn) {
   updateLegend();
   updateStats();
 };
+
+// ── ADDRESS SEARCH ──────────────────────────────────────────────
+var trnSearchMarker = null;
+
+function haversine(lat1, lng1, lat2, lng2) {
+  var R = 3959 * 5280; // feet
+  var dLat = (lat2-lat1)*Math.PI/180;
+  var dLng = (lng2-lng1)*Math.PI/180;
+  var a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function ptDist(lat, lng, feat) {
+  var c = feat.geometry.coordinates;
+  var type = feat.geometry.type;
+  if(type === 'Point') return haversine(lat, lng, c[1], c[0]);
+  // LineString or MultiLineString: check all segment midpoints
+  var coords = type === 'MultiLineString' ? c.reduce(function(a,b){return a.concat(b);}, []) : c;
+  var best = Infinity;
+  for(var i=0;i<coords.length;i++) {
+    var d = haversine(lat, lng, coords[i][1], coords[i][0]);
+    if(d < best) best = d;
+  }
+  return best;
+}
+
+function nearest(lat, lng, features) {
+  var best = null, bestD = Infinity;
+  (features||[]).forEach(function(f){
+    var d = ptDist(lat, lng, f);
+    if(d < bestD){ bestD = d; best = f; }
+  });
+  return best ? {feat: best, dist: Math.round(bestD)} : null;
+}
+
+function fmtDist(ft) {
+  if(ft < 528) return ft + ' ft';
+  return (ft/5280).toFixed(2) + ' mi';
+}
+
+function speedAtPoint(lat, lng, features) {
+  // Find the speed segment closest to the point
+  return nearest(lat, lng, features);
+}
+
+function bikeType(p) {
+  var t = [p.ft_facilit, p.tf_facilit, p.facilitycl, p.allclasses, p.grnwy].join(' ').toLowerCase();
+  if(t.includes('protected')) return 'Protected Bike Lane';
+  if(t.includes('greenway')) return 'Greenway';
+  if(t.includes('buffered')) return 'Buffered Bike Lane';
+  if(t.includes('conventional')) return 'Conventional Bike Lane';
+  if(t.includes('shared')) return 'Shared Lane';
+  return p.allclasses || p.ft_facilit || 'Bike Route';
+}
+
+window.trnAddrSearch = function() {
+  var addr = document.getElementById('trn-addr-input').value.trim();
+  if(!addr) return;
+  var resDiv = document.getElementById('trn-addr-result');
+  resDiv.style.display = 'block';
+  resDiv.innerHTML = '<span style="color:#888;font-family:DM Mono,monospace;font-size:.78rem">Searching...</span>';
+
+  fetch('https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(addr)+'&size=1')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(!d.features||!d.features.length){
+        resDiv.innerHTML = '<span style="color:#c81e1e;font-size:.78rem">Address not found.</span>';
+        return;
+      }
+      var feat = d.features[0];
+      var lat = feat.geometry.coordinates[1];
+      var lng = feat.geometry.coordinates[0];
+      var lbl = feat.properties.label || addr;
+
+      if(!trnData) {
+        resDiv.innerHTML = '<span style="color:#888;font-size:.78rem">Map still loading — open the section first.</span>';
+        return;
+      }
+
+      // Find nearest features
+      var nearSpeed  = nearest(lat, lng, (trnData.speed||{}).features);
+      var nearBike   = nearest(lat, lng, (trnData.bike||{}).features);
+      var nearStop   = nearest(lat, lng, (trnData.busstops||{}).features);
+      var nearSubway = nearest(lat, lng, (trnData.subway||{}).features);
+
+      // Speed info
+      var speedInfo = '—';
+      if(nearSpeed) {
+        var sl = nearSpeed.feat.properties.postvz_sl || '—';
+        var sg = String(nearSpeed.feat.properties.postvz_sg||'').toUpperCase()==='YES';
+        var st = nearSpeed.feat.properties.street || '';
+        speedInfo = sl + ' mph on ' + st + (sg ? ' (School Zone)' : '') + ' — ' + fmtDist(nearSpeed.dist) + ' away';
+      }
+
+      // Bike info
+      var bikeInfo = '—';
+      if(nearBike) {
+        var bp = nearBike.feat.properties;
+        bikeInfo = bikeType(bp) + ' on ' + (bp.street||'nearby street') + ' — ' + fmtDist(nearBike.dist) + ' away';
+      }
+
+      // Bus stop info
+      var busInfo = '—';
+      if(nearStop) {
+        var sp = nearStop.feat.properties;
+        var routes = (sp.routes||[]).slice(0,5).join(', ');
+        busInfo = (sp.stop_name||'Bus Stop') + (routes ? ' ('+routes+')' : '') + ' — ' + fmtDist(nearStop.dist) + ' away';
+      }
+
+      // Subway info
+      var subwayInfo = '—';
+      if(nearSubway) {
+        var sbp = nearSubway.feat.properties;
+        var trains = sbp.daytime_routes ? ' ('+sbp.daytime_routes+')' : '';
+        subwayInfo = (sbp.stop_name||'Station') + trains + ' — ' + fmtDist(nearSubway.dist) + ' away';
+      }
+
+      // Remove old marker
+      if(trnSearchMarker) trnMap.removeLayer(trnSearchMarker);
+
+      // Place marker with popup card
+      var cardHtml =
+        '<div style="font-family:DM Sans,sans-serif;min-width:220px">' +
+        '<div style="font-weight:700;font-size:.85rem;color:#0d1b4b;border-bottom:2px solid #f47920;padding-bottom:4px;margin-bottom:8px">'+lbl+'</div>' +
+        '<table style="border-collapse:collapse;width:100%;font-size:.76rem">' +
+        '<tr><td style="color:#888;padding:3px 10px 3px 0;white-space:nowrap;vertical-align:top">🛣 Speed</td><td style="font-weight:600;color:#0d1b4b">'+speedInfo+'</td></tr>' +
+        '<tr><td style="color:#888;padding:3px 10px 3px 0;white-space:nowrap;vertical-align:top">🚲 Bike</td><td style="font-weight:600;color:#0d1b4b">'+bikeInfo+'</td></tr>' +
+        '<tr><td style="color:#888;padding:3px 10px 3px 0;white-space:nowrap;vertical-align:top">🚏 Bus</td><td style="font-weight:600;color:#0d1b4b">'+busInfo+'</td></tr>' +
+        '<tr><td style="color:#888;padding:3px 10px 3px 0;white-space:nowrap;vertical-align:top">🚇 Subway</td><td style="font-weight:600;color:#0d1b4b">'+subwayInfo+'</td></tr>' +
+        '</table></div>';
+
+      trnSearchMarker = L.marker([lat, lng], {
+        icon: L.divIcon({
+          className:'',
+          html: '<div style="background:#fff;border:2px solid #f47920;border-radius:8px;padding:9px 11px;box-shadow:0 3px 14px rgba(0,0,0,.18)">'+cardHtml+'</div>',
+          iconAnchor: [0, 0]
+        })
+      }).addTo(trnMap);
+
+      trnMap.setView([lat, lng], 15);
+
+      // Also show compact summary below search bar
+      resDiv.innerHTML =
+        '<div style="font-family:DM Sans,sans-serif;font-size:.78rem;color:#0d1b4b;font-weight:700;margin-bottom:6px">'+lbl+'</div>' +
+        '<div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:.76rem">' +
+        '<span style="color:#888">🛣 Speed</span><span>'+speedInfo+'</span>' +
+        '<span style="color:#888">🚲 Bike</span><span>'+bikeInfo+'</span>' +
+        '<span style="color:#888">🚏 Bus</span><span>'+busInfo+'</span>' +
+        '<span style="color:#888">🚇 Subway</span><span>'+subwayInfo+'</span>' +
+        '</div>';
+
+      // Auto-enable relevant layers
+      ['speed','bike','busstops','subway'].forEach(function(k){
+        if(!trnVisible[k] && trnLayers[k]) {
+          trnVisible[k] = true;
+          trnLayers[k].addTo(trnMap);
+          document.querySelectorAll('.trn-btn').forEach(function(b){
+            if(b.getAttribute('onclick') && b.getAttribute('onclick').includes("'"+k+"'")) b.classList.add('trn-active');
+          });
+        }
+      });
+      updateLegend();
+      updateStats();
+    })
+    .catch(function(e){
+      console.error(e);
+      resDiv.innerHTML = '<span style="color:#c81e1e;font-size:.78rem">Search failed.</span>';
+    });
+};
+
+document.getElementById('trn-addr-input').addEventListener('keydown', function(e){ if(e.key==='Enter') trnAddrSearch(); });
 
 })();
 </script>
