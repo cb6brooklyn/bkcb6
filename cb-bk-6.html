@@ -601,7 +601,7 @@ window.__cbbk6LandUseInit = (function(){
 
 <div class="drop-section" id="sec-elections">
 <button class="drop-toggle" onclick="cbToggle(this);electionsInit()">
-    🗺 Maps &amp; 2025 Election Results
+    🗺 BKCB6 Electoral &amp; Legislative Map
     <span class="drop-arr">▼</span>
   <a class="drop-share" href="#sec-elections" onclick="event.stopPropagation();history.replaceState(null,'','#sec-elections')">🔗</a>
   </button>
@@ -609,12 +609,12 @@ window.__cbbk6LandUseInit = (function(){
 
 <!-- ADDRESS SEARCH -->
 <div style="padding:12px 16px;background:#f8f7f4;border-bottom:1px solid #e5e2db">
-  <div style="font-size:.72rem;font-family:'DM Mono',monospace;font-weight:700;color:#0d1b4b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Find Your Election District</div>
+  <div style="font-size:.72rem;font-family:'DM Mono',monospace;font-weight:700;color:#0d1b4b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Find Your Districts</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
-    <input id="elec-addr-input" type="text" placeholder="Enter a CB6 address..." style="flex:1;min-width:200px;font-family:'DM Sans',sans-serif;font-size:.88rem;padding:8px 12px;border:1.5px solid #ccc;border-radius:6px;outline:none" />
+    <input id="elec-addr-input" type="text" placeholder="Enter any NYC address..." style="flex:1;min-width:200px;font-family:'DM Sans',sans-serif;font-size:.88rem;padding:8px 12px;border:1.5px solid #ccc;border-radius:6px;outline:none" />
     <button onclick="elecAddrSearch()" style="padding:8px 16px;background:#0d1b4b;color:#fff;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.85rem;font-weight:700;cursor:pointer">Search</button>
   </div>
-  <div id="elec-addr-result" style="margin-top:8px;font-size:.78rem;color:#555;font-family:'DM Mono',monospace;display:none"></div>
+  <div id="elec-addr-result" style="margin-top:8px;font-size:.78rem;color:#555;font-family:'DM Sans',monospace;display:none"></div>
 </div>
 
 <!-- MAP CONTROLS -->
@@ -830,46 +830,160 @@ window.elecOverlay = function(type,btn){
   });
 };
 
+var BOROUGH_PREFIX = {'1':'mn','2':'bx','3':'bk','4':'qn','5':'si'};
+var BOROUGH_FULL = {'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
+var addrMarker = null;
+
+// CB6 legislative districts lookup by ED
+var CB6_LEG = {
+  // For any CB6 ED, the districts are determined by the legislative overlay GeoJSON
+  // We use a pip check against the inlined LEG_GJ features
+};
+
+function pipCheck(lng, lat, geojsonFeature) {
+  // Ray-casting point-in-polygon for GeoJSON feature
+  var coords = geojsonFeature.geometry.coordinates;
+  var geomType = geojsonFeature.geometry.type;
+  var rings = geomType === 'Polygon' ? [coords] : coords; // MultiPolygon
+  for(var p=0;p<rings.length;p++){
+    var poly = rings[p][0]; // outer ring
+    var inside = false;
+    for(var i=0,j=poly.length-1;i<poly.length;j=i++){
+      var xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];
+      if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi)) inside=!inside;
+    }
+    if(inside) return true;
+  }
+  return false;
+}
+
+function getDistrictsForPoint(lng, lat) {
+  var result = {city_council:null, state_assembly:null, state_senate:null, congress:null, ed:null};
+  // Check ED
+  if(edData){
+    edData.features.forEach(function(ef){
+      if(result.ed) return;
+      if(pipCheck(lng,lat,ef)) result.ed = ef.properties;
+    });
+  }
+  // Check legislative layers
+  LEG_GJ.features.forEach(function(feat){
+    var lt = feat.properties.layer;
+    if(lt === 'cd' || result[lt]) return;
+    if(pipCheck(lng,lat,feat)) result[lt] = feat.properties.id;
+  });
+  return result;
+}
+
+var LEG_NAMES = {
+  city_council: {38:'Aviles (D38)',39:'Hanif (D39)'},
+  state_assembly: {44:'Carroll (AD44)',51:'Mitaynes (AD51)',52:'Simon (AD52)'},
+  state_senate: {20:'Myrie (SD20)',25:'Brisport (SD25)',26:'Gounardes (SD26)'},
+  congress: {10:'Goldman (NY-10)'}
+};
+
+function getLegLabel(type, id) {
+  var n = LEG_NAMES[type];
+  if(!n) return 'District '+id;
+  return n[id] || ('District '+id);
+}
+
 window.elecAddrSearch = function(){
   var addr = document.getElementById('elec-addr-input').value.trim();
   if(!addr) return;
-  var full = encodeURIComponent(addr + ', Brooklyn, NY');
   var resDiv = document.getElementById('elec-addr-result');
   resDiv.style.display = 'block';
-  resDiv.textContent = 'Searching...';
-  fetch('https://geosearch.planninglabs.nyc/v2/search?text='+full+'&size=1')
+  resDiv.innerHTML = '<span style="color:#888">Searching...</span>';
+
+  fetch('https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(addr)+'&size=1')
     .then(function(r){return r.json();})
     .then(function(d){
-      if(!d.features||!d.features.length){resDiv.textContent='Address not found.';return;}
+      if(!d.features||!d.features.length){resDiv.innerHTML='<span style="color:#c81e1e">Address not found.</span>';return;}
       var feat = d.features[0];
       var lat = feat.geometry.coordinates[1];
       var lng = feat.geometry.coordinates[0];
       var props = feat.properties;
-      var lbl = feat.properties.label||addr;
-      // Find which ED contains this point
-      var pt = L.latLng(lat,lng);
-      var found = null;
-      if(edData){
-        edData.features.forEach(function(ef){
-          if(found) return;
-          var poly = L.geoJSON(ef);
-          poly.eachLayer(function(l){
-            if(found) return;
-            if(l.getBounds && l.getBounds().contains(pt)){
-              // rough check — use turf-like pip
-              found = ef.properties;
-            }
-          });
-        });
+      var lbl = props.label || addr;
+
+      // Determine CB from addendum
+      var boroCd = props.addendum && props.addendum.pad && props.addendum.pad.boro_cc
+        ? String(props.addendum.pad.boro_cc) : null;
+      // Also try community_district from properties
+      var cd = props.addendum && props.addendum.pad && props.addendum.pad.community_district
+        ? String(props.addendum.pad.community_district) : null;
+      var boroNum = props.addendum && props.addendum.pad && props.addendum.pad.boro_code
+        ? String(props.addendum.pad.boro_code) : null;
+
+      // Determine if in CB6 via bounding + pip against CB boundary in LEG_GJ
+      var inCB6 = false;
+      LEG_GJ.features.forEach(function(f){
+        if(f.properties.layer==='cd') {
+          if(pipCheck(lng,lat,f)) inCB6=true;
+        }
+      });
+
+      // Remove old marker
+      if(addrMarker) elecMap.removeLayer(addrMarker);
+
+      if(inCB6) {
+        var districts = getDistrictsForPoint(lng, lat);
+
+        // Build popup card HTML
+        var cardRows = '';
+        cardRows += '<div style="font-weight:700;font-size:.85rem;color:#0d1b4b;border-bottom:2px solid #f47920;padding-bottom:5px;margin-bottom:7px">'+lbl+'</div>';
+        cardRows += '<table style="font-size:.75rem;font-family:DM Sans,sans-serif;border-collapse:collapse;width:100%">';
+        cardRows += '<tr><td style="color:#888;padding:2px 8px 2px 0;white-space:nowrap">CB6</td><td style="font-weight:600;color:#0d1b4b">Brooklyn Community Board 6</td></tr>';
+        if(districts.city_council) cardRows += '<tr><td style="color:#888;padding:2px 8px 2px 0;white-space:nowrap">City Council</td><td style="font-weight:600;color:#0d1b4b">'+getLegLabel('city_council',districts.city_council)+'</td></tr>';
+        if(districts.state_assembly) cardRows += '<tr><td style="color:#888;padding:2px 8px 2px 0;white-space:nowrap">State Assembly</td><td style="font-weight:600;color:#0d1b4b">'+getLegLabel('state_assembly',districts.state_assembly)+'</td></tr>';
+        if(districts.state_senate) cardRows += '<tr><td style="color:#888;padding:2px 8px 2px 0;white-space:nowrap">State Senate</td><td style="font-weight:600;color:#0d1b4b">'+getLegLabel('state_senate',districts.state_senate)+'</td></tr>';
+        if(districts.congress) cardRows += '<tr><td style="color:#888;padding:2px 8px 2px 0;white-space:nowrap">Congress</td><td style="font-weight:600;color:#0d1b4b">'+getLegLabel('congress',districts.congress)+'</td></tr>';
+        if(districts.ed) cardRows += '<tr><td style="color:#888;padding:2px 8px 2px 0;white-space:nowrap">Election District</td><td style="font-weight:600;color:#0d1b4b">'+(districts.ed.ed_label||'')+'</td></tr>';
+        cardRows += '</table>';
+
+        addrMarker = L.marker([lat,lng],{
+          icon: L.divIcon({
+            className:'',
+            html:'<div style="background:#fff;border:2px solid #f47920;border-radius:8px;padding:8px 10px;min-width:200px;max-width:260px;box-shadow:0 3px 12px rgba(0,0,0,.18);font-family:DM Sans,sans-serif">'+cardRows+'</div>',
+            iconAnchor:[0,0]
+          })
+        }).addTo(elecMap);
+        elecMap.setView([lat,lng],15);
+
+        // Also show summary below search bar
+        resDiv.innerHTML = '<span style="color:#2d6a4f;font-weight:600">&#10003; In CB6</span> &mdash; '
+          + (districts.city_council ? 'Council D'+districts.city_council+' &bull; ' : '')
+          + (districts.state_assembly ? 'AD'+districts.state_assembly+' &bull; ' : '')
+          + (districts.state_senate ? 'SD'+districts.state_senate+' &bull; ' : '')
+          + (districts.congress ? 'NY-'+districts.congress : '');
+
+      } else {
+        // Outside CB6 — determine which CB
+        var boroCode = boroNum || (lbl.includes('Manhattan') ? '1' : lbl.includes('Bronx') ? '2' : lbl.includes('Brooklyn') ? '3' : lbl.includes('Queens') ? '4' : lbl.includes('Staten Island') ? '5' : null);
+        var cdNum = cd ? parseInt(cd,10) : null;
+        var boroShort = boroCode ? {1:'Manhattan',2:'Bronx',3:'Brooklyn',4:'Queens',5:'Staten Island'}[parseInt(boroCode)] : null;
+        var prefix = boroCode ? BOROUGH_PREFIX[boroCode] : null;
+        var cbPage = (prefix && cdNum) ? 'cb-'+prefix+'-'+cdNum+'.html' : null;
+        var cbLabel = (boroShort && cdNum) ? boroShort+' Community Board '+cdNum : 'a different community board';
+
+        addrMarker = L.marker([lat,lng],{
+          icon: L.divIcon({
+            className:'',
+            html:'<div style="background:#fff;border:2px solid #c81e1e;border-radius:8px;padding:8px 10px;min-width:180px;max-width:240px;box-shadow:0 3px 12px rgba(0,0,0,.18);font-family:DM Sans,sans-serif;font-size:.78rem">'
+              +'<div style="font-weight:700;font-size:.82rem;color:#0d1b4b;border-bottom:1.5px solid #e5e2db;padding-bottom:4px;margin-bottom:6px">'+lbl+'</div>'
+              +'<div style="color:#555">This address is in <strong>'+cbLabel+'</strong>.'
+              +(cbPage ? ' <a href="'+cbPage+'" style="color:#f47920;text-decoration:none;font-weight:600">View profile ↗</a>' : '')
+              +'</div></div>',
+            iconAnchor:[0,0]
+          })
+        }).addTo(elecMap);
+        elecMap.setView([lat,lng],14);
+
+        resDiv.innerHTML = '<span style="color:#c81e1e;font-weight:600">Outside CB6</span> &mdash; '
+          + lbl + ' is in ' + cbLabel
+          + (cbPage ? '. <a href="'+cbPage+'" style="color:#f47920;font-weight:600">View profile ↗</a>' : '');
       }
-      elecMap.setView([lat,lng],15);
-      L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div style="background:#f47920;color:#fff;font-size:.7rem;font-family:DM Sans,sans-serif;font-weight:700;padding:3px 7px;border-radius:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3)">'+lbl+'</div>',iconAnchor:[0,0]})}).addTo(elecMap);
-      var info = lbl;
-      if(props.neighbourhood) info += ' | ' + props.neighbourhood;
-      if(found) info += ' | ' + (found.popup_title||found.ed_label);
-      resDiv.innerHTML = '<span style="color:#0d1b4b;font-weight:700">' + info + '</span>';
     })
-    .catch(function(){resDiv.textContent='Search failed.';});
+    .catch(function(e){console.error(e);resDiv.innerHTML='<span style="color:#c81e1e">Search failed. Try adding ", Brooklyn, NY" to your address.</span>';});
 };
 
 // Handle Enter key in search
