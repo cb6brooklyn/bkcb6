@@ -1,23 +1,135 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta http-equiv="refresh" content="0; url=precincts.html">
-  <title>🚒 Public Safety Services — BKCB6</title>
-  <link rel="canonical" href="https://bkcb6.app/precincts.html">
-  <style>
-    body{font-family:Arial,sans-serif;background:#0d1b4b;color:#fff;margin:0;padding:32px;line-height:1.6}
-    .card{max-width:720px;margin:40px auto;background:#fff;color:#0d1b4b;border-radius:16px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
-    a{color:#f47920;font-weight:700}
-  </style>
-  <script>window.location.replace('precincts.html');</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BKCB6 — Public Safety</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:#0d1b4b}
+body{display:flex;flex-direction:column}
+.top-bar{background:#0d1b4b;border-bottom:3px solid #f47920;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-shrink:0}
+.top-bar h1{font-size:.92rem;font-weight:700;color:#fff;white-space:nowrap;flex-shrink:0}
+.top-bar h1 span{color:#f47920}
+.back-link{font-size:.7rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.45);text-decoration:none;white-space:nowrap;margin-left:auto}
+.back-link:hover{color:#f47920}
+.layer-bar{padding:8px 14px;background:#0d1b4b;border-bottom:1px solid rgba(255,255,255,.1);display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-shrink:0}
+.layer-bar span{font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.45);margin-right:2px}
+.lbtn{padding:5px 13px;font-size:.76rem;font-family:'DM Sans',sans-serif;font-weight:700;border:1.5px solid rgba(255,255,255,.25);border-radius:20px;background:transparent;color:rgba(255,255,255,.6);cursor:pointer;transition:all .15s;white-space:nowrap}
+.lbtn.on{background:var(--pc);border-color:var(--pc);color:#fff}
+.legend-bar{padding:6px 14px;background:#fafaf8;border-bottom:1px solid #e5e2db;display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-shrink:0;min-height:28px}
+.li{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;color:#444}
+.ls{display:inline-block;width:14px;height:10px;border-radius:2px}
+#map{flex:1;min-height:300px}
+.note-bar{padding:4px 14px;font-size:.65rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.3);background:#0d1b4b;flex-shrink:0}
+.note-bar a{color:#f47920;text-decoration:none}
+</style>
 </head>
 <body>
-  <div class="card">
-    <h1>🚒 Public Safety Services</h1>
-    <p>This page has moved to the BKCB6 public safety map page.</p>
-    <p><a href="precincts.html">Open the public safety page</a></p>
-  </div>
+<div class="top-bar">
+  <h1>BKCB6 <span>Public Safety</span></h1>
+  <a class="back-link" href="cb-bk-6.html">← CB6</a>
+</div>
+<div class="layer-bar">
+  <span>Layer</span>
+  <button class="lbtn on" onclick="togLayer('nypd',this)" style="--pc:#1d4ed8">🚔 NYPD Precincts</button>
+  <button class="lbtn on" onclick="togLayer('fdny',this)" style="--pc:#dc2626">🚒 FDNY Battalions</button>
+  <button class="lbtn on" onclick="togLayer('dsny',this)" style="--pc:#15803d">🗑 DSNY Districts</button>
+</div>
+<div class="legend-bar" id="legend">
+  <span class="li"><span class="ls" style="background:transparent;border:2px solid #1d4ed8"></span>NYPD Precincts (76, 78, 84)</span>
+  <span class="li"><span class="ls" style="background:transparent;border:2px solid #dc2626"></span>FDNY Battalions</span>
+  <span class="li"><span class="ls" style="background:transparent;border:2px solid #15803d"></span>DSNY Districts</span>
+</div>
+<div id="map"></div>
+<div class="note-bar" id="note">Loading public safety boundaries… &nbsp;|&nbsp; <a href="cb-bk-6.html">← CB6</a></div>
+
+<script>
+var map = L.map('map',{scrollWheelZoom:true}).setView([40.671,-73.990],13);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+
+var layers = {nypd:null, fdny:null, dsny:null};
+var vis = {nypd:true, fdny:true, dsny:true};
+var boundaryLayer = null;
+
+function togLayer(k, btn){
+  vis[k] = !vis[k];
+  btn.classList.toggle('on');
+  if(layers[k]){
+    if(vis[k]) layers[k].addTo(map);
+    else map.removeLayer(layers[k]);
+  }
+}
+
+function label(lyr, txt, center){
+  var icon = L.divIcon({className:'', html:'<div style="font-size:.65rem;font-family:DM Sans,sans-serif;font-weight:700;color:#fff;background:rgba(0,0,0,.55);padding:2px 5px;border-radius:4px;white-space:nowrap">'+txt+'</div>', iconAnchor:[0,0]});
+  L.marker(center, {icon:icon, interactive:false}).addTo(lyr);
+}
+
+// Load CB6 boundary
+fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}).then(function(bd){
+  var cb6 = (bd.features||[]).find(function(f){return String(f.properties&&f.properties.boro_cd)==='306';});
+  if(cb6){
+    boundaryLayer = L.geoJSON(cb6,{style:function(){return{color:'#f47920',weight:3,fill:false,dashArray:'6 3'};}}).addTo(map);
+    map.fitBounds(boundaryLayer.getBounds(),{padding:[20,20]});
+  }
+});
+
+// NYPD Precincts — NYC Open Data
+fetch('https://data.cityofnewyork.us/api/geospatial/kmep-waad?method=export&type=GeoJSON')
+  .then(function(r){return r.json();}).then(function(d){
+    layers.nypd = L.geoJSON(d, {
+      style:function(f){
+        var p = f.properties.precinct||f.properties.PRECINCT||'';
+        var cb6ps = ['076','078','084','76','78','84'];
+        var isCB6 = cb6ps.indexOf(String(p)) !== -1;
+        return{color:'#1d4ed8',weight:isCB6?3:1.5,fillColor:'#1d4ed8',fillOpacity:isCB6?.12:.04,dashArray:isCB6?null:'4 3'};
+      },
+      onEachFeature:function(f,l){
+        var p = f.properties.precinct||f.properties.PRECINCT||'';
+        l.bindTooltip('<strong>🚔 '+p+'th Precinct</strong>',{sticky:true,opacity:1});
+        try{var c=l.getBounds().getCenter();label(layers.nypd,'Pct '+p,[c.lat,c.lng]);}catch(e){}
+      }
+    });
+    if(vis.nypd) layers.nypd.addTo(map);
+    if(boundaryLayer) boundaryLayer.bringToFront();
+    document.getElementById('note').textContent = 'NYPD loaded. Loading FDNY…';
+  }).catch(function(){document.getElementById('note').textContent='NYPD load failed.';});
+
+// FDNY Battalions — NYC Open Data
+fetch('https://data.cityofnewyork.us/api/geospatial/uh2b-m8m7?method=export&type=GeoJSON')
+  .then(function(r){return r.json();}).then(function(d){
+    layers.fdny = L.geoJSON(d, {
+      style:function(){return{color:'#dc2626',weight:1.5,fillColor:'#dc2626',fillOpacity:.05};},
+      onEachFeature:function(f,l){
+        var n = f.properties.battalion||f.properties.BATTALION||f.properties.fire_bn||'';
+        l.bindTooltip('<strong>🚒 Battalion '+n+'</strong>',{sticky:true,opacity:1});
+        try{var c=l.getBounds().getCenter();label(layers.fdny,'Btn '+n,[c.lat,c.lng]);}catch(e){}
+      }
+    });
+    if(vis.fdny) layers.fdny.addTo(map);
+    if(boundaryLayer) boundaryLayer.bringToFront();
+    document.getElementById('note').textContent = 'NYPD + FDNY loaded. Loading DSNY…';
+  }).catch(function(){document.getElementById('note').textContent='FDNY load failed.';});
+
+// DSNY Districts — NYC Open Data
+fetch('https://data.cityofnewyork.us/api/geospatial/9iht-7kgt?method=export&type=GeoJSON')
+  .then(function(r){return r.json();}).then(function(d){
+    layers.dsny = L.geoJSON(d, {
+      style:function(){return{color:'#15803d',weight:1.5,fillColor:'#15803d',fillOpacity:.05};},
+      onEachFeature:function(f,l){
+        var n = f.properties.districtid||f.properties.DISTRICTID||f.properties.district||'';
+        l.bindTooltip('<strong>🗑 DSNY District '+n+'</strong>',{sticky:true,opacity:1});
+        try{var c=l.getBounds().getCenter();label(layers.dsny,'DSNY '+n,[c.lat,c.lng]);}catch(e){}
+      }
+    });
+    if(vis.dsny) layers.dsny.addTo(map);
+    if(boundaryLayer) boundaryLayer.bringToFront();
+    document.getElementById('note').textContent = 'All layers loaded. Toggle above. CB6 boundary = dashed orange.';
+  }).catch(function(){document.getElementById('note').textContent='DSNY load failed.';});
+</script>
 </body>
 </html>
