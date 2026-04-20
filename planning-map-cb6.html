@@ -196,24 +196,19 @@ function loadLU(){
   var note = document.getElementById('note');
   if(luLayer){ luLayer.addTo(map); if(boundaryLayer)boundaryLayer.bringToFront(); if(note)note.textContent='Land use loaded.'; return; }
   if(note) note.textContent='Loading CB6 parcels…';
-  fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}).then(function(bd){
-    var cb6=(bd.features||[]).find(function(f){return String(f.properties&&f.properties.boro_cd)==='306';});
-    if(!cb6){if(note)note.textContent='Boundary not found.';return;}
-    var ring=cb6.geometry.coordinates[0];
-    var geomStr=JSON.stringify({rings:[ring],spatialReference:{wkid:4326}});
-    var allFeatures=[];
-    function fetchPage(offset){
-      if(note)note.textContent='Loading parcels… '+allFeatures.length+' so far';
-      fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?where=1%3D1&geometry='+encodeURIComponent(geomStr)+'&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelContains&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326')
-        .then(function(r){return r.json();}).then(function(data){
-          var feats=data.features||[];
-          allFeatures=allFeatures.concat(feats);
-          if(feats.length===2000){fetchPage(offset+2000);}
-          else{buildLuLayer(allFeatures);if(note)note.textContent=allFeatures.length+' parcels loaded.';}
-        }).catch(function(){if(note)note.textContent='Could not load parcels.';});
-    }
-    fetchPage(0);
-  });
+  var env={xmin:-74.017,ymin:40.658,xmax:-73.965,ymax:40.695,spatialReference:{wkid:4326}};
+  var allFeatures=[];
+  function fetchPage(offset){
+    if(note)note.textContent='Loading parcels… '+allFeatures.length+' so far';
+    fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?where=1%3D1&geometry='+encodeURIComponent(JSON.stringify(env))+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326')
+      .then(function(r){return r.json();}).then(function(data){
+        var feats=data.features||[];
+        allFeatures=allFeatures.concat(feats);
+        if(feats.length===2000){fetchPage(offset+2000);}
+        else{buildLuLayer(allFeatures);if(note)note.textContent=allFeatures.length+' parcels loaded.';}
+      }).catch(function(){if(note)note.textContent='Could not load parcels.';});
+  }
+  fetchPage(0);
 }
 
 function buildLuLayer(features){
