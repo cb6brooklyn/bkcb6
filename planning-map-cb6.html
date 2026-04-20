@@ -194,31 +194,34 @@ function setMain(which,btn){
 }
 function loadLU(){
   var note = document.getElementById('note');
-  if(luLayer){ if(note) note.textContent='Land use loaded. Toggle use groups above.'; return; }
+  if(luLayer){ luLayer.addTo(map); if(note) note.textContent='Land use loaded. Toggle use groups above.'; return; }
   if(note) note.textContent='Loading CB6 parcels…';
-  // Use same approach as landuse-map-cb6.html which works
-  fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}).then(function(bd){
-    var cb6=(bd.features||[]).find(function(f){return String(f.properties&&f.properties.boro_cd)==='306';});
-    if(!cb6)return;
-    var ring = cb6.geometry.coordinates[0];
+  // Use exact CB6 boundary polygon to clip results
+  fetch('data/cb6_boundary_exact.geojson').then(function(r){return r.json();}).then(function(bnd){
+    var feat = bnd.features ? bnd.features[0] : bnd;
+    var ring = feat.geometry.coordinates[0];
     var geomStr = JSON.stringify({rings:[ring], spatialReference:{wkid:4326}});
     var allFeatures = [];
     function fetchPage(offset){
+      var url = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?' +
+        'where=1%3D1&geometry='+encodeURIComponent(geomStr)+
+        '&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelIntersects' +
+        '&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson' +
+        '&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326';
       if(note) note.textContent='Loading parcels… '+allFeatures.length+' so far';
-      fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?where=1%3D1&geometry='+encodeURIComponent(geomStr)+'&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelContains&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326')
-        .then(function(r){return r.json();}).then(function(data){
-          var feats = data.features || [];
-          allFeatures = allFeatures.concat(feats);
-          if(feats.length === 2000){
-            fetchPage(offset + 2000);
-          } else {
-            buildLuLayer(allFeatures);
-            if(note) note.textContent = allFeatures.length+' parcels loaded. Toggle use groups above.';
-          }
-        }).catch(function(){if(note) note.textContent='Could not load parcels.';});
+      fetch(url).then(function(r){return r.json();}).then(function(data){
+        var feats = data.features || [];
+        allFeatures = allFeatures.concat(feats);
+        if(feats.length === 2000){
+          fetchPage(offset + 2000);
+        } else {
+          buildLuLayer(allFeatures);
+          if(note) note.textContent = allFeatures.length+' parcels loaded. Toggle use groups above.';
+        }
+      }).catch(function(){if(note) note.textContent='Could not load parcels.';});
     }
     fetchPage(0);
-  });
+  }).catch(function(){if(note) note.textContent='Could not load boundary data.';});
 }
 
 function buildLuLayer(features){
@@ -234,7 +237,7 @@ function buildLuLayer(features){
       l.bindTooltip('<strong>'+(LU_LABELS[c]||'Unknown')+'</strong><br><span style="font-size:.75rem;color:#555">'+(f.properties.Address||'')+'</span>',{sticky:true,opacity:1});
     }
   });
-  if(activeMain==='landuse') luLayer.addTo(map);
+  luLayer.addTo(map);
   if(boundaryLayer) boundaryLayer.bringToFront();
   buildSubToggles();
   updateLegend();
