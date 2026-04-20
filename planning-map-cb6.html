@@ -107,6 +107,8 @@ Promise.all([
   (ldata.features||[]).forEach(function(f,i){var n=f.properties.area_name||'District '+(i+1);lmVisible[n]=true;});
   buildLmLayer(); buildSubToggles();
 });
+// Pre-load land use immediately
+window.addEventListener('load', function(){ loadLU(); });
 
 function buildZoningLayer(){
   if(zoningLayer)map.removeLayer(zoningLayer);
@@ -193,38 +195,55 @@ function setMain(which,btn){
   if(boundaryLayer)boundaryLayer.bringToFront();
 }
 function loadLU(){
-  var note=document.getElementById('note');
-  if(luLayer){luLayer.addTo(map);if(boundaryLayer)boundaryLayer.bringToFront();if(note)note.textContent='Land use loaded.';return;}
-  if(note)note.textContent='Loading CB6 parcels…';
-  fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}).then(function(bd){
-  var cb6=(bd.features||[]).find(function(f){return String(f.properties&&f.properties.boro_cd)==='306';});
-  if(!cb6)return;
-  // Use exact CB6 boundary polygon for spatial filter
-  var allFeats=[];
-  function fetchPage(offset, geomStr){
-    if(note)note.textContent='Loading parcels… '+allFeats.length+' loaded';
-    fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?where=1%3D1&geometry='+encodeURIComponent(geomStr)+'&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelContains&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326')
-      .then(function(r){return r.json();}).then(function(d){
-        var feats=d.features||[];
-        allFeats=allFeats.concat(feats);
-        if(feats.length===2000){fetchPage(offset+2000, geomStr);}
-        else{
-          luLayer=L.geoJSON({type:'FeatureCollection',features:allFeats},{
-            style:function(f){var c=normLU(f.properties&&f.properties.LandUse);return{fillColor:COLORS[c]||'#9aa0a6',fillOpacity:vis[c]?.78:0,color:'#fff',weight:.5};},
-            onEachFeature:function(f,l){var c=normLU(f.properties&&f.properties.LandUse);l.bindTooltip('<strong>'+(LABELS[c]||'Unknown')+'</strong><br><span style="font-size:.75rem;color:#555">'+(f.properties.Address||'')+'</span>',{sticky:true,opacity:1});}
-          }).addTo(map);
-          boundaryLayer.bringToFront();
-          if(note)note.textContent=allFeats.length+' parcels loaded. Toggle use groups above.';
+  var note = document.getElementById('note');
+  if(luLayer){ if(note) note.textContent='Land use loaded. Toggle use groups above.'; return; }
+  if(note) note.textContent='Loading CB6 parcels…';
+  // Use exact CB6 boundary polygon to clip results
+  fetch('data/cb6_boundary_exact.geojson').then(function(r){return r.json();}).then(function(bnd){
+    var feat = bnd.features ? bnd.features[0] : bnd;
+    var ring = feat.geometry.coordinates[0];
+    var geomStr = JSON.stringify({rings:[ring], spatialReference:{wkid:4326}});
+    var allFeatures = [];
+    function fetchPage(offset){
+      var url = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?' +
+        'where=1%3D1&geometry='+encodeURIComponent(geomStr)+
+        '&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelIntersects' +
+        '&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson' +
+        '&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326';
+      if(note) note.textContent='Loading parcels… '+allFeatures.length+' so far';
+      fetch(url).then(function(r){return r.json();}).then(function(data){
+        var feats = data.features || [];
+        allFeatures = allFeatures.concat(feats);
+        if(feats.length === 2000){
+          fetchPage(offset + 2000);
+        } else {
+          buildLuLayer(allFeatures);
+          if(note) note.textContent = allFeatures.length+' parcels loaded. Toggle use groups above.';
         }
-      }).catch(function(){if(note)note.textContent='Could not load parcels.';});
-  }
-  // Build geometry string from boundary
-  var ring = cb6.geometry.coordinates[0];
-  var geomObj = {rings:[ring], spatialReference:{wkid:4326}};
-  fetchPage(0, JSON.stringify(geomObj));
-});
+      }).catch(function(){if(note) note.textContent='Could not load parcels.';});
+    }
+    fetchPage(0);
+  }).catch(function(){if(note) note.textContent='Could not load boundary data.';});
 }
 
+function buildLuLayer(features){
+  if(luLayer){ map.removeLayer(luLayer); luLayer=null; }
+  var gj = {type:'FeatureCollection', features: features};
+  luLayer = L.geoJSON(gj,{
+    style:function(f){
+      var c=normLU(f.properties&&f.properties.LandUse);
+      return{fillColor:LU_COLORS[c]||'#9aa0a6',fillOpacity:luVisible[c]?0.78:0,color:'#fff',weight:0.5};
+    },
+    onEachFeature:function(f,l){
+      var c=normLU(f.properties&&f.properties.LandUse);
+      l.bindTooltip('<strong>'+(LU_LABELS[c]||'Unknown')+'</strong><br><span style="font-size:.75rem;color:#555">'+(f.properties.Address||'')+'</span>',{sticky:true,opacity:1});
+    }
+  });
+  if(activeMain==='landuse') luLayer.addTo(map);
+  if(boundaryLayer) boundaryLayer.bringToFront();
+  buildSubToggles();
+  updateLegend();
+}
 
 // land use loads full district on demand
 
