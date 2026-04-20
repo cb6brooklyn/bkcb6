@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🍺 CB6 Liquor License Map</title>
+  <meta name="description" content="Self-hosted map and directory of on-premises liquor-license records within Brooklyn Community Board 6.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <style>
+    :root{--navy:#0d1b4b;--orange:#f47920;--border:#e7dfd2;--muted:#6b7280;--bg:#f5f3ee;--off:#fcfbf9;--full:#8B0000;--wine:#4B0082;--special:#1B5E20}
+    *{box-sizing:border-box} body{margin:0;font-family:'DM Sans',sans-serif;background:var(--bg);color:#1f2937}
+    .shell{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr);gap:14px;padding:14px}
+    .card{background:#fff;border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 2px 10px rgba(13,27,75,.04)}
+    .head{padding:14px 16px;border-bottom:1px solid var(--border);background:#fffdfa}.head h1,.head h2{margin:0 0 6px;color:var(--navy);font-size:1rem}.head p{margin:0;color:var(--muted);font-size:.8rem;line-height:1.55}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--border)}.stat{padding:12px 10px;text-align:center;border-right:1px solid var(--border)}.stat:last-child{border-right:none}.stat .v{font:700 1rem 'DM Mono',monospace;color:var(--orange)}.stat .l{font:.62rem 'DM Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+    .controls{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}.controls label{display:block;margin-bottom:6px;font:.66rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}.controls input,.controls select{width:100%;border:1px solid var(--border);border-radius:12px;padding:10px 12px;font:500 .82rem 'DM Sans',sans-serif}
+    .legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--off);font-size:.72rem;color:var(--muted)}.legend span{display:inline-flex;align-items:center;gap:7px}.dot{width:11px;height:11px;border-radius:50%;display:inline-block}.d-full{background:var(--full)}.d-wine{background:var(--wine)}.d-special{background:var(--special)}
+    #map{height:640px;width:100%}.notice{padding:10px 16px;background:var(--off);border-top:1px solid var(--border);font-size:.72rem;color:var(--muted);line-height:1.6}
+    .side-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px}.side-head h2{margin:0 0 6px;color:var(--navy);font-size:.98rem}.side-head p{margin:0;color:var(--muted);font-size:.78rem;line-height:1.55}.count{font:.68rem 'DM Mono',monospace;color:var(--orange);white-space:nowrap}
+    #list{padding:12px 14px 16px;max-height:850px;overflow:auto}.item{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;cursor:pointer;transition:transform .15s ease, box-shadow .15s ease}.item:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(13,27,75,.05)}.item h3{margin:0 0 4px;color:var(--navy);font-size:.82rem;line-height:1.35}.item p{margin:0 0 8px;color:var(--muted);font-size:.74rem;line-height:1.5}.meta{display:flex;flex-wrap:wrap;gap:6px}.tag{padding:4px 8px;border-radius:999px;font:.62rem 'DM Mono',monospace}.t-full{background:#fee2e2;color:#991b1b}.t-wine{background:#ede9fe;color:#5b21b6}.t-special{background:#dcfce7;color:#166534}.t-generic{background:#f3f4f6;color:#475569}.empty{padding:18px;border:1px dashed var(--border);border-radius:12px;text-align:center;color:var(--muted);font-size:.8rem}
+    .leaflet-popup-content{font-family:'DM Sans',sans-serif}.leaflet-popup-content h4{margin:0 0 5px;font-size:.9rem}.leaflet-popup-content p{margin:0 0 6px;font-size:.78rem;color:#475569;line-height:1.45}.leaflet-popup-content .small{font:.68rem 'DM Mono',monospace;color:#6b7280}
+    @media (max-width:980px){.shell{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}#map{height:520px}#list{max-height:none}}
+    @media (max-width:520px){.stats{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <section class="card">
+    <div class="head"><h1>CB6 Liquor License Map</h1><p>Self-hosted map of on-premises liquor-license records within Brooklyn Community Board 6, using a locally saved NY Open Data extract instead of the broken external embed.</p></div>
+    <div class="stats">
+      <div class="stat"><div class="v" id="statTotal">0</div><div class="l">Records</div></div>
+      <div class="stat"><div class="v" id="statFull">0</div><div class="l">Full liquor</div></div>
+      <div class="stat"><div class="v" id="statWine">0</div><div class="l">Wine &amp; beer</div></div>
+      <div class="stat"><div class="v" id="statSpecial">0</div><div class="l">Special</div></div>
+    </div>
+    <div class="controls">
+      <div><label for="searchInput">Search name or address</label><input id="searchInput" type="text" placeholder="Restaurant, bar, Court Street, Smith Street..."></div>
+      <div><label for="bevFilter">Filter by beverage class</label><select id="bevFilter"><option value="all">All classes</option><option value="Full Liquor">Full Liquor</option><option value="Wine & Beer">Wine &amp; Beer</option><option value="Brewery / Special">Brewery / Special</option></select></div>
+    </div>
+    <div class="legend"><span><i class="dot d-full"></i>Full Liquor</span><span><i class="dot d-wine"></i>Wine &amp; Beer</span><span><i class="dot d-special"></i>Brewery / Special</span></div>
+    <div id="map"></div>
+    <div class="notice">Source: locally saved BKCB6 liquor-license dataset derived from NY Open Data Kings County SLA records filtered to the CB6 district polygon on 2026-04-20. Map tiles: OpenStreetMap.</div>
+  </section>
+  <aside class="card">
+    <div class="side-head"><div><h2>License directory</h2><p>Select a record to zoom the map to that establishment.</p></div><div id="countLabel" class="count">0 results</div></div>
+    <div id="list"></div>
+  </aside>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+const COLORS={'Full Liquor':'#8B0000','Wine & Beer':'#4B0082','Brewery / Special':'#1B5E20'};
+const TAGS={'Full Liquor':'t-full','Wine & Beer':'t-wine','Brewery / Special':'t-special'};
+const map=L.map('map',{scrollWheelZoom:true,tap:true}).setView([40.678,-73.993],13);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
+const layers=L.featureGroup().addTo(map);
+const searchInput=document.getElementById('searchInput');
+const bevFilter=document.getElementById('bevFilter');
+const list=document.getElementById('list');
+const countLabel=document.getElementById('countLabel');
+let allRecords=[];
+function esc(v=''){return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function popupHtml(r){return `<h4>${esc(r.dba || r.legal_name || 'Licensed establishment')}</h4><p>${esc(r.address || 'Brooklyn Community Board 6')}</p><div class="small">${esc(r.bev)} · ${esc(r.detail)} · ${esc(r.status || 'Issued')}</div>`;}
+function cardHtml(r,i){return `<article class="item" data-idx="${i}"><h3>${esc(r.dba || r.legal_name || 'Licensed establishment')}</h3><p>${esc(r.address || 'Brooklyn Community Board 6')}</p><div class="meta"><span class="tag ${TAGS[r.bev]||'t-generic'}">${esc(r.bev)}</span><span class="tag t-generic">${esc(r.detail)}</span></div></article>`;}
+function updateStats(records){const counts={'Full Liquor':0,'Wine & Beer':0,'Brewery / Special':0}; records.forEach(r=>counts[r.bev]=(counts[r.bev]||0)+1); document.getElementById('statTotal').textContent=records.length; document.getElementById('statFull').textContent=counts['Full Liquor']||0; document.getElementById('statWine').textContent=counts['Wine & Beer']||0; document.getElementById('statSpecial').textContent=counts['Brewery / Special']||0;}
+function renderMap(records){layers.clearLayers(); records.forEach(r=>{r.marker=L.circleMarker([r.lat,r.lon],{radius:6,fillColor:COLORS[r.bev]||'#64748b',color:'#fff',weight:1.5,opacity:1,fillOpacity:.95}).bindPopup(popupHtml(r)).addTo(layers);}); if(records.length){const b=layers.getBounds(); if(b.isValid()) map.fitBounds(b.pad(0.08));} else {map.setView([40.678,-73.993],13);}}
+function renderList(records){countLabel.textContent=`${records.length} result${records.length===1?'':'s'}`; if(!records.length){list.innerHTML='<div class="empty">No liquor-license records match the current search and filter.</div>'; return;} list.innerHTML=records.map((r,i)=>cardHtml(r,i)).join(''); [...list.querySelectorAll('.item')].forEach(item=>item.addEventListener('click',()=>{const r=records[Number(item.dataset.idx)]; map.setView([r.lat,r.lon],16,{animate:true}); if(r.marker) r.marker.openPopup();}));}
+function applyFilters(){const term=searchInput.value.trim().toLowerCase(); const bev=bevFilter.value; const filtered=allRecords.filter(r=>{const matchesTerm=!term||r.search.includes(term); const matchesBev=bev==='all'||r.bev===bev; return matchesTerm&&matchesBev;}); updateStats(filtered); renderMap(filtered); renderList(filtered);}
+fetch('data/liquor_cb6.json').then(r=>r.json()).then(data=>{allRecords=data.records||[]; applyFilters();});
+searchInput.addEventListener('input',applyFilters); bevFilter.addEventListener('change',applyFilters);
+</script>
+</body>
+</html>
