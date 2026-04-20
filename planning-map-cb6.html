@@ -196,26 +196,32 @@ function loadLU(){
   var note = document.getElementById('note');
   if(luLayer){ if(note) note.textContent='Land use loaded. Toggle use groups above.'; return; }
   if(note) note.textContent='Loading CB6 parcels…';
-  var env = {xmin:-74.017,ymin:40.658,xmax:-73.965,ymax:40.695,spatialReference:{wkid:4326}};
-  var allFeatures = [];
-  function fetchPage(offset){
-    var url = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?' +
-      'where=1%3D1&geometry='+encodeURIComponent(JSON.stringify(env))+
-      '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects' +
-      '&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson' +
-      '&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326';
-    if(note) note.textContent='Loading parcels… '+allFeatures.length+' so far';
-    fetch(url).then(function(r){return r.json();}).then(function(data){
-      var feats = data.features || [];
-      allFeatures = allFeatures.concat(feats);
-      if(feats.length === 2000){
-        fetchPage(offset + 2000);
-      } else {
-        buildLuLayer(allFeatures);
-      }
-    }).catch(function(){if(note) note.textContent='Could not load parcels.';});
-  }
-  fetchPage(0);
+  // Use exact CB6 boundary polygon to clip results
+  fetch('data/cb6_boundary_exact.geojson').then(function(r){return r.json();}).then(function(bnd){
+    var feat = bnd.features ? bnd.features[0] : bnd;
+    var ring = feat.geometry.coordinates[0];
+    var geomStr = JSON.stringify({rings:[ring], spatialReference:{wkid:4326}});
+    var allFeatures = [];
+    function fetchPage(offset){
+      var url = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?' +
+        'where=1%3D1&geometry='+encodeURIComponent(geomStr)+
+        '&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelIntersects' +
+        '&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson' +
+        '&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326';
+      if(note) note.textContent='Loading parcels… '+allFeatures.length+' so far';
+      fetch(url).then(function(r){return r.json();}).then(function(data){
+        var feats = data.features || [];
+        allFeatures = allFeatures.concat(feats);
+        if(feats.length === 2000){
+          fetchPage(offset + 2000);
+        } else {
+          buildLuLayer(allFeatures);
+          if(note) note.textContent = allFeatures.length+' parcels loaded. Toggle use groups above.';
+        }
+      }).catch(function(){if(note) note.textContent='Could not load parcels.';});
+    }
+    fetchPage(0);
+  }).catch(function(){if(note) note.textContent='Could not load boundary data.';});
 }
 
 function buildLuLayer(features){
@@ -248,16 +254,7 @@ function loadGowanus(){
   var env={xmin:-74.005,ymin:40.665,xmax:-73.985,ymax:40.685,spatialReference:{wkid:4326}};
   fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(env))+'&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&f=pgeojson')
     .then(function(r){return r.json();}).then(function(zd){
-      gowanusLayer=L.geoJSON(zd,{
-        style:function(f){var l=f.properties.zonedist||'';var c=l[0]==='R'?'#f4a261':l[0]==='C'?'#4c78a8':l[0]==='M'?'#7b61ff':'#9aa0a6';return{color:'#fff',weight:.8,fillColor:c,fillOpacity:.65};},
-        onEachFeature:function(f,l){l.bindTooltip('<strong>'+(f.properties.zonedist||'')+'</strong><br><span style="font-size:.75rem;color:#0d9488">Gowanus Rezoning Area</span>',{sticky:true,opacity:1});}
-      });
-      if(activeMain==='gowanus'){gowanusLayer.addTo(map);if(boundaryLayer)boundaryLayer.bringToFront();}
-      if(note)note.textContent='Gowanus rezoning area loaded.';
-      buildSubToggles();updateLegend();
-    });
-}
-function _unused(){
+      gowanusLayer=L.layerGroup();
       var ZONE_COLS={R:'#f4a261',C:'#4c78a8',M:'#7b61ff',P:'#66a61e',O:'#9aa0a6'};
       function zCat(l){var c=String(l||'').toUpperCase().trim();if(c.indexOf('PARK')!==-1)return'P';if(c[0]==='M')return'M';if(c[0]==='C')return'C';if(c[0]==='R')return'R';return'O';}
       function zLbl(p){return p.zonedist||p.ZONEDIST||'Unknown';}
