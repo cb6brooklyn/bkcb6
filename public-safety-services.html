@@ -78,58 +78,89 @@ fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}).then(func
   }
 });
 
-// NYPD Precincts — NYC Open Data
-fetch('https://data.cityofnewyork.us/api/geospatial/kmep-waad?method=export&type=GeoJSON')
-  .then(function(r){return r.json();}).then(function(d){
-    layers.nypd = L.geoJSON(d, {
-      style:function(f){
-        var p = f.properties.precinct||f.properties.PRECINCT||'';
-        var cb6ps = ['076','078','084','76','78','84'];
-        var isCB6 = cb6ps.indexOf(String(p)) !== -1;
-        return{color:'#1d4ed8',weight:isCB6?3:1.5,fillColor:'#1d4ed8',fillOpacity:isCB6?.12:.04,dashArray:isCB6?null:'4 3'};
-      },
-      onEachFeature:function(f,l){
-        var p = f.properties.precinct||f.properties.PRECINCT||'';
-        l.bindTooltip('<strong>🚔 '+p+'th Precinct</strong>',{sticky:true,opacity:1});
-        try{var c=l.getBounds().getCenter();label(layers.nypd,'Pct '+p,[c.lat,c.lng]);}catch(e){}
-      }
+// NYPD Precincts — NYC Open Data (tries export then fallback)
+function loadNYPD(){
+  fetch('https://data.cityofnewyork.us/api/geospatial/kmep-waad?method=export&type=GeoJSON',{mode:'cors'})
+    .then(function(r){if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(buildNYPD)
+    .catch(function(){
+      // fallback to Socrata API
+      fetch('https://data.cityofnewyork.us/resource/kmep-waad.geojson?$limit=200')
+        .then(function(r){return r.json();}).then(buildNYPD)
+        .catch(function(e){document.getElementById('note').textContent='NYPD failed: '+e;});
     });
-    if(vis.nypd) layers.nypd.addTo(map);
-    if(boundaryLayer) boundaryLayer.bringToFront();
-    document.getElementById('note').textContent = 'NYPD loaded. Loading FDNY…';
-  }).catch(function(){document.getElementById('note').textContent='NYPD load failed.';});
+}
+function buildNYPD(d){
+  var feats = d.features||d;
+  layers.nypd = L.geoJSON({type:'FeatureCollection',features:feats}, {
+    style:function(f){
+      var p = String(f.properties.precinct||f.properties.PRECINCT||f.properties.Precinct||'');
+      var cb6ps = ['076','078','084','76','78','84'];
+      var isCB6 = cb6ps.indexOf(p)!==-1||cb6ps.indexOf(p.replace(/^0+/,''))!==-1;
+      return{color:'#1d4ed8',weight:isCB6?3:1.5,fillColor:'#1d4ed8',fillOpacity:isCB6?.15:.04,dashArray:isCB6?null:'4 3'};
+    },
+    onEachFeature:function(f,l){
+      var p = f.properties.precinct||f.properties.PRECINCT||f.properties.Precinct||'?';
+      l.bindTooltip('<strong>🚔 Precinct '+p+'</strong>',{sticky:true,opacity:1});
+    }
+  });
+  if(vis.nypd) layers.nypd.addTo(map);
+  if(boundaryLayer) boundaryLayer.bringToFront();
+  document.getElementById('note').textContent='NYPD loaded. Loading FDNY…';
+}
+loadNYPD();
 
 // FDNY Battalions — NYC Open Data
-fetch('https://data.cityofnewyork.us/api/geospatial/uh2b-m8m7?method=export&type=GeoJSON')
-  .then(function(r){return r.json();}).then(function(d){
-    layers.fdny = L.geoJSON(d, {
-      style:function(){return{color:'#dc2626',weight:1.5,fillColor:'#dc2626',fillOpacity:.05};},
-      onEachFeature:function(f,l){
-        var n = f.properties.battalion||f.properties.BATTALION||f.properties.fire_bn||'';
-        l.bindTooltip('<strong>🚒 Battalion '+n+'</strong>',{sticky:true,opacity:1});
-        try{var c=l.getBounds().getCenter();label(layers.fdny,'Btn '+n,[c.lat,c.lng]);}catch(e){}
-      }
+function loadFDNY(){
+  fetch('https://data.cityofnewyork.us/api/geospatial/uh2b-m8m7?method=export&type=GeoJSON',{mode:'cors'})
+    .then(function(r){if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(buildFDNY)
+    .catch(function(){
+      fetch('https://data.cityofnewyork.us/resource/uh2b-m8m7.geojson?$limit=200')
+        .then(function(r){return r.json();}).then(buildFDNY)
+        .catch(function(e){document.getElementById('note').textContent='FDNY failed: '+e;});
     });
-    if(vis.fdny) layers.fdny.addTo(map);
-    if(boundaryLayer) boundaryLayer.bringToFront();
-    document.getElementById('note').textContent = 'NYPD + FDNY loaded. Loading DSNY…';
-  }).catch(function(){document.getElementById('note').textContent='FDNY load failed.';});
+}
+function buildFDNY(d){
+  var feats = d.features||d;
+  layers.fdny = L.geoJSON({type:'FeatureCollection',features:feats},{
+    style:function(){return{color:'#dc2626',weight:1.5,fillColor:'#dc2626',fillOpacity:.05};},
+    onEachFeature:function(f,l){
+      var n=f.properties.battalion||f.properties.BATTALION||f.properties.fire_bn||f.properties.firebattalion||'?';
+      l.bindTooltip('<strong>🚒 FDNY Battalion '+n+'</strong>',{sticky:true,opacity:1});
+    }
+  });
+  if(vis.fdny) layers.fdny.addTo(map);
+  if(boundaryLayer) boundaryLayer.bringToFront();
+  document.getElementById('note').textContent='NYPD+FDNY loaded. Loading DSNY…';
+}
+loadFDNY();
 
 // DSNY Districts — NYC Open Data
-fetch('https://data.cityofnewyork.us/api/geospatial/9iht-7kgt?method=export&type=GeoJSON')
-  .then(function(r){return r.json();}).then(function(d){
-    layers.dsny = L.geoJSON(d, {
-      style:function(){return{color:'#15803d',weight:1.5,fillColor:'#15803d',fillOpacity:.05};},
-      onEachFeature:function(f,l){
-        var n = f.properties.districtid||f.properties.DISTRICTID||f.properties.district||'';
-        l.bindTooltip('<strong>🗑 DSNY District '+n+'</strong>',{sticky:true,opacity:1});
-        try{var c=l.getBounds().getCenter();label(layers.dsny,'DSNY '+n,[c.lat,c.lng]);}catch(e){}
-      }
+function loadDSNY(){
+  fetch('https://data.cityofnewyork.us/api/geospatial/9iht-7kgt?method=export&type=GeoJSON',{mode:'cors'})
+    .then(function(r){if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(buildDSNY)
+    .catch(function(){
+      fetch('https://data.cityofnewyork.us/resource/9iht-7kgt.geojson?$limit=200')
+        .then(function(r){return r.json();}).then(buildDSNY)
+        .catch(function(e){document.getElementById("note").textContent="DSNY failed: "+e;});
     });
-    if(vis.dsny) layers.dsny.addTo(map);
-    if(boundaryLayer) boundaryLayer.bringToFront();
-    document.getElementById('note').textContent = 'All layers loaded. Toggle above. CB6 boundary = dashed orange.';
-  }).catch(function(){document.getElementById('note').textContent='DSNY load failed.';});
+}
+function buildDSNY(d){
+  var feats=d.features||d;
+  layers.dsny=L.geoJSON({type:"FeatureCollection",features:feats},{
+    style:function(){return{color:"#15803d",weight:1.5,fillColor:"#15803d",fillOpacity:.05};},
+    onEachFeature:function(f,l){
+      var n=f.properties.districtid||f.properties.DISTRICTID||f.properties.district||f.properties.sanit_disp||"?";
+      l.bindTooltip("<strong>🗑 DSNY District "+n+"</strong>",{sticky:true,opacity:1});
+    }
+  });
+  if(vis.dsny)layers.dsny.addTo(map);
+  if(boundaryLayer)boundaryLayer.bringToFront();
+  document.getElementById("note").textContent="All layers loaded. Toggle above. Dashed orange = CB6 boundary.";
+}
+loadDSNY();
 </script>
 </body>
 </html>
