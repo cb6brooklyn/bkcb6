@@ -55,6 +55,7 @@ var map = L.map('map',{scrollWheelZoom:true}).setView([40.671,-73.990],13);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
 
 var vis = {nypd:true, fdny:true, firehouses:true, dsny:true};
+var searchMarker = null;
 var layers = {nypd:null, fdny:null, firehouses:null, dsny:null};
 var boundaryLayer = null;
 
@@ -219,5 +220,138 @@ Promise.all([
   document.getElementById('note').textContent = 'Load error: '+e;
 });
 </script>
+
+<!-- DIRECTORY & SEARCH -->
+<div style="background:#fff;border-top:3px solid #0d1b4b;flex-shrink:0">
+
+  <!-- Search bar -->
+  <div style="background:#0d1b4b;padding:10px 14px;display:flex;gap:8px;align-items:center">
+    <span style="font-size:.82rem;font-weight:700;color:#fff;flex-shrink:0">📍 Address Lookup</span>
+    <input id="ps-addr" type="text" placeholder="Search a CB6 address…"
+      style="flex:1;font-family:'DM Sans',sans-serif;font-size:.82rem;padding:6px 10px;border:none;border-radius:6px;background:rgba(255,255,255,.12);color:#fff;outline:none"/>
+    <button onclick="psSearch()" style="padding:6px 14px;background:#f47920;color:#fff;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer">Search</button>
+  </div>
+  <div id="ps-result" style="display:none;padding:10px 14px;background:#fff8f0;border-bottom:2px solid #f47920;font-family:'DM Sans',sans-serif;font-size:.82rem"></div>
+
+  <!-- Directory -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));border-top:1px solid #e5e2db">
+
+    <!-- NYPD -->
+    <div style="padding:14px 16px;border-right:1px solid #e5e2db;border-bottom:1px solid #e5e2db">
+      <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:8px">🚔 NYPD Precincts</div>
+      <div style="margin-bottom:10px">
+        <div style="font-weight:700;font-size:.85rem;color:#1d4ed8;margin-bottom:2px">76th Precinct</div>
+        <div style="font-size:.75rem;color:#555;margin-bottom:2px">191 Union Street, Brooklyn NY 11231</div>
+        <div style="font-size:.72rem;font-family:'DM Mono',monospace;color:#888">Sectors: 76A · 76B · 76C · 76D</div>
+        <div style="font-size:.72rem;font-family:'DM Mono',monospace;color:#888">Carroll Gardens · Red Hook · Columbia St</div>
+      </div>
+      <div>
+        <div style="font-weight:700;font-size:.85rem;color:#7c3aed;margin-bottom:2px">78th Precinct</div>
+        <div style="font-size:.75rem;color:#555;margin-bottom:2px">65 6th Avenue, Brooklyn NY 11217</div>
+        <div style="font-size:.72rem;font-family:'DM Mono',monospace;color:#888">Sectors: 78A · 78B · 78C · 78D</div>
+        <div style="font-size:.72rem;font-family:'DM Mono',monospace;color:#888">Park Slope · Prospect Heights · Gowanus</div>
+      </div>
+    </div>
+
+    <!-- FDNY -->
+    <div style="padding:14px 16px;border-right:1px solid #e5e2db;border-bottom:1px solid #e5e2db">
+      <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:8px">🚒 FDNY Battalions &amp; Firehouses</div>
+      <div style="font-size:.75rem;color:#333;margin-bottom:8px">Battalions overlapping CB6: <strong>1 · 31 · 32 · 40 · 41 · 48 · 57</strong></div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="font-size:.75rem;color:#555"><strong>Engine 279 / Ladder 131</strong> — 252 Lorraine St</div>
+        <div style="font-size:.75rem;color:#555"><strong>Btn 32 / Engine 202 / Ladder 101</strong> — 31 Richards St</div>
+        <div style="font-size:.75rem;color:#555"><strong>Squad 1</strong> — 788 Union St</div>
+        <div style="font-size:.75rem;color:#555"><strong>Engine 239</strong> — 395 4th Ave</div>
+        <div style="font-size:.75rem;color:#555"><strong>Engine 220 / Ladder 122</strong> — 530 11th St</div>
+        <div style="font-size:.75rem;color:#555"><strong>Engine 219 / Ladder 105</strong> — 494 Dean St</div>
+        <div style="font-size:.75rem;color:#555"><strong>Engine 226</strong> — 409 State St</div>
+      </div>
+    </div>
+
+    <!-- DSNY -->
+    <div style="padding:14px 16px;border-bottom:1px solid #e5e2db">
+      <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:8px">🗑 DSNY District 6</div>
+      <div style="font-size:.75rem;color:#555;margin-bottom:6px"><strong>DSNY BK6 Garage</strong> — 2nd Ave, Brooklyn NY 11215</div>
+      <div style="font-size:.72rem;font-family:'DM Mono',monospace;color:#888;margin-bottom:6px">Sections: BKS061 · BKS062 · BKS063 · BKS064 · BKS065</div>
+      <div style="font-size:.72rem;color:#555;line-height:1.5">DSNY District 6 is the sole DSNY district overlapping CB6. Covers all CB6 neighborhoods for residential and commercial collection, street cleaning, and snow removal.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function pip(lng,lat,feat){var g=feat.geometry;if(!g)return false;var rings=g.type==='Polygon'?[g.coordinates]:g.coordinates;for(var p=0;p<rings.length;p++){var o=rings[p][0],ins=false;for(var i=0,j=o.length-1;i<o.length;j=i++){var xi=o[i][0],yi=o[i][1],xj=o[j][0],yj=o[j][1];if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))ins=!ins;}if(ins)return true;}return false;}
+
+var _nypdData=null,_fdnyData=null,_dsnyData=null;
+Promise.all([
+  fetch('data/nypd_sectors_cb6.geojson').then(function(r){return r.json();}),
+  fetch('data/fire_battalions_cb6.geojson').then(function(r){return r.json();}),
+  fetch('data/dsny_sections_cb6.geojson').then(function(r){return r.json();})
+]).then(function(res){_nypdData=res[0];_fdnyData=res[1];_dsnyData=res[2];});
+
+function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function pRow(icon,label,val){return '<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #f0efed"><span style="font-size:.8rem">'+icon+'</span><div><div style="font-size:.62rem;font-family:DM Mono,monospace;text-transform:uppercase;color:#888">'+label+'</div><div style="font-size:.78rem;font-weight:700;color:#0d1b4b">'+val+'</div></div></div>';}
+
+function psSearch(){
+  var addr=document.getElementById('ps-addr').value.trim();
+  if(!addr)return;
+  var res=document.getElementById('ps-result');
+  res.style.display='block';res.textContent='Searching…';
+  fetch('https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(addr)+'&size=1')
+    .then(function(r){return r.json();}).then(function(geo){
+      if(!geo.features||!geo.features.length){res.textContent='Address not found.';return;}
+      var feat=geo.features[0],lat=feat.geometry.coordinates[1],lng=feat.geometry.coordinates[0],lbl=feat.properties.label||addr;
+      
+      // PIP lookups
+      var sector='—',pct='—',battalion='—',dsnySection='—';
+      if(_nypdData){
+        (_nypdData.features||[]).forEach(function(f){
+          if(sector!=='—')return;
+          if(pip(lng,lat,f)){
+            sector=f.properties.sector||'—';
+            pct=String(f.properties.pct||'').replace(/^0+/,'')||'—';
+          }
+        });
+      }
+      if(_fdnyData){
+        (_fdnyData.features||[]).forEach(function(f){
+          if(battalion!=='—')return;
+          if(pip(lng,lat,f)) battalion='Battalion '+escH(String(f.properties.fire_bn||'?'));
+        });
+      }
+      if(_dsnyData){
+        (_dsnyData.features||[]).forEach(function(f){
+          if(dsnySection!=='—')return;
+          if(pip(lng,lat,f)) dsnySection='District 6 — Section '+escH(String(f.properties.section||'?'));
+        });
+      }
+
+      // Find nearest firehouse
+      var nearestHouse='—',minDist=999;
+      var houses=[
+        {name:'Engine 279/Ladder 131',addr:'252 Lorraine St',lat:40.6742,lng:-74.0048},
+        {name:'Btn 32/Engine 202/Ladder 101',addr:'31 Richards St',lat:40.6718,lng:-74.0064},
+        {name:'Squad 1',addr:'788 Union St',lat:40.6702,lng:-73.9775},
+        {name:'Engine 239',addr:'395 4th Ave',lat:40.6769,lng:-73.9827},
+        {name:'Engine 220/Ladder 122',addr:'530 11th St',lat:40.6641,lng:-73.9888},
+        {name:'Engine 219/Ladder 105',addr:'494 Dean St',lat:40.6772,lng:-73.9756},
+        {name:'Engine 226',addr:'409 State St',lat:40.6837,lng:-73.9903},
+      ];
+      houses.forEach(function(h){
+        var d=Math.sqrt(Math.pow(h.lat-lat,2)+Math.pow(h.lng-lng,2));
+        if(d<minDist){minDist=d;nearestHouse=h.name+' ('+h.addr+')';}
+      });
+
+      // Place marker on map
+      if(typeof searchMarker!=='undefined'&&searchMarker)map.removeLayer(searchMarker);
+      searchMarker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div style="background:#fff;border:2px solid #f47920;border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.2);font-family:DM Sans,sans-serif;min-width:200px"><div style="font-weight:700;font-size:.82rem;color:#0d1b4b;border-bottom:1px solid #f47920;padding-bottom:4px;margin-bottom:6px">📍 '+escH(lbl)+'</div>'+pRow('🚔','NYPD Precinct / Sector',escH(pct)+'th Precinct — Sector '+escH(sector))+pRow('🚒','FDNY Battalion',escH(battalion))+pRow('🗑','DSNY',escH(dsnySection))+pRow('🏠','Nearest Firehouse',escH(nearestHouse))+'</div>',iconSize:[240,1],iconAnchor:[0,0]}),zIndexOffset:9999}).addTo(map);
+      map.setView([lat,lng],15);
+
+      res.innerHTML='<strong>'+escH(lbl)+'</strong> — Pct <strong>'+escH(pct)+'</strong> Sector <strong>'+escH(sector)+'</strong> · FDNY <strong>'+escH(battalion)+'</strong> · DSNY <strong>'+escH(dsnySection)+'</strong>';
+    }).catch(function(){res.textContent='Search failed.';});
+}
+document.getElementById('ps-addr').addEventListener('keydown',function(e){if(e.key==='Enter')psSearch();});
+</script>
+
 </body>
 </html>
