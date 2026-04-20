@@ -52,6 +52,7 @@ body{display:flex;flex-direction:column}
   <button class="lbtn active" onclick="setLayer('zoning',this)" style="--pc:#4c78a8">🧭 Zoning</button>
   <button class="lbtn" onclick="setLayer('landuse',this)" style="--pc:#f4a261">🏘 Land Use</button>
   <button class="lbtn" onclick="setLayer('landmarks',this)" style="--pc:#b5862b">🏛 Landmarks</button>
+  <button class="lbtn" onclick="setLayer('gowanus',this)" style="--pc:#0d9488">🌊 Gowanus Rezoning</button>
 </div>
 
 <div class="sub-bar" id="sub-bar"></div>
@@ -78,6 +79,10 @@ var LM_PAL = ['#b5862b','#8b5e2a','#c4973b','#7a5c1e','#d4a843','#6b4f1a','#e0b8
 var zoningVis = {R:true,C:true,M:true,P:true,O:true};
 var luVis = {'01':true,'02':true,'03':true,'04':true,'05':true,'06':true,'07':true,'08':true,'09':true,'10':true,'11':true};
 var lmVis = {};
+var gowanusLayer = null, gowanusData = null, gowanusLoading = false;
+var GOWANUS_COLORS = {
+  'R':'#f4a261','C':'#4c78a8','M':'#7b61ff','MR':'#10b981','SGMUD':'#f59e0b'
+};
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function getZLbl(p){return p.zonedist||p.ZONEDIST||p.zone_dist||p.label||'Unknown';}
@@ -142,6 +147,32 @@ function buildLmLayer(){
   updateLegend();
 }
 
+function loadGowanus(){
+  if(gowanusLayer||gowanusLoading) return;
+  gowanusLoading=true;
+  var note=document.getElementById('note');
+  if(note)note.textContent='Loading Gowanus rezoning data…';
+  Promise.all([
+    fetch('data/gowanus_rezoning_boundary.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&geometry=%7B%22xmin%22%3A-74.005%2C%22ymin%22%3A40.665%2C%22xmax%22%3A-73.985%2C%22ymax%22%3A40.685%2C%22spatialReference%22%3A%7B%22wkid%22%3A4326%7D%7D&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&f=pgeojson').then(function(r){return r.json();}).catch(function(){return null;})
+  ]).then(function(res){
+    var boundary=res[0], zoning=res[1];
+    gowanusLayer=L.layerGroup();
+    if(zoning&&zoning.features){
+      L.geoJSON(zoning,{
+        style:function(f){var l=getZLbl(f.properties||{});var cat=getZCat(l);return{color:'#fff',weight:.8,fillColor:ZONE_COLORS[cat],fillOpacity:.6};},
+        onEachFeature:function(f,l){var lb=getZLbl(f.properties||{});l.bindTooltip('<strong>'+normZ(lb)+'</strong><br><span style="font-size:.75rem;color:#555">Gowanus Rezoning Area</span>',{sticky:true,opacity:1});}
+      }).addTo(gowanusLayer);
+    }
+    if(boundary){
+      L.geoJSON(boundary,{style:function(){return{color:'#0d9488',weight:3,fill:false,dashArray:'6 4'};}}).addTo(gowanusLayer);
+    }
+    if(activeLayer==='gowanus'){gowanusLayer.addTo(map);if(boundaryLayer)boundaryLayer.bringToFront();}
+    if(note)note.textContent='Gowanus rezoning area. Dashed teal line = rezoning boundary.';
+    buildSubBar();updateLegend();
+  });
+}
+
 function loadLandUse(){
   if(luLayer||luLoading) return;
   luLoading=true;
@@ -193,6 +224,10 @@ function setLayer(which, btn){
   } else if(which==='landmarks'){
     if(lmLayer)lmLayer.addTo(map);
     document.getElementById('note').textContent='LPC historic districts. Hover for details.';
+  } else if(which==='gowanus'){
+    loadGowanus();
+    if(gowanusLayer)gowanusLayer.addTo(map);
+    document.getElementById('note').textContent='Gowanus rezoning area. Hover for zone details.';
   }
   if(boundaryLayer)boundaryLayer.bringToFront();
   buildSubBar();
@@ -243,6 +278,10 @@ function updateLegend(){
   } else if(activeLayer==='landmarks'){
     Object.keys(lmVis).forEach(function(name,i){var c=LM_PAL[i%LM_PAL.length];html+='<span class="li"><span class="ls" style="background:'+c+';opacity:'+(lmVis[name]?1:.3)+'"></span>'+name.replace(' Historic District','').replace(' Extension',' Ext.')+'</span>';});
   }
+  if(activeLayer==='gowanus'){
+    [{k:'R',c:'#f4a261',l:'Residential'},{k:'C',c:'#4c78a8',l:'Commercial'},{k:'M',c:'#7b61ff',l:'Manufacturing'},{k:'P',c:'#66a61e',l:'Parks'}].forEach(function(i){html+='<span class="li"><span class="ls" style="background:'+i.c+'"></span>'+i.l+'</span>';});
+    html+='<span class="li"><span class="ls" style="border:2px dashed #0d9488;background:transparent"></span>Rezoning boundary</span>';
+  }
   document.getElementById('legend').innerHTML=html;
 }
 
@@ -280,5 +319,19 @@ document.getElementById('s-input').addEventListener('keydown',function(e){if(e.k
 buildSubBar();
 updateLegend();
 </script>
+
+<!-- REFERENCE & MORE PAGES -->
+<div style="background:#f8f7f4;border-top:2px solid #0d1b4b;padding:14px 16px;flex-shrink:0">
+  <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:10px">More Resources</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px">
+    <a href="landuse.html" target="_blank" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#fff;border:1.5px solid #e5e2db;border-radius:20px;font-size:.75rem;font-family:'DM Sans',sans-serif;color:#0d1b4b;text-decoration:none;font-weight:600">📋 Land Use & Zoning Guide</a>
+    <a href="glossary.html" target="_blank" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#fff;border:1.5px solid #e5e2db;border-radius:20px;font-size:.75rem;font-family:'DM Sans',sans-serif;color:#0d1b4b;text-decoration:none;font-weight:600">📖 Glossary & Reference</a>
+    <a href="gowanus.html" target="_blank" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#fff;border:1.5px solid #e5e2db;border-radius:20px;font-size:.75rem;font-family:'DM Sans',sans-serif;color:#0d1b4b;text-decoration:none;font-weight:600">🌊 Gowanus Rezoning</a>
+    <a href="gowanus-permits.html" target="_blank" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#fff;border:1.5px solid #e5e2db;border-radius:20px;font-size:.75rem;font-family:'DM Sans',sans-serif;color:#0d1b4b;text-decoration:none;font-weight:600">🏗 Gowanus Permits</a>
+    <a href="transport-map-cb6.html" target="_blank" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#fff;border:1.5px solid #e5e2db;border-radius:20px;font-size:.75rem;font-family:'DM Sans',sans-serif;color:#0d1b4b;text-decoration:none;font-weight:600">🚦 Transport Map</a>
+    <a href="cb-bk-6.html" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#0d1b4b;border:1.5px solid #0d1b4b;border-radius:20px;font-size:.75rem;font-family:'DM Sans',sans-serif;color:#fff;text-decoration:none;font-weight:600">← Back to CB6 Profile</a>
+  </div>
+</div>
+
 </body>
 </html>
