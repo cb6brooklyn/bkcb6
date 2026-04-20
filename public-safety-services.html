@@ -38,11 +38,13 @@ body{display:flex;flex-direction:column}
   <button class="lbtn on" onclick="togLayer('nypd',this)" style="--pc:#1d4ed8">🚔 NYPD Sectors</button>
   <button class="lbtn on" onclick="togLayer('fdny',this)" style="--pc:#dc2626">🚒 FDNY Battalions</button>
   <button class="lbtn on" onclick="togLayer('firehouses',this)" style="--pc:#b91c1c">🏠 Firehouses</button>
+  <button class="lbtn on" onclick="togLayer('dsny',this)" style="--pc:#15803d">🗑 DSNY Sections</button>
 </div>
 <div class="legend-bar">
   <span class="li"><span class="ls" style="background:#1d4ed8;opacity:.5"></span>NYPD Sectors (Pcts 76, 78, 84)</span>
   <span class="li"><span class="ls" style="background:#dc2626;opacity:.5"></span>FDNY Battalions</span>
   <span class="li"><span style="font-size:.9rem">🚒</span>Firehouses (CB6 = orange)</span>
+  <span class="li"><span class="ls" style="background:#15803d;opacity:.5"></span>DSNY Sections</span>
   <span class="li"><span class="ls" style="background:transparent;border:2px dashed #f47920"></span>CB6 Boundary</span>
 </div>
 <div id="map"></div>
@@ -52,8 +54,8 @@ body{display:flex;flex-direction:column}
 var map = L.map('map',{scrollWheelZoom:true}).setView([40.671,-73.990],13);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
 
-var vis = {nypd:true, fdny:true, firehouses:true};
-var layers = {nypd:null, fdny:null, firehouses:null};
+var vis = {nypd:true, fdny:true, firehouses:true, dsny:true};
+var layers = {nypd:null, fdny:null, firehouses:null, dsny:null};
 var boundaryLayer = null;
 
 function togLayer(k, btn){
@@ -68,9 +70,10 @@ Promise.all([
   fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}),
   fetch('data/nypd_sectors.geojson').then(function(r){return r.json();}),
   fetch('data/fire_battalions.geojson').then(function(r){return r.json();}),
-  fetch('data/fdny_firehouses.geojson').then(function(r){return r.json();})
+  fetch('data/fdny_firehouses.geojson').then(function(r){return r.json();}),
+  fetch('data/dsny_sections.geojson').then(function(r){return r.json();})
 ]).then(function(res){
-  var bdData=res[0], nypdData=res[1], fdnyData=res[2], housesData=res[3];
+  var bdData=res[0], nypdData=res[1], fdnyData=res[2], housesData=res[3], dsnyData=res[4];
 
   // CB6 boundary
   var cb6 = (bdData.features||[]).find(function(f){return String(f.properties&&f.properties.boro_cd)==='306';});
@@ -142,8 +145,21 @@ Promise.all([
   });
   if(vis.firehouses) layers.firehouses.addTo(map);
 
+  // DSNY Sections
+  layers.dsny = L.geoJSON(dsnyData,{
+    style:function(f){
+      return{color:'#15803d',weight:1.5,fillColor:'#15803d',fillOpacity:.06};
+    },
+    onEachFeature:function(f,l){
+      var dist = f.properties.district||'?';
+      var sec = f.properties.section||'';
+      l.bindTooltip('<strong>🗑 DSNY '+escH(String(dist))+(sec?' — Section '+escH(String(sec)):'')+'</strong>',{sticky:true,opacity:1});
+    }
+  });
+  if(vis.dsny) layers.dsny.addTo(map);
+
   if(boundaryLayer) boundaryLayer.bringToFront();
-  document.getElementById('note').textContent = nypdData.features.length+' NYPD sectors · '+fdnyData.features.length+' FDNY battalions · '+cb6Houses.length+' CB6 firehouses highlighted';
+  document.getElementById('note').textContent = nypdData.features.length+' NYPD sectors · '+fdnyData.features.length+' FDNY battalions · '+dsnyData.features.length+' DSNY sections · '+cb6Houses.length+' CB6 firehouses';
 
 }).catch(function(e){
   document.getElementById('note').textContent = 'Load error: '+e;
