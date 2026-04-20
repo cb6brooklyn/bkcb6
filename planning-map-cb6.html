@@ -196,32 +196,27 @@ function loadLU(){
   var note = document.getElementById('note');
   if(luLayer){ if(note) note.textContent='Land use loaded. Toggle use groups above.'; return; }
   if(note) note.textContent='Loading CB6 parcels…';
-  // Use exact CB6 boundary polygon to clip results
-  fetch('data/cb6_boundary_exact.geojson').then(function(r){return r.json();}).then(function(bnd){
-    var feat = bnd.features ? bnd.features[0] : bnd;
-    var ring = feat.geometry.coordinates[0];
-    var geomStr = JSON.stringify({rings:[ring], spatialReference:{wkid:4326}});
-    var allFeatures = [];
-    function fetchPage(offset){
-      var url = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?' +
-        'where=1%3D1&geometry='+encodeURIComponent(geomStr)+
-        '&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelIntersects' +
-        '&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson' +
-        '&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326';
-      if(note) note.textContent='Loading parcels… '+allFeatures.length+' so far';
-      fetch(url).then(function(r){return r.json();}).then(function(data){
-        var feats = data.features || [];
-        allFeatures = allFeatures.concat(feats);
-        if(feats.length === 2000){
-          fetchPage(offset + 2000);
-        } else {
-          buildLuLayer(allFeatures);
-          if(note) note.textContent = allFeatures.length+' parcels loaded. Toggle use groups above.';
-        }
-      }).catch(function(){if(note) note.textContent='Could not load parcels.';});
-    }
-    fetchPage(0);
-  }).catch(function(){if(note) note.textContent='Could not load boundary data.';});
+  var env = {xmin:-74.017,ymin:40.658,xmax:-73.965,ymax:40.695,spatialReference:{wkid:4326}};
+  var allFeatures = [];
+  function fetchPage(offset){
+    var url = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?' +
+      'where=1%3D1&geometry='+encodeURIComponent(JSON.stringify(env))+
+      '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects' +
+      '&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson' +
+      '&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326';
+    if(note) note.textContent='Loading parcels… '+allFeatures.length+' so far';
+    fetch(url).then(function(r){return r.json();}).then(function(data){
+      var feats = data.features || [];
+      allFeatures = allFeatures.concat(feats);
+      if(feats.length === 2000){
+        fetchPage(offset + 2000);
+      } else {
+        buildLuLayer(allFeatures);
+        if(note) note.textContent = allFeatures.length+' parcels loaded. Toggle use groups above.';
+      }
+    }).catch(function(){if(note) note.textContent='Could not load parcels.';});
+  }
+  fetchPage(0);
 }
 
 function buildLuLayer(features){
