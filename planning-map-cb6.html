@@ -159,6 +159,22 @@ function buildSubToggles(){
       btn.onclick=function(){lmVisible[name]=!lmVisible[name];btn.classList.toggle('on');buildLmLayer();if(activeMain==='landmarks')lmLayer.addTo(map);if(boundaryLayer)boundaryLayer.bringToFront();};
       sub.appendChild(btn);
     });
+  } else if(activeMain==='gowanus'){
+    sub.style.background='#f0fdf4';
+    [{label:'🧭 By Zone',mode:'zone',color:'#0d9488'},{label:'🏘 By Land Use',mode:'landuse',color:'#f4a261'}].forEach(function(item){
+      var btn=document.createElement('button');
+      btn.className='plyr-sub'+(gowanusMode===item.mode?' on':'');
+      btn.style.setProperty('--sc',item.color);btn.style.setProperty('--stc','#fff');
+      btn.textContent=item.label;
+      btn.onclick=function(){
+        gowanusMode=item.mode;
+        sub.querySelectorAll('.plyr-sub').forEach(function(b){b.classList.remove('on');});
+        btn.classList.add('on');
+        if(gowanusLotsData) buildGowanusLots();
+        updateLegend();
+      };
+      sub.appendChild(btn);
+    });
   }
 }
 function updateLegend(){
@@ -240,35 +256,77 @@ function buildLuLayer(features){
 
 // land use loads full district on demand
 
-var gowanusLayer=null,gowanusLoading=false;
+var gowanusLayer=null,gowanusLoading=false,gowanusMode='zone';
+var GOWANUS_ZONE_COLORS={
+  'M1-4/R7A':'#10b981','M1-4/R7X':'#059669','M1-4/R7-2':'#047857',
+  'M1-4/R6A':'#6366f1','M1-4/R6B':'#4f46e5',
+  'C4-4D':'#f59e0b','C4-3A':'#d97706',
+  'R6':'#f4a261','R6A':'#ea580c','R6B':'#dc4b0c',
+  'M1-4':'#7b61ff','M1-2':'#5b21b6','M2-1':'#4c1d95','PARK':'#22c55e'
+};
+var GOWANUS_LU_COLORS={
+  'One and Two Family Residential':'#FEFFA8','Multi-Family Walkup':'#FCB842',
+  'Multi-Family Elevator':'#B16E00','Mixed Residential and Commercial':'#ff8341',
+  'Commercial and Office':'#fc2929','Industrial and Manufacturing':'#E362FB',
+  'Public Facilities':'#44A3D5','Open Space and Recreation':'#78D271',
+  'Parking Facility':'#BAB8B6','Transportation and Utility':'#E0BEEB'
+};
+var gowanusLotsData=null,gowanusLotsLayer=null,gowanusBndLayer=null;
+
+function gowanusLotColor(p){
+  if(gowanusMode==='zone') return GOWANUS_ZONE_COLORS[p['Zone']]||'#9aa0a6';
+  return GOWANUS_LU_COLORS[p['Land Use']]||'#9aa0a6';
+}
+function buildGowanusLots(){
+  if(gowanusLotsLayer)map.removeLayer(gowanusLotsLayer);
+  gowanusLotsLayer=L.geoJSON(gowanusLotsData,{
+    pointToLayer:function(f,ll){return L.circleMarker(ll,{radius:4,fillColor:gowanusLotColor(f.properties),fillOpacity:.85,color:'#fff',weight:.5});},
+    onEachFeature:function(f,l){var p=f.properties;l.bindTooltip('<strong>'+escH(p.Address||'')+'</strong><br><span style="font-size:.75rem;color:#555">Zone: <strong>'+escH(p.Zone||'—')+'</strong></span><br><span style="font-size:.75rem;color:#555">'+escH(p['Land Use']||'—')+'</span>',{sticky:true,opacity:1});}
+  });
+  if(activeMain==='gowanus'){gowanusLotsLayer.addTo(map);}
+  if(gowanusBndLayer)gowanusBndLayer.bringToFront();
+  if(boundaryLayer)boundaryLayer.bringToFront();
+}
+
 function loadGowanus(){
   if(gowanusLoading)return;
-  if(gowanusLayer){gowanusLayer.addTo(map);if(boundaryLayer)boundaryLayer.bringToFront();return;}
+  if(gowanusLayer){
+    gowanusLayer.addTo(map);
+    if(gowanusLotsLayer)gowanusLotsLayer.addTo(map);
+    if(boundaryLayer)boundaryLayer.bringToFront();
+    buildSubToggles();updateLegend();
+    return;
+  }
   gowanusLoading=true;
   var note=document.getElementById('note');
-  if(note)note.textContent='Loading Gowanus rezoning data…';
-  var env={xmin:-74.005,ymin:40.665,xmax:-73.985,ymax:40.685,spatialReference:{wkid:4326}};
+  if(note)note.textContent='Loading Gowanus data…';
   Promise.all([
-    fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(env))+'&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&f=pgeojson').then(function(r){return r.json();}),
-    fetch('data/gowanus_rezoning_boundary.geojson').then(function(r){return r.json();}).catch(function(){return null;})
+    fetch('data/Gowanus-Rezoning-Lots.geojson').then(function(r){return r.json();}),
+    fetch('data/Gowanus-Rezoning-Boundary-2.geojson').then(function(r){return r.json();}),
+    fetch('data/CB6-NYCHA.geojson').then(function(r){return r.json();})
   ]).then(function(res){
-    var zd=res[0],bnd=res[1];
-    var ZONE_COLS={R:'#f4a261',C:'#4c78a8',M:'#7b61ff',P:'#66a61e',O:'#9aa0a6'};
-    function zCat(l){var c=String(l||'').toUpperCase().trim();if(c.indexOf('PARK')!==-1)return'P';if(c[0]==='M')return'M';if(c[0]==='C')return'C';if(c[0]==='R')return'R';return'O';}
-    function zLbl(p){return p.zonedist||p.ZONEDIST||'Unknown';}
-    function nZ(l){var c=String(l||'').toUpperCase().trim();if(/^[RCM]\d[A-Z]?$/.test(c))return c[0]+'-'+c.slice(1);return c;}
+    gowanusLotsData=res[0];
+    var bndData=res[1],nychaData=res[2];
     gowanusLayer=L.layerGroup();
-    L.geoJSON(zd,{
-      style:function(f){var l=zLbl(f.properties||{});return{color:'#fff',weight:.8,fillColor:ZONE_COLS[zCat(l)]||'#9aa0a6',fillOpacity:.65};},
-      onEachFeature:function(f,l){l.bindTooltip('<strong>'+nZ(zLbl(f.properties||{}))+'</strong><br><span style="font-size:.75rem;color:#0d9488">Gowanus Rezoning Area</span>',{sticky:true,opacity:1});}
-    }).addTo(gowanusLayer);
-    if(bnd)L.geoJSON(bnd,{style:function(){return{color:'#0d9488',weight:3,fill:false,dashArray:'8 4'};}}).addTo(gowanusLayer);
-    // Always add — setMain already cleared other layers before calling loadGowanus
+    gowanusBndLayer=L.geoJSON(bndData,{style:function(){return{color:'#0d9488',weight:2.5,fill:false};}});
+    gowanusBndLayer.addTo(gowanusLayer);
+    var nychaLyr=L.layerGroup();
+    (nychaData.features||[]).forEach(function(f){
+      var coords=f.geometry.coordinates;
+      var lng=Array.isArray(coords[0])?coords[0][0]:coords[0];
+      var lat=Array.isArray(coords[0])?coords[0][1]:coords[1];
+      L.circleMarker([lat,lng],{radius:8,fillColor:'#dc2626',color:'#fff',weight:2,fillOpacity:.9})
+        .bindTooltip('<strong>'+escH(f.properties.Name||'NYCHA')+'</strong>',{sticky:true,opacity:1})
+        .addTo(nychaLyr);
+    });
+    nychaLyr.addTo(gowanusLayer);
     gowanusLayer.addTo(map);
+    buildGowanusLots();
+    if(gowanusLotsLayer)gowanusLotsLayer.addTo(map);
     if(boundaryLayer)boundaryLayer.bringToFront();
-    if(note)note.textContent='Gowanus rezoning. Dashed teal = rezoning boundary.';
+    if(note)note.textContent=gowanusLotsData.features.length+' lots. Hover for details.';
     buildSubToggles();updateLegend();
-  }).catch(function(e){if(note)note.textContent='Gowanus load failed.';});
+  }).catch(function(e){if(note)note.textContent='Gowanus load failed: '+e;});
 }
 
 // Address search
