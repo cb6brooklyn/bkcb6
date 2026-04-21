@@ -161,7 +161,7 @@ function buildSubToggles(){
     });
   } else if(activeMain==='gowanus'){
     sub.style.background='#f0fdf4';
-    [{label:'🧭 By Zone',mode:'zone',color:'#0d9488'},{label:'🏘 By Land Use',mode:'landuse',color:'#f4a261'}].forEach(function(item){
+    [{label:'🧭 By Zone',mode:'zone',color:'#0d9488'},{label:'🏘 By Land Use',mode:'landuse',color:'#f4a261'},{label:'🏗 M/R Districts',mode:'mrzones',color:'#6366f1'}].forEach(function(item){
       var btn=document.createElement('button');
       btn.className='plyr-sub'+(gowanusMode===item.mode?' on':'');
       btn.style.setProperty('--sc',item.color);btn.style.setProperty('--stc','#fff');
@@ -282,6 +282,14 @@ function gowanusLotColor(p){
 }
 function buildGowanusLots(){
   if(gowanusLotsLayer)map.removeLayer(gowanusLotsLayer);
+  // In mrzones mode show zone polygons, hide dots
+  if(window.gowanusMuLayer)map.removeLayer(window.gowanusMuLayer);
+  if(gowanusMode==='mrzones'){
+    if(window.gowanusMuLayer)window.gowanusMuLayer.addTo(map);
+    if(gowanusBndLayer)gowanusBndLayer.bringToFront();
+    if(boundaryLayer)boundaryLayer.bringToFront();
+    return;
+  }
   gowanusLotsLayer=L.geoJSON(gowanusLotsData,{
     pointToLayer:function(f,ll){return L.circleMarker(ll,{radius:4,fillColor:gowanusLotColor(f.properties),fillOpacity:.85,color:'#fff',weight:.5});},
     onEachFeature:function(f,l){var p=f.properties;l.bindTooltip('<strong>'+escH(p.Address||'')+'</strong><br><span style="font-size:.75rem;color:#555">Zone: <strong>'+escH(p.Zone||'—')+'</strong></span><br><span style="font-size:.75rem;color:#555">'+escH(p['Land Use']||'—')+'</span>',{sticky:true,opacity:1});}
@@ -306,10 +314,11 @@ function loadGowanus(){
   Promise.all([
     fetch('data/Gowanus-Rezoning-Lots.geojson').then(function(r){return r.json();}),
     fetch('data/Gowanus-Rezoning-Boundary-2.geojson').then(function(r){return r.json();}),
-    fetch('data/CB6-NYCHA.geojson').then(function(r){return r.json();})
+    fetch('data/CB6-NYCHA.geojson').then(function(r){return r.json();}),
+    fetch('data/gowanus-mixed-use-zones.geojson').then(function(r){return r.json();})
   ]).then(function(res){
     gowanusLotsData=res[0];
-    var bndData=res[1],nychaData=res[2];
+    var bndData=res[1],nychaData=res[2],muData=res[3];
     gowanusLayer=L.layerGroup();
     gowanusBndLayer=L.geoJSON(bndData,{style:function(){return{color:'#0d9488',weight:2.5,fill:false};}});
     gowanusBndLayer.addTo(gowanusLayer);
@@ -323,6 +332,13 @@ function loadGowanus(){
         .addTo(nychaLyr);
     });
     nychaLyr.addTo(gowanusLayer);
+    // M/R zone polygons
+    var MU_ZONE_COLORS={"M1-1/R5":"#818cf8","M1-4/R6A":"#6366f1","M1-4/R6B":"#4f46e5","M1-4/R7-2":"#3730a3","M1-4/R7A":"#10b981","M1-4/R7X":"#059669","M1-6A/R8":"#dc2626"};
+    window.gowanusMuLayer = L.geoJSON(muData,{
+      style:function(f){var z=f.properties.Name||'';return{color:'#fff',weight:1,fillColor:MU_ZONE_COLORS[z]||'#818cf8',fillOpacity:.5};},
+      onEachFeature:function(f,l){var z=f.properties.Name||'';l.bindTooltip('<strong>'+escH(z)+'</strong><br><span style="font-size:.75rem;color:#0d9488">M/R Mixed Use Zone</span>',{sticky:true,opacity:1});}
+    });
+    // Don't add by default — shown only in mrzones mode
     gowanusLayer.addTo(map);
     buildGowanusLots();
     if(gowanusLotsLayer)gowanusLotsLayer.addTo(map);
