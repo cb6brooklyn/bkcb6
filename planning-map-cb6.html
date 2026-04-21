@@ -196,34 +196,27 @@ function setMain(which,btn){
 }
 function loadLU(){
   var note = document.getElementById('note');
-  if(luLayer){ if(note) note.textContent='Land use loaded. Toggle use groups above.'; return; }
+  if(luLayer){ luLayer.addTo(map); if(boundaryLayer)boundaryLayer.bringToFront(); if(note)note.textContent='Land use loaded.'; return; }
   if(note) note.textContent='Loading CB6 parcels…';
-  // Use exact CB6 boundary polygon to clip results
-  fetch('data/cb6_boundary_exact.geojson').then(function(r){return r.json();}).then(function(bnd){
-    var feat = bnd.features ? bnd.features[0] : bnd;
-    var ring = feat.geometry.coordinates[0];
-    var geomStr = JSON.stringify({rings:[ring], spatialReference:{wkid:4326}});
-    var allFeatures = [];
+  // Use nyc_cb_boundaries to get CB6 ring (works, tested in landuse-map-cb6.html)
+  fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}).then(function(bd){
+    var cb6=(bd.features||[]).find(function(f){return String(f.properties&&f.properties.boro_cd)==='306';});
+    if(!cb6){if(note)note.textContent='Could not load boundary.';return;}
+    var ring=cb6.geometry.coordinates[0][0]; // MultiPolygon
+    var geomStr=JSON.stringify({rings:[ring],spatialReference:{wkid:4326}});
+    var allFeatures=[];
     function fetchPage(offset){
-      var url = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?' +
-        'where=1%3D1&geometry='+encodeURIComponent(geomStr)+
-        '&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelIntersects' +
-        '&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson' +
-        '&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326';
-      if(note) note.textContent='Loading parcels… '+allFeatures.length+' so far';
-      fetch(url).then(function(r){return r.json();}).then(function(data){
-        var feats = data.features || [];
-        allFeatures = allFeatures.concat(feats);
-        if(feats.length === 2000){
-          fetchPage(offset + 2000);
-        } else {
-          buildLuLayer(allFeatures);
-          if(note) note.textContent = allFeatures.length+' parcels loaded. Toggle use groups above.';
-        }
-      }).catch(function(){if(note) note.textContent='Could not load parcels.';});
+      if(note)note.textContent='Loading parcels… '+allFeatures.length+' so far';
+      fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?where=1%3D1&geometry='+encodeURIComponent(geomStr)+'&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelContains&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326')
+        .then(function(r){return r.json();}).then(function(data){
+          var feats=data.features||[];
+          allFeatures=allFeatures.concat(feats);
+          if(feats.length===2000){fetchPage(offset+2000);}
+          else{buildLuLayer(allFeatures);if(note)note.textContent=allFeatures.length+' parcels loaded.';}
+        }).catch(function(){if(note)note.textContent='Could not load parcels.';});
     }
     fetchPage(0);
-  }).catch(function(){if(note) note.textContent='Could not load boundary data.';});
+  });
 }
 
 function buildLuLayer(features){
@@ -249,29 +242,33 @@ function buildLuLayer(features){
 
 var gowanusLayer=null,gowanusLoading=false;
 function loadGowanus(){
-  if(gowanusLayer||gowanusLoading)return;
+  if(gowanusLoading)return;
+  if(gowanusLayer){gowanusLayer.addTo(map);if(boundaryLayer)boundaryLayer.bringToFront();return;}
   gowanusLoading=true;
   var note=document.getElementById('note');
   if(note)note.textContent='Loading Gowanus rezoning data…';
   var env={xmin:-74.005,ymin:40.665,xmax:-73.985,ymax:40.685,spatialReference:{wkid:4326}};
-  fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(env))+'&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&f=pgeojson')
-    .then(function(r){return r.json();}).then(function(zd){
-      gowanusLayer=L.layerGroup();
-      var ZONE_COLS={R:'#f4a261',C:'#4c78a8',M:'#7b61ff',P:'#66a61e',O:'#9aa0a6'};
-      function zCat(l){var c=String(l||'').toUpperCase().trim();if(c.indexOf('PARK')!==-1)return'P';if(c[0]==='M')return'M';if(c[0]==='C')return'C';if(c[0]==='R')return'R';return'O';}
-      function zLbl(p){return p.zonedist||p.ZONEDIST||'Unknown';}
-      function nZ(l){var c=String(l||'').toUpperCase().trim();if(/^[RCM]\d[A-Z]?$/.test(c))return c[0]+'-'+c.slice(1);return c;}
-      L.geoJSON(zd,{
-        style:function(f){var l=zLbl(f.properties||{});return{color:'#fff',weight:.8,fillColor:ZONE_COLS[zCat(l)]||'#9aa0a6',fillOpacity:.65};},
-        onEachFeature:function(f,l){l.bindTooltip('<strong>'+nZ(zLbl(f.properties||{}))+'</strong><br><span style="font-size:.75rem;color:#0d9488">Gowanus Rezoning Area</span>',{sticky:true,opacity:1});}
-      }).addTo(gowanusLayer);
-      fetch('data/gowanus_rezoning_boundary.geojson').then(function(r){return r.json();}).then(function(bnd){
-        L.geoJSON(bnd,{style:function(){return{color:'#0d9488',weight:3,fill:false,dashArray:'8 4'};}}).addTo(gowanusLayer);
-      }).catch(function(){});
-      if(activeMain==='gowanus'){gowanusLayer.addTo(map);if(boundaryLayer)boundaryLayer.bringToFront();}
-      if(note)note.textContent='Gowanus rezoning. Dashed teal = rezoning boundary.';
-      buildSubToggles();updateLegend();
-    });
+  Promise.all([
+    fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(env))+'&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&f=pgeojson').then(function(r){return r.json();}),
+    fetch('data/gowanus_rezoning_boundary.geojson').then(function(r){return r.json();}).catch(function(){return null;})
+  ]).then(function(res){
+    var zd=res[0],bnd=res[1];
+    var ZONE_COLS={R:'#f4a261',C:'#4c78a8',M:'#7b61ff',P:'#66a61e',O:'#9aa0a6'};
+    function zCat(l){var c=String(l||'').toUpperCase().trim();if(c.indexOf('PARK')!==-1)return'P';if(c[0]==='M')return'M';if(c[0]==='C')return'C';if(c[0]==='R')return'R';return'O';}
+    function zLbl(p){return p.zonedist||p.ZONEDIST||'Unknown';}
+    function nZ(l){var c=String(l||'').toUpperCase().trim();if(/^[RCM]\d[A-Z]?$/.test(c))return c[0]+'-'+c.slice(1);return c;}
+    gowanusLayer=L.layerGroup();
+    L.geoJSON(zd,{
+      style:function(f){var l=zLbl(f.properties||{});return{color:'#fff',weight:.8,fillColor:ZONE_COLS[zCat(l)]||'#9aa0a6',fillOpacity:.65};},
+      onEachFeature:function(f,l){l.bindTooltip('<strong>'+nZ(zLbl(f.properties||{}))+'</strong><br><span style="font-size:.75rem;color:#0d9488">Gowanus Rezoning Area</span>',{sticky:true,opacity:1});}
+    }).addTo(gowanusLayer);
+    if(bnd)L.geoJSON(bnd,{style:function(){return{color:'#0d9488',weight:3,fill:false,dashArray:'8 4'};}}).addTo(gowanusLayer);
+    // Always add — setMain already cleared other layers before calling loadGowanus
+    gowanusLayer.addTo(map);
+    if(boundaryLayer)boundaryLayer.bringToFront();
+    if(note)note.textContent='Gowanus rezoning. Dashed teal = rezoning boundary.';
+    buildSubToggles();updateLegend();
+  }).catch(function(e){if(note)note.textContent='Gowanus load failed.';});
 }
 
 // Address search
