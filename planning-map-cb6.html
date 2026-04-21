@@ -161,20 +161,45 @@ function buildSubToggles(){
     });
   } else if(activeMain==='gowanus'){
     sub.style.background='#f0fdf4';
-    [{label:'🧭 By Zone',mode:'zone',color:'#0d9488'},{label:'🏘 By Land Use',mode:'landuse',color:'#f4a261'},{label:'🏗 M/R Districts',mode:'mrzones',color:'#6366f1'}].forEach(function(item){
+    // Dot color toggles (radio — mutually exclusive)
+    [{label:'🧭 By Zone',mode:'zone',color:'#0d9488'},{label:'🏘 By Land Use',mode:'landuse',color:'#f4a261'}].forEach(function(item){
       var btn=document.createElement('button');
       btn.className='plyr-sub'+(gowanusMode===item.mode?' on':'');
       btn.style.setProperty('--sc',item.color);btn.style.setProperty('--stc','#fff');
       btn.textContent=item.label;
       btn.onclick=function(){
         gowanusMode=item.mode;
-        sub.querySelectorAll('.plyr-sub').forEach(function(b){b.classList.remove('on');});
+        sub.querySelectorAll('[data-gcolor]').forEach(function(b){b.classList.remove('on');});
         btn.classList.add('on');
         if(gowanusLotsData) buildGowanusLots();
         updateLegend();
       };
+      btn.setAttribute('data-gcolor','1');
       sub.appendChild(btn);
     });
+    // Overlay toggles (independent)
+    var muBtn=document.createElement('button');
+    muBtn.className='plyr-sub on';
+    muBtn.style.setProperty('--sc','#6366f1');muBtn.style.setProperty('--stc','#fff');
+    muBtn.textContent='🏗 M/R Districts';
+    muBtn.setAttribute('data-govoverlay','mixeduse');
+    muBtn.onclick=function(){
+      muBtn.classList.toggle('on');
+      var on=muBtn.classList.contains('on');
+      if(window.gowanusMuLayer){on?window.gowanusMuLayer.addTo(map):map.removeLayer(window.gowanusMuLayer);}
+    };
+    sub.appendChild(muBtn);
+    var nychaBtn=document.createElement('button');
+    nychaBtn.className='plyr-sub on';
+    nychaBtn.style.setProperty('--sc','#dc2626');nychaBtn.style.setProperty('--stc','#fff');
+    nychaBtn.textContent='🏢 NYCHA';
+    nychaBtn.setAttribute('data-govoverlay','nycha');
+    nychaBtn.onclick=function(){
+      nychaBtn.classList.toggle('on');
+      var on=nychaBtn.classList.contains('on');
+      if(window.gowanusNychaMarkers){on?window.gowanusNychaMarkers.addTo(map):map.removeLayer(window.gowanusNychaMarkers);}
+    };
+    sub.appendChild(nychaBtn);
   }
 }
 function updateLegend(){
@@ -282,14 +307,6 @@ function gowanusLotColor(p){
 }
 function buildGowanusLots(){
   if(gowanusLotsLayer)map.removeLayer(gowanusLotsLayer);
-  // In mrzones mode show zone polygons, hide dots
-  if(window.gowanusMuLayer)map.removeLayer(window.gowanusMuLayer);
-  if(gowanusMode==='mrzones'){
-    if(window.gowanusMuLayer)window.gowanusMuLayer.addTo(map);
-    if(gowanusBndLayer)gowanusBndLayer.bringToFront();
-    if(boundaryLayer)boundaryLayer.bringToFront();
-    return;
-  }
   gowanusLotsLayer=L.geoJSON(gowanusLotsData,{
     pointToLayer:function(f,ll){return L.circleMarker(ll,{radius:4,fillColor:gowanusLotColor(f.properties),fillOpacity:.85,color:'#fff',weight:.5});},
     onEachFeature:function(f,l){var p=f.properties;l.bindTooltip('<strong>'+escH(p.Address||'')+'</strong><br><span style="font-size:.75rem;color:#555">Zone: <strong>'+escH(p.Zone||'—')+'</strong></span><br><span style="font-size:.75rem;color:#555">'+escH(p['Land Use']||'—')+'</span>',{sticky:true,opacity:1});}
@@ -331,6 +348,7 @@ function loadGowanus(){
         .bindTooltip('<strong>'+escH(f.properties.Name||'NYCHA')+'</strong>',{sticky:true,opacity:1})
         .addTo(nychaLyr);
     });
+    window.gowanusNychaMarkers = nychaLyr;
     nychaLyr.addTo(gowanusLayer);
     // M/R zone polygons
     var MU_ZONE_COLORS={"M1-1/R5":"#818cf8","M1-4/R6A":"#6366f1","M1-4/R6B":"#4f46e5","M1-4/R7-2":"#3730a3","M1-4/R7A":"#10b981","M1-4/R7X":"#059669","M1-6A/R8":"#dc2626"};
@@ -338,7 +356,7 @@ function loadGowanus(){
       style:function(f){var z=f.properties.Name||'';return{color:'#fff',weight:1,fillColor:MU_ZONE_COLORS[z]||'#818cf8',fillOpacity:.5};},
       onEachFeature:function(f,l){var z=f.properties.Name||'';l.bindTooltip('<strong>'+escH(z)+'</strong><br><span style="font-size:.75rem;color:#0d9488">M/R Mixed Use Zone</span>',{sticky:true,opacity:1});}
     });
-    // Don't add by default — shown only in mrzones mode
+    window.gowanusMuLayer.addTo(map);
     gowanusLayer.addTo(map);
     buildGowanusLots();
     if(gowanusLotsLayer)gowanusLotsLayer.addTo(map);
