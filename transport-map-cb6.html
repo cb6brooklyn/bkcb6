@@ -50,6 +50,7 @@ body{display:flex;flex-direction:column}
   <span>Show</span>
   <button class="trn-btn active" onclick="tog('speed',this)" style="--tc:#2a9d8f">🛣 Speed Limits</button>
   <button class="trn-btn" onclick="tog('bike',this)" style="--tc:#1d4ed8">🚲 Bike Routes</button>
+  <button class="trn-btn" onclick="togCitibike(this)" style="--tc:#0072CE" id="btn-citibike">🚴 Citi Bike</button>
   <button class="trn-btn" onclick="tog('bus',this)" style="--tc:#2563eb">🚌 Bus Routes</button>
   <button class="trn-btn" onclick="tog('busstops',this)" style="--tc:#f59e0b">🚏 Bus Stops</button>
   <button class="trn-btn" onclick="tog('subway',this)" style="--tc:#0d1b4b">🚇 Subway</button>
@@ -65,6 +66,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{at
 
 var trnData=null, trnLayers={}, searchMarker=null, subwayAll=null;
 var visible={speed:true,bike:false,bus:false,busstops:false,subway:false,truck:false};
+var citibikeLayer=null,citibikeVisible=false;
 
 var LEGENDS={
   speed:[{c:'#2a9d8f',l:'20 mph',t:'line'},{c:'#4c78a8',l:'25 mph',t:'line'},{c:'#f4a261',l:'30 mph',t:'line'},{c:'#e63946',l:'35+ mph',t:'line'},{c:'#111827',l:'School Zone',t:'line'}],
@@ -82,6 +84,24 @@ function busC(p){var r=String(p.route_color||'').trim();if(r&&r[0]!=='#')r='#'+r
 function stopC(p){if(String(p.is_cbd||'').toLowerCase()==='true')return'#c1121f';if(String(p.timepoint||'').toLowerCase()==='true')return'#f59e0b';return'#2563eb';}
 function subC(p){var a=String(p.ada||'').toLowerCase();return(a==='true'||a==='yes'||a==='1')?'#f47920':'#0d1b4b';}
 function truckC(p){var t=String(p.routetype||'').toLowerCase();if(t==='through')return'#0d9488';if(t==='local')return'#2563eb';return'#f59e0b';}
+
+function togCitibike(btn){
+  citibikeVisible=!citibikeVisible;
+  btn.classList.toggle('trn-btn-on');
+  if(citibikeLayer){ citibikeVisible?citibikeLayer.addTo(map):map.removeLayer(citibikeLayer); return; }
+  if(!citibikeVisible) return;
+  fetch('data/citibike_stations_cb6.geojson').then(function(r){return r.json();}).then(function(d){
+    citibikeLayer=L.geoJSON(d,{
+      pointToLayer:function(f,ll){
+        return L.circleMarker(ll,{radius:6,fillColor:'#0072CE',color:'#fff',weight:1.5,fillOpacity:.9});
+      },
+      onEachFeature:function(f,l){
+        var p=f.properties;
+        l.bindTooltip('<strong>🚴 '+escH(p.name)+'</strong><br><span style="font-size:.75rem;color:#555">'+escH(p.street)+' & '+escH(p.cross_street)+'</span>',{sticky:true,opacity:1});
+      }
+    }).addTo(map);
+  });
+}
 
 function buildLayer(k,gj){
   if(k==='subway'||k==='busstops'){
