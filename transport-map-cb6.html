@@ -50,6 +50,7 @@ body{display:flex;flex-direction:column}
   <span>Show</span>
   <button class="trn-btn active" onclick="tog('speed',this)" style="--tc:#2a9d8f">🛣 Speed Limits</button>
   <button class="trn-btn" onclick="tog('bike',this)" style="--tc:#1d4ed8">🚲 Bike Routes</button>
+  <button class="trn-btn" onclick="togSubway(this)" style="--tc:#EE352E" id="btn-subway">🚇 Subway</button>
   <button class="trn-btn" onclick="togCitibike(this)" style="--tc:#0072CE" id="btn-citibike">🚴 Citi Bike</button>
   <button class="trn-btn" onclick="tog('bus',this)" style="--tc:#2563eb">🚌 Bus Routes</button>
   <button class="trn-btn" onclick="tog('busstops',this)" style="--tc:#f59e0b">🚏 Bus Stops</button>
@@ -67,6 +68,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{at
 var trnData=null, trnLayers={}, searchMarker=null, subwayAll=null;
 var visible={speed:true,bike:false,bus:false,busstops:false,subway:false,truck:false};
 var citibikeLayer=null,citibikeVisible=false;
+var subwayLayer=null,subwayVisible=false;
 
 var LEGENDS={
   speed:[{c:'#2a9d8f',l:'20 mph',t:'line'},{c:'#4c78a8',l:'25 mph',t:'line'},{c:'#f4a261',l:'30 mph',t:'line'},{c:'#e63946',l:'35+ mph',t:'line'},{c:'#111827',l:'School Zone',t:'line'}],
@@ -84,6 +86,34 @@ function busC(p){var r=String(p.route_color||'').trim();if(r&&r[0]!=='#')r='#'+r
 function stopC(p){if(String(p.is_cbd||'').toLowerCase()==='true')return'#c1121f';if(String(p.timepoint||'').toLowerCase()==='true')return'#f59e0b';return'#2563eb';}
 function subC(p){var a=String(p.ada||'').toLowerCase();return(a==='true'||a==='yes'||a==='1')?'#f47920':'#0d1b4b';}
 function truckC(p){var t=String(p.routetype||'').toLowerCase();if(t==='through')return'#0d9488';if(t==='local')return'#2563eb';return'#f59e0b';}
+
+function togSubway(btn){
+  subwayVisible=!subwayVisible;
+  btn.classList.toggle('trn-btn-on');
+  if(subwayLayer){ subwayVisible?subwayLayer.addTo(map):map.removeLayer(subwayLayer); return; }
+  if(!subwayVisible) return;
+  fetch('data/cb6-subway.geojson').then(function(r){return r.json();}).then(function(d){
+    var SCOLS={"F Train Route": "#FF6319", "G Train Route": "#6CBE45", "R Train Route": "#FCCC0A", "N Train Route": "#FCCC0A", "2 Train Route": "#EE352E", "3 Train Route": "#EE352E"};
+    subwayLayer=L.layerGroup();
+    var lines=d.features.filter(function(f){return f.geometry.type==='LineString';});
+    var stations=d.features.filter(function(f){return f.geometry.type==='Point';});
+    lines.forEach(function(f){
+      var col=SCOLS[f.properties.name]||'#888';
+      L.geoJSON(f,{style:function(){return{color:col,weight:4,opacity:.9};}})
+        .bindTooltip('<strong>'+escH(f.properties.name)+'</strong>',{sticky:true,opacity:1})
+        .addTo(subwayLayer);
+    });
+    stations.forEach(function(f){
+      var p=f.properties;
+      if(p.name==='CB6 District Office') return; // skip non-station
+      var ll=[f.geometry.coordinates[1],f.geometry.coordinates[0]];
+      L.circleMarker(ll,{radius:5,fillColor:'#fff',color:'#333',weight:2,fillOpacity:1})
+        .bindTooltip('<strong>🚇 '+escH(p.name)+'</strong>'+(p.description?'<br><span style="font-size:.75rem;color:#555">'+escH(p.description)+'</span>':''),{sticky:true,opacity:1})
+        .addTo(subwayLayer);
+    });
+    subwayLayer.addTo(map);
+  });
+}
 
 function togCitibike(btn){
   citibikeVisible=!citibikeVisible;
