@@ -40,6 +40,7 @@ body{display:flex;flex-direction:column}
   <button class="lbtn on" onclick="setMode('zone',this)" style="--pc:#0d9488" id="btn-zone">🧭 Zoning District</button>
   <button class="lbtn" onclick="setMode('landuse',this)" style="--pc:#f4a261" id="btn-lu">🏘 Land Use</button>
   <button class="lbtn on" onclick="togLayer('nycha',this)" style="--pc:#dc2626" id="btn-nycha">🏢 NYCHA</button>
+  <button class="lbtn on" onclick="togLayer('mixeduse',this)" style="--pc:#6366f1" id="btn-mixeduse">🏗 M/R Zones</button>
 </div>
 <div class="legend-bar" id="legend"></div>
 <div id="map"></div>
@@ -53,6 +54,8 @@ var mode = 'zone';
 var lotsLayer = null, boundaryLayer = null, cb6Layer = null, nychaLayer = null;
 var lotsData = null;
 var visNycha = true;
+var visMixeduse = true;
+var mixeduseLayer = null;
 
 // Zone colors
 var ZONE_COLORS = {
@@ -125,9 +128,14 @@ function setMode(m, btn){
 }
 
 function togLayer(k, btn){
-  visNycha=!visNycha;
   btn.classList.toggle('on');
-  if(nychaLayer){ visNycha?nychaLayer.addTo(map):map.removeLayer(nychaLayer); }
+  if(k==='nycha'){
+    visNycha=!visNycha;
+    if(nychaLayer){ visNycha?nychaLayer.addTo(map):map.removeLayer(nychaLayer); }
+  } else if(k==='mixeduse'){
+    visMixeduse=!visMixeduse;
+    if(mixeduseLayer){ visMixeduse?mixeduseLayer.addTo(map):map.removeLayer(mixeduseLayer); }
+  }
 }
 
 function updateLegend(){
@@ -152,10 +160,11 @@ Promise.all([
   fetch('data/Gowanus-Rezoning-Lots.geojson').then(function(r){return r.json();}),
   fetch('data/Gowanus-Rezoning-Boundary-2.geojson').then(function(r){return r.json();}),
   fetch('data/CB6.geojson').then(function(r){return r.json();}),
-  fetch('data/CB6-NYCHA.geojson').then(function(r){return r.json();})
+  fetch('data/CB6-NYCHA.geojson').then(function(r){return r.json();}),
+  fetch('data/gowanus-mixed-use-zones.geojson').then(function(r){return r.json();})
 ]).then(function(res){
   lotsData=res[0];
-  var gBoundary=res[1], cb6Data=res[2], nychaData=res[3];
+  var gBoundary=res[1], cb6Data=res[2], nychaData=res[3], muData=res[4];
 
   // CB6 boundary
   cb6Layer=L.geoJSON(cb6Data,{style:function(){return{color:'#f47920',weight:2,fill:false,dashArray:'5 3'};}}).addTo(map);
@@ -177,6 +186,20 @@ Promise.all([
       .addTo(nychaLayer);
   });
   if(visNycha) nychaLayer.addTo(map);
+
+  // Mixed Use M/R zones
+  var MU_COLORS = {"M1-1/R5": "#818cf8", "M1-4/R6A": "#6366f1", "M1-4/R6B": "#4f46e5", "M1-4/R7-2": "#3730a3", "M1-4/R7A": "#10b981", "M1-4/R7X": "#059669", "M1-6A/R8": "#dc2626"};
+  mixeduseLayer = L.geoJSON(muData,{
+    style:function(f){
+      var zone = f.properties.Name||'';
+      return{color:'#fff',weight:1,fillColor:MU_COLORS[zone]||'#818cf8',fillOpacity:.5};
+    },
+    onEachFeature:function(f,l){
+      var zone=f.properties.Name||'';
+      l.bindTooltip('<strong>'+escH(zone)+'</strong><br><span style="font-size:.75rem;color:#0d9488">M/R Mixed Use Zone</span>',{sticky:true,opacity:1});
+    }
+  });
+  if(visMixeduse) mixeduseLayer.addTo(map);
 
   buildLots();
   document.getElementById('note').textContent=lotsData.features.length+' lots · Teal = rezoning boundary · Orange dashed = CB6 · Red = NYCHA';
