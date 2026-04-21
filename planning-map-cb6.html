@@ -241,39 +241,25 @@ function setMain(which,btn){
 function loadLU(){
   var note = document.getElementById('note');
   if(luLayer){ luLayer.addTo(map); if(boundaryLayer)boundaryLayer.bringToFront(); if(note)note.textContent='Land use loaded.'; return; }
-  if(note) note.textContent='Loading CB6 parcels…';
-  // Use nyc_cb_boundaries to get CB6 ring (works, tested in landuse-map-cb6.html)
-  fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}).then(function(bd){
-    var cb6=(bd.features||[]).find(function(f){return String(f.properties&&f.properties.boro_cd)==='306';});
-    if(!cb6){if(note)note.textContent='Could not load boundary.';return;}
-    var ring=cb6.geometry.coordinates[0][0]; // MultiPolygon
-    var geomStr=JSON.stringify({rings:[ring],spatialReference:{wkid:4326}});
-    var allFeatures=[];
-    function fetchPage(offset){
-      if(note)note.textContent='Loading parcels… '+allFeatures.length+' so far';
-      fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?where=1%3D1&geometry='+encodeURIComponent(geomStr)+'&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelContains&outFields=LandUse,Address,BBL&returnGeometry=true&f=geojson&resultRecordCount=2000&resultOffset='+offset+'&outSR=4326')
-        .then(function(r){return r.json();}).then(function(data){
-          var feats=data.features||[];
-          allFeatures=allFeatures.concat(feats);
-          if(feats.length===2000){fetchPage(offset+2000);}
-          else{buildLuLayer(allFeatures);if(note)note.textContent=allFeatures.length+' parcels loaded.';}
-        }).catch(function(){if(note)note.textContent='Could not load parcels.';});
-    }
-    fetchPage(0);
-  });
+  if(note) note.textContent='Loading CB6 land use…';
+  fetch('data/cb6-landuse-lots.geojson').then(function(r){return r.json();}).then(function(d){
+    buildLuLayer(d.features);
+    if(note) note.textContent=d.features.length+' lots loaded. Toggle use groups above.';
+  }).catch(function(e){if(note)note.textContent='Could not load land use data.';});
 }
 
 function buildLuLayer(features){
   if(luLayer){ map.removeLayer(luLayer); luLayer=null; }
   var gj = {type:'FeatureCollection', features: features};
   luLayer = L.geoJSON(gj,{
-    style:function(f){
-      var c=normLU(f.properties&&f.properties.LandUse);
-      return{fillColor:LU_COLORS[c]||'#9aa0a6',fillOpacity:luVisible[c]?0.78:0,color:'#fff',weight:0.5};
+    pointToLayer:function(f,latlng){
+      var c=normLU(f.properties&&(f.properties.land_use_code||f.properties.LandUse));
+      return L.circleMarker(latlng,{radius:4,fillColor:LU_COLORS[c]||'#9aa0a6',fillOpacity:luVisible[c]?0.78:0,color:'#fff',weight:.5});
     },
     onEachFeature:function(f,l){
-      var c=normLU(f.properties&&f.properties.LandUse);
-      l.bindTooltip('<strong>'+(LU_LABELS[c]||'Unknown')+'</strong><br><span style="font-size:.75rem;color:#555">'+(f.properties.Address||'')+'</span>',{sticky:true,opacity:1});
+      var p=f.properties;
+      var c=normLU(p.land_use_code||p.LandUse);
+      l.bindTooltip('<strong>'+(LU_LABELS[c]||'Unknown')+'</strong><br><span style="font-size:.75rem;color:#333">'+(p.address||p.Address||'')+'</span>'+(p.zoning?'<br><span style="font-size:.72rem;color:#555">Zone: '+escH(p.zoning)+'</span>':'')+(p.owner?'<br><span style="font-size:.72rem;color:#888">'+escH(p.owner)+'</span>':''),{sticky:true,opacity:1});
     }
   });
   if(activeMain==='landuse') luLayer.addTo(map);
