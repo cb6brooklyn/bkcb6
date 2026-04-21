@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BKCB6 — Gowanus Rezoning Map</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:#0d1b4b}
+body{display:flex;flex-direction:column}
+.top-bar{background:#0d1b4b;border-bottom:3px solid #f47920;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-shrink:0}
+.top-bar h1{font-size:.92rem;font-weight:700;color:#fff;flex-shrink:0}
+.top-bar h1 span{color:#f47920}
+.back-link{font-size:.7rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.45);text-decoration:none;white-space:nowrap;margin-left:auto}
+.back-link:hover{color:#f47920}
+.layer-bar{padding:7px 14px;background:#0d1b4b;border-bottom:1px solid rgba(255,255,255,.1);display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-shrink:0}
+.layer-bar span{font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.45);margin-right:2px}
+.lbtn{padding:4px 12px;font-size:.76rem;font-family:'DM Sans',sans-serif;font-weight:700;border:1.5px solid rgba(255,255,255,.25);border-radius:20px;background:transparent;color:rgba(255,255,255,.6);cursor:pointer;transition:all .15s;white-space:nowrap}
+.lbtn.on{background:var(--pc);border-color:var(--pc);color:#fff}
+.legend-bar{padding:5px 14px;background:#fafaf8;border-bottom:1px solid #e5e2db;display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-shrink:0;min-height:26px}
+.li{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;color:#444}
+.ls{display:inline-block;width:12px;height:10px;border-radius:2px}
+#map{flex:1;min-height:300px}
+.note-bar{padding:4px 14px;font-size:.65rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.3);background:#0d1b4b;flex-shrink:0}
+.note-bar a{color:#f47920;text-decoration:none}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <h1>BKCB6 <span>Gowanus Rezoning</span></h1>
+  <a class="back-link" href="cb-bk-6.html">← CB6</a>
+</div>
+
+<div class="layer-bar">
+  <span>Color by</span>
+  <button class="lbtn on" onclick="setMode('zone',this)" style="--pc:#0d9488" id="btn-zone">🧭 Zoning District</button>
+  <button class="lbtn" onclick="setMode('landuse',this)" style="--pc:#f4a261" id="btn-lu">🏘 Land Use</button>
+  <button class="lbtn on" onclick="togLayer('nycha',this)" style="--pc:#dc2626" id="btn-nycha">🏢 NYCHA</button>
+</div>
+<div class="legend-bar" id="legend"></div>
+<div id="map"></div>
+<div class="note-bar" id="note">Loading… &nbsp;|&nbsp; <a href="cb-bk-6.html">← CB6</a></div>
+
+<script>
+var map = L.map('map',{scrollWheelZoom:true}).setView([40.676,-73.993],14);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+
+var mode = 'zone';
+var lotsLayer = null, boundaryLayer = null, cb6Layer = null, nychaLayer = null;
+var lotsData = null;
+var visNycha = true;
+
+// Zone colors
+var ZONE_COLORS = {
+  'M1-4/R7A':'#10b981','M1-4/R7X':'#059669','M1-4/R7-2':'#047857',
+  'M1-4/R6A':'#6366f1','M1-4/R6B':'#4f46e5',
+  'C4-4D':'#f59e0b','C4-3A':'#d97706',
+  'R6':'#f4a261','R6A':'#ea580c','R6B':'#dc4b0c',
+  'M1-4':'#7b61ff','M1-2':'#5b21b6','M2-1':'#4c1d95',
+  'PARK':'#22c55e',
+};
+var ZONE_DEFAULT = '#9aa0a6';
+
+// Land use colors
+var LU_COLORS = {
+  'One and Two Family Residential':'#FEFFA8',
+  'Multi-Family Walkup':'#FCB842',
+  'Multi-Family Elevator':'#B16E00',
+  'Mixed Residential and Commercial':'#ff8341',
+  'Commercial and Office':'#fc2929',
+  'Industrial and Manufacturing':'#E362FB',
+  'Public Facilities':'#44A3D5',
+  'Open Space and Recreation':'#78D271',
+  'Parking Facility':'#BAB8B6',
+  'Transportation and Utility':'#E0BEEB',
+};
+var LU_DEFAULT = '#9aa0a6';
+
+function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function getColor(props){
+  if(mode==='zone') return ZONE_COLORS[props['Zone']]||ZONE_DEFAULT;
+  return LU_COLORS[props['Land Use']]||LU_DEFAULT;
+}
+
+function buildLots(){
+  if(lotsLayer) map.removeLayer(lotsLayer);
+  lotsLayer = L.geoJSON(lotsData,{
+    pointToLayer:function(f,latlng){
+      return L.circleMarker(latlng,{
+        radius:4,
+        fillColor:getColor(f.properties),
+        fillOpacity:.85,
+        color:'#fff',
+        weight:.5
+      });
+    },
+    onEachFeature:function(f,l){
+      var p=f.properties;
+      l.bindTooltip(
+        '<strong>'+escH(p.Address||'')+'</strong>'+
+        '<br><span style="font-size:.75rem;color:#555">Zone: <strong>'+escH(p.Zone||'—')+'</strong></span>'+
+        '<br><span style="font-size:.75rem;color:#555">Land Use: '+escH(p['Land Use']||'—')+'</span>'+
+        (p.Owner?'<br><span style="font-size:.72rem;color:#888">'+escH(p.Owner)+'</span>':''),
+        {sticky:true,opacity:1}
+      );
+    }
+  }).addTo(map);
+  if(boundaryLayer) boundaryLayer.bringToFront();
+  if(nychaLayer&&visNycha) nychaLayer.bringToFront();
+  updateLegend();
+}
+
+function setMode(m, btn){
+  mode=m;
+  document.querySelectorAll('.lbtn').forEach(function(b){
+    if(b.id==='btn-zone'||b.id==='btn-lu') b.classList.remove('on');
+  });
+  btn.classList.add('on');
+  if(lotsData) buildLots();
+}
+
+function togLayer(k, btn){
+  visNycha=!visNycha;
+  btn.classList.toggle('on');
+  if(nychaLayer){ visNycha?nychaLayer.addTo(map):map.removeLayer(nychaLayer); }
+}
+
+function updateLegend(){
+  var html='';
+  if(mode==='zone'){
+    var shown={};
+    (lotsData.features||[]).forEach(function(f){shown[f.properties.Zone||'']=true;});
+    Object.keys(ZONE_COLORS).filter(function(z){return shown[z];}).forEach(function(z){
+      html+='<span class="li"><span class="ls" style="background:'+ZONE_COLORS[z]+'"></span>'+z+'</span>';
+    });
+    if(shown['']) html+='<span class="li"><span class="ls" style="background:'+ZONE_DEFAULT+'"></span>Other</span>';
+  } else {
+    Object.keys(LU_COLORS).forEach(function(lu){
+      html+='<span class="li"><span class="ls" style="background:'+LU_COLORS[lu]+'"></span>'+lu.replace('and ','& ').replace(' Residential','').replace(' Commercial','Comm').replace(' Manufacturing','Mfg')+'</span>';
+    });
+  }
+  document.getElementById('legend').innerHTML=html;
+}
+
+// Load all data
+Promise.all([
+  fetch('data/Gowanus-Rezoning-Lots.geojson').then(function(r){return r.json();}),
+  fetch('data/Gowanus-Rezoning-Boundary-2.geojson').then(function(r){return r.json();}),
+  fetch('data/CB6.geojson').then(function(r){return r.json();}),
+  fetch('data/CB6-NYCHA.geojson').then(function(r){return r.json();})
+]).then(function(res){
+  lotsData=res[0];
+  var gBoundary=res[1], cb6Data=res[2], nychaData=res[3];
+
+  // CB6 boundary
+  cb6Layer=L.geoJSON(cb6Data,{style:function(){return{color:'#f47920',weight:2,fill:false,dashArray:'5 3'};}}).addTo(map);
+
+  // Gowanus rezoning boundary
+  boundaryLayer=L.geoJSON(gBoundary,{style:function(){return{color:'#0d9488',weight:2.5,fill:false};}}).addTo(map);
+  map.fitBounds(boundaryLayer.getBounds(),{padding:[20,20]});
+
+  // NYCHA markers
+  nychaLayer=L.layerGroup();
+  (nychaData.features||[]).forEach(function(f){
+    var p=f.properties;
+    var coords=f.geometry.coordinates;
+    // MultiPoint — take first
+    var lng=Array.isArray(coords[0])?coords[0][0]:coords[0];
+    var lat=Array.isArray(coords[0])?coords[0][1]:coords[1];
+    L.circleMarker([lat,lng],{radius:8,fillColor:'#dc2626',color:'#fff',weight:2,fillOpacity:.9})
+      .bindTooltip('<strong>'+escH(p.Name||'NYCHA')+'</strong>'+(p.Info?'<br><span style="font-size:.75rem;color:#555">'+escH(p.Info)+'</span>':''),{sticky:true,opacity:1})
+      .addTo(nychaLayer);
+  });
+  if(visNycha) nychaLayer.addTo(map);
+
+  buildLots();
+  document.getElementById('note').textContent=lotsData.features.length+' lots · Teal = rezoning boundary · Orange dashed = CB6 · Red = NYCHA';
+
+}).catch(function(e){
+  document.getElementById('note').textContent='Load error: '+e;
+});
+</script>
+</body>
+</html>
