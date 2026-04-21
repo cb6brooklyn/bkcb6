@@ -35,13 +35,15 @@ body{display:flex;flex-direction:column}
 </div>
 <div class="layer-bar">
   <span>Layers</span>
-  <button class="lbtn on" onclick="togLayer('nypd',this)" style="--pc:#1d4ed8">🚔 NYPD Sectors</button>
+  <button class="lbtn on" onclick="togPct('76',this)" style="--pc:#1d4ed8" id="btn-pct76">🚔 76th Precinct</button>
+  <button class="lbtn on" onclick="togPct('78',this)" style="--pc:#7c3aed" id="btn-pct78">🚔 78th Precinct</button>
   <button class="lbtn on" onclick="togLayer('fdny',this)" style="--pc:#dc2626">🚒 FDNY Battalions</button>
   <button class="lbtn on" onclick="togLayer('firehouses',this)" style="--pc:#b91c1c">🏠 Firehouses</button>
   <button class="lbtn on" onclick="togLayer('dsny',this)" style="--pc:#15803d">🗑 DSNY Sections</button>
 </div>
 <div class="legend-bar">
-  <span class="li"><span class="ls" style="background:#1d4ed8;opacity:.5"></span>NYPD Sectors (Pcts 76, 78, 84)</span>
+  <span class="li"><span class="ls" style="background:#1d4ed8;opacity:.8"></span>76th Precinct + Sectors</span>
+  <span class="li"><span class="ls" style="background:#7c3aed;opacity:.8"></span>78th Precinct + Sectors</span>
   <span class="li"><span class="ls" style="background:#dc2626;opacity:.5"></span>FDNY Battalions</span>
   <span class="li"><span style="font-size:.9rem">🚒</span>Firehouses (CB6 = orange)</span>
   <span class="li"><span class="ls" style="background:#15803d;opacity:.5"></span>DSNY Sections</span>
@@ -54,15 +56,21 @@ body{display:flex;flex-direction:column}
 var map = L.map('map',{scrollWheelZoom:true}).setView([40.671,-73.990],13);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
 
-var vis = {nypd:true, fdny:true, firehouses:true, dsny:true};
+var vis = {pct76:true, pct78:true, fdny:true, firehouses:true, dsny:true};
 var searchMarker = null;
-var layers = {nypd:null, fdny:null, firehouses:null, dsny:null};
+var layers = {pct76:null, pct78:null, fdny:null, firehouses:null, dsny:null};
 var boundaryLayer = null;
 
 function togLayer(k, btn){
   vis[k] = !vis[k];
   btn.classList.toggle('on');
   if(layers[k]){ vis[k] ? layers[k].addTo(map) : map.removeLayer(layers[k]); }
+}
+function togPct(pct, btn){
+  var key = 'pct'+pct;
+  vis[key] = !vis[key];
+  btn.classList.toggle('on');
+  if(layers[key]){ vis[key] ? layers[key].addTo(map) : map.removeLayer(layers[key]); }
 }
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -83,54 +91,61 @@ Promise.all([
     map.fitBounds(boundaryLayer.getBounds(),{padding:[24,24]});
   }
 
-  // NYPD Sectors — color by precinct, label each precinct
-  var cb6Pcts = ['76','78'];
+  // NYPD — separate layer per precinct
   var pctColors = {'76':'#1d4ed8','78':'#7c3aed'};
-  var pctDefault = '#93c5fd';
 
-  // Compute centroid of all sectors per precinct for label placement
-  var pctBounds = {};
-  (nypdData.features||[]).forEach(function(f){
-    var pct = String(f.properties.pct||'').replace(/^0+/,'');
-    if(!pctBounds[pct]) pctBounds[pct] = [];
-    try{
-      var tmp = L.geoJSON(f);
-      var b = tmp.getBounds();
-      pctBounds[pct].push(b.getCenter());
-    }catch(e){}
-  });
-
-  layers.nypd = L.layerGroup();
-  var nypdGeo = L.geoJSON(nypdData,{
-    style:function(f){
-      var pct = String(f.properties.pct||'').replace(/^0+/,'');
-      var isCB6 = cb6Pcts.indexOf(pct)!==-1;
-      var col = pctColors[pct]||pctDefault;
-      return{color:col,weight:isCB6?2.5:1,fillColor:col,fillOpacity:isCB6?.1:.03,dashArray:isCB6?null:'3 3'};
-    },
-    onEachFeature:function(f,l){
-      var pct = String(f.properties.pct||'').replace(/^0+/,'');
-      var sec = f.properties.sector||'';
-      l.bindTooltip('<strong>🚔 '+escH(pct)+'th Precinct — Sector '+escH(sec)+'</strong>',{sticky:true,opacity:1});
-    }
-  }).addTo(layers.nypd);
-
-  // Add precinct number labels for CB6 precincts
-  cb6Pcts.forEach(function(pct){
-    if(!pctBounds[pct]||!pctBounds[pct].length) return;
-    // Average centroid
-    var avgLat = pctBounds[pct].reduce(function(s,c){return s+c.lat;},0)/pctBounds[pct].length;
-    var avgLng = pctBounds[pct].reduce(function(s,c){return s+c.lng;},0)/pctBounds[pct].length;
+  function buildPctLayer(pct){
     var col = pctColors[pct]||'#1d4ed8';
-    var icon = L.divIcon({
-      className:'',
-      html:'<div style="background:'+col+';color:#fff;font-family:DM Sans,sans-serif;font-size:.72rem;font-weight:800;padding:3px 7px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3)">'+pct+'th Pct</div>',
-      iconAnchor:[30,10]
+    var pctFeats = (nypdData.features||[]).filter(function(f){
+      return String(f.properties.pct||'').replace(/^0+/,'') === pct;
     });
-    L.marker([avgLat,avgLng],{icon:icon,interactive:false,zIndexOffset:500}).addTo(layers.nypd);
-  });
+    var lyr = L.layerGroup();
 
-  if(vis.nypd) layers.nypd.addTo(map);
+    // Sector fills
+    L.geoJSON({type:'FeatureCollection',features:pctFeats},{
+      style:function(f){
+        return{color:col,weight:2,fillColor:col,fillOpacity:.12};
+      },
+      onEachFeature:function(f,l){
+        var sec = f.properties.sector||'';
+        l.bindTooltip('<strong>🚔 '+escH(pct)+'th Precinct — Sector '+escH(sec)+'</strong><br><span style="font-size:.72rem;color:#555">Click sector to highlight</span>',{sticky:true,opacity:1});
+        l.on('click',function(){
+          l.setStyle({fillOpacity:.35,weight:3});
+          setTimeout(function(){lyr.eachLayer(function(x){if(x.setStyle)x.setStyle({fillOpacity:.12,weight:2});});},2000);
+        });
+      }
+    }).addTo(lyr);
+
+    // Sector labels
+    pctFeats.forEach(function(f){
+      try{
+        var tmp = L.geoJSON(f);
+        var ctr = tmp.getBounds().getCenter();
+        var sec = f.properties.sector||'';
+        L.marker([ctr.lat,ctr.lng],{
+          icon:L.divIcon({className:'',html:'<div style="font-size:.6rem;font-family:DM Sans,sans-serif;font-weight:700;color:'+col+';background:#fff;padding:1px 4px;border-radius:3px;border:1px solid '+col+';white-space:nowrap">'+sec+'</div>',iconAnchor:[12,8]}),
+          interactive:false,zIndexOffset:300
+        }).addTo(lyr);
+      }catch(e){}
+    });
+
+    // Precinct label
+    try{
+      var allTmp = L.geoJSON({type:'FeatureCollection',features:pctFeats});
+      var ctr = allTmp.getBounds().getCenter();
+      L.marker([ctr.lat,ctr.lng],{
+        icon:L.divIcon({className:'',html:'<div style="background:'+col+';color:#fff;font-family:DM Sans,sans-serif;font-size:.78rem;font-weight:800;padding:4px 9px;border-radius:7px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3)">'+pct+'th Precinct</div>',iconAnchor:[45,12]}),
+        interactive:false,zIndexOffset:600
+      }).addTo(lyr);
+    }catch(e){}
+
+    return lyr;
+  }
+
+  layers.pct76 = buildPctLayer('76');
+  layers.pct78 = buildPctLayer('78');
+  if(vis.pct76) layers.pct76.addTo(map);
+  if(vis.pct78) layers.pct78.addTo(map);
 
   // FDNY Battalions
   var bnColors = ['#dc2626','#b91c1c','#ef4444','#f87171','#fca5a5'];
