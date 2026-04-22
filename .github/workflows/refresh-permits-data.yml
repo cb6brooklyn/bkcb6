@@ -1,0 +1,39 @@
+name: Refresh permits data
+
+on:
+  schedule:
+    - cron: '0 8 * * *'   # 8 AM UTC = 4 AM ET daily
+  workflow_dispatch:        # allow manual trigger
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run data refresh scripts
+        run: |
+          python scripts/build_cb6_dob_now_recent_feed.py
+          python scripts/build_cb6_dot_recent_feed.py
+          python scripts/build_cb6_film_permits_feed.py
+          python scripts/build_cb6_permitted_events_feed.py
+          python scripts/build_cb6_resurfacing_feed.py
+
+      - name: Commit updated data files
+        run: |
+          git config user.email "mracioppo@cb.nyc.gov"
+          git config user.name "Mike Racioppo"
+          git add data/cb6_dob_now_recent.json \
+                  data/cb6_dot_recent.json \
+                  data/cb6_film_permits.json \
+                  data/cb6_permitted_events.json \
+                  data/cb6_street_resurfacing.json
+          git diff --cached --quiet || git commit -m "Auto-refresh permits data $(date -u +%Y-%m-%d)"
+          git push
