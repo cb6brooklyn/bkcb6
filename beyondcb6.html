@@ -234,10 +234,24 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 
       <div class="map-header">
             <h3>Median Rent by Community Board — NYC</h3>
-        <a href="https://felt.com/map/Rent-by-CB-YoJ7PXSNRkOhog8RuCHFGD" target="_blank">Open full map ↗</a>
+        
       </div>
   <div style="padding:8px 18px 10px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:#fafaf8;border-bottom:1px solid #e5e2db"><span style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;margin-right:2px">Rent Tier</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:.74rem;color:#333"><span style="width:11px;height:11px;border-radius:2px;background:#4a9e6e;display:inline-block;flex-shrink:0"></span>Most Expensive</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:.74rem;color:#333"><span style="width:11px;height:11px;border-radius:2px;background:#7b5ea7;display:inline-block;flex-shrink:0"></span>Expensive</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:.74rem;color:#333"><span style="width:11px;height:11px;border-radius:2px;background:#d4862a;display:inline-block;flex-shrink:0"></span>Mid Range</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:.74rem;color:#333"><span style="width:11px;height:11px;border-radius:2px;background:#c9417a;display:inline-block;flex-shrink:0"></span>Less Expensive</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:.74rem;color:#333"><span style="width:11px;height:11px;border-radius:2px;background:#4a8db5;display:inline-block;flex-shrink:0"></span>Least Expensive</span></div>
-    <iframe class="felt-embed" src="https://felt.com/embed/map/Citywide-Rent-By-CB-YoJ7PXSNRkOhog8RuCHFGD?loc=40.7062%2C-73.9778%2C10.55z&legend=1&cooperativeGestures=1&link=1&geolocation=0&zoomControls=1&scaleBar=1" title="NYC Median Rent by Community Board" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+    <div id="beyond-rent-map" style="width:100%;height:420px;"></div>
+<script>
+(function(){
+  var map = L.map('beyond-rent-map',{scrollWheelZoom:false}).setView([40.706,-73.978],10);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CartoDB',subdomains:'abcd',maxZoom:19}).addTo(map);
+  fetch('https://bkcb6.app/data/citywide-rents.geojson').then(r=>r.json()).then(function(d){
+    var vals=d.features.map(function(f){return f.properties.median_rent||0;}).filter(function(v){return v>0;});
+    var mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals);
+    function col(v){var t=(v-mn)/(mx-mn||1);var r=Math.round(18+t*200),g=Math.round(100-t*60),b=Math.round(180-t*150);return 'rgb('+r+','+g+','+b+')';}
+    L.geoJSON(d,{style:function(f){var v=f.properties.median_rent||0;return {fillColor:col(v),weight:1,color:'#fff',fillOpacity:0.75};},
+    onEachFeature:function(f,l){var v=f.properties.median_rent;l.bindPopup('<b>CB '+f.properties.boro_cd+'</b><br>Median Rent: '+(v?'$'+v.toLocaleString():'N/A'));}
+    }).addTo(map);
+  });
+})();
+</script>
     </div>
   </div>
 
@@ -265,9 +279,38 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     <div class="drop-body">
       <div class="map-header">
         <h3>2025 Election Results by Community Board — NYC</h3>
-        <a href="https://felt.com/map/339BGRZqJTdqi8OCqziK17B" target="_blank">Open full map ↗</a>
+        
       </div>
-      <iframe class="felt-embed" src="https://felt.com/embed/map/339BGRZqJTdqi8OCqziK17B?legend=1&cooperativeGestures=1&link=1&geolocation=0&zoomControls=1&scaleBar=1" title="2025 NYC Election Results by Community Board" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <div id="beyond-election-map" style="width:100%;height:420px;"></div>
+<script>
+(function(){
+  var map = L.map('beyond-election-map',{scrollWheelZoom:false}).setView([40.706,-73.978],10);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CartoDB',subdomains:'abcd',maxZoom:19}).addTo(map);
+  fetch('https://bkcb6.app/data/ballot_q2_cb_winner_margin.json').then(r=>r.json()).then(function(data){
+    fetch('https://bkcb6.app/community-district-boundaries.geojson').then(r=>r.json()).then(function(geo){
+      var byCD={};
+      (data.features||data).forEach(function(f){byCD[f.properties&&f.properties.boro_cd||f.boro_cd]=f;});
+      L.geoJSON(geo,{style:function(f){
+        var cd=f.properties.boro_cd;
+        var d=byCD[cd];
+        if(!d) return {fillColor:'#ccc',weight:1,color:'#fff',fillOpacity:0.5};
+        var winner=d.properties&&d.properties.winner||d.winner;
+        return {fillColor:winner==='YES'?'#27ae60':'#c0392b',weight:1,color:'#fff',fillOpacity:0.65};
+      },
+      onEachFeature:function(f,l){
+        var cd=f.properties.boro_cd;
+        var d=byCD[cd];
+        var txt=d?(d.properties&&d.properties.winner||d.winner||'N/A'):'No data';
+        l.bindPopup('<b>CB '+cd+'</b><br>Q2: '+txt);
+      }}).addTo(map);
+      // Legend
+      var leg=L.control({position:'bottomright'});
+      leg.onAdd=function(){var d=L.DomUtil.create('div','');d.style.cssText='background:#fff;padding:8px 10px;border-radius:6px;font-size:.7rem;font-family:monospace;line-height:1.8;box-shadow:0 2px 8px rgba(0,0,0,.15)';d.innerHTML='<b>Q2 Result</b><br><span style="color:#27ae60">■</span> YES<br><span style="color:#c0392b">■</span> NO';return d;};
+      leg.addTo(map);
+    });
+  });
+})();
+</script>
       <div class="chart-section-label">NYC by CB — Overview</div>
       <div class="chart-grid">
         <div class="chart-item"><img src="charts/ballot_questions_combined_community-board_wins.png" alt="Ballot questions by CB" loading="lazy"></div>
