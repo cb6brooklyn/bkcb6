@@ -412,38 +412,42 @@ async function lookup() {
   try {
     let a = null;
     let resolvedBoro = currentBoro;
+    const KEY = 'b913bdfb9c47466589d0f08c99c75b21';
+
     const tryBoro = async (b) => {
-      try {
-        // Step 1: Geocode + get districts via NYC Planning GeoService (no key, CORS-friendly)
-        const boroMap = {'Brooklyn':'3','Manhattan':'1','Queens':'4','Bronx':'2','Staten Island':'5','Citywide':''};
-        const boroCode = boroMap[b] || '';
-        const gsvcUrl = `https://geoservice.planning.nyc.gov/geoservice/geoservices/stable/Function_1E.json?houseNo=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(street)}&borough=${encodeURIComponent(b !== 'Citywide' ? b : 'Manhattan')}&resultType=inner`;
-        const gsvcResp = await fetch(gsvcUrl);
-        if (gsvcResp.ok) {
-          const gsvcData = await gsvcResp.json();
-          const r = gsvcData && (gsvcData['Geo Support Function 1E'] || gsvcData.result || gsvcData);
-          if (r && r['Community District'] && r['Community District'] !== '000') {
+      const boroName = b !== 'Citywide' ? b : 'Brooklyn';
+      
+      // Primary: Geoclient (works from bkcb6.app domain)
+      const streetVariants = [street, street.replace(/\bParkway$/i,'Pkwy'), street.replace(/\bPkwy$/i,'Parkway')].filter((v,i,a)=>a.indexOf(v)===i);
+      for (const s of streetVariants) {
+        try {
+          const url = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(s)}&borough=${encodeURIComponent(boroName)}&subscription-key=${KEY}`;
+          const resp = await fetch(url);
+          const data = await resp.json();
+          if (data.address && !data.address.message && data.address.communityDistrict) {
+            const a = data.address;
             return {
-              latitude: parseFloat(r['Latitude'] || r['latitude'] || 0),
-              longitude: parseFloat(r['Longitude'] || r['longitude'] || 0),
-              cityCouncilDistrict: parseInt(r['City Council District'] || r['CityCouncilDistrict'] || 0),
-              communityDistrict: r['Community District'] || r['CommunityDistrict'],
-              stateLegislativeDistrict: parseInt(r['State Assembly District'] || r['AssemblyDistrict'] || 0),
-              stateSenatorialDistrict: parseInt(r['State Senate District'] || r['StateSenateDistrict'] || 0),
-              congressionalDistrict: parseInt(r['Congressional District'] || r['CongressionalDistrict'] || 0),
-              electionDistrict: r['Election District'] || r['ElectionDistrict'],
-              houseNumber: r['House Number'] || houseNum,
-              firstStreetNameNormalized: r['First Street Name Normalized'] || street,
-              uspsPreferredCityName: b !== 'Citywide' ? b : (r['USPS Preferred City Name'] || 'New York'),
-              zipCode: r['ZIP Code'] || r['ZipCode'] || '',
-              _borough: b !== 'Citywide' ? b : (r['Borough Name'] || 'Brooklyn')
+              latitude: parseFloat(a.latitude||a.latitudeInternalLabel||0),
+              longitude: parseFloat(a.longitude||a.longitudeInternalLabel||0),
+              cityCouncilDistrict: a.cityCouncilDistrict,
+              communityDistrict: a.communityDistrict,
+              stateLegislativeDistrict: a.stateLegislativeDistrict||a.assemblyDistrict,
+              stateSenatorialDistrict: a.stateSenatorialDistrict,
+              congressionalDistrict: a.congressionalDistrict,
+              electionDistrict: a.electionDistrict,
+              houseNumber: a.houseNumber||houseNum,
+              firstStreetNameNormalized: a.firstStreetNameNormalized||s,
+              uspsPreferredCityName: a.uspsPreferredCityName||boroName,
+              zipCode: a.zipCode||'',
+              _borough: boroName
             };
           }
-        }
+        } catch(e) {}
+      }
 
-        // Step 2: Fall back to geosearch for coordinates only
-        const boroSuffix = b !== 'Citywide' ? ` ${b} New York` : ' New York City';
-        const gsUrl = `https://geosearch.planninglabs.nyc/v2/search?text=${encodeURIComponent(houseNum+' '+street+boroSuffix)}&size=3`;
+      // Fallback: geosearch for coordinates + Geoclient search endpoint for districts
+      try {
+        const gsUrl = `https://geosearch.planninglabs.nyc/v2/search?text=${encodeURIComponent(houseNum+' '+street+' '+boroName+' New York')}&size=3`;
         const gsResp = await fetch(gsUrl);
         const gsData = await gsResp.json();
         if (!gsData.features || !gsData.features.length) return null;
@@ -452,41 +456,34 @@ async function lookup() {
         const lat = f.geometry.coordinates[1];
         const lng = f.geometry.coordinates[0];
 
-        // Step 3: Try GeoService with normalized street name from geosearch
+        // Try Geoclient with normalized street name from geosearch
         if (p.street) {
-          const gsvc2Url = `https://geoservice.planning.nyc.gov/geoservice/geoservices/stable/Function_1E.json?houseNo=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(p.street)}&borough=${encodeURIComponent(p.borough||b)}&resultType=inner`;
-          const gsvc2Resp = await fetch(gsvc2Url);
-          if (gsvc2Resp.ok) {
-            const gsvc2Data = await gsvc2Resp.json();
-            const r2 = gsvc2Data && (gsvc2Data['Geo Support Function 1E'] || gsvc2Data.result || gsvc2Data);
-            if (r2 && r2['Community District'] && r2['Community District'] !== '000') {
+          try {
+            const url2 = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(p.street)}&borough=${encodeURIComponent(p.borough||boroName)}&subscription-key=${KEY}`;
+            const resp2 = await fetch(url2);
+            const data2 = await resp2.json();
+            if (data2.address && !data2.address.message && data2.address.communityDistrict) {
+              const a = data2.address;
               return {
                 latitude: lat, longitude: lng,
-                cityCouncilDistrict: parseInt(r2['City Council District'] || 0),
-                communityDistrict: r2['Community District'],
-                stateLegislativeDistrict: parseInt(r2['State Assembly District'] || 0),
-                stateSenatorialDistrict: parseInt(r2['State Senate District'] || 0),
-                congressionalDistrict: parseInt(r2['Congressional District'] || 0),
-                electionDistrict: r2['Election District'],
-                houseNumber: p.housenumber || houseNum,
-                firstStreetNameNormalized: p.street || street,
-                uspsPreferredCityName: p.borough || b,
-                zipCode: p.postalcode || '',
-                _borough: p.borough || b
+                cityCouncilDistrict: a.cityCouncilDistrict,
+                communityDistrict: a.communityDistrict,
+                stateLegislativeDistrict: a.stateLegislativeDistrict||a.assemblyDistrict,
+                stateSenatorialDistrict: a.stateSenatorialDistrict,
+                congressionalDistrict: a.congressionalDistrict,
+                electionDistrict: a.electionDistrict,
+                houseNumber: a.houseNumber||houseNum,
+                firstStreetNameNormalized: a.firstStreetNameNormalized||p.street,
+                uspsPreferredCityName: p.borough||boroName,
+                zipCode: a.zipCode||p.postalcode||'',
+                _borough: p.borough||boroName
               };
             }
-          }
+          } catch(e) {}
         }
 
-        // Return with just coordinates if districts unavailable
-        return {
-          latitude: lat, longitude: lng,
-          houseNumber: p.housenumber || houseNum,
-          firstStreetNameNormalized: p.street || street,
-          uspsPreferredCityName: p.borough || b,
-          zipCode: p.postalcode || '',
-          _borough: p.borough || b
-        };
+        // Return coords only if all district lookups fail
+        return { latitude: lat, longitude: lng, houseNumber: p.housenumber||houseNum, firstStreetNameNormalized: p.street||street, uspsPreferredCityName: p.borough||boroName, zipCode: p.postalcode||'', _borough: p.borough||boroName };
       } catch(e) {}
       return null;
     };
