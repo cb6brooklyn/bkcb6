@@ -196,6 +196,29 @@ function clearHighlights() {
 
 var CB_LOOKUP = {}; // cache of boro_cd -> overlapping districts
 
+var cbLayerState = {}; // boro_cd -> {on, layer}
+
+function showCBPanel(feature, code) {
+  var boroCode = code.charAt(0);
+  var num = parseInt(code.slice(1));
+  var boroName = BORO_NAMES[boroCode]||'';
+  var cbPageKey = {'3':'bk','1':'mn','4':'qn','2':'bx','5':'si'}[boroCode]||'bk';
+  var CB_HOODS = {
+    '101':'Financial District · Tribeca · Battery Park City','102':'Greenwich Village · SoHo · Hudson Square','103':'Lower East Side · Chinatown · Two Bridges','104':'Chelsea · Hell\'s Kitchen · Clinton','105':'Midtown · Flatiron · Murray Hill','106':'Stuyvesant Town · Turtle Bay · Beekman Hill','107':'Upper West Side · Manhattan Valley','108':'Upper East Side · Lenox Hill · Yorkville','109':'Morningside Heights · West Harlem','110':'Central Harlem','111':'East Harlem · Spanish Harlem','112':'Washington Heights · Inwood · Marble Hill',
+    '201':'Mott Haven · Port Morris','202':'Hunts Point · Longwood','203':'Morrisania · Crotona Park East','204':'Highbridge · Concourse','205':'Fordham · University Heights','206':'Belmont · East Tremont','207':'Kingsbridge · Riverdale','208':'Riverdale · Fieldston · Spuyten Duyvil','209':'Throgs Neck · Co-op City','210':'Pelham Bay · Williamsbridge','211':'Pelham Parkway · Morris Park','212':'Wakefield · Williamsbridge · Woodlawn',
+    '301':'Williamsburg · Greenpoint','302':'Williamsburg · East Williamsburg','303':'Bedford-Stuyvesant','304':'Bushwick','305':'East New York · Cypress Hills · City Line','306':'Park Slope · Carroll Gardens · Cobble Hill · Red Hook · Gowanus · Columbia Street Waterfront','307':'Sunset Park · Windsor Terrace','308':'Crown Heights North · Prospect Heights','309':'Crown Heights South · Prospect Lefferts Gardens · Wingate','310':'Bay Ridge · Dyker Heights','311':'Bensonhurst · Bath Beach','312':'Borough Park · Kensington · Ocean Parkway','313':'Coney Island · Brighton Beach · Sea Gate · Manhattan Beach','314':'Flatbush · Midwood','315':'Sheepshead Bay · Gerritsen Beach · Homecrest','316':'Brownsville','317':'East Flatbush · Farragut · Rugby · Remsen Village','318':'Canarsie · Flatlands',
+    '401':'Astoria · Long Island City','402':'Sunnyside · Woodside','403':'Jackson Heights · North Corona','404':'Elmhurst · Corona','405':'Ridgewood · Maspeth','406':'Rego Park · Forest Hills','407':'Flushing · Whitestone','408':'Jamaica · Hollis · St. Albans','409':'Richmond Hill · Woodhaven','410':'Howard Beach · Ozone Park','411':'Bayside · Douglaston · Little Neck','412':'Jamaica · Hollis','413':'Springfield Gardens · Jamaica','414':'Far Rockaway · Rockaway Beach',
+    '501':'St. George · Stapleton','502':'New Springville · Willowbrook · Bulls Head','503':'Tottenville · Great Kills · Annadale · Eltingville'
+  };
+  var hoods = CB_HOODS[code]||'';
+  var html = '<div style="font-weight:700;font-size:.88rem;color:#0d1b4b;margin-bottom:4px">'+boroName+' Community Board '+num+'</div>';
+  if(hoods) html += '<div style="font-size:.7rem;color:#666;line-height:1.5;margin-bottom:6px">'+hoods+'</div>';
+  html += '<a href="cb-'+cbPageKey+'-'+num+'.html" style="font-size:.7rem;font-family:\'DM Mono\',monospace;color:#f47920;font-weight:700">View CB profile ↗</a>';
+  var el = document.getElementById('s-result');
+  el.style.display='block';
+  el.innerHTML=html;
+}
+
 function showCBDistricts(feature) {
   var code = feature.properties.boro_cd || '';
   var boro = code.charAt(0);
@@ -568,80 +591,106 @@ function buildSubToggles(){
   sub.innerHTML='';
   sub.style.background='#f5f0e8';
 
-  const overlays = [
-    {k:'nypd',c:'#6b21a8',tc:'#fff',l:'👮 NYPD'},
-    {k:'fire',c:'#ea580c',tc:'#fff',l:'🚒 Fire'},
-    {k:'subway',c:'#1d4ed8',tc:'#fff',l:'🚇 Subway'},
-    {k:'citibike',c:'#0052a5',tc:'#fff',l:'🚲 Citibike'},
-    {k:'parks',c:'#16a34a',tc:'#fff',l:'🌳 Parks'},
-    {k:'gowanus',c:'#0d9488',tc:'#fff',l:'🌊 Gowanus'},
-    {k:'rents',c:'#dc2626',tc:'#fff',l:'🏠 Rents'},
+  // ── Individual CB toggles grouped by borough ──
+  const BORO_GROUPS = [
+    {code:'3', name:'Brooklyn', color:'#1a3a8a', cbs:18},
+    {code:'1', name:'Manhattan', color:'#003580', cbs:12},
+    {code:'4', name:'Queens', color:'#6b4f00', cbs:14},
+    {code:'2', name:'Bronx', color:'#b84800', cbs:12},
+    {code:'5', name:'Staten Island', color:'#1a5a50', cbs:3},
   ];
+
+  // Filter by activeMain
+  var boroFilter = {cb6:null,brooklyn:'3',manhattan:'1',queens:'4',bronx:'2',si:'5',nyc:null};
+  var activeBoroCode = boroFilter[activeMain];
+
+  // Show CB toggles - filtered by borough if one is selected
+  BORO_GROUPS.forEach(function(g){
+    if(activeBoroCode && activeBoroCode!==g.code) return;
+    for(var n=1;n<=g.cbs;n++){
+      var code = g.code + String(n).padStart(2,'0');
+      var label = g.name.substring(0,2).toUpperCase()+n;
+      if(activeMain==='nyc'||activeMain==='cb6') label = g.name.substring(0,2)+n;
+      var state = cbLayerState[code]||{on:false};
+      var btn = document.createElement('button');
+      btn.className='plyr-sub'+(state.on?' on':'');
+      btn.style.setProperty('--sc',g.color);
+      btn.style.setProperty('--stc','#fff');
+      btn.textContent='CB'+n;
+      btn.title=g.name+' CB'+n;
+      (function(c,boroColor){
+        btn.onclick=function(){
+          if(!cbLayerState[c]) cbLayerState[c]={on:false,layer:null};
+          var on=!cbLayerState[c].on;
+          cbLayerState[c].on=on;
+          btn.classList.toggle('on',on);
+          if(!on){
+            if(cbLayerState[c].layer){map.removeLayer(cbLayerState[c].layer);cbLayerState[c].layer=null;}
+            return;
+          }
+          if(!cdsData) return;
+          var feature=cdsData.features.find(f=>f.properties.boro_cd===c);
+          if(!feature) return;
+          var lyr=L.geoJSON(feature,{
+            style:{color:boroColor,weight:2.5,fillColor:boroColor,fillOpacity:.2},
+            onEachFeature:function(f,l){
+              l.on('click',function(){
+                showCBPanel(f,c);
+              });
+            }
+          }).addTo(map);
+          cbLayerState[c].layer=lyr;
+          showCBPanel(feature,c);
+        };
+      })(code, g.color);
+      sub.appendChild(btn);
+    }
+    // small spacer between boroughs
+    if(activeMain==='nyc'){
+      var sp=document.createElement('span');
+      sp.style.cssText='display:inline-block;width:6px';
+      sub.appendChild(sp);
+    }
+  });
+
+  // Divider
+  var div=document.createElement('span');
+  div.style.cssText='display:inline-block;width:1px;height:20px;background:#ccc;margin:0 6px;vertical-align:middle;flex-shrink:0';
+  sub.appendChild(div);
+
+  // ── Legislative + overlay toggles ──
   const legislative = [
     {k:'cc',c:'#0d7490',l:'🏙 Council'},
     {k:'assembly',c:'#1a7a4a',l:'🏛 Assembly'},
     {k:'senate',c:'#6b21a8',l:'⚖️ Senate'},
     {k:'congress',c:'#b91c1c',l:'🇺🇸 Congress'},
   ];
+  const overlays = [
+    {k:'nypd',c:'#6b21a8',tc:'#fff',l:'👮 NYPD'},
+    {k:'fire',c:'#ea580c',tc:'#fff',l:'🚒 Fire'},
+    {k:'subway',c:'#1d4ed8',tc:'#fff',l:'🚇 Subway'},
+    {k:'citibike',c:'#0052a5',tc:'#fff',l:'🚲 Citibike'},
+    {k:'parks',c:'#16a34a',tc:'#fff',l:'🌳 Parks'},
+    {k:'rents',c:'#dc2626',tc:'#fff',l:'🏠 Rents'},
+  ];
+  if(activeMain==='cb6') overlays.push({k:'gowanus',c:'#0d9488',tc:'#fff',l:'🌊 Gowanus'});
 
-  function addBtn(item){
-    const btn=document.createElement('button');
+  legislative.forEach(function(item){
+    var btn=document.createElement('button');
+    btn.className='plyr-sub'+(subState[item.k]?' on':'');
+    btn.style.setProperty('--sc',item.c);btn.style.setProperty('--stc','#fff');
+    btn.textContent=item.l;
+    btn.onclick=function(){subState[item.k]=!subState[item.k];btn.classList.toggle('on');toggleOverlay(item.k,subState[item.k]);updateLegend();};
+    sub.appendChild(btn);
+  });
+  overlays.forEach(function(item){
+    var btn=document.createElement('button');
     btn.className='plyr-sub'+(subState[item.k]?' on':'');
     btn.style.setProperty('--sc',item.c);btn.style.setProperty('--stc',item.tc||'#fff');
     btn.textContent=item.l;
-    btn.onclick=()=>{subState[item.k]=!subState[item.k];btn.classList.toggle('on');toggleOverlay(item.k,subState[item.k]);updateLegend();};
+    btn.onclick=function(){subState[item.k]=!subState[item.k];btn.classList.toggle('on');toggleOverlay(item.k,subState[item.k]);updateLegend();};
     sub.appendChild(btn);
-  }
-
-  const boroCodeMap={cb6:'306',brooklyn:'3',manhattan:'1',queens:'4',bronx:'2',si:'5'};
-  const boroCode=boroCodeMap[activeMain];
-
-  if(activeMain!=='nyc' && cdsData){
-    // Individual CB toggle buttons for selected borough (or just CB6)
-    var boroCBs=cdsData.features.filter(function(f){
-      if(activeMain==='cb6') return f.properties.boro_cd==='306';
-      return f.properties.boro_cd.charAt(0)===boroCode;
-    }).sort(function(a,b){return parseInt(a.properties.boro_cd)-parseInt(b.properties.boro_cd);});
-
-    var boroColor=activeMain==='cb6'?'#f47920':(BORO_COLORS[boroCode]||'#888');
-
-    boroCBs.forEach(function(f){
-      var code=f.properties.boro_cd;
-      var num=parseInt(code.slice(1));
-      var st=cbToggleState[code]||{on:false};
-      var btn=document.createElement('button');
-      btn.className='plyr-sub'+(st.on?' on':'');
-      btn.style.setProperty('--sc',boroColor);btn.style.setProperty('--stc','#fff');
-      btn.textContent='CB '+num;
-      btn.title=CB_HOODS[code]||'';
-      btn.onclick=function(){
-        var nowOn=!(cbToggleState[code]&&cbToggleState[code].on);
-        btn.classList.toggle('on',nowOn);
-        toggleCBLayer(code,nowOn,f);
-        if(nowOn){
-          window._selectedCBFeature=f;
-          var boro=code.charAt(0);
-          var profKey=CB_PROFILE_KEYS[boro]||'bk';
-          Promise.all([
-            window._ccData?Promise.resolve():fetch('data/city-council-districts.geojson').then(r=>r.json()).then(d=>{window._ccData=d;}),
-            window._assemblyData?Promise.resolve():fetch('data/state-assembly-districts.geojson').then(r=>r.json()).then(d=>{window._assemblyData=d;}),
-            window._senateData?Promise.resolve():fetch('data/state-senate-districts.geojson').then(r=>r.json()).then(d=>{window._senateData=d;}),
-            window._congressData?Promise.resolve():fetch('data/congressional-districts.geojson').then(r=>r.json()).then(d=>{window._congressData=d;}),
-          ]).then(function(){showCBDistricts(f);refreshLegislativeLayers();});
-        }
-      };
-      sub.appendChild(btn);
-    });
-
-    // Divider
-    const div=document.createElement('span');
-    div.style.cssText='display:inline-block;width:1px;height:18px;background:#ccc;margin:0 6px;vertical-align:middle;flex-shrink:0';
-    sub.appendChild(div);
-  }
-
-  // Always show legislative + overlay toggles
-  legislative.forEach(addBtn);
-  overlays.forEach(addBtn);
+  });
 }
 
 // ── LEGEND ──
