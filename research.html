@@ -373,36 +373,61 @@ function loadOverlay(name, url, builder){
   fetch(url).then(r=>r.json()).then(d=>builder(d)).catch(e=>console.log(name,'load failed',e));
 }
 
+// Bounding boxes per view for filtering point/area layers
+var VIEW_BOUNDS = {
+  cb6:    {minLat:40.645, maxLat:40.705, minLng:-74.025, maxLng:-73.955},
+  brooklyn:{minLat:40.570, maxLat:40.740, minLng:-74.060, maxLng:-73.840},
+  manhattan:{minLat:40.695, maxLat:40.882, minLng:-74.025, maxLng:-73.905},
+  queens:  {minLat:40.540, maxLat:40.810, minLng:-73.970, maxLng:-73.700},
+  bronx:   {minLat:40.780, maxLat:40.920, minLng:-73.940, maxLng:-73.745},
+  si:      {minLat:40.495, maxLat:40.655, minLng:-74.260, maxLng:-74.035},
+};
+
+function filterByView(features, getLat, getLng) {
+  var b = VIEW_BOUNDS[activeMain];
+  if(!b) return features;
+  return features.filter(function(f){
+    var lat=getLat(f), lng=getLng(f);
+    if(!lat||!lng) return true;
+    return lat>=b.minLat && lat<=b.maxLat && lng>=b.minLng && lng<=b.maxLng;
+  });
+}
+
 function buildNYPD(d){
-  nypdLayer = L.geoJSON(d,{
+  var nypdFeatures = filterByView(d.features, f=>{try{var c=f.geometry.coordinates[0][0];return Array.isArray(c[0])?c[0][1]:c[1];}catch(e){return 0;}}, f=>{try{var c=f.geometry.coordinates[0][0];return Array.isArray(c[0])?c[0][0]:c[0];}catch(e){return 0;}});
+  nypdLayer = L.geoJSON({type:'FeatureCollection',features:nypdFeatures},{
     style:{color:'#6b21a8',weight:1,fillColor:'#6b21a8',fillOpacity:.18},
     onEachFeature:(f,l)=>{const p=f.properties;l.bindTooltip('Precinct '+p.pct+' · Sector '+p.sector,{sticky:true});}
   });
   if(subState.nypd) nypdLayer.addTo(map);
 }
 function buildFire(d){
-  fireLayer = L.geoJSON(d,{
+  var fireFeatures = filterByView(d.features, f=>{try{var c=f.geometry.coordinates[0][0];return Array.isArray(c[0])?c[0][1]:c[1];}catch(e){return 0;}}, f=>{try{var c=f.geometry.coordinates[0][0];return Array.isArray(c[0])?c[0][0]:c[0];}catch(e){return 0;}});
+  fireLayer = L.geoJSON({type:'FeatureCollection',features:fireFeatures},{
     style:{color:'#ea580c',weight:1.5,fillColor:'#ea580c',fillOpacity:.12},
     onEachFeature:(f,l)=>{const p=f.properties;l.bindTooltip('Battalion '+(p.fire_bn||p.bn||''),{sticky:true});}
   });
   if(subState.fire) fireLayer.addTo(map);
 }
 function buildSubway(d){
-  subwayLayer = L.geoJSON(d,{
+  var subFeatures = filterByView(d.features, f=>f.geometry.coordinates[1], f=>f.geometry.coordinates[0]);
+  subwayLayer = L.geoJSON({type:'FeatureCollection',features:subFeatures},{
     pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:5,fillColor:'#1d4ed8',color:'#fff',weight:1.5,fillOpacity:1}),
     onEachFeature:(f,l)=>l.bindTooltip(f.properties.stop_name+' ('+f.properties.daytime_routes+')',{sticky:true})
   });
   if(subState.subway) subwayLayer.addTo(map);
 }
 function buildCitibike(d){
-  citibikeLayer = L.geoJSON(d,{
+  var cbFeatures = filterByView(d.features, f=>f.geometry.coordinates[1], f=>f.geometry.coordinates[0]);
+  citibikeLayer = L.geoJSON({type:'FeatureCollection',features:cbFeatures},{
     pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:4,fillColor:'#0052a5',color:'#fff',weight:1.5,fillOpacity:1}),
     onEachFeature:(f,l)=>l.bindTooltip(f.properties.name||'Citibike',{sticky:true})
   });
   if(subState.citibike) citibikeLayer.addTo(map);
 }
 function buildParks(d){
-  parksLayer = L.geoJSON(d,{
+  var pkFeatures = filterByView(d.features, f=>{try{var r=f.geometry.type==='Polygon'?f.geometry.coordinates[0]:f.geometry.coordinates[0][0];return r.reduce((s,c)=>s+c[1],0)/r.length;}catch(e){return 0;}}, f=>{try{var r=f.geometry.type==='Polygon'?f.geometry.coordinates[0]:f.geometry.coordinates[0][0];return r.reduce((s,c)=>s+c[0],0)/r.length;}catch(e){return 0;}});
+  parksLayer = L.geoJSON({type:'FeatureCollection',features:pkFeatures},{
     style:{color:'#16a34a',weight:1,fillColor:'#16a34a',fillOpacity:.3},
     onEachFeature:(f,l)=>l.bindTooltip(f.properties.name||'Park',{sticky:true})
   });
@@ -543,7 +568,8 @@ function refreshLegislativeLayers(){
   if(window._congressData && subState.congress){ buildCongress(window._congressData); }
 }
 function buildHistoric(d){
-  var historicLayer = L.geoJSON(d,{
+  var histFeatures = filterByView(d.features, f=>{try{var r=f.geometry.type==='Polygon'?f.geometry.coordinates[0]:f.geometry.coordinates[0][0];return r.reduce((s,c)=>s+c[1],0)/r.length;}catch(e){return 0;}}, f=>{try{var r=f.geometry.type==='Polygon'?f.geometry.coordinates[0]:f.geometry.coordinates[0][0];return r.reduce((s,c)=>s+c[0],0)/r.length;}catch(e){return 0;}});
+  var historicLayer = L.geoJSON({type:'FeatureCollection',features:histFeatures},{
     style:{color:'#7c5c00',weight:1.5,fillColor:'#c9a84c',fillOpacity:.25,dashArray:'4,3'},
     onEachFeature:(f,l)=>{
       var name=f.properties.area_name||'Historic District';
