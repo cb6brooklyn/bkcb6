@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NYC Districts & Research — CB6 & Beyond</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#0d1b4b;--orange:#F47920;--dark:#060e28;--border:rgba(255,255,255,.08);
+  --bk:#1a3a8a;--mn:#003580;--qn:#6b4f00;--bx:#b84800;--si:#1a5a50;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--dark);color:#fff;font-family:'DM Sans',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+.header{background:var(--navy);border-bottom:3px solid var(--orange);padding:0 16px;height:52px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.header a{font-family:'DM Mono',monospace;font-size:.58rem;font-weight:700;color:rgba(255,255,255,.5);text-decoration:none;letter-spacing:.1em;text-transform:uppercase}
+.header a:hover{color:var(--orange)}
+.header-title{font-family:'DM Mono',monospace;font-size:.65rem;font-weight:700;color:#fff;letter-spacing:.12em;text-transform:uppercase}
+
+.body{flex:1;display:flex;overflow:hidden}
+
+/* LEFT SIDEBAR */
+.sidebar{width:260px;flex-shrink:0;background:rgba(13,27,75,.5);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--orange) transparent}
+.sidebar::-webkit-scrollbar{width:3px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--orange);border-radius:2px}
+
+.sidebar-section{padding:14px 14px 10px;border-bottom:1px solid var(--border)}
+.sidebar-section-title{font-family:'DM Mono',monospace;font-size:.52rem;font-weight:700;color:var(--orange);letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px}
+
+/* Layer toggles */
+.layer-group{margin-bottom:8px}
+.layer-group-label{font-family:'DM Mono',monospace;font-size:.45rem;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
+.layer-item{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:pointer;transition:background .1s}
+.layer-item:hover{background:rgba(255,255,255,.05)}
+.layer-item input[type=checkbox]{accent-color:var(--orange);width:13px;height:13px;cursor:pointer;flex-shrink:0}
+.layer-swatch{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.layer-item label{font-size:.7rem;color:rgba(255,255,255,.8);cursor:pointer;line-height:1.3}
+
+/* Borough buttons */
+.boro-btns{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.boro-btn{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:7px;padding:7px 8px;cursor:pointer;text-align:left;transition:all .15s}
+.boro-btn:hover,.boro-btn.active{border-color:var(--orange);background:rgba(244,121,32,.1)}
+.boro-btn-name{font-size:.72rem;font-weight:700;color:#fff;display:block}
+.boro-btn-cbs{font-family:'DM Mono',monospace;font-size:.46rem;color:rgba(255,255,255,.4)}
+.boro-btn.bk{border-left:3px solid var(--bk)}
+.boro-btn.mn{border-left:3px solid var(--mn)}
+.boro-btn.qn{border-left:3px solid var(--qn)}
+.boro-btn.bx{border-left:3px solid var(--bx)}
+.boro-btn.si{border-left:3px solid var(--si)}
+.boro-btn.all{border-left:3px solid var(--orange);grid-column:1/-1}
+
+/* MAP */
+.map-wrap{flex:1;position:relative;overflow:hidden}
+#research-map{width:100%;height:100%}
+
+/* Map info box */
+.map-info{position:absolute;bottom:16px;left:16px;z-index:1000;background:rgba(6,14,40,.92);border:1px solid var(--border);border-radius:10px;padding:10px 14px;max-width:240px;backdrop-filter:blur(10px);display:none}
+.map-info-title{font-family:'DM Mono',monospace;font-size:.55rem;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.map-info-body{font-size:.75rem;color:rgba(255,255,255,.85);line-height:1.5}
+
+/* BOTTOM STRIP - search */
+.bottom-strip{flex-shrink:0;background:rgba(13,27,75,.7);border-top:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:10px;backdrop-filter:blur(10px)}
+.bottom-strip-label{font-family:'DM Mono',monospace;font-size:.55rem;font-weight:700;color:var(--orange);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.addr-wrap{flex:1;position:relative}
+.addr-input{width:100%;padding:9px 14px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);border-radius:8px;color:#fff;font-size:.82rem;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .15s}
+.addr-input:focus{border-color:var(--orange)}
+.addr-input::placeholder{color:rgba(255,255,255,.35)}
+.search-btn{padding:9px 16px;background:var(--orange);border:none;border-radius:8px;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer;font-family:'DM Mono',monospace;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.boro-select{background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);border-radius:8px;color:#fff;font-size:.75rem;padding:9px 10px;font-family:'DM Mono',monospace;cursor:pointer;outline:none}
+.ac-list{position:absolute;bottom:100%;left:0;right:0;background:#0d1b4b;border:1.5px solid var(--orange);border-bottom:none;border-radius:8px 8px 0 0;z-index:2000;max-height:180px;overflow-y:auto;display:none}
+.ac-item{padding:9px 14px;font-size:.78rem;color:rgba(255,255,255,.85);cursor:pointer;border-bottom:1px solid var(--border)}
+.ac-item:hover{background:rgba(244,121,32,.15);color:#fff}
+
+@media(max-width:640px){
+  .sidebar{display:none}
+  .body{flex-direction:column}
+  .map-wrap{flex:1;min-height:50vh}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a href="index.html">← Home</a>
+  <div class="header-title">NYC Districts & Research</div>
+  <a href="library.html">Directory →</a>
+</div>
+
+<div class="body">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <!-- CB6 Default -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Focus</div>
+      <div class="boro-btns">
+        <button class="boro-btn all active" onclick="focusCB6()">
+          <span class="boro-btn-name">CB6</span>
+          <span class="boro-btn-cbs">Default view</span>
+        </button>
+        <button class="boro-btn bk" onclick="focusBoro('Brooklyn')">
+          <span class="boro-btn-name">Brooklyn</span>
+          <span class="boro-btn-cbs">18 CBs</span>
+        </button>
+        <button class="boro-btn mn" onclick="focusBoro('Manhattan')">
+          <span class="boro-btn-name">Manhattan</span>
+          <span class="boro-btn-cbs">12 CBs</span>
+        </button>
+        <button class="boro-btn qn" onclick="focusBoro('Queens')">
+          <span class="boro-btn-name">Queens</span>
+          <span class="boro-btn-cbs">14 CBs</span>
+        </button>
+        <button class="boro-btn bx" onclick="focusBoro('Bronx')">
+          <span class="boro-btn-name">The Bronx</span>
+          <span class="boro-btn-cbs">12 CBs</span>
+        </button>
+        <button class="boro-btn si" onclick="focusBoro('Staten Island')">
+          <span class="boro-btn-name">Staten Island</span>
+          <span class="boro-btn-cbs">3 CBs</span>
+        </button>
+        <button class="boro-btn all" onclick="focusNYC()">
+          <span class="boro-btn-name">All NYC</span>
+          <span class="boro-btn-cbs">59 CBs</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Layer Controls -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Layers</div>
+
+      <div class="layer-group">
+        <div class="layer-group-label">Community Boards</div>
+        <div class="layer-item">
+          <input type="checkbox" id="lyr-cb6" checked onchange="toggleLayer('cb6',this.checked)">
+          <div class="layer-swatch" style="background:#F47920"></div>
+          <label for="lyr-cb6">CB6 Boundary</label>
+        </div>
+        <div class="layer-item">
+          <input type="checkbox" id="lyr-cds" onchange="toggleLayer('cds',this.checked)">
+          <div class="layer-swatch" style="background:#4a90d9"></div>
+          <label for="lyr-cds">All Community Districts</label>
+        </div>
+      </div>
+
+      <div class="layer-group">
+        <div class="layer-group-label">Safety</div>
+        <div class="layer-item">
+          <input type="checkbox" id="lyr-nypd" onchange="toggleLayer('nypd',this.checked)">
+          <div class="layer-swatch" style="background:#6b21a8"></div>
+          <label for="lyr-nypd">NYPD Sectors</label>
+        </div>
+        <div class="layer-item">
+          <input type="checkbox" id="lyr-fire" onchange="toggleLayer('fire',this.checked)">
+          <div class="layer-swatch" style="background:#ea580c"></div>
+          <label for="lyr-fire">Fire Battalions</label>
+        </div>
+      </div>
+
+      <div class="layer-group">
+        <div class="layer-group-label">Transit</div>
+        <div class="layer-item">
+          <input type="checkbox" id="lyr-subway" onchange="toggleLayer('subway',this.checked)">
+          <div class="layer-swatch" style="background:#1d4ed8;border-radius:50%"></div>
+          <label for="lyr-subway">Subway Stations</label>
+        </div>
+        <div class="layer-item">
+          <input type="checkbox" id="lyr-citibike" onchange="toggleLayer('citibike',this.checked)">
+          <div class="layer-swatch" style="background:#0052a5;border-radius:50%"></div>
+          <label for="lyr-citibike">Citibike Stations</label>
+        </div>
+      </div>
+
+      <div class="layer-group">
+        <div class="layer-group-label">Land Use</div>
+        <div class="layer-item">
+          <input type="checkbox" id="lyr-parks" onchange="toggleLayer('parks',this.checked)">
+          <div class="layer-swatch" style="background:#16a34a"></div>
+          <label for="lyr-parks">Parks</label>
+        </div>
+        <div class="layer-item">
+          <input type="checkbox" id="lyr-gowanus" onchange="toggleLayer('gowanus',this.checked)">
+          <div class="layer-swatch" style="background:#F47920;opacity:.6"></div>
+          <label for="lyr-gowanus">Gowanus Rezoning</label>
+        </div>
+      </div>
+
+      <div class="layer-group">
+        <div class="layer-group-label">Legislative Districts</div>
+        <div class="layer-item" style="opacity:.4" title="Upload GeoJSON to enable">
+          <input type="checkbox" id="lyr-cc" disabled>
+          <div class="layer-swatch" style="background:#0d7490"></div>
+          <label for="lyr-cc">City Council <span style="font-size:.55rem;color:var(--orange)">(upload)</span></label>
+        </div>
+        <div class="layer-item" style="opacity:.4" title="Upload GeoJSON to enable">
+          <input type="checkbox" id="lyr-assembly" disabled>
+          <div class="layer-swatch" style="background:#1a7a4a"></div>
+          <label for="lyr-assembly">State Assembly <span style="font-size:.55rem;color:var(--orange)">(upload)</span></label>
+        </div>
+        <div class="layer-item" style="opacity:.4" title="Upload GeoJSON to enable">
+          <input type="checkbox" id="lyr-senate" disabled>
+          <div class="layer-swatch" style="background:#6b21a8"></div>
+          <label for="lyr-senate">State Senate <span style="font-size:.55rem;color:var(--orange)">(upload)</span></label>
+        </div>
+        <div class="layer-item" style="opacity:.4" title="Upload GeoJSON to enable">
+          <input type="checkbox" id="lyr-congress" disabled>
+          <div class="layer-swatch" style="background:#b91c1c"></div>
+          <label for="lyr-congress">Congressional <span style="font-size:.55rem;color:var(--orange)">(upload)</span></label>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Rent layer -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Housing</div>
+      <div class="layer-group">
+        <div class="layer-item">
+          <input type="checkbox" id="lyr-rents" onchange="toggleLayer('rents',this.checked)">
+          <div class="layer-swatch" style="background:linear-gradient(to right,#4a90d9,#c0392b)"></div>
+          <label for="lyr-rents">Citywide Rents</label>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MAP -->
+  <div class="map-wrap">
+    <div id="research-map"></div>
+    <div class="map-info" id="map-info">
+      <div class="map-info-title" id="map-info-title"></div>
+      <div class="map-info-body" id="map-info-body"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- BOTTOM SEARCH STRIP -->
+<div class="bottom-strip">
+  <div class="bottom-strip-label">Who Reps What & Where</div>
+  <select class="boro-select" id="res-boro">
+    <option value="Brooklyn">Brooklyn</option>
+    <option value="Manhattan">Manhattan</option>
+    <option value="Queens">Queens</option>
+    <option value="Bronx">Bronx</option>
+    <option value="Staten Island">Staten Island</option>
+    <option value="Citywide">Citywide</option>
+  </select>
+  <div class="addr-wrap">
+    <input class="addr-input" id="res-addr" placeholder="Enter any NYC address…" autocomplete="off"
+      onkeydown="if(event.key==='Enter')resSearch()"
+      oninput="resAC(this.value)">
+    <div class="ac-list" id="res-ac"></div>
+  </div>
+  <button class="search-btn" onclick="resSearch()">Look Up</button>
+</div>
+
+<script>
+// ── MAP INIT ──
+const map = L.map('research-map', {
+  center: [40.6771, -74.0012],
+  zoom: 13,
+  zoomControl: true
+});
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap &copy; CartoDB',
+  subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+// Borough colors
+const BORO_COLORS = {
+  '3':'#1a3a8a','1':'#003580','4':'#6b4f00','2':'#b84800','5':'#1a5a50'
+};
+const BORO_NAMES = {'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
+
+// ── LAYERS ──
+const layers = {};
+
+// CB6 boundary
+fetch('data/cb6_boundary.geojson').then(r=>r.json()).then(d=>{
+  layers.cb6 = L.geoJSON(d, {
+    style: {color:'#F47920', weight:3, fillColor:'#F47920', fillOpacity:0.08, dashArray:null}
+  }).addTo(map);
+  layers.cb6.on('click', ()=>showInfo('Brooklyn Community Board 6', 'Park Slope · Gowanus · Carroll Gardens · Red Hook · Cobble Hill · ~120,000 residents'));
+});
+
+// Community districts (all)
+fetch('community-district-boundaries.geojson').then(r=>r.json()).then(d=>{
+  layers.cds = L.geoJSON(d, {
+    style: f => {
+      const code = f.properties.boro_cd || '';
+      const boro = code.charAt(0);
+      return {color: BORO_COLORS[boro]||'#888', weight:1.5, fillColor: BORO_COLORS[boro]||'#888', fillOpacity:0.25};
+    },
+    onEachFeature: (f, l) => {
+      const code = f.properties.boro_cd || '';
+      const boro = code.charAt(0);
+      const num = parseInt(code.slice(1));
+      const name = (BORO_NAMES[boro]||'') + ' CB' + num;
+      l.bindTooltip(name, {sticky:true, className:'', direction:'top'});
+      l.on('click', ()=>showInfo(name, 'Community Board ' + num + ' · ' + (BORO_NAMES[boro]||'')));
+    }
+  }); // not added by default
+});
+
+// NYPD sectors
+fetch('data/nypd_sectors.geojson').then(r=>r.json()).then(d=>{
+  layers.nypd = L.geoJSON(d, {
+    style: {color:'#6b21a8', weight:1, fillColor:'#6b21a8', fillOpacity:0.12},
+    onEachFeature: (f,l) => {
+      const p = f.properties;
+      l.bindTooltip('Precinct '+p.pct+' · Sector '+p.sector, {sticky:true, direction:'top'});
+      l.on('click', ()=>showInfo('NYPD Precinct '+p.pct, 'Sector '+p.sector));
+    }
+  });
+});
+
+// Fire battalions
+fetch('data/fire_battalions.geojson').then(r=>r.json()).then(d=>{
+  layers.fire = L.geoJSON(d, {
+    style: {color:'#ea580c', weight:1.5, fillColor:'#ea580c', fillOpacity:0.1},
+    onEachFeature: (f,l) => {
+      const p = f.properties;
+      const name = p.fire_bn || p.bn || p.name || 'Battalion';
+      l.bindTooltip('Fire Battalion '+name, {sticky:true, direction:'top'});
+    }
+  });
+});
+
+// Subway stations
+fetch('data/nyc-subway-stations.geojson').then(r=>r.json()).then(d=>{
+  layers.subway = L.geoJSON(d, {
+    pointToLayer: (f,latlng) => L.circleMarker(latlng, {radius:5,fillColor:'#1d4ed8',color:'#fff',weight:1.5,fillOpacity:1}),
+    onEachFeature: (f,l) => l.bindTooltip(f.properties.stop_name+' ('+f.properties.daytime_routes+')', {sticky:true})
+  });
+});
+
+// Citibike
+fetch('data/citibike_stations_cb6.geojson').then(r=>r.json()).then(d=>{
+  layers.citibike = L.geoJSON(d, {
+    pointToLayer: (f,latlng) => L.circleMarker(latlng, {radius:4,fillColor:'#0052a5',color:'#fff',weight:1.5,fillOpacity:1}),
+    onEachFeature: (f,l) => l.bindTooltip(f.properties.name||'Citibike', {sticky:true})
+  });
+});
+
+// Parks
+fetch('data/bkcb6-parks.geojson').then(r=>r.json()).then(d=>{
+  layers.parks = L.geoJSON(d, {
+    style: {color:'#16a34a', weight:1, fillColor:'#16a34a', fillOpacity:0.3},
+    onEachFeature: (f,l) => l.bindTooltip(f.properties.name||'Park', {sticky:true})
+  });
+});
+
+// Gowanus rezoning
+fetch('data/Gowanus-Rezoning-Boundary-2.geojson').then(r=>r.json()).then(d=>{
+  layers.gowanus = L.geoJSON(d, {
+    style: {color:'#F47920', weight:2, fillColor:'#F47920', fillOpacity:0.12, dashArray:'4,4'}
+  });
+});
+
+// Citywide rents choropleth
+fetch('data/citywide-rents.geojson').then(r=>r.json()).then(d=>{
+  const vals = d.features.map(f=>f.properties.Studio||f.properties.rent_studio||0).filter(v=>v>0);
+  const mn = Math.min(...vals), mx = Math.max(...vals);
+  layers.rents = L.geoJSON(d, {
+    style: f => {
+      const v = f.properties.Studio||f.properties.rent_studio||0;
+      const t = (v-mn)/(mx-mn||1);
+      return {fillColor:`hsl(${220-t*180},70%,${65-t*25}%)`,weight:1,color:'rgba(255,255,255,.2)',fillOpacity:0.65};
+    },
+    onEachFeature: (f,l) => {
+      const v = f.properties.Studio||f.properties.rent_studio||0;
+      l.bindTooltip('CB '+f.properties.cb_code+'<br>Studio: $'+(v||'N/A'), {sticky:true});
+    }
+  });
+});
+
+// ── TOGGLE LAYERS ──
+function toggleLayer(name, on) {
+  if (!layers[name]) return;
+  if (on) layers[name].addTo(map);
+  else map.removeLayer(layers[name]);
+}
+
+// ── FOCUS FUNCTIONS ──
+function focusCB6() {
+  map.setView([40.6771,-74.0012], 13);
+  document.querySelectorAll('.boro-btn').forEach(b=>b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+}
+
+function focusBoro(boro) {
+  const centers = {
+    'Brooklyn':[40.650,-73.980,11],'Manhattan':[40.776,-73.971,11],
+    'Queens':[40.710,-73.860,11],'Bronx':[40.845,-73.866,11],'Staten Island':[40.600,-74.090,11]
+  };
+  const [lat,lng,z] = centers[boro]||[40.650,-73.980,11];
+  map.setView([lat,lng],z);
+  document.querySelectorAll('.boro-btn').forEach(b=>b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  
+  // Auto-enable community districts when focusing a borough
+  if (!document.getElementById('lyr-cds').checked) {
+    document.getElementById('lyr-cds').checked = true;
+    toggleLayer('cds', true);
+  }
+}
+
+function focusNYC() {
+  map.setView([40.706,-73.977],10);
+  document.querySelectorAll('.boro-btn').forEach(b=>b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  if (!document.getElementById('lyr-cds').checked) {
+    document.getElementById('lyr-cds').checked = true;
+    toggleLayer('cds', true);
+  }
+}
+
+// ── INFO BOX ──
+function showInfo(title, body) {
+  document.getElementById('map-info-title').textContent = title;
+  document.getElementById('map-info-body').textContent = body;
+  document.getElementById('map-info').style.display = 'block';
+}
+map.on('click', ()=>document.getElementById('map-info').style.display='none');
+
+// ── ADDRESS SEARCH ──
+let _acT = null;
+async function resAC(val) {
+  clearTimeout(_acT);
+  const list = document.getElementById('res-ac');
+  if (!val || val.length < 4) { list.style.display='none'; return; }
+  _acT = setTimeout(async ()=>{
+    try {
+      const boro = document.getElementById('res-boro').value;
+      const boroQ = boro !== 'Citywide' ? ` ${boro} New York` : ' New York City';
+      const url = `https://geosearch.planninglabs.nyc/v2/autocomplete?text=${encodeURIComponent(val+boroQ)}&size=6`;
+      const r = await fetch(url);
+      const d = await r.json();
+      list.innerHTML = '';
+      (d.features||[]).forEach(f=>{
+        const label = f.properties.label||'';
+        if (!label.toLowerCase().includes('new york')) return;
+        const item = document.createElement('div');
+        item.className = 'ac-item';
+        item.textContent = label;
+        item.onmousedown = ()=>{
+          document.getElementById('res-addr').value = label.replace(/, New York, NY.*$/i,'');
+          list.style.display='none';
+          resSearch();
+        };
+        list.appendChild(item);
+      });
+      list.style.display = list.children.length ? 'block' : 'none';
+    } catch(e) { document.getElementById('res-ac').style.display='none'; }
+  }, 200);
+}
+document.addEventListener('click', e=>{
+  if (!e.target.closest('.addr-wrap')) document.getElementById('res-ac').style.display='none';
+});
+
+async function resSearch() {
+  const input = document.getElementById('res-addr').value.trim();
+  const boro = document.getElementById('res-boro').value;
+  if (!input) return;
+  document.getElementById('res-ac').style.display='none';
+
+  const m = input.match(/^(\d+[-\d]*)\s+(.+)$/);
+  if (!m) return;
+  const houseNum = m[1], street = m[2];
+  const KEY = 'b913bdfb9c47466589d0f08c99c75b21';
+
+  // Try Geoclient first
+  const boros = boro === 'Citywide' ? ['Brooklyn','Manhattan','Queens','Bronx','Staten Island'] : [boro];
+  let result = null;
+  for (const b of boros) {
+    try {
+      const url = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(street)}&borough=${encodeURIComponent(b)}&subscription-key=${KEY}`;
+      const r = await fetch(url);
+      const d = await r.json();
+      if (d.address && !d.address.message && d.address.latitude) { result = d.address; break; }
+    } catch(e) {}
+  }
+
+  // Fallback: geosearch
+  if (!result) {
+    try {
+      const boroQ = boro !== 'Citywide' ? ` ${boro} New York` : ' New York City';
+      const r = await fetch(`https://geosearch.planninglabs.nyc/v2/search?text=${encodeURIComponent(houseNum+' '+street+boroQ)}&size=1`);
+      const d = await r.json();
+      if (d.features && d.features.length) {
+        const f = d.features[0];
+        result = { latitude: f.geometry.coordinates[1], longitude: f.geometry.coordinates[0], houseNumber: houseNum, firstStreetNameNormalized: street };
+      }
+    } catch(e) {}
+  }
+
+  if (!result || !result.latitude) return;
+  const lat = parseFloat(result.latitude), lng = parseFloat(result.longitude);
+
+  // Drop pin on map
+  if (window._searchPin) map.removeLayer(window._searchPin);
+  window._searchPin = L.circleMarker([lat, lng], {
+    radius:8, fillColor:'#F47920', color:'#fff', weight:2, fillOpacity:1
+  }).addTo(map).bindPopup(`<b>${result.houseNumber||houseNum} ${result.firstStreetNameNormalized||street}</b><br>
+    ${result.communityDistrict ? 'CB: '+result.communityDistrict : ''}
+    ${result.cityCouncilDistrict ? ' · Council: '+result.cityCouncilDistrict : ''}`).openPopup();
+  map.setView([lat, lng], 15);
+  window.open('mydistricts.html?address='+encodeURIComponent(input)+(boro!=='Citywide'?'&borough='+encodeURIComponent(boro):''), '_blank');
+}
+</script>
+</body>
+</html>
