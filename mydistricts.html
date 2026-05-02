@@ -419,7 +419,10 @@ async function lookup() {
 
     document.getElementById('split-container').style.display = 'block';
     results.style.display = 'block';
-    if (lat && lng) initMap(lat, lng, displayAddr, popupHtml, edNum, adNum);
+    if (lat && lng) {
+      initMap(lat, lng, displayAddr, popupHtml, edNum, adNum);
+      loadNearby(lat, lng);
+    }
 
     const addr = displayAddr;
 
@@ -535,6 +538,145 @@ window.addEventListener('DOMContentLoaded', () => {
 </style>
 <script>
 var _districtMap = null;
+var _nearbyMarkers = [];
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 3958.8;
+  const dLat = (lat2-lat1)*Math.PI/180;
+  const dLng = (lng2-lng1)*Math.PI/180;
+  const a = Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function closestFeature(features, lat, lng, latFn, lngFn) {
+  let best=null, bestD=Infinity;
+  features.forEach(f=>{
+    const fLat=latFn(f), fLng=lngFn(f);
+    if(!fLat||!fLng) return;
+    const d=haversine(lat,lng,fLat,fLng);
+    if(d<bestD){bestD=d;best={f,d};}
+  });
+  return best;
+}
+
+function milesLabel(d) {
+  if(d<0.1) return Math.round(d*5280)+' ft';
+  return d.toFixed(2)+' mi';
+}
+
+async function loadNearby(lat, lng) {
+  const resultsEl = document.getElementById('results');
+  const existingNearby = document.getElementById('nearby-section');
+  if(existingNearby) existingNearby.remove();
+  _nearbyMarkers.forEach(m=>{if(_districtMap)_districtMap.removeLayer(m);});
+  _nearbyMarkers=[];
+
+  const nearbyDiv = document.createElement('div');
+  nearbyDiv.id='nearby-section';
+  nearbyDiv.style.cssText='padding:16px 20px;border-top:2px solid #e5e2db;background:#f8f7f4';
+  nearbyDiv.innerHTML='<div style="font-size:.65rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.08em;color:#F47920;font-weight:700;margin-bottom:12px">📍 Nearby</div><div id="nearby-list" style="display:flex;flex-direction:column;gap:8px"><div style="font-size:.75rem;color:#888;font-family:\'DM Mono\',monospace">Loading...</div></div>';
+  resultsEl.appendChild(nearbyDiv);
+
+  const items = [];
+
+  // 1. Subway
+  try {
+    const r = await fetch('data/nyc-subway-stations.geojson');
+    const d = await r.json();
+    const res = closestFeature(d.features, lat, lng,
+      f=>f.geometry.coordinates[1], f=>f.geometry.coordinates[0]);
+    if(res) items.push({icon:'🚇',label:'Subway',name:res.f.properties.stop_name+' ('+res.f.properties.daytime_routes+')',dist:res.d,lat:res.f.geometry.coordinates[1],lng:res.f.geometry.coordinates[0],color:'#1d4ed8'});
+  } catch(e){}
+
+  // 2. Parks
+  try {
+    const r = await fetch('Parks_Properties_20260414.geojson');
+    const d = await r.json();
+    const res = closestFeature(d.features, lat, lng,
+      f=>f.geometry.type==='Point'?f.geometry.coordinates[1]:(f.properties.latitude||null),
+      f=>f.geometry.type==='Point'?f.geometry.coordinates[0]:(f.properties.longitude||null));
+    if(res){
+      const p=res.f.properties;
+      const name=p.name||p.NAME||p.park_name||'Park';
+      let pLat=res.f.geometry.type==='Point'?res.f.geometry.coordinates[1]:(p.latitude||lat);
+      let pLng=res.f.geometry.type==='Point'?res.f.geometry.coordinates[0]:(p.longitude||lng);
+      items.push({icon:'🌳',label:'Park',name,dist:res.d,lat:pLat,lng:pLng,color:'#16a34a'});
+    }
+  } catch(e){}
+
+  // 3. Health / Hospital
+  try {
+    const r = await fetch('data/health_services_cb6.json');
+    const d = await r.json();
+    const records = d.records||d;
+    const res = closestFeature(records, lat, lng, f=>f.lat, f=>f.lon);
+    if(res) items.push({icon:'🏥',label:'Health',name:res.f.name,dist:res.d,lat:res.f.lat,lng:res.f.lon,color:'#dc2626'});
+  } catch(e){}
+
+  // 4. FDNY Firehouse
+  try {
+    const r = await fetch('data/fdny_firehouses.geojson');
+    const d = await r.json();
+    const res = closestFeature(d.features, lat, lng,
+      f=>f.geometry.coordinates[1], f=>f.geometry.coordinates[0]);
+    if(res) items.push({icon:'🚒',label:'Firehouse',name:res.f.properties.name||res.f.properties.address,dist:res.d,lat:res.f.geometry.coordinates[1],lng:res.f.geometry.coordinates[0],color:'#ea580c'});
+  } catch(e){}
+
+  // 5. Police Precinct (find containing sector)
+  try {
+    const r = await fetch('data/nypd_sectors.geojson');
+    const d = await r.json();
+    // Find closest sector centroid
+    const res = closestFeature(d.features, lat, lng,
+      f=>{ try{return f.geometry.coordinates[0][0][1];}catch(e){return null;}},
+      f=>{ try{return f.geometry.coordinates[0][0][0];}catch(e){return null;}});
+    if(res) {
+      const p=res.f.properties;
+      items.push({icon:'👮',label:'Precinct',name:'Precinct '+p.pct+' · Sector '+p.sector,dist:res.d,lat:lat,lng:lng,color:'#7c3aed'});
+    }
+  } catch(e){}
+
+  // 6. Libraries via NYC Open Data (runtime fetch)
+  try {
+    const r = await fetch('https://data.cityofnewyork.us/resource/p4pf-fyc4.json?$limit=200&$$app_token=');
+    const libs = await r.json();
+    const res = closestFeature(libs, lat, lng,
+      f=>parseFloat(f.latitude||f.lat||0), f=>parseFloat(f.longitude||f.lng||f.long||0));
+    if(res&&res.d<5) items.push({icon:'📚',label:'Library',name:res.f.name||res.f.branch_name||'Library',dist:res.d,lat:parseFloat(res.f.latitude||res.f.lat),lng:parseFloat(res.f.longitude||res.f.lng||res.f.long),color:'#0891b2'});
+  } catch(e){}
+
+  // Render
+  items.sort((a,b)=>a.label.localeCompare(b.label));
+  const list = document.getElementById('nearby-list');
+  if(!list) return;
+  list.innerHTML='';
+
+  items.forEach(item=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;padding:8px 10px;background:#fff;border-radius:8px;border:1px solid #e5e2db';
+    row.innerHTML=`<span style="font-size:1.1rem">${item.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.62rem;font-family:'DM Mono',monospace;color:${item.color};font-weight:700;text-transform:uppercase;letter-spacing:.06em">${item.label}</div>
+        <div style="font-size:.78rem;font-weight:600;color:#0d1b4b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.name}</div>
+      </div>
+      <div style="font-family:'DM Mono',monospace;font-size:.62rem;color:#6b6760;white-space:nowrap">${milesLabel(item.dist)}</div>`;
+    list.appendChild(row);
+
+    // Add pin to map
+    if(_districtMap && item.lat && item.lng) {
+      const icon = L.divIcon({
+        className:'',
+        html:`<div style="background:${item.color};color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">${item.icon}</div>`,
+        iconSize:[22,22],iconAnchor:[11,11]
+      });
+      const m=L.marker([item.lat,item.lng],{icon}).addTo(_districtMap)
+        .bindPopup(`<b>${item.icon} ${item.label}</b><br>${item.name}<br><em>${milesLabel(item.dist)} away</em>`);
+      _nearbyMarkers.push(m);
+    }
+  });
+
+  if(items.length===0) list.innerHTML='<div style="font-size:.75rem;color:#888;font-family:\'DM Mono\',monospace">No nearby data found.</div>';
+}
 
 async function initMap(lat, lng, label, popupHtml, edNum, adNum) {
   const container = document.getElementById('map-container');
