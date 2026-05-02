@@ -218,7 +218,44 @@ function buildGowanus(d){
   });
   if(subState.gowanus) gowanusLayer.addTo(map);
 }
-function buildRents(d){
+// Legislative layers
+var COUNCIL_COLORS = ['#0d7490','#0e8aac','#0f9ec8','#10b2e4','#12c6ff','#0ea5c8'];
+var ASSEMBLY_COLORS = ['#1a7a4a','#1e8f56','#22a562','#26ba6e','#2acf7a'];
+var SENATE_COLORS = ['#6b21a8','#7c2dc4','#8e39e0','#a045fc'];
+var CONGRESS_COLORS = ['#b91c1c','#d42020','#f02424','#ff3030'];
+
+function buildCC(d){
+  const nums = [...new Set(d.features.map(f=>f.properties.CounDist))].sort((a,b)=>a-b);
+  ccLayer = L.geoJSON(d,{
+    style:f=>{const i=nums.indexOf(f.properties.CounDist)%COUNCIL_COLORS.length;return {color:'#fff',weight:1,fillColor:COUNCIL_COLORS[i],fillOpacity:.35};},
+    onEachFeature:(f,l)=>{l.bindTooltip('<strong>City Council District '+f.properties.CounDist+'</strong>',{sticky:true});}
+  });
+  if(subState.cc) ccLayer.addTo(map);
+}
+function buildAssembly(d){
+  const nums = [...new Set(d.features.map(f=>f.properties.assembly_district))].sort((a,b)=>a-b);
+  assemblyLayer = L.geoJSON(d,{
+    style:f=>{const i=nums.indexOf(f.properties.assembly_district)%ASSEMBLY_COLORS.length;return {color:'#fff',weight:1,fillColor:ASSEMBLY_COLORS[i],fillOpacity:.35};},
+    onEachFeature:(f,l)=>{l.bindTooltip('<strong>Assembly District '+f.properties.assembly_district+'</strong>',{sticky:true});}
+  });
+  if(subState.assembly) assemblyLayer.addTo(map);
+}
+function buildSenate(d){
+  const nums = [...new Set(d.features.map(f=>f.properties.st_sen_dist))].sort((a,b)=>a-b);
+  senateLayer = L.geoJSON(d,{
+    style:f=>{const i=nums.indexOf(f.properties.st_sen_dist)%SENATE_COLORS.length;return {color:'#fff',weight:1,fillColor:SENATE_COLORS[i],fillOpacity:.35};},
+    onEachFeature:(f,l)=>{l.bindTooltip('<strong>State Senate District '+f.properties.st_sen_dist+'</strong>',{sticky:true});}
+  });
+  if(subState.senate) senateLayer.addTo(map);
+}
+function buildCongress(d){
+  const nums = [...new Set(d.features.map(f=>f.properties.cong_dist))].sort((a,b)=>a-b);
+  congressLayer = L.geoJSON(d,{
+    style:f=>{const i=nums.indexOf(f.properties.cong_dist)%CONGRESS_COLORS.length;return {color:'#fff',weight:1,fillColor:CONGRESS_COLORS[i],fillOpacity:.35};},
+    onEachFeature:(f,l)=>{l.bindTooltip('<strong>Congressional District NY-'+f.properties.cong_dist+'</strong>',{sticky:true});}
+  });
+  if(subState.congress) congressLayer.addTo(map);
+}
   const vals=d.features.map(f=>f.properties.Studio||f.properties.rent_studio||0).filter(v=>v>0);
   const mn=Math.min(...vals),mx=Math.max(...vals);
   rentsLayer = L.geoJSON(d,{
@@ -239,9 +276,13 @@ function toggleOverlay(name, on){
     parks:()=>loadOverlay('parks','data/bkcb6-parks.geojson',buildParks),
     gowanus:()=>loadOverlay('gowanus','data/Gowanus-Rezoning-Boundary-2.geojson',buildGowanus),
     rents:()=>loadOverlay('rents','data/citywide-rents.geojson',buildRents),
+    cc:()=>loadOverlay('cc','data/city-council-districts.geojson',buildCC),
+    assembly:()=>loadOverlay('assembly','data/state-assembly-districts.geojson',buildAssembly),
+    senate:()=>loadOverlay('senate','data/state-senate-districts.geojson',buildSenate),
+    congress:()=>loadOverlay('congress','data/congressional-districts.geojson',buildCongress),
   };
   if(on && loaders[name]) loaders[name]();
-  const lyrMap = {nypd:nypdLayer,fire:fireLayer,subway:subwayLayer,citibike:citibikeLayer,parks:parksLayer,gowanus:gowanusLayer,rents:rentsLayer};
+  const lyrMap = {nypd:nypdLayer,fire:fireLayer,subway:subwayLayer,citibike:citibikeLayer,parks:parksLayer,gowanus:gowanusLayer,rents:rentsLayer,cc:ccLayer,assembly:assemblyLayer,senate:senateLayer,congress:congressLayer};
   if(!on && lyrMap[name]) map.removeLayer(lyrMap[name]);
 }
 
@@ -287,13 +328,7 @@ function buildSubToggles(){
     {k:'rents',c:'#dc2626',tc:'#fff',l:'🏠 Rents'},
   ];
 
-  // Legislative — disabled until files uploaded
-  const legislative = [
-    {k:'cc',c:'#0d7490',l:'🏙 City Council'},
-    {k:'assembly',c:'#1a7a4a',l:'🏛 Assembly'},
-    {k:'senate',c:'#6b21a8',l:'⚖️ Senate'},
-    {k:'congress',c:'#b91c1c',l:'🇺🇸 Congress'},
-  ];
+  // Legislative — defined below
 
   if(activeMain==='cb6'){
     // CB6-specific layers
@@ -325,14 +360,19 @@ function buildSubToggles(){
     });
   }
 
-  // Legislative placeholder buttons
+  // Legislative layers - now enabled
+  const legislative = [
+    {k:'cc',c:'#0d7490',l:'🏙 City Council'},
+    {k:'assembly',c:'#1a7a4a',l:'🏛 Assembly'},
+    {k:'senate',c:'#6b21a8',l:'⚖️ Senate'},
+    {k:'congress',c:'#b91c1c',l:'🇺🇸 Congress'},
+  ];
   legislative.forEach(item=>{
     const btn=document.createElement('button');
-    btn.className='plyr-sub';
+    btn.className='plyr-sub'+(subState[item.k]?' on':'');
     btn.style.setProperty('--sc',item.c);btn.style.setProperty('--stc','#fff');
-    btn.textContent=item.l+' ↑';
-    btn.title='Upload '+item.l+' GeoJSON to enable';
-    btn.disabled=true;
+    btn.textContent=item.l;
+    btn.onclick=()=>{subState[item.k]=!subState[item.k];btn.classList.toggle('on');toggleOverlay(item.k,subState[item.k]);updateLegend();};
     sub.appendChild(btn);
   });
 }
@@ -341,7 +381,7 @@ function buildSubToggles(){
 function updateLegend(){
   let html='';
   const active = Object.keys(subState).filter(k=>subState[k]);
-  const labels = {nypd:['#6b21a8','NYPD Sectors'],fire:['#ea580c','Fire Battalions'],subway:['#1d4ed8','Subway'],citibike:['#0052a5','Citibike'],parks:['#16a34a','Parks'],gowanus:['#0d9488','Gowanus'],rents:['#dc2626','Rents (choropleth)']};
+  const labels = {nypd:['#6b21a8','NYPD Sectors'],fire:['#ea580c','Fire Battalions'],subway:['#1d4ed8','Subway'],citibike:['#0052a5','Citibike'],parks:['#16a34a','Parks'],gowanus:['#0d9488','Gowanus'],rents:['#dc2626','Rents'],cc:['#0d7490','City Council'],assembly:['#1a7a4a','Assembly'],senate:['#6b21a8','State Senate'],congress:['#b91c1c','Congress']};
   if(['brooklyn','manhattan','queens','bronx','si','nyc'].includes(activeMain)){
     const boroKey = {brooklyn:'3',manhattan:'1',queens:'4',bronx:'2',si:'5'};
     const bk = boroKey[activeMain];
