@@ -442,7 +442,7 @@ async function lookup() {
           }
         } catch(e) {}
 
-        // Step 3: Fall back to Geoclient if BetaNYC failed
+        // Step 3: Fall back to Geoclient if districts missing
         if (!districts.communityDistrict) {
           try {
             const KEY = 'b913bdfb9c47466589d0f08c99c75b21';
@@ -450,15 +450,24 @@ async function lookup() {
             const gcResp = await fetch(gcUrl);
             const gcData = await gcResp.json();
             if (gcData.address && !gcData.address.message) {
-              const a = gcData.address;
-              districts.cityCouncilDistrict = a.cityCouncilDistrict;
-              districts.communityDistrict = a.communityDistrict;
-              districts.stateLegislativeDistrict = a.stateLegislativeDistrict || a.assemblyDistrict;
-              districts.stateSenatorialDistrict = a.stateSenatorialDistrict;
-              districts.congressionalDistrict = a.congressionalDistrict;
-              districts.electionDistrict = a.electionDistrict;
+              const gc = gcData.address;
+              districts.cityCouncilDistrict = gc.cityCouncilDistrict;
+              districts.communityDistrict = gc.communityDistrict;
+              districts.stateLegislativeDistrict = gc.stateLegislativeDistrict || gc.assemblyDistrict || gc.ad;
+              districts.stateSenatorialDistrict = gc.stateSenatorialDistrict || gc.sd;
+              districts.congressionalDistrict = gc.congressionalDistrict || gc.cd;
+              districts.electionDistrict = gc.electionDistrict || gc.ed;
             }
           } catch(e) {}
+        }
+
+        // If still missing districts, derive community district from geosearch borough + rough lookup
+        if (!districts.communityDistrict && p.borough) {
+          const BORO_PREFIX = {'Brooklyn':'3','Manhattan':'1','Queens':'4','Bronx':'2','Staten Island':'5'};
+          const prefix = BORO_PREFIX[p.borough] || '3';
+          // communityDistrict is a 3-digit code like 306
+          // We can't derive it without Geoclient, but set a flag
+          districts._needsDistricts = true;
         }
 
         return {
@@ -496,10 +505,10 @@ async function lookup() {
 
     if (a._borough) resolvedBoro = a._borough;
 
-    const cdNum = parseInt(a.cityCouncilDistrict);
+    const cdNum = parseInt(a.cityCouncilDistrict) || 0;
     const cdInfo = COUNCIL[cdNum];
     const cbRaw = a.communityDistrict;
-    const cbNum = parseInt(cbRaw) % 100;
+    const cbNum = cbRaw ? parseInt(cbRaw) % 100 : 0;
     const boroCode = BORO_CODES[resolvedBoro];
     const cbKey = boroCode + '-' + cbNum;
     const cbUrl = CB_URLS[cbKey] || '#';
@@ -577,8 +586,8 @@ async function lookup() {
     const bp = bpInfo[boroCode]||['',''];
 
     const cityContent =
-      row('Community Board', boroName+' CB '+cbNum, cbUrl) +
-      row('City Council', 'District '+cdNum+(cdInfo?' · '+cdInfo[0]:''), cdInfo?cdInfo[1]:null) +
+      row('Community Board', cbNum ? boroName+' CB '+cbNum : 'See map', cbNum ? cbUrl : null) +
+      row('City Council', cdNum ? 'District '+cdNum+(cdInfo?' · '+cdInfo[0]:'') : 'See nyc.gov/council', cdNum ? (cdInfo?cdInfo[1]:null) : 'https://council.nyc.gov/districts/') +
       row('Borough President', bp[0], bp[1]) +
       row('Comptroller', 'Mark Levine', 'https://comptroller.nyc.gov') +
       row('Mayor', 'Zohran Mamdani', 'https://www.nyc.gov/mayors-office');
