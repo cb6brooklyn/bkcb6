@@ -62,9 +62,6 @@ footer{padding:20px;font-size:.72rem;color:rgba(255,255,255,.4);text-align:cente
 <div class="hero">
   <h2>Who Reps What & Where</h2>
   <p>Enter any NYC address to find your Community Board, City Council Member, State Assembly Member, State Senator, and U.S. Representative.</p>
-<div class="hero">
-  <h2>Who Reps What & Where</h2>
-  <p>Enter any NYC address to find your Community Board, City Council Member, State Assembly Member, State Senator, and U.S. Representative.</p>
   <div class="search-row" style="position:relative">
     <input type="text" class="addr-input" id="addrInput" placeholder="e.g. 250 Baltic Street"
       onkeydown="if(event.key==='Enter'){document.getElementById('ac-list').style.display='none';lookup();}"
@@ -420,14 +417,17 @@ async function lookup() {
 
     const tryBoro = async (b) => {
       const streetVariants = [street];
-      // Add abbreviated variant
       const abbrev = street.replace(/\bParkway$/i,'Pkwy').replace(/\bAvenue$/i,'Ave').replace(/\bStreet$/i,'St').replace(/\bBoulevard$/i,'Blvd');
       if (abbrev !== street) streetVariants.push(abbrev);
-      // Add expanded variant
-      const expanded = street.replace(/\bPkwy$/i,'Parkway').replace(/\bAve$/i,'Avenue').replace(/\bSt$/i,'Street').replace(/\bBlvd$/i,'Boulevard');
-      if (expanded !== street && expanded !== abbrev) streetVariants.push(expanded);
 
       for (const s of streetVariants) {
+        try {
+          const url = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(s)}&borough=${encodeURIComponent(b)}&subscription-key=${KEY}`;
+          const resp = await fetch(url);
+          const data = await resp.json();
+          if (data.address && !data.address.message) return data.address;
+        } catch(e) {}
+        // Also try with header
         try {
           const url = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(s)}&borough=${encodeURIComponent(b)}`;
           const resp = await fetch(url, { headers: HEADERS });
@@ -435,10 +435,10 @@ async function lookup() {
           if (data.address && !data.address.message) return data.address;
         } catch(e) {}
       }
-      // Also try the search endpoint
+      // Try search endpoint
       try {
-        const url = `https://api.nyc.gov/geoclient/v2/search.json?input=${encodeURIComponent(houseNum+' '+street+' '+b)}`;
-        const resp = await fetch(url, { headers: HEADERS });
+        const url = `https://api.nyc.gov/geoclient/v2/search.json?input=${encodeURIComponent(houseNum+' '+street+' '+b)}&subscription-key=${KEY}`;
+        const resp = await fetch(url);
         const data = await resp.json();
         const hit = (data.results||[]).find(r => r.response && !r.response.message);
         if (hit) return hit.response;
