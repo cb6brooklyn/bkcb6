@@ -433,12 +433,46 @@ async function lookup() {
       const url = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(street)}&borough=${encodeURIComponent(currentBoro)}`;
       const resp = await fetch(url, { headers: { 'Ocp-Apim-Subscription-Key': 'b913bdfb9c47466589d0f08c99c75b21' } });
       const data = await resp.json();
-      a = data.address;
-      resolvedBoro = currentBoro;
+      // If standard address fails, try search endpoint as fallback
+      if (!data.address || data.address.message || (!data.address.cityCouncilDistrict && !data.address.communityDistrict && !data.address.latitude)) {
+        const searchUrl = `https://api.nyc.gov/geoclient/v2/search.json?input=${encodeURIComponent(houseNum+' '+street+', '+currentBoro)}`;
+        const searchResp = await fetch(searchUrl, { headers: { 'Ocp-Apim-Subscription-Key': 'b913bdfb9c47466589d0f08c99c75b21' } });
+        const searchData = await searchResp.json();
+        const results = searchData.results || [];
+        const hit = results.find(r => r.response && (r.response.cityCouncilDistrict || r.response.communityDistrict || r.response.latitude));
+        if (hit) { a = hit.response; resolvedBoro = currentBoro; }
+        else { a = data.address; resolvedBoro = currentBoro; }
+      } else {
+        a = data.address;
+        resolvedBoro = currentBoro;
+      }
     }
     spinner.style.display = 'none';
 
+    // Last resort: NYC Planning geosearch (no API key needed)
     if (!a || a.message || (!a.cityCouncilDistrict && !a.communityDistrict && !a.latitude)) {
+      try {
+        const boroQ = currentBoro !== 'Citywide' ? ', '+currentBoro+' NY' : ' NYC';
+        const gsUrl = `https://geosearch.planninglabs.nyc/v2/search?text=${encodeURIComponent(houseNum+' '+street+boroQ)}&size=1`;
+        const gsResp = await fetch(gsUrl);
+        const gsData = await gsResp.json();
+        if (gsData.features && gsData.features.length) {
+          const f = gsData.features[0];
+          const p = f.properties;
+          a = {
+            latitude: f.geometry.coordinates[1],
+            longitude: f.geometry.coordinates[0],
+            cityCouncilDistrict: p.addendum && p.addendum.nyc && p.addendum.nyc.council_district || null,
+            communityDistrict: p.addendum && p.addendum.nyc && p.addendum.nyc.community_district || null,
+            houseNumber: p.housenumber || houseNum,
+            firstStreetNameNormalized: p.street || street,
+            uspsPreferredCityName: p.borough || resolvedBoro,
+            zipCode: p.postalcode || ''
+          };
+          if (currentBoro === 'Citywide') resolvedBoro = p.borough || resolvedBoro;
+        }
+      } catch(e) { console.log('Geosearch fallback error:', e); }
+    }
       error.textContent = 'Address not found. Check the spelling and try again.';
       error.style.display = 'block';
       return;
