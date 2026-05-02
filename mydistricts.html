@@ -412,36 +412,31 @@ async function lookup() {
   try {
     let a = null;
     let resolvedBoro = currentBoro;
-    const KEY = 'b913bdfb9c47466589d0f08c99c75b21';
-    const HEADERS = { 'Ocp-Apim-Subscription-Key': KEY };
-
     const tryBoro = async (b) => {
-      const streetVariants = [street];
-      const abbrev = street.replace(/\bParkway$/i,'Pkwy').replace(/\bAvenue$/i,'Ave').replace(/\bStreet$/i,'St').replace(/\bBoulevard$/i,'Blvd');
-      if (abbrev !== street) streetVariants.push(abbrev);
-
-      for (const s of streetVariants) {
-        try {
-          const url = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(s)}&borough=${encodeURIComponent(b)}&subscription-key=${KEY}`;
-          const resp = await fetch(url);
-          const data = await resp.json();
-          if (data.address && !data.address.message) return data.address;
-        } catch(e) {}
-        // Also try with header
-        try {
-          const url = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(s)}&borough=${encodeURIComponent(b)}`;
-          const resp = await fetch(url, { headers: HEADERS });
-          const data = await resp.json();
-          if (data.address && !data.address.message) return data.address;
-        } catch(e) {}
-      }
-      // Try search endpoint
       try {
-        const url = `https://api.nyc.gov/geoclient/v2/search.json?input=${encodeURIComponent(houseNum+' '+street+' '+b)}&subscription-key=${KEY}`;
+        const boroQ = b !== 'Citywide' ? ` ${b} NY` : ' NYC';
+        const url = `https://geosearch.planninglabs.nyc/v2/search?text=${encodeURIComponent(houseNum+' '+street+boroQ)}&size=1`;
         const resp = await fetch(url);
         const data = await resp.json();
-        const hit = (data.results||[]).find(r => r.response && !r.response.message);
-        if (hit) return hit.response;
+        if (!data.features || !data.features.length) return null;
+        const f = data.features[0];
+        const p = f.properties;
+        // Build address object from geosearch result
+        return {
+          latitude: f.geometry.coordinates[1],
+          longitude: f.geometry.coordinates[0],
+          cityCouncilDistrict: p.addendum && p.addendum.nyc ? p.addendum.nyc.council_district : null,
+          communityDistrict: p.addendum && p.addendum.nyc ? p.addendum.nyc.community_district : null,
+          stateLegislativeDistrict: p.addendum && p.addendum.nyc ? p.addendum.nyc.assembly_district : null,
+          stateSenatorialDistrict: p.addendum && p.addendum.nyc ? p.addendum.nyc.state_senate_district : null,
+          congressionalDistrict: p.addendum && p.addendum.nyc ? p.addendum.nyc.congressional_district : null,
+          electionDistrict: p.addendum && p.addendum.nyc ? p.addendum.nyc.election_district : null,
+          houseNumber: p.housenumber || houseNum,
+          firstStreetNameNormalized: p.street || street,
+          uspsPreferredCityName: p.borough || b,
+          zipCode: p.postalcode || '',
+          _borough: p.borough || b
+        };
       } catch(e) {}
       return null;
     };
@@ -459,14 +454,13 @@ async function lookup() {
     spinner.style.display = 'none';
 
     if (!a) {
-      console.log('All lookups failed for:', houseNum, street, currentBoro);
-      error.innerHTML = 'Address not found.<br><small style="font-size:.6rem;color:#888">Debug: tried "'+houseNum+'" + "'+street+'" in '+currentBoro+'</small>';
+      error.textContent = 'Address not found. Check the spelling and try again.';
       error.style.display = 'block';
       return;
     }
     console.log('Address result:', JSON.stringify(a).substring(0, 500));
-    error.innerHTML = '<small style="color:#0f0;font-size:.55rem;word-break:break-all">'+JSON.stringify(a).substring(0,300)+'</small>';
-    error.style.display = 'block';
+
+    if (a._borough) resolvedBoro = a._borough;
 
     const cdNum = parseInt(a.cityCouncilDistrict);
     const cdInfo = COUNCIL[cdNum];
