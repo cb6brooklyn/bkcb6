@@ -419,11 +419,29 @@ async function lookup() {
     const HEADERS = { 'Ocp-Apim-Subscription-Key': KEY };
 
     const tryBoro = async (b) => {
+      const streetVariants = [street];
+      // Add abbreviated variant
+      const abbrev = street.replace(/\bParkway$/i,'Pkwy').replace(/\bAvenue$/i,'Ave').replace(/\bStreet$/i,'St').replace(/\bBoulevard$/i,'Blvd');
+      if (abbrev !== street) streetVariants.push(abbrev);
+      // Add expanded variant
+      const expanded = street.replace(/\bPkwy$/i,'Parkway').replace(/\bAve$/i,'Avenue').replace(/\bSt$/i,'Street').replace(/\bBlvd$/i,'Boulevard');
+      if (expanded !== street && expanded !== abbrev) streetVariants.push(expanded);
+
+      for (const s of streetVariants) {
+        try {
+          const url = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(s)}&borough=${encodeURIComponent(b)}`;
+          const resp = await fetch(url, { headers: HEADERS });
+          const data = await resp.json();
+          if (data.address && !data.address.message && !data.address.unknownStreetCode) return data.address;
+        } catch(e) {}
+      }
+      // Also try the search endpoint
       try {
-        const url = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(street)}&borough=${encodeURIComponent(b)}`;
+        const url = `https://api.nyc.gov/geoclient/v2/search.json?input=${encodeURIComponent(houseNum+' '+street+' '+b)}`;
         const resp = await fetch(url, { headers: HEADERS });
         const data = await resp.json();
-        if (data.address && !data.address.message && !data.address.unknownStreetCode) return data.address;
+        const hit = (data.results||[]).find(r => r.response && !r.response.message);
+        if (hit) return hit.response;
       } catch(e) {}
       return null;
     };
