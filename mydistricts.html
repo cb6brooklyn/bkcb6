@@ -82,7 +82,7 @@ footer{padding:20px;font-size:.72rem;color:rgba(255,255,255,.4);text-align:cente
 
 <div id="split-container" style="display:none;background:#fff;border-top:3px solid var(--orange)">
   <div style="display:flex;align-items:stretch;flex-wrap:wrap">
-    <div class="results" id="results" style="flex:1;min-width:280px;max-height:600px;overflow-y:auto;border-right:1px solid var(--border)"></div>
+    <div class="results" id="results" style="flex:1;min-width:280px;overflow-y:auto;border-right:1px solid var(--border)"></div>
     <div id="map-container" style="flex:1;min-width:280px;height:600px;position:sticky;top:0;min-height:320px"></div>
 <style>@media(max-width:600px){#map-container{width:100%;min-width:0!important;height:320px!important;position:relative!important;border-top:1px solid #e5e2db}}</style>
   </div>
@@ -592,17 +592,29 @@ async function loadNearby(lat, lng) {
   try {
     const r = await fetch('Parks_Properties_20260414.geojson');
     const d = await r.json();
+    // Extract centroid from first ring of MultiPolygon or Polygon
+    function getCentroid(f) {
+      try {
+        let coords;
+        if(f.geometry.type==='Point') return {lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0]};
+        if(f.geometry.type==='Polygon') coords=f.geometry.coordinates[0];
+        if(f.geometry.type==='MultiPolygon') coords=f.geometry.coordinates[0][0];
+        if(!coords||!coords.length) return null;
+        let sumLat=0,sumLng=0;
+        coords.forEach(c=>{sumLng+=c[0];sumLat+=c[1];});
+        return {lat:sumLat/coords.length, lng:sumLng/coords.length};
+      } catch(e){return null;}
+    }
     const res = closestFeature(d.features, lat, lng,
-      f=>f.geometry.type==='Point'?f.geometry.coordinates[1]:(f.properties.latitude||null),
-      f=>f.geometry.type==='Point'?f.geometry.coordinates[0]:(f.properties.longitude||null));
+      f=>{const c=getCentroid(f);return c?c.lat:null;},
+      f=>{const c=getCentroid(f);return c?c.lng:null;});
     if(res){
       const p=res.f.properties;
-      const name=p.name||p.NAME||p.park_name||'Park';
-      let pLat=res.f.geometry.type==='Point'?res.f.geometry.coordinates[1]:(p.latitude||lat);
-      let pLng=res.f.geometry.type==='Point'?res.f.geometry.coordinates[0]:(p.longitude||lng);
-      items.push({icon:'🌳',label:'Park',name,dist:res.d,lat:pLat,lng:pLng,color:'#16a34a'});
+      const name=p.signname||p.name311||'Park';
+      const c=getCentroid(res.f);
+      items.push({icon:'🌳',label:'Park',name,dist:res.d,lat:c.lat,lng:c.lng,color:'#16a34a'});
     }
-  } catch(e){}
+  } catch(e){console.log('Parks error:',e);}
 
   // 3. Health / Hospital
   try {
@@ -676,6 +688,9 @@ async function loadNearby(lat, lng) {
   });
 
   if(items.length===0) list.innerHTML='<div style="font-size:.75rem;color:#888;font-family:\'DM Mono\',monospace">No nearby data found.</div>';
+  
+  // Scroll nearby section into view
+  setTimeout(()=>nearbyDiv.scrollIntoView({behavior:'smooth',block:'nearest'}), 200);
 }
 
 async function initMap(lat, lng, label, popupHtml, edNum, adNum) {
