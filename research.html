@@ -165,13 +165,23 @@ function pip(lng, lat, feature) {
   return false;
 }
 
-// Get centroid of a GeoJSON feature
-function centroid(feature) {
+// Get multiple sample points from a feature for better overlap detection
+function samplePoints(feature) {
   var g = feature.geometry;
-  var coords = g.type === 'Polygon' ? g.coordinates[0] : g.coordinates[0][0];
-  var lng = coords.reduce((s,c)=>s+c[0],0)/coords.length;
-  var lat = coords.reduce((s,c)=>s+c[1],0)/coords.length;
-  return [lat, lng];
+  var polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+  var points = [];
+  polys.forEach(function(poly) {
+    var ring = poly[0];
+    // Add centroid
+    var lng = ring.reduce(function(s,c){return s+c[0];},0)/ring.length;
+    var lat = ring.reduce(function(s,c){return s+c[1];},0)/ring.length;
+    points.push([lng,lat]);
+    // Add points at 25%, 50%, 75% along the ring
+    [Math.floor(ring.length*0.25), Math.floor(ring.length*0.5), Math.floor(ring.length*0.75)].forEach(function(i){
+      if(ring[i]) points.push([ring[i][0], ring[i][1]]);
+    });
+  });
+  return points;
 }
 
 var highlightLayers = [];
@@ -199,23 +209,34 @@ function showCBDistricts(feature) {
   var c = centroid(feature);
   var cLat = c[0], cLng = c[1];
 
-  // Find overlapping districts using centroid PIP
+  // Find overlapping districts - check multiple points of CB boundary against each district
   var districts = {cc:[], assembly:[], senate:[], congress:[]};
   var distData = {
-    cc: {data: window._ccData, key:'CounDist', label:'City Council'},
-    assembly: {data: window._assemblyData, key:'assembly_district', label:'Assembly'},
-    senate: {data: window._senateData, key:'st_sen_dist', label:'State Senate'},
-    congress: {data: window._congressData, key:'cong_dist', label:'Congress'},
+    cc: {data: window._ccData, key:'CounDist', label:'Council'},
+    assembly: {data: window._assemblyData, key:'assembly_district', label:'AD'},
+    senate: {data: window._senateData, key:'st_sen_dist', label:'SD'},
+    congress: {data: window._congressData, key:'cong_dist', label:'NY'},
   };
   var distColors = {cc:'#0d7490', assembly:'#1a7a4a', senate:'#6b21a8', congress:'#b91c1c'};
+
+  // Sample points from the CB boundary
+  var cbPoints = samplePoints(feature);
 
   Object.keys(distData).forEach(function(type) {
     var dd = distData[type];
     if (!dd.data) return;
     dd.data.features.forEach(function(f) {
-      if (pip(cLng, cLat, f)) {
-        districts[type].push(f.properties[dd.key]);
-        // Highlight overlapping district
+      var distNum = f.properties[dd.key];
+      if (districts[type].indexOf(distNum) > -1) return; // already found
+      // Check if any CB sample point falls in this district
+      var overlaps = cbPoints.some(function(pt) { return pip(pt[0], pt[1], f); });
+      // Also check if district centroid falls in CB
+      if (!overlaps) {
+        var dpts = samplePoints(f);
+        overlaps = dpts.some(function(pt) { return pip(pt[0], pt[1], feature); });
+      }
+      if (overlaps) {
+        districts[type].push(distNum);
         var lyr = L.geoJSON(f, {style:{color:distColors[type],weight:2,fillColor:distColors[type],fillOpacity:.2,dashArray:'4,4'}}).addTo(map);
         highlightLayers.push(lyr);
       }
@@ -231,11 +252,14 @@ function showCBDistricts(feature) {
 
   function distRow(icon, label, nums, lookup) {
     if (!nums.length) return '';
+    nums.sort(function(a,b){return parseInt(a)-parseInt(b);});
     var items = nums.map(function(n) {
-      var info = lookup[n];
-      return info ? '<a href="'+info[1]+'" target="_blank" style="color:#0d1b4b;font-weight:600;text-decoration:none">'+info[0]+'</a> <span style="color:#888">('+label+' '+n+')</span>' : label+' '+n;
+      var info = lookup[parseInt(n)];
+      return info
+        ? '<a href="'+info[1]+'" target="_blank" style="color:#0d1b4b;font-weight:700;text-decoration:none">'+info[0]+'</a> <span style="color:#aaa;font-size:.7rem">('+label+' '+n+')</span>'
+        : label+' '+n;
     }).join('<br>');
-    return '<tr><td style="padding:5px 10px 5px 0;vertical-align:top;white-space:nowrap;font-size:.75rem"><span style="font-size:.85rem">'+icon+'</span></td><td style="padding:5px 0;font-size:.78rem;line-height:1.6">'+items+'</td></tr>';
+    return '<tr><td style="padding:5px 8px 5px 0;vertical-align:top;font-size:.9rem">'+icon+'</td><td style="padding:5px 0;font-size:.78rem;line-height:1.8">'+items+'</td></tr>';
   }
 
   html += '<table style="border-collapse:collapse;width:100%">';
