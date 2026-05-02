@@ -91,6 +91,7 @@ window._senateLookup = {10:["Andrew Gounardes","https://www.nysenate.gov/senator
 window._congressLookup = {5:["Gregory Meeks","https://meeks.house.gov"],6:["Grace Meng","https://meng.house.gov"],7:["Nydia Velázquez","https://velazquez.house.gov"],8:["Hakeem Jeffries","https://jeffries.house.gov"],9:["Yvette Clarke","https://clarke.house.gov"],10:["Dan Goldman","https://goldman.house.gov"],11:["Nicole Malliotakis","https://malliotakis.house.gov"],12:["Jerry Nadler","https://nadler.house.gov"],13:["Adriano Espaillat","https://espaillat.house.gov"],14:["Alexandria Ocasio-Cortez","https://ocasio-cortez.house.gov"],15:["Ritchie Torres","https://torres.house.gov"],16:["George Latimer","https://latimer.house.gov"]};
 
 var activeMain = 'cb6';
+var activeBoroFilter = '306'; // boro_cd prefix or specific code
 var searchMarker = null;
 
 // Borough colors from seals
@@ -266,7 +267,12 @@ function showCBDistricts(feature) {
 
 function buildCDLayer(){
   if(cdsLayer) map.removeLayer(cdsLayer);
-  cdsLayer = L.geoJSON(cdsData,{
+  var features = cdsData.features.filter(function(f){
+    if(!activeBoroFilter) return true;
+    if(activeBoroFilter.length===3) return f.properties.boro_cd===activeBoroFilter;
+    return f.properties.boro_cd.charAt(0)===activeBoroFilter;
+  });
+  cdsLayer = L.geoJSON({type:'FeatureCollection',features:features},{
     style:f=>{
       const code=f.properties.boro_cd||'';
       const boro=code.charAt(0);
@@ -397,7 +403,45 @@ function districtBoroColor(distNum, type) {
 
 function buildLegislative(type, data, key, label, layerVar) {
   if(window[layerVar]) map.removeLayer(window[layerVar]);
-  window[layerVar] = L.geoJSON(data, {
+  // Filter features by active borough
+  var filteredData = data;
+  if(activeBoroFilter) {
+    var boroCode = activeBoroFilter.length===3 ? activeBoroFilter.charAt(0) : activeBoroFilter;
+    // Use district-to-borough mapping
+    var BK_CC=[33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48];
+    var MN_CC=[1,2,3,4,5,6,7,8,9,10];
+    var QN_CC=[19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+    var BX_CC=[11,12,13,14,15,16,17,18];
+    var SI_CC=[49,50,51];
+    var BK_AS=[41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60];
+    var MN_AS=[65,66,67,68,69,70,71,72,73,74,75,76];
+    var QN_AS=[23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40];
+    var BX_AS=[77,78,79,80,81,82,83,84,85,86,87];
+    var SI_AS=[61,62,63,64];
+    var BK_SS=[17,18,20,21,22,25,26];
+    var MN_SS=[27,28,29,30,31];
+    var QN_SS=[10,11,12,13,14,15,16,23];
+    var BX_SS=[32,33,34];
+    var SI_SS=[24];
+    var BK_CO=[8,9,10];
+    var MN_CO=[12,13];
+    var QN_CO=[5,6,7,14];
+    var BX_CO=[15,16];
+    var SI_CO=[11];
+    var boroMaps = {
+      'cc':{'3':BK_CC,'1':MN_CC,'4':QN_CC,'2':BX_CC,'5':SI_CC},
+      'assembly':{'3':BK_AS,'1':MN_AS,'4':QN_AS,'2':BX_AS,'5':SI_AS},
+      'senate':{'3':BK_SS,'1':MN_SS,'4':QN_SS,'2':BX_SS,'5':SI_SS},
+      'congress':{'3':BK_CO,'1':MN_CO,'4':QN_CO,'2':BX_CO,'5':SI_CO},
+    };
+    var allowed = boroMaps[type] && boroMaps[type][boroCode];
+    if(allowed) {
+      filteredData = {type:'FeatureCollection', features: data.features.filter(function(f){
+        return allowed.indexOf(parseInt(f.properties[key]))>-1;
+      })};
+    }
+  }
+  window[layerVar] = L.geoJSON(filteredData, {
     style: f => {
       var num = f.properties[key];
       var color = districtBoroColor(num, type);
@@ -478,8 +522,13 @@ function setMain(which, btn){
   if(['brooklyn','manhattan','queens','bronx','si','nyc'].includes(which)) loadCDs();
   else if(cdsLayer) map.removeLayer(cdsLayer);
 
+  // Set borough filter
+  var filters = {'cb6':'306','brooklyn':'3','manhattan':'1','queens':'4','bronx':'2','si':'5','nyc':null};
+  activeBoroFilter = filters[which];
   buildSubToggles();
   updateLegend();
+  // Refresh all active legislative layers with new filter
+  refreshLegislativeLayers();
 }
 
 // ── SUB TOGGLES ──
