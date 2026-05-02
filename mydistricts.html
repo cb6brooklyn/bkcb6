@@ -414,10 +414,36 @@ async function lookup() {
     let resolvedBoro = currentBoro;
     const tryBoro = async (b) => {
       try {
-        // Step 1: Geocode with geosearch (no CORS issues)
+        // Step 1: Geocode + get districts via NYC Planning GeoService (no key, CORS-friendly)
+        const boroMap = {'Brooklyn':'3','Manhattan':'1','Queens':'4','Bronx':'2','Staten Island':'5','Citywide':''};
+        const boroCode = boroMap[b] || '';
+        const gsvcUrl = `https://geoservice.planning.nyc.gov/geoservice/geoservices/stable/Function_1E.json?houseNo=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(street)}&borough=${encodeURIComponent(b !== 'Citywide' ? b : 'Manhattan')}&resultType=inner`;
+        const gsvcResp = await fetch(gsvcUrl);
+        if (gsvcResp.ok) {
+          const gsvcData = await gsvcResp.json();
+          const r = gsvcData && (gsvcData['Geo Support Function 1E'] || gsvcData.result || gsvcData);
+          if (r && r['Community District'] && r['Community District'] !== '000') {
+            return {
+              latitude: parseFloat(r['Latitude'] || r['latitude'] || 0),
+              longitude: parseFloat(r['Longitude'] || r['longitude'] || 0),
+              cityCouncilDistrict: parseInt(r['City Council District'] || r['CityCouncilDistrict'] || 0),
+              communityDistrict: r['Community District'] || r['CommunityDistrict'],
+              stateLegislativeDistrict: parseInt(r['State Assembly District'] || r['AssemblyDistrict'] || 0),
+              stateSenatorialDistrict: parseInt(r['State Senate District'] || r['StateSenateDistrict'] || 0),
+              congressionalDistrict: parseInt(r['Congressional District'] || r['CongressionalDistrict'] || 0),
+              electionDistrict: r['Election District'] || r['ElectionDistrict'],
+              houseNumber: r['House Number'] || houseNum,
+              firstStreetNameNormalized: r['First Street Name Normalized'] || street,
+              uspsPreferredCityName: b !== 'Citywide' ? b : (r['USPS Preferred City Name'] || 'New York'),
+              zipCode: r['ZIP Code'] || r['ZipCode'] || '',
+              _borough: b !== 'Citywide' ? b : (r['Borough Name'] || 'Brooklyn')
+            };
+          }
+        }
+
+        // Step 2: Fall back to geosearch for coordinates only
         const boroSuffix = b !== 'Citywide' ? ` ${b} New York` : ' New York City';
-        const query = `${houseNum} ${street}${boroSuffix}`;
-        const gsUrl = `https://geosearch.planninglabs.nyc/v2/search?text=${encodeURIComponent(query)}&size=3`;
+        const gsUrl = `https://geosearch.planninglabs.nyc/v2/search?text=${encodeURIComponent(houseNum+' '+street+boroSuffix)}&size=3`;
         const gsResp = await fetch(gsUrl);
         const gsData = await gsResp.json();
         if (!gsData.features || !gsData.features.length) return null;
@@ -426,59 +452,40 @@ async function lookup() {
         const lat = f.geometry.coordinates[1];
         const lng = f.geometry.coordinates[0];
 
-        // Step 2: Get districts from BetaNYC boundaries API using coordinates
-        const boundUrl = `https://betanyc.us/boundaries/api/v1/address?lat=${lat}&lng=${lng}`;
-        let districts = {};
-        try {
-          const bResp = await fetch(boundUrl);
-          const bData = await bResp.json();
-          if (bData.results) {
-            districts.cityCouncilDistrict = bData.results.city_council;
-            districts.communityDistrict = bData.results.community_district;
-            districts.stateLegislativeDistrict = bData.results.assembly_district;
-            districts.stateSenatorialDistrict = bData.results.state_senate;
-            districts.congressionalDistrict = bData.results.congressional;
-            districts.electionDistrict = bData.results.election_district;
-          }
-        } catch(e) {}
-
-        // Step 3: Fall back to Geoclient if districts missing
-        if (!districts.communityDistrict) {
-          try {
-            const KEY = 'b913bdfb9c47466589d0f08c99c75b21';
-            const gcUrl = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(p.street||street)}&borough=${encodeURIComponent(p.borough||b)}&subscription-key=${KEY}`;
-            const gcResp = await fetch(gcUrl);
-            const gcData = await gcResp.json();
-            if (gcData.address && !gcData.address.message) {
-              const gc = gcData.address;
-              districts.cityCouncilDistrict = gc.cityCouncilDistrict;
-              districts.communityDistrict = gc.communityDistrict;
-              districts.stateLegislativeDistrict = gc.stateLegislativeDistrict || gc.assemblyDistrict || gc.ad;
-              districts.stateSenatorialDistrict = gc.stateSenatorialDistrict || gc.sd;
-              districts.congressionalDistrict = gc.congressionalDistrict || gc.cd;
-              districts.electionDistrict = gc.electionDistrict || gc.ed;
+        // Step 3: Try GeoService with normalized street name from geosearch
+        if (p.street) {
+          const gsvc2Url = `https://geoservice.planning.nyc.gov/geoservice/geoservices/stable/Function_1E.json?houseNo=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(p.street)}&borough=${encodeURIComponent(p.borough||b)}&resultType=inner`;
+          const gsvc2Resp = await fetch(gsvc2Url);
+          if (gsvc2Resp.ok) {
+            const gsvc2Data = await gsvc2Resp.json();
+            const r2 = gsvc2Data && (gsvc2Data['Geo Support Function 1E'] || gsvc2Data.result || gsvc2Data);
+            if (r2 && r2['Community District'] && r2['Community District'] !== '000') {
+              return {
+                latitude: lat, longitude: lng,
+                cityCouncilDistrict: parseInt(r2['City Council District'] || 0),
+                communityDistrict: r2['Community District'],
+                stateLegislativeDistrict: parseInt(r2['State Assembly District'] || 0),
+                stateSenatorialDistrict: parseInt(r2['State Senate District'] || 0),
+                congressionalDistrict: parseInt(r2['Congressional District'] || 0),
+                electionDistrict: r2['Election District'],
+                houseNumber: p.housenumber || houseNum,
+                firstStreetNameNormalized: p.street || street,
+                uspsPreferredCityName: p.borough || b,
+                zipCode: p.postalcode || '',
+                _borough: p.borough || b
+              };
             }
-          } catch(e) {}
+          }
         }
 
-        // If still missing districts, derive community district from geosearch borough + rough lookup
-        if (!districts.communityDistrict && p.borough) {
-          const BORO_PREFIX = {'Brooklyn':'3','Manhattan':'1','Queens':'4','Bronx':'2','Staten Island':'5'};
-          const prefix = BORO_PREFIX[p.borough] || '3';
-          // communityDistrict is a 3-digit code like 306
-          // We can't derive it without Geoclient, but set a flag
-          districts._needsDistricts = true;
-        }
-
+        // Return with just coordinates if districts unavailable
         return {
-          latitude: lat,
-          longitude: lng,
+          latitude: lat, longitude: lng,
           houseNumber: p.housenumber || houseNum,
           firstStreetNameNormalized: p.street || street,
           uspsPreferredCityName: p.borough || b,
           zipCode: p.postalcode || '',
-          _borough: p.borough || b,
-          ...districts
+          _borough: p.borough || b
         };
       } catch(e) {}
       return null;
