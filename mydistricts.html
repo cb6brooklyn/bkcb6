@@ -73,6 +73,7 @@ footer{padding:20px;font-size:.72rem;color:rgba(255,255,255,.4);text-align:cente
     <button class="boro-btn" id="boro-Queens" onclick="setBoro('Queens')">Queens</button>
     <button class="boro-btn" id="boro-Bronx" onclick="setBoro('Bronx')">Bronx</button>
     <button class="boro-btn" id="boro-Staten Island" onclick="setBoro('Staten Island')">Staten Island</button>
+    <button class="boro-btn" id="boro-Citywide" onclick="setBoro('Citywide')">Citywide</button>
   </div>
   <div class="note">Data: NYC Geoclient API</div>
   <div class="spinner" id="spinner">Looking up address...</div>
@@ -350,14 +351,31 @@ async function lookup() {
   const street = m[2];
 
   try {
-    const url = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(street)}&borough=${encodeURIComponent(currentBoro)}`;
-    const resp = await fetch(url, { headers: { 'Ocp-Apim-Subscription-Key': 'b913bdfb9c47466589d0f08c99c75b21' } });
-    const data = await resp.json();
-    const a = data.address;
+    let a = null;
+    let resolvedBoro = currentBoro;
+    if (currentBoro === 'Citywide') {
+      const boros = ['Manhattan','Brooklyn','Queens','Bronx','Staten Island'];
+      for (const b of boros) {
+        const tryUrl = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(street)}&borough=${encodeURIComponent(b)}`;
+        const tryResp = await fetch(tryUrl, { headers: { 'Ocp-Apim-Subscription-Key': 'b913bdfb9c47466589d0f08c99c75b21' } });
+        const tryData = await tryResp.json();
+        if (tryData.address && !tryData.address.message && tryData.address.cityCouncilDistrict) {
+          a = tryData.address;
+          resolvedBoro = b;
+          break;
+        }
+      }
+    } else {
+      const url = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(street)}&borough=${encodeURIComponent(currentBoro)}`;
+      const resp = await fetch(url, { headers: { 'Ocp-Apim-Subscription-Key': 'b913bdfb9c47466589d0f08c99c75b21' } });
+      const data = await resp.json();
+      a = data.address;
+      resolvedBoro = currentBoro;
+    }
     spinner.style.display = 'none';
 
     if (!a || a.message || !a.cityCouncilDistrict) {
-      error.textContent = 'Address not found. Check the address and borough and try again.';
+      error.textContent = 'Address not found. Check the spelling and try again.';
       error.style.display = 'block';
       return;
     }
@@ -366,11 +384,11 @@ async function lookup() {
     const cdInfo = COUNCIL[cdNum];
     const cbRaw = a.communityDistrict;
     const cbNum = parseInt(cbRaw) % 100;
-    const boroCode = BORO_CODES[currentBoro];
+    const boroCode = BORO_CODES[resolvedBoro];
     const cbKey = boroCode + '-' + cbNum;
     const cbUrl = CB_URLS[cbKey] || '#';
     const boroName = BORO_NAMES[boroCode];
-    const displayAddr = (a.houseNumber||houseNum) + ' ' + (a.firstStreetNameNormalized||street) + ', ' + (a.uspsPreferredCityName||currentBoro) + ', NY ' + (a.zipCode||'');
+    const displayAddr = (a.houseNumber||houseNum) + ' ' + (a.firstStreetNameNormalized||street) + ', ' + (a.uspsPreferredCityName||resolvedBoro) + ', NY ' + (a.zipCode||'');
 
     // Show map if coordinates available
     const lat = parseFloat(a.latitude || a.latitudeInternalLabel);
