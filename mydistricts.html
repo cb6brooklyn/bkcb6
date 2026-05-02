@@ -414,29 +414,62 @@ async function lookup() {
     let resolvedBoro = currentBoro;
     const tryBoro = async (b) => {
       try {
+        // Step 1: Geocode with geosearch (no CORS issues)
         const boroSuffix = b !== 'Citywide' ? ` ${b} New York` : ' New York City';
         const query = `${houseNum} ${street}${boroSuffix}`;
-        const url = `https://geosearch.planninglabs.nyc/v2/search?text=${encodeURIComponent(query)}&size=3`;
-        const resp = await fetch(url);
-        const data = await resp.json();
-        if (!data.features || !data.features.length) return null;
-        // Find first result that looks like an address (has housenumber)
-        const f = data.features.find(x => x.properties.housenumber) || data.features[0];
+        const gsUrl = `https://geosearch.planninglabs.nyc/v2/search?text=${encodeURIComponent(query)}&size=3`;
+        const gsResp = await fetch(gsUrl);
+        const gsData = await gsResp.json();
+        if (!gsData.features || !gsData.features.length) return null;
+        const f = gsData.features.find(x => x.properties.housenumber) || gsData.features[0];
         const p = f.properties;
+        const lat = f.geometry.coordinates[1];
+        const lng = f.geometry.coordinates[0];
+
+        // Step 2: Get districts from BetaNYC boundaries API using coordinates
+        const boundUrl = `https://betanyc.us/boundaries/api/v1/address?lat=${lat}&lng=${lng}`;
+        let districts = {};
+        try {
+          const bResp = await fetch(boundUrl);
+          const bData = await bResp.json();
+          if (bData.results) {
+            districts.cityCouncilDistrict = bData.results.city_council;
+            districts.communityDistrict = bData.results.community_district;
+            districts.stateLegislativeDistrict = bData.results.assembly_district;
+            districts.stateSenatorialDistrict = bData.results.state_senate;
+            districts.congressionalDistrict = bData.results.congressional;
+            districts.electionDistrict = bData.results.election_district;
+          }
+        } catch(e) {}
+
+        // Step 3: Fall back to Geoclient if BetaNYC failed
+        if (!districts.communityDistrict) {
+          try {
+            const KEY = 'b913bdfb9c47466589d0f08c99c75b21';
+            const gcUrl = `https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(houseNum)}&street=${encodeURIComponent(p.street||street)}&borough=${encodeURIComponent(p.borough||b)}&subscription-key=${KEY}`;
+            const gcResp = await fetch(gcUrl);
+            const gcData = await gcResp.json();
+            if (gcData.address && !gcData.address.message) {
+              const a = gcData.address;
+              districts.cityCouncilDistrict = a.cityCouncilDistrict;
+              districts.communityDistrict = a.communityDistrict;
+              districts.stateLegislativeDistrict = a.stateLegislativeDistrict || a.assemblyDistrict;
+              districts.stateSenatorialDistrict = a.stateSenatorialDistrict;
+              districts.congressionalDistrict = a.congressionalDistrict;
+              districts.electionDistrict = a.electionDistrict;
+            }
+          } catch(e) {}
+        }
+
         return {
-          latitude: f.geometry.coordinates[1],
-          longitude: f.geometry.coordinates[0],
-          cityCouncilDistrict: p.addendum && p.addendum.nyc ? p.addendum.nyc.council_district : null,
-          communityDistrict: p.addendum && p.addendum.nyc ? p.addendum.nyc.community_district : null,
-          stateLegislativeDistrict: p.addendum && p.addendum.nyc ? p.addendum.nyc.assembly_district : null,
-          stateSenatorialDistrict: p.addendum && p.addendum.nyc ? p.addendum.nyc.state_senate_district : null,
-          congressionalDistrict: p.addendum && p.addendum.nyc ? p.addendum.nyc.congressional_district : null,
-          electionDistrict: p.addendum && p.addendum.nyc ? p.addendum.nyc.election_district : null,
+          latitude: lat,
+          longitude: lng,
           houseNumber: p.housenumber || houseNum,
           firstStreetNameNormalized: p.street || street,
           uspsPreferredCityName: p.borough || b,
           zipCode: p.postalcode || '',
-          _borough: p.borough || b
+          _borough: p.borough || b,
+          ...districts
         };
       } catch(e) {}
       return null;
