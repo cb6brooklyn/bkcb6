@@ -36,6 +36,9 @@ body{display:flex;flex-direction:column}
 .plyr-sub.on:hover{transform:translateY(-2px) scale(1.08);box-shadow:0 0 0 2px rgba(255,255,255,.95),0 0 0 6px color-mix(in srgb,var(--sc) 42%,transparent),0 8px 18px rgba(13,27,75,.36)}
 .nypd-feature-label{background:rgba(255,255,255,.96);border:2px solid #6b21a8;border-radius:8px;color:#23104f;font-family:'DM Sans',sans-serif;font-weight:900;font-size:12px;box-shadow:0 3px 12px rgba(35,16,79,.30);padding:4px 7px}
 .nypd-feature-label::before{border-top-color:#6b21a8}
+.resource-icon-wrap{background:transparent;border:0}
+.resource-marker-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:999px;background:#fff;border:2px solid rgba(255,255,255,.96);box-shadow:0 3px 10px rgba(15,23,42,.22);overflow:hidden;transform:translate(-50%,-50%)}
+.resource-marker-icon img{display:block;max-width:24px;max-height:24px;width:auto;height:auto;object-fit:contain}
 .legend-bar{padding:5px 14px;background:#fafaf8;border-bottom:1px solid #e5e2db;display:flex;flex-wrap:wrap;gap:7px;align-items:center;flex-shrink:0;min-height:24px}
 .li{display:inline-flex;align-items:center;gap:4px;font-size:.71rem;color:#444}
 .ls{display:inline-block;width:14px;height:10px;border-radius:2px;flex-shrink:0}
@@ -143,6 +146,7 @@ var cb6Layer=null, cb6BoundaryLabel=null, cdsLayer=null, nypdLayer=null, fireLay
 window._cb6BoundaryFeatures = window._cb6BoundaryFeatures || [];
 window._selectedCBFeature = window._selectedCBFeature || null;
 var subwayLayer=null, citibikeLayer=null, parksLayer=null;
+var schoolsLayer=null, childcareLayer=null, librariesLayer=null, schoolDistrictsLayer=null;
 var busRoutesLayer=null, busStopsLayer=null;
 var landUseLotsLayer=null;
 var rentsLayer=null, gowanusLayer=null;
@@ -152,12 +156,43 @@ var cbOverlapLayer=null;
 // Sub-toggle state
 var subState = {
   // CB mode overlays
-  nypd:false, fire:false, subway:false, citibike:false, busroutes:false, busstops:false, landuse:false, parks:false, gowanus:false, rents:false, historic:false,
+  nypd:false, fire:false, subway:false, citibike:false, busroutes:false, busstops:false, landuse:false, parks:false, schools:false, childcare:false, libraries:false, schooldistricts:false, gowanus:false, rents:false, historic:false,
   // Legislative (disabled until files uploaded)
   cc:false, assembly:false, senate:false, congress:false
 };
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+const LIBRARIES = [
+  {
+    name: 'Park Slope Library',
+    address: '431 6th Avenue',
+    website: 'https://www.bklynlibrary.org/locations/park-slope',
+    lat: 40.668949,
+    lon: -73.980932,
+    category: 'libraries',
+    program_type: 'Brooklyn Public Library branch'
+  },
+  {
+    name: 'Carroll Gardens Library',
+    address: '396 Clinton Street',
+    website: 'https://www.bklynlibrary.org/locations/carroll-gardens',
+    lat: 40.680764,
+    lon: -73.995942,
+    category: 'libraries',
+    program_type: 'Brooklyn Public Library branch'
+  },
+  {
+    name: 'Red Hook Library',
+    address: '7 Wolcott Street',
+    website: 'https://www.bklynlibrary.org/locations/red-hook',
+    lat: 40.677285,
+    lon: -74.011232,
+    category: 'libraries',
+    program_type: 'Brooklyn Public Library branch'
+  }
+];
+
 function addCB6BoundaryLabel(){
   if(cb6BoundaryLabel){ map.removeLayer(cb6BoundaryLabel); cb6BoundaryLabel=null; }
   if(!cb6Layer || !cb6Layer.getBounds) return null;
@@ -663,13 +698,14 @@ function filteredBySelectedDistricts(features, clipPolygons){
 }
 
 function removeOverlayLayer(name){
-  var lyrMap = {nypd:nypdLayer,fire:fireLayer,subway:subwayLayer,citibike:citibikeLayer,busroutes:busRoutesLayer,busstops:busStopsLayer,landuse:landUseLotsLayer,parks:parksLayer,gowanus:gowanusLayer,rents:rentsLayer,cc:ccLayer,assembly:assemblyLayer,senate:senateLayer,congress:congressLayer,historic:window._historicLayer};
+  var lyrMap = {nypd:nypdLayer,fire:fireLayer,subway:subwayLayer,citibike:citibikeLayer,busroutes:busRoutesLayer,busstops:busStopsLayer,landuse:landUseLotsLayer,parks:parksLayer,schools:schoolsLayer,childcare:childcareLayer,libraries:librariesLayer,schooldistricts:schoolDistrictsLayer,gowanus:gowanusLayer,rents:rentsLayer,cc:ccLayer,assembly:assemblyLayer,senate:senateLayer,congress:congressLayer,historic:window._historicLayer};
   if(lyrMap[name]) map.removeLayer(lyrMap[name]);
 }
 
 function refreshDistrictFilteredOverlays(){
   var builders = {
     nypd:buildNYPD, fire:buildFire, subway:buildSubway, citibike:buildCitibike, busroutes:buildBusRoutes, busstops:buildBusStops, landuse:buildLandUseLots, parks:buildParks,
+    schools:buildSchools, childcare:buildChildcare, libraries:buildLibraries, schooldistricts:buildSchoolDistricts,
     gowanus:buildGowanus, historic:buildHistoric, rents:buildRents
   };
   Object.keys(builders).forEach(function(name){
@@ -771,6 +807,56 @@ function buildCitibike(d){
     onEachFeature:(f,l)=>l.bindTooltip(f.properties.name||'Citi Bike station',{sticky:true})
   });
   if(subState.citibike) citibikeLayer.addTo(map);
+}
+
+
+function resourceCategoryStyle(category) {
+  if(category === 'schools') return {color:'#1d4ed8', label:'School', iconUrl:'assets/map-icons/schools.png', iconAlt:'NYC Public Schools'};
+  if(category === 'childcare') return {color:'#7c3aed', label:'Childcare', iconUrl:'assets/map-icons/childcare.png', iconAlt:'NYC Child Care'};
+  return {color:'#f47920', label:'Library', iconUrl:'assets/map-icons/libraries.png', iconAlt:'Brooklyn Public Library'};
+}
+function resourceMarkerIcon(item) {
+  var style = resourceCategoryStyle(item.category);
+  return L.divIcon({
+    className:'resource-icon-wrap',
+    html:'<div class="resource-marker-icon" title="'+escH(item.name||style.label)+'"><img src="'+style.iconUrl+'" alt="'+style.iconAlt+'"></div>',
+    iconSize:[34,34], iconAnchor:[17,17], popupAnchor:[0,-14], tooltipAnchor:[0,-14]
+  });
+}
+function resourcePopupHtml(item) {
+  var style = resourceCategoryStyle(item.category);
+  return '<h4>'+escH(item.name||style.label)+'</h4>'+
+    '<p>'+escH(item.location||item.address||'BKCB6 location')+'</p>'+
+    '<div class="small">'+escH(item.typecategory||item.program_type||style.label)+'</div>'+
+    (item.website ? '<div class="small" style="margin-top:6px"><a href="'+escH(item.website)+'" target="_blank" rel="noopener">Open resource ↗</a></div>' : '');
+}
+function resourceFeatureFromItem(item) {
+  if(!Number.isFinite(item.lat) || !Number.isFinite(item.lon)) return null;
+  return {type:'Feature',geometry:{type:'Point',coordinates:[item.lon,item.lat]},properties:item};
+}
+function buildResourcePoints(data, category, layerVar) {
+  if(window[layerVar]) map.removeLayer(window[layerVar]);
+  var items = (Array.isArray(data) ? data : []).filter(function(item){ return (item.category === category) || (category === 'schools' && item.category !== 'childcare'); });
+  var features = items.map(resourceFeatureFromItem).filter(Boolean);
+  features = filteredBySelectedDistricts(features, false);
+  window[layerVar] = L.geoJSON({type:'FeatureCollection',features:features}, {
+    pointToLayer:function(f,ll){ return L.marker(ll,{icon:resourceMarkerIcon(f.properties||{}),riseOnHover:true}); },
+    onEachFeature:function(f,l){ var item=f.properties||{}; l.bindTooltip('<strong>'+escH(item.name||resourceCategoryStyle(category).label)+'</strong><br>'+escH(item.address||''),{sticky:true}); l.bindPopup(resourcePopupHtml(item)); }
+  });
+  if(subState[category]) window[layerVar].addTo(map);
+}
+function buildSchools(d){ buildResourcePoints(d,'schools','schoolsLayer'); schoolsLayer=window.schoolsLayer; }
+function buildChildcare(d){ buildResourcePoints(d,'childcare','childcareLayer'); childcareLayer=window.childcareLayer; }
+function buildLibraries(){ window._overlayData_libraries = LIBRARIES; buildResourcePoints(LIBRARIES,'libraries','librariesLayer'); librariesLayer=window.librariesLayer; }
+function buildSchoolDistricts(d){
+  if(schoolDistrictsLayer) map.removeLayer(schoolDistrictsLayer);
+  var features = ((d&&d.features)||[]).slice();
+  features = filteredBySelectedDistricts(features, true);
+  schoolDistrictsLayer = L.geoJSON({type:'FeatureCollection',features:features},{
+    style:{color:'#be123c',weight:2,dashArray:'6 4',fillColor:'#fda4af',fillOpacity:.06},
+    onEachFeature:function(f,l){ var p=f.properties||{}, num=p.SchoolDist||p.schooldist||p.school_dist||''; l.bindTooltip('CSD '+escH(num),{sticky:true}); l.bindPopup('<h4>CSD '+escH(num)+'</h4><p>Community School District '+escH(num)+' overlapping CB6</p><div class="small">School district boundary overlay</div>'); }
+  });
+  if(subState.schooldistricts) schoolDistrictsLayer.addTo(map);
 }
 
 function busRouteName(p){return String((p&&p.route_short_name)||p.route_id||'Bus').replace(/[^A-Za-z0-9]/g,'');}
@@ -1044,6 +1130,10 @@ function toggleOverlay(name, on){
     busstops:()=>loadOverlay('busstops','transport-data/cb-bk-6.json',buildBusStops),
     landuse:()=>loadOverlay('landuse','data/cb6-land-use-lots.geojson',buildLandUseLots),
     parks:()=>loadOverlay('parks','Parks_Properties_20260414.geojson',buildParks),
+    schools:()=>loadOverlay('schools','schools_childcare_cb6.json',buildSchools),
+    childcare:()=>loadOverlay('childcare','schools_childcare_cb6.json',buildChildcare),
+    libraries:()=>buildLibraries(),
+    schooldistricts:()=>loadOverlay('schooldistricts','school_districts_cb6.geojson',buildSchoolDistricts),
     gowanus:()=>loadOverlay('gowanus','data/Gowanus-Rezoning-Boundary-2.geojson',buildGowanus),
     historic:()=>loadOverlay('historic','data/historic-districts.geojson',buildHistoric),
     rents:()=>loadOverlay('rents','data/citywide-rents.geojson',buildRents),
@@ -1143,6 +1233,10 @@ function buildSubToggles(){
     {k:'busstops',c:'#f59e0b',tc:'#fff',l:'🚏 Bus Stops'},
     {k:'landuse',c:'#ff8341',tc:'#fff',l:'🏘 Land Use Lots'},
     {k:'parks',c:'#16a34a',tc:'#fff',l:'🌳 Parks'},
+    {k:'schools',c:'#1d4ed8',tc:'#fff',l:'🏫 Schools'},
+    {k:'childcare',c:'#7c3aed',tc:'#fff',l:'🧸 Childcare'},
+    {k:'libraries',c:'#f47920',tc:'#fff',l:'📚 Libraries'},
+    {k:'schooldistricts',c:'#be123c',tc:'#fff',l:'🏫 School Districts'},
     {k:'historic',c:'#7c5c00',tc:'#fff',l:'🏛 Historic Districts'},
   ];
   if(activeMain==='cb6') overlays.push({k:'gowanus',c:'#0d9488',tc:'#fff',l:'🌊 Gowanus'});
