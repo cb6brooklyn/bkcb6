@@ -51,10 +51,9 @@ body{display:flex;flex-direction:column}
 .subway-icon-stack{display:flex;align-items:center;gap:1px;padding:2px 3px;background:rgba(255,255,255,.92);border:1.5px solid #111;border-radius:13px;box-shadow:0 1px 5px rgba(0,0,0,.28);white-space:nowrap;transform:translate(-50%,-50%)}
 .subway-route-badge{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:800;line-height:18px;color:#fff;border:1px solid rgba(0,0,0,.22)}
 .subway-route-more{display:inline-flex;align-items:center;justify-content:center;height:18px;min-width:18px;border-radius:9px;background:#111;color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:800;padding:0 3px}
-.citibike-logo-marker{position:relative;display:inline-flex;align-items:center;justify-content:center;height:22px;min-width:58px;padding:0 7px;background:#005EB8;color:#fff;border:1.5px solid #fff;border-radius:12px;box-shadow:0 1px 5px rgba(0,0,0,.32);font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:800;letter-spacing:-.04em;line-height:22px;white-space:nowrap;transform:translate(-50%,-50%)}
-.citibike-logo-marker .citi-word{position:relative;margin-right:2px;padding-top:1px}
-.citibike-logo-marker .citi-word:before{content:'';position:absolute;left:2px;right:1px;top:1px;height:7px;border-top:2px solid #e31837;border-radius:50% 50% 0 0}
-.citibike-logo-marker .bike-word{padding-top:1px}
+.citibike-logo-marker{position:relative;display:inline-flex;align-items:center;justify-content:center;width:8px;height:8px;background:#005EB8;color:transparent;border:1.5px solid rgba(255,255,255,.9);border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.22);font-size:0;line-height:8px;opacity:.72;transform:translate(-50%,-50%)}
+.citibike-logo-marker:after{content:'';position:absolute;width:3px;height:3px;background:#fff;border-radius:50%;opacity:.95}
+.citibike-logo-marker .citi-word,.citibike-logo-marker .bike-word{display:none}
 .bus-route-label{background:transparent;border:none;pointer-events:auto}
 .bus-route-label.bus-label-hidden{display:none}
 .bus-route-badge{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:22px;padding:0 7px;border-radius:999px;background:#2563eb;color:#fff;border:2px solid #fff;box-shadow:0 2px 8px rgba(13,27,75,.32),0 0 0 1px rgba(13,27,75,.22);font-family:'DM Sans',sans-serif;font-size:.68rem;font-weight:800;line-height:1;letter-spacing:.01em;white-space:nowrap;text-shadow:0 1px 1px rgba(0,0,0,.18)}
@@ -144,7 +143,7 @@ var BORO_VIEWS = {
 var cb6Layer=null, cb6BoundaryLabel=null, cdsLayer=null, nypdLayer=null, fireLayer=null;
 window._cb6BoundaryFeatures = window._cb6BoundaryFeatures || [];
 window._selectedCBFeature = window._selectedCBFeature || null;
-var subwayLayer=null, citibikeLayer=null, parksLayer=null;
+var subwayLayer=null, citibikeLayer=null, bikeRoutesLayer=null, parksLayer=null;
 var schoolsLayer=null, childcareLayer=null, librariesLayer=null, schoolDistrictsLayer=null;
 var busRoutesLayer=null, busStopsLayer=null;
 var landUseLotsLayer=null;
@@ -770,13 +769,18 @@ function removeOverlayLayer(name){
     if(busStopsLayer) map.removeLayer(busStopsLayer);
     return;
   }
+  if(name==='citibike'){
+    if(citibikeLayer) map.removeLayer(citibikeLayer);
+    if(bikeRoutesLayer) map.removeLayer(bikeRoutesLayer);
+    return;
+  }
   var lyrMap = {nypd:nypdLayer,fire:fireLayer,subway:subwayLayer,citibike:citibikeLayer,busroutes:busRoutesLayer,busstops:busStopsLayer,landuse:landUseLotsLayer,zoning:zoningLayer,parks:parksLayer,schools:schoolsLayer,childcare:childcareLayer,libraries:librariesLayer,schooldistricts:schoolDistrictsLayer,gowanus:gowanusLayer,rents:rentsLayer,cc:ccLayer,assembly:assemblyLayer,senate:senateLayer,congress:congressLayer,historic:window._historicLayer};
   if(lyrMap[name]) map.removeLayer(lyrMap[name]);
 }
 
 function refreshDistrictFilteredOverlays(){
   var builders = {
-    nypd:buildNYPD, fire:buildFire, subway:buildSubway, citibike:buildCitibike, busroutes:buildBusRoutes, busstops:buildBusStops, landuse:buildLandUseLots, zoning:buildZoning, parks:buildParks,
+    nypd:buildNYPD, fire:buildFire, subway:buildSubway, busroutes:buildBusRoutes, busstops:buildBusStops, landuse:buildLandUseLots, zoning:buildZoning, parks:buildParks,
     schools:buildSchools, childcare:buildChildcare, libraries:buildLibraries, schooldistricts:buildSchoolDistricts,
     gowanus:buildGowanus, historic:buildHistoric, rents:buildRents
   };
@@ -789,6 +793,11 @@ function refreshDistrictFilteredOverlays(){
     removeOverlayLayer('bus');
     if(window._overlayData_busroutes) buildBusRoutes(window._overlayData_busroutes);
     if(window._overlayData_busstops) buildBusStops(window._overlayData_busstops);
+  }
+  if(subState.citibike){
+    removeOverlayLayer('citibike');
+    if(window._overlayData_citibike) buildCitibike(window._overlayData_citibike);
+    if(window._overlayData_bikeroutes) buildBikeRoutes(window._overlayData_bikeroutes);
   }
 }
 
@@ -874,7 +883,7 @@ function buildSubway(d){
 function citibikeStationIcon(f){
   var name = f && f.properties ? (f.properties.name || 'Citi Bike station') : 'Citi Bike station';
   var html = '<div class="citibike-logo-marker" title="'+escH(name)+'"><span class="citi-word">citi</span><span class="bike-word">bike</span></div>';
-  return L.divIcon({className:'citibike-station-icon-wrap',html:html,iconSize:[64,24],iconAnchor:[32,12],tooltipAnchor:[0,-14]});
+  return L.divIcon({className:'citibike-station-icon-wrap',html:html,iconSize:[10,10],iconAnchor:[5,5],tooltipAnchor:[0,-8]});
 }
 function buildCitibike(d){
   var cbFeatures = filterByView(d.features, f=>f.geometry.coordinates[1], f=>f.geometry.coordinates[0]);
@@ -884,6 +893,24 @@ function buildCitibike(d){
     onEachFeature:(f,l)=>l.bindTooltip(f.properties.name||'Citi Bike station',{sticky:true})
   });
   if(subState.citibike) citibikeLayer.addTo(map);
+}
+function buildBikeRoutes(d){
+  var features = filteredBySelectedDistricts((d&&d.features)||[], false);
+  bikeRoutesLayer = L.geoJSON({type:'FeatureCollection',features:features},{
+    style:function(f){
+      var p=f.properties||{};
+      return {color:p.line_color||'#0052a5',weight:Math.max(2, Number(p.line_weight)||3),opacity:.86,lineCap:'round',lineJoin:'round'};
+    },
+    onEachFeature:function(f,l){
+      var p=f.properties||{};
+      l.bindTooltip('<strong>'+escH(p.name||'Bike lane')+'</strong><br>'+escH(p.lane_type||'Bike route'),{sticky:true});
+    }
+  });
+  if(subState.citibike) bikeRoutesLayer.addTo(map);
+}
+function buildCitibikeCombined(){
+  loadOverlay('citibike','data/citibike_stations_cb6.geojson',buildCitibike);
+  loadOverlay('bikeroutes','data/cb6-bike-routes.geojson',buildBikeRoutes);
 }
 
 
@@ -1379,7 +1406,7 @@ function toggleOverlay(name, on){
     nypd:()=>loadOverlay('nypd','data/nypd_sectors.geojson',buildNYPD),
     fire:()=>loadOverlay('fire','data/fire_battalions.geojson',buildFire),
     subway:()=>loadOverlay('subway','data/nyc-subway-stations.geojson',buildSubway),
-    citibike:()=>loadOverlay('citibike','data/citibike_stations_cb6.geojson',buildCitibike),
+    citibike:()=>buildCitibikeCombined(),
     bus:()=>buildBusCombined(),
     busroutes:()=>loadOverlay('busroutes','transport-data/cb-bk-6.json',buildBusRoutes),
     busstops:()=>loadOverlay('busstops','transport-data/cb-bk-6.json',buildBusStops),
@@ -1484,7 +1511,7 @@ function buildSubToggles(){
   const overlays = [
     {k:'nypd',c:'#6b21a8',tc:'#fff',l:'👮 NYPD'},
     {k:'subway',c:'#1d4ed8',tc:'#fff',l:'🚇 Subway'},
-    {k:'citibike',c:'#0052a5',tc:'#fff',l:'🚲 Citibike'},
+    {k:'citibike',c:'#0052a5',tc:'#fff',l:'🚲 Bike'},
     {k:'bus',c:'#2563eb',tc:'#fff',l:'🚌 Bus'},
     {k:'landuse',c:'#ff8341',tc:'#fff',l:'🏘 Land Use Lots'},
     {k:'zoning',c:'#9333ea',tc:'#fff',l:'🏙 Zoning'},
@@ -1627,7 +1654,7 @@ function updateLegend(){
   let html='';
   const active = Object.keys(subState).filter(k=>subState[k]);
   const multiDistrictSwatch = 'linear-gradient(90deg,#e11d48,#f97316,#f59e0b,#16a34a,#0891b2,#2563eb,#7c3aed,#db2777)';
-  const labels = {nypd:[multiDistrictSwatch,'NYPD Precincts'],fire:[multiDistrictSwatch,'Fire Battalions'],subway:['#1d4ed8','Subway'],citibike:['#0052a5','Citibike'],bus:['#2563eb','Bus Routes & Stops'],busroutes:['#2563eb','Bus Routes'],busstops:['#f59e0b','Bus Stops'],landuse:['#ff8341','Land Use Lots'],parks:['#16a34a','Parks'],gowanus:['#0d9488','Gowanus'],rents:['#dc2626','Rents'],historic:['#7c5c00','Historic Districts'],cc:[multiDistrictSwatch,'City Council Districts'],assembly:[multiDistrictSwatch,'Assembly Districts'],senate:[multiDistrictSwatch,'State Senate Districts'],congress:[multiDistrictSwatch,'Congressional Districts'],schooldistricts:[multiDistrictSwatch,'School Districts'],zoning:['#9333ea','Zoning']};
+  const labels = {nypd:[multiDistrictSwatch,'NYPD Precincts'],fire:[multiDistrictSwatch,'Fire Battalions'],subway:['#1d4ed8','Subway'],citibike:['#0052a5','Citi Bike Stations & Bike Lanes'],bus:['#2563eb','Bus Routes & Stops'],busroutes:['#2563eb','Bus Routes'],busstops:['#f59e0b','Bus Stops'],landuse:['#ff8341','Land Use Lots'],parks:['#16a34a','Parks'],gowanus:['#0d9488','Gowanus'],rents:['#dc2626','Rents'],historic:['#7c5c00','Historic Districts'],cc:[multiDistrictSwatch,'City Council Districts'],assembly:[multiDistrictSwatch,'Assembly Districts'],senate:[multiDistrictSwatch,'State Senate Districts'],congress:[multiDistrictSwatch,'Congressional Districts'],schooldistricts:[multiDistrictSwatch,'School Districts'],zoning:['#9333ea','Zoning']};
   if(['brooklyn','manhattan','queens','bronx','si','nyc'].includes(activeMain)){
     const boroKey = {brooklyn:'3',manhattan:'1',queens:'4',bronx:'2',si:'5'};
     const bk = boroKey[activeMain];
