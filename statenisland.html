@@ -735,7 +735,85 @@ function parseAddress(input){
   let street=m[2].replace(/,?\s*(brooklyn|manhattan|queens|bronx|staten island|new york|ny)\b.*/i,'').trim();
   return {houseNumber:m[1], street};
 }
+function normalizeStreet(s){
+  return s.trim()
+    .replace(/\bst\.?$/i,'Street').replace(/\bave?\.?$/i,'Avenue')
+    .replace(/\bblvd\.?$/i,'Boulevard').replace(/\bdr\.?$/i,'Drive')
+    .replace(/\bpl\.?$/i,'Place').replace(/\brd\.?$/i,'Road')
+    .replace(/\bct\.?$/i,'Court').replace(/\bln\.?$/i,'Lane')
+    .replace(/\bpkwy\.?$/i,'Parkway').replace(/\bterr?\.?$/i,'Terrace')
+    .replace(/\bhwy\.?$/i,'Highway');
+}
 async function doSearch(){
+  const input=document.getElementById('addrInput').value.trim();
+  const btn=document.getElementById('searchBtn');
+  const err=document.getElementById('errBanner');
+  const res=document.getElementById('resultBanner');
+  err.classList.remove('show'); res.classList.remove('show');
+  if(!input){err.textContent='⚠ Enter an address.';err.classList.add('show');return;}
+  btn.disabled=true; btn.textContent='…';
+  try{
+    const parsed=parseAddress(input);
+    if(!parsed) throw new Error('Enter a full address, e.g. 16 Elwood Place');
+    const street = normalizeStreet(parsed.street);
+    const KEY='b913bdfb9c47466589d0f08c99c75b21';
+    let a = null;
+
+    // Try Geoclient
+    try{
+      const url=`https://api.nyc.gov/geoclient/v2/address.json?subscription-key=${KEY}&houseNumber=${encodeURIComponent(parsed.houseNumber)}&street=${encodeURIComponent(street)}&borough=Staten+Island`;
+      const resp=await fetch(url);
+      const data=await resp.json();
+      if(data.address && !data.address.message && data.address.communityDistrict) a=data.address;
+    }catch(e){}
+
+    // Geosearch fallback
+    if(!a){
+      const gsUrl=`https://geosearch.planninglabs.nyc/v2/search?text=${encodeURIComponent(parsed.houseNumber+' '+street+' Staten Island New York')}&size=1`;
+      const gsResp=await fetch(gsUrl);
+      const gsData=await gsResp.json();
+      if(gsData.features&&gsData.features.length){
+        const f=gsData.features[0];
+        const p=f.properties;
+        // Try Geoclient again with normalized street from geosearch
+        if(p.street){
+          try{
+            const url2=`https://api.nyc.gov/geoclient/v2/address.json?subscription-key=${KEY}&houseNumber=${encodeURIComponent(parsed.houseNumber)}&street=${encodeURIComponent(p.street)}&borough=Staten+Island`;
+            const resp2=await fetch(url2);
+            const data2=await resp2.json();
+            if(data2.address&&!data2.address.message&&data2.address.communityDistrict) a=data2.address;
+          }catch(e){}
+        }
+        // Use geosearch result to at least get CB
+        if(!a&&p.addendum&&p.addendum.nyc){
+          const cd=p.addendum.nyc.community_district;
+          if(cd){
+            const boroDigit='5';
+            const cbNum=parseInt(String(cd).slice(-2),10);
+            const cbPage=`cb-si-${cbNum}.html`;
+            document.getElementById('rbVal').innerHTML=`Staten Island Community Board <span>${cbNum}</span>`;
+            document.getElementById('rbLink').href=cbPage;
+            res.classList.add('show');
+            return;
+          }
+        }
+      }
+    }
+
+    if(!a) throw new Error('Address not found. Check spelling and try again.');
+    const cd=a.communityDistrict;
+    if(!cd||cd.length<2) throw new Error('Community board not found for this address.');
+    const cbNum=parseInt(cd.slice(1),10);
+    const cbPage=`cb-si-${cbNum}.html`;
+    document.getElementById('rbVal').innerHTML=`Staten Island Community Board <span>${cbNum}</span>`;
+    document.getElementById('rbLink').href=cbPage;
+    res.classList.add('show');
+  }catch(e){
+    err.textContent='⚠ '+e.message; err.classList.add('show');
+  }finally{
+    btn.disabled=false; btn.textContent='Search';
+  }
+}
   const input=document.getElementById('addrInput').value.trim();
   const btn=document.getElementById('searchBtn');
   const err=document.getElementById('errBanner');
