@@ -71,7 +71,7 @@ body{display:flex;flex-direction:column}
 #map.bus-stop-labels-full .bus-stop-name{display:block}
 .cb-overlap-fragment{mix-blend-mode:multiply}
 .cb6-boundary-label{background:transparent;border:0;pointer-events:none}
-.cb6-boundary-label-text{display:inline-block;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none;color:#163d7a;font-family:'DM Sans',Arial,sans-serif;font-size:1.45rem;font-weight:900;letter-spacing:-.035em;line-height:1;text-transform:none;text-shadow:-1.25px -1.25px 0 rgba(255,255,255,.92),1.25px -1.25px 0 rgba(255,255,255,.92),-1.25px 1.25px 0 rgba(255,255,255,.92),1.25px 1.25px 0 rgba(255,255,255,.92),0 2px 3px rgba(13,27,75,.16);white-space:nowrap}
+.cb6-boundary-label-text{display:inline-block;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none;color:#f47920;font-family:'DM Sans',Arial,sans-serif;font-size:1.45rem;font-weight:900;letter-spacing:-.035em;line-height:1;text-transform:none;text-shadow:-1.25px -1.25px 0 rgba(255,255,255,.95),1.25px -1.25px 0 rgba(255,255,255,.95),-1.25px 1.25px 0 rgba(255,255,255,.95),1.25px 1.25px 0 rgba(255,255,255,.95),0 2px 3px rgba(13,27,75,.16);white-space:nowrap}
 
 </style>
 </head>
@@ -159,18 +159,50 @@ function addCB6BoundaryLabel(){
   if(!cb6Layer || !cb6Layer.getBounds) return null;
   var bounds = cb6Layer.getBounds();
   if(!bounds || !bounds.isValid()) return null;
-  var height = bounds.getNorth() - bounds.getSouth();
-  var width = bounds.getEast() - bounds.getWest();
   var feature = window._selectedCBFeature || (window._cb6BoundaryFeatures && window._cb6BoundaryFeatures[0]);
-  var candidates = [
-    L.latLng(bounds.getSouth() + height * 0.36, bounds.getCenter().lng),
-    L.latLng(bounds.getSouth() + height * 0.42, bounds.getWest() + width * 0.55),
-    L.latLng(bounds.getSouth() + height * 0.48, bounds.getWest() + width * 0.58),
-    bounds.getCenter()
-  ];
-  var pos = candidates.find(function(candidate){
-    return !feature || pip(candidate.lng, candidate.lat, feature);
-  }) || bounds.getCenter();
+  function distToSegSq(lng,lat,a,b){
+    var x=lng,y=lat,x1=a[0],y1=a[1],x2=b[0],y2=b[1],dx=x2-x1,dy=y2-y1;
+    if(dx===0&&dy===0){dx=x-x1;dy=y-y1;return dx*dx+dy*dy;}
+    var t=((x-x1)*dx+(y-y1)*dy)/(dx*dx+dy*dy); t=Math.max(0,Math.min(1,t));
+    var px=x1+t*dx,py=y1+t*dy,ex=x-px,ey=y-py; return ex*ex+ey*ey;
+  }
+  function edgeDistanceSq(lng,lat,ring){
+    var best=Infinity; for(var i=0,j=ring.length-1;i<ring.length;j=i++) best=Math.min(best,distToSegSq(lng,lat,ring[j],ring[i]));
+    return best;
+  }
+  function ringCentroid(ring){
+    var a=0,cx=0,cy=0;
+    for(var i=0,j=ring.length-1;i<ring.length;j=i++){
+      var p=ring[j],q=ring[i],cross=p[0]*q[1]-q[0]*p[1];
+      a+=cross; cx+=(p[0]+q[0])*cross; cy+=(p[1]+q[1])*cross;
+    }
+    a*=0.5;
+    if(Math.abs(a)<1e-12) return null;
+    return {lng:cx/(6*a),lat:cy/(6*a),area:Math.abs(a)};
+  }
+  function visualCenter(feature){
+    if(!feature||!feature.geometry) return bounds.getCenter();
+    var g=feature.geometry,polys=g.type==='Polygon'?[g.coordinates]:g.coordinates,center=bounds.getCenter(),best=null;
+    polys.forEach(function(poly){
+      var ring=poly[0],c=ringCentroid(ring);
+      if(c&&pip(c.lng,c.lat,feature)&&(!best||c.area>best.area)) best={lat:c.lat,lng:c.lng,area:c.area,score:-1};
+    });
+    var west=bounds.getWest(),east=bounds.getEast(),south=bounds.getSouth(),north=bounds.getNorth(),cols=70,rows=70;
+    polys.forEach(function(poly){
+      var ring=poly[0];
+      for(var y=0;y<=rows;y++){
+        var lat=south+(north-south)*(y/rows);
+        for(var x=0;x<=cols;x++){
+          var lng=west+(east-west)*(x/cols);
+          if(!pip(lng,lat,feature)) continue;
+          var d=edgeDistanceSq(lng,lat,ring),dc=(lng-center.lng)*(lng-center.lng)+(lat-center.lat)*(lat-center.lat),score=d-(dc*.015);
+          if(!best||score>best.score) best={lat:lat,lng:lng,score:score};
+        }
+      }
+    });
+    return best?L.latLng(best.lat,best.lng):bounds.getCenter();
+  }
+  var pos = visualCenter(feature);
   cb6BoundaryLabel = L.marker(pos, {
     icon: L.divIcon({className:'cb6-boundary-label',html:'<div class="cb6-boundary-label-text">BKCB6</div>',iconSize:null,iconAnchor:[41,13]}),
     interactive:false,
