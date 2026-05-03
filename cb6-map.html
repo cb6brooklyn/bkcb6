@@ -796,8 +796,7 @@ function refreshDistrictFilteredOverlays(){
   });
   if(subState.subway){
     removeOverlayLayer('subway');
-    if(window._overlayData_subwayroutes) buildSubwayRoutes(window._overlayData_subwayroutes);
-    if(window._overlayData_subway) buildSubway(window._overlayData_subway);
+    buildSubwayCombined();
   }
   if(subState.bus){
     removeOverlayLayer('bus');
@@ -877,9 +876,34 @@ function subwayStationIcon(f){
   var w = 8 + shown.length*20 + (routes.length>4 ? 20 : 0);
   return L.divIcon({className:'subway-station-icon-wrap',html:html,iconSize:[w,24],iconAnchor:[w/2,12],tooltipAnchor:[0,-14]});
 }
+function dedupeSubwayStations(features){
+  var seen = new Set();
+  var out = [];
+  (features||[]).forEach(function(f){
+    if(!f || !f.geometry || f.geometry.type !== 'Point') return;
+    var p = f.properties || {};
+    var c = f.geometry.coordinates || [];
+    var name = String(p.display_name || p.stop_name || '').trim().toLowerCase();
+    var routes = String(p.daytime_routes || p.routes || '').trim().toUpperCase().replace(/\s+/g,' ');
+    var key = name + '|' + routes + '|' + Number(c[0]).toFixed(5) + '|' + Number(c[1]).toFixed(5);
+    if(seen.has(key)) return;
+    seen.add(key);
+    out.push(f);
+  });
+  return out;
+}
 function buildSubway(d){
-  var subFeatures = filterByView(d.features, f=>f.geometry.coordinates[1], f=>f.geometry.coordinates[0]);
-  subFeatures = filteredBySelectedDistricts(subFeatures, false);
+  var rawFeatures = (d && d.features) || [];
+  var ordinary = [];
+  var supplemental = [];
+  rawFeatures.forEach(function(f){
+    if(f && f.properties && f.properties.source === 'attached_train_kml') supplemental.push(f);
+    else ordinary.push(f);
+  });
+  ordinary = filterByView(ordinary, f=>f.geometry.coordinates[1], f=>f.geometry.coordinates[0]);
+  ordinary = filteredBySelectedDistricts(ordinary, false);
+  supplemental = filterByView(supplemental, f=>f.geometry.coordinates[1], f=>f.geometry.coordinates[0]);
+  var subFeatures = dedupeSubwayStations(ordinary.concat(supplemental));
   subwayLayer = L.geoJSON({type:'FeatureCollection',features:subFeatures},{
     pointToLayer:(f,ll)=>L.marker(ll,{icon:subwayStationIcon(f),riseOnHover:true}),
     onEachFeature:(f,l)=>{
@@ -910,8 +934,21 @@ function buildSubwayRoutes(d){
 function buildSubwayCombined(){
   if(window._overlayData_subwayroutes) buildSubwayRoutes(window._overlayData_subwayroutes);
   else fetch('data/cb6-subway-routes.geojson').then(r=>r.json()).then(d=>{window._overlayData_subwayroutes=d;buildSubwayRoutes(d);});
-  if(window._overlayData_subway) buildSubway(window._overlayData_subway);
-  else loadOverlay('subway','data/nyc-subway-stations.geojson',buildSubway);
+  function mergeAndBuildSubwayStations(){
+    if(!window._overlayData_subway || !window._overlayData_subwaystops) return;
+    var merged = {
+      type:'FeatureCollection',
+      features:[].concat(window._overlayData_subway.features||[], window._overlayData_subwaystops.features||[])
+    };
+    buildSubway(merged);
+  }
+  if(!window._overlayData_subway){
+    fetch('data/nyc-subway-stations.geojson').then(r=>r.json()).then(d=>{window._overlayData_subway=d;mergeAndBuildSubwayStations();});
+  }
+  if(!window._overlayData_subwaystops){
+    fetch('data/cb6-subway-stops.geojson').then(r=>r.json()).then(d=>{window._overlayData_subwaystops=d;mergeAndBuildSubwayStations();});
+  }
+  mergeAndBuildSubwayStations();
 }
 function citibikeStationIcon(f){
   var name = f && f.properties ? (f.properties.name || 'Citi Bike station') : 'Citi Bike station';
