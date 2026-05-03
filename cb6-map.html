@@ -79,6 +79,8 @@ body{display:flex;flex-direction:column}
 #map.bus-stop-labels-full .bus-stop-sign{min-width:84px;max-width:132px;box-shadow:0 2px 6px rgba(13,27,75,.34),0 0 0 1px rgba(13,27,75,.24)}
 #map.bus-stop-labels-full .bus-stop-name{display:block}
 .cb-overlap-fragment{mix-blend-mode:multiply}
+.district-map-label{background:transparent;border:0;box-shadow:none;color:#fff;font-family:'DM Sans',Arial,sans-serif;font-size:1.15rem;font-weight:900;line-height:1.12;text-align:center;text-shadow:-1.25px -1.25px 0 rgba(13,27,75,.62),1.25px -1.25px 0 rgba(13,27,75,.62),-1.25px 1.25px 0 rgba(13,27,75,.62),1.25px 1.25px 0 rgba(13,27,75,.62),0 2px 5px rgba(13,27,75,.35);white-space:nowrap;pointer-events:none}
+.district-map-label.senate{font-size:1.25rem}
 .cb6-boundary-label{background:transparent;border:0;pointer-events:none}
 .cb6-boundary-label-text{display:inline-block;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none;color:#f47920;font-family:'DM Sans',Arial,sans-serif;font-size:1.45rem;font-weight:900;letter-spacing:-.035em;line-height:1;text-transform:none;text-shadow:-1.25px -1.25px 0 rgba(255,255,255,.95),1.25px -1.25px 0 rgba(255,255,255,.95),-1.25px 1.25px 0 rgba(255,255,255,.95),1.25px 1.25px 0 rgba(255,255,255,.95),0 2px 3px rgba(13,27,75,.16);white-space:nowrap}
 
@@ -1171,26 +1173,88 @@ function toggleSingleDistrict(type, num, on){
   else fetch(cfg.url).then(function(r){return r.json();}).then(function(d){window[cfg.dataVar]=d;draw(d);});
 }
 
+function bkcb6AllowedDistrictFallback(type){
+  return {cc:[33,38,39], assembly:[44,51,52], senate:[20,26], congress:[10]}[type] || null;
+}
+function districtFeaturesForSelectedCB(type, data, key){
+  var sourceFeatures = (data && data.features) ? data.features : [];
+  var cbs = selectedCommunityBoardFeatures();
+  var shouldFilterToCB = activeMain === 'cb6' || (window._selectedCBFeature && window._selectedCBFeature.properties && window._selectedCBFeature.properties.boro_cd === '306');
+  if(!shouldFilterToCB || !cbs.length) return sourceFeatures;
+  var filtered = [];
+  if(window.turf && turf.booleanIntersects){
+    sourceFeatures.forEach(function(f){
+      if(!f || !f.geometry) return;
+      var keep = cbs.some(function(cb){
+        try { return turf.booleanIntersects(cb, f); } catch(e) { return false; }
+      });
+      if(keep) filtered.push(f);
+    });
+  }
+  var allowed = bkcb6AllowedDistrictFallback(type);
+  if(shouldFilterToCB && allowed){
+    filtered = (filtered.length ? filtered : sourceFeatures).filter(function(f){return allowed.indexOf(parseInt(f.properties[key], 10)) > -1;});
+  }
+  return filtered;
+}
+function districtLabelText(type, label, num){
+  var abbr = {cc:'CD', assembly:'AD', senate:'SD', congress:'NY'}[type] || '';
+  if(type === 'senate') return 'Senate District<br>'+num+' ('+abbr+' '+num+')';
+  if(type === 'assembly') return 'Assembly District<br>'+num+' ('+abbr+' '+num+')';
+  if(type === 'cc') return 'Council District<br>'+num+' ('+abbr+' '+num+')';
+  if(type === 'congress') return 'Congressional District<br>'+num+' (NY-'+num+')';
+  return label+' '+num;
+}
+function featureLabelLatLng(feature, type, key){
+  var num = feature && feature.properties ? parseInt(feature.properties[key], 10) : null;
+  if(activeMain === 'cb6' && type === 'senate'){
+    if(num === 26) return L.latLng(40.6705, -74.0120);
+    if(num === 20) return L.latLng(40.6695, -73.9850);
+  }
+  try {
+    if(window.turf && turf.centerOfMass){
+      var c = turf.centerOfMass(feature);
+      if(c && c.geometry && c.geometry.coordinates) return L.latLng(c.geometry.coordinates[1], c.geometry.coordinates[0]);
+    }
+  } catch(e) {}
+  try { var c2 = centroid(feature); return L.latLng(c2[0], c2[1]); } catch(e2) { return null; }
+}
 function buildLegislative(type, data, key, label, layerVar) {
   if(window[layerVar]) map.removeLayer(window[layerVar]);
-  var filteredData = data;
+  var filteredFeatures = districtFeaturesForSelectedCB(type, data, key);
+  var filteredData = {type:'FeatureCollection', features:filteredFeatures};
 
-  // Keep full legislative layers available across borough views so selections remain composable.
+  // In the BKCB6 focus, district group toggles display only districts that overlap CB6.
+  // This mirrors the reference view: two Senate districts (20 and 26) plus the CB6 context overlay.
   window[layerVar] = L.geoJSON(filteredData, {
     style: f => {
       var num = f.properties[key];
       var color = districtColor(type, num);
-      return districtStyle(type, num, {color:color, weight:2.8, fillOpacity:.18, dashArray:'5,3'});
+      return districtStyle(type, num, {color:color, weight:3.2, fillOpacity:.28, dashArray:null});
     },
     onEachFeature: (f,l) => {
       var num = f.properties[key];
       var lookup = type==='cc'?window._councilLookup:type==='assembly'?window._assemblyLookup:type==='senate'?window._senateLookup:window._congressLookup;
       var rep = lookup && lookup[parseInt(num)];
       var tip = '<strong>'+label+' '+num+'</strong>'+(rep?'<br>'+rep[0]:'');
-      l.bindTooltip(tip, {sticky:true});
+      l.bindPopup(tip);
+      var labelPos = featureLabelLatLng(f, type, key);
+      if(labelPos){
+        l._districtLabelLatLng = labelPos;
+        l.bindTooltip('<span>'+districtLabelText(type, label, num)+'</span>', {permanent:true, direction:'center', className:'district-map-label '+type, opacity:1, interactive:false});
+      }
     }
   });
-  if(subState[type]) window[layerVar].addTo(map);
+  if(subState[type]) {
+    window[layerVar].addTo(map);
+    window[layerVar].eachLayer(function(layer){
+      if(layer._districtLabelLatLng && layer.getTooltip && layer.getTooltip()){
+        layer.openTooltip(layer._districtLabelLatLng);
+      }
+    });
+    if(cb6Layer) cb6Layer.bringToFront();
+    addCB6BoundaryLabel();
+  }
 }
 
 function buildCC(d){ buildLegislative('cc',d,'CounDist','Council District','ccLayer'); ccLayer=window.ccLayer; }
