@@ -70,6 +70,8 @@ body{display:flex;flex-direction:column}
 #map.bus-stop-labels-full .bus-stop-sign{min-width:84px;max-width:132px;box-shadow:0 2px 6px rgba(13,27,75,.34),0 0 0 1px rgba(13,27,75,.24)}
 #map.bus-stop-labels-full .bus-stop-name{display:block}
 .cb-overlap-fragment{mix-blend-mode:multiply}
+.cb6-boundary-label{background:transparent;border:0;pointer-events:none}
+.cb6-boundary-label-text{display:inline-block;padding:3px 9px;border:2px solid #f47920;border-radius:999px;background:rgba(255,255,255,.92);color:#0d1b4b;box-shadow:0 2px 8px rgba(13,27,75,.22);font-family:'DM Mono',monospace;font-size:.74rem;font-weight:800;letter-spacing:.08em;line-height:1;text-transform:uppercase;text-shadow:0 1px 0 rgba(255,255,255,.65);white-space:nowrap}
 
 </style>
 </head>
@@ -133,7 +135,7 @@ var BORO_VIEWS = {
 };
 
 // Layers
-var cb6Layer=null, cdsLayer=null, nypdLayer=null, fireLayer=null;
+var cb6Layer=null, cb6BoundaryLabel=null, cdsLayer=null, nypdLayer=null, fireLayer=null;
 window._cb6BoundaryFeatures = window._cb6BoundaryFeatures || [];
 window._selectedCBFeature = window._selectedCBFeature || null;
 var subwayLayer=null, citibikeLayer=null, parksLayer=null;
@@ -152,6 +154,20 @@ var subState = {
 };
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function addCB6BoundaryLabel(){
+  if(cb6BoundaryLabel){ map.removeLayer(cb6BoundaryLabel); cb6BoundaryLabel=null; }
+  if(!cb6Layer || !cb6Layer.getBounds) return null;
+  var bounds = cb6Layer.getBounds();
+  if(!bounds || !bounds.isValid()) return null;
+  var height = bounds.getNorth() - bounds.getSouth();
+  var pos = L.latLng(bounds.getSouth() - height * 0.035, bounds.getCenter().lng);
+  cb6BoundaryLabel = L.marker(pos, {
+    icon: L.divIcon({className:'cb6-boundary-label',html:'<div class="cb6-boundary-label-text">BKCB6</div>',iconSize:null,iconAnchor:[28,0]}),
+    interactive:false,
+    zIndexOffset:500
+  }).addTo(map);
+  return pos;
+}
 
 // Load CB6 boundary
 // Borough boundary colors matching seals
@@ -199,7 +215,10 @@ fetch('data/cb6_boundary.geojson').then(r=>r.json()).then(d=>{
   if(!window._selectedCBFeature && window._cb6BoundaryFeatures.length) window._selectedCBFeature = window._cb6BoundaryFeatures[0];
   cb6Layer = L.geoJSON(d,{style:{color:'#f47920',weight:3,fill:true,fillColor:'#f47920',fillOpacity:.07}});
   cb6Layer.addTo(map);
-  map.fitBounds(cb6Layer.getBounds(),{padding:[20,20]});
+  var cb6LabelPos = addCB6BoundaryLabel();
+  var cb6FitBounds = cb6Layer.getBounds();
+  if(cb6LabelPos) cb6FitBounds = cb6FitBounds.extend(cb6LabelPos);
+  map.fitBounds(cb6FitBounds,{padding:[20,20]});
   document.getElementById('note').textContent = 'Click any community board to see its overlapping districts.';
   // Auto-load legislative data and show CB6 districts
   Promise.all([
