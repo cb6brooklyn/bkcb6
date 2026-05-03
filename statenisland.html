@@ -243,8 +243,67 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
         html:'<div style="font-family:Impact,Arial Black,sans-serif;font-size:26px;font-weight:900;color:#7abfb5;text-shadow:2px 2px 6px rgba(0,0,0,.9),-2px -2px 6px rgba(0,0,0,.9);white-space:nowrap;letter-spacing:.04em;">Staten Island</div>',
         iconAnchor:[60,14]
       })}).addTo(map);
+
+      window._si_layers = {};
+      window._si_layer_visible = {};
+
+      window._si_toggleLayer = function(key, btn) {
+        if (window._si_layer_visible[key]) {
+          if (window._si_layers[key]) map.removeLayer(window._si_layers[key]);
+          window._si_layer_visible[key] = false;
+          btn.classList.remove('si-active');
+          return;
+        }
+        if (window._si_layers[key]) {
+          window._si_layers[key].addTo(map);
+          window._si_layer_visible[key] = true;
+          btn.classList.add('si-active');
+          return;
+        }
+        var label = btn.getAttribute('data-label');
+        btn.textContent = '\u23f3';
+        if (key === 'parks') {
+          fetch('Parks_Properties_20260414.geojson').then(function(r){return r.json();}).then(function(d){
+            var feats = d.features.filter(function(f){return f.properties && f.properties.borough === 'R';});
+            window._si_layers.parks = L.geoJSON({type:'FeatureCollection',features:feats},{
+              style:function(){return {fillColor:'#4caf50',fillOpacity:0.5,color:'#2e7d32',weight:1};},
+              onEachFeature:function(f,l){if(f.properties&&f.properties.name)l.bindTooltip('<strong>'+f.properties.name+'</strong>',{sticky:true});}
+            }).addTo(map);
+            window._si_layer_visible.parks = true;
+            btn.classList.add('si-active');
+            btn.textContent = label;
+          }).catch(function(){btn.textContent = label;});
+        } else {
+          fetch('transport-data/statenisland.json').then(function(r){return r.json();}).then(function(d){
+            var colorMap = {bike:'#29b6f6',bus:'#ef5350',busstops:'#ef5350',subway:'#ab47bc',truck:'#ff9800',speed:'#78909c'};
+            ['bike','bus','busstops','subway','truck','speed'].forEach(function(k){
+              if (window._si_layers[k]) return;
+              var isPoint = k==='busstops'||k==='subway';
+              window._si_layers[k] = isPoint
+                ? L.geoJSON(d[k],{pointToLayer:function(f,ll){return L.circleMarker(ll,{radius:k==='subway'?7:4,fillColor:colorMap[k],fillOpacity:0.9,color:'#fff',weight:1});},onEachFeature:function(f,l){var p=f.properties||{};l.bindTooltip('<strong>'+(p.stop_name||'Stop')+'</strong>',{sticky:true,opacity:1});}})
+                : L.geoJSON(d[k],{style:function(){return {color:colorMap[k],weight:2,opacity:0.75,fillOpacity:0};},onEachFeature:function(f,l){var p=f.properties||{};var tip='';if(k==='speed')tip='<strong>'+(p.street||'')+'</strong> '+(p.postvz_sl||'')+' mph';else if(k==='bus')tip='<strong>'+(p.route_short_name||p.route_id||'')+'</strong>';else tip='<strong>'+(p.street||'')+'</strong>';l.bindTooltip(tip,{sticky:true,opacity:1});}});
+            });
+            if (window._si_layers[key]) {
+              window._si_layers[key].addTo(map);
+              window._si_layer_visible[key] = true;
+              btn.classList.add('si-active');
+            }
+            btn.textContent = label;
+          }).catch(function(){btn.textContent = label;});
+        }
+      };
     };
     </script>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
+      <button class="si-map-btn" data-label="&#x1F333; Parks" onclick="window._si_toggleLayer('parks',this)">&#x1F333; Parks</button>
+      <button class="si-map-btn" data-label="&#x1F6B2; Bike" onclick="window._si_toggleLayer('bike',this)">&#x1F6B2; Bike</button>
+      <button class="si-map-btn" data-label="&#x1F68C; Bus Routes" onclick="window._si_toggleLayer('bus',this)">&#x1F68C; Bus Routes</button>
+      <button class="si-map-btn" data-label="&#x1F6D1; Bus Stops" onclick="window._si_toggleLayer('busstops',this)">&#x1F6D1; Bus Stops</button>
+      <button class="si-map-btn" data-label="&#x1F687; Subway" onclick="window._si_toggleLayer('subway',this)">&#x1F687; Subway</button>
+      <button class="si-map-btn" data-label="&#x1F69B; Truck Routes" onclick="window._si_toggleLayer('truck',this)">&#x1F69B; Truck Routes</button>
+      <button class="si-map-btn" data-label="&#x1F522; Speed Limits" onclick="window._si_toggleLayer('speed',this)">&#x1F522; Speed Limits</button>
+    </div>
+    <style>.si-map-btn{padding:5px 10px;border-radius:16px;border:1.5px solid #999;background:#fff;color:#333;font-size:.8rem;font-weight:600;cursor:pointer;}.si-map-btn.si-active{background:#132D65;color:#fff;border-color:#132D65;}</style>
   </div>
 </div>
 <div class="boro-drop-section" id="sec-cbgrid">
