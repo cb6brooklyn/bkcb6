@@ -143,7 +143,7 @@ var BORO_VIEWS = {
 var cb6Layer=null, cb6BoundaryLabel=null, cdsLayer=null, nypdLayer=null, fireLayer=null;
 window._cb6BoundaryFeatures = window._cb6BoundaryFeatures || [];
 window._selectedCBFeature = window._selectedCBFeature || null;
-var subwayLayer=null, citibikeLayer=null, bikeRoutesLayer=null, parksLayer=null;
+var subwayLayer=null, subwayRoutesLayer=null, citibikeLayer=null, bikeRoutesLayer=null, parksLayer=null;
 var schoolsLayer=null, childcareLayer=null, librariesLayer=null, schoolDistrictsLayer=null;
 var busRoutesLayer=null, busStopsLayer=null;
 var landUseLotsLayer=null;
@@ -764,6 +764,11 @@ function filteredBySelectedDistricts(features, clipPolygons){
 }
 
 function removeOverlayLayer(name){
+  if(name==='subway'){
+    if(subwayRoutesLayer) map.removeLayer(subwayRoutesLayer);
+    if(subwayLayer) map.removeLayer(subwayLayer);
+    return;
+  }
   if(name==='bus'){
     if(busRoutesLayer) map.removeLayer(busRoutesLayer);
     if(busStopsLayer) map.removeLayer(busStopsLayer);
@@ -780,7 +785,7 @@ function removeOverlayLayer(name){
 
 function refreshDistrictFilteredOverlays(){
   var builders = {
-    nypd:buildNYPD, fire:buildFire, subway:buildSubway, busroutes:buildBusRoutes, busstops:buildBusStops, landuse:buildLandUseLots, zoning:buildZoning, parks:buildParks,
+    nypd:buildNYPD, fire:buildFire, busroutes:buildBusRoutes, busstops:buildBusStops, landuse:buildLandUseLots, zoning:buildZoning, parks:buildParks,
     schools:buildSchools, childcare:buildChildcare, libraries:buildLibraries, schooldistricts:buildSchoolDistricts,
     gowanus:buildGowanus, historic:buildHistoric, rents:buildRents
   };
@@ -789,6 +794,11 @@ function refreshDistrictFilteredOverlays(){
     removeOverlayLayer(name);
     builders[name](window['_overlayData_'+name]);
   });
+  if(subState.subway){
+    removeOverlayLayer('subway');
+    if(window._overlayData_subwayroutes) buildSubwayRoutes(window._overlayData_subwayroutes);
+    if(window._overlayData_subway) buildSubway(window._overlayData_subway);
+  }
   if(subState.bus){
     removeOverlayLayer('bus');
     if(window._overlayData_busroutes) buildBusRoutes(window._overlayData_busroutes);
@@ -879,6 +889,29 @@ function buildSubway(d){
     }
   });
   if(subState.subway) subwayLayer.addTo(map);
+}
+function subwayRouteLineStyle(f){
+  var p = f.properties || {};
+  var st = subwayRouteStyle(p.route || p.name || '');
+  return {color:p.color||st.bg,weight:p.weight||4,opacity:.92,lineCap:'round',lineJoin:'round'};
+}
+function buildSubwayRoutes(d){
+  var routeFeatures = filteredBySelectedDistricts((d&&d.features)||[], false);
+  subwayRoutesLayer = L.geoJSON({type:'FeatureCollection',features:routeFeatures},{
+    style:subwayRouteLineStyle,
+    onEachFeature:function(f,l){
+      var p=f.properties||{};
+      var route=p.route ? p.route+' train' : 'Subway route';
+      l.bindTooltip('<strong>'+escH(p.name||route)+'</strong>',{sticky:true});
+    }
+  });
+  if(subState.subway) subwayRoutesLayer.addTo(map);
+}
+function buildSubwayCombined(){
+  if(window._overlayData_subwayroutes) buildSubwayRoutes(window._overlayData_subwayroutes);
+  else fetch('data/cb6-subway-routes.geojson').then(r=>r.json()).then(d=>{window._overlayData_subwayroutes=d;buildSubwayRoutes(d);});
+  if(window._overlayData_subway) buildSubway(window._overlayData_subway);
+  else loadOverlay('subway','data/nyc-subway-stations.geojson',buildSubway);
 }
 function citibikeStationIcon(f){
   var name = f && f.properties ? (f.properties.name || 'Citi Bike station') : 'Citi Bike station';
@@ -1433,7 +1466,7 @@ function toggleOverlay(name, on){
   const loaders = {
     nypd:()=>loadOverlay('nypd','data/nypd_sectors.geojson',buildNYPD),
     fire:()=>loadOverlay('fire','data/fire_battalions.geojson',buildFire),
-    subway:()=>loadOverlay('subway','data/nyc-subway-stations.geojson',buildSubway),
+    subway:()=>buildSubwayCombined(),
     citibike:()=>buildCitibikeCombined(),
     bus:()=>buildBusCombined(),
     busroutes:()=>loadOverlay('busroutes','transport-data/cb-bk-6.json',buildBusRoutes),
@@ -1682,7 +1715,7 @@ function updateLegend(){
   let html='';
   const active = Object.keys(subState).filter(k=>subState[k]);
   const multiDistrictSwatch = 'linear-gradient(90deg,#e11d48,#f97316,#f59e0b,#16a34a,#0891b2,#2563eb,#7c3aed,#db2777)';
-  const labels = {nypd:[multiDistrictSwatch,'NYPD Precincts'],fire:[multiDistrictSwatch,'Fire Battalions'],subway:['#1d4ed8','Subway'],citibike:['#0052a5','Citi Bike Stations & Bike Lanes'],bus:['#2563eb','Bus Routes & Stops'],busroutes:['#2563eb','Bus Routes'],busstops:['#f59e0b','Bus Stops'],landuse:['#ff8341','Land Use Lots'],parks:['#16a34a','Parks'],gowanus:['#0d9488','Gowanus'],rents:['#dc2626','Rents'],historic:['#7c5c00','Historic Districts'],cc:[multiDistrictSwatch,'City Council Districts'],assembly:[multiDistrictSwatch,'Assembly Districts'],senate:[multiDistrictSwatch,'State Senate Districts'],congress:[multiDistrictSwatch,'Congressional Districts'],schooldistricts:[multiDistrictSwatch,'School Districts'],zoning:['#9333ea','Zoning']};
+  const labels = {nypd:[multiDistrictSwatch,'NYPD Precincts'],fire:[multiDistrictSwatch,'Fire Battalions'],subway:['#1d4ed8','Subway Routes & Stops'],citibike:['#0052a5','Citi Bike Stations & Bike Lanes'],bus:['#2563eb','Bus Routes & Stops'],busroutes:['#2563eb','Bus Routes'],busstops:['#f59e0b','Bus Stops'],landuse:['#ff8341','Land Use Lots'],parks:['#16a34a','Parks'],gowanus:['#0d9488','Gowanus'],rents:['#dc2626','Rents'],historic:['#7c5c00','Historic Districts'],cc:[multiDistrictSwatch,'City Council Districts'],assembly:[multiDistrictSwatch,'Assembly Districts'],senate:[multiDistrictSwatch,'State Senate Districts'],congress:[multiDistrictSwatch,'Congressional Districts'],schooldistricts:[multiDistrictSwatch,'School Districts'],zoning:['#9333ea','Zoning']};
   if(['brooklyn','manhattan','queens','bronx','si','nyc'].includes(activeMain)){
     const boroKey = {brooklyn:'3',manhattan:'1',queens:'4',bronx:'2',si:'5'};
     const bk = boroKey[activeMain];
