@@ -93,6 +93,7 @@ window._congressLookup = {5:["Gregory Meeks","https://meeks.house.gov"],6:["Grac
 
 var activeMain = 'cb6';
 var activeBoroFilter = '306'; // boro_cd prefix or specific code
+var activeCBBounds = null; // {minLat,maxLat,minLng,maxLng} for active single CB
 var searchMarker = null;
 
 // Borough colors from seals
@@ -384,7 +385,7 @@ var VIEW_BOUNDS = {
 };
 
 function filterByView(features, getLat, getLng) {
-  var b = VIEW_BOUNDS[activeMain];
+  var b = activeCBBounds || VIEW_BOUNDS[activeMain];
   if(!b) return features;
   return features.filter(function(f){
     var lat=getLat(f), lng=getLng(f);
@@ -636,6 +637,7 @@ function setMain(which, btn){
   // Set borough filter
   var filters = {'cb6':'306','brooklyn':'3','manhattan':'1','queens':'4','bronx':'2','si':'5','nyc':null};
   activeBoroFilter = filters[which];
+  activeCBBounds = null; // clear single-CB bounds on focus change
   buildSubToggles();
   updateLegend();
   // Refresh all active legislative layers with new filter
@@ -720,6 +722,19 @@ function buildSubToggles(){
           if(!cdsData) return;
           var feature=cdsData.features.find(f=>f.properties.boro_cd===c);
           if(!feature) return;
+          // Compute bbox for this CB
+          var coords = [];
+          (function extractCoords(g){
+            if(g.type==='Point') coords.push(g.coordinates);
+            else if(g.type==='LineString'||g.type==='MultiPoint') coords=coords.concat(g.coordinates);
+            else if(g.type==='Polygon') g.coordinates.forEach(function(r){coords=coords.concat(r);});
+            else if(g.type==='MultiPolygon') g.coordinates.forEach(function(p){p.forEach(function(r){coords=coords.concat(r);});});
+          })(feature.geometry);
+          if(coords.length){
+            var lngs=coords.map(function(c){return c[0];}), lats=coords.map(function(c){return c[1];});
+            var pad=0.005;
+            activeCBBounds={minLat:Math.min.apply(null,lats)-pad,maxLat:Math.max.apply(null,lats)+pad,minLng:Math.min.apply(null,lngs)-pad,maxLng:Math.max.apply(null,lngs)+pad};
+          }
           var lyr=L.geoJSON(feature,{
             style:{color:boroColor,weight:2.5,fillColor:boroColor,fillOpacity:.2},
             onEachFeature:function(f,l){
