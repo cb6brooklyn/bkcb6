@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BKCB6 Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+<style>
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff}
+body{display:flex;flex-direction:column}
+.top-bar{background:#0d1b4b;border-bottom:3px solid #f47920;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-shrink:0}
+.top-bar h1{font-size:.92rem;font-weight:700;color:#fff;white-space:nowrap;flex-shrink:0}
+.top-bar h1 span{color:#f47920}
+.search-row{display:flex;gap:6px;flex:1;min-width:200px}
+.search-row input{flex:1;font-family:'DM Sans',sans-serif;font-size:.83rem;padding:6px 11px;border:none;border-radius:6px;background:rgba(255,255,255,.12);color:#fff;outline:none}
+.search-row input::placeholder{color:rgba(255,255,255,.4)}
+.search-row button{padding:6px 14px;background:#f47920;color:#fff;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;white-space:nowrap}
+.back-link{font-size:.7rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.45);text-decoration:none;white-space:nowrap}
+.back-link:hover{color:#f47920}
+.addr-result{display:none;position:absolute;bottom:10px;left:10px;z-index:1000;max-width:280px;max-height:50vh;overflow-y:auto;background:#fff;border-left:4px solid #f47920;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.25);padding:10px 14px}
+.main-toggles{padding:8px 14px;background:#0d1b4b;border-bottom:1px solid rgba(255,255,255,.1);display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-shrink:0}
+.main-toggles span{font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.45);margin-right:2px}
+.plyr-btn{padding:5px 12px;font-size:.73rem;font-family:'DM Sans',sans-serif;font-weight:600;border:1.5px solid rgba(255,255,255,.3);border-radius:20px;background:transparent;color:rgba(255,255,255,.65);cursor:pointer;transition:all .15s;white-space:nowrap}
+.plyr-btn.active{background:var(--pc);border-color:var(--pc);color:#fff}
+.sub-toggles{padding:7px 14px;border-bottom:1px solid #e5e2db;display:flex;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:5px;align-items:center;flex-shrink:0;scrollbar-width:none}
+.sub-toggles::-webkit-scrollbar{display:none}
+.plyr-sub{padding:4px 10px;font-size:.71rem;font-family:'DM Sans',sans-serif;font-weight:600;border:1.5px solid #ccc;border-radius:16px;background:#fff;color:#555;cursor:pointer;transition:all .15s;white-space:nowrap}
+.plyr-sub.on{background:var(--sc);color:var(--stc,#fff);border-color:var(--sc)}
+.legend-bar{padding:5px 14px;background:#fafaf8;border-bottom:1px solid #e5e2db;display:flex;flex-wrap:wrap;gap:7px;align-items:center;flex-shrink:0;min-height:24px}
+.li{display:inline-flex;align-items:center;gap:4px;font-size:.71rem;color:#444}
+.ls{display:inline-block;width:14px;height:10px;border-radius:2px;flex-shrink:0}
+#map{flex:1;min-height:0}
+.note-bar{padding:4px 14px;font-size:.65rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.3);background:#0d1b4b;flex-shrink:0}
+.note-bar a{color:#f47920;text-decoration:none}
+.subway-station-icon-wrap,.citibike-station-icon-wrap{background:transparent;border:0}
+.subway-icon-stack{display:flex;align-items:center;gap:1px;padding:2px 3px;background:rgba(255,255,255,.92);border:1.5px solid #111;border-radius:13px;box-shadow:0 1px 5px rgba(0,0,0,.28);white-space:nowrap;transform:translate(-50%,-50%)}
+.subway-route-badge{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:800;line-height:18px;color:#fff;border:1px solid rgba(0,0,0,.22)}
+.subway-route-more{display:inline-flex;align-items:center;justify-content:center;height:18px;min-width:18px;border-radius:9px;background:#111;color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:800;padding:0 3px}
+.citibike-logo-marker{position:relative;display:inline-flex;align-items:center;justify-content:center;height:22px;min-width:58px;padding:0 7px;background:#005EB8;color:#fff;border:1.5px solid #fff;border-radius:12px;box-shadow:0 1px 5px rgba(0,0,0,.32);font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:800;letter-spacing:-.04em;line-height:22px;white-space:nowrap;transform:translate(-50%,-50%)}
+.citibike-logo-marker .citi-word{position:relative;margin-right:2px;padding-top:1px}
+.citibike-logo-marker .citi-word:before{content:'';position:absolute;left:2px;right:1px;top:1px;height:7px;border-top:2px solid #e31837;border-radius:50% 50% 0 0}
+.citibike-logo-marker .bike-word{padding-top:1px}
+.bus-route-label{background:transparent;border:none;pointer-events:auto}
+.bus-route-label.bus-label-hidden{display:none}
+.bus-route-badge{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:22px;padding:0 7px;border-radius:999px;background:#2563eb;color:#fff;border:2px solid #fff;box-shadow:0 2px 8px rgba(13,27,75,.32),0 0 0 1px rgba(13,27,75,.22);font-family:'DM Sans',sans-serif;font-size:.68rem;font-weight:800;line-height:1;letter-spacing:.01em;white-space:nowrap;text-shadow:0 1px 1px rgba(0,0,0,.18)}
+.bus-route-badge.sbs{background:#c1121f}
+.bus-route-badge.express{background:#6a1b9a}
+.bus-route-badge.limited{background:#f77f00}
+.bus-stop-icon-wrap{background:transparent;border:0;pointer-events:auto}
+.bus-stop-sign{--mta-blue:#0039a6;position:relative;display:inline-flex;flex-direction:column;gap:2px;min-width:38px;max-width:124px;padding:2px 4px 3px;background:var(--mta-blue);color:#fff;border:1px solid #fff;border-radius:3px;box-shadow:0 1px 4px rgba(13,27,75,.3),0 0 0 1px rgba(13,27,75,.2);font-family:Arial,Helvetica,sans-serif;line-height:1;white-space:nowrap;transform:translate(-50%,-50%);transition:min-width .18s ease,max-width .18s ease,padding .18s ease,box-shadow .18s ease}
+.bus-stop-sign.timepoint{--mta-blue:#0047ba}
+.bus-stop-sign.cbd{--mta-blue:#002f6c}
+.bus-stop-sign-main{display:flex;align-items:center;gap:3px}
+.bus-stop-mta{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;min-width:14px;border-radius:50%;background:#fff;color:var(--mta-blue);font-size:5.5px;font-weight:900;letter-spacing:-.08em;transform:skew(-7deg)}
+.bus-stop-bus-symbol{position:relative;width:13px;height:13px;min-width:13px;border:1px solid #fff;border-radius:3px 3px 1px 1px;box-sizing:border-box}
+.bus-stop-bus-symbol:before{content:'';position:absolute;left:2px;right:2px;top:2px;height:4px;border-radius:1px;background:#fff}
+.bus-stop-bus-symbol:after{content:'';position:absolute;left:2px;right:2px;bottom:2px;height:2px;background:radial-gradient(circle at 1.5px 1px,#fff 0 1.4px,transparent 1.6px),radial-gradient(circle at calc(100% - 1.5px) 1px,#fff 0 1.4px,transparent 1.6px)}
+.bus-stop-title{font-size:9px;font-weight:900;letter-spacing:-.03em;text-transform:lowercase}
+.bus-stop-route-strip{display:none;align-items:center;gap:2px;flex-wrap:wrap;margin-top:1px;max-width:112px;white-space:normal}
+.bus-stop-route-pill{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:12px;padding:0 3px;border-radius:2px;background:#fff;color:var(--mta-blue);font-size:7.5px;font-weight:900;letter-spacing:.01em;line-height:12px}
+.bus-stop-name{display:none;max-width:112px;overflow:hidden;text-overflow:ellipsis;color:#fff;font-size:7.25px;font-weight:800;line-height:1.08;letter-spacing:.01em;text-transform:uppercase;white-space:normal;text-shadow:0 1px 1px rgba(0,0,0,.16)}
+#map.bus-stop-labels-routes .bus-stop-sign{min-width:50px;padding:3px 4px 4px}
+#map.bus-stop-labels-routes .bus-stop-route-strip{display:flex}
+#map.bus-stop-labels-full .bus-stop-sign{min-width:84px;max-width:132px;box-shadow:0 2px 6px rgba(13,27,75,.34),0 0 0 1px rgba(13,27,75,.24)}
+#map.bus-stop-labels-full .bus-stop-name{display:block}
+.cb-overlap-fragment{mix-blend-mode:multiply}
+
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <h1>BKCB6 <span>Map</span></h1>
+  <div class="search-row" style="position:relative">
+    <select id="boro-sel" style="font-family:'DM Mono',monospace;font-size:.72rem;padding:6px 8px;border:none;border-radius:6px;background:rgba(255,255,255,.12);color:#fff;outline:none;cursor:pointer">
+      <option value="Brooklyn">Brooklyn</option>
+      <option value="Manhattan">Manhattan</option>
+      <option value="Queens">Queens</option>
+      <option value="Bronx">Bronx</option>
+      <option value="Staten Island">S. Island</option>
+      <option value="Citywide">Citywide</option>
+    </select>
+    <input id="s-input" type="text" placeholder="Search any NYC address…" autocomplete="off"
+      oninput="doAC(this.value)" onkeydown="if(event.key==='Enter')doSearch()"/>
+    <div id="ac-drop" style="position:absolute;top:100%;left:0;right:80px;background:#0d1b4b;border:1.5px solid #f47920;border-top:none;border-radius:0 0 6px 6px;z-index:9999;display:none;max-height:180px;overflow-y:auto"></div>
+    <button onclick="doSearch()">Search</button>
+  </div>
+  <a class="back-link" href="cb-bk-6.html">← Brooklyn CB6</a>
+</div>
+<div class="main-toggles">
+  <span>Focus</span>
+  <button class="plyr-btn active" style="--pc:#f47920">🏛 BKCB6</button>
+</div>
+<div class="sub-toggles" id="sub-row"></div>
+<div class="legend-bar" id="legend"></div>
+<div style="position:relative;flex:1;min-height:0"><div id="map" style="width:100%;height:100%"></div><div class="addr-result" id="s-result"></div></div>
+<div class="note-bar" id="note">Loading Brooklyn CB6 boundary…</div>
+<div style="background:#f8f7f4;border-top:2px solid #0d1b4b;padding:8px 14px;flex-shrink:0;display:flex;flex-wrap:wrap;gap:5px;align-items:center">
+  <span style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-right:2px">More</span>
+  <a href="mydistricts.html" style="padding:4px 10px;background:#fff;border:1.5px solid #e5e2db;border-radius:14px;font-size:.72rem;font-family:'DM Sans',sans-serif;color:#0d1b4b;text-decoration:none;font-weight:600">🔍 Who Reps What & Where</a>
+  <a href="library.html" style="padding:4px 10px;background:#fff;border:1.5px solid #e5e2db;border-radius:14px;font-size:.72rem;font-family:'DM Sans',sans-serif;color:#0d1b4b;text-decoration:none;font-weight:600">📚 Directory</a>
+  <a href="planning-map-cb6.html" style="padding:4px 10px;background:#fff;border:1.5px solid #e5e2db;border-radius:14px;font-size:.72rem;font-family:'DM Sans',sans-serif;color:#0d1b4b;text-decoration:none;font-weight:600">🧭 CB6 Planning Map</a>
+  <a href="research.html" style="padding:4px 10px;background:#fff;border:1.5px solid #e5e2db;border-radius:14px;font-size:.72rem;font-family:'DM Sans',sans-serif;color:#0d1b4b;text-decoration:none;font-weight:600">🗺 Full Research Map</a>
+  <a href="cb-bk-6.html" style="padding:4px 10px;background:#0d1b4b;border:1.5px solid #0d1b4b;border-radius:14px;font-size:.72rem;font-family:'DM Sans',sans-serif;color:#fff;text-decoration:none;font-weight:600">← Brooklyn CB6</a>
+</div>
+<script>
+
+var map = L.map('map',{scrollWheelZoom:true}).setView([40.6771,-74.0012],13);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+
+// Representative lookup tables
+window._councilLookup = {1:["Christopher Marte","https://council.nyc.gov/district-1/"],2:["Harvey Epstein","https://council.nyc.gov/district-2/"],3:["Erik Bottcher","https://council.nyc.gov/district-3/"],4:["Virginia Maloney","https://council.nyc.gov/district-4/"],5:["Julie Menin","https://council.nyc.gov/district-5/"],6:["Gale A. Brewer","https://council.nyc.gov/district-6/"],7:["Shaun Abreu","https://council.nyc.gov/district-7/"],8:["Elsie Encarnacion","https://council.nyc.gov/district-8/"],9:["Yusef Salaam","https://council.nyc.gov/district-9/"],10:["Carmen De La Rosa","https://council.nyc.gov/district-10/"],11:["Eric Dinowitz","https://council.nyc.gov/district-11/"],12:["Kevin C. Riley","https://council.nyc.gov/district-12/"],13:["Shirley Aldebol","https://council.nyc.gov/district-13/"],14:["Pierina Ana Sanchez","https://council.nyc.gov/district-14/"],15:["Oswald Feliz","https://council.nyc.gov/district-15/"],16:["Althea Stevens","https://council.nyc.gov/district-16/"],17:["Justin Sanchez","https://council.nyc.gov/district-17/"],18:["Amanda Farías","https://council.nyc.gov/district-18/"],19:["Vickie Paladino","https://council.nyc.gov/district-19/"],20:["Sandra Ung","https://council.nyc.gov/district-20/"],21:["Shanel Thomas-Henry","https://council.nyc.gov/district-21/"],22:["Tiffany Cabán","https://council.nyc.gov/district-22/"],23:["Linda Lee","https://council.nyc.gov/district-23/"],24:["James F. Gennaro","https://council.nyc.gov/district-24/"],25:["Shekar Krishnan","https://council.nyc.gov/district-25/"],26:["Julie Won","https://council.nyc.gov/district-26/"],27:["Nantasha Williams","https://council.nyc.gov/district-27/"],28:["Tyrell Hankerson","https://council.nyc.gov/district-28/"],29:["Lynn Schulman","https://council.nyc.gov/district-29/"],30:["Phil Wong","https://council.nyc.gov/district-30/"],31:["Selvena Brooks-Powers","https://council.nyc.gov/district-31/"],32:["Joann Ariola","https://council.nyc.gov/district-32/"],33:["Lincoln Restler","https://council.nyc.gov/district-33/"],34:["Jennifer Gutiérrez","https://council.nyc.gov/district-34/"],35:["Crystal Hudson","https://council.nyc.gov/district-35/"],36:["Chi Ossé","https://council.nyc.gov/district-36/"],37:["Sandy Nurse","https://council.nyc.gov/district-37/"],38:["Alexa Avilés","https://council.nyc.gov/district-38/"],39:["Shahana Hanif","https://council.nyc.gov/district-39/"],40:["Rita Joseph","https://council.nyc.gov/district-40/"],41:["Darlene Mealy","https://council.nyc.gov/district-41/"],42:["Chris Banks","https://council.nyc.gov/district-42/"],43:["Susan Zhuang","https://council.nyc.gov/district-43/"],44:["Simcha Felder","https://council.nyc.gov/district-44/"],45:["Farah N. Louis","https://council.nyc.gov/district-45/"],46:["Mercedes Narcisse","https://council.nyc.gov/district-46/"],47:["Kayla Santosuosso","https://council.nyc.gov/district-47/"],48:["Inna Vernikov","https://council.nyc.gov/district-48/"],49:["Kamillah Hanks","https://council.nyc.gov/district-49/"],50:["David Carr","https://council.nyc.gov/district-50/"],51:["Frank Morano","https://council.nyc.gov/district-51/"]};
+window._assemblyLookup = {31:["Khaleel Anderson","https://nyassembly.gov/mem/Khaleel-M-Anderson"],32:["Jenifer Rajkumar","https://nyassembly.gov/mem/Jenifer-Rajkumar"],33:["David Weprin","https://nyassembly.gov/mem/David-Weprin"],34:["Clyde Vanel","https://nyassembly.gov/mem/Clyde-Vanel"],35:["Nily Rozic","https://nyassembly.gov/mem/Nily-Rozic"],36:["Diana Moreno","https://nyassembly.gov/mem/Diana-Moreno"],37:["Claire Valdez","https://nyassembly.gov/mem/Claire-Valdez"],39:["Catalina Cruz","https://nyassembly.gov/mem/Catalina-Cruz"],40:["Ron Kim","https://nyassembly.gov/mem/Ron-Kim"],41:["Kalman Yeger","https://nyassembly.gov/mem/Kalman-Yeger"],42:["Rodneyse Bichotte Hermelyn","https://nyassembly.gov/mem/Rodneyse-Bichotte-Hermelyn"],43:["Brian Cunningham","https://nyassembly.gov/mem/Brian-Cunningham"],44:["Robert Carroll","https://nyassembly.gov/mem/Robert-C-Carroll"],45:["Michael Novakhov","https://nyassembly.gov/mem/Michael-Novakhov"],46:["Alec Brook-Krasny","https://nyassembly.gov/mem/Alec-Brook-Krasny"],47:["William Colton","https://nyassembly.gov/mem/William-Colton"],48:["Simcha Eichenstein","https://nyassembly.gov/mem/Simcha-Eichenstein"],49:["Lester Chang","https://nyassembly.gov/mem/Lester-Chang"],50:["Emily Gallagher","https://nyassembly.gov/mem/Emily-Gallagher"],51:["Marcela Mitaynes","https://nyassembly.gov/mem/Marcela-Mitaynes"],52:["Jo Anne Simon","https://nyassembly.gov/mem/Jo-Anne-Simon"],53:["Maritza Davila","https://nyassembly.gov/mem/Maritza-Davila"],54:["Erik Dilan","https://nyassembly.gov/mem/Erik-Dilan"],55:["Latrice Walker","https://nyassembly.gov/mem/Latrice-Walker"],56:["Stefani Zinerman","https://nyassembly.gov/mem/Stefani-Zinerman"],57:["Phara Souffrant Forrest","https://nyassembly.gov/mem/Phara-Souffrant-Forrest"],58:["Monique Chandler-Waterman","https://nyassembly.gov/mem/Monique-Chandler-Waterman"],59:["Jaime Williams","https://nyassembly.gov/mem/Jaime-Williams"],60:["Nikki Lucas","https://nyassembly.gov/mem/Nikki-Lucas"],61:["Charles Fall","https://nyassembly.gov/mem/Charles-Fall"],62:["Michael Reilly","https://nyassembly.gov/mem/Michael-Reilly"],63:["Samuel Pirozzolo","https://nyassembly.gov/mem/Sam-Pirozzolo"],64:["Michael Tannousis","https://nyassembly.gov/mem/Michael-Tannousis"],65:["Alex Bores","https://nyassembly.gov/mem/Alex-Bores"],66:["Rebecca Seawright","https://nyassembly.gov/mem/Rebecca-A-Seawright"],67:["Sam Berger","https://nyassembly.gov/mem/Sam-Berger"],69:["Inez Dickens","https://nyassembly.gov/mem/Inez-E-Dickens"],70:["Al Taylor","https://nyassembly.gov/mem/Al-Taylor"],71:["Gabriela Cruz","https://nyassembly.gov/mem/Gabriela-Cruz"],72:["Carmen De La Rosa","https://nyassembly.gov/mem/Carmen-De-La-Rosa"],74:["Keith Powers","https://nyassembly.gov/mem/Keith-Powers"],75:["Deborah Glick","https://nyassembly.gov/mem/Deborah-J-Glick"],76:["Christopher Marte","https://nyassembly.gov/mem/Christopher-Marte"],78:["George Alvarez","https://nyassembly.gov/mem/George-Alvarez"],79:["Yudelka Tapia","https://nyassembly.gov/mem/Yudelka-Tapia"],80:["Chantel Jackson","https://nyassembly.gov/mem/Chantel-Jackson"],81:["Jeffrey Dinowitz","https://nyassembly.gov/mem/Jeffrey-Dinowitz"],82:["Michael Benedetto","https://nyassembly.gov/mem/Michael-Benedetto"],83:["Nathalia Fernandez","https://nyassembly.gov/mem/Nathalia-Fernandez"],85:["Karines Reyes","https://nyassembly.gov/mem/Karines-Reyes"],86:["Amanda Septimo","https://nyassembly.gov/mem/Amanda-Septimo"],87:["Kenny Burgos","https://nyassembly.gov/mem/Kenny-Burgos"]};
+window._senateLookup = {10:["Andrew Gounardes","https://www.nysenate.gov/senators/andrew-gounardes"],11:["Jessica Scarcella-Spanton","https://www.nysenate.gov/senators/jessica-scarcella-spanton"],12:["Simcha Felder","https://www.nysenate.gov/senators/simcha-felder"],15:["Joseph Addabbo","https://www.nysenate.gov/senators/joseph-addabbo"],17:["Steve Chan","https://www.nysenate.gov/senators/steve-chan"],18:["Julia Salazar","https://www.nysenate.gov/senators/julia-salazar"],19:["Roxanne Persaud","https://www.nysenate.gov/senators/roxanne-persaud"],20:["Zellnor Myrie","https://www.nysenate.gov/senators/zellnor-myrie"],21:["Kevin Parker","https://www.nysenate.gov/senators/kevin-parker"],22:["Sam Sutton","https://www.nysenate.gov/senators/sam-sutton"],24:["Andrew Lanza","https://www.nysenate.gov/senators/andrew-lanza"],25:["Jabari Brisport","https://www.nysenate.gov/senators/jabari-brisport"],26:["Andrew Gounardes","https://www.nysenate.gov/senators/andrew-gounardes"],27:["Brian Kavanagh","https://www.nysenate.gov/senators/brian-kavanagh"],28:["Liz Krueger","https://www.nysenate.gov/senators/liz-krueger"],29:["Jose Serrano","https://www.nysenate.gov/senators/jose-m-serrano"],30:["Cordell Cleare","https://www.nysenate.gov/senators/cordell-cleare"],31:["Robert Jackson","https://www.nysenate.gov/senators/robert-jackson"],32:["Luis Sepulveda","https://www.nysenate.gov/senators/luis-r-sepulveda"],33:["J. Rivera","https://www.nysenate.gov/senators/j-rivera"],34:["Nathalia Fernandez","https://www.nysenate.gov/senators/nathalia-fernandez"],59:["Diane Savino","https://www.nysenate.gov/senators/diane-savino"]};
+window._congressLookup = {5:["Gregory Meeks","https://meeks.house.gov"],6:["Grace Meng","https://meng.house.gov"],7:["Nydia Velázquez","https://velazquez.house.gov"],8:["Hakeem Jeffries","https://jeffries.house.gov"],9:["Yvette Clarke","https://clarke.house.gov"],10:["Dan Goldman","https://goldman.house.gov"],11:["Nicole Malliotakis","https://malliotakis.house.gov"],12:["Jerry Nadler","https://nadler.house.gov"],13:["Adriano Espaillat","https://espaillat.house.gov"],14:["Alexandria Ocasio-Cortez","https://ocasio-cortez.house.gov"],15:["Ritchie Torres","https://torres.house.gov"],16:["George Latimer","https://latimer.house.gov"]};
+
+var activeMain = 'cb6';
+var activeBoroFilter = '306'; // boro_cd prefix or specific code
+var searchMarker = null;
+
+// Borough colors from seals
+var BORO_COLORS = {'3':'#1a3a8a','1':'#003580','4':'#6b4f00','2':'#b84800','5':'#1a5a50'};
+var BORO_NAMES = {'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
+var BORO_VIEWS = {
+  'brooklyn':[40.650,-73.980,11],'manhattan':[40.776,-73.971,12],
+  'queens':[40.710,-73.860,11],'bronx':[40.845,-73.866,11],
+  'si':[40.600,-74.090,11],'nyc':[40.706,-73.977,10],'cb6':[40.6771,-74.0012,13]
+};
+
+// Layers
+var cb6Layer=null, cdsLayer=null, nypdLayer=null, fireLayer=null;
+window._cb6BoundaryFeatures = window._cb6BoundaryFeatures || [];
+window._selectedCBFeature = window._selectedCBFeature || null;
+var subwayLayer=null, citibikeLayer=null, parksLayer=null;
+var busRoutesLayer=null, busStopsLayer=null;
+var landUseLotsLayer=null;
+var rentsLayer=null, gowanusLayer=null;
+var ccLayer=null, assemblyLayer=null, senateLayer=null, congressLayer=null;
+var cbOverlapLayer=null;
+
+// Sub-toggle state
+var subState = {
+  // CB mode overlays
+  nypd:false, fire:false, subway:false, citibike:false, busroutes:false, busstops:false, landuse:false, parks:false, gowanus:false, rents:false, historic:false,
+  // Legislative (disabled until files uploaded)
+  cc:false, assembly:false, senate:false, congress:false
+};
+
+function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// Load CB6 boundary
+// Borough boundary colors matching seals
+var BORO_FILL = {'1':'#003580','2':'#b84800','3':'#1a3a8a','4':'#6b4f00','5':'#1a5a50'};
+var boroBoundaryLayer = null;
+
+fetch('data/borough-boundaries.geojson').then(r=>r.json()).then(d=>{
+  boroBoundaryLayer = L.geoJSON(d, {
+    style: f => ({
+      color: BORO_FILL[f.properties.borocode]||'#888',
+      weight: 2,
+      fillColor: BORO_FILL[f.properties.borocode]||'#888',
+      fillOpacity: 0.08
+    }),
+    onEachFeature: (f, l) => {
+      // Add borough name label as a permanent tooltip
+      var name = f.properties.boroname;
+      // Get centroid
+      var coords = f.geometry.type==='Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates[0][0];
+      var lng = coords.reduce((s,c)=>s+c[0],0)/coords.length;
+      var lat = coords.reduce((s,c)=>s+c[1],0)/coords.length;
+      // Use hardcoded label positions for accuracy
+      var labelPos = {
+        'Manhattan': [40.776, -73.971],
+        'Brooklyn': [40.650, -73.950],
+        'Queens': [40.710, -73.820],
+        'Bronx': [40.845, -73.866],
+        'Staten Island': [40.580, -74.152]
+      };
+      var pos = labelPos[name] || [lat, lng];
+      L.marker(pos, {
+        icon: L.divIcon({
+          className:'',
+          html: '<div style="font-family:DM Sans,sans-serif;font-size:1.1rem;font-weight:800;color:'+BORO_FILL[f.properties.borocode]+';text-shadow:1px 1px 3px rgba(255,255,255,.9),-1px -1px 3px rgba(255,255,255,.9);pointer-events:none;white-space:nowrap">'+name+'</div>',
+          iconAnchor: [40, 10]
+        }),
+        interactive: false
+      }).addTo(map);
+    }
+  }).addTo(map);
+});
+
+fetch('data/cb6_boundary.geojson').then(r=>r.json()).then(d=>{
+  window._cb6BoundaryFeatures = geojsonFeatureArray(d);
+  if(!window._selectedCBFeature && window._cb6BoundaryFeatures.length) window._selectedCBFeature = window._cb6BoundaryFeatures[0];
+  cb6Layer = L.geoJSON(d,{style:{color:'#f47920',weight:3,fill:true,fillColor:'#f47920',fillOpacity:.07}});
+  cb6Layer.addTo(map);
+  map.fitBounds(cb6Layer.getBounds(),{padding:[20,20]});
+  document.getElementById('note').textContent = 'Click any community board to see its overlapping districts.';
+  // Auto-load legislative data and show CB6 districts
+  Promise.all([
+    fetch('data/city-council-districts.geojson').then(r=>r.json()).then(d=>{window._ccData=d;}),
+    fetch('data/state-assembly-districts.geojson').then(r=>r.json()).then(d=>{window._assemblyData=d;}),
+    fetch('data/state-senate-districts.geojson').then(r=>r.json()).then(d=>{window._senateData=d;}),
+    fetch('data/congressional-districts.geojson').then(r=>r.json()).then(d=>{window._congressData=d;}),
+    fetch('community-district-boundaries.geojson').then(r=>r.json()).then(d=>{
+      cdsData=d;
+      var cb6Feature = d.features.find(f=>f.properties.boro_cd==='306');
+      if(cb6Feature) showCBDistricts(cb6Feature);
+    })
+  ]).then(function(){
+    var cb6Feature = cdsData && cdsData.features.find(f=>f.properties.boro_cd==='306');
+    if(cb6Feature) {
+      window._selectedCBFeature = cb6Feature;
+      showCBDistricts(cb6Feature);
+      refreshCBOverlapLayer();
+    }
+  });
+});
+
+// Load community districts (lazy)
+var cdsData = null;
+function loadCDs(){
+  if(cdsData){buildCDLayer();return;}
+  fetch('community-district-boundaries.geojson').then(r=>r.json()).then(d=>{
+    cdsData=d; buildCDLayer();
+  });
+}
+// Point in polygon (ray casting)
+function pip(lng, lat, feature) {
+  var g = feature.geometry;
+  if (!g) return false;
+  var polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+  for (var p = 0; p < polys.length; p++) {
+    var ring = polys[p][0], inside = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+      if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) inside = !inside;
+    }
+    if (inside) return true;
+  }
+  return false;
+}
+
+// Get multiple sample points from a feature for better overlap detection
+function samplePoints(feature) {
+  var g = feature.geometry;
+  var polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+  var points = [];
+  polys.forEach(function(poly) {
+    var ring = poly[0];
+    // Add centroid
+    var lng = ring.reduce(function(s,c){return s+c[0];},0)/ring.length;
+    var lat = ring.reduce(function(s,c){return s+c[1];},0)/ring.length;
+    points.push([lng,lat]);
+    // Add points at 25%, 50%, 75% along the ring
+    [Math.floor(ring.length*0.25), Math.floor(ring.length*0.5), Math.floor(ring.length*0.75)].forEach(function(i){
+      if(ring[i]) points.push([ring[i][0], ring[i][1]]);
+    });
+  });
+  return points;
+}
+
+var highlightLayers = [];
+function clearHighlights() {
+  highlightLayers.forEach(l=>map.removeLayer(l));
+  highlightLayers = [];
+}
+
+var CB_LOOKUP = {}; // cache of boro_cd -> overlapping districts
+
+var cbLayerState = {}; // boro_cd -> {on, layer}
+
+function showCBPanel(feature, code) {
+  var boroCode = code.charAt(0);
+  var num = parseInt(code.slice(1));
+  var boroName = BORO_NAMES[boroCode]||'';
+  var cbPageKey = {'3':'bk','1':'mn','4':'qn','2':'bx','5':'si'}[boroCode]||'bk';
+  var CB_HOODS = {
+    '101':'Financial District · Tribeca · Battery Park City','102':'Greenwich Village · SoHo · Hudson Square','103':'Lower East Side · Chinatown · Two Bridges','104':'Chelsea · Hell\'s Kitchen · Clinton','105':'Midtown · Flatiron · Murray Hill','106':'Stuyvesant Town · Turtle Bay · Beekman Hill','107':'Upper West Side · Manhattan Valley','108':'Upper East Side · Lenox Hill · Yorkville','109':'Morningside Heights · West Harlem','110':'Central Harlem','111':'East Harlem · Spanish Harlem','112':'Washington Heights · Inwood · Marble Hill',
+    '201':'Mott Haven · Port Morris','202':'Hunts Point · Longwood','203':'Morrisania · Crotona Park East','204':'Highbridge · Concourse','205':'Fordham · University Heights','206':'Belmont · East Tremont','207':'Kingsbridge · Riverdale','208':'Riverdale · Fieldston · Spuyten Duyvil','209':'Throgs Neck · Co-op City','210':'Pelham Bay · Williamsbridge','211':'Pelham Parkway · Morris Park','212':'Wakefield · Williamsbridge · Woodlawn',
+    '301':'Williamsburg · Greenpoint','302':'Williamsburg · East Williamsburg','303':'Bedford-Stuyvesant','304':'Bushwick','305':'East New York · Cypress Hills · City Line','306':'Park Slope · Carroll Gardens · Cobble Hill · Red Hook · Gowanus · Columbia Street Waterfront','307':'Sunset Park · Windsor Terrace','308':'Crown Heights North · Prospect Heights','309':'Crown Heights South · Prospect Lefferts Gardens · Wingate','310':'Bay Ridge · Dyker Heights','311':'Bensonhurst · Bath Beach','312':'Borough Park · Kensington · Ocean Parkway','313':'Coney Island · Brighton Beach · Sea Gate · Manhattan Beach','314':'Flatbush · Midwood','315':'Sheepshead Bay · Gerritsen Beach · Homecrest','316':'Brownsville','317':'East Flatbush · Farragut · Rugby · Remsen Village','318':'Canarsie · Flatlands',
+    '401':'Astoria · Long Island City','402':'Sunnyside · Woodside','403':'Jackson Heights · North Corona','404':'Elmhurst · Corona','405':'Ridgewood · Maspeth','406':'Rego Park · Forest Hills','407':'Flushing · Whitestone','408':'Jamaica · Hollis · St. Albans','409':'Richmond Hill · Woodhaven','410':'Howard Beach · Ozone Park','411':'Bayside · Douglaston · Little Neck','412':'Jamaica · Hollis','413':'Springfield Gardens · Jamaica','414':'Far Rockaway · Rockaway Beach',
+    '501':'St. George · Stapleton','502':'New Springville · Willowbrook · Bulls Head','503':'Tottenville · Great Kills · Annadale · Eltingville'
+  };
+  var hoods = CB_HOODS[code]||'';
+  var html = '<div style="font-weight:700;font-size:.88rem;color:#0d1b4b;margin-bottom:4px">'+boroName+' Community Board '+num+'</div>';
+  if(hoods) html += '<div style="font-size:.7rem;color:#666;line-height:1.5;margin-bottom:6px">'+hoods+'</div>';
+  html += '<a href="cb-'+cbPageKey+'-'+num+'.html" style="font-size:.7rem;font-family:\'DM Mono\',monospace;color:#f47920;font-weight:700">View CB profile ↗</a>';
+  var el = document.getElementById('s-result');
+  el.style.display='block';
+  el.innerHTML=html;
+}
+
+function showCBDistricts(feature) {
+  if(feature && feature.geometry) window._selectedCBFeature = feature;
+  var code = feature.properties.boro_cd || '';
+  var boro = code.charAt(0);
+  var num = parseInt(code.slice(1));
+  var boroName = BORO_NAMES[boro] || '';
+  var cbName = boroName + ' Community Board ' + num;
+
+  clearHighlights();
+
+  // Highlight the clicked CB
+  var highlight = L.geoJSON(feature, {style:{color:'#f47920',weight:3,fillColor:'#f47920',fillOpacity:.15}}).addTo(map);
+  highlightLayers.push(highlight);
+
+  // Find center point of CB
+  var c = centroid(feature);
+  var cLat = c[0], cLng = c[1];
+
+  // Find overlapping districts - check multiple points of CB boundary against each district
+  var districts = {cc:[], assembly:[], senate:[], congress:[]};
+  var distData = {
+    cc: {data: window._ccData, key:'CounDist', label:'Council'},
+    assembly: {data: window._assemblyData, key:'assembly_district', label:'AD'},
+    senate: {data: window._senateData, key:'st_sen_dist', label:'SD'},
+    congress: {data: window._congressData, key:'cong_dist', label:'NY'},
+  };
+  var distColors = {cc:'#0d7490', assembly:'#1a7a4a', senate:'#6b21a8', congress:'#b91c1c'};
+
+  // Sample points from the CB boundary
+  var cbPoints = samplePoints(feature);
+
+  Object.keys(distData).forEach(function(type) {
+    var dd = distData[type];
+    if (!dd.data) return;
+    dd.data.features.forEach(function(f) {
+      var distNum = f.properties[dd.key];
+      if (districts[type].indexOf(distNum) > -1) return; // already found
+      // Check if any CB sample point falls in this district
+      var overlaps = cbPoints.some(function(pt) { return pip(pt[0], pt[1], f); });
+      // Also check if district centroid falls in CB
+      if (!overlaps) {
+        var dpts = samplePoints(f);
+        overlaps = dpts.some(function(pt) { return pip(pt[0], pt[1], feature); });
+      }
+      if (overlaps) {
+        districts[type].push(distNum);
+        var lyr = L.geoJSON(f, {style:{color:distColors[type],weight:2,fillColor:distColors[type],fillOpacity:.2,dashArray:'4,4'}}).addTo(map);
+        highlightLayers.push(lyr);
+      }
+    });
+  });
+
+  // Show info panel
+  var cbPageKey = {'Brooklyn':'bk','Manhattan':'mn','Queens':'qn','Bronx':'bx','Staten Island':'si'}[boroName]||'bk';
+  var CB_HOODS = {
+    '101':'Financial District · Tribeca · Battery Park City','102':'Greenwich Village · SoHo · Hudson Square','103':'Lower East Side · Chinatown · Two Bridges','104':'Chelsea · Hell\'s Kitchen · Clinton','105':'Midtown · Flatiron · Murray Hill','106':'Stuyvesant Town · Turtle Bay · Beekman Hill','107':'Upper West Side · Manhattan Valley','108':'Upper East Side · Lenox Hill · Yorkville','109':'Morningside Heights · West Harlem','110':'Central Harlem','111':'East Harlem · Spanish Harlem','112':'Washington Heights · Inwood · Marble Hill',
+    '201':'Mott Haven · Port Morris','202':'Hunts Point · Longwood','203':'Morrisania · Crotona Park East','204':'Highbridge · Concourse','205':'Fordham · University Heights','206':'Belmont · East Tremont','207':'Kingsbridge · Riverdale','208':'Riverdale · Fieldston · Spuyten Duyvil','209':'Throgs Neck · Co-op City','210':'Pelham Bay · Williamsbridge','211':'Pelham Parkway · Morris Park','212':'Wakefield · Williamsbridge · Woodlawn',
+    '301':'Williamsburg · Greenpoint','302':'Williamsburg · East Williamsburg','303':'Bedford-Stuyvesant','304':'Bushwick','305':'East New York · Cypress Hills · City Line','306':'Park Slope · Carroll Gardens · Cobble Hill · Red Hook · Gowanus · Columbia Street Waterfront','307':'Sunset Park · Windsor Terrace','308':'Crown Heights North · Prospect Heights','309':'Crown Heights South · Prospect Lefferts Gardens · Wingate','310':'Bay Ridge · Dyker Heights','311':'Bensonhurst · Bath Beach','312':'Borough Park · Kensington · Ocean Parkway','313':'Coney Island · Brighton Beach · Sea Gate · Manhattan Beach','314':'Flatbush · Midwood','315':'Sheepshead Bay · Gerritsen Beach · Homecrest','316':'Brownsville','317':'East Flatbush · Farragut · Rugby · Remsen Village','318':'Canarsie · Flatlands',
+    '401':'Astoria · Long Island City','402':'Sunnyside · Woodside','403':'Jackson Heights · North Corona','404':'Elmhurst · Corona','405':'Ridgewood · Maspeth','406':'Rego Park · Forest Hills','407':'Flushing · Whitestone','408':'Jamaica · Hollis · St. Albans','409':'Richmond Hill · Woodhaven','410':'Howard Beach · Ozone Park','411':'Bayside · Douglaston · Little Neck','412':'Jamaica · Hollis','413':'Springfield Gardens · Jamaica','414':'Far Rockaway · Rockaway Beach',
+    '501':'St. George · Stapleton','502':'New Springville · Willowbrook · Bulls Head','503':'Tottenville · Great Kills · Annadale · Eltingville'
+  };
+  var hoods = CB_HOODS[code] || '';
+  var html = '<div style="font-weight:700;font-size:.88rem;color:#0d1b4b;margin-bottom:4px">'+cbName+'</div>';
+  if(hoods) html += '<div style="font-size:.7rem;color:#666;line-height:1.5;margin-bottom:6px">'+hoods+'</div>';
+  html += '<a href="cb-'+cbPageKey+'-'+num+'.html" style="font-size:.7rem;font-family:\'DM Mono\',monospace;color:#f47920;font-weight:700">View CB profile ↗</a>';
+
+  document.getElementById('s-result').style.cssText = 'display:block;padding:10px 14px;background:#fff;border-bottom:2px solid #f47920;flex-shrink:0';
+  document.getElementById('s-result').innerHTML = html;
+  refreshCBOverlapLayer();
+}
+
+function buildCDLayer(){
+  if(cdsLayer) map.removeLayer(cdsLayer);
+  var features = cdsData.features.filter(function(f){
+    if(!activeBoroFilter) return true;
+    if(activeBoroFilter.length===3) return f.properties.boro_cd===activeBoroFilter;
+    return f.properties.boro_cd.charAt(0)===activeBoroFilter;
+  });
+  cdsLayer = L.geoJSON({type:'FeatureCollection',features:features},{
+    style:f=>{
+      const code=f.properties.boro_cd||'';
+      const boro=code.charAt(0);
+      return {color:BORO_COLORS[boro]||'#888',weight:1.5,fillColor:BORO_COLORS[boro]||'#888',fillOpacity:.2};
+    },
+    onEachFeature:(f,l)=>{
+      const code=f.properties.boro_cd||'';
+      const boro=code.charAt(0);
+      const num=parseInt(code.slice(1));
+      const name=(BORO_NAMES[boro]||'CB')+' '+num;
+      l.bindTooltip('<strong>'+name+'</strong>',{sticky:true,direction:'top'});
+      l.on('click', function(){
+        window._selectedCBFeature = f;
+        Promise.all([
+          window._ccData ? Promise.resolve() : fetch('data/city-council-districts.geojson').then(r=>r.json()).then(d=>{window._ccData=d;}),
+          window._assemblyData ? Promise.resolve() : fetch('data/state-assembly-districts.geojson').then(r=>r.json()).then(d=>{window._assemblyData=d;}),
+          window._senateData ? Promise.resolve() : fetch('data/state-senate-districts.geojson').then(r=>r.json()).then(d=>{window._senateData=d;}),
+          window._congressData ? Promise.resolve() : fetch('data/congressional-districts.geojson').then(r=>r.json()).then(d=>{window._congressData=d;}),
+        ]).then(function(){
+          showCBDistricts(f);
+          refreshLegislativeLayers();
+          refreshDistrictFilteredOverlays();
+        });
+      });
+    }
+  });
+  cdsLayer.addTo(map);
+}
+
+// Overlay loaders
+var overlayLoaded = {};
+function loadOverlay(name, url, builder){
+  if(overlayLoaded[name]){
+    if(window['_overlayData_'+name]) builder(window['_overlayData_'+name]);
+    return;
+  }
+  overlayLoaded[name] = true;
+  fetch(url).then(r=>r.json()).then(function(d){
+    window['_overlayData_'+name] = d;
+    builder(d);
+  }).catch(e=>console.log(name,'load failed',e));
+}
+
+// Bounding boxes per view for filtering point/area layers
+var VIEW_BOUNDS = {
+  cb6:    {minLat:40.645, maxLat:40.705, minLng:-74.025, maxLng:-73.955},
+  brooklyn:{minLat:40.570, maxLat:40.740, minLng:-74.060, maxLng:-73.840},
+  manhattan:{minLat:40.695, maxLat:40.882, minLng:-74.025, maxLng:-73.905},
+  queens:  {minLat:40.540, maxLat:40.810, minLng:-73.970, maxLng:-73.700},
+  bronx:   {minLat:40.780, maxLat:40.920, minLng:-73.940, maxLng:-73.745},
+  si:      {minLat:40.495, maxLat:40.655, minLng:-74.260, maxLng:-74.035},
+};
+
+function filterByView(features, getLat, getLng) {
+  var b = VIEW_BOUNDS[activeMain];
+  if(!b) return features;
+  return features.filter(function(f){
+    var lat=getLat(f), lng=getLng(f);
+    if(!lat||!lng) return true;
+    return lat>=b.minLat && lat<=b.maxLat && lng>=b.minLng && lng<=b.maxLng;
+  });
+}
+
+function geojsonFeatureArray(gj){
+  if(!gj) return [];
+  if(gj.type === 'FeatureCollection') return (gj.features||[]).filter(function(f){return f && f.geometry;});
+  if(gj.type === 'Feature' && gj.geometry) return [gj];
+  if(gj.type && gj.coordinates) return [{type:'Feature',properties:{},geometry:gj}];
+  return [];
+}
+function layerToFeatures(layer){
+  if(!layer || !layer.toGeoJSON) return [];
+  return geojsonFeatureArray(layer.toGeoJSON());
+}
+
+function selectedDistrictFeatures(){
+  var selected = [];
+  Object.keys(cbLayerState||{}).forEach(function(code){
+    var state = cbLayerState[code];
+    if(state && state.on && state.layer) selected = selected.concat(layerToFeatures(state.layer));
+  });
+  Object.keys(districtToggleState||{}).forEach(function(type){
+    Object.keys(districtToggleState[type]||{}).forEach(function(num){
+      var state = districtToggleState[type][num];
+      if(state && state.on && state.layer) selected = selected.concat(layerToFeatures(state.layer));
+    });
+  });
+  return selected.filter(function(f){return f && f.geometry;});
+}
+
+function selectedCommunityBoardFeatures(){
+  var cbs = [];
+  Object.keys(cbLayerState||{}).forEach(function(code){
+    var state = cbLayerState[code];
+    if(state && state.on && state.layer) cbs = cbs.concat(layerToFeatures(state.layer));
+  });
+  if(!cbs.length && window._selectedCBFeature) cbs.push(window._selectedCBFeature);
+  if(!cbs.length && cdsData){
+    var selectedCode = window._selectedCBFeature && window._selectedCBFeature.properties ? window._selectedCBFeature.properties.boro_cd : null;
+    var cb = selectedCode ? cdsData.features.find(function(f){return f.properties.boro_cd===selectedCode;}) : null;
+    if(!cb && activeMain==='cb6') cb = cdsData.features.find(function(f){return f.properties.boro_cd==='306';});
+    if(cb) cbs.push(cb);
+  }
+  if(!cbs.length && window._cb6BoundaryFeatures && window._cb6BoundaryFeatures.length) cbs = cbs.concat(window._cb6BoundaryFeatures);
+  if(!cbs.length && cb6Layer) cbs = cbs.concat(layerToFeatures(cb6Layer));
+  return cbs.filter(function(f){return f && f.geometry;});
+}
+function refreshCBOverlapLayer(){
+  if(cbOverlapLayer){ map.removeLayer(cbOverlapLayer); cbOverlapLayer=null; }
+  if(!window.turf || !turf.booleanIntersects || !turf.intersect) return;
+  var cbs = selectedCommunityBoardFeatures();
+  if(!cbs.length) return;
+  var configs = [
+    {type:'cc',data:window._ccData,key:'CounDist',label:'Council District',color:'#0d7490'},
+    {type:'assembly',data:window._assemblyData,key:'assembly_district',label:'Assembly District',color:'#1a7a4a'},
+    {type:'senate',data:window._senateData,key:'st_sen_dist',label:'State Senate District',color:'#6b21a8'},
+    {type:'congress',data:window._congressData,key:'cong_dist',label:'Congressional District',color:'#b91c1c'}
+  ];
+  var overlaps = [];
+  cbs.forEach(function(cb){
+    var cbCode = cb.properties.boro_cd || 'CB';
+    configs.forEach(function(cfg){
+      if(!cfg.data || !cfg.data.features) return;
+      cfg.data.features.forEach(function(dist){
+        try {
+          if(!turf.booleanIntersects(cb, dist)) return;
+          var clipped = safeTurfIntersect(cb, dist);
+          if(!clipped || !clipped.geometry) return;
+          var distNum = dist.properties[cfg.key];
+          clipped.properties = {
+            cb_code: cbCode,
+            overlap_type: cfg.type,
+            overlap_label: cbCode + ' ∩ ' + cfg.label + ' ' + distNum,
+            district_label: cfg.label + ' ' + distNum,
+            color: cfg.color
+          };
+          overlaps.push(clipped);
+        } catch(e) {}
+      });
+    });
+  });
+  if(!overlaps.length) return;
+  cbOverlapLayer = L.geoJSON({type:'FeatureCollection',features:overlaps},{
+    style:function(f){return {color:f.properties.color,weight:4,fillColor:f.properties.color,fillOpacity:.42,dashArray:'1,5',className:'cb-overlap-fragment'};},
+    onEachFeature:function(f,l){l.bindTooltip('<strong>'+escH(f.properties.overlap_label)+'</strong><br>Clipped overlap area inside the community board',{sticky:true});}
+  }).addTo(map);
+  cbOverlapLayer.bringToFront();
+}
+
+function overlayPointInBoundary(feature, boundary){
+  if(feature.geometry && feature.geometry.type === 'Point') return pip(feature.geometry.coordinates[0], feature.geometry.coordinates[1], boundary);
+  try {
+    var pts = samplePoints(feature);
+    return pts.some(function(pt){return pip(pt[0], pt[1], boundary);});
+  } catch(e) { return false; }
+}
+function safeTurfIntersect(a,b){
+  if(!window.turf || !turf.intersect) return null;
+  try { return turf.intersect(a,b); }
+  catch(e1) {
+    try { return turf.intersect({type:'FeatureCollection',features:[a,b]}); }
+    catch(e2) { return null; }
+  }
+}
+function boundaryGroupsForOverlayFiltering(){
+  var groups = [];
+  var cbGroup = selectedCommunityBoardFeatures();
+  if(cbGroup.length) groups.push(cbGroup);
+  Object.keys(districtToggleState||{}).forEach(function(type){
+    var group = [];
+    Object.keys(districtToggleState[type]||{}).forEach(function(num){
+      var state = districtToggleState[type][num];
+      if(state && state.on && state.layer) group = group.concat(layerToFeatures(state.layer));
+    });
+    if(group.length) groups.push(group.filter(function(f){return f && f.geometry;}));
+  });
+  return groups.filter(function(g){return g.length;});
+}
+function featureTouchesAnyBoundary(feature, group){
+  return group.some(function(b){
+    try { return window.turf && turf.booleanIntersects ? turf.booleanIntersects(feature,b) : overlayPointInBoundary(feature,b); }
+    catch(e) { return overlayPointInBoundary(feature,b); }
+  });
+}
+function filteredBySelectedDistricts(features, clipPolygons){
+  var groups = boundaryGroupsForOverlayFiltering();
+  if(!groups.length) return [];
+  var out = [];
+  features.forEach(function(f){
+    if(!f || !f.geometry) return;
+    if(f.geometry.type === 'Point'){
+      var keepPoint = groups.every(function(group){ return group.some(function(b){return overlayPointInBoundary(f,b);}); });
+      if(keepPoint) out.push(f);
+      return;
+    }
+    if(clipPolygons && (!window.turf || !turf.booleanIntersects || !turf.intersect)) return;
+    if(!clipPolygons){
+      if(groups.every(function(group){ return featureTouchesAnyBoundary(f, group); })) out.push(f);
+      return;
+    }
+    var pieces = [f];
+    groups.forEach(function(group){
+      var next = [];
+      pieces.forEach(function(piece){
+        group.forEach(function(b){
+          try {
+            if(!turf.booleanIntersects(piece,b)) return;
+            var clipped = safeTurfIntersect(piece,b);
+            if(clipped && clipped.geometry){
+              clipped.properties = Object.assign({}, f.properties);
+              next.push(clipped);
+            }
+          } catch(e) {}
+        });
+      });
+      pieces = next;
+    });
+    pieces.forEach(function(piece){ out.push(piece); });
+  });
+  return out;
+}
+
+function removeOverlayLayer(name){
+  var lyrMap = {nypd:nypdLayer,fire:fireLayer,subway:subwayLayer,citibike:citibikeLayer,busroutes:busRoutesLayer,busstops:busStopsLayer,landuse:landUseLotsLayer,parks:parksLayer,gowanus:gowanusLayer,rents:rentsLayer,cc:ccLayer,assembly:assemblyLayer,senate:senateLayer,congress:congressLayer,historic:window._historicLayer};
+  if(lyrMap[name]) map.removeLayer(lyrMap[name]);
+}
+
+function refreshDistrictFilteredOverlays(){
+  var builders = {
+    nypd:buildNYPD, fire:buildFire, subway:buildSubway, citibike:buildCitibike, busroutes:buildBusRoutes, busstops:buildBusStops, landuse:buildLandUseLots, parks:buildParks,
+    gowanus:buildGowanus, historic:buildHistoric, rents:buildRents
+  };
+  Object.keys(builders).forEach(function(name){
+    if(!subState[name] || !window['_overlayData_'+name]) return;
+    removeOverlayLayer(name);
+    builders[name](window['_overlayData_'+name]);
+  });
+}
+
+function buildNYPD(d){
+  var nypdFeatures = filterByView(d.features, f=>{try{var c=f.geometry.coordinates[0][0];return Array.isArray(c[0])?c[0][1]:c[1];}catch(e){return 0;}}, f=>{try{var c=f.geometry.coordinates[0][0];return Array.isArray(c[0])?c[0][0]:c[0];}catch(e){return 0;}});
+  nypdFeatures = filteredBySelectedDistricts(nypdFeatures, true);
+  nypdLayer = L.geoJSON({type:'FeatureCollection',features:nypdFeatures},{
+    style:{color:'#6b21a8',weight:1,fillColor:'#6b21a8',fillOpacity:.18},
+    onEachFeature:(f,l)=>{const p=f.properties;l.bindTooltip('Precinct '+p.pct+' · Sector '+p.sector,{sticky:true});}
+  });
+  if(subState.nypd) nypdLayer.addTo(map);
+}
+function buildFire(d){
+  var fireFeatures = filterByView(d.features, f=>{try{var c=f.geometry.coordinates[0][0];return Array.isArray(c[0])?c[0][1]:c[1];}catch(e){return 0;}}, f=>{try{var c=f.geometry.coordinates[0][0];return Array.isArray(c[0])?c[0][0]:c[0];}catch(e){return 0;}});
+  fireFeatures = filteredBySelectedDistricts(fireFeatures, true);
+  fireLayer = L.geoJSON({type:'FeatureCollection',features:fireFeatures},{
+    style:{color:'#ea580c',weight:1.5,fillColor:'#ea580c',fillOpacity:.12},
+    onEachFeature:(f,l)=>{const p=f.properties;l.bindTooltip('Battalion '+(p.fire_bn||p.bn||''),{sticky:true});}
+  });
+  if(subState.fire) fireLayer.addTo(map);
+}
+function subwayRouteStyle(route){
+  route = String(route||'').trim().toUpperCase();
+  var blue=['A','C','E'], orange=['B','D','F','M'], green=['4','5','6','6X'], red=['1','2','3'], yellow=['N','Q','R','W'], brown=['J','Z'], shuttle=['S'];
+  if(blue.indexOf(route)>-1) return {bg:'#0039A6',fg:'#fff'};
+  if(orange.indexOf(route)>-1) return {bg:'#FF6319',fg:'#fff'};
+  if(green.indexOf(route)>-1) return {bg:'#00933C',fg:'#fff'};
+  if(red.indexOf(route)>-1) return {bg:'#EE352E',fg:'#fff'};
+  if(yellow.indexOf(route)>-1) return {bg:'#FCCC0A',fg:'#111'};
+  if(brown.indexOf(route)>-1) return {bg:'#996633',fg:'#fff'};
+  if(route==='G') return {bg:'#6CBE45',fg:'#fff'};
+  if(route==='L') return {bg:'#A7A9AC',fg:'#111'};
+  if(route==='7' || route==='7X') return {bg:'#B933AD',fg:'#fff'};
+  if(shuttle.indexOf(route)>-1) return {bg:'#808183',fg:'#fff'};
+  return {bg:'#111',fg:'#fff'};
+}
+function subwayStationIcon(f){
+  var raw = (f.properties.daytime_routes || f.properties.routes || '').trim();
+  var routes = raw ? raw.split(/\s+/).filter(Boolean) : ['MTA'];
+  var shown = routes.slice(0,4);
+  var html = '<div class="subway-icon-stack" title="'+escH(f.properties.display_name||f.properties.stop_name||'Subway station')+'">';
+  shown.forEach(function(r){
+    var st = subwayRouteStyle(r);
+    var txt = escH(String(r).replace('X',''));
+    html += '<span class="subway-route-badge" style="background:'+st.bg+';color:'+st.fg+'">'+txt+'</span>';
+  });
+  if(routes.length>4) html += '<span class="subway-route-more">+'+(routes.length-4)+'</span>';
+  html += '</div>';
+  var w = 8 + shown.length*20 + (routes.length>4 ? 20 : 0);
+  return L.divIcon({className:'subway-station-icon-wrap',html:html,iconSize:[w,24],iconAnchor:[w/2,12],tooltipAnchor:[0,-14]});
+}
+function buildSubway(d){
+  var subFeatures = filterByView(d.features, f=>f.geometry.coordinates[1], f=>f.geometry.coordinates[0]);
+  subFeatures = filteredBySelectedDistricts(subFeatures, false);
+  subwayLayer = L.geoJSON({type:'FeatureCollection',features:subFeatures},{
+    pointToLayer:(f,ll)=>L.marker(ll,{icon:subwayStationIcon(f),riseOnHover:true}),
+    onEachFeature:(f,l)=>{
+      var name=f.properties.display_name||f.properties.stop_name||'Subway station';
+      var routes=f.properties.daytime_routes?'<br>Routes: '+escH(f.properties.daytime_routes):'';
+      l.bindTooltip('<strong>'+escH(name)+'</strong>'+routes,{sticky:true});
+    }
+  });
+  if(subState.subway) subwayLayer.addTo(map);
+}
+function citibikeStationIcon(f){
+  var name = f && f.properties ? (f.properties.name || 'Citi Bike station') : 'Citi Bike station';
+  var html = '<div class="citibike-logo-marker" title="'+escH(name)+'"><span class="citi-word">citi</span><span class="bike-word">bike</span></div>';
+  return L.divIcon({className:'citibike-station-icon-wrap',html:html,iconSize:[64,24],iconAnchor:[32,12],tooltipAnchor:[0,-14]});
+}
+function buildCitibike(d){
+  var cbFeatures = filterByView(d.features, f=>f.geometry.coordinates[1], f=>f.geometry.coordinates[0]);
+  cbFeatures = filteredBySelectedDistricts(cbFeatures, false);
+  citibikeLayer = L.geoJSON({type:'FeatureCollection',features:cbFeatures},{
+    pointToLayer:(f,ll)=>L.marker(ll,{icon:citibikeStationIcon(f),riseOnHover:true}),
+    onEachFeature:(f,l)=>l.bindTooltip(f.properties.name||'Citi Bike station',{sticky:true})
+  });
+  if(subState.citibike) citibikeLayer.addTo(map);
+}
+
+function busRouteName(p){return String((p&&p.route_short_name)||p.route_id||'Bus').replace(/[^A-Za-z0-9]/g,'');}
+function busRouteTypeClass(p){var t=String((p&&p.route_type)||'').toLowerCase();if(t==='sbs')return' sbs';if(t==='express')return' express';if(t==='limited')return' limited';return'';}
+function busRouteColor(p){var r=String((p&&p.route_color)||(p&&p.display_color)||'').trim();if(r&&r[0]!=='#')r='#'+r;if(/^#[0-9a-fA-F]{6}$/.test(r))return r;var t=String((p&&p.route_type)||'').toLowerCase();if(t==='sbs')return'#c1121f';if(t==='express')return'#6a1b9a';if(t==='limited')return'#f77f00';return'#2563eb';}
+function busStopColorClass(p){if(String((p&&p.is_cbd)||'').toLowerCase()==='true')return' cbd';if(String((p&&p.timepoint)||'').toLowerCase()==='true')return' timepoint';return'';}
+function busBadgeHtml(p){return'<span class="bus-route-badge'+busRouteTypeClass(p)+'" style="background:'+busRouteColor(p)+'">'+escH(busRouteName(p))+'</span>';}
+function busStopRoutes(p){var routes=Array.isArray(p.routes)?p.routes:(p.routes?String(p.routes).split(/[,/ ]+/):[]);return routes.map(function(r){return String(r||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');}).filter(Boolean);}
+function busStopDisplayName(p){return String((p&&p.stop_name)||'Bus stop').replace(/\s*\/\s*/g,' / ');}
+function busStopIcon(f){var p=f&&f.properties?f.properties:{},routes=busStopRoutes(p),name=busStopDisplayName(p);var routeHtml=routes.length?routes.map(function(r){return'<span class="bus-stop-route-pill">'+escH(r)+'</span>';}).join(''):'<span class="bus-stop-route-pill">BUS</span>';var html='<div class="bus-stop-sign'+busStopColorClass(p)+'" title="'+escH((routes.length?routes.join(', ')+' · ':'')+name)+'"><div class="bus-stop-sign-main"><span class="bus-stop-mta">MTA</span><span class="bus-stop-bus-symbol" aria-hidden="true"></span><span class="bus-stop-title">bus stop</span></div><div class="bus-stop-route-strip">'+routeHtml+'</div><div class="bus-stop-name">'+escH(name)+'</div></div>';return L.divIcon({className:'bus-stop-icon-wrap',html:html,iconSize:null,iconAnchor:[0,0],tooltipAnchor:[0,-18]});}
+function busFlattenCoords(geom){var c=(geom||{}).coordinates||[],out=[];function walk(a){if(!a)return;if(typeof a[0]==='number'&&typeof a[1]==='number')out.push(a);else a.forEach(walk);}walk(c);return out;}
+function busHav(la1,ln1,la2,ln2){var R=3959*5280,dLa=(la2-la1)*Math.PI/180,dLn=(ln2-ln1)*Math.PI/180,a=Math.sin(dLa/2)*Math.sin(dLa/2)+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLn/2)*Math.sin(dLn/2);return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
+function busRouteMetric(coords){var len=0;for(var i=1;i<coords.length;i++)len+=busHav(coords[i-1][1],coords[i-1][0],coords[i][1],coords[i][0]);return len;}
+function busRouteLabelLatLng(f){var coords=busFlattenCoords(f.geometry);if(!coords.length)return null;var total=busRouteMetric(coords),half=total/2,acc=0;if(total>0){for(var i=1;i<coords.length;i++){var seg=busHav(coords[i-1][1],coords[i-1][0],coords[i][1],coords[i][0]);if(acc+seg>=half){var t=(half-acc)/(seg||1),lng=coords[i-1][0]+(coords[i][0]-coords[i-1][0])*t,lat=coords[i-1][1]+(coords[i][1]-coords[i-1][1])*t;return[lat,lng];}acc+=seg;}}var mid=coords[Math.floor(coords.length/2)];return[mid[1],mid[0]];}
+var busRouteLabelMarkers=[];
+function addResearchBusRouteLabels(group,gj){busRouteLabelMarkers=[];var best={};(gj.features||[]).forEach(function(f){var p=f.properties||{},name=busRouteName(p),coords=busFlattenCoords(f.geometry),m=busRouteMetric(coords);if(!best[name]||m>best[name].metric)best[name]={feature:f,metric:m};});Object.keys(best).sort().forEach(function(name){var f=best[name].feature,p=f.properties||{},ll=busRouteLabelLatLng(f);if(!ll)return;var marker=L.marker(ll,{icon:L.divIcon({className:'bus-route-label',html:busBadgeHtml(p),iconSize:null,iconAnchor:[18,11]}),zIndexOffset:650}).bindTooltip('<strong>🚌 '+escH(busRouteName(p))+'</strong> '+escH(p.route_long_name||'')+(p.direction?'<br><span style="font-size:.75rem;color:#555">Direction: '+escH(p.direction)+'</span>':''),{sticky:true,opacity:1}).addTo(group);busRouteLabelMarkers.push(marker);});setTimeout(deconflictResearchBusRouteLabels,80);}
+function deconflictResearchBusRouteLabels(){var boxes=[];busRouteLabelMarkers.forEach(function(marker){var el=marker.getElement&&marker.getElement();if(!el)return;el.classList.remove('bus-label-hidden');var badge=el.querySelector('.bus-route-badge'),txt=badge?badge.textContent.trim():'';var zoom=map.getZoom();if(zoom<14&&!/^B/.test(txt)){el.classList.add('bus-label-hidden');return;}var r=el.getBoundingClientRect(),pad=4,hit=boxes.some(function(b){return!(r.right+pad<b.left||b.right+pad<r.left||r.bottom+pad<b.top||b.bottom+pad<r.top);});if(hit)el.classList.add('bus-label-hidden');else boxes.push({left:r.left,top:r.top,right:r.right,bottom:r.bottom});});}
+function updateResearchBusStopZoomLabels(){var el=document.getElementById('map');if(!el||!map)return;var z=map.getZoom();el.classList.toggle('bus-stop-labels-routes',z>=15);el.classList.toggle('bus-stop-labels-full',z>=16);}
+map.on('zoomend moveend',function(){setTimeout(deconflictResearchBusRouteLabels,80);updateResearchBusStopZoomLabels();});
+function normalizeTransportFeatureCollection(d,key){var gj=d&&d[key]?d[key]:d;return {type:'FeatureCollection',features:(gj&&gj.features)||[]};}
+function buildBusRoutes(d){
+  var routeData = normalizeTransportFeatureCollection(d,'bus');
+  var routeFeatures = filteredBySelectedDistricts(routeData.features||[], false);
+  var gj = {type:'FeatureCollection',features:routeFeatures};
+  busRoutesLayer = L.layerGroup();
+  L.geoJSON(gj,{style:function(){return{color:'#fff',weight:7,opacity:.82,lineCap:'round',lineJoin:'round'};},interactive:false}).addTo(busRoutesLayer);
+  L.geoJSON(gj,{style:function(f){return{color:busRouteColor(f.properties||{}),weight:3.7,opacity:.94,lineCap:'round',lineJoin:'round'};},onEachFeature:function(f,l){var p=f.properties||{};l.bindTooltip('<strong>🚌 '+escH(busRouteName(p))+'</strong> '+escH(p.route_long_name||'')+(p.route_type?'<br><span style="font-size:.75rem;color:#555">'+escH(p.route_type)+'</span>':''),{sticky:true,opacity:1});}}).addTo(busRoutesLayer);
+  addResearchBusRouteLabels(busRoutesLayer,gj);
+  if(subState.busroutes) busRoutesLayer.addTo(map);
+}
+function buildBusStops(d){
+  var stopData = normalizeTransportFeatureCollection(d,'busstops');
+  var stopFeatures = filteredBySelectedDistricts(stopData.features||[], false);
+  busStopsLayer = L.geoJSON({type:'FeatureCollection',features:stopFeatures},{
+    pointToLayer:function(f,ll){return L.marker(ll,{icon:busStopIcon(f),riseOnHover:true,zIndexOffset:520});},
+    onEachFeature:function(f,l){var p=f.properties||{},routes=busStopRoutes(p).join(', '),name=busStopDisplayName(p);l.bindTooltip('<strong>🚏 '+escH(routes?routes+' · '+name:name)+'</strong>'+(p.direction?'<br><span style="font-size:.75rem;color:#555">Direction: '+escH(p.direction)+'</span>':''),{sticky:true,opacity:1});}
+  });
+  updateResearchBusStopZoomLabels();
+  if(subState.busstops) busStopsLayer.addTo(map);
+}
+
+var LAND_USE_COLORS = {'01':'#FEFFA8','02':'#FCB842','03':'#B16E00','04':'#ff8341','05':'#fc2929','06':'#E362FB','07':'#E0BEEB','08':'#44A3D5','09':'#78D271','10':'#BAB8B6','11':'#555555'};
+var LAND_USE_LABELS = {'01':'1-2 Family','02':'Walk-Up MF','03':'Elevator MF','04':'Mixed Res/Comm','05':'Commercial','06':'Industrial','07':'Transportation','08':'Public Facilities','09':'Open Space','10':'Parking','11':'Vacant'};
+function landUseCode(v){var s=String(v==null?'':v).replace(/\.0+$/,'').trim();return s.length===1?'0'+s:s;}
+function landUseLabel(p){var code=landUseCode(p&&p.land_use_code), raw=(p&&p.land_use)||'';return LAND_USE_LABELS[code]||raw||'Unknown';}
+function landUseColor(p){return LAND_USE_COLORS[landUseCode(p&&p.land_use_code)]||'#9aa0a6';}
+function landUseLotTooltip(p){var code=landUseCode(p&&p.land_use_code), title=landUseLabel(p), name=(p&&p.name)||'CB6 lot';return '<strong>'+escH(title)+'</strong><br><span style="font-size:.75rem;color:#333">'+escH(name)+'</span>'+(p&&p.zone?'<br><span style="font-size:.72rem;color:#555">Zone: '+escH(p.zone)+'</span>':'')+(p&&p.owner?'<br><span style="font-size:.72rem;color:#777">Owner: '+escH(p.owner)+'</span>':'')+(p&&p.units!==''&&p.units!=null?'<br><span style="font-size:.72rem;color:#777">Units: '+escH(p.units)+'</span>':'')+(code?'<br><span style="font-size:.68rem;color:#999">Land use code '+escH(code)+'</span>':'');}
+function landUseLotPopup(p){var links=[];[['DOB',p&&p.dob_permits],['ZAP',p&&p.zap_applications],['ACRIS',p&&p.acris_records],['Doc',p&&p.doc_link]].forEach(function(x){if(x[1])links.push('<a href="'+escH(x[1])+'" target="_blank" rel="noopener" style="display:inline-block;margin:4px 4px 0 0;padding:3px 7px;border-radius:999px;background:#0d1b4b;color:#fff;text-decoration:none;font-size:.68rem;font-weight:700">'+escH(x[0])+'</a>');});return '<div style="font-family:DM Sans,sans-serif;min-width:220px"><div style="font-weight:800;color:#0d1b4b;border-bottom:2px solid #f47920;padding-bottom:4px;margin-bottom:6px">'+escH((p&&p.name)||'CB6 lot')+'</div><div style="font-size:.78rem;color:#333"><strong>'+escH(landUseLabel(p))+'</strong>'+(p&&p.zone?' · Zone '+escH(p.zone):'')+'</div><div style="font-size:.72rem;color:#666;margin-top:4px">BBL: '+escH((p&&p.bbl)||'')+(p&&p.neighborhood?' · '+escH(p.neighborhood):'')+'</div>'+(p&&p.owner?'<div style="font-size:.72rem;color:#666;margin-top:3px">Owner: '+escH(p.owner)+'</div>':'')+(links.length?'<div style="margin-top:4px">'+links.join('')+'</div>':'')+'</div>';}
+function buildLandUseLots(d){
+  var lotFeatures = filterByView(d.features||[], f=>f.geometry.coordinates[1], f=>f.geometry.coordinates[0]);
+  lotFeatures = filteredBySelectedDistricts(lotFeatures, false);
+  landUseLotsLayer = L.geoJSON({type:'FeatureCollection',features:lotFeatures},{
+    pointToLayer:function(f,ll){var p=f.properties||{};return L.circleMarker(ll,{radius:3.2,fillColor:landUseColor(p),fillOpacity:.74,color:'#fff',weight:.45,opacity:.85});},
+    onEachFeature:function(f,l){var p=f.properties||{};l.bindTooltip(landUseLotTooltip(p),{sticky:true,opacity:1});l.bindPopup(landUseLotPopup(p),{maxWidth:280});}
+  });
+  if(subState.landuse) landUseLotsLayer.addTo(map);
+}
+
+function buildParks(d){
+  var pkFeatures = filterByView(d.features, f=>{try{var r=f.geometry.type==='Polygon'?f.geometry.coordinates[0]:f.geometry.coordinates[0][0];return r.reduce((s,c)=>s+c[1],0)/r.length;}catch(e){return 0;}}, f=>{try{var r=f.geometry.type==='Polygon'?f.geometry.coordinates[0]:f.geometry.coordinates[0][0];return r.reduce((s,c)=>s+c[0],0)/r.length;}catch(e){return 0;}});
+  pkFeatures = filteredBySelectedDistricts(pkFeatures, true);
+  parksLayer = L.geoJSON({type:'FeatureCollection',features:pkFeatures},{
+    style:{color:'#16a34a',weight:1,fillColor:'#16a34a',fillOpacity:.3},
+    onEachFeature:(f,l)=>l.bindTooltip(f.properties.signname||f.properties.name||f.properties.name311||'Park',{sticky:true})
+  });
+  if(subState.parks) parksLayer.addTo(map);
+}
+function buildGowanus(d){
+  var gowanusData = {type:'FeatureCollection', features:filteredBySelectedDistricts(d.features||[], true)};
+  gowanusLayer = L.geoJSON(gowanusData,{
+    style:{color:'#0d9488',weight:2,fillColor:'#0d9488',fillOpacity:.1,dashArray:'4,4'}
+  });
+  if(subState.gowanus) gowanusLayer.addTo(map);
+}
+// Legislative layers
+var COUNCIL_COLORS = ['#0d7490','#0e8aac','#0f9ec8','#10b2e4','#12c6ff','#0ea5c8'];
+var ASSEMBLY_COLORS = ['#1a7a4a','#1e8f56','#22a562','#26ba6e','#2acf7a'];
+var SENATE_COLORS = ['#6b21a8','#7c2dc4','#8e39e0','#a045fc'];
+var CONGRESS_COLORS = ['#b91c1c','#d42020','#f02424','#ff3030'];
+
+// Individual district toggle state; these can be combined freely with CB and overlay toggles.
+var districtToggleState = {cc:{}, assembly:{}, senate:{}, congress:{}, nypd:{}};
+var DISTRICT_TOGGLE_CONFIG = {
+  cc:{abbr:'CD', name:'Council District', key:'CounDist', dataVar:'_ccData', url:'data/city-council-districts.geojson', color:'#0d7490'},
+  assembly:{abbr:'AD', name:'Assembly District', key:'assembly_district', dataVar:'_assemblyData', url:'data/state-assembly-districts.geojson', color:'#1a7a4a'},
+  senate:{abbr:'SD', name:'State Senate District', key:'st_sen_dist', dataVar:'_senateData', url:'data/state-senate-districts.geojson', color:'#6b21a8'},
+  congress:{abbr:'NY', name:'Congressional District', key:'cong_dist', dataVar:'_congressData', url:'data/congressional-districts.geojson', color:'#b91c1c'},
+  nypd:{abbr:'PCT ', name:'Police Precinct', key:'pct', dataVar:'_nypdData', url:'data/nypd_sectors.geojson', color:'#6b21a8', values:['001','005','006','007','009','010','013','014','017','018','019','020','022','023','024','025','026','028','030','032','033','034','040','041','042','043','044','045','046','047','048','049','050','052','060','061','062','063','066','067','068','069','070','071','072','073','075','076','077','078','079','081','083','084','088','090','094','100','101','102','103','104','105','106','107','108','109','110','111','112','113','114','115','116','120','121','122','123'], labelNum:function(n){return String(parseInt(n,10));}}
+};
+
+// Borough colors from seals
+var BORO_DIST_COLORS = {
+  '3': '#1a3a8a', // Brooklyn - blue
+  '1': '#003580', // Manhattan - deep blue  
+  '4': '#6b4f00', // Queens - gold/dark
+  '2': '#b84800', // Bronx - orange
+  '5': '#1a5a50', // Staten Island - teal
+};
+
+function getAllowedDistricts(type){
+  var cfg = DISTRICT_TOGGLE_CONFIG[type];
+  if(cfg && cfg.values) return cfg.values.slice();
+  var BK_CC=[33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48];
+  var MN_CC=[1,2,3,4,5,6,7,8,9,10];
+  var QN_CC=[19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+  var BX_CC=[11,12,13,14,15,16,17,18];
+  var SI_CC=[49,50,51];
+  var BK_AS=[41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60];
+  var MN_AS=[65,66,67,68,69,70,71,72,73,74,75,76];
+  var QN_AS=[23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40];
+  var BX_AS=[77,78,79,80,81,82,83,84,85,86,87];
+  var SI_AS=[61,62,63,64];
+  var BK_SS=[17,18,20,21,22,25,26];
+  var MN_SS=[27,28,29,30,31];
+  var QN_SS=[10,11,12,13,14,15,16,23];
+  var BX_SS=[32,33,34];
+  var SI_SS=[24];
+  var BK_CO=[8,9,10];
+  var MN_CO=[12,13];
+  var QN_CO=[5,6,7,14];
+  var BX_CO=[15,16];
+  var SI_CO=[11];
+  var boroMaps = {
+    cc:{'3':BK_CC,'1':MN_CC,'4':QN_CC,'2':BX_CC,'5':SI_CC},
+    assembly:{'3':BK_AS,'1':MN_AS,'4':QN_AS,'2':BX_AS,'5':SI_AS},
+    senate:{'3':BK_SS,'1':MN_SS,'4':QN_SS,'2':BX_SS,'5':SI_SS},
+    congress:{'3':BK_CO,'1':MN_CO,'4':QN_CO,'2':BX_CO,'5':SI_CO}
+  };
+  var all = [];
+  Object.values(boroMaps[type]||{}).forEach(function(list){list.forEach(function(n){if(all.indexOf(n)===-1) all.push(n);});});
+  return all.sort(function(a,b){return a-b;});
+}
+
+function districtBoroColor(distNum, type) {
+  // Map district numbers to boroughs
+  var BK_CC = [33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48];
+  var MN_CC = [1,2,3,4,5,6,7,8,9,10];
+  var QN_CC = [19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+  var BX_CC = [11,12,13,14,15,16,17,18];
+  var SI_CC = [49,50,51];
+  var n = parseInt(distNum);
+  if(type==='cc') {
+    if(BK_CC.indexOf(n)>-1) return BORO_DIST_COLORS['3'];
+    if(MN_CC.indexOf(n)>-1) return BORO_DIST_COLORS['1'];
+    if(QN_CC.indexOf(n)>-1) return BORO_DIST_COLORS['4'];
+    if(BX_CC.indexOf(n)>-1) return BORO_DIST_COLORS['2'];
+    if(SI_CC.indexOf(n)>-1) return BORO_DIST_COLORS['5'];
+  }
+  if(type==='assembly') {
+    if(n>=31&&n<=64) return n<=49?BORO_DIST_COLORS['4']:BORO_DIST_COLORS['3'];
+    if(n>=65&&n<=76) return BORO_DIST_COLORS['1'];
+    if(n>=77&&n<=87) return BORO_DIST_COLORS['2'];
+    if(n>=61&&n<=64) return BORO_DIST_COLORS['5'];
+  }
+  if(type==='senate') {
+    if(n>=10&&n<=24) return n<=18?BORO_DIST_COLORS['3']:BORO_DIST_COLORS['4'];
+    if(n>=25&&n<=34) return BORO_DIST_COLORS['1'];
+    if(n>=59&&n<=63) return BORO_DIST_COLORS['2'];
+  }
+  if(type==='congress') {
+    if(n===10||n===9||n===8||n===7) return BORO_DIST_COLORS['3'];
+    if(n===12||n===13) return BORO_DIST_COLORS['1'];
+    if(n===5||n===6||n===14) return BORO_DIST_COLORS['4'];
+    if(n===15||n===16) return BORO_DIST_COLORS['2'];
+    if(n===11) return BORO_DIST_COLORS['5'];
+  }
+  return '#666';
+}
+
+function toggleSingleDistrict(type, num, on){
+  var cfg = DISTRICT_TOGGLE_CONFIG[type];
+  if(!cfg) return;
+  if(!districtToggleState[type][num]) districtToggleState[type][num]={on:false,layer:null};
+  districtToggleState[type][num].on = on;
+  if(!on){
+    if(districtToggleState[type][num].layer){map.removeLayer(districtToggleState[type][num].layer);districtToggleState[type][num].layer=null;}
+    refreshCBOverlapLayer();
+    refreshDistrictFilteredOverlays();
+    return;
+  }
+  var draw = function(data){
+    if(districtToggleState[type][num].layer) map.removeLayer(districtToggleState[type][num].layer);
+    var features = data.features.filter(function(f){
+      var raw = f.properties[cfg.key];
+      if(type==='nypd') return String(raw).padStart(3,'0')===String(num).padStart(3,'0');
+      return parseInt(raw)===parseInt(num);
+    });
+    if(!features.length) return;
+    var target = features.length===1 ? features[0] : {type:'FeatureCollection',features:features};
+    var displayNum = cfg.labelNum ? cfg.labelNum(num) : num;
+    var color = type==='nypd' ? cfg.color : (districtBoroColor(num, type) || cfg.color);
+    var lyr = L.geoJSON(target, {
+      style:{color:color,weight:3,fillColor:color,fillOpacity:.04,dashArray:'6,3'},
+      onEachFeature:function(f,l){l.bindTooltip('<strong>'+cfg.name+' '+displayNum+'</strong>',{sticky:true});}
+    }).addTo(map);
+    districtToggleState[type][num].layer = lyr;
+    refreshCBOverlapLayer();
+    refreshDistrictFilteredOverlays();
+  };
+  if(window[cfg.dataVar]) draw(window[cfg.dataVar]);
+  else fetch(cfg.url).then(function(r){return r.json();}).then(function(d){window[cfg.dataVar]=d;draw(d);});
+}
+
+function buildLegislative(type, data, key, label, layerVar) {
+  if(window[layerVar]) map.removeLayer(window[layerVar]);
+  var filteredData = data;
+
+  // Keep full legislative layers available across borough views so selections remain composable.
+  window[layerVar] = L.geoJSON(filteredData, {
+    style: f => {
+      var num = f.properties[key];
+      var color = districtBoroColor(num, type);
+      return {color:color, weight:2, fillColor:color, fillOpacity:.08, dashArray:'5,3'};
+    },
+    onEachFeature: (f,l) => {
+      var num = f.properties[key];
+      var lookup = type==='cc'?window._councilLookup:type==='assembly'?window._assemblyLookup:type==='senate'?window._senateLookup:window._congressLookup;
+      var rep = lookup && lookup[parseInt(num)];
+      var tip = '<strong>'+label+' '+num+'</strong>'+(rep?'<br>'+rep[0]:'');
+      l.bindTooltip(tip, {sticky:true});
+    }
+  });
+  if(subState[type]) window[layerVar].addTo(map);
+}
+
+function buildCC(d){ buildLegislative('cc',d,'CounDist','Council District','ccLayer'); ccLayer=window.ccLayer; }
+function buildAssembly(d){ buildLegislative('assembly',d,'assembly_district','Assembly District','assemblyLayer'); assemblyLayer=window.assemblyLayer; }
+function buildSenate(d){ buildLegislative('senate',d,'st_sen_dist','State Senate District','senateLayer'); senateLayer=window.senateLayer; }
+function buildCongress(d){ buildLegislative('congress',d,'cong_dist','Congressional District NY-','congressLayer'); congressLayer=window.congressLayer; }
+
+function refreshLegislativeLayers(){
+  if(window._ccData && subState.cc){ buildCC(window._ccData); }
+  if(window._assemblyData && subState.assembly){ buildAssembly(window._assemblyData); }
+  if(window._senateData && subState.senate){ buildSenate(window._senateData); }
+  if(window._congressData && subState.congress){ buildCongress(window._congressData); }
+}
+function buildHistoric(d){
+  var histFeatures = filterByView(d.features, f=>{try{var r=f.geometry.type==='Polygon'?f.geometry.coordinates[0]:f.geometry.coordinates[0][0];return r.reduce((s,c)=>s+c[1],0)/r.length;}catch(e){return 0;}}, f=>{try{var r=f.geometry.type==='Polygon'?f.geometry.coordinates[0]:f.geometry.coordinates[0][0];return r.reduce((s,c)=>s+c[0],0)/r.length;}catch(e){return 0;}});
+  histFeatures = filteredBySelectedDistricts(histFeatures, true);
+  var historicLayer = L.geoJSON({type:'FeatureCollection',features:histFeatures},{
+    style:{color:'#7c5c00',weight:1.5,fillColor:'#c9a84c',fillOpacity:.25,dashArray:'4,3'},
+    onEachFeature:(f,l)=>{
+      var name=f.properties.area_name||'Historic District';
+      l.bindTooltip('<strong>'+name+'</strong>',{sticky:true});
+    }
+  });
+  window._historicLayer=historicLayer;
+  if(subState.historic) historicLayer.addTo(map);
+}
+
+function buildRents(d){
+  var rentFeatures = filteredBySelectedDistricts(d.features||[], true);
+  const vals=rentFeatures.map(f=>f.properties.Studio||f.properties.rent_studio||0).filter(v=>v>0);
+  const mn=vals.length?Math.min(...vals):0,mx=vals.length?Math.max(...vals):1;
+  rentsLayer = L.geoJSON({type:'FeatureCollection',features:rentFeatures},{
+    style:f=>{const v=f.properties.Studio||f.properties.rent_studio||0;const t=(v-mn)/(mx-mn||1);return {fillColor:`hsl(${220-t*180},70%,${65-t*25}%)`,weight:1,color:'rgba(255,255,255,.3)',fillOpacity:.65};},
+    onEachFeature:(f,l)=>{const v=f.properties.Studio||f.properties.rent_studio||0;l.bindTooltip('CB '+f.properties.cb_code+'<br>Studio: $'+v,{sticky:true});}
+  });
+  if(subState.rents) rentsLayer.addTo(map);
+}
+
+function toggleOverlay(name, on){
+  subState[name]=on;
+  // Lazy load
+  const loaders = {
+    nypd:()=>loadOverlay('nypd','data/nypd_sectors.geojson',buildNYPD),
+    fire:()=>loadOverlay('fire','data/fire_battalions.geojson',buildFire),
+    subway:()=>loadOverlay('subway','data/nyc-subway-stations.geojson',buildSubway),
+    citibike:()=>loadOverlay('citibike','data/citibike_stations_cb6.geojson',buildCitibike),
+    busroutes:()=>loadOverlay('busroutes','transport-data/cb-bk-6.json',buildBusRoutes),
+    busstops:()=>loadOverlay('busstops','transport-data/cb-bk-6.json',buildBusStops),
+    landuse:()=>loadOverlay('landuse','data/cb6-land-use-lots.geojson',buildLandUseLots),
+    parks:()=>loadOverlay('parks','Parks_Properties_20260414.geojson',buildParks),
+    gowanus:()=>loadOverlay('gowanus','data/Gowanus-Rezoning-Boundary-2.geojson',buildGowanus),
+    historic:()=>loadOverlay('historic','data/historic-districts.geojson',buildHistoric),
+    rents:()=>loadOverlay('rents','data/citywide-rents.geojson',buildRents),
+    cc:()=>loadOverlay('cc','data/city-council-districts.geojson',buildCC),
+    assembly:()=>loadOverlay('assembly','data/state-assembly-districts.geojson',buildAssembly),
+    senate:()=>loadOverlay('senate','data/state-senate-districts.geojson',buildSenate),
+    congress:()=>loadOverlay('congress','data/congressional-districts.geojson',buildCongress),
+  };
+  if(on && loaders[name]) loaders[name]();
+  if(!on) removeOverlayLayer(name);
+  if(['cc','assembly','senate','congress'].indexOf(name)>-1) refreshCBOverlapLayer();
+}
+
+
+// ── SET MAIN ──
+function setMain(which, btn){
+  activeMain = which;
+  document.querySelectorAll('.plyr-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+
+  // Remove CDs layer when leaving multi-CB views
+  if(which==='cb6'||which==='brooklyn'||which==='manhattan'||which==='queens'||which==='bronx'||which==='si'){
+    if(which!=='cb6'&&cdsLayer) cdsLayer.addTo(map);
+    else if(cdsLayer) map.removeLayer(cdsLayer);
+  }
+  if(which==='nyc' && cdsData) buildCDLayer();
+  else if(which==='nyc') loadCDs();
+
+  // Fly to view
+  const v = BORO_VIEWS[which]||[40.6771,-74.0012,13];
+  map.setView([v[0],v[1]],v[2]);
+
+  // For borough views, load and show all CDs
+  if(['brooklyn','manhattan','queens','bronx','si','nyc'].includes(which)) loadCDs();
+  else if(cdsLayer) map.removeLayer(cdsLayer);
+
+  // Set borough filter
+  var filters = {'cb6':'306','brooklyn':'3','manhattan':'1','queens':'4','bronx':'2','si':'5','nyc':null};
+  activeBoroFilter = filters[which];
+  buildSubToggles();
+  updateLegend();
+  // Refresh all active legislative layers and district-filtered overlays with new filter
+  refreshLegislativeLayers();
+  refreshCBOverlapLayer();
+  refreshDistrictFilteredOverlays();
+}
+
+// ── SUB TOGGLES ──
+// Individual CB toggle state
+var cbToggleState = {}; // boro_cd -> {on, layer}
+
+function toggleCBLayer(code, on, feature) {
+  if(!cbToggleState[code]) cbToggleState[code]={on:false,layer:null};
+  cbToggleState[code].on = on;
+  if(!on){
+    if(cbToggleState[code].layer){map.removeLayer(cbToggleState[code].layer);cbToggleState[code].layer=null;}
+    return;
+  }
+  var boro=code.charAt(0);
+  var lyr=L.geoJSON(feature,{
+    style:{color:BORO_COLORS[boro]||'#888',weight:2.5,fillColor:BORO_COLORS[boro]||'#888',fillOpacity:.2},
+    onEachFeature:function(f,l){
+      l.on('click',function(){
+        window._selectedCBFeature=f;
+        Promise.all([
+          window._ccData?Promise.resolve():fetch('data/city-council-districts.geojson').then(r=>r.json()).then(d=>{window._ccData=d;}),
+          window._assemblyData?Promise.resolve():fetch('data/state-assembly-districts.geojson').then(r=>r.json()).then(d=>{window._assemblyData=d;}),
+          window._senateData?Promise.resolve():fetch('data/state-senate-districts.geojson').then(r=>r.json()).then(d=>{window._senateData=d;}),
+          window._congressData?Promise.resolve():fetch('data/congressional-districts.geojson').then(r=>r.json()).then(d=>{window._congressData=d;}),
+        ]).then(function(){showCBDistricts(f);refreshLegislativeLayers();});
+      });
+    }
+  }).addTo(map);
+  cbToggleState[code].layer=lyr;
+}
+
+var CB_HOODS = {'101': 'Financial District · Tribeca · Battery Park City', '102': 'Greenwich Village · SoHo · Hudson Square', '103': 'Lower East Side · Chinatown · Two Bridges', '104': "Chelsea · Hell's Kitchen · Clinton", '105': 'Midtown · Flatiron · Murray Hill', '106': 'Stuyvesant Town · Turtle Bay · Beekman Hill', '107': 'Upper West Side · Manhattan Valley', '108': 'Upper East Side · Lenox Hill · Yorkville', '109': 'Morningside Heights · West Harlem', '110': 'Central Harlem', '111': 'East Harlem · Spanish Harlem', '112': 'Washington Heights · Inwood · Marble Hill', '201': 'Mott Haven · Port Morris', '202': 'Hunts Point · Longwood', '203': 'Morrisania · Crotona Park East', '204': 'Highbridge · Concourse', '205': 'Fordham · University Heights', '206': 'Belmont · East Tremont', '207': 'Kingsbridge · Riverdale', '208': 'Riverdale · Fieldston', '209': 'Throgs Neck · Co-op City', '210': 'Pelham Bay · Williamsbridge', '211': 'Pelham Parkway · Morris Park', '212': 'Wakefield · Williamsbridge · Woodlawn', '301': 'Williamsburg · Greenpoint', '302': 'Williamsburg · East Williamsburg', '303': 'Bedford-Stuyvesant', '304': 'Bushwick', '305': 'East New York · Cypress Hills', '306': 'Park Slope · Carroll Gardens · Cobble Hill · Red Hook · Gowanus', '307': 'Sunset Park · Windsor Terrace', '308': 'Crown Heights North · Prospect Heights', '309': 'Crown Heights South · Prospect Lefferts Gardens', '310': 'Bay Ridge · Dyker Heights', '311': 'Bensonhurst · Bath Beach', '312': 'Borough Park · Kensington · Ocean Parkway', '313': 'Coney Island · Brighton Beach · Sea Gate', '314': 'Flatbush · Midwood', '315': 'Sheepshead Bay · Gerritsen Beach', '316': 'Brownsville', '317': 'East Flatbush · Farragut · Rugby', '318': 'Canarsie · Flatlands', '401': 'Astoria · Long Island City', '402': 'Sunnyside · Woodside', '403': 'Jackson Heights · North Corona', '404': 'Elmhurst · Corona', '405': 'Ridgewood · Maspeth', '406': 'Rego Park · Forest Hills', '407': 'Flushing · Whitestone', '408': 'Jamaica · Hollis · St. Albans', '409': 'Richmond Hill · Woodhaven', '410': 'Howard Beach · Ozone Park', '411': 'Bayside · Douglaston', '412': 'Jamaica · Hollis', '413': 'Springfield Gardens', '414': 'Far Rockaway · Rockaway Beach', '501': 'St. George · Stapleton', '502': 'New Springville · Willowbrook', '503': 'Tottenville · Great Kills · Annadale'};
+var CB_PROFILE_KEYS = {'3':'bk','1':'mn','4':'qn','2':'bx','5':'si'};
+
+function buildSubToggles(){
+  const sub = document.getElementById('sub-row');
+  sub.innerHTML='';
+  sub.style.background='#f5f0e8';
+
+  // Put operational overlay controls first so they are visible before the long CB/district button lists.
+  const legislative = [
+    {k:'cc',c:'#0d7490',l:'🏙 Council'},
+    {k:'assembly',c:'#1a7a4a',l:'🏛 Assembly'},
+    {k:'senate',c:'#6b21a8',l:'⚖️ Senate'},
+    {k:'congress',c:'#b91c1c',l:'🇺🇸 Congress'},
+  ];
+  const overlays = [
+    {k:'nypd',c:'#6b21a8',tc:'#fff',l:'👮 NYPD'},
+    {k:'fire',c:'#ea580c',tc:'#fff',l:'🚒 Fire'},
+    {k:'subway',c:'#1d4ed8',tc:'#fff',l:'🚇 Subway'},
+    {k:'citibike',c:'#0052a5',tc:'#fff',l:'🚲 Citibike'},
+    {k:'busroutes',c:'#2563eb',tc:'#fff',l:'🚌 Bus Routes'},
+    {k:'busstops',c:'#f59e0b',tc:'#fff',l:'🚏 Bus Stops'},
+    {k:'landuse',c:'#ff8341',tc:'#fff',l:'🏘 Land Use Lots'},
+    {k:'parks',c:'#16a34a',tc:'#fff',l:'🌳 Parks'},
+    {k:'rents',c:'#dc2626',tc:'#fff',l:'🏠 Rents'},
+    {k:'historic',c:'#7c5c00',tc:'#fff',l:'🏛 Historic Districts'},
+  ];
+  if(activeMain==='cb6') overlays.push({k:'gowanus',c:'#0d9488',tc:'#fff',l:'🌊 Gowanus'});
+
+  var overlayLabel=document.createElement('span');
+  overlayLabel.style.cssText='font-size:.58rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#777;margin:0 2px 0 0;flex-shrink:0';
+  overlayLabel.textContent='Overlays';
+  sub.appendChild(overlayLabel);
+  overlays.forEach(function(item){
+    var btn=document.createElement('button');
+    btn.className='plyr-sub overlay-control'+(subState[item.k]?' on':'');
+    btn.style.setProperty('--sc',item.c);btn.style.setProperty('--stc',item.tc||'#fff');
+    btn.textContent=item.l;
+    btn.title='Toggle '+item.l.replace(/^[^A-Za-z]+/,'')+' overlay';
+    btn.onclick=function(){subState[item.k]=!subState[item.k];btn.classList.toggle('on');toggleOverlay(item.k,subState[item.k]);updateLegend();};
+    sub.appendChild(btn);
+  });
+
+  var legLabel=document.createElement('span');
+  legLabel.style.cssText='font-size:.58rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#777;margin:0 2px 0 8px;flex-shrink:0';
+  legLabel.textContent='Districts';
+  sub.appendChild(legLabel);
+  legislative.forEach(function(item){
+    var btn=document.createElement('button');
+    btn.className='plyr-sub district-control'+(subState[item.k]?' on':'');
+    btn.style.setProperty('--sc',item.c);btn.style.setProperty('--stc','#fff');
+    btn.textContent=item.l;
+    btn.title='Toggle all visible '+item.l.replace(/^[^A-Za-z]+/,'')+' districts';
+    btn.onclick=function(){subState[item.k]=!subState[item.k];btn.classList.toggle('on');toggleOverlay(item.k,subState[item.k]);updateLegend();};
+    sub.appendChild(btn);
+  });
+
+  var districtDiv=document.createElement('span');
+  districtDiv.style.cssText='display:inline-block;width:1px;height:20px;background:#ccc;margin:0 6px;vertical-align:middle;flex-shrink:0';
+  sub.appendChild(districtDiv);
+
+  // Individual district and designation toggles can be combined with any CB or overlay selection.
+  legislative.concat([{k:'nypd'}]).forEach(function(item){
+    var cfg = DISTRICT_TOGGLE_CONFIG[item.k];
+    var nums = getAllowedDistricts(item.k);
+    if(!cfg || !nums.length) return;
+    var label=document.createElement('span');
+    label.style.cssText='font-size:.58rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#777;margin:0 2px 0 7px;flex-shrink:0';
+    label.textContent=cfg.abbr;
+    sub.appendChild(label);
+    nums.forEach(function(num){
+      var btn=document.createElement('button');
+      var state=districtToggleState[item.k][num]||{on:false};
+      btn.className='plyr-sub'+(state.on?' on':'');
+      btn.style.setProperty('--sc',cfg.color);btn.style.setProperty('--stc','#fff');
+      var displayNum = cfg.labelNum ? cfg.labelNum(num) : num;
+      btn.textContent=cfg.abbr+displayNum;
+      btn.title=cfg.name+' '+displayNum;
+      btn.onclick=function(){
+        var on=!(districtToggleState[item.k][num]&&districtToggleState[item.k][num].on);
+        btn.classList.toggle('on',on);
+        toggleSingleDistrict(item.k,num,on);
+        updateLegend();
+      };
+      sub.appendChild(btn);
+    });
+  });
+
+  var cbDiv=document.createElement('span');
+  cbDiv.style.cssText='display:inline-block;width:1px;height:20px;background:#ccc;margin:0 6px;vertical-align:middle;flex-shrink:0';
+  sub.appendChild(cbDiv);
+
+  var cbLabel=document.createElement('span');
+  cbLabel.style.cssText='font-size:.58rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#777;margin:0 2px 0 0;flex-shrink:0';
+  cbLabel.textContent='CBs';
+  sub.appendChild(cbLabel);
+
+  // Show every CB toggle so selections can be combined across boroughs.
+  const BORO_GROUPS = [
+    {code:'3', name:'Brooklyn', abbr:'BKCB', color:'#1a3a8a', cbs:18},
+    {code:'1', name:'Manhattan', abbr:'MANH ', color:'#003580', cbs:12},
+    {code:'4', name:'Queens', abbr:'QNS ', color:'#6b4f00', cbs:14},
+    {code:'2', name:'Bronx', abbr:'BX ', color:'#b84800', cbs:12},
+    {code:'5', name:'Staten Island', abbr:'SI ', color:'#1a5a50', cbs:3},
+  ];
+  BORO_GROUPS.forEach(function(g){
+    for(var n=1;n<=g.cbs;n++){
+      var code = g.code + String(n).padStart(2,'0');
+      var label = g.abbr + n;
+      var state = cbLayerState[code]||{on:false};
+      var btn = document.createElement('button');
+      btn.className='plyr-sub'+(state.on?' on':'');
+      btn.style.setProperty('--sc',g.color);
+      btn.style.setProperty('--stc','#fff');
+      btn.textContent=label;
+      btn.title=g.name+' CB'+n+' ('+label+')';
+      (function(c,boroColor){
+        btn.onclick=function(){
+          if(!cbLayerState[c]) cbLayerState[c]={on:false,layer:null};
+          var on=!cbLayerState[c].on;
+          cbLayerState[c].on=on;
+          btn.classList.toggle('on',on);
+          if(!on){
+            if(cbLayerState[c].layer){map.removeLayer(cbLayerState[c].layer);cbLayerState[c].layer=null;}
+            refreshCBOverlapLayer();
+            refreshDistrictFilteredOverlays();
+            return;
+          }
+          if(!cdsData) return;
+          var feature=cdsData.features.find(f=>f.properties.boro_cd===c);
+          if(!feature) return;
+          var lyr=L.geoJSON(feature,{
+            style:{color:boroColor,weight:2.5,fillColor:boroColor,fillOpacity:.2},
+            onEachFeature:function(f,l){
+              l.on('click',function(){
+                showCBPanel(f,c);
+              });
+            }
+          }).addTo(map);
+          cbLayerState[c].layer=lyr;
+          showCBPanel(feature,c);
+          refreshCBOverlapLayer();
+          refreshDistrictFilteredOverlays();
+        };
+      })(code, g.color);
+      sub.appendChild(btn);
+    }
+    if(activeMain==='nyc'){
+      var sp=document.createElement('span');
+      sp.style.cssText='display:inline-block;width:6px';
+      sub.appendChild(sp);
+    }
+  });
+}
+// ── LEGEND ──
+function updateLegend(){
+  let html='';
+  const active = Object.keys(subState).filter(k=>subState[k]);
+  const labels = {nypd:['#6b21a8','NYPD Sectors'],fire:['#ea580c','Fire Battalions'],subway:['#1d4ed8','Subway'],citibike:['#0052a5','Citibike'],busroutes:['#2563eb','Bus Routes'],busstops:['#f59e0b','Bus Stops'],landuse:['#ff8341','Land Use Lots'],parks:['#16a34a','Parks'],gowanus:['#0d9488','Gowanus'],rents:['#dc2626','Rents'],historic:['#7c5c00','Historic Districts'],cc:['#0d7490','City Council'],assembly:['#1a7a4a','Assembly'],senate:['#6b21a8','State Senate'],congress:['#b91c1c','Congress']};
+  if(['brooklyn','manhattan','queens','bronx','si','nyc'].includes(activeMain)){
+    const boroKey = {brooklyn:'3',manhattan:'1',queens:'4',bronx:'2',si:'5'};
+    const bk = boroKey[activeMain];
+    if(bk) html+=`<span class="li"><span class="ls" style="background:${BORO_COLORS[bk]}"></span>${BORO_NAMES[bk]} CBs</span>`;
+    else {Object.entries(BORO_COLORS).forEach(([k,c])=>{ html+=`<span class="li"><span class="ls" style="background:${c}"></span>${BORO_NAMES[k]}</span>`; }); }
+  } else {
+    html+='<span class="li"><span class="ls" style="background:#f47920;border-radius:0"></span>BKCB6</span>';
+  }
+  active.forEach(k=>{ if(labels[k]) html+=`<span class="li"><span class="ls" style="background:${labels[k][0]}"></span>${labels[k][1]}</span>`; });
+  if(subState.landuse){
+    ['01','02','03','04','05','06','07','08','09','10','11'].forEach(function(k){html+=`<span class="li"><span class="ls" style="background:${LAND_USE_COLORS[k]}"></span>${LAND_USE_LABELS[k]}</span>`;});
+  }
+  if(cbOverlapLayer) html+='<span class="li"><span class="ls" style="background:repeating-linear-gradient(90deg,#0d7490 0 3px,#1a7a4a 3px 6px,#6b21a8 6px 9px,#b91c1c 9px 12px)"></span>CB ∩ district overlap parts</span>';
+  Object.keys(districtToggleState).forEach(function(type){
+    var cfg=DISTRICT_TOGGLE_CONFIG[type];
+    var nums=Object.keys(districtToggleState[type]).filter(function(n){return districtToggleState[type][n].on;}).sort(function(a,b){return parseInt(a)-parseInt(b);});
+    if(nums.length){
+      var shown = nums.map(function(n){return cfg.labelNum ? cfg.labelNum(n) : n;});
+      html+=`<span class="li"><span class="ls" style="background:${cfg.color}"></span>${cfg.abbr}: ${shown.join(', ')}</span>`;
+    }
+  });
+  document.getElementById('legend').innerHTML=html;
+}
+
+buildSubToggles();
+updateLegend();
+setTimeout(()=>map.invalidateSize(),200);
+
+// ── AUTOCOMPLETE ──
+let _acT=null;
+async function doAC(val){
+  clearTimeout(_acT);
+  const drop=document.getElementById('ac-drop');
+  if(!val||val.length<4){drop.style.display='none';return;}
+  _acT=setTimeout(async()=>{
+    try{
+      const boro=document.getElementById('boro-sel').value;
+      const boroQ=boro!=='Citywide'?` ${boro} New York`:' New York City';
+      const r=await fetch(`https://geosearch.planninglabs.nyc/v2/autocomplete?text=${encodeURIComponent(val+boroQ)}&size=6`);
+      const d=await r.json();
+      drop.innerHTML='';
+      (d.features||[]).forEach(f=>{
+        const label=f.properties.label||'';
+        if(!label.toLowerCase().includes('new york'))return;
+        const item=document.createElement('div');
+        item.textContent=label;
+        item.onmousedown=()=>{
+          document.getElementById('s-input').value=label.replace(/, New York, NY.*$/i,'');
+          drop.style.display='none';
+          doSearch();
+        };
+        drop.appendChild(item);
+      });
+      drop.style.display=drop.children.length?'block':'none';
+    }catch(e){document.getElementById('ac-drop').style.display='none';}
+  },200);
+}
+document.addEventListener('click',e=>{if(!e.target.closest('.search-row'))document.getElementById('ac-drop').style.display='none';});
+
+// ── SEARCH ──
+function pRow(icon,label,val){return'<tr style="border-bottom:1px solid #f0efed"><td style="padding:6px 10px 6px 0;vertical-align:top;white-space:nowrap"><span style="font-size:.85rem">'+icon+'</span><span style="font-size:.63rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-left:4px">'+label+'</span></td><td style="padding:6px 0;font-size:.78rem;color:#0d1b4b;line-height:1.4">'+val+'</td></tr>';}
+
+async function doSearch(){
+  const addr=document.getElementById('s-input').value.trim();
+  const boro=document.getElementById('boro-sel').value;
+  if(!addr)return;
+  document.getElementById('ac-drop').style.display='none';
+  const res=document.getElementById('s-result');
+  res.style.display='block';
+  res.innerHTML='<span style="color:#888;font-size:.78rem;font-family:DM Mono,monospace">Searching…</span>';
+
+  const KEY='b913bdfb9c47466589d0f08c99c75b21';
+  const m=addr.match(/^(\d+[-\d]*)\s+(.+)$/);
+  let lat=null,lng=null,lbl=addr,gcData=null;
+
+  if(m){
+    const boros=boro==='Citywide'?['Brooklyn','Manhattan','Queens','Bronx','Staten Island']:[boro];
+    for(const b of boros){
+      try{
+        const r=await fetch(`https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(m[1])}&street=${encodeURIComponent(m[2])}&borough=${encodeURIComponent(b)}&subscription-key=${KEY}`);
+        const d=await r.json();
+        if(d.address&&!d.address.message&&d.address.latitude){gcData=d.address;lat=parseFloat(d.address.latitude);lng=parseFloat(d.address.longitude);break;}
+      }catch(e){}
+    }
+  }
+
+  if(!lat){
+    try{
+      const boroQ=boro!=='Citywide'?` ${boro} New York`:' New York City';
+      const r=await fetch(`https://geosearch.planninglabs.nyc/v2/search?text=${encodeURIComponent(addr+boroQ)}&size=1`);
+      const d=await r.json();
+      if(d.features&&d.features.length){const f=d.features[0];lat=f.geometry.coordinates[1];lng=f.geometry.coordinates[0];lbl=f.properties.label||addr;}
+    }catch(e){}
+  }
+
+  if(!lat){res.innerHTML='<span style="color:#c81e1e;font-size:.78rem">Address not found.</span>';return;}
+
+  if(searchMarker)map.removeLayer(searchMarker);
+  searchMarker=L.circleMarker([lat,lng],{radius:8,fillColor:'#f47920',color:'#fff',weight:2,fillOpacity:1}).addTo(map).bindPopup(`<b>${escH(gcData?gcData.houseNumber+' '+gcData.firstStreetNameNormalized:addr)}</b>`).openPopup();
+  map.setView([lat,lng],16);
+
+  let html='<div style="font-family:DM Sans,sans-serif;font-weight:700;font-size:.82rem;color:#0d1b4b;margin-bottom:6px">'+escH(lbl)+'</div><table style="border-collapse:collapse;width:100%;font-size:.78rem">';
+  if(gcData){
+    if(gcData.communityDistrict) html+=pRow('🗂','Community Board','CB '+parseInt(gcData.communityDistrict)%100);
+    if(gcData.cityCouncilDistrict) html+=pRow('🏙','City Council','District '+gcData.cityCouncilDistrict);
+    if(gcData.stateLegislativeDistrict||gcData.assemblyDistrict) html+=pRow('🏛','Assembly','AD '+(gcData.stateLegislativeDistrict||gcData.assemblyDistrict));
+    if(gcData.stateSenatorialDistrict) html+=pRow('⚖️','State Senate','SD '+gcData.stateSenatorialDistrict);
+    if(gcData.congressionalDistrict) html+=pRow('🇺🇸','Congress','NY-'+gcData.congressionalDistrict);
+    if(gcData.zipCode) html+=pRow('📮','ZIP',gcData.zipCode);
+  }
+  html+='<tr><td colspan="2" style="padding:6px 0"><a href="mydistricts.html?address='+encodeURIComponent(addr)+(boro!=='Citywide'?'&borough='+encodeURIComponent(boro):'')+'\" target="_blank" style="color:#f47920;font-size:.72rem;font-family:DM Mono,monospace;font-weight:700">Full district breakdown ↗</a></td></tr>';
+  html+='</table>';
+  res.style.cssText='display:block;padding:10px 14px;background:#fff;border-bottom:2px solid #f47920;flex-shrink:0';
+  res.innerHTML=html;
+}
+
+</script>
+</body>
+</html>
+
