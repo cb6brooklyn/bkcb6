@@ -1046,14 +1046,42 @@ function buildZoning(d){
   if(subState.zoning) zoningLayer.addTo(map);
 }
 
+function supplementalProspectParkFeatures(){
+  var d = window._overlayData_prospectpark;
+  var features = d && d.features ? d.features.slice() : [];
+  return features.map(function(f){
+    var p = Object.assign({}, f.properties || {});
+    p.name = p.name || p.Name || 'Prospect Park';
+    p.signname = p.signname || p.Name || p.name;
+    p.name311 = p.name311 || p.name;
+    p._supplemental_park = true;
+    return Object.assign({}, f, {properties:p});
+  });
+}
+function parkTooltipName(p){
+  p = p || {};
+  return p.signname || p.name || p.name311 || p.Name || 'Park';
+}
 function buildParks(d){
   var pkFeatures = filterByView(d.features, f=>{try{var r=f.geometry.type==='Polygon'?f.geometry.coordinates[0]:f.geometry.coordinates[0][0];return r.reduce((s,c)=>s+c[1],0)/r.length;}catch(e){return 0;}}, f=>{try{var r=f.geometry.type==='Polygon'?f.geometry.coordinates[0]:f.geometry.coordinates[0][0];return r.reduce((s,c)=>s+c[0],0)/r.length;}catch(e){return 0;}});
   pkFeatures = filteredBySelectedDistricts(pkFeatures, true);
+  pkFeatures = pkFeatures.concat(supplementalProspectParkFeatures());
   parksLayer = L.geoJSON({type:'FeatureCollection',features:pkFeatures},{
-    style:{color:'#16a34a',weight:1,fillColor:'#16a34a',fillOpacity:.3},
-    onEachFeature:(f,l)=>l.bindTooltip(f.properties.signname||f.properties.name||f.properties.name311||'Park',{sticky:true})
+    style:function(f){var special=f.properties&&f.properties._supplemental_park; return {color:special?'#0f7a35':'#16a34a',weight:special?2.2:1,fillColor:'#16a34a',fillOpacity:special?.22:.3};},
+    onEachFeature:(f,l)=>l.bindTooltip(parkTooltipName(f.properties),{sticky:true})
   });
   if(subState.parks) parksLayer.addTo(map);
+}
+function buildParksCombined(){
+  Promise.all([
+    fetch('Parks_Properties_20260414.geojson').then(r=>r.json()),
+    fetch('data/prospect-park.geojson').then(r=>r.json())
+  ]).then(function(results){
+    window._overlayData_parks = results[0];
+    window._overlayData_prospectpark = results[1];
+    overlayLoaded.parks = true;
+    buildParks(results[0]);
+  }).catch(e=>console.log('parks load failed',e));
 }
 function buildGowanus(d){
   var gowanusData = {type:'FeatureCollection', features:filteredBySelectedDistricts(d.features||[], true)};
@@ -1412,7 +1440,7 @@ function toggleOverlay(name, on){
     busstops:()=>loadOverlay('busstops','transport-data/cb-bk-6.json',buildBusStops),
     landuse:()=>loadOverlay('landuse','data/cb6-land-use-lots.geojson',buildLandUseLots),
     zoning:()=>loadOverlay('zoning','data/cb6-zoning.geojson',buildZoning),
-    parks:()=>loadOverlay('parks','Parks_Properties_20260414.geojson',buildParks),
+    parks:()=>buildParksCombined(),
     schools:()=>loadOverlay('schools','schools_childcare_cb6.json',buildSchools),
     childcare:()=>loadOverlay('childcare','schools_childcare_cb6.json',buildChildcare),
     libraries:()=>buildLibraries(),
