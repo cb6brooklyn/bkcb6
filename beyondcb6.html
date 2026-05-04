@@ -1249,19 +1249,23 @@ const CB_DATA_INLINE = {
   '502':{name:'South Beach / Willowbrook',boro:'Staten Island',short:'si',num:2},
   '503':{name:'Tottenville / Great Kills',boro:'Staten Island',short:'si',num:3},
 };
-const BORO_SEAL_STYLES_I = {
-  'Manhattan': {fill:'#003580', stroke:'#8888bb'},
-  'Brooklyn': {fill:'#1a3a8a', stroke:'#c9a84c'},
-  'Queens': {fill:'#6b5a1e', stroke:'#c9a84c'},
-  'Staten Island': {fill:'#4a7c6f', stroke:'#2a4c3f'}
+const BORO_SEAL_PALETTES_I = {
+  'Manhattan': {fills:['#003580','#f2a13a','#f7ead0','#6b4f2a'],strokes:['#f2a13a','#003580','#7b5a2a','#003580'],labelBg:'#003580',labelText:'#fff4dc'},
+  'Bronx': {fills:['#315aa6','#fff4dc','#f47b20','#55a84f','#e23b2e','#f2c744','#6b3f16'],strokes:['#fff4dc','#315aa6','#a24a13','#315aa6','#fff4dc','#315aa6','#f2c744'],labelBg:'#f47b20',labelText:'#0d1b4b'},
+  'Brooklyn': {fills:['#1a3a8a','#c9a84c','#f7e6bd','#0d1b4b'],strokes:['#c9a84c','#1a3a8a','#1a3a8a','#c9a84c'],labelBg:'#1a3a8a',labelText:'#f7e6bd'},
+  'Queens': {fills:['#5b3f8c','#f2c744','#88bde6','#6b5a1e'],strokes:['#f2c744','#5b3f8c','#5b3f8c','#f2c744'],labelBg:'#5b3f8c',labelText:'#fff4dc'},
+  'Staten Island': {fills:['#2f6f5f','#f2c744','#8fbf9f','#244236'],strokes:['#f2c744','#2f6f5f','#244236','#f2c744'],labelBg:'#2f6f5f',labelText:'#fff4dc'}
 };
-const BRONX_SEAL_FILLS_I = ['#315aa6','#fff4dc','#f47b20','#f7e6bd','#315aa6','#fff4dc','#e23b2e','#55a84f','#6b3f16','#fff4dc','#f2c744','#315aa6'];
 function sealStyleForCBI(code, boro) {
-  if (boro === 'Bronx') {
-    const n = parseInt(String(code || '').slice(-2), 10) || 1;
-    return {fill: BRONX_SEAL_FILLS_I[(n - 1) % BRONX_SEAL_FILLS_I.length], stroke: '#a24a13'};
-  }
-  return BORO_SEAL_STYLES_I[boro] || {fill:'#888', stroke:'#555'};
+  const palette = BORO_SEAL_PALETTES_I[boro];
+  if (!palette) return {fill:'#888', stroke:'#555', labelBg:'#333', labelText:'#fff'};
+  const n = parseInt(String(code || '').slice(-2), 10) || 1;
+  const i = (n - 1) % palette.fills.length;
+  return {fill:palette.fills[i], stroke:palette.strokes[i] || palette.labelBg, labelBg:palette.labelBg, labelText:palette.labelText};
+}
+function cbLabelForI(cb) {
+  const prefix = ({mn:'MN', bx:'BX', bk:'BK', qn:'QN', si:'SI'}[cb.short] || cb.short.toUpperCase());
+  return prefix + ' CB' + cb.num;
 }
 
 function makeInlineMap(mapId, tooltipId, height) {
@@ -1283,7 +1287,7 @@ function loadCBLayer(map, tooltipEl, onClick) {
         style(feat){
           const code=feat.properties.boro_cd, cb=CB_DATA_INLINE[code];
           const seal=sealStyleForCBI(code, cb?.boro);
-          return{fillColor:seal.fill,fillOpacity:.7,color:seal.stroke,weight:2,opacity:1};
+          return{fillColor:seal.fill,fillOpacity:.74,color:seal.stroke,weight:2,opacity:1};
         },
         onEachFeature(feat,layer){
           const code=feat.properties.boro_cd, cb=CB_DATA_INLINE[code];
@@ -1308,7 +1312,13 @@ function loadCBLayer(map, tooltipEl, onClick) {
             this.setStyle({fillOpacity:.7,weight:2.5,color:'#d4631a',fillColor:'#f47920'});
             if(onClick) onClick(code,cb);
           });
-          layer.bindTooltip(`<strong>${cb.boro} CB${cb.num}</strong><br><span style="font-size:.78em;color:#555">${cb.name}</span>`,{sticky:true,className:'cb-tt'});
+          const cbLabel = cbLabelForI(cb);
+          const labelStyle = sealStyleForCBI(code, cb.boro);
+          L.marker(layer.getBounds().getCenter(), {
+            interactive:false,
+            icon:L.divIcon({className:'cb-map-label',html:`<span style="background:${labelStyle.labelBg};color:${labelStyle.labelText};border-color:${labelStyle.stroke}">${cbLabel}</span>`,iconSize:[64,22],iconAnchor:[32,11]})
+          }).addTo(map);
+          layer.bindTooltip(`<strong>${cbLabel}</strong><br><span style="font-size:.78em;color:#555">${cb.name}</span>`,{sticky:true,className:'cb-tt'});
         }
       }).addTo(map);
     });
@@ -1328,7 +1338,7 @@ if(inlineMap){
 
 // Election map lazy init removed — using Felt embed instead
 </script>
-<style>.cb-tt{background:#fff;border:1px solid #e5e2db;border-radius:6px;padding:7px 10px;font-family:'DM Sans',sans-serif;font-size:.8rem;color:#0d1b4b;box-shadow:0 2px 6px rgba(0,0,0,.1)}</style>
+<style>.cb-tt{background:#fff;border:1px solid #e5e2db;border-radius:6px;padding:7px 10px;font-family:'DM Sans',sans-serif;font-size:.8rem;color:#0d1b4b;box-shadow:0 2px 6px rgba(0,0,0,.1)}.cb-map-label{background:transparent;border:0;box-shadow:none;pointer-events:none;text-align:center;z-index:650!important}.cb-map-label span{display:inline-block;padding:2px 5px;border:1.5px solid;border-radius:999px;font-family:'DM Mono',monospace;font-size:.62rem;font-weight:800;line-height:1;letter-spacing:-.03em;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.28)}@media(max-width:700px){.cb-map-label span{font-size:.56rem;padding:2px 4px}}</style>
 
 <style>
 .embed-fab{position:fixed;bottom:20px;right:20px;z-index:9000;background:var(--navy,#0d1b4b);color:#fff;border:none;border-radius:50px;padding:10px 16px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.25);display:flex;align-items:center;gap:6px;transition:background .15s}
