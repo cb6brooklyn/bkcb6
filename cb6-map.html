@@ -785,6 +785,10 @@ function removeOverlayLayer(name){
   }
   var lyrMap = {nypd:nypdLayer,fire:fireLayer,subway:subwayLayer,citibike:citibikeLayer,busroutes:busRoutesLayer,busstops:busStopsLayer,speedlimits:speedLimitsLayer,landuse:landUseLotsLayer,zoning:zoningLayer,parks:parksLayer,schools:schoolsLayer,childcare:childcareLayer,libraries:librariesLayer,schooldistricts:schoolDistrictsLayer,gowanus:gowanusLayer,rents:rentsLayer,cc:ccLayer,assembly:assemblyLayer,senate:senateLayer,congress:congressLayer,historic:window._historicLayer};
   if(lyrMap[name]) map.removeLayer(lyrMap[name]);
+  if(name==='cc'){ ccLayer=null; window.ccLayer=null; }
+  if(name==='assembly'){ assemblyLayer=null; window.assemblyLayer=null; }
+  if(name==='senate'){ senateLayer=null; window.senateLayer=null; }
+  if(name==='congress'){ congressLayer=null; window.congressLayer=null; }
 }
 
 function refreshDistrictFilteredOverlays(){
@@ -1453,7 +1457,8 @@ function fitBKCB6DistrictGroupView(type, layer){
     var b = layer.getBounds();
     if(cb6Layer && cb6Layer.getBounds) b.extend(cb6Layer.getBounds());
     if(b && b.isValid && b.isValid()){
-      map.fitBounds(b.pad(type === 'senate' ? 0.03 : 0.05), {padding:[12,12], maxZoom:type === 'senate' ? 12.5 : 12.5, animate:false});
+      // Keep the user's current map view stable when legislative district overlays are toggled.
+      return;
     }
   } catch(e) {}
 }
@@ -1485,7 +1490,7 @@ function buildLegislative(type, data, key, label, layerVar) {
       var lookup = type==='cc'?window._councilLookup:type==='assembly'?window._assemblyLookup:type==='senate'?window._senateLookup:window._congressLookup;
       var rep = lookup && lookup[parseInt(num)];
       var tip = '<strong>'+label+' '+num+'</strong>'+(rep?'<br>'+rep[0]:'');
-      l.bindPopup(tip);
+      l.bindPopup(tip, {autoPan:false, keepInView:false});
       var labelPos = featureLabelLatLng(f, type, key);
       if(labelPos){
         l._districtLabelLatLng = labelPos;
@@ -1681,7 +1686,14 @@ function buildSubToggles(){
     btn.style.setProperty('--sc',item.c);btn.style.setProperty('--stc',item.tc||'#fff');
     btn.textContent=item.l;
     btn.title='Toggle '+item.l.replace(/^[^A-Za-z]+/,'')+' overlay';
-    btn.onclick=function(){subState[item.k]=!subState[item.k];btn.classList.toggle('on');toggleOverlay(item.k,subState[item.k]);updateLegend();};
+    btn.type='button';
+    btn.onclick=function(e){
+      if(e){e.preventDefault();e.stopPropagation();}
+      var on=!subState[item.k];
+      btn.classList.toggle('on',on);
+      toggleOverlay(item.k,on);
+      updateLegend();
+    };
     sub.appendChild(btn);
   });
 
@@ -1720,10 +1732,13 @@ function buildSubToggles(){
       var displayNum = cfg.labelNum ? cfg.labelNum(num) : num;
       btn.textContent=cfg.abbr+displayNum;
       btn.title=cfg.name+' '+displayNum;
-      btn.onclick=function(){
+      btn.type='button';
+      btn.onclick=function(e){
+        if(e){e.preventDefault();e.stopPropagation();}
         var on=!(districtToggleState[item.k][num]&&districtToggleState[item.k][num].on);
         btn.classList.toggle('on',on);
         toggleSingleDistrict(item.k,num,on);
+        btn.classList.toggle('on', !!(districtToggleState[item.k][num]&&districtToggleState[item.k][num].on));
         updateLegend();
       };
       sub.appendChild(btn);
