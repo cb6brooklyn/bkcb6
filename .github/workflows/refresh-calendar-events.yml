@@ -1,0 +1,46 @@
+name: Refresh calendar events
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: https://bkcb6.app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Fetch ICS feeds
+        run: python scripts/build_calendar_events.py
+
+      - name: Commit updated calendar data
+        run: |
+          git config user.email "mracioppo@cb.nyc.gov"
+          git config user.name "Mike Racioppo"
+          git add data/calendar-events.json
+          git diff --cached --quiet || git commit -m "Auto-refresh calendar events $(date -u +%Y-%m-%d)"
+          git push
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
