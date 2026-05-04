@@ -272,11 +272,20 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 .boro-cb-picker{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 16px;background:#fff;border-bottom:1px solid #e5e2db}
 .boro-cb-picker label{font-size:.68rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700}
 .boro-cb-picker select{min-width:220px;max-width:100%;padding:9px 12px;border:2px solid #d8d2c8;border-radius:8px;background:#fff;color:#0d1b4b;font-family:'DM Sans',sans-serif;font-weight:700;font-size:.9rem}
-.boro-cb-picker a{display:none;align-items:center;justify-content:center;padding:9px 14px;border-radius:8px;background:#f47920;color:#fff;text-decoration:none;font-weight:800;font-size:.86rem;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.boro-cb-picker a{display:none;align-items:center;justify-content:center;padding:9px 14px;border-radius:8px;background:var(--orange,#f47920);color:#fff;text-decoration:none;font-weight:800;font-size:.86rem;box-shadow:0 2px 6px rgba(0,0,0,.15)}
 .leaflet-tooltip.boro-cb-map-label{background:rgba(13,27,75,.88);color:#fff;border:1px solid rgba(255,255,255,.7);border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.25);font-family:'DM Mono',monospace;font-size:11px;font-weight:800;letter-spacing:.03em;padding:2px 5px;pointer-events:none}
 .leaflet-popup-content .boro-cb-popup-title{font-weight:900;color:#0d1b4b;font-size:1rem;margin-bottom:3px}
 .leaflet-popup-content .boro-cb-popup-badge{display:inline-block;background:#0d1b4b;color:#fff;border-radius:6px;padding:3px 7px;font-family:'DM Mono',monospace;font-weight:800;font-size:.75rem;margin-bottom:7px}
-.leaflet-popup-content .boro-cb-popup-link{display:inline-block;margin-top:9px;padding:8px 11px;border-radius:8px;background:#f47920;color:#fff;text-decoration:none;font-weight:800}
+.leaflet-popup-content .boro-cb-popup-link{display:inline-block;margin-top:9px;padding:8px 11px;border-radius:8px;background:var(--orange,#f47920);color:#fff;text-decoration:none;font-weight:800}
+.boro-cb-selected-panel{display:none;margin:14px 0 0;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.10);border:1px solid var(--border,#e5e2db)}
+.boro-cb-selected-panel.open{display:block}
+.boro-cb-selected-head{background:var(--navy);border-bottom:4px solid var(--orange);padding:15px 18px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.boro-cb-selected-title{font-size:.98rem;font-weight:800;letter-spacing:.01em}
+.boro-cb-selected-title span{color:var(--orange);font-family:'DM Mono',monospace}
+.boro-cb-selected-actions{display:flex;gap:8px;flex-wrap:wrap}
+.boro-cb-selected-actions a{display:inline-flex;align-items:center;justify-content:center;padding:7px 11px;border-radius:8px;background:var(--orange);color:#fff;text-decoration:none;font-size:.78rem;font-weight:800}
+.boro-cb-selected-frame{width:100%;height:720px;border:0;display:block;background:var(--off,#f8f7f4)}
+@media(max-width:720px){.boro-cb-selected-frame{height:680px}.boro-cb-selected-head{padding:13px 14px}.boro-cb-selected-title{font-size:.9rem}}
 </style>
 <div class="boro-cb-picker" id="boro-cb-picker-manhattan">
   <label for="boro-cb-select-manhattan">Find a community board</label>
@@ -286,6 +295,15 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   <a id="boro-cb-profile-manhattan" href="#">View Profile →</a>
 </div>
 <div id="map-manhattan" style="width:100%;height:520px;border-radius:8px;overflow:hidden;"></div>
+<div id="boro-cb-selected-panel-manhattan" class="boro-cb-selected-panel" aria-live="polite">
+  <div class="boro-cb-selected-head">
+    <div class="boro-cb-selected-title" id="boro-cb-selected-title-manhattan">Manhattan <span>Community Board</span></div>
+    <div class="boro-cb-selected-actions">
+      <a id="boro-cb-selected-open-manhattan" href="#">Open full profile →</a>
+    </div>
+  </div>
+  <iframe id="boro-cb-selected-frame-manhattan" class="boro-cb-selected-frame" title="Selected Manhattan community board profile"></iframe>
+</div>
     <script>
     window._cbmap_manhattan = null;
     window._cbmap_manhattan_init = function() {
@@ -331,12 +349,28 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
         link.href = getProfileUrl(feature);
         link.style.display = 'inline-flex';
       }
+
+      function updateSelectedCbPanel(feature, shouldScroll) {
+        var panel = document.getElementById('boro-cb-selected-panel-manhattan');
+        var titleEl = document.getElementById('boro-cb-selected-title-manhattan');
+        var frame = document.getElementById('boro-cb-selected-frame-manhattan');
+        var open = document.getElementById('boro-cb-selected-open-manhattan');
+        if (!feature || !panel || !titleEl || !frame || !open) return;
+        var n = getCbNumber(feature);
+        var url = getProfileUrl(feature);
+        titleEl.innerHTML = boroughName + ' <span>' + boroughBadge + ' CB' + n + '</span>';
+        open.href = url;
+        if (frame.getAttribute('src') !== url) frame.setAttribute('src', url);
+        panel.classList.add('open');
+        if (shouldScroll) setTimeout(function(){ panel.scrollIntoView({behavior:'smooth',block:'start'}); }, 120);
+      }
       function selectCbFeature(feature, lyr, shouldFit) {
         if (selectedCbLayer && selectedCbLayer.setStyle) selectedCbLayer.setStyle(getCbStyle(selectedCbLayer.feature));
         selectedCbLayer = lyr;
         lyr.setStyle(getCbSelectedStyle());
         if (lyr.bringToFront) lyr.bringToFront();
         updateCbPicker(feature);
+        updateSelectedCbPanel(feature, true);
         if (shouldFit && lyr.getBounds) map.fitBounds(lyr.getBounds(), {padding:[26,26], maxZoom:13});
         lyr.openPopup();
       }
