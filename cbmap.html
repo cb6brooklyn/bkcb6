@@ -183,27 +183,45 @@ const CB_DATA = {
   '503':{name:'Tottenville / Great Kills',boro:'Staten Island',short:'si',num:3,chair:'Frank Morano',dm:'Charlene Wagner'},
 };
 
-// Borough seal-color community-district styles
-const BORO_SEAL_STYLES = {
-  'Manhattan': {fill:'#003580', stroke:'#8888bb'},
-  'Brooklyn': {fill:'#1a3a8a', stroke:'#c9a84c'},
-  'Queens': {fill:'#6b5a1e', stroke:'#c9a84c'},
-  'Staten Island': {fill:'#4a7c6f', stroke:'#2a4c3f'},
-};
-const BRONX_SEAL_FILLS = ['#315aa6','#fff4dc','#f47b20','#f7e6bd','#315aa6','#fff4dc','#e23b2e','#55a84f','#6b3f16','#fff4dc','#f2c744','#315aa6'];
-const BORO_LEGEND_COLORS = {
-  'Manhattan': '#003580',
-  'Bronx': '#f47b20',
-  'Brooklyn': '#1a3a8a',
-  'Queens': '#6b5a1e',
-  'Staten Island': '#4a7c6f',
+// Borough seal-inspired community-district palettes.
+// Each borough cycles through multiple seal colors so the citywide map reads as five seal palettes, not flat generic blocks.
+const BORO_SEAL_PALETTES = {
+  'Manhattan': {
+    fills:['#003580','#f2a13a','#f7ead0','#6b4f2a'],
+    strokes:['#f2a13a','#003580','#7b5a2a','#003580'],
+    labelBg:'#003580', labelText:'#fff4dc'
+  },
+  'Bronx': {
+    fills:['#315aa6','#fff4dc','#f47b20','#55a84f','#e23b2e','#f2c744','#6b3f16'],
+    strokes:['#fff4dc','#315aa6','#a24a13','#315aa6','#fff4dc','#315aa6','#f2c744'],
+    labelBg:'#f47b20', labelText:'#0d1b4b'
+  },
+  'Brooklyn': {
+    fills:['#1a3a8a','#c9a84c','#f7e6bd','#0d1b4b'],
+    strokes:['#c9a84c','#1a3a8a','#1a3a8a','#c9a84c'],
+    labelBg:'#1a3a8a', labelText:'#f7e6bd'
+  },
+  'Queens': {
+    fills:['#5b3f8c','#f2c744','#88bde6','#6b5a1e'],
+    strokes:['#f2c744','#5b3f8c','#5b3f8c','#f2c744'],
+    labelBg:'#5b3f8c', labelText:'#fff4dc'
+  },
+  'Staten Island': {
+    fills:['#2f6f5f','#f2c744','#8fbf9f','#244236'],
+    strokes:['#f2c744','#2f6f5f','#244236','#f2c744'],
+    labelBg:'#2f6f5f', labelText:'#fff4dc'
+  },
 };
 function sealStyleForCB(code, boro) {
-  if (boro === 'Bronx') {
-    const n = parseInt(String(code || '').slice(-2), 10) || 1;
-    return {fill: BRONX_SEAL_FILLS[(n - 1) % BRONX_SEAL_FILLS.length], stroke: '#a24a13'};
-  }
-  return BORO_SEAL_STYLES[boro] || {fill:'#888', stroke:'#555'};
+  const palette = BORO_SEAL_PALETTES[boro];
+  if (!palette) return {fill:'#888', stroke:'#555', labelBg:'#333', labelText:'#fff'};
+  const n = parseInt(String(code || '').slice(-2), 10) || 1;
+  const i = (n - 1) % palette.fills.length;
+  return {fill: palette.fills[i], stroke: palette.strokes[i] || palette.labelBg, labelBg: palette.labelBg, labelText: palette.labelText};
+}
+function cbLabelFor(code, cb) {
+  const prefix = ({mn:'MN', bx:'BX', bk:'BK', qn:'QN', si:'SI'}[cb.short] || cb.short.toUpperCase());
+  return prefix + ' CB' + cb.num;
 }
 
 function getBoroFromCode(code) {
@@ -290,9 +308,22 @@ fetch('nyc_cb_boundaries.geojson')
           showCard(code);
         });
 
+        const cbLabel = cbLabelFor(code, cb);
+        const labelStyle = sealStyleForCB(code, cb.boro);
+        const label = L.marker(layer.getBounds().getCenter(), {
+          interactive: false,
+          icon: L.divIcon({
+            className: 'cb-map-label',
+            html: `<span style="background:${labelStyle.labelBg};color:${labelStyle.labelText};border-color:${labelStyle.stroke}">${cbLabel}</span>`,
+            iconSize: [64, 22],
+            iconAnchor: [32, 11]
+          })
+        }).addTo(map);
+        layer._cbLabel = label;
+
         // Tooltip on hover
         layer.bindTooltip(
-          `<strong>${cb.boro} CB${cb.num}</strong><br><span style="font-size:.8em;color:#555">${cb.name}</span>`,
+          `<strong>${cbLabel}</strong><br><span style="font-size:.8em;color:#555">${cb.name}</span>`,
           {sticky: true, direction: 'auto', className: 'cb-tooltip'}
         );
       }
@@ -306,9 +337,9 @@ window.addEventListener('resize', () => map.invalidateSize());
 // Borough legend
 const legendEl = document.createElement('div');
 legendEl.className = 'legend';
-legendEl.innerHTML = '<div class="legend-title">Borough</div>' +
-  Object.entries(BORO_LEGEND_COLORS).map(([b,c]) =>
-    `<div class="legend-row"><div class="legend-swatch" style="background:${c}"></div>${b}</div>`
+legendEl.innerHTML = '<div class="legend-title">Seal palettes</div>' +
+  Object.entries(BORO_SEAL_PALETTES).map(([b,p]) =>
+    `<div class="legend-row"><div class="legend-swatch" style="background:linear-gradient(135deg,${p.fills.join(',')})"></div>${b}</div>`
   ).join('') +
   '<div class="legend-row"><div class="legend-swatch" style="background:#f47920"></div>Selected</div>';
 document.getElementById('map').appendChild(legendEl);
@@ -316,6 +347,9 @@ document.getElementById('map').appendChild(legendEl);
 <style>
 .cb-tooltip{background:#fff;border:1px solid #e5e2db;border-radius:6px;padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:.82rem;color:#0d1b4b;box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .cb-tooltip strong{font-weight:700}
+.cb-map-label{background:transparent;border:0;box-shadow:none;pointer-events:none;text-align:center;z-index:650!important}
+.cb-map-label span{display:inline-block;padding:2px 5px;border:1.5px solid;border-radius:999px;font-family:'DM Mono',monospace;font-size:.62rem;font-weight:800;line-height:1;letter-spacing:-.03em;white-space:nowrap;text-shadow:none;box-shadow:0 1px 4px rgba(0,0,0,.28)}
+@media(max-width:700px){.cb-map-label span{font-size:.56rem;padding:2px 4px}.legend{max-width:152px}.legend-row{font-size:.64rem}}
 </style>
 
 <style>
