@@ -146,6 +146,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   <div class="leg"><div class="leg-dot" style="background:#f47920"></div>Committee Meeting</div>
   <div class="leg"><div class="leg-dot" style="background:#c81e1e"></div>Budget / Deadline</div>
   <div class="leg"><div class="leg-dot" style="background:#2d6a4f"></div>Community Event</div>
+  <div class="leg"><img src="prospect-park.png" style="width:14px;height:14px;border-radius:2px;vertical-align:middle;margin-right:4px">Prospect Park</div>
   <div class="leg"><div class="leg-dot" style="background:#6b21a8"></div>ULURP / Land Use</div>
   <div class="leg"><div class="leg-dot" style="background:#374151"></div>Alt Side / City Notice</div>
   <div class="leg"><div class="leg-dot" style="background:#0891b2"></div>NYC Schools</div>
@@ -286,11 +287,11 @@ const EVENTS = {
     { type: "community", label: "BMT RFEI Info Session · Sacred Hearts of Jesus & Mary, 125 Summit St · 6pm" },
     { type: "school", label: "Schools Reopen (Spring Recess ends)" }
   ],
-  "2026-04-15": [
-    { type: "community", label: "BMT RFEI Info Session · Miccio Community Center · 6pm" }
-  ],
   "2026-04-14": [ { type: "committee", label: "Human Services & Env. Sustainability · 6:30pm", href: "https://brooklyncb6.cityofnewyork.us/calendar/", linkText: "Official calendar ↗", _hardcoded: true } ],
-  "2026-04-15": [ { type: "committee", label: "Transportation, Parks & Infrastructure · 6:30pm", href: "https://brooklyncb6.cityofnewyork.us/calendar/", linkText: "Official calendar ↗", _hardcoded: true } ],
+  "2026-04-15": [
+    { type: "community", label: "BMT RFEI Info Session · Miccio Community Center · 6pm" },
+    { type: "committee", label: "Transportation, Parks & Infrastructure · 6:30pm", href: "https://brooklyncb6.cityofnewyork.us/calendar/", linkText: "Official calendar ↗", _hardcoded: true },
+  ],
   "2026-04-16": [ { type: "community", label: "Arts Gowanus: Urban Folk Art @ The Other Art Fair · Brooklyn Navy Yard (Day 1)" } ],
   "2026-04-17": [
     { type: "community", label: "Arts Gowanus: Urban Folk Art @ The Other Art Fair · Brooklyn Navy Yard (Day 2)" },
@@ -418,6 +419,7 @@ const TYPES = {
   committee: { bg:"#f47920", color:"#fff", icon:"📋" },
   budget:    { bg:"#c81e1e", color:"#fff", icon:"💰" },
   community: { bg:"#2d6a4f", color:"#fff", icon:"🌳" },
+  prospect:  { bg:"#6aaa35", color:"#fff", icon:"🌳" },
   ulurp:     { bg:"#6b21a8", color:"#fff", icon:"🏗" },
   altside:   { bg:"#374151", color:"#fff", icon:"🚗" },
   school:    { bg:"#0891b2", color:"#fff", icon:"🏫" }
@@ -550,6 +552,10 @@ function cell(d, key, other, today, weekend){
       const tip = [ev.label, ev.time||'6:30 PM', ev.location].filter(Boolean).join(' · ');
       return `<img src="cb6-committee.png" class="ev-img" alt="CB6 Committee" title="${tip}">`;
     }
+    if(ev.type === 'prospect'){
+      const tip = [ev.label, ev.time, ev.location].filter(Boolean).join(' · ');
+      return `<img src="prospect-park.png" class="ev-img" alt="Prospect Park Event" title="${tip}">`;
+    }
     const t = TYPES[ev.type]||TYPES.community;
     if(ev.type === 'school'){
       const isClosed = ev.label.toLowerCase().includes('closed') || ev.label.toLowerCase().includes('recess') || ev.label.toLowerCase().includes('no school');
@@ -559,7 +565,7 @@ function cell(d, key, other, today, weekend){
   }).join('');
   const dots = evs.length
     ? `<div class="dot-row">${evs.map(ev=>{
-        if(ev.type === 'board' || ev.type === 'committee') return '';
+        if(ev.type === 'board' || ev.type === 'committee' || ev.type === 'prospect') return '';
         if(ev.type === 'school'){
           const isClosed = ev.label.toLowerCase().includes('closed') || ev.label.toLowerCase().includes('recess') || ev.label.toLowerCase().includes('no school');
           if(isClosed) return `<img src="schools-closed.jpg" style="width:100%;max-width:44px;height:auto;display:block;border-radius:3px" alt="Schools Closed" title="${ev.label}">`;
@@ -616,16 +622,19 @@ function changeMonth(dir){
 //  LIVE ICS FEED — brooklyncb6.cityofnewyork.us
 // ═══════════════════════════════════════════════════════════════════════
 const ICS_URL = 'https://brooklyncb6.cityofnewyork.us/events/list/?shortcode=f0b1cb7d&ical=1';
+const PP_ICS_URL = 'https://www.prospectpark.org/events/?ical=1';
 const CORS_PROXY = 'https://corsproxy.io/?url=';
 
-function classifyICSEvent(summary, cats){
+function classifyICSEvent(summary, cats, url){
   const s = (summary||'').toLowerCase();
   const c = (cats||'').toLowerCase();
+  const u = (url||'').toLowerCase();
   if(s.includes('full board') || c.includes('full board')) return 'board';
   if(s.includes('alternate side') || s.includes('asp suspended')) return 'altside';
   if(s.includes('committee') || c.includes('upcoming meeting')) return 'committee';
   if(s.includes('ulurp') || s.includes('land use') || s.includes('scoping') || s.includes('eis')) return 'ulurp';
   if(s.includes('budget') || s.includes('deadline')) return 'budget';
+  if(u.includes('prospectpark.org') || s.includes('prospect park')) return 'prospect';
   return 'community';
 }
 
@@ -666,12 +675,9 @@ function parseICS(text){
 }
 
 async function loadLiveEvents(){
-  try {
-    const res = await fetch(CORS_PROXY + encodeURIComponent(ICS_URL));
-    if(!res.ok) throw new Error('ICS fetch failed');
-    const raw = parseICS(await res.text());
+  const mergeEvents = (raw) => {
     raw.forEach(({date, summary, url, cats, location, desc, time})=>{
-      const type = classifyICSEvent(summary, cats);
+      const type = classifyICSEvent(summary, cats, url);
       const displayTime = time || ((type==='board'||type==='committee') ? '6:30 PM' : null);
       const entry = {
         type, label: summary,
@@ -685,7 +691,15 @@ async function loadLiveEvents(){
       if(idx!==-1) EVENTS[date][idx]=entry;
       else if(!EVENTS[date].some(e=>e.type===type&&!e._hardcoded)) EVENTS[date].push(entry);
     });
-  } catch(e){ console.warn('CB6 ICS feed unavailable, using cached events.',e); }
+  };
+  try {
+    const res = await fetch(CORS_PROXY + encodeURIComponent(ICS_URL));
+    if(res.ok) mergeEvents(parseICS(await res.text()));
+  } catch(e){ console.warn('CB6 ICS feed unavailable.',e); }
+  try {
+    const res = await fetch(CORS_PROXY + encodeURIComponent(PP_ICS_URL));
+    if(res.ok) mergeEvents(parseICS(await res.text()));
+  } catch(e){ console.warn('Prospect Park ICS feed unavailable.',e); }
   renderMonth();
 }
 
