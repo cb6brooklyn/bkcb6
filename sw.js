@@ -1,4 +1,4 @@
-const CACHE = "cb6-v6";
+const CACHE = "cb6-v7";
 const OFFLINE = [
   "/bkcb6/og-image.png",
   "/bkcb6/manifest.json"
@@ -17,11 +17,12 @@ self.addEventListener("activate", e => {
 });
 
 self.addEventListener("fetch", e => {
-  const url = e.request.url;
-  // Never cache HTML — always fetch fresh
-  if (url.endsWith('.html') || url.includes('/bkcb6/') && !url.includes('.')) {
+  const url = new URL(e.request.url);
+  const isHtmlNavigation = e.request.mode === 'navigate' || url.pathname.endsWith('.html');
+  // Never cache HTML — always fetch fresh, including cache-busted URLs
+  if (isHtmlNavigation) {
     e.respondWith(
-      fetch(e.request).catch(() => caches.match(e.request))
+      fetch(e.request, { cache: 'reload' }).catch(() => caches.match(e.request))
     );
     return;
   }
