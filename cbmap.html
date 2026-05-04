@@ -47,6 +47,24 @@ header{background:var(--navy);border-bottom:4px solid var(--orange);position:rel
 .cb-link:hover{background:var(--orange-dark)}
 .crash-link{display:inline-block;margin-top:8px;padding:9px 18px;background:#fff;color:var(--navy);border:1.5px solid var(--border);border-radius:6px;font-size:.78rem;font-weight:600;text-decoration:none;width:100%;text-align:center}
 .crash-link:hover{border-color:var(--navy);background:var(--off)}
+.citywide-search{padding:14px 18px;border-bottom:1px solid var(--border);background:#fff}
+.citywide-search label{display:block;font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin-bottom:7px}
+.citywide-search-row{display:flex;gap:6px}
+.citywide-search input{min-width:0;flex:1;padding:9px 10px;border:2px solid #d8d2c8;border-radius:8px;color:var(--navy);font-family:'DM Sans',sans-serif;font-weight:700;font-size:.86rem}
+.citywide-search button{padding:9px 11px;border:0;border-radius:8px;background:var(--orange);color:#fff;font-weight:900;cursor:pointer}
+.citywide-search-status{margin-top:7px;font-size:.66rem;line-height:1.4;color:var(--muted);font-family:'DM Mono',monospace}
+.cb-card{border-top:6px solid var(--card-accent,var(--orange))}
+.cb-card .cb-badge{background:var(--card-navy,var(--navy));color:var(--card-light,#fff);border:2px solid var(--card-accent,var(--orange))}
+.cb-card .cb-link{background:var(--card-accent,var(--orange));color:var(--card-light,#fff)}
+.cb-card .cb-link:hover{background:var(--card-navy,var(--navy))}
+.selected-cb-panel{display:none;background:#fff;border-top:1px solid var(--border);box-shadow:0 -4px 24px rgba(13,27,75,.10)}
+.selected-cb-panel.open{display:block}
+.selected-cb-head{background:var(--selected-navy,var(--navy));border-top:6px solid var(--selected-accent,var(--orange));border-bottom:4px solid var(--selected-accent,var(--orange));padding:18px 24px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.selected-cb-title{font-size:1.08rem;font-weight:900;letter-spacing:.01em}
+.selected-cb-title span{color:var(--selected-accent,var(--orange));font-family:'DM Mono',monospace}
+.selected-cb-actions{display:flex;gap:8px;flex-wrap:wrap}
+.selected-cb-actions a{display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:8px;background:var(--selected-accent,var(--orange));color:var(--selected-light,#fff);text-decoration:none;font-size:.8rem;font-weight:900}
+.selected-cb-frame{width:100%;height:720px;border:0;display:block;background:var(--selected-off,var(--off))}
 .hint{padding:18px;color:var(--muted);font-size:.8rem;line-height:1.6;font-family:'DM Mono',monospace}
 .hint strong{display:block;color:var(--navy);font-size:.82rem;font-family:'DM Sans',sans-serif;font-weight:700;margin-bottom:6px}
 
@@ -56,6 +74,8 @@ header{background:var(--navy);border-bottom:4px solid var(--orange);position:rel
   .map-layout{display:block;height:auto;min-height:0}
   #map{display:block;width:100%;height:58vh;height:58dvh;min-height:380px;flex:none}
   .sidebar{width:100%;border-left:none;border-top:1px solid var(--border);height:auto;min-height:200px}
+  .selected-cb-frame{height:680px}
+  .selected-cb-head{padding:15px 16px}
 }
 </style>
 </head>
@@ -82,7 +102,15 @@ header{background:var(--navy);border-bottom:4px solid var(--orange);position:rel
   <div class="sidebar">
     <div class="sidebar-top">
       <h3>NYC Community Board Map</h3>
-      <p>Hover to preview a district.<br>Click to see its full profile.</p>
+      <p>Search an address or click a filled district polygon to see the borough-colored CB result.</p>
+    </div>
+    <div class="citywide-search" role="search">
+      <label for="citywideAddress">Find a community board by address</label>
+      <div class="citywide-search-row">
+        <input id="citywideAddress" type="search" autocomplete="street-address" placeholder="Enter an NYC address">
+        <button id="citywideSearchBtn" type="button">Search</button>
+      </div>
+      <div id="citywideSearchStatus" class="citywide-search-status">Example: 250 Broadway, New York, NY</div>
     </div>
     <div class="hint" id="hint">
       <strong>59 Community Boards</strong>
@@ -104,6 +132,17 @@ header{background:var(--navy);border-bottom:4px solid var(--orange);position:rel
       <a class="crash-link" id="cardCrash" href="#" target="_blank">Crash Count Data ↗</a>
     </div>
   </div>
+</div>
+
+<div id="selectedCbPanel" class="selected-cb-panel" aria-live="polite">
+  <div class="selected-cb-head">
+    <div class="selected-cb-title" id="selectedCbTitle">Selected <span>Community Board</span></div>
+    <div class="selected-cb-actions">
+      <a id="selectedCbOpen" href="#">Open full profile →</a>
+      <a id="selectedCbCrash" href="#" target="_blank" rel="noopener">Crash Count Data ↗</a>
+    </div>
+  </div>
+  <iframe id="selectedCbFrame" class="selected-cb-frame" title="Selected NYC community board profile"></iframe>
 </div>
 
 <script>
@@ -205,6 +244,13 @@ const BORO_SEAL_PALETTES = {
     labelBg:'#2f6f5f', labelText:'#fff4dc'
   },
 };
+const BOROUGH_PROFILE_COLORS = {
+  'Manhattan': {navy:'#003580', accent:'#f2a13a', light:'#fff4dc', off:'#f7ead0'},
+  'Bronx': {navy:'#315aa6', accent:'#f47b20', light:'#fff4dc', off:'#f7ead0'},
+  'Brooklyn': {navy:'#1a3a8a', accent:'#c9a84c', light:'#f7e6bd', off:'#f8f7f4'},
+  'Queens': {navy:'#5b3f8c', accent:'#f2c744', light:'#fff4dc', off:'#f8f7f4'},
+  'Staten Island': {navy:'#165f52', accent:'#65cdbd', light:'#ffffff', off:'#f8f7f4'}
+};
 function sealStyleForCB(code, boro) {
   const palette = BORO_SEAL_PALETTES[boro];
   if (!palette) return {fill:'#888', stroke:'#555', labelBg:'#333', labelText:'#fff'};
@@ -236,6 +282,8 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
 
 let activeLayer = null;
 let geojsonLayer = null;
+const layersByCode = {};
+let standardCbData = null;
 const BOROUGH_LABEL_TEXT = {
   'Manhattan':'Manhattan',
   'Bronx':'The Bronx',
@@ -263,19 +311,64 @@ function addBoroughNameLabels(boroughBounds) {
 }
 map.on('zoomend', updateCBLabelVisibility);
 
+function profileUrlForCB(cb) {
+  return 'cb-' + cb.short + '-' + cb.num + '.html';
+}
+function crashUrlForCode(code) {
+  return 'https://crashcount.nyc/community-board/' + code + '/';
+}
+function applyBoroughVars(el, boro, prefix) {
+  if (!el) return;
+  const c = BOROUGH_PROFILE_COLORS[boro] || BOROUGH_PROFILE_COLORS['Brooklyn'];
+  el.style.setProperty(prefix + 'navy', c.navy);
+  el.style.setProperty(prefix + 'accent', c.accent);
+  el.style.setProperty(prefix + 'light', c.light);
+  el.style.setProperty(prefix + 'off', c.off);
+}
 function showCard(code) {
   const cb = CB_DATA[code];
   if (!cb) return;
   document.getElementById('hint').style.display = 'none';
   const card = document.getElementById('cbCard');
   card.classList.add('show');
-  document.getElementById('cardBadge').textContent = cb.num;
+  applyBoroughVars(card, cb.boro, '--card-');
+  document.getElementById('cardBadge').textContent = cb.short.toUpperCase() + ' ' + cb.num;
   document.getElementById('cardName').textContent = cb.boro + ' CB' + cb.num;
   document.getElementById('cardBoro').textContent = cb.name;
   document.getElementById('cardChair').textContent = cb.chair || '—';
   document.getElementById('cardDM').textContent = cb.dm || '—';
-  document.getElementById('cardLink').href = 'cb-' + cb.short + '-' + cb.num + '.html';
-  document.getElementById('cardCrash').href = 'https://crashcount.nyc/community-board/' + code + '/';
+  document.getElementById('cardLink').href = profileUrlForCB(cb);
+  document.getElementById('cardCrash').href = crashUrlForCode(code);
+}
+function showSelectedResult(code, shouldScroll) {
+  const cb = CB_DATA[code];
+  if (!cb) return;
+  showCard(code);
+  const panel = document.getElementById('selectedCbPanel');
+  const title = document.getElementById('selectedCbTitle');
+  const frame = document.getElementById('selectedCbFrame');
+  const open = document.getElementById('selectedCbOpen');
+  const crash = document.getElementById('selectedCbCrash');
+  const url = profileUrlForCB(cb);
+  applyBoroughVars(panel, cb.boro, '--selected-');
+  title.innerHTML = cb.boro + ' <span>' + cb.short.toUpperCase() + ' CB' + cb.num + '</span>';
+  open.href = url;
+  crash.href = crashUrlForCode(code);
+  if (frame.getAttribute('src') !== url) frame.setAttribute('src', url);
+  panel.classList.add('open');
+  if (shouldScroll) setTimeout(() => panel.scrollIntoView({behavior:'smooth', block:'start'}), 120);
+}
+function selectCode(code, shouldFit, shouldScroll) {
+  const lyr = layersByCode[code];
+  if (!lyr) return false;
+  if (activeLayer && activeLayer !== lyr) geojsonLayer.resetStyle(activeLayer);
+  activeLayer = lyr;
+  lyr.setStyle(styleFeature(lyr.feature, true));
+  if (lyr.bringToFront) lyr.bringToFront();
+  showSelectedResult(code, shouldScroll);
+  if (shouldFit && lyr.getBounds) map.fitBounds(lyr.getBounds(), {padding:[28,28], maxZoom:13});
+  if (lyr.openTooltip) lyr.openTooltip();
+  return true;
 }
 
 function styleFeature(feat, highlighted) {
@@ -291,11 +384,70 @@ function styleFeature(feat, highlighted) {
   };
 }
 
+function pointInRing(pt, ring) {
+  const x = pt[0], y = pt[1];
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-12) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+function pointInPolygon(pt, polygon) {
+  if (!polygon.length || !pointInRing(pt, polygon[0])) return false;
+  for (let i = 1; i < polygon.length; i++) if (pointInRing(pt, polygon[i])) return false;
+  return true;
+}
+function pointInFeature(lng, lat, feature) {
+  const geom = feature.geometry;
+  if (!geom) return false;
+  const pt = [lng, lat];
+  if (geom.type === 'Polygon') return pointInPolygon(pt, geom.coordinates);
+  if (geom.type === 'MultiPolygon') return geom.coordinates.some(poly => pointInPolygon(pt, poly));
+  return false;
+}
+function findFeatureForLngLat(lng, lat) {
+  if (!standardCbData) return null;
+  return standardCbData.features.find(f => pointInFeature(lng, lat, f));
+}
+async function searchAddress() {
+  const input = document.getElementById('citywideAddress');
+  const status = document.getElementById('citywideSearchStatus');
+  const q = (input.value || '').trim();
+  if (!q) { status.textContent = 'Enter an NYC address.'; return; }
+  status.textContent = 'Searching…';
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=us&viewbox=-74.32,40.92,-73.68,40.48&bounded=1&q=' + encodeURIComponent(q + ', New York City');
+    const results = await fetch(url, {headers:{'Accept':'application/json'}}).then(r => r.json());
+    for (const r of results) {
+      const lat = parseFloat(r.lat), lon = parseFloat(r.lon);
+      const feat = findFeatureForLngLat(lon, lat);
+      if (feat && CB_DATA[feat.properties.boro_cd]) {
+        const code = feat.properties.boro_cd;
+        const cb = CB_DATA[code];
+        selectCode(code, true, true);
+        L.marker([lat, lon]).addTo(map).bindPopup('Search result: ' + cb.boro + ' CB' + cb.num).openPopup();
+        status.textContent = 'Result: ' + cb.boro + ' CB' + cb.num + ' — ' + cb.name;
+        return;
+      }
+    }
+    status.textContent = 'No NYC community board district found for that address. Try a more specific street address.';
+  } catch (err) {
+    status.textContent = 'Search failed. Please try again.';
+    console.error(err);
+  }
+}
+document.getElementById('citywideSearchBtn').addEventListener('click', searchAddress);
+document.getElementById('citywideAddress').addEventListener('keydown', e => { if (e.key === 'Enter') searchAddress(); });
+
 fetch('nyc_cb_boundaries.geojson')
   .then(r => r.json())
   .then(data => {
     // Filter to only the 59 standard CBs (skip park districts 226-228, 355-356, etc.)
     const standard = {...data, features: data.features.filter(f => CB_DATA[f.properties.boro_cd])};
+    standardCbData = standard;
     const boroughBounds = {};
 
     geojsonLayer = L.geoJSON(standard, {
@@ -304,6 +456,7 @@ fetch('nyc_cb_boundaries.geojson')
         const code = feat.properties.boro_cd;
         const cb = CB_DATA[code];
         if (!cb) return;
+        layersByCode[code] = layer;
         if (!boroughBounds[cb.boro]) boroughBounds[cb.boro] = L.latLngBounds();
         boroughBounds[cb.boro].extend(layer.getBounds());
 
@@ -322,12 +475,7 @@ fetch('nyc_cb_boundaries.geojson')
         });
 
         layer.on('click', function() {
-          if (activeLayer && activeLayer !== this) {
-            geojsonLayer.resetStyle(activeLayer);
-          }
-          activeLayer = this;
-          this.setStyle(styleFeature(feat, true));
-          showCard(code);
+          selectCode(code, false, true);
         });
 
         const cbLabel = cbLabelFor(code, cb);
