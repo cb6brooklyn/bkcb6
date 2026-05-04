@@ -243,6 +243,32 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
 
 let activeLayer = null;
 let geojsonLayer = null;
+const BOROUGH_LABEL_TEXT = {
+  'Manhattan':'Manhattan',
+  'Bronx':'The Bronx',
+  'Brooklyn':'Brooklyn',
+  'Queens':'Queens',
+  'Staten Island':'Staten Island'
+};
+function updateCBLabelVisibility() {
+  map.getContainer().classList.toggle('cb-labels-visible', map.getZoom() >= 12);
+}
+function addBoroughNameLabels(boroughBounds) {
+  Object.entries(boroughBounds).forEach(([boro, bounds]) => {
+    const palette = BORO_SEAL_PALETTES[boro];
+    if (!palette || !bounds.isValid()) return;
+    L.marker(bounds.getCenter(), {
+      interactive: false,
+      icon: L.divIcon({
+        className: 'borough-map-label',
+        html: `<span style="color:${palette.labelBg};border-color:${palette.strokes[0] || palette.labelBg}">${BOROUGH_LABEL_TEXT[boro] || boro}</span>`,
+        iconSize: [180, 34],
+        iconAnchor: [90, 17]
+      })
+    }).addTo(map);
+  });
+}
+map.on('zoomend', updateCBLabelVisibility);
 
 function showCard(code) {
   const cb = CB_DATA[code];
@@ -277,6 +303,7 @@ fetch('nyc_cb_boundaries.geojson')
   .then(data => {
     // Filter to only the 59 standard CBs (skip park districts 226-228, 355-356, etc.)
     const standard = {...data, features: data.features.filter(f => CB_DATA[f.properties.boro_cd])};
+    const boroughBounds = {};
 
     geojsonLayer = L.geoJSON(standard, {
       style: feat => styleFeature(feat, false),
@@ -284,6 +311,8 @@ fetch('nyc_cb_boundaries.geojson')
         const code = feat.properties.boro_cd;
         const cb = CB_DATA[code];
         if (!cb) return;
+        if (!boroughBounds[cb.boro]) boroughBounds[cb.boro] = L.latLngBounds();
+        boroughBounds[cb.boro].extend(layer.getBounds());
 
         layer.on('mouseover', function(e) {
           if (activeLayer !== this) {
@@ -328,6 +357,8 @@ fetch('nyc_cb_boundaries.geojson')
         );
       }
     }).addTo(map);
+    addBoroughNameLabels(boroughBounds);
+    updateCBLabelVisibility();
     requestAnimationFrame(() => map.invalidateSize());
   });
 
@@ -347,9 +378,12 @@ document.getElementById('map').appendChild(legendEl);
 <style>
 .cb-tooltip{background:#fff;border:1px solid #e5e2db;border-radius:6px;padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:.82rem;color:#0d1b4b;box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .cb-tooltip strong{font-weight:700}
-.cb-map-label{background:transparent;border:0;box-shadow:none;pointer-events:none;text-align:center;z-index:650!important}
-.cb-map-label span{display:inline-block;padding:2px 5px;border:1.5px solid;border-radius:999px;font-family:'DM Mono',monospace;font-size:.62rem;font-weight:800;line-height:1;letter-spacing:-.03em;white-space:nowrap;text-shadow:none;box-shadow:0 1px 4px rgba(0,0,0,.28)}
-@media(max-width:700px){.cb-map-label span{font-size:.56rem;padding:2px 4px}.legend{max-width:152px}.legend-row{font-size:.64rem}}
+.cb-map-label{background:transparent;border:0;box-shadow:none;pointer-events:none;text-align:center;z-index:650!important;display:none}
+.cb-labels-visible .cb-map-label{display:block}
+.cb-map-label span{display:inline-block;padding:2px 5px;border:1.5px solid;border-radius:999px;font-family:'DM Mono',monospace;font-size:.58rem;font-weight:800;line-height:1;letter-spacing:-.03em;white-space:nowrap;text-shadow:none;box-shadow:0 1px 4px rgba(0,0,0,.22);opacity:.88}
+.borough-map-label{background:transparent;border:0;box-shadow:none;pointer-events:none;text-align:center;z-index:660!important}
+.borough-map-label span{display:inline-block;padding:4px 10px;background:rgba(255,255,255,.78);border:2px solid;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:1.02rem;font-weight:900;line-height:1;letter-spacing:.035em;text-transform:uppercase;white-space:nowrap;text-shadow:0 1px 0 #fff,0 2px 8px rgba(255,255,255,.9);box-shadow:0 2px 8px rgba(13,27,75,.16)}
+@media(max-width:700px){.cb-map-label span{font-size:.54rem;padding:2px 4px}.borough-map-label span{font-size:.78rem;padding:3px 7px}.legend{max-width:152px}.legend-row{font-size:.64rem}}
 </style>
 
 <style>
