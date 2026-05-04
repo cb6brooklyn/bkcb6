@@ -28,6 +28,11 @@ FEEDS = [
         "type": "osh",
         "fallback": "https://theoldstonehouse.org/events/list/?ical=1",
     },
+    {
+        "name": "Principles GI Coffee House (via CB6)",
+        "url": "https://brooklyncb6.cityofnewyork.us/venue/principles-gi-coffee-house/?ical=1",
+        "type": "principles",
+    },
 ]
 
 
