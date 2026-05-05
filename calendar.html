@@ -30,7 +30,22 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 .hdr-text h1{font-size:1.3rem;font-weight:700;color:#fff;line-height:1.2}
 .hdr-text h1 span{color:var(--orange)}
 .hdr-text p{font-size:.75rem;color:rgba(255,255,255,.55);font-family:'DM Mono',monospace;margin-top:4px;letter-spacing:.04em;text-transform:uppercase}
-.cal-wrap{width:100%;max-width:960px;margin:0 auto;padding:16px}
+.next-up{background:var(--navy);padding:10px 20px;display:flex;gap:12px;flex-wrap:wrap;border-bottom:3px solid var(--orange)}
+.next-up-card{flex:1;min-width:200px;background:rgba(255,255,255,.07);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .15s}
+.next-up-card:hover{background:rgba(255,255,255,.13)}
+.nuc-badge{text-align:center;background:var(--orange);border-radius:6px;padding:6px 8px;flex-shrink:0;min-width:44px}
+.nuc-month{font-size:.52rem;font-weight:700;font-family:'DM Mono',monospace;color:#fff;text-transform:uppercase;letter-spacing:.08em}
+.nuc-day{font-size:1.3rem;font-weight:700;font-family:'DM Mono',monospace;color:#fff;line-height:1}
+.nuc-body{min-width:0}
+.nuc-label{font-size:.7rem;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
+.nuc-title{font-size:.82rem;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nuc-meta{font-size:.68rem;color:rgba(255,255,255,.55);margin-top:2px}
+@media(max-width:600px){
+  .next-up{padding:8px 12px;gap:8px}
+  .next-up-card{min-width:0;padding:8px 10px}
+  .nuc-day{font-size:1.1rem}
+  .nuc-title{font-size:.76rem}
+}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;min-width:0}
 .cal-nav button{background:var(--navy);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:.82rem;font-weight:700;cursor:pointer}
 .cal-nav button:hover{background:var(--orange)}
@@ -213,6 +228,17 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
         <span style="font-size:.65rem;opacity:.6;font-weight:400">Search & filter all events</span>
       </button>
     </div>
+  </div>
+</div>
+
+<div class="next-up" id="next-up-bar">
+  <div class="next-up-card" id="nuc-board" onclick="jumpToEvent('board')">
+    <div class="nuc-badge"><div class="nuc-month" id="nuc-board-month"></div><div class="nuc-day" id="nuc-board-day"></div></div>
+    <div class="nuc-body"><div class="nuc-label">Next CB6 Full Board</div><div class="nuc-title" id="nuc-board-title">Loading…</div><div class="nuc-meta" id="nuc-board-meta"></div></div>
+  </div>
+  <div class="next-up-card" id="nuc-civic" onclick="jumpToEvent('civic')">
+    <div class="nuc-badge" id="nuc-civic-badge"><div class="nuc-month" id="nuc-civic-month"></div><div class="nuc-day" id="nuc-civic-day"></div></div>
+    <div class="nuc-body"><div class="nuc-label" id="nuc-civic-label">Next Civic Meeting</div><div class="nuc-title" id="nuc-civic-title">Loading…</div><div class="nuc-meta" id="nuc-civic-meta"></div></div>
   </div>
 </div>
 
@@ -1296,6 +1322,76 @@ function renderList(){
   }).join('');
 }
 
+const CIVIC_TYPES = new Set(['dcp','lpc','nyccouncil','committee']);
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function buildNextUp(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  let nextBoard = null, nextCivic = null;
+
+  const sortedDates = Object.keys(EVENTS).sort();
+  for(const dateKey of sortedDates){
+    const d = new Date(dateKey + 'T00:00:00');
+    if(d < today) continue;
+    const evs = EVENTS[dateKey];
+    for(const ev of evs){
+      if(!nextBoard && ev.type === 'board') nextBoard = {dateKey, ev};
+      if(!nextCivic && CIVIC_TYPES.has(ev.type)) nextCivic = {dateKey, ev};
+      if(nextBoard && nextCivic) break;
+    }
+    if(nextBoard && nextCivic) break;
+  }
+
+  function fill(prefix, item, labelText){
+    if(!item) return;
+    const d = new Date(item.dateKey + 'T00:00:00');
+    document.getElementById(prefix+'-month').textContent = MONTHS_SHORT[d.getMonth()];
+    document.getElementById(prefix+'-day').textContent = d.getDate();
+    document.getElementById(prefix+'-title').textContent = item.ev.label;
+    const meta = [item.ev.time, item.ev.location].filter(Boolean).join(' · ');
+    document.getElementById(prefix+'-meta').textContent = meta;
+    if(labelText) document.getElementById(prefix+'-label').textContent = labelText;
+  }
+
+  fill('nuc-board', nextBoard, 'Next CB6 Full Board');
+  if(nextCivic){
+    const labelMap = {dcp:'Next City Planning',lpc:'Next LPC Hearing',nyccouncil:'Next City Council',committee:'Next CB6 Committee'};
+    fill('nuc-civic', nextCivic, labelMap[nextCivic.ev.type] || 'Next Civic Meeting');
+    // Orange badge for committee, blue for others
+    if(nextCivic.ev.type === 'committee'){
+      document.getElementById('nuc-civic-badge').style.background = 'var(--orange)';
+    }
+  }
+}
+
+// Store next event dateKeys for jump
+let _nextBoardDate = null, _nextCivicDate = null;
+function jumpToEvent(which){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const sortedDates = Object.keys(EVENTS).sort();
+  for(const dateKey of sortedDates){
+    const d = new Date(dateKey + 'T00:00:00');
+    if(d < today) continue;
+    const evs = EVENTS[dateKey];
+    for(const ev of evs){
+      if(which === 'board' && ev.type === 'board'){
+        const dt = new Date(dateKey + 'T00:00:00');
+        viewMonth = dt.getMonth(); viewYear = dt.getFullYear();
+        renderMonth();
+        setTimeout(()=>{ const day = document.querySelector('.board-day'); if(day) day.scrollIntoView({behavior:'smooth',block:'center'}); }, 100);
+        return;
+      }
+      if(which === 'civic' && CIVIC_TYPES.has(ev.type)){
+        const dt = new Date(dateKey + 'T00:00:00');
+        viewMonth = dt.getMonth(); viewYear = dt.getFullYear();
+        renderMonth();
+        setTimeout(()=>{ const day = document.querySelector('.committee-day,.board-day'); if(day) day.scrollIntoView({behavior:'smooth',block:'center'}); }, 100);
+        return;
+      }
+    }
+  }
+}
+
 function toggleLegend(){
   const toggle = document.getElementById('legend-toggle');
   const items = document.getElementById('legend-items');
@@ -1717,6 +1813,7 @@ async function loadLiveEvents(){
   }
 
   renderMonth();
+  buildNextUp();
   applyInitialResponsiveView();
 }
 
