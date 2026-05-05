@@ -472,24 +472,31 @@ async function libAddrSearch() {
 
     wrap.appendChild(grid);
 
-    // Map pin
-    console.log('geoclient coord fields:', JSON.stringify(Object.keys(a).reduce(function(o,k){if(/lat|lon/i.test(k))o[k]=a[k];return o;},{})));
-    const lat = parseFloat(a.latitudeInternalLabel || a.latitude || 0);
-    const lng = parseFloat(a.longitudeInternalLabel || a.longitude || 0);
-    if(lat && lng) {
+    // Map pin - geoclient v2 returns latitude/longitude as strings
+    const _lat = a.latitude || a.latitudeInternalLabel || a.latitudeB5sc || a.latitudeb5sc || '';
+    const _lng = a.longitude || a.longitudeInternalLabel || a.longitudeB5sc || a.longitudeb5sc || '';
+    const lat = parseFloat(_lat);
+    const lng = parseFloat(_lng);
+    // Borough center fallbacks if geoclient returns no coords
+    const _boroCenters = {Brooklyn:[40.6501,-73.9496],Manhattan:[40.7831,-73.9712],Queens:[40.7282,-73.7949],Bronx:[40.8448,-73.8648],'Staten Island':[40.5795,-74.1502]};
+    const _bc = (!lat || !lng) ? _boroCenters[boro] : null;
+    const mapLat = (lat && lng) ? lat : (_bc ? _bc[0] : 0);
+    const mapLng = (lat && lng) ? lng : (_bc ? _bc[1] : 0);
+    const mapZoom = (lat && lng) ? 16 : 12;
+    if(mapLat && mapLng) {
       const mapDiv = document.createElement('div');
       mapDiv.id = 'lib-addr-map';
       mapDiv.style.cssText = 'width:100%;height:160px;border-radius:8px;overflow:hidden;margin-top:14px;border:1px solid #5a3010';
       wrap.appendChild(mapDiv);
       setTimeout(() => {
         if(_libMap) { _libMap.remove(); _libMap = null; }
-        _libMap = L.map('lib-addr-map', {zoomControl:false, attributionControl:false}).setView([lat, lng], 16);
+        _libMap = L.map('lib-addr-map', {zoomControl:false, attributionControl:false}).setView([mapLat, mapLng], mapZoom);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(_libMap);
         const pin = L.divIcon({
           html: '<div style="width:14px;height:14px;background:#c9a227;border:3px solid #fff;border-radius:50%;box-shadow:0 0 6px rgba(0,0,0,.6)"></div>',
           iconSize:[14,14], iconAnchor:[7,7], className:''
         });
-        L.marker([lat,lng],{icon:pin}).addTo(_libMap);
+        if(lat && lng) L.marker([lat,lng],{icon:pin}).addTo(_libMap);
       }, 50);
     }
 
