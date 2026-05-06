@@ -168,6 +168,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 </style>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 <script src="assets/historic-districts-layer.js"></script>
 </head>
 <body>
@@ -417,9 +418,11 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
         if (props.layer === 'congress') return 'CD' + (props.cong_dist || props.id || '');
         return props.id || '';
       }
-      fetch('data/legislative-queens.geojson')
+      window._cbmap_queens_loadBoroughMask(window._cbmap_queens_context || (window._cbmap_queens_context={map:map, visible:{}, layers:{}, loading:{}, maskFeatures:null, maskPromise:null})).then(function(){return fetch('data/legislative-queens.geojson');})
         .then(function(resp) { return resp.ok ? resp.json() : Promise.reject(resp.status); })
         .then(function(legData) {
+          var legCtx = window._cbmap_queens_context || (window._cbmap_queens_context={map:map, visible:{}, layers:{}, loading:{}, maskFeatures:null, maskPromise:null});
+          legData = window._cbmap_queens_filterToCurrentBorough(legCtx, legData);
           var colors = {"city_council":"#FD890E","state_assembly":"#27ae60","state_senate":"#e74c3c","congress":"#8e44ad"};
           var names = {"city_council":"City Council","state_assembly":"State Assembly","state_senate":"State Senate","congress":"Congress"};
           Object.keys(names).forEach(function(layerKey) {
@@ -1604,7 +1607,14 @@ function copyEmbed(type){
   function pointInFeature(pt, feature){var g=feature&&feature.geometry; if(!g) return false; if(g.type==='Polygon'||g.type==='MultiPolygon') return pointInPolyCoords(pt,g.coordinates); return false;}
   function loadBoroughMask(ctx){if(ctx.maskPromise) return ctx.maskPromise; ctx.maskPromise=fetch('community-district-boundaries.geojson').then(function(r){return r.json();}).then(function(data){ctx.maskFeatures=(data.features||[]).filter(function(f){var p=f.properties||{}; var cd=String(p.boro_cd||p.BoroCD||p.borocd||p.BOROCD||''); return cd.charAt(0)===BORO_CODE;}); return ctx.maskFeatures;}).catch(function(){ctx.maskFeatures=[]; return [];}); return ctx.maskPromise;}
   function featureInCurrentBorough(ctx, feature){var p=(feature&&feature.properties)||{}; var direct=String(prop(p,['BoroCode','borocode','BOROCODE','boro_code','BORO_CODE','Sanitboro','sanitboro'])); if(direct && direct===BORO_CODE) return true; var abbr=String(prop(p,['Borough','borough','BOROUGH','boro','BORO'])).toUpperCase(); if(abbr && (abbr===BORO_ABBR || abbr===BORO_NAME.toUpperCase())) return true; var pt=featureCenter(feature); if(!pt) return false; var masks=ctx.maskFeatures||[]; for(var i=0;i<masks.length;i++){if(pointInFeature(pt,masks[i])) return true;} return false;}
-  function filterToCurrentBorough(ctx, data){data=data||{type:'FeatureCollection',features:[]}; var features=data.features||[]; if(!ctx.maskFeatures||!ctx.maskFeatures.length){data.features=features; return data;} data.features=features.filter(function(f){return featureInCurrentBorough(ctx,f);}); return data;}
+  function isPolygonFeature(feature){var t=feature&&feature.geometry&&feature.geometry.type; return t==='Polygon'||t==='MultiPolygon';}
+  function turfIntersectFeature(a,b){if(!window.turf||!turf.intersect) return null; try{return turf.intersect(a,b);}catch(e1){try{return turf.intersect(turf.featureCollection([a,b]));}catch(e2){return null;}}}
+  function featureHasCoordinates(feature){var c=feature&&feature.geometry&&feature.geometry.coordinates; return Array.isArray(c)&&c.length>0;}
+  function clippedCopy(source, geom){return {type:'Feature',properties:Object.assign({},source.properties||{}),geometry:geom};}
+  function clipFeatureToBoroughMasks(ctx, feature){var masks=ctx.maskFeatures||[]; if(!feature||!feature.geometry) return []; if(!masks.length) return [feature]; if(!isPolygonFeature(feature)) return featureInCurrentBorough(ctx,feature)?[feature]:[]; if(!window.turf||!turf.intersect) return featureInCurrentBorough(ctx,feature)?[feature]:[]; var out=[]; for(var i=0;i<masks.length;i++){var clipped=turfIntersectFeature(masks[i],feature); if(featureHasCoordinates(clipped)) out.push(clippedCopy(feature,clipped.geometry));} return out;}
+  function filterToCurrentBorough(ctx, data){data=data||{type:'FeatureCollection',features:[]}; var out=[]; (data.features||[]).forEach(function(f){out=out.concat(clipFeatureToBoroughMasks(ctx,f));}); data.features=out; return data;}
+  window[mapKey+'_loadBoroughMask']=function(ctx){return loadBoroughMask(ctx);};
+  window[mapKey+'_filterToCurrentBorough']=function(ctx,data){return filterToCurrentBorough(ctx,data);};
 
   function escapeHtml(v){return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function prop(p, names){p=p||{}; for(var i=0;i<names.length;i++){if(p[names[i]]!==undefined && p[names[i]]!==null && p[names[i]]!=='') return p[names[i]];} return '';}
@@ -1620,11 +1630,13 @@ function copyEmbed(type){
     return window[ctxKey];
   }
   function addLayer(key, layer){var ctx=ensureContext(); if(!ctx) return; ctx.layers[key]=layer; if(ctx.visible[key] && !ctx.map.hasLayer(layer)) layer.addTo(ctx.map);}
-  function loadParks(ctx){if(ctx.layers.parks||ctx.loading.parks) return; ctx.loading.parks=true; note('Loading parks…'); fetch('data/topmap-parks-queens.geojson').then(function(r){return r.json();}).then(function(data){
+  function loadParks(ctx){if(ctx.layers.parks||ctx.loading.parks) return; ctx.loading.parks=true; note('Loading parks…'); loadBoroughMask(ctx).then(function(){return fetch('data/topmap-parks-queens.geojson');}).then(function(r){return r.json();}).then(function(data){
+    data=filterToCurrentBorough(ctx,data);
     var layer=L.geoJSON(data,{style:function(){return {color:COLORS.parks,weight:1,fillColor:COLORS.parks,fillOpacity:.24,opacity:.9};},onEachFeature:function(f,l){var p=f.properties||{}; l.bindPopup('<strong>'+escapeHtml(prop(p,['signname','name311','name']))+'</strong><br><span style="color:#6b6760">'+escapeHtml(prop(p,['typecategory','subcategory','class']))+'</span>');}});
     addLayer('parks',layer); note('');
   }).catch(function(){note('Parks layer unavailable.');}).finally(function(){ctx.loading.parks=false;});}
-  function loadHistoric(ctx){if(ctx.layers.historic||ctx.loading.historic) return; ctx.loading.historic=true; note('Loading historic districts…'); fetch('historic_districts_by_borough/queens_historic_districts.geojson').then(function(r){return r.json();}).then(function(data){
+  function loadHistoric(ctx){if(ctx.layers.historic||ctx.loading.historic) return; ctx.loading.historic=true; note('Loading historic districts…'); loadBoroughMask(ctx).then(function(){return fetch('historic_districts_by_borough/queens_historic_districts.geojson');}).then(function(r){return r.json();}).then(function(data){
+    data=filterToCurrentBorough(ctx,data);
     var layer=L.geoJSON(data,{style:function(){return {color:COLORS.historic,weight:1.5,fillColor:COLORS.historic,fillOpacity:.12,opacity:.9,dashArray:'4 3'};},onEachFeature:function(f,l){var p=f.properties||{}; l.bindPopup('<strong>'+escapeHtml(prop(p,['area_name','name','Name','historic_district','HISTDIST']))+'</strong><br><span style="color:#6b6760">Historic district</span>');}});
     addLayer('historic',layer); note('');
   }).catch(function(){note('Historic district layer unavailable.');}).finally(function(){ctx.loading.historic=false;});}
