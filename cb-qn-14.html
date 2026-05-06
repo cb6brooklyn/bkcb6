@@ -98,6 +98,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 <style>.se-stat-bar{display:flex;flex-wrap:wrap;gap:16px;padding:14px 18px;background:#f8f7f4;border-bottom:1px solid #e5e2db}.se-stat{display:flex;flex-direction:column;gap:2px}.se-stat-label{font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760}.se-stat-val{font-size:.92rem;font-weight:700;color:#0d1b4b}</style>
 <link crossorigin="" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" rel="stylesheet"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 <style data-rollout="district-profile">
 .district-profile-nav{margin:0 0 12px;padding:10px 12px;background:#f8f7f4;border:1px solid var(--border);border-radius:12px}
 .district-profile-nav .toc-heading{font-size:.62rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}
@@ -415,6 +416,18 @@ window.__cbqn14LandUseInit = (function(){
   function samplePoints(feature){var pts=[], coords=[]; eachCoord(feature&&feature.geometry&&feature.geometry.coordinates,function(lng,lat){coords.push([lng,lat]);}); if(!coords.length) return pts; var step=Math.max(1,Math.floor(coords.length/80)); for(var i=0;i<coords.length;i+=step) pts.push(coords[i]); var sumLng=0,sumLat=0; coords.forEach(function(p){sumLng+=p[0];sumLat+=p[1];}); pts.push([sumLng/coords.length,sumLat/coords.length]); return pts;}
   function featuresOverlap(a,b){if(!a||!b) return false; if(!boundsOverlap(featureBounds(a),featureBounds(b),0.00025)) return false; var ap=samplePoints(a), bp=samplePoints(b); return ap.some(function(p){return pointInFeature(b,p[0],p[1]);}) || bp.some(function(p){return pointInFeature(a,p[0],p[1]);});}
   function featureTouchesView(feature,bounds){var hit=false; eachCoord(feature&&feature.geometry&&feature.geometry.coordinates,function(lng,lat){ if(!hit && bounds.pad(.02).contains([lat,lng])) hit=true; }); return hit;}
+  function turfIntersect(a,b){if(!window.turf || !turf.intersect) return null; try{return turf.intersect(a,b);}catch(e1){try{return turf.intersect(turf.featureCollection([a,b]));}catch(e2){return null;}}}
+  function clipFeatureToCurrent(feature){
+    if(!feature || !feature.geometry || !currentFeature) return null;
+    var type=feature.geometry.type;
+    var isPoly=(type==='Polygon'||type==='MultiPolygon');
+    if(!boundsOverlap(featureBounds(currentFeature),featureBounds(feature),0.00025)) return null;
+    if(!isPoly) return featuresOverlap(currentFeature,feature) ? feature : null;
+    var clipped=turfIntersect(currentFeature,feature);
+    if(clipped && clipped.geometry && clipped.geometry.coordinates && clipped.geometry.coordinates.length){return {type:'Feature',properties:Object.assign({},feature.properties||{}),geometry:clipped.geometry};}
+    return null;
+  }
+  function clipFeaturesToCurrent(features){var out=[];(features||[]).forEach(function(f){var clipped=clipFeatureToCurrent(f); if(clipped) out.push(clipped);});return out;}
 
   var map = L.map(cfg.mapId,{scrollWheelZoom:false,zoomControl:true,minZoom:9}).setView(cfg.center, cfg.zoom);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
@@ -488,7 +501,7 @@ window.__cbqn14LandUseInit = (function(){
     var zoningLayer = L.layerGroup();
     addToggleLayer('zoning','Zoning',zoningLayer,'#8b5cf6',false,'Toggle zoning features near '+cfg.shortLabel);
     loadArcgisBox('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&geometry=', bounds).then(function(data){
-      var features=(data.features||[]).filter(function(f){return featuresOverlap(currentFeature,f) || featureTouchesView(f,bounds);});
+      var features=clipFeaturesToCurrent(data.features||[]);
       var layer=layerGroupFromFeatures(features,{style:function(f){var c=zoningCategory(f.properties);return {color:c[1],weight:1,opacity:.72,fillColor:c[1],fillOpacity:.16};},onEachFeature:function(f,l){var p=f.properties||{}, c=zoningCategory(p); l.bindPopup('<strong>'+escapeHtml(p.ZONEDIST||p.zonedist||p.zone||'Zoning District')+'</strong><br>'+escapeHtml(c[0]));}});
       toggleLayers.zoning = layer;
       if(activeLayers.zoning) layer.addTo(map);
@@ -497,28 +510,28 @@ window.__cbqn14LandUseInit = (function(){
     var landUseLayer = L.layerGroup();
     addToggleLayer('landuse','Land Use',landUseLayer,'#8b5e34',false,'Toggle land-use lots near '+cfg.shortLabel);
     loadArcgisBox('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?where=1%3D1&geometry=', bounds).then(function(data){
-      var features=(data.features||[]).filter(function(f){return featuresOverlap(currentFeature,f) || featureTouchesView(f,bounds);});
+      var features=clipFeaturesToCurrent(data.features||[]);
       var layer=layerGroupFromFeatures(features,{style:function(f){var code=(f.properties||{}).LandUse || (f.properties||{}).landuse; var color=landUseColor(code);return {color:color,weight:.7,opacity:.62,fillColor:color,fillOpacity:.24};},onEachFeature:function(f,l){var p=f.properties||{}, code=p.LandUse||p.landuse; l.bindPopup('<strong>'+escapeHtml(landUseLabel(code))+'</strong><br>'+escapeHtml(p.Address||p.address||p.BBL||'MAPPLUTO lot'));}});
       toggleLayers.landuse = layer;
       if(activeLayers.landuse) layer.addTo(map);
     }).catch(function(err){console.warn(err);});
 
     fetchJson('data/citywide-rents.geojson').then(function(data){
-      var features=(data.features||[]).filter(function(f){var p=f.properties||{}; return String(p.cb_code||'').toUpperCase()===String(cfg.citywideRentCode).toUpperCase() || featuresOverlap(currentFeature,f);});
+      var features=clipFeaturesToCurrent((data.features||[]).filter(function(f){var p=f.properties||{}; return String(p.cb_code||'').toUpperCase()===String(cfg.citywideRentCode).toUpperCase() || featuresOverlap(currentFeature,f);}));
       var layer=layerGroupFromFeatures(features,{style:function(f){var p=f.properties||{};return {color:p.fill_color||'#dc2626',weight:2.2,opacity:.9,fillColor:p.fill_color||'#dc2626',fillOpacity:.24};},onEachFeature:function(f,l){var p=f.properties||{}; l.bindPopup('<strong>'+escapeHtml(cfg.shortLabel+' Citywide Rent Context')+'</strong><br>All units: '+escapeHtml(dollars(p.rent_all))+'<br>Studio: '+escapeHtml(dollars(p.rent_studio)));}});
       addToggleLayer('citywide_rent','Citywide Rent',layer,'#dc2626',false,'Toggle citywide rent context for '+cfg.shortLabel);
     }).catch(function(err){console.warn(err);});
 
     if(cfg.isBrooklyn){
       fetchJson('data/bk-rents.geojson').then(function(data){
-        var features=(data.features||[]).filter(function(f){var p=f.properties||{}; return String(p.cb_code||'').toUpperCase()===String(cfg.brooklynRentCode).toUpperCase() || featuresOverlap(currentFeature,f);});
+        var features=clipFeaturesToCurrent((data.features||[]).filter(function(f){var p=f.properties||{}; return String(p.cb_code||'').toUpperCase()===String(cfg.brooklynRentCode).toUpperCase() || featuresOverlap(currentFeature,f);}));
         var layer=layerGroupFromFeatures(features,{style:function(f){var p=f.properties||{};return {color:p.fill_all||'#ef4444',weight:2.2,opacity:.9,fillColor:p.fill_all||'#ef4444',fillOpacity:.26};},onEachFeature:function(f,l){var p=f.properties||{}; l.bindPopup('<strong>'+escapeHtml(cfg.shortLabel+' Brooklyn Rent Context')+'</strong><br>All units: '+escapeHtml(dollars(p.rent_all))+'<br>1BR: '+escapeHtml(dollars(p.rent_1br)));}});
         addToggleLayer('brooklyn_rent','BK Rent',layer,'#ef4444',false,'Toggle Brooklyn rent context for '+cfg.shortLabel);
       }).catch(function(err){console.warn(err);});
     }
 
     fetchJson('historic_districts_by_cb_files/'+cfg.cbFileKey+'_historic_districts.geojson').then(function(data){
-      var features=(data.features||[]).filter(function(f){return featuresOverlap(currentFeature,f) || featureTouchesView(f,bounds);});
+      var features=clipFeaturesToCurrent(data.features||[]);
       if(!features.length) return;
       var layer=layerGroupFromFeatures(features,{style:{color:'#a16207',weight:1.5,opacity:.9,fillColor:'#d97706',fillOpacity:.18,dashArray:'4,3'},onEachFeature:function(f,l){var p=f.properties||{}; l.bindPopup('<strong>'+escapeHtml(p.area_name||'Historic District')+'</strong><br>LPC historic district overlay');}});
       addToggleLayer('cb_historic','CB Historic',layer,'#a16207',false,'Toggle historic districts in '+cfg.shortLabel);
@@ -528,12 +541,12 @@ window.__cbqn14LandUseInit = (function(){
   function loadSecondaryLayers(bounds){
     loadPlanningLayers(bounds);
     fetchJson('data/topmap-parks-'+cfg.boroughKey+'.geojson').then(function(data){
-      var features=(data.features||[]).filter(function(f){return String(f.properties && f.properties.communityboard || '') === cfg.boroCd || featuresOverlap(currentFeature,f) || featureTouchesView(f,bounds);});
+      var features=clipFeaturesToCurrent((data.features||[]).filter(function(f){return String(f.properties && f.properties.communityboard || '') === cfg.boroCd || featuresOverlap(currentFeature,f);}));
       var parks=layerGroupFromFeatures(features,{style:{color:'#2f7d32',weight:1,opacity:.85,fillColor:'#66a61e',fillOpacity:.28},pointToLayer:function(f,latlng){return L.circleMarker(latlng,{radius:5,color:'#2f7d32',weight:1,fillColor:'#66a61e',fillOpacity:.75});},onEachFeature:function(f,l){var p=f.properties||{}; l.bindPopup('<strong>'+escapeHtml(p.signname||p.name311||'Park/Open Space')+'</strong><br>'+escapeHtml(p.typecategory||p.subcategory||'Parks overlay'));}});
       addToggleLayer('parks','Parks',parks,'#22c55e',false,'Toggle parks overlapping this community district');
     }).catch(function(err){console.warn(err);});
     fetchJson('historic_districts_by_borough/'+cfg.historicKey+'_historic_districts.geojson').then(function(data){
-      var features=(data.features||[]).filter(function(f){return featuresOverlap(currentFeature,f) || featureTouchesView(f,bounds);});
+      var features=clipFeaturesToCurrent(data.features||[]);
       var historic=layerGroupFromFeatures(features,{style:{color:'#8e44ad',weight:1.5,opacity:.9,fillColor:'#8e44ad',fillOpacity:.16},onEachFeature:function(f,l){var p=f.properties||{}; l.bindPopup('<strong>'+escapeHtml(p.area_name||'Historic District')+'</strong><br>LPC historic district overlay');}});
       addToggleLayer('historic','Historic',historic,'#a16207',false,'Toggle historic districts overlapping this community district');
     }).catch(function(err){console.warn(err);});
@@ -542,7 +555,7 @@ window.__cbqn14LandUseInit = (function(){
       var styles={city_council:{color:'#FD890E',fillColor:'#FD890E'},state_assembly:{color:'#27ae60',fillColor:'#27ae60'},state_senate:{color:'#e74c3c',fillColor:'#e74c3c'},congress:{color:'#9b59b6',fillColor:'#9b59b6'}};
       ['city_council','state_assembly','state_senate','congress'].forEach(function(type){
         var st=styles[type];
-        var features=(data.features||[]).filter(function(f){return (f.properties&&f.properties.layer)===type && allowedDistrict(type,f);});
+        var features=clipFeaturesToCurrent((data.features||[]).filter(function(f){return (f.properties&&f.properties.layer)===type && allowedDistrict(type,f);}));
         features.sort(function(a,b){return String(layerId(a.properties)).localeCompare(String(layerId(b.properties)),undefined,{numeric:true});});
         var group=layerGroupFromFeatures(features,{style:{color:st.color,weight:2.4,opacity:.95,fillColor:st.fillColor,fillOpacity:.16,dashArray:'4,4'},onEachFeature:function(f,l){var p=f.properties||{}; var id=layerId(p), name=repName(type,id); l.bindPopup('<strong>'+escapeHtml(layerLongLabel(type)+' District '+id+(name ? ' — '+name : ''))+'</strong><br>District overlapping '+escapeHtml(cfg.shortLabel));}});
         addToggleLayer(type,layerTypeLabel(type),group,st.color,false,'Toggle all '+layerLongLabel(type)+' districts overlapping '+cfg.shortLabel);
@@ -550,7 +563,7 @@ window.__cbqn14LandUseInit = (function(){
       addDivider();
       ['city_council','state_assembly','state_senate','congress'].forEach(function(type){
         var st=styles[type], abbr=layerAbbr(type);
-        var features=(data.features||[]).filter(function(f){return (f.properties&&f.properties.layer)===type && allowedDistrict(type,f);});
+        var features=clipFeaturesToCurrent((data.features||[]).filter(function(f){return (f.properties&&f.properties.layer)===type && allowedDistrict(type,f);}));
         features.sort(function(a,b){return String(layerId(a.properties)).localeCompare(String(layerId(b.properties)),undefined,{numeric:true});});
         if(features.length){addLabel(abbr);}
         features.forEach(function(f){
