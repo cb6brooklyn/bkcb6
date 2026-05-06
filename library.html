@@ -239,12 +239,17 @@ EL_CATS.forEach(c => {
   elCatsEl.appendChild(b);
 });
 
+// Track which sections are expanded. When the user is searching or has selected
+// a specific category, auto-expand all sections in view so results stay visible.
+const elOpenSections = new Set();
 function elRender() {
   const q=(document.getElementById('el-search').value||'').toLowerCase();
   const filteredReal = EL_TILES.filter(t=>!t.isDivider&&(elCat==='All'||t.category===elCat)&&(!q||t.alt.toLowerCase().includes(q)||(t.spine||'').toLowerCase().includes(q)));
   const secOf=t=>t.category==='U.S. Congress'?'US House':t.category==='Citywide'?({'mamdani':'NYC Officials','williams':'NYC Officials','levine':'NYC Officials','hochul':'NYS Officials','dinapoli':'NYS Officials','schumer':'US Senators','gillibrand':'US Senators'}[t.matchKey]||'Citywide'):t.category;
   document.getElementById('el-count').textContent=filteredReal.length+' contacts';
   const dom=document.getElementById('el-shelves'); dom.innerHTML='';
+  // Auto-expand mode: when filtering or searching, show all matching sections expanded.
+  const autoExpand = (q.length>0) || (elCat!=='All');
   // Group by section
   const sections=[]; let lastSec=null;
   filteredReal.forEach(t=>{
@@ -253,10 +258,19 @@ function elRender() {
     sections[sections.length-1].tiles.push(t);
   });
   sections.forEach(({sec,label,tiles})=>{
-    const hdr=document.createElement('div');
-    hdr.style.cssText='padding:14px 16px 8px;font-family:"DM Mono",monospace;font-size:.7rem;font-weight:800;color:#c9a227;text-transform:uppercase;letter-spacing:.1em;border-top:1px solid #5a301044';
-    hdr.textContent=(CAT_ICONS[sec]||CAT_ICONS[tiles[0]?.category]||'')+(label.replace(/\\n/g,' '));
+    const isOpen = autoExpand || elOpenSections.has(sec);
+    const hdr=document.createElement('button');
+    hdr.type='button';
+    hdr.style.cssText='display:block;width:100%;text-align:left;padding:14px 16px 8px;font-family:"DM Mono",monospace;font-size:.7rem;font-weight:800;color:#c9a227;text-transform:uppercase;letter-spacing:.1em;border:none;border-top:1px solid #5a301044;background:transparent;cursor:pointer';
+    const caret=isOpen?'▾':'▸';
+    hdr.textContent=`${caret}  ${(CAT_ICONS[sec]||CAT_ICONS[tiles[0]?.category]||'')}${label.replace(/\\n/g,' ')}  (${tiles.length})`;
+    hdr.setAttribute('aria-expanded', isOpen?'true':'false');
+    hdr.onclick=()=>{
+      if(elOpenSections.has(sec)) elOpenSections.delete(sec); else elOpenSections.add(sec);
+      elRender();
+    };
     dom.appendChild(hdr);
+    if(!isOpen) return;  // Section collapsed: skip the grid entirely.
     const grid=document.createElement('div');
     grid.style.cssText='display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 12px 16px';
     grid.className='grid-3col';
