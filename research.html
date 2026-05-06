@@ -208,7 +208,7 @@ fetch('data/cb6_boundary.geojson').then(r=>r.json()).then(d=>{
   document.getElementById('note').textContent = 'Click any community board to see its overlapping districts.';
   // Auto-load legislative data and show CB6 districts
   Promise.all([
-    fetch('data/city-council-districts.geojson').then(r=>r.json()).then(d=>{window._ccData=d;}),
+    fetch('data/city-council-districts-wgs84.geojson').then(r=>r.json()).then(d=>{window._ccData=d;}),
     fetch('data/state-assembly-districts.geojson').then(r=>r.json()).then(d=>{window._assemblyData=d;}),
     fetch('data/state-senate-districts.geojson').then(r=>r.json()).then(d=>{window._senateData=d;}),
     fetch('data/congressional-districts.geojson').then(r=>r.json()).then(d=>{window._congressData=d;}),
@@ -229,10 +229,17 @@ fetch('data/cb6_boundary.geojson').then(r=>r.json()).then(d=>{
 
 // Load community districts (lazy)
 var cdsData = null;
+function activeViewNeedsUnionMask(){
+  return activeMain === 'nyc' || (activeBoroFilter && activeBoroFilter.length === 1);
+}
 function loadCDs(){
-  if(cdsData){buildCDLayer();return;}
-  fetch('community-district-boundaries.geojson').then(r=>r.json()).then(d=>{
-    cdsData=d; buildCDLayer();
+  var needsMask = activeViewNeedsUnionMask();
+  var cdsPromise = cdsData ? Promise.resolve(cdsData) : fetch('community-district-boundaries.geojson').then(r=>r.json());
+  var maskPromise = (!needsMask || window._communityClipMasksData) ? Promise.resolve(window._communityClipMasksData || null) : fetch('data/community-district-clip-masks.geojson').then(r=>r.json());
+  Promise.all([cdsPromise, maskPromise]).then(function(results){
+    cdsData=results[0];
+    if(results[1]) window._communityClipMasksData=results[1];
+    buildCDLayer();
   });
 }
 // Point in polygon (ray casting)
@@ -394,7 +401,7 @@ function buildCDLayer(){
       l.on('click', function(){
         window._selectedCBFeature = f;
         Promise.all([
-          window._ccData ? Promise.resolve() : fetch('data/city-council-districts.geojson').then(r=>r.json()).then(d=>{window._ccData=d;}),
+          window._ccData ? Promise.resolve() : fetch('data/city-council-districts-wgs84.geojson').then(r=>r.json()).then(d=>{window._ccData=d;}),
           window._assemblyData ? Promise.resolve() : fetch('data/state-assembly-districts.geojson').then(r=>r.json()).then(d=>{window._assemblyData=d;}),
           window._senateData ? Promise.resolve() : fetch('data/state-senate-districts.geojson').then(r=>r.json()).then(d=>{window._senateData=d;}),
           window._congressData ? Promise.resolve() : fetch('data/congressional-districts.geojson').then(r=>r.json()).then(d=>{window._congressData=d;}),
@@ -470,25 +477,69 @@ function selectedDistrictFeatures(){
   return selected.filter(function(f){return f && f.geometry;});
 }
 
+function communityClipMaskForCurrentView(){
+  var masks = window._communityClipMasksData && window._communityClipMasksData.features ? window._communityClipMasksData.features : [];
+  if(!masks.length) return null;
+  var maskId = null;
+  if(activeMain === 'nyc' && !activeBoroFilter) maskId = 'nyc';
+  else if(activeBoroFilter && activeBoroFilter.length === 1) maskId = 'boro-' + activeBoroFilter;
+  if(!maskId) return null;
+  return masks.find(function(f){return f && f.properties && f.properties.mask_id === maskId;}) || null;
+}
+
 function selectedCommunityBoardFeatures(){
   var cbs = [];
+  if(cdsData && cdsData.features){
+    var precomputedMask = communityClipMaskForCurrentView();
+    if(precomputedMask) {
+      // Citywide mode uses five borough union masks instead of one very complex
+      // citywide multipolygon, preserving all district intersections while still
+      // avoiding 71 individual CD intersections per overlay feature.
+      if(activeMain === 'nyc' && window._communityClipMasksData && window._communityClipMasksData.features){
+        var boroMasks = window._communityClipMasksData.features.filter(function(f){return f && f.properties && /^boro-/.test(f.properties.mask_id || '');});
+        if(boroMasks.length) return boroMasks;
+      }
+      // Borough modes use one precomputed union mask.
+      return [precomputedMask];
+    }
+  }
   Object.keys(cbLayerState||{}).forEach(function(code){
     var state = cbLayerState[code];
     if(state && state.on && state.layer) cbs = cbs.concat(layerToFeatures(state.layer));
   });
-  if(!cbs.length && window._selectedCBFeature) cbs.push(window._selectedCBFeature);
-  if(!cbs.length && cdsData){
-    var selectedCode = window._selectedCBFeature && window._selectedCBFeature.properties ? window._selectedCBFeature.properties.boro_cd : null;
-    var cb = selectedCode ? cdsData.features.find(function(f){return f.properties.boro_cd===selectedCode;}) : null;
-    if(!cb && activeMain==='cb6') cb = cdsData.features.find(function(f){return f.properties.boro_cd==='306';});
-    if(cb) cbs.push(cb);
+  if(!cbs.length && cdsData && cdsData.features){
+    if(activeBoroFilter) {
+      // Single-community-district focus modes use the exact original CD feature.
+      cbs = cbs.concat(cdsData.features.filter(function(f){
+        var code = f && f.properties ? String(f.properties.boro_cd || '') : '';
+        if(activeBoroFilter.length===3) return code===activeBoroFilter;
+        return code.charAt(0)===activeBoroFilter;
+      }));
+    } else {
+      var selectedCode = window._selectedCBFeature && window._selectedCBFeature.properties ? window._selectedCBFeature.properties.boro_cd : null;
+      var cb = selectedCode ? cdsData.features.find(function(f){return f.properties.boro_cd===selectedCode;}) : null;
+      if(!cb && activeMain==='cb6') cb = cdsData.features.find(function(f){return f.properties.boro_cd==='306';});
+      if(cb) cbs.push(cb);
+    }
   }
+  if(!cbs.length && window._selectedCBFeature) cbs.push(window._selectedCBFeature);
   if(!cbs.length && window._cb6BoundaryFeatures && window._cb6BoundaryFeatures.length) cbs = cbs.concat(window._cb6BoundaryFeatures);
   if(!cbs.length && cb6Layer) cbs = cbs.concat(layerToFeatures(cb6Layer));
   return cbs.filter(function(f){return f && f.geometry;});
 }
+function hasExplicitOverlayBoundarySelection(){
+  var hasCB = Object.keys(cbLayerState||{}).some(function(code){ var state = cbLayerState[code]; return state && state.on && state.layer; });
+  if(hasCB) return true;
+  return Object.keys(districtToggleState||{}).some(function(type){
+    return Object.keys(districtToggleState[type]||{}).some(function(num){ var state = districtToggleState[type][num]; return state && state.on && state.layer; });
+  });
+}
 function refreshCBOverlapLayer(){
   if(cbOverlapLayer){ map.removeLayer(cbOverlapLayer); cbOverlapLayer=null; }
+  // In All NYC mode, the primary overlay layer is already clipped to the full
+  // citywide community-district mask. Avoid also generating every CB × district
+  // overlap fragment unless the user has explicitly selected a CB/district mask.
+  if(activeMain==='nyc' && !hasExplicitOverlayBoundarySelection()) return;
   if(!window.turf || !turf.booleanIntersects || !turf.intersect) return;
   var cbs = selectedCommunityBoardFeatures();
   if(!cbs.length) return;
@@ -558,8 +609,34 @@ function boundaryGroupsForOverlayFiltering(){
   });
   return groups.filter(function(g){return g.length;});
 }
+function featureBBox(feature){
+  if(!feature || !feature.geometry) return null;
+  var cached = feature._bkcb6Bbox;
+  if(cached) return cached;
+  var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  function scan(coords){
+    if(!Array.isArray(coords)) return;
+    if(typeof coords[0] === 'number' && typeof coords[1] === 'number'){
+      var x=coords[0], y=coords[1];
+      if(x<minX) minX=x; if(x>maxX) maxX=x; if(y<minY) minY=y; if(y>maxY) maxY=y;
+      return;
+    }
+    coords.forEach(scan);
+  }
+  scan(feature.geometry.coordinates);
+  if(!isFinite(minX)) return null;
+  cached = [minX,minY,maxX,maxY];
+  try { feature._bkcb6Bbox = cached; } catch(e) {}
+  return cached;
+}
+function bboxesMayIntersect(a,b){
+  var ab=featureBBox(a), bb=featureBBox(b);
+  if(!ab || !bb) return true;
+  return !(ab[2] < bb[0] || bb[2] < ab[0] || ab[3] < bb[1] || bb[3] < ab[1]);
+}
 function featureTouchesAnyBoundary(feature, group){
   return group.some(function(b){
+    if(!bboxesMayIntersect(feature,b)) return false;
     try { return window.turf && turf.booleanIntersects ? turf.booleanIntersects(feature,b) : overlayPointInBoundary(feature,b); }
     catch(e) { return overlayPointInBoundary(feature,b); }
   });
@@ -586,11 +663,17 @@ function filteredBySelectedDistricts(features, clipPolygons){
       pieces.forEach(function(piece){
         group.forEach(function(b){
           try {
+            if(!bboxesMayIntersect(piece,b)) return;
             if(!turf.booleanIntersects(piece,b)) return;
             var clipped = safeTurfIntersect(piece,b);
             if(clipped && clipped.geometry){
               clipped.properties = Object.assign({}, f.properties);
               next.push(clipped);
+            } else if(activeMain === 'nyc' && f.properties && f.properties.CounDist) {
+              // City Council districts are already NYC-only. Turf occasionally
+              // returns null for valid Council × borough-mask intersections, so
+              // preserve the source feature rather than silently dropping it.
+              next.push(piece);
             }
           } catch(e) {}
         });
@@ -776,7 +859,7 @@ var CONGRESS_COLORS = ['#b91c1c','#d42020','#f02424','#ff3030'];
 // Individual district toggle state; these can be combined freely with CB and overlay toggles.
 var districtToggleState = {cc:{}, assembly:{}, senate:{}, congress:{}, nypd:{}};
 var DISTRICT_TOGGLE_CONFIG = {
-  cc:{abbr:'CD', name:'Council District', key:'CounDist', dataVar:'_ccData', url:'data/city-council-districts.geojson', color:'#0d7490'},
+  cc:{abbr:'CD', name:'Council District', key:'CounDist', dataVar:'_ccData', url:'data/city-council-districts-wgs84.geojson', color:'#0d7490'},
   assembly:{abbr:'AD', name:'Assembly District', key:'assembly_district', dataVar:'_assemblyData', url:'data/state-assembly-districts.geojson', color:'#1a7a4a'},
   senate:{abbr:'SD', name:'State Senate District', key:'st_sen_dist', dataVar:'_senateData', url:'data/state-senate-districts.geojson', color:'#6b21a8'},
   congress:{abbr:'NY', name:'Congressional District', key:'cong_dist', dataVar:'_congressData', url:'data/congressional-districts.geojson', color:'#b91c1c'},
@@ -880,6 +963,7 @@ function toggleSingleDistrict(type, num, on){
       if(type==='nypd') return String(raw).padStart(3,'0')===String(num).padStart(3,'0');
       return parseInt(raw)===parseInt(num);
     });
+    if(type !== 'nypd') features = filteredBySelectedDistricts(features, true);
     if(!features.length) return;
     var target = features.length===1 ? features[0] : {type:'FeatureCollection',features:features};
     var displayNum = cfg.labelNum ? cfg.labelNum(num) : num;
@@ -898,9 +982,11 @@ function toggleSingleDistrict(type, num, on){
 
 function buildLegislative(type, data, key, label, layerVar) {
   if(window[layerVar]) map.removeLayer(window[layerVar]);
-  var filteredData = data;
+  var features = (data && data.features) ? data.features : [];
+  features = filteredBySelectedDistricts(features, true);
+  var filteredData = {type:'FeatureCollection', features:features};
 
-  // Keep full legislative layers available across borough views so selections remain composable.
+  // Render only clipped fragments inside the current community-district mask.
   window[layerVar] = L.geoJSON(filteredData, {
     style: f => {
       var num = f.properties[key];
@@ -969,7 +1055,7 @@ function toggleOverlay(name, on){
     gowanus:()=>loadOverlay('gowanus','data/Gowanus-Rezoning-Boundary-2.geojson',buildGowanus),
     historic:()=>loadOverlay('historic','data/historic-districts.geojson',buildHistoric),
     rents:()=>loadOverlay('rents','data/citywide-rents.geojson',buildRents),
-    cc:()=>loadOverlay('cc','data/city-council-districts.geojson',buildCC),
+    cc:()=>loadOverlay('cc','data/city-council-districts-wgs84.geojson',buildCC),
     assembly:()=>loadOverlay('assembly','data/state-assembly-districts.geojson',buildAssembly),
     senate:()=>loadOverlay('senate','data/state-senate-districts.geojson',buildSenate),
     congress:()=>loadOverlay('congress','data/congressional-districts.geojson',buildCongress),
@@ -986,25 +1072,22 @@ function setMain(which, btn){
   document.querySelectorAll('.plyr-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
 
-  // Remove CDs layer when leaving multi-CB views
-  if(which==='cb6'||which==='brooklyn'||which==='manhattan'||which==='queens'||which==='bronx'||which==='si'){
-    if(which!=='cb6'&&cdsLayer) cdsLayer.addTo(map);
-    else if(cdsLayer) map.removeLayer(cdsLayer);
-  }
-  if(which==='nyc' && cdsData) buildCDLayer();
-  else if(which==='nyc') loadCDs();
+  // Set the boundary filter before rebuilding community-district or overlay layers.
+  // Citywide mode must use the complete NYC community-district mask, not the
+  // previously active single-board or borough filter.
+  var filters = {'cb6':'306','brooklyn':'3','manhattan':'1','queens':'4','bronx':'2','si':'5','nyc':null};
+  activeBoroFilter = filters[which];
 
   // Fly to view
   const v = BORO_VIEWS[which]||[40.6771,-74.0012,13];
   map.setView([v[0],v[1]],v[2]);
 
-  // For borough views, load and show all CDs
+  // Rebuild the community-district reference layer once with the current filter.
   if(['brooklyn','manhattan','queens','bronx','si','nyc'].includes(which)) loadCDs();
   else if(cdsLayer) map.removeLayer(cdsLayer);
 
-  // Set borough filter
-  var filters = {'cb6':'306','brooklyn':'3','manhattan':'1','queens':'4','bronx':'2','si':'5','nyc':null};
-  activeBoroFilter = filters[which];
+  // Keep BKCB6 focused on the orange CB6 boundary rather than the full CD layer.
+  if(which==='cb6' && cdsLayer) map.removeLayer(cdsLayer);
   buildSubToggles();
   updateLegend();
   // Refresh all active legislative layers and district-filtered overlays with new filter
@@ -1031,7 +1114,7 @@ function toggleCBLayer(code, on, feature) {
       l.on('click',function(){
         window._selectedCBFeature=f;
         Promise.all([
-          window._ccData?Promise.resolve():fetch('data/city-council-districts.geojson').then(r=>r.json()).then(d=>{window._ccData=d;}),
+          window._ccData?Promise.resolve():fetch('data/city-council-districts-wgs84.geojson').then(r=>r.json()).then(d=>{window._ccData=d;}),
           window._assemblyData?Promise.resolve():fetch('data/state-assembly-districts.geojson').then(r=>r.json()).then(d=>{window._assemblyData=d;}),
           window._senateData?Promise.resolve():fetch('data/state-senate-districts.geojson').then(r=>r.json()).then(d=>{window._senateData=d;}),
           window._congressData?Promise.resolve():fetch('data/congressional-districts.geojson').then(r=>r.json()).then(d=>{window._congressData=d;}),
