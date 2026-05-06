@@ -559,7 +559,7 @@ window.__cbbk16LandUseInit = (function(){
 <div class="cd-search-panel" aria-label="Search this community district map">
 <div class="cd-search-intro">
 <label for="cb-bk-16-cd-map-address-input">Address Search</label>
-<p>Search an NYC address to place it on the boundary map and confirm whether it falls inside BK CB16. The map also includes CB6-style toggles for nearby community boards, parks, historic districts, and only the districts that overlap this community district.</p>
+<p>Search an NYC address to place it on the boundary map and confirm whether it falls inside BK CB16. The map uses CB6-style toggles for nearby community boards, rents, zoning, land use, parks, historic districts, and only the districts that overlap this community district.</p>
 </div>
 <div class="cd-search-controls">
 <input aria-label="Search an NYC address on the community district map" id="cb-bk-16-cd-map-address-input" placeholder="Enter an NYC address or intersection" type="text"/>
@@ -662,11 +662,80 @@ window.__cbbk16LandUseInit = (function(){
     var nearbyBoundaries = allBoundaryFeatures.filter(function(f){var cd=String(f.properties && f.properties.boro_cd || ''); return cd!==cfg.boroCd && cd.charAt(0)===cfg.boroPrefix && featureTouchesView(f,currentBounds);});
     var otherLayer = layerGroupFromFeatures(nearbyBoundaries,{style:{color:'#7a8493',weight:1.4,opacity:.78,fillColor:'#7a8493',fillOpacity:0.055},onEachFeature:function(f,l){var cd=f.properties&&f.properties.boro_cd; l.bindPopup('<strong>'+escapeHtml(boardLabel(cd))+'</strong><br>Nearby community district');}});
     addToggleLayer('nearby_cbs','CBs',otherLayer,'#64748b',false,'Toggle nearby community boards only');
-    setNote('Boundary loaded with a semi-opaque district fill. Toggles show layers relevant to '+cfg.shortLabel+' rather than every district in the borough.');
+    setNote('Boundary loaded with a semi-opaque district fill. Use the toggle row for profile map layers relevant to '+cfg.shortLabel+'.');
     loadSecondaryLayers(currentBounds);
   }).catch(function(err){console.error(err); setNote('The community district boundary map could not be loaded right now.');});
 
+
+  function bboxParam(bounds){
+    return [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()].map(function(v){return Number(v).toFixed(6);}).join(',');
+  }
+  function dollars(v){return v ? '$'+Number(v).toLocaleString() : 'not available';}
+  function zoningCategory(props){
+    props=props||{};
+    var z=String(props.ZONEDIST || props.zonedist || props.Zoning || props.zone || '').toUpperCase();
+    if(/^C/.test(z)) return ['Commercial','#2563eb'];
+    if(/^M/.test(z)) return ['Manufacturing / Mixed Use','#7c3aed'];
+    if(/^R/.test(z)) return ['Residential','#f59e0b'];
+    if(/PARK|PARKS|OPEN/.test(z)) return ['Parks / Open Space','#22c55e'];
+    return ['Special Purpose / Other','#64748b'];
+  }
+  function landUseColor(code){
+    var key=String(code||'').padStart(2,'0');
+    return {'01':'#fff2b2','02':'#f6b26b','03':'#e06666','04':'#8e7cc3','05':'#6fa8dc','06':'#93c47d','07':'#76a5af','08':'#38761d','09':'#999999','10':'#666666','11':'#c27ba0'}[key] || '#9ca3af';
+  }
+  function landUseLabel(code){
+    var key=String(code||'').padStart(2,'0');
+    return {'01':'One & Two Family Buildings','02':'Multi-Family Walk-Up Buildings','03':'Multi-Family Elevator Buildings','04':'Mixed Residential & Commercial','05':'Commercial & Office','06':'Industrial & Manufacturing','07':'Transportation & Utility','08':'Public Facilities & Institutions','09':'Open Space & Outdoor Recreation','10':'Parking Facilities','11':'Vacant Land'}[key] || 'Land Use '+(code||'Unknown');
+  }
+  function loadArcgisBox(urlBase, bounds){
+    var url = urlBase + encodeURIComponent(bboxParam(bounds)) + '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&f=geojson&outSR=4326';
+    return fetchJson(url);
+  }
+  function loadPlanningLayers(bounds){
+    addDivider(); addLabel('Profile Layers');
+    var zoningLayer = L.layerGroup();
+    addToggleLayer('zoning','Zoning',zoningLayer,'#8b5cf6',false,'Toggle zoning features near '+cfg.shortLabel);
+    loadArcgisBox('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&geometry=', bounds).then(function(data){
+      var features=(data.features||[]).filter(function(f){return featuresOverlap(currentFeature,f) || featureTouchesView(f,bounds);});
+      var layer=layerGroupFromFeatures(features,{style:function(f){var c=zoningCategory(f.properties);return {color:c[1],weight:1,opacity:.72,fillColor:c[1],fillOpacity:.16};},onEachFeature:function(f,l){var p=f.properties||{}, c=zoningCategory(p); l.bindPopup('<strong>'+escapeHtml(p.ZONEDIST||p.zonedist||p.zone||'Zoning District')+'</strong><br>'+escapeHtml(c[0]));}});
+      toggleLayers.zoning = layer;
+      if(activeLayers.zoning) layer.addTo(map);
+    }).catch(function(err){console.warn(err);});
+
+    var landUseLayer = L.layerGroup();
+    addToggleLayer('landuse','Land Use',landUseLayer,'#8b5e34',false,'Toggle land-use lots near '+cfg.shortLabel);
+    loadArcgisBox('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?where=1%3D1&geometry=', bounds).then(function(data){
+      var features=(data.features||[]).filter(function(f){return featuresOverlap(currentFeature,f) || featureTouchesView(f,bounds);});
+      var layer=layerGroupFromFeatures(features,{style:function(f){var code=(f.properties||{}).LandUse || (f.properties||{}).landuse; var color=landUseColor(code);return {color:color,weight:.7,opacity:.62,fillColor:color,fillOpacity:.24};},onEachFeature:function(f,l){var p=f.properties||{}, code=p.LandUse||p.landuse; l.bindPopup('<strong>'+escapeHtml(landUseLabel(code))+'</strong><br>'+escapeHtml(p.Address||p.address||p.BBL||'MAPPLUTO lot'));}});
+      toggleLayers.landuse = layer;
+      if(activeLayers.landuse) layer.addTo(map);
+    }).catch(function(err){console.warn(err);});
+
+    fetchJson('data/citywide-rents.geojson').then(function(data){
+      var features=(data.features||[]).filter(function(f){var p=f.properties||{}; return String(p.cb_code||'').toUpperCase()===String(cfg.citywideRentCode).toUpperCase() || featuresOverlap(currentFeature,f);});
+      var layer=layerGroupFromFeatures(features,{style:function(f){var p=f.properties||{};return {color:p.fill_color||'#dc2626',weight:2.2,opacity:.9,fillColor:p.fill_color||'#dc2626',fillOpacity:.24};},onEachFeature:function(f,l){var p=f.properties||{}; l.bindPopup('<strong>'+escapeHtml(cfg.shortLabel+' Citywide Rent Context')+'</strong><br>All units: '+escapeHtml(dollars(p.rent_all))+'<br>Studio: '+escapeHtml(dollars(p.rent_studio)));}});
+      addToggleLayer('citywide_rent','Citywide Rent',layer,'#dc2626',false,'Toggle citywide rent context for '+cfg.shortLabel);
+    }).catch(function(err){console.warn(err);});
+
+    if(cfg.isBrooklyn){
+      fetchJson('data/bk-rents.geojson').then(function(data){
+        var features=(data.features||[]).filter(function(f){var p=f.properties||{}; return String(p.cb_code||'').toUpperCase()===String(cfg.brooklynRentCode).toUpperCase() || featuresOverlap(currentFeature,f);});
+        var layer=layerGroupFromFeatures(features,{style:function(f){var p=f.properties||{};return {color:p.fill_all||'#ef4444',weight:2.2,opacity:.9,fillColor:p.fill_all||'#ef4444',fillOpacity:.26};},onEachFeature:function(f,l){var p=f.properties||{}; l.bindPopup('<strong>'+escapeHtml(cfg.shortLabel+' Brooklyn Rent Context')+'</strong><br>All units: '+escapeHtml(dollars(p.rent_all))+'<br>1BR: '+escapeHtml(dollars(p.rent_1br)));}});
+        addToggleLayer('brooklyn_rent','BK Rent',layer,'#ef4444',false,'Toggle Brooklyn rent context for '+cfg.shortLabel);
+      }).catch(function(err){console.warn(err);});
+    }
+
+    fetchJson('historic_districts_by_cb_files/'+cfg.cbFileKey+'_historic_districts.geojson').then(function(data){
+      var features=(data.features||[]).filter(function(f){return featuresOverlap(currentFeature,f) || featureTouchesView(f,bounds);});
+      if(!features.length) return;
+      var layer=layerGroupFromFeatures(features,{style:{color:'#a16207',weight:1.5,opacity:.9,fillColor:'#d97706',fillOpacity:.18,dashArray:'4,3'},onEachFeature:function(f,l){var p=f.properties||{}; l.bindPopup('<strong>'+escapeHtml(p.area_name||'Historic District')+'</strong><br>LPC historic district overlay');}});
+      addToggleLayer('cb_historic','CB Historic',layer,'#a16207',false,'Toggle historic districts in '+cfg.shortLabel);
+    }).catch(function(err){console.warn(err);});
+  }
+
   function loadSecondaryLayers(bounds){
+    loadPlanningLayers(bounds);
     fetchJson('data/topmap-parks-'+cfg.boroughKey+'.geojson').then(function(data){
       var features=(data.features||[]).filter(function(f){return String(f.properties && f.properties.communityboard || '') === cfg.boroCd || featuresOverlap(currentFeature,f) || featureTouchesView(f,bounds);});
       var parks=layerGroupFromFeatures(features,{style:{color:'#2f7d32',weight:1,opacity:.85,fillColor:'#66a61e',fillOpacity:.28},pointToLayer:function(f,latlng){return L.circleMarker(latlng,{radius:5,color:'#2f7d32',weight:1,fillColor:'#66a61e',fillOpacity:.75});},onEachFeature:function(f,l){var p=f.properties||{}; l.bindPopup('<strong>'+escapeHtml(p.signname||p.name311||'Park/Open Space')+'</strong><br>'+escapeHtml(p.typecategory||p.subcategory||'Parks overlay'));}});
