@@ -297,8 +297,11 @@ body{display:flex;flex-direction:column}
 #map.bus-stop-labels-full .bus-stop-sign{width:10px;height:10px;min-width:10px;max-width:10px;box-shadow:0 1px 4px rgba(13,27,75,.26),0 0 0 1px rgba(255,255,255,.8);opacity:.72}
 #map.bus-stop-labels-full .bus-stop-name{display:none}
 .cb-overlap-fragment{mix-blend-mode:multiply}
-.district-map-label{background:transparent;border:0;box-shadow:none;color:#fff;font-family:'DM Sans',Arial,sans-serif;font-size:1.15rem;font-weight:900;line-height:1.12;text-align:center;text-shadow:-1.25px -1.25px 0 rgba(13,27,75,.62),1.25px -1.25px 0 rgba(13,27,75,.62),-1.25px 1.25px 0 rgba(13,27,75,.62),1.25px 1.25px 0 rgba(13,27,75,.62),0 2px 5px rgba(13,27,75,.35);white-space:nowrap;pointer-events:none}
-.district-map-label.senate{font-size:1.25rem}
+.district-map-label{background:transparent;border:0;box-shadow:none;color:#fff;font-family:'DM Sans',Arial,sans-serif;font-size:1.02rem;font-weight:900;line-height:1.08;text-align:center;text-shadow:-1.25px -1.25px 0 rgba(13,27,75,.70),1.25px -1.25px 0 rgba(13,27,75,.70),-1.25px 1.25px 0 rgba(13,27,75,.70),1.25px 1.25px 0 rgba(13,27,75,.70),0 2px 5px rgba(13,27,75,.35);white-space:nowrap;pointer-events:none}
+.district-map-label.senate{font-size:1.02rem}
+.district-map-label .district-label-text{display:inline-block;padding:1px 3px;border-radius:5px;background:rgba(13,27,75,.10)}
+.district-map-label.district-label-hidden{display:none!important}
+@media(max-width:1100px){.district-map-label,.district-map-label.senate{font-size:.78rem;line-height:1.04}.district-map-label .district-label-text{padding:1px 2px}}
 .cb6-boundary-label{background:transparent;border:0;pointer-events:none}
 .cb6-boundary-label-text{display:inline-block;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none;color:#f47920;font-family:'DM Sans',Arial,sans-serif;font-size:1.45rem;font-weight:900;letter-spacing:-.035em;line-height:1;text-transform:none;text-shadow:-1.25px -1.25px 0 rgba(255,255,255,.95),1.25px -1.25px 0 rgba(255,255,255,.95),-1.25px 1.25px 0 rgba(255,255,255,.95),1.25px 1.25px 0 rgba(255,255,255,.95),0 2px 3px rgba(13,27,75,.16);white-space:nowrap}
 
@@ -340,6 +343,9 @@ body{display:flex;flex-direction:column}
 <script>
 
 var map = L.map('map',{scrollWheelZoom:true, zoomSnap:.25, zoomDelta:.25}).setView([40.6771,-74.0012],13);
+var homeBoundaryAutoFitLocked = false;
+map.on('dragstart', function(){ homeBoundaryAutoFitLocked = true; });
+map.on('zoomstart', function(e){ if(e && e.originalEvent) homeBoundaryAutoFitLocked = true; });
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
 
 // Representative lookup tables
@@ -581,15 +587,15 @@ fetch('data/cb6_boundary.geojson').then(r=>r.json()).then(d=>{
   var cb6LabelPos = addCB6BoundaryLabel();
   var cb6FitBounds = cb6Layer.getBounds();
   if(cb6LabelPos) cb6FitBounds = cb6FitBounds.extend(cb6LabelPos);
-  function fitHomeCB6Boundary(){
+  function fitHomeCB6Boundary(force){
+    if(homeBoundaryAutoFitLocked && !force) return;
     var mobile = window.matchMedia && window.matchMedia('(max-width:1100px)').matches;
     map.invalidateSize(false);
-    map.fitBounds(cb6FitBounds,{padding:mobile?[72,72]:[20,20],maxZoom:mobile?12.25:13.5});
+    map.fitBounds(cb6FitBounds,{padding:mobile?[72,72]:[20,20],maxZoom:mobile?12.25:13.5,animate:false});
   }
-  fitHomeCB6Boundary();
-  setTimeout(fitHomeCB6Boundary,150);
-  setTimeout(fitHomeCB6Boundary,450);
-  window.addEventListener('resize',function(){setTimeout(fitHomeCB6Boundary,120);});
+  fitHomeCB6Boundary(true);
+  setTimeout(function(){fitHomeCB6Boundary(false);},150);
+  window.addEventListener('resize',function(){setTimeout(function(){map.invalidateSize(false);fitHomeCB6Boundary(false);},120);});
   document.getElementById('note').textContent = 'BKCB6 focus: use map choices and district toggles to compare local context.';
   // Auto-load legislative data and show CB6 districts
   Promise.all([
@@ -1679,19 +1685,45 @@ function districtFeaturesForSelectedCB(type, data, key){
   }
   return filtered;
 }
-function districtLabelText(type, label, num){
-  var abbr = {cc:'CD', assembly:'AD', senate:'SD', congress:'NY'}[type] || '';
-  if(type === 'senate') return 'Senate District<br>'+num+' ('+abbr+' '+num+')';
-  if(type === 'assembly') return 'Assembly District<br>'+num+' ('+abbr+' '+num+')';
-  if(type === 'cc') return 'Council District<br>'+num+' ('+abbr+' '+num+')';
-  if(type === 'congress') return 'Congressional District<br>'+num+' (NY-'+num+')';
+function districtLabelPrefix(type){
+  return {cc:'CD', assembly:'AD', senate:'SD', congress:'NY'}[type] || '';
+}
+function electedShortName(rep){
+  var name = rep && rep[0] ? String(rep[0]).trim() : '';
+  if(!name) return '';
+  var parts = name.split(/\s+/);
+  return parts[parts.length-1] || name;
+}
+function districtLabelText(type, label, num, rep){
+  var prefix = districtLabelPrefix(type);
+  var elected = electedShortName(rep);
+  if(type === 'congress') return prefix+num+(elected?' '+escH(elected):'');
+  if(prefix) return prefix+num+(elected?' '+escH(elected):'');
   return label+' '+num;
+}
+function districtLabelOffset(type, num){
+  if(activeMain !== 'cb6') return L.point(0,0);
+  num = parseInt(num, 10);
+  var offsets = {
+    cc:{38:[-34,-8],39:[34,-8]},
+    assembly:{44:[-42,22],51:[0,36],52:[42,22]},
+    senate:{20:[-42,-34],26:[42,-34]},
+    congress:{10:[0,-58]}
+  };
+  var o = offsets[type] && offsets[type][num];
+  return L.point(o ? o[0] : 0, o ? o[1] : 0);
 }
 function featureLabelLatLng(feature, type, key){
   var num = feature && feature.properties ? parseInt(feature.properties[key], 10) : null;
-  if(activeMain === 'cb6' && type === 'senate'){
-    if(num === 26) return L.latLng(40.6300, -74.0300);
-    if(num === 20) return L.latLng(40.6500, -73.9400);
+  if(activeMain === 'cb6'){
+    var fixed = {
+      cc:{38:[40.6650,-74.0055],39:[40.6758,-73.9884]},
+      assembly:{44:[40.6535,-73.9835],51:[40.6710,-74.0006],52:[40.6860,-73.9940]},
+      senate:{20:[40.6720,-73.9870],26:[40.6880,-74.0045]},
+      congress:{10:[40.6770,-73.9980]}
+    };
+    var fp = fixed[type] && fixed[type][num];
+    if(fp) return L.latLng(fp[0], fp[1]);
   }
   try {
     if(window.turf && turf.centerOfMass){
@@ -1713,6 +1745,44 @@ function fitBKCB6DistrictGroupView(type, layer){
     }
   } catch(e) {}
 }
+var districtLabelDeconflictTimer = null;
+function scheduleDistrictLabelDeconflict(){
+  clearTimeout(districtLabelDeconflictTimer);
+  districtLabelDeconflictTimer = setTimeout(deconflictDistrictLabels, 90);
+}
+function deconflictDistrictLabels(){
+  var boxes = [];
+  var mobile = window.matchMedia && window.matchMedia('(max-width:1100px)').matches;
+  var shifts = mobile
+    ? [[0,0],[0,-22],[0,22],[-48,0],[48,0],[-48,-22],[48,-22],[-48,22],[48,22],[0,-44],[0,44],[-96,0],[96,0],[-96,-22],[96,-22],[-96,22],[96,22]]
+    : [[0,0],[0,-24],[0,24],[-58,0],[58,0],[-58,-24],[58,-24],[-58,24],[58,24],[0,-48],[0,48],[-116,0],[116,0]];
+  Array.prototype.forEach.call(document.querySelectorAll('.district-map-label'), function(el){
+    el.classList.remove('district-label-hidden');
+    el.style.marginLeft = '';
+    el.style.marginTop = '';
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.district-map-label'), function(el){
+    var accepted = null;
+    for(var i=0;i<shifts.length;i++){
+      var s = shifts[i];
+      el.style.marginLeft = s[0] + 'px';
+      el.style.marginTop = s[1] + 'px';
+      var rect = el.getBoundingClientRect();
+      if(!rect.width || !rect.height) return;
+      var pad = 3;
+      var hit = boxes.some(function(b){
+        return !(rect.right + pad < b.left || b.right + pad < rect.left || rect.bottom + pad < b.top || b.bottom + pad < rect.top);
+      });
+      if(!hit){accepted = {left:rect.left, top:rect.top, right:rect.right, bottom:rect.bottom}; break;}
+    }
+    if(!accepted){
+      var fallback = el.getBoundingClientRect();
+      accepted = {left:fallback.left, top:fallback.top, right:fallback.right, bottom:fallback.bottom};
+    }
+    boxes.push(accepted);
+  });
+}
+map.on('zoomend moveend', scheduleDistrictLabelDeconflict);
 function buildLegislative(type, data, key, label, layerVar) {
   if(window[layerVar]) map.removeLayer(window[layerVar]);
   if(shouldUseBKCB6TemplateDistricts() && BKCB6_TEMPLATE_DISTRICT_URLS[type] && !bkcb6TemplateDistrictData(type)){
@@ -1745,7 +1815,7 @@ function buildLegislative(type, data, key, label, layerVar) {
       var labelPos = featureLabelLatLng(f, type, key);
       if(labelPos){
         l._districtLabelLatLng = labelPos;
-        l.bindTooltip('<span>'+districtLabelText(type, label, num)+'</span>', {permanent:true, direction:'center', className:'district-map-label '+type, opacity:1, interactive:false});
+        l.bindTooltip('<span class="district-label-text">'+districtLabelText(type, label, num, rep)+'</span>', {permanent:true, direction:'center', className:'district-map-label '+type, opacity:1, interactive:false, offset:districtLabelOffset(type, num)});
       }
     }
   });
@@ -1756,6 +1826,7 @@ function buildLegislative(type, data, key, label, layerVar) {
         layer.openTooltip(layer._districtLabelLatLng);
       }
     });
+    scheduleDistrictLabelDeconflict();
     if(cb6Layer) cb6Layer.bringToFront();
     addCB6BoundaryLabel();
     fitBKCB6DistrictGroupView(type, window[layerVar]);
