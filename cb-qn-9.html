@@ -398,7 +398,20 @@ window.__cbqn9LandUseInit = (function(){
   function escapeHtml(value){return String(value == null ? '' : value).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
   function fetchJson(url){return fetch(url,{cache:'force-cache'}).then(function(r){if(!r.ok) throw new Error(url+' '+r.status); return r.json();});}
   function boardSlug(boroCd){var borough={1:'mn',2:'bx',3:'bk',4:'qn',5:'si'}[String(boroCd).charAt(0)] || ''; var n=parseInt(String(boroCd).slice(1),10); return borough && n ? 'cb-'+borough+'-'+n+'.html' : '';}
-  function boardLabel(boroCd){var names={1:'Manhattan',2:'Bronx',3:'Brooklyn',4:'Queens',5:'Staten Island'}; var s=String(boroCd||''); return (names[s.charAt(0)] || 'NYC') + ' Community Board ' + parseInt(s.slice(1),10);}
+  function validCommunityBoardCode(boroCd){
+    var s=String(boroCd||'');
+    if(!/^[1-5][0-9]{2}$/.test(s)) return false;
+    var b=s.charAt(0), n=parseInt(s.slice(1),10);
+    var max={1:12,2:12,3:18,4:14,5:3}[b];
+    return n>=1 && n<=max;
+  }
+  function boardLabel(boroCd){
+    var names={1:'Manhattan',2:'Bronx',3:'Brooklyn',4:'Queens',5:'Staten Island'};
+    var s=String(boroCd||''), b=s.charAt(0), n=parseInt(s.slice(1),10);
+    var borough=names[b] || 'NYC';
+    if(validCommunityBoardCode(s)) return borough + ' Community Board ' + n;
+    return borough + ' non-community-board area';
+  }
   function layerTypeLabel(t){return {city_council:'Council',state_assembly:'Assembly',state_senate:'Senate',congress:'Congress'}[t] || t || 'District';}
   function layerLongLabel(t){return {city_council:'City Council',state_assembly:'State Assembly',state_senate:'State Senate',congress:'Congress'}[t] || t || 'District';}
   function layerId(props){props=props||{}; return props.id || props.coundist || props.assem_dist || props.stsendist || props.congdist || props.distnum || '';}
@@ -500,7 +513,7 @@ window.__cbqn9LandUseInit = (function(){
     addToggleLayer('focus',cfg.shortLabel,currentLayer,cfg.color,true,'Toggle '+cfg.shortLabel+' boundary fill');
     addDivider(); addLabel('Overlays');
     var currentBounds = currentLayer.getBounds();
-    var nearbyBoundaries = allBoundaryFeatures.filter(function(f){var cd=String(f.properties && f.properties.boro_cd || ''); return cd!==cfg.boroCd && cd.charAt(0)===cfg.boroPrefix && featureTouchesView(f,currentBounds);});
+    var nearbyBoundaries = allBoundaryFeatures.filter(function(f){var cd=String(f.properties && f.properties.boro_cd || ''); return cd!==cfg.boroCd && cd.charAt(0)===cfg.boroPrefix && validCommunityBoardCode(cd) && featureTouchesView(f,currentBounds);});
     var otherLayer = layerGroupFromFeatures(nearbyBoundaries,{style:{color:'#7a8493',weight:1.4,opacity:.78,fillColor:'#7a8493',fillOpacity:0.055},onEachFeature:function(f,l){var cd=f.properties&&f.properties.boro_cd; l.bindPopup('<strong>'+escapeHtml(boardLabel(cd))+'</strong><br>Nearby community district');}});
     addToggleLayer('nearby_cbs','CBs',otherLayer,'#64748b',false,'Toggle nearby community boards only');
     setNote('Boundary loaded with a semi-opaque district fill. Use the toggle row for profile map layers relevant to '+cfg.shortLabel+'.');
