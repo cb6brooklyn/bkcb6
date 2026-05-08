@@ -510,17 +510,68 @@ window.__cbmn2LandUseInit = (function(){
   function profileZoningPlainEnglish(zone) {
     var normalized = String(zone || '').trim().toUpperCase();
     if (!normalized) return 'Zoning controls use, building size, and bulk; check ZoLa for the exact district rules.';
+    if (normalized === 'PARK') return 'PARK indicates mapped parkland or open-space zoning. Large public open-space or stadium sites can have ownership, lease, parkland, and agency rules beyond ordinary zoning.';
     if (/^R(1|2)/.test(normalized)) return normalized + ' is very low-density residential zoning, generally detached one- and two-family homes with yards. Commercial uses are generally not allowed unless another rule or overlay applies.';
     if (/^R(3|4|5)/.test(normalized)) return normalized + ' is low-density residential zoning, generally one- and two-family homes and small multifamily buildings. Building size and height are limited, and ground-floor commercial usually requires a commercial overlay.';
     if (/^R6/.test(normalized)) return normalized + ' is medium-density residential zoning. It can allow apartment buildings; exact height and bulk depend on contextual or non-contextual rules, and ground-floor commercial generally requires a commercial overlay or special district permission.';
     if (/^R(7|8|9|10)/.test(normalized)) return normalized + ' is medium- to high-density residential zoning that can allow larger apartment buildings. Exact height and bulk vary by suffix and mapped rules, and local retail usually requires a commercial overlay, mixed-use district, or special district.';
-    if (/^C(1|2)/.test(normalized)) return normalized + ' supports local retail and service uses, often as neighborhood commercial overlays. Where paired with residential zoning, it can allow ground-floor shops or services below housing.';
+    if (/^C(1|2)-/.test(normalized)) return normalized + ' is a commercial overlay, often mapped along retail corridors. It can allow local shops and services, typically on the ground floor, within or alongside an underlying residential district.';
     if (/^C(3|4|5)/.test(normalized)) return normalized + ' is commercial zoning that can allow a broader range of retail, office, hotel, entertainment, and mixed-use buildings, subject to district-specific bulk rules.';
     if (/^C6/.test(normalized)) return normalized + ' is high-density central business district zoning. It can allow offices, hotels, retail, and residential or mixed-use buildings; tower form, height, and floor area depend on the exact district and special rules.';
     if (/^C(7|8)/.test(normalized)) return normalized + ' is commercial zoning for amusement, automotive, heavy commercial, or semi-industrial uses. Housing is generally limited or not allowed unless another rule permits it.';
     if (/^M1/.test(normalized)) return normalized + ' is light manufacturing zoning that can allow industrial, commercial, office, warehouse, and some community-facility uses. Housing generally requires a mixed-use district, special permit, or other mapped allowance.';
     if (/^M(2|3)/.test(normalized)) return normalized + ' is heavier manufacturing zoning for more intensive industrial uses, with housing generally not allowed unless another special rule applies.';
+    if (/^[A-Z]{1,4}$/.test(normalized)) return normalized + ' is a special district or mapped special rule area. It modifies or supplements the underlying zoning, so check ZoLa for the exact provisions.';
     return normalized + ' is the mapped zoning district. Check ZoLa for exact use, height, bulk, and special district rules.';
+  }
+  function profileNormalizeZoningItem(value) {
+    return String(value == null ? '' : value).trim().toUpperCase();
+  }
+  function profileAddZoningItem(items, seen, value) {
+    var normalized = profileNormalizeZoningItem(value);
+    if (!normalized || normalized === '0' || normalized === 'NA' || normalized === 'N/A') return;
+    if (seen[normalized]) return;
+    seen[normalized] = true;
+    items.push(normalized);
+  }
+  function profileCollectZoningItems(a, pluto) {
+    a = a || {}; pluto = pluto || {};
+    var items = [], seen = {};
+    ['zonedist1','zonedist2','zonedist3','zonedist4'].forEach(function(key){ profileAddZoningItem(items, seen, pluto[key]); });
+    ['zoningDistrict1','primaryZoningDistrict','zoningDistrict2'].forEach(function(key){ profileAddZoningItem(items, seen, a[key]); });
+    ['spdist1','spdist2','spdist3'].forEach(function(key){ profileAddZoningItem(items, seen, pluto[key]); });
+    ['overlay1','overlay2'].forEach(function(key){ profileAddZoningItem(items, seen, pluto[key]); });
+    ['overlayDistrict1','overlayDistrict2'].forEach(function(key){ profileAddZoningItem(items, seen, a[key]); });
+    return items;
+  }
+  function profileZoningDisplay(items) {
+    return (items || []).length ? items.join(' / ') : '';
+  }
+  function profileZoningSummaryHtml(items, h) {
+    items = items || [];
+    if (!items.length) return h('Zoning controls use, building size, and bulk; check ZoLa for the exact district rules.');
+    if (items.length === 1) return h(profileZoningPlainEnglish(items[0]));
+    var intro = 'Multiple zoning items are mapped to this BBL. Read this as a complex or split-zoned site; exact rules can depend on which part of the parcel is involved, special district boundaries, overlays, and the ZoLa zoning map.';
+    var rows = items.map(function(item){ return '<li><strong>' + h(item) + ':</strong> ' + h(profileZoningPlainEnglish(item)) + '</li>'; }).join('');
+    return h(intro) + '<ul style="margin:6px 0 0 1.1rem;padding:0">' + rows + '</ul>';
+  }
+  function profileMajorSiteNote(input, a, pluto, zoningItems) {
+    var rawBbl = (a && a.bbl) || (pluto && pluto.bbl) || '';
+    var bbl = String(rawBbl).replace(/\D/g, '').slice(0, 10);
+    var known = {
+      '3011180001': 'Barclays Center',
+      '2024930001': 'Yankee Stadium'
+    };
+    if (known[bbl]) {
+      return 'Major site: this BBL is ' + known[bbl] + '. Large arena or stadium sites can span multiple zoning districts or special mapped rules, so use the zoning list as a site-level summary and verify exact boundaries in ZoLa.';
+    }
+    var lotArea = parseFloat(pluto && pluto.lotarea) || 0;
+    var bldgArea = parseFloat(pluto && pluto.bldgarea) || 0;
+    var split = String(pluto && pluto.splitzone || '').toLowerCase() === 'true';
+    if ((zoningItems && zoningItems.length > 2) || split || lotArea >= 200000 || bldgArea >= 500000) {
+      return 'Major or complex site: this property is unusually large, split-zoned, or has several mapped zoning items. Confirm the exact applicable rules and boundaries in ZoLa before treating it like an ordinary single-district lot.';
+    }
+    return '';
   }
   function profileParseAddressInput(input) {
     var cleaned = String(input || '').trim();
@@ -569,7 +620,7 @@ window.__cbmn2LandUseInit = (function(){
   async function profileFetchPlutoLot(bbl) {
     if (!bbl) return {};
     try {
-      var endpoint = 'https://data.cityofnewyork.us/resource/64uk-42ks.json?bbl=' + encodeURIComponent(bbl) + '&$select=bbl,zonedist1,zonedist2,landuse,bldgclass&$limit=1';
+      var endpoint = 'https://data.cityofnewyork.us/resource/64uk-42ks.json?bbl=' + encodeURIComponent(bbl) + '&$select=bbl,address,zonedist1,zonedist2,zonedist3,zonedist4,overlay1,overlay2,spdist1,spdist2,spdist3,splitzone,landuse,bldgclass,lotarea,bldgarea&$limit=1';
       var resp = await fetch(endpoint);
       if (!resp.ok) return {};
       var rows = await resp.json();
@@ -613,18 +664,16 @@ window.__cbmn2LandUseInit = (function(){
       communityBoard.localProfileUrl = slug || communityBoard.localProfileUrl;
     }
     var inDistrict = String(foundCd || communityBoard.boroCd || '') === String(cfg.boroCd);
-    var zone = a.zoningDistrict1 || a.primaryZoningDistrict || '';
-    var zone2 = a.zoningDistrict2 || a.overlayDistrict1 || '';
     var enc = encodeURIComponent(input);
-    var zoningPrimary = pluto.zonedist1 || zone;
-    var zoningSecondary = pluto.zonedist2 || zone2;
-    var zoningDisplay = zoningPrimary ? zoningPrimary + (zoningSecondary && zoningSecondary !== zoningPrimary ? ' / ' + zoningSecondary : '') : '';
+    var zoningItems = profileCollectZoningItems(a, pluto);
+    var zoningDisplay = profileZoningDisplay(zoningItems);
+    var zoningLabel = zoningItems.length > 1 ? 'Zoning Districts' : 'Zoning District';
+    var majorSiteNote = profileMajorSiteNote(input, a, pluto, zoningItems);
     var landUseLabel = profileLandUseLabel(pluto.landuse);
     var landUseDisplay = landUseLabel || (pluto.landuse ? 'Code ' + pluto.landuse : 'Not available from PLUTO');
     var landmarkDistricts = (landmarkStatus && landmarkStatus.historicDistricts) || [];
     var trueHistoricDistricts = landmarkDistricts.filter(function(name){ return !/^individual landmark$/i.test(String(name || '').trim()); });
     var landmarkDisplay = landmarkDistricts.length ? landmarkDistricts.join(' / ') : 'Not in an LPC historic district';
-    var zoningNote = profileZoningPlainEnglish(zoningPrimary || zone);
     var landmarkNote = trueHistoricDistricts.length ? 'This is in a historic district, so exterior changes usually need LPC review.' : 'No LPC historic district was found for this BBL.';
     var dobUrl = boroughCode && block && lot ? 'https://a810-bisweb.nyc.gov/bisweb/PropertyBrowseByBBLServlet?allborough=' + encodeURIComponent(boroughCode) + '&allblock=' + parseInt(block) + '&alllot=' + parseInt(lot) + '&filetype=html&requestid=0' : '#';
     var zapUrl = block && lot ? 'https://zap.planning.nyc.gov/projects?block=' + parseInt(block) + '&lot=' + parseInt(lot) : '#';
@@ -646,12 +695,13 @@ window.__cbmn2LandUseInit = (function(){
       + '</div>'
       + outsideNotice
       + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:10px">'
-        + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">Zoning District</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + escapeHtml(zoningDisplay || 'Not available') + '</div></div>'
+        + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">' + escapeHtml(zoningLabel) + '</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + escapeHtml(zoningDisplay || 'Not available') + '</div></div>'
         + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">Land Use</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + escapeHtml(landUseDisplay) + '</div></div>'
         + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">Landmark District</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + escapeHtml(landmarkDisplay) + '</div></div>'
       + '</div>'
       + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px;font-size:.73rem;line-height:1.45;color:var(--navy)">'
-        + '<div><strong>Zoning:</strong> ' + escapeHtml(zoningNote) + '</div>'
+        + '<div><strong>Zoning:</strong> ' + profileZoningSummaryHtml(zoningItems, escapeHtml) + '</div>'
+        + (majorSiteNote ? '<div style="margin-top:5px"><strong>Major site:</strong> ' + escapeHtml(majorSiteNote.replace(/^Major site:\s*/i, '')) + '</div>' : '')
         + '<div style="margin-top:5px"><strong>Land use:</strong> ' + escapeHtml(profileLandUsePlainEnglish(pluto.landuse, landUseDisplay)) + '</div>'
         + (trueHistoricDistricts.length ? '<div style="margin-top:5px"><strong>Historic district:</strong> ' + escapeHtml(landmarkNote) + ' <a href="landmarks.html#lm-intro" style="color:var(--orange);font-weight:800">Landmarks explanation</a>.</div>' : '')
       + '</div>'
