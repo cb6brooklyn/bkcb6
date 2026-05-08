@@ -321,6 +321,185 @@ svg,canvas,img{max-width:100%;height:auto}
     if(validCommunityBoardCode(s)) return borough + ' Community Board ' + n;
     return borough + ' non-community-board area';
   }
+
+  function profileDistrictNumber(value) {
+    var normalized = String(value == null ? '' : value).trim();
+    if (!normalized) return '';
+    var parsed = parseInt(normalized, 10);
+    return Number.isFinite(parsed) ? String(parsed) : normalized;
+  }
+  function profileLandUseLabel(code) {
+    var normalized = String(code || '').trim().padStart(2, '0');
+    var labels = {
+      '01': 'One & Two Family Buildings',
+      '02': 'Multi-Family Walk-Up Buildings',
+      '03': 'Multi-Family Elevator Buildings',
+      '04': 'Mixed Residential & Commercial Buildings',
+      '05': 'Commercial & Office Buildings',
+      '06': 'Industrial & Manufacturing',
+      '07': 'Transportation & Utility',
+      '08': 'Public Facilities & Institutions',
+      '09': 'Open Space & Outdoor Recreation',
+      '10': 'Parking Facilities',
+      '11': 'Vacant Land'
+    };
+    return labels[normalized] || '';
+  }
+  function profileZoningPlainEnglish(zone) {
+    var normalized = String(zone || '').trim().toUpperCase();
+    if (!normalized) return 'Zoning controls what can be built here.';
+    if (normalized.charAt(0) === 'R') return normalized + ' is a residential zoning district.';
+    if (normalized.charAt(0) === 'C') return normalized + ' is a commercial zoning district.';
+    if (normalized.charAt(0) === 'M') return normalized + ' is a manufacturing zoning district.';
+    return normalized + ' is the mapped zoning district.';
+  }
+  function profileParseAddressInput(input) {
+    var cleaned = String(input || '').trim();
+    var boroughAliases = {
+      'manhattan': 'Manhattan', 'new york': 'Manhattan', 'ny': 'Manhattan',
+      'bronx': 'Bronx', 'the bronx': 'Bronx',
+      'brooklyn': 'Brooklyn', 'bk': 'Brooklyn',
+      'queens': 'Queens',
+      'staten island': 'Staten Island', 'staten': 'Staten Island'
+    };
+    var borough = cfg.boroughName || 'Brooklyn';
+    var streetPart = cleaned;
+    var parts = cleaned.split(',').map(function(part){ return part.trim(); }).filter(Boolean);
+    if (parts.length > 1) {
+      var possibleBorough = parts[parts.length - 1].toLowerCase();
+      if (boroughAliases[possibleBorough]) {
+        borough = boroughAliases[possibleBorough];
+        streetPart = parts.slice(0, -1).join(', ');
+      } else {
+        streetPart = parts[0];
+      }
+    }
+    var match = streetPart.match(/^(\d+[A-Za-z]?)\s+(.+)/);
+    if (!match) throw new Error('Try: 123 Smith Street');
+    return { houseNumber: match[1], street: match[2].trim(), borough: borough };
+  }
+  function profileBoroughSlug(value) {
+    var code = String(value || '').trim();
+    var slugs = { '1': 'manhattan', '2': 'bronx', '3': 'brooklyn', '4': 'queens', '5': 'staten-island' };
+    if (slugs[code]) return slugs[code];
+    var name = code.toLowerCase().replace(/\s+/g, '-');
+    if (name === 'the-bronx') return 'bronx';
+    return name || 'brooklyn';
+  }
+  function profileCommunityBoardInfo(a) {
+    var boroughCode = a.communityDistrictBoroughCode || a.bblBoroughCode || a.boroughCode1In || a.firstBoroughName || String(a.communityDistrict || cfg.boroCd || '').charAt(0) || cfg.boroPrefix || '3';
+    var cdNumber = profileDistrictNumber(a.communityDistrictNumber || String(a.communityDistrict || '').slice(-2));
+    var borough = boardLabel(String(boroughCode) + String(cdNumber || '').padStart(2, '0')).replace(/ Community Board .*/, '');
+    var boroughSlug = profileBoroughSlug(boroughCode);
+    var boroughShort = ({ '1': 'mn', '2': 'bx', '3': 'bk', '4': 'qn', '5': 'si' })[String(boroughCode).charAt(0)] || '';
+    var label = cdNumber ? borough + ' Community Board ' + cdNumber : borough + ' Community Board';
+    var profileUrl = cdNumber ? 'https://communityprofiles.planning.nyc.gov/' + boroughSlug + '/' + encodeURIComponent(cdNumber) : 'https://www.nyc.gov/site/cau/community-boards/community-boards.page';
+    var localProfileUrl = (cdNumber && boroughShort) ? 'cb-' + boroughShort + '-' + encodeURIComponent(cdNumber) + '.html' : '';
+    return { borough: borough, number: cdNumber, label: label, profileUrl: profileUrl, localProfileUrl: localProfileUrl, boroCd: String(boroughCode) + String(cdNumber || '').padStart(2, '0') };
+  }
+  async function profileFetchPlutoLot(bbl) {
+    if (!bbl) return {};
+    try {
+      var endpoint = 'https://data.cityofnewyork.us/resource/64uk-42ks.json?bbl=' + encodeURIComponent(bbl) + '&$select=bbl,zonedist1,zonedist2,landuse,bldgclass&$limit=1';
+      var resp = await fetch(endpoint);
+      if (!resp.ok) return {};
+      var rows = await resp.json();
+      return Array.isArray(rows) && rows.length ? rows[0] : {};
+    } catch (err) { console.warn('PLUTO lookup failed:', err); return {}; }
+  }
+  async function profileFetchLandmarkStatus(bbl) {
+    if (!bbl) return { historicDistricts: [] };
+    try {
+      var params = new URLSearchParams({ bbl: bbl, '$select': 'hist_dist,lm_orig,lm_new,des_addres', '$limit': '50' });
+      var endpoint = 'https://data.cityofnewyork.us/resource/gpmc-yuvp.json?' + params.toString();
+      var resp = await fetch(endpoint);
+      if (!resp.ok) return { historicDistricts: [] };
+      var rows = await resp.json();
+      var historicDistricts = Array.from(new Set((Array.isArray(rows) ? rows : []).map(function(row){ return String(row.hist_dist || '').trim(); }).filter(function(name){ return name && name !== '0'; })));
+      return { historicDistricts: historicDistricts };
+    } catch (err) { console.warn('LPC landmark lookup failed:', err); return { historicDistricts: [] }; }
+  }
+  async function profileFetchGeoclientAddress(query) {
+    var parsed = profileParseAddressInput(query);
+    var url = 'https://api.nyc.gov/geoclient/v2/address.json?houseNumber=' + encodeURIComponent(parsed.houseNumber) + '&street=' + encodeURIComponent(parsed.street) + '&borough=' + encodeURIComponent(parsed.borough);
+    var resp = await fetch(url, { headers: { 'Ocp-Apim-Subscription-Key': 'b913bdfb9c47466589d0f08c99c75b21' } });
+    if (!resp.ok) throw new Error('API error ' + resp.status);
+    var data = await resp.json();
+    if (!data.address) throw new Error('Address not found');
+    return data.address;
+  }
+  function profileRenderLookupCard(input, a, foundCd, lat, lng, pluto, landmarkStatus) {
+    var ed = parseInt(a.electionDistrict), ad = parseInt(a.assemblyDistrict);
+    var councilDistrict = profileDistrictNumber(a.cityCouncilDistrict);
+    var stateSenateDistrict = profileDistrictNumber(a.stateSenatorialDistrict);
+    var congressionalDistrict = profileDistrictNumber(a.congressionalDistrict);
+    var bbl = (a.bbl || '').replace(/\D/g, '');
+    var boroughCode = bbl.slice(0,1) || String(foundCd || cfg.boroCd || '').charAt(0);
+    var block = bbl.slice(1,6), lot = bbl.slice(6,10);
+    var communityBoard = profileCommunityBoardInfo(a);
+    if (foundCd && validCommunityBoardCode(foundCd)) {
+      communityBoard.boroCd = String(foundCd);
+      communityBoard.label = boardLabel(foundCd);
+      var slug = boardSlug(foundCd);
+      communityBoard.localProfileUrl = slug || communityBoard.localProfileUrl;
+    }
+    var inDistrict = String(foundCd || communityBoard.boroCd || '') === String(cfg.boroCd);
+    var zone = a.zoningDistrict1 || a.primaryZoningDistrict || '';
+    var zone2 = a.zoningDistrict2 || a.overlayDistrict1 || '';
+    var enc = encodeURIComponent(input);
+    var zoningPrimary = pluto.zonedist1 || zone;
+    var zoningSecondary = pluto.zonedist2 || zone2;
+    var zoningDisplay = zoningPrimary ? zoningPrimary + (zoningSecondary && zoningSecondary !== zoningPrimary ? ' / ' + zoningSecondary : '') : '';
+    var landUseLabel = profileLandUseLabel(pluto.landuse);
+    var landUseDisplay = landUseLabel || (pluto.landuse ? 'Code ' + pluto.landuse : 'Not available from PLUTO');
+    var landmarkDistricts = (landmarkStatus && landmarkStatus.historicDistricts) || [];
+    var trueHistoricDistricts = landmarkDistricts.filter(function(name){ return !/^individual landmark$/i.test(String(name || '').trim()); });
+    var landmarkDisplay = landmarkDistricts.length ? landmarkDistricts.join(' / ') : 'Not in an LPC historic district';
+    var zoningNote = profileZoningPlainEnglish(zoningPrimary || zone);
+    var landmarkNote = trueHistoricDistricts.length ? 'This is in a historic district, so exterior changes usually need LPC review.' : 'No LPC historic district was found for this BBL.';
+    var dobUrl = boroughCode && block && lot ? 'https://a810-bisweb.nyc.gov/bisweb/PropertyBrowseByBBLServlet?allborough=' + encodeURIComponent(boroughCode) + '&allblock=' + parseInt(block) + '&alllot=' + parseInt(lot) + '&filetype=html&requestid=0' : '#';
+    var zapUrl = block && lot ? 'https://zap.planning.nyc.gov/projects?block=' + parseInt(block) + '&lot=' + parseInt(lot) : '#';
+    var acrisUrl = boroughCode && block && lot ? 'https://a836-acris.nyc.gov/DS/DocumentSearch/BBL?REQUEST_BBL=' + encodeURIComponent(boroughCode) + block + lot : '#';
+    var zolaUrl = boroughCode && block && lot ? 'https://zola.planning.nyc.gov/l/lot/' + encodeURIComponent(boroughCode) + '/' + parseInt(block) + '/' + parseInt(lot) : '#';
+    var mapUrl = (lat && lng) ? 'https://maps.google.com/?q=' + lat + ',' + lng : '#';
+    var repUrl = 'mydistricts.html?address=' + enc;
+    var districtSearchUrl = communityBoard.localProfileUrl ? communityBoard.localProfileUrl + '?addr=' + enc + '#sec-map' : communityBoard.profileUrl;
+    var electionUrl = inDistrict ? 'elections.html?addr=' + enc : districtSearchUrl;
+    var outsideNotice = !inDistrict ? '<div style="background:#fff7ed;border:1px solid #fdba74;border-radius:6px;padding:8px 10px;margin:8px 0 10px;font-size:.74rem;line-height:1.45;color:#7c2d12"><strong>Outside ' + escapeHtml(cfg.shortLabel) + ':</strong> This address is in <strong>' + escapeHtml(communityBoard.label) + '</strong>. Open that district profile to run the same address search in the correct community-board context; the property links below still work citywide. <a href="' + districtSearchUrl + '" style="color:var(--orange);font-weight:800">Open district address search</a>.</div>' : '';
+    return '<div style="background:#f0f8f4;border:1.5px solid #a7f3d0;border-radius:8px;padding:12px 14px;margin-top:4px">'
+      + '<div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:2px">&#10003; ' + escapeHtml(input) + '</div>'
+      + '<div style="font-size:.75rem;color:var(--muted);margin-bottom:8px">'
+        + (inDistrict ? '&#10003; In ' + escapeHtml(cfg.shortLabel) + ' &middot; ' : '&#9888; Outside ' + escapeHtml(cfg.shortLabel) + ' &middot; ' + escapeHtml(communityBoard.label) + ' &middot; ')
+        + 'ED ' + (Number.isFinite(ed) ? ed : '—') + ' &middot; AD ' + (Number.isFinite(ad) ? ad : '—')
+        + (councilDistrict ? ' &middot; Council District ' + escapeHtml(councilDistrict) : '')
+        + (stateSenateDistrict ? ' &middot; State Senate District ' + escapeHtml(stateSenateDistrict) : '')
+        + (congressionalDistrict ? ' &middot; Congressional District ' + escapeHtml(congressionalDistrict) : '')
+      + '</div>'
+      + outsideNotice
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:10px">'
+        + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">Zoning District</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + escapeHtml(zoningDisplay || 'Not available') + '</div></div>'
+        + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">Land Use</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + escapeHtml(landUseDisplay) + '</div></div>'
+        + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">Landmark District</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + escapeHtml(landmarkDisplay) + '</div></div>'
+      + '</div>'
+      + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px;font-size:.73rem;line-height:1.45;color:var(--navy)">'
+        + '<div><strong>Zoning:</strong> ' + escapeHtml(zoningNote) + ' Zoning controls what can be built here and usually changes through ULURP.</div>'
+        + '<div style="margin-top:5px"><strong>Use group:</strong> This describes how the parcel is used; zoning use groups describe what uses are allowed.</div>'
+        + (trueHistoricDistricts.length ? '<div style="margin-top:5px"><strong>Historic district:</strong> ' + escapeHtml(landmarkNote) + ' <a href="landmarks.html#lm-intro" style="color:var(--orange);font-weight:800">Landmarks explanation</a>.</div>' : '')
+      + '</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">'
+        + '<a href="' + dobUrl + '" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:#fff">&#127962; DOB Permits</a>'
+        + '<a href="' + zapUrl + '" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:#fff">&#128204; ZAP Applications</a>'
+        + '<a href="' + acrisUrl + '" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:#fff">&#128196; ACRIS Deeds</a>'
+        + '<a href="' + zolaUrl + '" target="_blank" style="font-size:.73rem;font-weight:600;color:#2e7d32;text-decoration:none;padding:5px 10px;border:1px solid #a5d6a7;border-radius:5px;background:#f1f8f1">&#127959; ZoLa Zoning</a>'
+        + (lat && lng ? '<a href="' + mapUrl + '" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:#fff">&#128205; Map</a>' : '')
+      + '</div>'
+      + '<div style="border-top:1px solid #d1fae5;padding-top:8px;display:flex;flex-wrap:wrap;gap:12px">'
+        + (inDistrict ? '<a href="' + electionUrl + '" style="font-size:.75rem;color:var(--navy);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy)">&#128499; Election results for this address &rarr;</a>' : '<a href="' + districtSearchUrl + '" style="font-size:.75rem;color:var(--navy);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy)">Open ' + escapeHtml(communityBoard.label) + ' address search &rarr;</a>')
+        + '<a href="' + repUrl + '" style="font-size:.75rem;color:var(--orange);font-weight:700;text-decoration:none;border-bottom:1px solid var(--orange)">Who represents me? &rarr;</a>'
+      + '</div>'
+      + '</div>';
+  }
+
   function layerTypeLabel(t){return {city_council:'Council',state_assembly:'Assembly',state_senate:'Senate',congress:'Congress'}[t] || t || 'District';}
   function layerLongLabel(t){return {city_council:'City Council',state_assembly:'State Assembly',state_senate:'State Senate',congress:'Congress'}[t] || t || 'District';}
   function layerId(props){props=props||{}; return props.id || props.coundist || props.assem_dist || props.stsendist || props.congdist || props.distnum || '';}
@@ -543,22 +722,27 @@ svg,canvas,img{max-width:100%;height:auto}
   async function runSearch(){
     var q=(input && input.value || '').trim();
     if(!q){setStatus('Enter an address to search.'); renderResult(''); return;}
-    setStatus('Searching NYC addresses…'); renderResult('');
+    setStatus('Searching NYC addresses and property data…'); renderResult('');
     try{
-      var geo=await fetchJson('https://geosearch.planninglabs.nyc/v2/search?size=1&text='+encodeURIComponent(q));
-      var f=(geo.features||[])[0];
-      if(!f || !f.geometry || !f.geometry.coordinates) throw new Error('No matching address found');
-      var lng=f.geometry.coordinates[0], lat=f.geometry.coordinates[1];
-      var label=(f.properties && (f.properties.label || f.properties.name)) || q;
+      var a=await profileFetchGeoclientAddress(q);
+      var lat=parseFloat(a.latitude), lng=parseFloat(a.longitude);
+      if(!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error('Address coordinates not found');
+      var label=(a.houseNumber && a.firstStreetNameNormalized) ? (a.houseNumber + ' ' + a.firstStreetNameNormalized + ', ' + (a.firstBoroughName || cfg.boroughName || 'NYC') + ', NY, USA') : q;
       var found=(allBoundaryFeatures||[]).find(function(feature){return pointInFeature(feature,lng,lat);});
       var foundCd=found && found.properties && found.properties.boro_cd;
+      if(!foundCd && validCommunityBoardCode(a.communityDistrict)) foundCd = String(a.communityDistrict);
+      var bbl=(a.bbl||'').replace(/\D/g,'');
+      var extra=await Promise.all([profileFetchPlutoLot(bbl), profileFetchLandmarkStatus(bbl)]);
       clearMarker();
-      searchMarker=L.marker([lat,lng]).addTo(map).bindPopup('<strong>'+escapeHtml(label)+'</strong><br>'+escapeHtml(foundCd ? boardLabel(foundCd) : 'Community board not identified')).openPopup();
-      map.setView([lat,lng],16);
-      if(String(foundCd)===cfg.boroCd){renderResult('<strong>'+escapeHtml(label)+'</strong> is inside <strong>'+escapeHtml(cfg.label)+'</strong>.'); setStatus('Search complete: address is inside this community district.');}
-      else if(foundCd){var slug=boardSlug(foundCd); renderResult('<strong>'+escapeHtml(label)+'</strong> is in <strong>'+escapeHtml(boardLabel(foundCd))+'</strong>, not '+escapeHtml(cfg.shortLabel)+'. '+(slug ? '<a href="'+slug+'">Open that district profile</a>.' : '')); setStatus('Search complete: address is outside this community district.');}
-      else {renderResult('<strong>'+escapeHtml(label)+'</strong> was found, but its community district could not be identified from the boundary file.'); setStatus('Search complete.');}
-    } catch(err){console.error(err); setStatus('No matching NYC address was found. Try a street address with borough or ZIP.'); renderResult('');}
+      try{
+        searchMarker=L.marker([lat,lng]).addTo(map).bindPopup('<strong>'+escapeHtml(label)+'</strong><br>'+escapeHtml(foundCd ? boardLabel(foundCd) : 'Community board not identified')).openPopup();
+        map.setView([lat,lng],16);
+      } catch(mapErr){console.warn('Map marker update failed:', mapErr);}
+      renderResult(profileRenderLookupCard(q, a, foundCd, lat, lng, extra[0] || {}, extra[1] || {historicDistricts:[]}));
+      if(String(foundCd)===cfg.boroCd){setStatus('Search complete: address is inside this community district.');}
+      else if(foundCd){setStatus('Search complete: address is in '+boardLabel(foundCd)+'.');}
+      else {setStatus('Search complete: address found, but its community district could not be identified from boundary data.');}
+    } catch(err){console.error(err); setStatus(err && err.message ? err.message : 'No matching NYC address was found. Try a street address with borough or ZIP.'); renderResult('');}
   }
   if(button && input && button.dataset.bound !== 'true'){button.dataset.bound='true'; button.addEventListener('click', runSearch); input.addEventListener('keydown', function(e){if(e.key==='Enter') runSearch();});}
   var params = new URLSearchParams(window.location.search);
