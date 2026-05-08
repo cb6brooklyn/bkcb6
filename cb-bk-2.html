@@ -648,11 +648,117 @@ window.__cbbk2LandUseInit = (function(){
     if (!data.address) throw new Error('Address not found');
     return data.address;
   }
-  function profileRenderLookupCard(input, a, foundCd, lat, lng, pluto, landmarkStatus) {
+  
+  function profileCardEscape(value) {
+    if (typeof escapeHtml === 'function') return escapeHtml(value);
+    if (typeof escH === 'function') return escH(value);
+    return String(value == null ? '' : value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function profileAddressValue(obj, names) {
+    obj = obj || {};
+    for (var i = 0; i < names.length; i++) {
+      var value = obj[names[i]];
+      if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+    }
+    return '';
+  }
+  function profileMiniCardHtml(label, value) {
+    return '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">' + profileCardEscape(label) + '</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + profileCardEscape(value || '—') + '</div></div>';
+  }
+  function profileDistanceFeet(lat1, lng1, lat2, lng2) {
+    var R = 3959 * 5280;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLng = (lng2 - lng1) * Math.PI / 180;
+    var a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2) * Math.sin(dLng/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+  function profileMilesLabel(feet) {
+    if (!Number.isFinite(feet)) return '';
+    if (feet < 700) return Math.round(feet / 25) * 25 + ' ft';
+    return (feet / 5280).toFixed(1) + ' mi';
+  }
+  function profileFeaturePoint(feature) {
+    if (!feature) return null;
+    if (feature.geometry && feature.geometry.type === 'Point' && feature.geometry.coordinates) {
+      return { lng: parseFloat(feature.geometry.coordinates[0]), lat: parseFloat(feature.geometry.coordinates[1]), properties: feature.properties || {} };
+    }
+    var p = feature.properties || feature;
+    var lat = parseFloat(p.lat || p.latitude || p.entrance_latitude || p.Latitude || p.LATITUDE);
+    var lng = parseFloat(p.lon || p.lng || p.longitude || p.entrance_longitude || p.Longitude || p.LONGITUDE);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat: lat, lng: lng, properties: p };
+    return null;
+  }
+  function profileNearestFromItems(items, lat, lng, count, filterFn) {
+    return (items || []).map(function(item) {
+      var pt = profileFeaturePoint(item);
+      if (!pt || !Number.isFinite(pt.lat) || !Number.isFinite(pt.lng)) return null;
+      var props = pt.properties || item.properties || item;
+      if (filterFn && !filterFn(props)) return null;
+      return { properties: props, lat: pt.lat, lng: pt.lng, distanceFeet: profileDistanceFeet(lat, lng, pt.lat, pt.lng) };
+    }).filter(Boolean).sort(function(a,b){ return a.distanceFeet - b.distanceFeet; }).slice(0, count || 1);
+  }
+  function profileTransportDatasetForCd(foundCd) {
+    var cd = String(foundCd || (typeof cfg !== 'undefined' && cfg.boroCd) || '').trim();
+    if (/^3\d{2}$/.test(cd)) return 'transport-data/cb-bk-' + parseInt(cd.slice(1), 10) + '.json';
+    if (typeof PROFILE_LOOKUP_CFG !== 'undefined' && /^3\d{2}$/.test(String(PROFILE_LOOKUP_CFG.boroCd || ''))) return 'transport-data/cb-bk-' + parseInt(String(PROFILE_LOOKUP_CFG.boroCd).slice(1), 10) + '.json';
+    return '';
+  }
+  async function profileFetchJsonIfAvailable(url) {
+    if (!url) return null;
+    try {
+      var resp = await fetch(url);
+      if (!resp.ok) return null;
+      return await resp.json();
+    } catch (err) { return null; }
+  }
+  async function profileFetchNearbyServices(lat, lng, foundCd) {
+    var out = { subway: null, bus: null, library: null, school: null };
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return out;
+    try {
+      var transport = await profileFetchJsonIfAvailable(profileTransportDatasetForCd(foundCd));
+      var subwayFeatures = transport && transport.subway && transport.subway.features ? transport.subway.features : [];
+      var busFeatures = transport && transport.busstops && transport.busstops.features ? transport.busstops.features : [];
+      out.subway = profileNearestFromItems(subwayFeatures, lat, lng, 1)[0] || null;
+      out.bus = profileNearestFromItems(busFeatures, lat, lng, 1)[0] || null;
+    } catch (err1) { console.warn('Nearby transit lookup failed:', err1); }
+    try {
+      var libraryItems = (typeof LIBRARIES !== 'undefined' && Array.isArray(LIBRARIES)) ? LIBRARIES : [];
+      out.library = profileNearestFromItems(libraryItems, lat, lng, 1)[0] || null;
+    } catch (err2) { console.warn('Nearby library lookup failed:', err2); }
+    try {
+      var schoolItems = (typeof window !== 'undefined' && Array.isArray(window._overlayData_schools)) ? window._overlayData_schools : await profileFetchJsonIfAvailable('schools_childcare_cb6.json');
+      out.school = profileNearestFromItems(Array.isArray(schoolItems) ? schoolItems : [], lat, lng, 1, function(p){ return String(p.category || '').toLowerCase() !== 'childcare'; })[0] || null;
+    } catch (err3) { console.warn('Nearby school lookup failed:', err3); }
+    return out;
+  }
+  function profileNearbyItemHtml(label, item, nameFn, detailFn) {
+    if (!item) return profileMiniCardHtml(label, 'Not available');
+    var p = item.properties || {};
+    var name = nameFn ? nameFn(p) : (p.name || p.stop_name || label);
+    var detail = detailFn ? detailFn(p) : '';
+    var value = name + (detail ? ' · ' + detail : '') + (Number.isFinite(item.distanceFeet) ? ' · ' + profileMilesLabel(item.distanceFeet) : '');
+    return profileMiniCardHtml(label, value);
+  }
+  function profileNearbyServicesHtml(nearby) {
+    nearby = nearby || {};
+    function subwayDetail(p){ return p.daytime_routes || p.routes || ''; }
+    function busName(p){ var routes = Array.isArray(p.routes) ? p.routes.join(', ') : (p.routes || p.route_short_name || 'Bus'); return routes + ' · ' + (p.stop_name || 'Bus stop'); }
+    function schoolDetail(p){ return p.program_type || p.typecategory || p.address || ''; }
+    return '<div style="margin-bottom:10px"><div style="font-size:.66rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 5px">Nearby civic services</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px">'
+      + profileNearbyItemHtml('Closest Subway', nearby.subway, function(p){ return p.display_name || p.stop_name || 'Subway station'; }, subwayDetail)
+      + profileNearbyItemHtml('Closest Bus Stop', nearby.bus, busName, function(){ return ''; })
+      + profileNearbyItemHtml('Closest Library', nearby.library, function(p){ return p.name || 'Library'; }, function(p){ return p.address || ''; })
+      + profileNearbyItemHtml('Closest School', nearby.school, function(p){ return p.name || 'School'; }, schoolDetail)
+      + '</div></div>';
+  }
+
+function profileRenderLookupCard(input, a, foundCd, lat, lng, pluto, landmarkStatus, nearby) {
     var ed = parseInt(a.electionDistrict), ad = parseInt(a.assemblyDistrict);
     var councilDistrict = profileDistrictNumber(a.cityCouncilDistrict);
     var stateSenateDistrict = profileDistrictNumber(a.stateSenatorialDistrict);
     var congressionalDistrict = profileDistrictNumber(a.congressionalDistrict);
+    var schoolDistrict = profileDistrictNumber(profileAddressValue(a, ['communitySchoolDistrict','schoolDistrict','schoolDistrictNumber']));
+    var policePrecinct = profileDistrictNumber(profileAddressValue(a, ['policePrecinct','policePrecinctCode','nycPolicePrecinct']));
     var bbl = (a.bbl || '').replace(/\D/g, '');
     var boroughCode = bbl.slice(0,1) || String(foundCd || cfg.boroCd || '').charAt(0);
     var block = bbl.slice(1,6), lot = bbl.slice(6,10);
@@ -692,12 +798,21 @@ window.__cbbk2LandUseInit = (function(){
         + (councilDistrict ? ' &middot; Council District ' + escapeHtml(councilDistrict) : '')
         + (stateSenateDistrict ? ' &middot; State Senate District ' + escapeHtml(stateSenateDistrict) : '')
         + (congressionalDistrict ? ' &middot; Congressional District ' + escapeHtml(congressionalDistrict) : '')
+        + (schoolDistrict ? ' &middot; School District ' + escapeHtml(schoolDistrict) : '')
+        + (policePrecinct ? ' &middot; Police Precinct ' + escapeHtml(policePrecinct) : '')
       + '</div>'
       + outsideNotice
       + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:10px">'
         + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">' + escapeHtml(zoningLabel) + '</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + escapeHtml(zoningDisplay || 'Not available') + '</div></div>'
         + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">Land Use</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + escapeHtml(landUseDisplay) + '</div></div>'
         + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">Landmark District</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + escapeHtml(landmarkDisplay) + '</div></div>'
+        + profileMiniCardHtml('Election District', Number.isFinite(ed) ? ed : '—')
+        + profileMiniCardHtml('Assembly District', Number.isFinite(ad) ? ad : '—')
+        + profileMiniCardHtml('City Council District', councilDistrict || '—')
+        + profileMiniCardHtml('State Senate District', stateSenateDistrict || '—')
+        + profileMiniCardHtml('Congressional District', congressionalDistrict || '—')
+        + profileMiniCardHtml('School District', schoolDistrict ? 'CSD ' + schoolDistrict : '—')
+        + profileMiniCardHtml('Police Precinct', policePrecinct ? policePrecinct + ' Precinct' : '—')
       + '</div>'
       + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px;font-size:.73rem;line-height:1.45;color:var(--navy)">'
         + '<div><strong>Zoning:</strong> ' + profileZoningSummaryHtml(zoningItems, escapeHtml) + '</div>'
@@ -705,6 +820,7 @@ window.__cbbk2LandUseInit = (function(){
         + '<div style="margin-top:5px"><strong>Land use:</strong> ' + escapeHtml(profileLandUsePlainEnglish(pluto.landuse, landUseDisplay)) + '</div>'
         + (trueHistoricDistricts.length ? '<div style="margin-top:5px"><strong>Historic district:</strong> ' + escapeHtml(landmarkNote) + ' <a href="landmarks.html#lm-intro" style="color:var(--orange);font-weight:800">Landmarks explanation</a>.</div>' : '')
       + '</div>'
+      + profileNearbyServicesHtml(nearby)
       + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">'
         + '<a href="' + dobUrl + '" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:#fff">&#127962; DOB Permits</a>'
         + '<a href="' + zapUrl + '" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:#fff">&#128204; ZAP Applications</a>'
@@ -951,13 +1067,13 @@ window.__cbbk2LandUseInit = (function(){
       var foundCd=found && found.properties && found.properties.boro_cd;
       if(!foundCd && validCommunityBoardCode(a.communityDistrict)) foundCd = String(a.communityDistrict);
       var bbl=(a.bbl||'').replace(/\D/g,'');
-      var extra=await Promise.all([profileFetchPlutoLot(bbl), profileFetchLandmarkStatus(bbl)]);
+      var extra=await Promise.all([profileFetchPlutoLot(bbl), profileFetchLandmarkStatus(bbl), profileFetchNearbyServices(lat, lng, foundCd)]);
       clearMarker();
       try{
         searchMarker=L.marker([lat,lng]).addTo(map).bindPopup('<strong>'+escapeHtml(label)+'</strong><br>'+escapeHtml(foundCd ? boardLabel(foundCd) : 'Community board not identified')).openPopup();
         map.setView([lat,lng],16);
       } catch(mapErr){console.warn('Map marker update failed:', mapErr);}
-      renderResult(profileRenderLookupCard(q, a, foundCd, lat, lng, extra[0] || {}, extra[1] || {historicDistricts:[]}));
+      renderResult(profileRenderLookupCard(q, a, foundCd, lat, lng, extra[0] || {}, extra[1] || {historicDistricts:[]}, extra[2] || {}));
       if(String(foundCd)===cfg.boroCd){setStatus('Search complete: address is inside this community district.');}
       else if(foundCd){setStatus('Search complete: address is in '+boardLabel(foundCd)+'.');}
       else {setStatus('Search complete: address found, but its community district could not be identified from boundary data.');}
