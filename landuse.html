@@ -263,7 +263,7 @@ footer a{color:var(--orange);text-decoration:none}
         🔍 Look Up an Address<span style="font-size:.75rem;color:var(--muted)">▼</span>
       </button>
       <div style="display:none;padding:16px 20px 20px">
-        <div style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px">Zoning, permits, ownership, and election results for any CB6 address</div>
+        <div style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px">Zoning, permits, ownership, and election results for any NYC address</div>
         <div style="display:flex;gap:8px;margin-bottom:10px">
           <input type="text" id="luAddrInput" placeholder="e.g. 250 Baltic Street"
                  style="flex:1;padding:9px 12px;font-size:.85rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif"
@@ -4102,6 +4102,57 @@ function luZoningPlainEnglish(zone) {
   return normalized + ' is the mapped zoning district.';
 }
 
+function luParseAddressInput(input) {
+  const cleaned = String(input || '').trim();
+  const boroughAliases = {
+    'manhattan': 'Manhattan', 'new york': 'Manhattan', 'ny': 'Manhattan',
+    'bronx': 'Bronx', 'the bronx': 'Bronx',
+    'brooklyn': 'Brooklyn', 'bk': 'Brooklyn',
+    'queens': 'Queens',
+    'staten island': 'Staten Island', 'staten': 'Staten Island'
+  };
+  let borough = 'Brooklyn';
+  let streetPart = cleaned;
+  const parts = cleaned.split(',').map(function(part){ return part.trim(); }).filter(Boolean);
+  if (parts.length > 1) {
+    const possibleBorough = parts[parts.length - 1].toLowerCase();
+    if (boroughAliases[possibleBorough]) {
+      borough = boroughAliases[possibleBorough];
+      streetPart = parts.slice(0, -1).join(', ');
+    } else {
+      streetPart = parts[0];
+    }
+  }
+  const match = streetPart.match(/^(\d+[A-Za-z]?)\s+(.+)/);
+  if (!match) throw new Error('Try: 123 Smith Street');
+  return { houseNumber: match[1], street: match[2].trim(), borough: borough };
+}
+
+function luBoroughSlug(value) {
+  const code = String(value || '').trim();
+  const slugs = { '1': 'manhattan', '2': 'bronx', '3': 'brooklyn', '4': 'queens', '5': 'staten-island' };
+  if (slugs[code]) return slugs[code];
+  const name = code.toLowerCase().replace(/\s+/g, '-');
+  if (name === 'the-bronx') return 'bronx';
+  return name || 'brooklyn';
+}
+
+function luBoroughDisplay(value) {
+  const code = String(value || '').trim();
+  const names = { '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island' };
+  return names[code] || (value ? String(value).toLowerCase().replace(/\b\w/g, function(c){ return c.toUpperCase(); }) : 'Brooklyn');
+}
+
+function luCommunityBoardInfo(a) {
+  const boroughCode = a.communityDistrictBoroughCode || a.bblBoroughCode || a.boroughCode1In || a.firstBoroughName || '3';
+  const cdNumber = luDistrictNumber(a.communityDistrictNumber || String(a.communityDistrict || '').slice(-2));
+  const borough = luBoroughDisplay(boroughCode);
+  const boroughSlug = luBoroughSlug(boroughCode);
+  const label = cdNumber ? borough + ' Community Board ' + cdNumber : borough + ' Community Board';
+  const profileUrl = cdNumber ? 'https://communityprofiles.planning.nyc.gov/' + boroughSlug + '/' + encodeURIComponent(cdNumber) : 'https://www.nyc.gov/site/cau/community-boards/community-boards.page';
+  return { borough: borough, number: cdNumber, label: label, profileUrl: profileUrl };
+}
+
 async function luFetchPlutoLot(bbl) {
   if (!bbl) return {};
   try {
@@ -4144,9 +4195,8 @@ async function luLookupAddr() {
   if (!input) return;
   resultDiv.innerHTML = '<span style="color:var(--muted)">Looking up...</span>';
   try {
-    const m = input.replace(/,.*$/,'').trim().match(/^(\d+[A-Za-z]?)\s+(.+)/);
-    if (!m) throw new Error('Try: 123 Smith Street');
-    const url = 'https://api.nyc.gov/geoclient/v2/address.json?houseNumber=' + encodeURIComponent(m[1]) + '&street=' + encodeURIComponent(m[2].trim()) + '&borough=Brooklyn';
+    const parsed = luParseAddressInput(input);
+    const url = 'https://api.nyc.gov/geoclient/v2/address.json?houseNumber=' + encodeURIComponent(parsed.houseNumber) + '&street=' + encodeURIComponent(parsed.street) + '&borough=' + encodeURIComponent(parsed.borough);
     const resp = await fetch(url, { headers: { 'Ocp-Apim-Subscription-Key': 'b913bdfb9c47466589d0f08c99c75b21' } });
     if (!resp.ok) throw new Error('API error ' + resp.status);
     const data = await resp.json();
@@ -4157,8 +4207,10 @@ async function luLookupAddr() {
     const stateSenateDistrict = luDistrictNumber(a.stateSenatorialDistrict);
     const congressionalDistrict = luDistrictNumber(a.congressionalDistrict);
     const bbl = (a.bbl||'').replace(/\D/g,'');
+    const boroughCode = bbl.slice(0,1);
     const block = bbl.slice(1,6), lot = bbl.slice(6,10);
-    const inCB6 = CB6_EDS.some(function(e){return e.ad===ad&&e.ed===ed;});
+    const communityBoard = luCommunityBoardInfo(a);
+    const inCB6 = String(a.communityDistrict || '') === '306' || CB6_EDS.some(function(e){return e.ad===ad&&e.ed===ed;});
     const zone = a.zoningDistrict1||a.primaryZoningDistrict||'';
     const zone2 = a.zoningDistrict2||a.overlayDistrict1||'';
     const lat = a.latitude, lng = a.longitude;
@@ -4174,32 +4226,37 @@ async function luLookupAddr() {
     const landUseLabel = luLandUseLabel(pluto.landuse);
     const landUseDisplay = landUseLabel || (pluto.landuse ? 'Code ' + pluto.landuse : 'Not available from PLUTO');
     const landmarkDistricts = landmarkStatus.historicDistricts || [];
+    const trueHistoricDistricts = landmarkDistricts.filter(function(name){ return !/^individual landmark$/i.test(String(name || '').trim()); });
     const landmarkDisplay = landmarkDistricts.length ? landmarkDistricts.join(' / ') : 'Not in an LPC historic district';
     const zoningNote = luZoningPlainEnglish(zoningPrimary || zone);
-    const landmarkNote = landmarkDistricts.length
+    const landmarkNote = trueHistoricDistricts.length
       ? 'This is in a historic district, so exterior changes usually need LPC review.'
       : 'No LPC historic district was found for this BBL.';
 
     // External links
-    const dobUrl = block && lot ? 'https://a810-bisweb.nyc.gov/bisweb/PropertyBrowseByBBLServlet?allborough=3&allblock=' + parseInt(block) + '&alllot=' + parseInt(lot) + '&filetype=html&requestid=0' : '#';
+    const dobUrl = boroughCode && block && lot ? 'https://a810-bisweb.nyc.gov/bisweb/PropertyBrowseByBBLServlet?allborough=' + encodeURIComponent(boroughCode) + '&allblock=' + parseInt(block) + '&alllot=' + parseInt(lot) + '&filetype=html&requestid=0' : '#';
     const zapUrl = block && lot ? 'https://zap.planning.nyc.gov/projects?block=' + parseInt(block) + '&lot=' + parseInt(lot) : '#';
-    const acrisUrl = block && lot ? 'https://a836-acris.nyc.gov/DS/DocumentSearch/BBL?REQUEST_BBL=3' + block + lot : '#';
-    const zolaUrl = 'https://zola.planning.nyc.gov/l/lot/3/' + parseInt(block) + '/' + parseInt(lot);
+    const acrisUrl = boroughCode && block && lot ? 'https://a836-acris.nyc.gov/DS/DocumentSearch/BBL?REQUEST_BBL=' + encodeURIComponent(boroughCode) + block + lot : '#';
+    const zolaUrl = boroughCode && block && lot ? 'https://zola.planning.nyc.gov/l/lot/' + encodeURIComponent(boroughCode) + '/' + parseInt(block) + '/' + parseInt(lot) : '#';
     const mapUrl = (lat && lng) ? 'https://maps.google.com/?q=' + lat + ',' + lng : '#';
 
     // Cross-page links
     const elecUrl = 'elections.html?addr=' + enc;
     const repUrl = 'mydistricts.html?address=' + enc;
+    const outsideCb6Notice = !inCB6
+      ? '<div style="background:#fff7ed;border:1px solid #fdba74;border-radius:6px;padding:8px 10px;margin:8px 0 10px;font-size:.74rem;line-height:1.45;color:#7c2d12"><strong>Outside Brooklyn CB6:</strong> This address is in <strong>' + luEscapeHtml(communityBoard.label) + '</strong>. Use that district profile for the local community-board context; the property links below still work citywide. <a href="' + communityBoard.profileUrl + '" target="_blank" style="color:var(--orange);font-weight:800">Open district profile</a>.</div>'
+      : '';
 
     resultDiv.innerHTML = '<div style="background:#f0f8f4;border:1.5px solid #a7f3d0;border-radius:8px;padding:12px 14px;margin-top:4px">'
       + '<div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:2px">&#10003; ' + luEscapeHtml(input) + '</div>'
       + '<div style="font-size:.75rem;color:var(--muted);margin-bottom:8px">'
-        + (inCB6 ? '&#10003; In CB6 &middot; ' : '&#9888; Outside CB6 &middot; ')
-        + 'ED ' + ed + ' &middot; AD ' + ad
+        + (inCB6 ? '&#10003; In CB6 &middot; ' : '&#9888; Outside CB6 &middot; ' + luEscapeHtml(communityBoard.label) + ' &middot; ')
+        + 'ED ' + (Number.isFinite(ed) ? ed : '—') + ' &middot; AD ' + (Number.isFinite(ad) ? ad : '—')
         + (councilDistrict ? ' &middot; Council District ' + luEscapeHtml(councilDistrict) : '')
         + (stateSenateDistrict ? ' &middot; State Senate District ' + luEscapeHtml(stateSenateDistrict) : '')
         + (congressionalDistrict ? ' &middot; Congressional District ' + luEscapeHtml(congressionalDistrict) : '')
       + '</div>'
+      + outsideCb6Notice
       + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:10px">'
         + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">Zoning District</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + luEscapeHtml(zoningDisplay || 'Not available') + '</div></div>'
         + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">Land Use</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + luEscapeHtml(landUseDisplay) + '</div></div>'
@@ -4208,7 +4265,7 @@ async function luLookupAddr() {
       + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px;font-size:.73rem;line-height:1.45;color:var(--navy)">'
         + '<div><strong>Zoning:</strong> ' + luEscapeHtml(zoningNote) + ' To change it, a rezoning usually goes through <a href="#lu-review" onclick="openSection(\'lu-review\')" style="color:var(--orange);font-weight:800">ULURP</a>. <a href="#lu-zoning" onclick="openSection(\'lu-zoning\')" style="color:var(--muted)">Decode zoning</a>.</div>'
         + '<div style="margin-top:5px"><strong>Use group:</strong> This describes how the parcel is used; zoning use groups describe what uses are allowed. <a href="#lu-landuse-map" onclick="openSection(\'lu-landuse-map\')" style="color:var(--muted)">Use group map</a>.</div>'
-        + (landmarkDistricts.length ? '<div style="margin-top:5px"><strong>Historic district:</strong> ' + luEscapeHtml(landmarkNote) + ' <a href="landmarks.html#lm-intro" style="color:var(--orange);font-weight:800">Landmarks explanation</a>.</div>' : '')
+        + (trueHistoricDistricts.length ? '<div style="margin-top:5px"><strong>Historic district:</strong> ' + luEscapeHtml(landmarkNote) + ' <a href="landmarks.html#lm-intro" style="color:var(--orange);font-weight:800">Landmarks explanation</a>.</div>' : '')
       + '</div>'
       + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">'
         + '<a href="' + dobUrl + '" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:#fff">&#127962; DOB Permits</a>'
@@ -4218,7 +4275,7 @@ async function luLookupAddr() {
         + (lat && lng ? '<a href="' + mapUrl + '" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:#fff">&#128205; Map</a>' : '')
       + '</div>'
       + '<div style="border-top:1px solid #d1fae5;padding-top:8px;display:flex;flex-wrap:wrap;gap:12px">'
-        + '<a href="' + elecUrl + '" style="font-size:.75rem;color:var(--navy);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy)">&#128499; Election results for this address &rarr;</a>'
+        + (inCB6 ? '<a href="' + elecUrl + '" style="font-size:.75rem;color:var(--navy);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy)">&#128499; Election results for this address &rarr;</a>' : '<a href="' + communityBoard.profileUrl + '" target="_blank" style="font-size:.75rem;color:var(--navy);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy)">Open ' + luEscapeHtml(communityBoard.label) + ' profile &rarr;</a>')
         + '<a href="' + repUrl + '" style="font-size:.75rem;color:var(--orange);font-weight:700;text-decoration:none;border-bottom:1px solid var(--orange)">Who represents me? &rarr;</a>'
       + '</div>'
       + '</div>';
