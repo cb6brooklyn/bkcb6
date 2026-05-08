@@ -4062,6 +4062,44 @@ window.addEventListener('DOMContentLoaded', function() {
 });
 
 // ── ADDRESS LOOKUP (lu-addr section) ──
+function luEscapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch];
+  });
+}
+
+function luLandUseLabel(code) {
+  const normalized = String(code || '').trim().padStart(2, '0');
+  const labels = {
+    '01': 'One & Two Family Buildings',
+    '02': 'Multi-Family Walk-Up Buildings',
+    '03': 'Multi-Family Elevator Buildings',
+    '04': 'Mixed Residential & Commercial Buildings',
+    '05': 'Commercial & Office Buildings',
+    '06': 'Industrial & Manufacturing',
+    '07': 'Transportation & Utility',
+    '08': 'Public Facilities & Institutions',
+    '09': 'Open Space & Outdoor Recreation',
+    '10': 'Parking Facilities',
+    '11': 'Vacant Land'
+  };
+  return labels[normalized] || '';
+}
+
+async function luFetchPlutoLot(bbl) {
+  if (!bbl) return {};
+  try {
+    const endpoint = 'https://data.cityofnewyork.us/resource/64uk-42ks.json?bbl=' + encodeURIComponent(bbl) + '&$select=bbl,zonedist1,zonedist2,landuse,bldgclass&$limit=1';
+    const resp = await fetch(endpoint);
+    if (!resp.ok) return {};
+    const rows = await resp.json();
+    return Array.isArray(rows) && rows.length ? rows[0] : {};
+  } catch (err) {
+    console.warn('PLUTO lookup failed:', err);
+    return {};
+  }
+}
+
 async function luLookupAddr() {
   const input = document.getElementById('luAddrInput').value.trim();
   const resultDiv = document.getElementById('luAddrResult');
@@ -4085,6 +4123,13 @@ async function luLookupAddr() {
     const lat = a.latitude, lng = a.longitude;
     const enc = encodeURIComponent(input);
 
+    const pluto = await luFetchPlutoLot(bbl);
+    const zoningPrimary = pluto.zonedist1 || zone;
+    const zoningSecondary = pluto.zonedist2 || zone2;
+    const zoningDisplay = zoningPrimary ? zoningPrimary + (zoningSecondary && zoningSecondary !== zoningPrimary ? ' / ' + zoningSecondary : '') : '';
+    const landUseLabel = luLandUseLabel(pluto.landuse);
+    const landUseDisplay = landUseLabel || (pluto.landuse ? 'Code ' + pluto.landuse : 'Not available from PLUTO');
+
     // External links
     const dobUrl = block && lot ? 'https://a810-bisweb.nyc.gov/bisweb/PropertyBrowseByBBLServlet?allborough=3&allblock=' + parseInt(block) + '&alllot=' + parseInt(lot) + '&filetype=html&requestid=0' : '#';
     const zapUrl = block && lot ? 'https://zap.planning.nyc.gov/projects?block=' + parseInt(block) + '&lot=' + parseInt(lot) : '#';
@@ -4097,11 +4142,14 @@ async function luLookupAddr() {
     const repUrl = 'mydistricts.html?address=' + enc;
 
     resultDiv.innerHTML = '<div style="background:#f0f8f4;border:1.5px solid #a7f3d0;border-radius:8px;padding:12px 14px;margin-top:4px">'
-      + '<div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:2px">&#10003; ' + input + '</div>'
-      + '<div style="font-size:.75rem;color:var(--muted);margin-bottom:6px">'
+      + '<div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:2px">&#10003; ' + luEscapeHtml(input) + '</div>'
+      + '<div style="font-size:.75rem;color:var(--muted);margin-bottom:8px">'
         + (inCB6 ? '&#10003; In CB6 &middot; ' : '&#9888; Outside CB6 &middot; ')
         + 'ED ' + ed + ' &middot; AD ' + ad
-        + (zone ? ' &middot; Zone: <strong>' + zone + (zone2 ? ' / ' + zone2 : '') + '</strong>' : '')
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:10px">'
+        + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">Zoning District</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + luEscapeHtml(zoningDisplay || 'Not available') + '</div></div>'
+        + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">Land Use</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + luEscapeHtml(landUseDisplay) + '</div></div>'
       + '</div>'
       + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">'
         + '<a href="' + dobUrl + '" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:#fff">&#127962; DOB Permits</a>'
