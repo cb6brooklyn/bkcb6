@@ -722,8 +722,13 @@ window.__cbbk2LandUseInit = (function(){
       out.bus = profileNearestFromItems(busFeatures, lat, lng, 1)[0] || null;
     } catch (err1) { console.warn('Nearby transit lookup failed:', err1); }
     try {
-      var libraryItems = (typeof LIBRARIES !== 'undefined' && Array.isArray(LIBRARIES)) ? LIBRARIES : [];
-      out.library = profileNearestFromItems(libraryItems, lat, lng, 1)[0] || null;
+      var libraryDataset = await profileFetchJsonIfAvailable('data/nyc_libraries.geojson');
+      var libraryItems = libraryDataset && Array.isArray(libraryDataset.features) ? libraryDataset.features : ((typeof LIBRARIES !== 'undefined' && Array.isArray(LIBRARIES)) ? LIBRARIES : []);
+      var openLibrary = profileNearestFromItems(libraryItems, lat, lng, 1, function(p){
+        var status = String(p.status || '').toLowerCase();
+        return status.indexOf('closed') === -1;
+      })[0] || null;
+      out.library = openLibrary || profileNearestFromItems(libraryItems, lat, lng, 1)[0] || null;
     } catch (err2) { console.warn('Nearby library lookup failed:', err2); }
     try {
       var schoolItems = (typeof window !== 'undefined' && Array.isArray(window._overlayData_schools)) ? window._overlayData_schools : await profileFetchJsonIfAvailable('schools_childcare_cb6.json');
@@ -747,7 +752,7 @@ window.__cbbk2LandUseInit = (function(){
     return '<div style="margin-bottom:10px"><div style="font-size:.66rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 5px">Nearby civic services</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px">'
       + profileNearbyItemHtml('Closest Subway', nearby.subway, function(p){ return p.display_name || p.stop_name || 'Subway station'; }, subwayDetail)
       + profileNearbyItemHtml('Closest Bus Stop', nearby.bus, busName, function(){ return ''; })
-      + profileNearbyItemHtml('Closest Library', nearby.library, function(p){ return p.name || 'Library'; }, function(p){ return p.address || ''; })
+      + profileNearbyItemHtml('Closest Library', nearby.library, function(p){ return p.name || 'Library'; }, function(p){ var bits = []; if (p.address) bits.push(p.address); if (p.system) bits.push(p.system); if (p.status && String(p.status).toLowerCase() !== 'unknown') bits.push(p.status); return bits.join(' · '); })
       + profileNearbyItemHtml('Closest School', nearby.school, function(p){ return p.name || 'School'; }, schoolDetail)
       + '</div></div>';
   }
