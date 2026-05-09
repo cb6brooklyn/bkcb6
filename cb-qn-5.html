@@ -503,13 +503,25 @@ window.__cbqn5LandUseInit = (function(){
     if ((zoningItems || []).some(function(z){ return /^M/.test(z); })) return 'Major site: Manufacturing zoning may signal industrial or mixed industrial-commercial context.';
     return '';
   }
+  function profileNormalizeBoroughInput(value) {
+    var raw = String(value || '').trim();
+    var s = raw.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!s) return '';
+    if (s === '1' || s === 'mn' || s.indexOf('manhattan') !== -1 || s === 'new york' || s === 'nyc') return 'Manhattan';
+    if (s === '2' || s === 'bx' || s.indexOf('bronx') !== -1) return 'Bronx';
+    if (s === '3' || s === 'bk' || s.indexOf('brooklyn') !== -1 || s.indexOf('kings') !== -1) return 'Brooklyn';
+    if (s === '4' || s === 'qn' || s.indexOf('queens') !== -1 || /\b(astoria|long island city|lic|sunnyside|woodside|jackson heights|elmhurst|corona|flushing|bayside|jamaica|forest hills|rego park|ridgewood|maspeth|middle village|far rockaway|rockaway|ozone park|howard beach|fresh meadows|whitestone|college point)\b/.test(s)) return 'Queens';
+    if (s === '5' || s === 'si' || s.indexOf('staten') !== -1 || s.indexOf('richmond') !== -1) return 'Staten Island';
+    return raw;
+  }
   function profileParseAddressInput(query) {
     var q = String(query || '').trim().replace(/,\s*(NY|New York)\s*$/i, '');
     var parts = q.split(',').map(function(p){ return p.trim(); }).filter(Boolean);
     var streetPart = parts[0] || q;
-    var borough = parts[1] || (typeof cfg !== 'undefined' && cfg.boroughName) || 'Brooklyn';
-    var m = streetPart.match(/^(\d+[A-Za-z-]*)\s+(.+)$/);
-    if (!m) throw new Error('Enter a street address with a house number, e.g. 250 Baltic Street, Brooklyn.');
+    var rawBorough = parts[1] || (typeof cfg !== 'undefined' && cfg.boroughName) || 'New York';
+    var borough = profileNormalizeBoroughInput(rawBorough) || rawBorough;
+    var m = streetPart.match(/^(\d[\dA-Za-z-]*)\s+(.+)$/);
+    if (!m) throw new Error('Enter a street address with a house number and borough.');
     return { houseNumber: m[1], street: m[2], borough: borough };
   }
   function profileBoroughSlug(name) {
@@ -568,6 +580,20 @@ window.__cbqn5LandUseInit = (function(){
       __source: 'NYC Planning MAPPLUTO ArcGIS point fallback'
     };
   }
+  async function profileFetchWithTimeout(url, opts, timeoutMs) {
+    opts = Object.assign({}, opts || {});
+    var controller = null, timer = null;
+    if (typeof AbortController !== 'undefined') {
+      controller = new AbortController();
+      opts.signal = controller.signal;
+      timer = setTimeout(function(){ controller.abort(); }, timeoutMs || 9000);
+    }
+    try {
+      return await fetch(url, opts);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
   async function profileFetchArcgisPlutoLot(safeBbl, lat, lng) {
     try {
       var params = new URLSearchParams({
@@ -584,7 +610,7 @@ window.__cbqn5LandUseInit = (function(){
         params.set('spatialRel', 'esriSpatialRelIntersects');
       }
       var endpoint = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?' + params.toString();
-      var resp = await fetch(endpoint);
+      var resp = await profileFetchWithTimeout(endpoint, {}, 9000);
       if (!resp.ok) return null;
       var data = await resp.json();
       var feature = data && Array.isArray(data.features) && data.features[0];
@@ -607,7 +633,7 @@ window.__cbqn5LandUseInit = (function(){
         '$limit': '1'
       });
       var endpoint = 'https://data.cityofnewyork.us/resource/64uk-42ks.json?' + params.toString();
-      var resp = await fetch(endpoint);
+      var resp = await profileFetchWithTimeout(endpoint, {}, 9000);
       if (!resp.ok) {
         var arcgisError = await profileFetchArcgisPlutoLot(safeBbl, lat, lng);
         return arcgisError || { __lookupStatus: 'api_error', __httpStatus: resp.status, __queriedBbl: safeBbl };
@@ -632,7 +658,7 @@ window.__cbqn5LandUseInit = (function(){
     try {
       var params = new URLSearchParams({ bbl: bbl, '$select': 'hist_dist,lm_orig,lm_new,des_addres', '$limit': '50' });
       var endpoint = 'https://data.cityofnewyork.us/resource/gpmc-yuvp.json?' + params.toString();
-      var resp = await fetch(endpoint);
+      var resp = await profileFetchWithTimeout(endpoint, {}, 9000);
       if (!resp.ok) return { historicDistricts: [] };
       var rows = await resp.json();
       var historicDistricts = Array.from(new Set((Array.isArray(rows) ? rows : []).map(function(row){ return String(row.hist_dist || '').trim(); }).filter(function(name){ return name && name !== '0'; })));
@@ -641,12 +667,24 @@ window.__cbqn5LandUseInit = (function(){
   }
   async function profileFetchGeoclientAddress(query) {
     var parsed = profileParseAddressInput(query);
-    var url = 'https://api.nyc.gov/geoclient/v2/address.json?houseNumber=' + encodeURIComponent(parsed.houseNumber) + '&street=' + encodeURIComponent(parsed.street) + '&borough=' + encodeURIComponent(parsed.borough);
-    var resp = await fetch(url, { headers: { 'Ocp-Apim-Subscription-Key': 'b913bdfb9c47466589d0f08c99c75b21' } });
-    if (!resp.ok) throw new Error('API error ' + resp.status);
-    var data = await resp.json();
-    if (!data.address) throw new Error('Address not found');
-    return data.address;
+    var key = 'b913bdfb9c47466589d0f08c99c75b21';
+    var url = 'https://api.nyc.gov/geoclient/v2/address.json?houseNumber=' + encodeURIComponent(parsed.houseNumber) + '&street=' + encodeURIComponent(parsed.street) + '&borough=' + encodeURIComponent(parsed.borough) + '&subscription-key=' + encodeURIComponent(key);
+    var controller = null, timer = null;
+    var opts = {};
+    if (typeof AbortController !== 'undefined') {
+      controller = new AbortController();
+      opts.signal = controller.signal;
+      timer = setTimeout(function(){ controller.abort(); }, 12000);
+    }
+    try {
+      var resp = await fetch(url, opts);
+      if (!resp.ok) throw new Error('API error ' + resp.status);
+      var data = await resp.json();
+      if (!data.address) throw new Error('Address not found');
+      return data.address;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
   function profileCardEscape(value) {
     if (typeof escapeHtml === 'function') return escapeHtml(value);
@@ -743,7 +781,7 @@ window.__cbqn5LandUseInit = (function(){
   async function profileFetchJsonIfAvailable(url) {
     if (!url) return null;
     try {
-      var resp = await fetch(url);
+      var resp = await profileFetchWithTimeout(url, {}, 6500);
       if (!resp.ok) return null;
       return await resp.json();
     } catch (err) { return null; }
