@@ -587,28 +587,33 @@ The serious crime rate was 17.0 serious crimes per 1,000 residents in 2024, vers
     if (cd.length === 3 && typeof validCommunityBoardCode === 'function' && validCommunityBoardCode(cd)) return { boroCd: cd, label: boardLabel(cd), localProfileUrl: boardSlug(cd), profileUrl: boardSlug(cd) };
     return { boroCd: (typeof cfg !== 'undefined' && cfg.boroCd) || '', label: (typeof cfg !== 'undefined' && cfg.label) || 'Community Board', localProfileUrl: '', profileUrl: '' };
   }
+  function normalizeBbl(value) {
+    var digits = String(value || '').replace(/\D/g, '');
+    if (digits.length > 10) digits = digits.slice(0, 10);
+    return digits.length === 10 ? digits : '';
+  }
   async function profileFetchPlutoLot(bbl) {
-    bbl = String(bbl || '').replace(/\D/g, '').slice(0, 10);
-    if (bbl.length !== 10) return { __lookupStatus: 'invalid_bbl' };
+    var safeBbl = normalizeBbl(bbl);
+    if (!safeBbl) return { __lookupStatus: 'invalid_bbl', __queriedBbl: String(bbl || '').replace(/\D/g, '') };
     try {
       var params = new URLSearchParams({
-        bbl: bbl,
+        '$where': "bbl='" + safeBbl + "'",
         '$select': 'bbl,borough,block,lot,address,landuse,zonedist1,zonedist2,zonedist3,zonedist4,overlay1,overlay2,spdist1,spdist2,spdist3,splitzone,ltdheight,yearbuilt,unitsres,unitstotal,bldgclass,lotarea,bldgarea,cd,council,policeprct,schooldist',
         '$limit': '1'
       });
       var endpoint = 'https://data.cityofnewyork.us/resource/64uk-42ks.json?' + params.toString();
       var resp = await fetch(endpoint);
-      if (!resp.ok) return { __lookupStatus: 'api_error', __httpStatus: resp.status };
+      if (!resp.ok) return { __lookupStatus: 'api_error', __httpStatus: resp.status, __queriedBbl: safeBbl };
       var rows = await resp.json();
       if (Array.isArray(rows) && rows[0]) {
         rows[0].__lookupStatus = 'ok';
-        rows[0].__queriedBbl = bbl;
+        rows[0].__queriedBbl = safeBbl;
         return rows[0];
       }
-      return { __lookupStatus: 'no_record', __queriedBbl: bbl };
+      return { __lookupStatus: 'no_record', __queriedBbl: safeBbl };
     } catch (err) {
       console.warn('PLUTO lookup failed:', err);
-      return { __lookupStatus: 'network_error', __queriedBbl: bbl };
+      return { __lookupStatus: 'network_error', __queriedBbl: safeBbl };
     }
   }
   async function profileFetchLandmarkStatus(bbl) {
@@ -751,8 +756,14 @@ The serious crime rate was 17.0 serious crimes per 1,000 residents in 2024, vers
       out.park = profileNearestFromItems(parkFeatures, lat, lng, 1, function(p){ return String(p.retired || '').toLowerCase() !== 'true'; })[0] || null;
     } catch (err4) { console.warn('Nearby park lookup failed:', err4); }
     try {
-      var schoolItems = (typeof window !== 'undefined' && Array.isArray(window._overlayData_schools)) ? window._overlayData_schools : await profileFetchJsonIfAvailable('schools_childcare_cb6.json');
-      out.school = profileNearestFromItems(Array.isArray(schoolItems) ? schoolItems : [], lat, lng, 1, function(p){ return String(p.category || '').toLowerCase() !== 'childcare'; })[0] || null;
+      var schoolItems = await profileFetchJsonIfAvailable('data/nyc_school_points.json');
+      if (!Array.isArray(schoolItems) && typeof window !== 'undefined' && Array.isArray(window._overlayData_schools)) schoolItems = window._overlayData_schools;
+      var schoolBoroughKey = profileBoroughKeyForCd(foundCd);
+      var schoolPool = Array.isArray(schoolItems) ? schoolItems : [];
+      var sameBoroughSchool = profileNearestFromItems(schoolPool, lat, lng, 1, function(p){
+        return String(p.category || '').toLowerCase() !== 'childcare' && (!schoolBoroughKey || String(p.borough || '').toLowerCase().replace(/[^a-z]/g, '') === schoolBoroughKey);
+      })[0] || null;
+      out.school = sameBoroughSchool || profileNearestFromItems(schoolPool, lat, lng, 1, function(p){ return String(p.category || '').toLowerCase() !== 'childcare'; })[0] || null;
     } catch (err3) { console.warn('Nearby school lookup failed:', err3); }
     return out;
   }
