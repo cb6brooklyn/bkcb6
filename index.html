@@ -2295,6 +2295,31 @@ async function fpNearbyCivic(lat,lng){
   return picked;
 }
 function fpRepLine(type,num){var lookup=type==='cc'?window._councilLookup:type==='assembly'?window._assemblyLookup:type==='senate'?window._senateLookup:window._congressLookup;var n=parseInt(num,10);var label=type==='cc'?'Council District ':type==='assembly'?'Assembly District ':type==='senate'?'State Senate District ':'Congressional District ';var rep=lookup&&lookup[n];return (Number.isFinite(n)?label+n:'District '+fpClean(num))+(rep?' — <a href="'+escH(rep[1])+'" target="_blank" rel="noopener" style="color:#0d1b4b;text-decoration:none">'+escH(rep[0])+'</a>':'');}
+function fpDistrictFromGeoJSON(data,key,lat,lng){
+  if(!data||!data.features||!Number.isFinite(lat)||!Number.isFinite(lng))return '';
+  var pt=window.turf&&turf.point?turf.point([lng,lat]):null;
+  for(var i=0;i<data.features.length;i++){
+    var f=data.features[i], p=f&&f.properties||{};
+    try{
+      if(pt&&turf.booleanPointInPolygon&&turf.booleanPointInPolygon(pt,f))return p[key]||'';
+    }catch(e){}
+  }
+  return '';
+}
+async function fpDistrictFallback(lat,lng){
+  try{
+    var results=await Promise.all([
+      fpLoadJSON('_fpAssemblyDistricts','data/state-assembly-districts.geojson'),
+      fpLoadJSON('_fpSenateDistricts','data/state-senate-districts.geojson'),
+      fpLoadJSON('_fpCongressDistricts','data/congressional-districts.geojson')
+    ]);
+    return {
+      assemblyDistrict:fpDistrictFromGeoJSON(results[0],'assembly_district',lat,lng),
+      stateSenatorialDistrict:fpDistrictFromGeoJSON(results[1],'st_sen_dist',lat,lng),
+      congressionalDistrict:fpDistrictFromGeoJSON(results[2],'cong_dist',lat,lng)
+    };
+  }catch(e){return {};}
+}
 function fpLandUseExplanation(code,label){var normalized=String(code||'').trim().padStart(2,'0');var descriptions={'01':'This parcel is currently used for one- or two-family housing. Zoning determines whether a larger or different building could be built.','02':'This parcel is currently a walk-up multifamily building. Zoning controls whether enlargement, replacement, or ground-floor commercial use is allowed.','03':'This parcel is currently an elevator multifamily building. Zoning controls allowable height, floor area, and whether nonresidential uses may be included.','04':'This parcel already mixes residential and commercial use, often housing with stores or services. Zoning and any commercial overlay determine what mix is allowed going forward.','05':'This parcel is currently commercial or office use. Zoning determines whether housing, larger commercial space, or mixed-use redevelopment is allowed.','06':'This parcel is currently industrial or manufacturing use. Conversion to housing or retail depends on the zoning district and any special approvals.','07':'This parcel is used for transportation or utility infrastructure. Redevelopment may involve agency, utility, or special-purpose constraints beyond normal zoning.','08':'This parcel is used for a public facility or institution. Zoning may allow community-facility use even where ordinary commercial use is limited.','09':'This parcel is open space or outdoor recreation. Parks and mapped open spaces often have legal or ownership limits beyond zoning.','10':'This parcel is currently parking. Zoning determines whether it can be replaced with housing, commercial, community-facility, or other development.','11':'This parcel is vacant land. Zoning is the starting point for what could be built, subject to lot conditions and other rules.'};return descriptions[normalized]||((label||'Current land use')+' is the recorded current land-use category; zoning controls what uses, size, and bulk may be allowed on the lot.');}
 function fpZoningExplanation(zoneText){var items=String(zoneText||'').split('/').map(function(x){return x.trim().toUpperCase();}).filter(Boolean);function one(z){if(!z)return 'Zoning controls use, building size, and bulk; check ZoLa for the exact district rules.';if(z==='PARK')return z+' indicates mapped parkland or open-space zoning, with legal and agency rules beyond ordinary zoning.';if(/^R(1|2)/.test(z))return z+' is very low-density residential zoning, generally detached one- and two-family homes with yards; commercial use generally needs another rule or overlay.';if(/^R(3|4|5)/.test(z))return z+' is low-density residential zoning for one- and two-family homes and small multifamily buildings; commercial use usually requires an overlay.';if(/^R6/.test(z))return z+' is medium-density residential zoning that can allow apartment buildings; height and bulk depend on contextual or non-contextual rules.';if(/^R(7|8|9|10)/.test(z))return z+' is medium- to high-density residential zoning that can allow larger apartment buildings, with exact form controlled by district suffixes and mapped rules.';if(/^C(1|2)-/.test(z))return z+' is a commercial overlay for local shops and services, typically along retail corridors with an underlying residential district.';if(/^C(3|4|5|6)/.test(z))return z+' is commercial zoning that can allow retail, office, hotel, entertainment, mixed-use, or residential uses depending on the exact district.';if(/^C(7|8)/.test(z))return z+' is commercial zoning for amusement, automotive, heavy commercial, or semi-industrial uses; housing is generally limited unless another rule permits it.';if(/^M1/.test(z))return z+' is light manufacturing zoning that can allow industrial, commercial, office, warehouse, and some community-facility uses; housing generally needs a mixed-use or special mapped allowance.';if(/^M(2|3)/.test(z))return z+' is heavier manufacturing zoning for more intensive industrial uses, with housing generally not allowed unless another special rule applies.';return z+' is the mapped zoning district. Check ZoLa for exact use, height, bulk, and special district rules.';}return items.length?items.map(one).join(' / '):one('');}
 async function fpMayorResult(a){
@@ -2351,7 +2376,7 @@ async function doSearch(){
 
   const KEY='b913bdfb9c47466589d0f08c99c75b21';
   const m=addr.match(/^(\d+[-\dA-Za-z]*)\s+(.+)$/);
-  let lat=null,lng=null,lbl=addr,gcData=null,searchBbl='';
+  let lat=null,lng=null,lbl=addr,gcData=null,searchBbl='',gsHouse='',gsStreet='',gsBoro='';
 
   if(m){
     const boros=boro==='Citywide'?['Brooklyn','Manhattan','Queens','Bronx','Staten Island']:[boro];
@@ -2367,7 +2392,7 @@ async function doSearch(){
     try{
       const boroQ=boro!=='Citywide'?` ${boro} New York`:' New York City';
       const d=await fpFetchJSON(`https://geosearch.planninglabs.nyc/v2/search?text=${encodeURIComponent(addr+boroQ)}&size=1`,3500);
-      if(d.features&&d.features.length){const f=d.features[0];lat=f.geometry.coordinates[1];lng=f.geometry.coordinates[0];lbl=f.properties.label||addr;searchBbl=String((((f.properties||{}).addendum||{}).pad||{}).bbl||'').replace(/\D/g,'');}
+      if(d.features&&d.features.length){const f=d.features[0],p=f.properties||{};lat=f.geometry.coordinates[1];lng=f.geometry.coordinates[0];lbl=p.label||addr;searchBbl=String((((p||{}).addendum||{}).pad||{}).bbl||'').replace(/\D/g,'');gsHouse=p.housenumber||'';gsStreet=p.street||'';gsBoro=p.borough||'';}
     }catch(e){}
   }
 
@@ -2375,7 +2400,7 @@ async function doSearch(){
     const boros=boro==='Citywide'?['Brooklyn','Manhattan','Queens','Bronx','Staten Island']:[boro];
     for(const b of boros){
       try{
-        const d=await fpFetchJSON(`https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(m[1])}&street=${encodeURIComponent(m[2])}&borough=${encodeURIComponent(b)}&subscription-key=${KEY}`,9000);
+        const d=await fpFetchJSON(`https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(gsHouse||m[1])}&street=${encodeURIComponent(gsStreet||m[2])}&borough=${encodeURIComponent(gsBoro||b)}&subscription-key=${KEY}`,9000);
         if(d.address&&!d.address.message&&d.address.latitude){gcData=d.address;lat=parseFloat(d.address.latitude);lng=parseFloat(d.address.longitude);lbl=(gcData.houseNumber&&gcData.firstStreetNameNormalized)?(gcData.houseNumber+' '+gcData.firstStreetNameNormalized):lbl;break;}
       }catch(e){}
     }
@@ -2395,6 +2420,8 @@ async function doSearch(){
   if(bblNum&&!gcData)gcData={bbl:bblNum};
   var cityLot=await fpFetchCitywideLotProfile(bblNum);
   var lotMatch=await fpFindLotProfile(bblNum,lat,lng);
+  var districtFallback=await fpDistrictFallback(lat,lng);
+  gcData=Object.assign({},districtFallback,gcData||{});
   var civicItems=await fpNearbyCivic(lat,lng);
   var mayorResult=await fpMayorResult(gcData||{});
   res.innerHTML=fpRenderProfile(addr,boro,lbl,lat,lng,gcData,lotMatch,civicItems,mayorResult,cityLot);
