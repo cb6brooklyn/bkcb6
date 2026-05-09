@@ -1070,7 +1070,13 @@ window.__cbbk9LandUseInit = (function(){
       var foundCd=found && found.properties && found.properties.boro_cd;
       if(!foundCd && validCommunityBoardCode(a.communityDistrict)) foundCd = String(a.communityDistrict);
       var bbl=(a.bbl||'').replace(/\D/g,'');
-      var extra=await Promise.all([profileFetchPlutoLot(bbl), profileFetchLandmarkStatus(bbl), profileFetchNearbyServices(lat, lng, foundCd)]);
+      var extraResults=await Promise.allSettled([profileFetchPlutoLot(bbl), profileFetchLandmarkStatus(bbl), profileFetchNearbyServices(lat, lng, foundCd)]);
+      var extra=[
+        extraResults[0].status === 'fulfilled' ? extraResults[0].value : {},
+        extraResults[1].status === 'fulfilled' ? extraResults[1].value : {historicDistricts:[]},
+        extraResults[2].status === 'fulfilled' ? extraResults[2].value : {}
+      ];
+      extraResults.forEach(function(res, idx){ if(res.status === 'rejected') console.warn('Address lookup ancillary request failed:', idx, res.reason); });
       clearMarker();
       try{
         searchMarker=L.marker([lat,lng]).addTo(map).bindPopup('<strong>'+escapeHtml(label)+'</strong><br>'+escapeHtml(foundCd ? boardLabel(foundCd) : 'Community board not identified')).openPopup();
