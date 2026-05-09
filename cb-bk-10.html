@@ -1832,10 +1832,25 @@ function copyEmbed(type){
       var mapZoneLabel = zoningFeature ? getZoneLabel(zoningFeature.properties || {}) : '';
 
       var lotRow = null;
-      if (bbl) {
-        var plutoUrl = 'https://data.cityofnewyork.us/resource/64uk-42ks.json?bbl=' + encodeURIComponent(bbl) + '&$select=bbl,address,landuse,zonedist1,zonedist2,zonedist3,zonedist4';
-        var plutoData = await fetchJson(plutoUrl);
-        lotRow = (plutoData || [])[0] || null;
+      var lotLookupStatus = 'not_queried';
+      var sanitizedBbl = String(bbl || '').replace(/\D/g, '');
+      if (sanitizedBbl.length === 10) {
+        try {
+          var plutoParams = new URLSearchParams({
+            bbl: sanitizedBbl,
+            '$select': 'bbl,borough,block,lot,address,cd,council,schooldist,policeprct,landuse,zonedist1,zonedist2,zonedist3,zonedist4',
+            '$limit': '1'
+          });
+          var plutoUrl = 'https://data.cityofnewyork.us/resource/64uk-42ks.json?' + plutoParams.toString();
+          var plutoData = await fetchJson(plutoUrl);
+          lotRow = (plutoData || [])[0] || null;
+          lotLookupStatus = lotRow ? 'ok' : 'no_record';
+        } catch (err) {
+          console.warn('PLUTO address-card lookup failed:', err);
+          lotLookupStatus = 'network_error';
+        }
+      } else {
+        lotLookupStatus = bbl ? 'invalid_bbl' : 'missing_bbl';
       }
 
       var lotZones = lotRow ? [lotRow.zonedist1, lotRow.zonedist2, lotRow.zonedist3, lotRow.zonedist4].filter(Boolean) : [];
