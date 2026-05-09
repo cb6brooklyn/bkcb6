@@ -2242,6 +2242,20 @@ function normalizeBbl(value) {
       __source: 'NYC Planning MAPPLUTO ArcGIS point fallback'
     };
   }
+  async function profileFetchWithTimeout(url, opts, timeoutMs) {
+    opts = Object.assign({}, opts || {});
+    var controller = null, timer = null;
+    if (typeof AbortController !== 'undefined') {
+      controller = new AbortController();
+      opts.signal = controller.signal;
+      timer = setTimeout(function(){ controller.abort(); }, timeoutMs || 9000);
+    }
+    try {
+      return await fetch(url, opts);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
   async function profileFetchArcgisPlutoLot(safeBbl, lat, lng) {
     try {
       var params = new URLSearchParams({
@@ -2258,7 +2272,7 @@ function normalizeBbl(value) {
         params.set('spatialRel', 'esriSpatialRelIntersects');
       }
       var endpoint = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?' + params.toString();
-      var resp = await fetch(endpoint);
+      var resp = await profileFetchWithTimeout(endpoint, {}, 9000);
       if (!resp.ok) return null;
       var data = await resp.json();
       var feature = data && Array.isArray(data.features) && data.features[0];
@@ -2281,7 +2295,7 @@ function normalizeBbl(value) {
         '$limit': '1'
       });
       var endpoint = 'https://data.cityofnewyork.us/resource/64uk-42ks.json?' + params.toString();
-      var resp = await fetch(endpoint);
+      var resp = await profileFetchWithTimeout(endpoint, {}, 9000);
       if (!resp.ok) {
         var arcgisError = await profileFetchArcgisPlutoLot(safeBbl, lat, lng);
         return arcgisError || { __lookupStatus: 'api_error', __httpStatus: resp.status, __queriedBbl: safeBbl };
@@ -2399,7 +2413,7 @@ function profileFindCommunityDistrict(lng,lat,features){var found=(features||[])
   async function profileFetchJsonIfAvailable(url) {
     if (!url) return null;
     try {
-      var resp = await fetch(url);
+      var resp = await profileFetchWithTimeout(url, {}, 6500);
       if (!resp.ok) return null;
       return await resp.json();
     } catch (err) { return null; }
@@ -4472,7 +4486,7 @@ function normalizeBbl(value) {
         params.set('spatialRel', 'esriSpatialRelIntersects');
       }
       var endpoint = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?' + params.toString();
-      var resp = await fetch(endpoint);
+      var resp = await profileFetchWithTimeout(endpoint, {}, 9000);
       if (!resp.ok) return null;
       var data = await resp.json();
       var feature = data && Array.isArray(data.features) && data.features[0];
@@ -4495,7 +4509,7 @@ function normalizeBbl(value) {
         '$limit': '1'
       });
       var endpoint = 'https://data.cityofnewyork.us/resource/64uk-42ks.json?' + params.toString();
-      var resp = await fetch(endpoint);
+      var resp = await profileFetchWithTimeout(endpoint, {}, 9000);
       if (!resp.ok) {
         var arcgisError = await profileFetchArcgisPlutoLot(safeBbl, lat, lng);
         return arcgisError || { __lookupStatus: 'api_error', __httpStatus: resp.status, __queriedBbl: safeBbl };
