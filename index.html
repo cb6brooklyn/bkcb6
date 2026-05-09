@@ -2271,12 +2271,12 @@ async function fpFindLotProfile(bblNum,lat,lng){
 async function fpNearbyCivic(lat,lng){
   var items=[];
   try{var sc=await fpLoadJSON('_overlayData_schools','schools_childcare_cb6.json');items=items.concat(Array.isArray(sc)?sc:[]);}catch(e){}
-  try{if(Array.isArray(LIBRARIES))items=items.concat(LIBRARIES);}catch(e){}
+  try{var libs=await fpLoadJSON('_fpLibraries','data/nyc_libraries.geojson');items=items.concat(((libs&&libs.features)||[]).map(function(f){var c=(f.geometry&&f.geometry.coordinates)||[];var p=f.properties||{};return {category:'libraries',name:p.name||'Library',address:p.address||'',website:p.website||'',lat:Number(p.latitude||c[1]),lon:Number(p.longitude||c[0])};}));}catch(e){try{if(Array.isArray(LIBRARIES))items=items.concat(LIBRARIES);}catch(e2){}}
   try{var parks=await fpLoadJSON('_fpParks','data/topmap-parks-brooklyn.geojson');items=items.concat(((parks&&parks.features)||[]).map(function(f){var pt=fpFeaturePoint(f)||{};var p=f.properties||{};return {category:'park',name:p.signname||p.name311||p.name||'Park/Open Space',address:p.location||p.address||'',lat:Number(pt.lat),lon:Number(pt.lon)};}));}catch(e){}
   try{var tr=await fpLoadJSON('_fpTransport','transport-data/cb-bk-6.json');items=items.concat(((tr&&tr.busstops&&tr.busstops.features)||[]).map(function(f){var c=(f.geometry&&f.geometry.coordinates)||[];var p=f.properties||{};return {category:'bus_stop',name:((Array.isArray(p.routes)?p.routes.join(', '):(p.routes||p.route_short_name||'Bus'))+' · '+(p.stop_name||'Bus stop')),address:'',lat:Number(c[1]),lon:Number(c[0])};}));}catch(e){}
   try{var ci=await fpLoadJSON('_fpCiti','data/citibike_stations_cb6.geojson');items=items.concat(((ci&&ci.features)||[]).map(function(f){var c=(f.geometry&&f.geometry.coordinates)||[];var p=f.properties||{};return {category:'citibike',name:p.name||p.station_name||'Citi Bike station',address:[p.street,p.cross_street].filter(Boolean).join(' at '),lat:Number(c[1]),lon:Number(c[0])};}));}catch(e){}
   var ranked=items.filter(function(x){return Number.isFinite(x.lat)&&Number.isFinite(x.lon);}).map(function(x){return Object.assign({},x,{_dist:fpHavFeet(lat,lng,x.lat,x.lon)});}).sort(function(a,b){return a._dist-b._dist;});
-  var must=['park','bus_stop','citibike'];
+  var must=['park','bus_stop','citibike','libraries'];
   var picked=[];
   must.forEach(function(cat){var item=ranked.find(function(x){return x.category===cat;}); if(item && !picked.includes(item)) picked.push(item);});
   ranked.forEach(function(x){if(picked.length<10 && !picked.includes(x)) picked.push(x);});
