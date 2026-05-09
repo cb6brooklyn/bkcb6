@@ -574,16 +574,28 @@ window.__cbmn3LandUseInit = (function(){
     return { boroCd: (typeof cfg !== 'undefined' && cfg.boroCd) || '', label: (typeof cfg !== 'undefined' && cfg.label) || 'Community Board', localProfileUrl: '', profileUrl: '' };
   }
   async function profileFetchPlutoLot(bbl) {
-    bbl = String(bbl || '').replace(/\D/g, '');
-    if (bbl.length < 10) return {};
+    bbl = String(bbl || '').replace(/\D/g, '').slice(0, 10);
+    if (bbl.length !== 10) return { __lookupStatus: 'invalid_bbl' };
     try {
-      var params = new URLSearchParams({ bbl: bbl, '$select': 'bbl,borough,block,lot,address,landuse,zonedist1,zonedist2,zonedist3,zonedist4,overlay1,overlay2,spdist1,spdist2,spdist3,ltdheight,yearbuilt,unitsres,unitstotal,lotarea,bldgarea', '$limit': '1' });
+      var params = new URLSearchParams({
+        bbl: bbl,
+        '$select': 'bbl,borough,block,lot,address,landuse,zonedist1,zonedist2,zonedist3,zonedist4,overlay1,overlay2,spdist1,spdist2,spdist3,splitzone,ltdheight,yearbuilt,unitsres,unitstotal,bldgclass,lotarea,bldgarea,cd,council,policeprct,schooldist',
+        '$limit': '1'
+      });
       var endpoint = 'https://data.cityofnewyork.us/resource/64uk-42ks.json?' + params.toString();
       var resp = await fetch(endpoint);
-      if (!resp.ok) return {};
+      if (!resp.ok) return { __lookupStatus: 'api_error', __httpStatus: resp.status };
       var rows = await resp.json();
-      return Array.isArray(rows) && rows[0] ? rows[0] : {};
-    } catch (err) { console.warn('PLUTO lookup failed:', err); return {}; }
+      if (Array.isArray(rows) && rows[0]) {
+        rows[0].__lookupStatus = 'ok';
+        rows[0].__queriedBbl = bbl;
+        return rows[0];
+      }
+      return { __lookupStatus: 'no_record', __queriedBbl: bbl };
+    } catch (err) {
+      console.warn('PLUTO lookup failed:', err);
+      return { __lookupStatus: 'network_error', __queriedBbl: bbl };
+    }
   }
   async function profileFetchLandmarkStatus(bbl) {
     bbl = String(bbl || '').replace(/\D/g, '');
@@ -785,7 +797,7 @@ window.__cbmn3LandUseInit = (function(){
     var zoningLabel = zoningItems.length > 1 ? 'Zoning Districts' : 'Zoning District';
     var majorSiteNote = profileMajorSiteNote(input, a, pluto, zoningItems);
     var landUseLabel = profileLandUseLabel(pluto.landuse);
-    var landUseDisplay = landUseLabel || (pluto.landuse ? 'Code ' + pluto.landuse : 'Not available from PLUTO');
+    var landUseDisplay = landUseLabel || (pluto.landuse ? 'Code ' + pluto.landuse : (pluto.__lookupStatus === 'api_error' || pluto.__lookupStatus === 'network_error' ? 'PLUTO lookup unavailable' : (pluto.__lookupStatus === 'no_record' ? 'No PLUTO lot record' : 'Not available from PLUTO')));
     var landmarkDistricts = (landmarkStatus && landmarkStatus.historicDistricts) || [];
     var trueHistoricDistricts = landmarkDistricts.filter(function(name){ return !/^individual landmark$/i.test(String(name || '').trim()); });
     var landmarkDisplay = landmarkDistricts.length ? landmarkDistricts.join(' / ') : 'Not in an LPC historic district';
