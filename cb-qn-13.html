@@ -525,9 +525,74 @@ window.__cbqn13LandUseInit = (function(){
     if (digits.length > 10) digits = digits.slice(0, 10);
     return digits.length === 10 ? digits : '';
   }
-  async function profileFetchPlutoLot(bbl) {
+  function profileNormalizeArcgisPlutoLot(attrs, queriedBbl) {
+    attrs = attrs || {};
+    var bbl = normalizeBbl(attrs.BBL || attrs.bbl || queriedBbl);
+    return {
+      bbl: bbl,
+      borough: attrs.Borough || attrs.borough || '',
+      block: attrs.Block || attrs.block || '',
+      lot: attrs.Lot || attrs.lot || '',
+      address: attrs.Address || attrs.address || '',
+      landuse: attrs.LandUse || attrs.landuse || '',
+      zonedist1: attrs.ZoneDist1 || attrs.zonedist1 || attrs.ZONEDIST1 || '',
+      zonedist2: attrs.ZoneDist2 || attrs.zonedist2 || attrs.ZONEDIST2 || '',
+      zonedist3: attrs.ZoneDist3 || attrs.zonedist3 || attrs.ZONEDIST3 || '',
+      zonedist4: attrs.ZoneDist4 || attrs.zonedist4 || attrs.ZONEDIST4 || '',
+      overlay1: attrs.Overlay1 || attrs.overlay1 || '',
+      overlay2: attrs.Overlay2 || attrs.overlay2 || '',
+      spdist1: attrs.SPDist1 || attrs.spdist1 || '',
+      spdist2: attrs.SPDist2 || attrs.spdist2 || '',
+      spdist3: attrs.SPDist3 || attrs.spdist3 || '',
+      splitzone: attrs.SplitZone || attrs.splitzone || '',
+      ltdheight: attrs.LtdHeight || attrs.ltdheight || '',
+      yearbuilt: attrs.YearBuilt || attrs.yearbuilt || '',
+      unitsres: attrs.UnitsRes || attrs.unitsres || '',
+      unitstotal: attrs.UnitsTotal || attrs.unitstotal || '',
+      bldgclass: attrs.BldgClass || attrs.bldgclass || '',
+      lotarea: attrs.LotArea || attrs.lotarea || '',
+      bldgarea: attrs.BldgArea || attrs.bldgarea || '',
+      cd: attrs.CD || attrs.cd || '',
+      council: attrs.Council || attrs.council || '',
+      policeprct: attrs.PolicePrct || attrs.policeprct || '',
+      schooldist: attrs.SchoolDist || attrs.schooldist || '',
+      __lookupStatus: 'ok_arcgis',
+      __queriedBbl: bbl || normalizeBbl(queriedBbl),
+      __source: 'NYC Planning MAPPLUTO ArcGIS point fallback'
+    };
+  }
+  async function profileFetchArcgisPlutoLot(safeBbl, lat, lng) {
+    try {
+      var params = new URLSearchParams({
+        f: 'json',
+        where: safeBbl ? 'BBL=' + safeBbl : '1=1',
+        outFields: 'BBL,Address,LandUse,ZoneDist1,ZoneDist2,ZoneDist3,ZoneDist4,Overlay1,Overlay2,SPDist1,SPDist2,SPDist3,SplitZone,LtdHeight,YearBuilt,UnitsRes,UnitsTotal,BldgClass,LotArea,BldgArea,Borough,Block,Lot,CD,SchoolDist,Council,PolicePrct',
+        returnGeometry: 'false',
+        outSR: '4326'
+      });
+      if (!safeBbl && Number.isFinite(lat) && Number.isFinite(lng)) {
+        params.set('geometry', String(lng) + ',' + String(lat));
+        params.set('geometryType', 'esriGeometryPoint');
+        params.set('inSR', '4326');
+        params.set('spatialRel', 'esriSpatialRelIntersects');
+      }
+      var endpoint = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?' + params.toString();
+      var resp = await fetch(endpoint);
+      if (!resp.ok) return null;
+      var data = await resp.json();
+      var feature = data && Array.isArray(data.features) && data.features[0];
+      return feature && feature.attributes ? profileNormalizeArcgisPlutoLot(feature.attributes, safeBbl) : null;
+    } catch (err) {
+      console.warn('MAPPLUTO ArcGIS fallback failed:', err);
+      return null;
+    }
+  }
+  async function profileFetchPlutoLot(bbl, lat, lng) {
     var safeBbl = normalizeBbl(bbl);
-    if (!safeBbl) return { __lookupStatus: 'invalid_bbl', __queriedBbl: String(bbl || '').replace(/\D/g, '') };
+    if (!safeBbl) {
+      var arcgisOnly = await profileFetchArcgisPlutoLot('', lat, lng);
+      return arcgisOnly || { __lookupStatus: 'invalid_bbl', __queriedBbl: String(bbl || '').replace(/\D/g, '') };
+    }
     try {
       var params = new URLSearchParams({
         '$where': "bbl='" + safeBbl + "'",
@@ -536,17 +601,22 @@ window.__cbqn13LandUseInit = (function(){
       });
       var endpoint = 'https://data.cityofnewyork.us/resource/64uk-42ks.json?' + params.toString();
       var resp = await fetch(endpoint);
-      if (!resp.ok) return { __lookupStatus: 'api_error', __httpStatus: resp.status, __queriedBbl: safeBbl };
+      if (!resp.ok) {
+        var arcgisError = await profileFetchArcgisPlutoLot(safeBbl, lat, lng);
+        return arcgisError || { __lookupStatus: 'api_error', __httpStatus: resp.status, __queriedBbl: safeBbl };
+      }
       var rows = await resp.json();
       if (Array.isArray(rows) && rows[0]) {
         rows[0].__lookupStatus = 'ok';
         rows[0].__queriedBbl = safeBbl;
         return rows[0];
       }
-      return { __lookupStatus: 'no_record', __queriedBbl: safeBbl };
+      var arcgisNoRecord = await profileFetchArcgisPlutoLot(safeBbl, lat, lng);
+      return arcgisNoRecord || { __lookupStatus: 'no_record', __queriedBbl: safeBbl };
     } catch (err) {
       console.warn('PLUTO lookup failed:', err);
-      return { __lookupStatus: 'network_error', __queriedBbl: safeBbl };
+      var arcgisNetwork = await profileFetchArcgisPlutoLot(safeBbl, lat, lng);
+      return arcgisNetwork || { __lookupStatus: 'network_error', __queriedBbl: safeBbl };
     }
   }
   async function profileFetchLandmarkStatus(bbl) {
@@ -738,7 +808,7 @@ window.__cbqn13LandUseInit = (function(){
     var congressionalDistrict = profileDistrictNumber(a.congressionalDistrict);
     var schoolDistrict = profileDistrictNumber(profileAddressValue(a, ['communitySchoolDistrict','schoolDistrict','schoolDistrictNumber']));
     var policePrecinct = profileDistrictNumber(profileAddressValue(a, ['policePrecinct','policePrecinctCode','nycPolicePrecinct']));
-    var bbl = (a.bbl || '').replace(/\D/g, '');
+    var bbl = normalizeBbl(a.bbl) || normalizeBbl(pluto && pluto.bbl);
     var boroughCode = bbl.slice(0,1) || String(foundCd || cfg.boroCd || '').charAt(0);
     var block = bbl.slice(1,6), lot = bbl.slice(6,10);
     var communityBoard = profileCommunityBoardInfo(a);
@@ -1027,8 +1097,8 @@ window.__cbqn13LandUseInit = (function(){
       var found=(allBoundaryFeatures||[]).find(function(feature){return pointInFeature(feature,lng,lat);});
       var foundCd=found && found.properties && found.properties.boro_cd;
       if(!foundCd && validCommunityBoardCode(a.communityDistrict)) foundCd = String(a.communityDistrict);
-      var bbl=(a.bbl||'').replace(/\D/g,'');
-      var extraResults=await Promise.allSettled([profileFetchPlutoLot(bbl), profileFetchLandmarkStatus(bbl), profileFetchNearbyServices(lat, lng, foundCd)]);
+      var bbl=normalizeBbl(a.bbl)||normalizeBbl(pluto&&pluto.bbl);
+      var extraResults=await Promise.allSettled([profileFetchPlutoLot(bbl, lat, lng), profileFetchLandmarkStatus(bbl), profileFetchNearbyServices(lat, lng, foundCd)]);
       var extra=[
         extraResults[0].status === 'fulfilled' ? extraResults[0].value : {},
         extraResults[1].status === 'fulfilled' ? extraResults[1].value : {historicDistricts:[]},
