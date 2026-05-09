@@ -2239,6 +2239,22 @@ function fpClean(v){return (v==null||v==='')?'—':escH(v);}
 function fpMilesFeet(ft){return ft<528?Math.round(ft)+' ft':(ft/5280).toFixed(ft<2640?2:1)+' mi';}
 function fpHavFeet(lat1,lon1,lat2,lon2){var R=3959*5280,dLa=(lat2-lat1)*Math.PI/180,dLo=(lon2-lon1)*Math.PI/180,a=Math.sin(dLa/2)*Math.sin(dLa/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLo/2)*Math.sin(dLo/2);return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
 async function fpLoadJSON(cacheKey,url){if(window[cacheKey])return window[cacheKey];var r=await fetch(url);var d=await r.json();window[cacheKey]=d;return d;}
+function fpFeaturePoint(feature){
+  var g=feature&&feature.geometry, coords=g&&g.coordinates;
+  if(!g||!coords)return null;
+  if(g.type==='Point')return {lat:Number(coords[1]),lon:Number(coords[0])};
+  var pts=[];
+  (function walk(a){
+    if(!Array.isArray(a))return;
+    if(typeof a[0]==='number'&&typeof a[1]==='number'){pts.push(a);return;}
+    a.forEach(walk);
+  })(coords);
+  pts=pts.filter(function(p){return Number.isFinite(Number(p[0]))&&Number.isFinite(Number(p[1]));});
+  if(!pts.length)return null;
+  var lon=pts.reduce(function(s,p){return s+Number(p[0]);},0)/pts.length;
+  var lat=pts.reduce(function(s,p){return s+Number(p[1]);},0)/pts.length;
+  return {lat:lat,lon:lon};
+}
 function fpCard(title,items){var body=items.filter(function(x){return x&&x.v!=null&&x.v!=='';}).map(function(x){return'<div style="padding:9px 10px;border:1px solid #ece7de;border-radius:9px;background:#fff"><div style="font-family:DM Mono,monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.08em;color:#8a8479;margin-bottom:3px">'+escH(x.l)+'</div><div style="font-size:.82rem;font-weight:'+(x.hi?'900':'700')+';line-height:1.35;color:#0d1b4b">'+x.v+'</div></div>';}).join('');return'<div style="border:1px solid #e5e2db;border-radius:12px;background:#faf9f6;padding:12px;margin-top:10px"><div style="font-size:.72rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.08em;color:#f47920;font-weight:900;margin-bottom:9px">'+escH(title)+'</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px">'+body+'</div></div>';}
 function fpLink(label,url,bg){return url?'<a href="'+escH(url)+'" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:5px;margin:4px 5px 0 0;padding:6px 9px;border-radius:999px;background:'+(bg||'#0d1b4b')+';color:#fff;text-decoration:none;font-size:.70rem;font-family:DM Sans,sans-serif;font-weight:900">'+escH(label)+' ↗</a>':'';}
 async function fpFindLotProfile(bblNum,lat,lng){
@@ -2257,10 +2273,23 @@ async function fpNearbyCivic(lat,lng){
   var items=[];
   try{var sc=await fpLoadJSON('_overlayData_schools','schools_childcare_cb6.json');items=items.concat(Array.isArray(sc)?sc:[]);}catch(e){}
   try{if(Array.isArray(LIBRARIES))items=items.concat(LIBRARIES);}catch(e){}
-  return items.filter(function(x){return Number.isFinite(x.lat)&&Number.isFinite(x.lon);}).map(function(x){return Object.assign({},x,{_dist:fpHavFeet(lat,lng,x.lat,x.lon)});}).sort(function(a,b){return a._dist-b._dist;}).slice(0,5);
+  try{var parks=await fpLoadJSON('_fpParks','data/topmap-parks-brooklyn.geojson');items=items.concat(((parks&&parks.features)||[]).map(function(f){var pt=fpFeaturePoint(f)||{};var p=f.properties||{};return {category:'park',name:p.signname||p.name311||p.name||'Park/Open Space',address:p.location||p.address||'',lat:Number(pt.lat),lon:Number(pt.lon)};}));}catch(e){}
+  try{var tr=await fpLoadJSON('_fpTransport','transport-data/cb-bk-6.json');items=items.concat(((tr&&tr.busstops&&tr.busstops.features)||[]).map(function(f){var c=(f.geometry&&f.geometry.coordinates)||[];var p=f.properties||{};return {category:'bus_stop',name:((Array.isArray(p.routes)?p.routes.join(', '):(p.routes||p.route_short_name||'Bus'))+' · '+(p.stop_name||'Bus stop')),address:'',lat:Number(c[1]),lon:Number(c[0])};}));}catch(e){}
+  try{var ci=await fpLoadJSON('_fpCiti','data/citibike_stations_cb6.geojson');items=items.concat(((ci&&ci.features)||[]).map(function(f){var c=(f.geometry&&f.geometry.coordinates)||[];var p=f.properties||{};return {category:'citibike',name:p.name||p.station_name||'Citi Bike station',address:[p.street,p.cross_street].filter(Boolean).join(' at '),lat:Number(c[1]),lon:Number(c[0])};}));}catch(e){}
+  var ranked=items.filter(function(x){return Number.isFinite(x.lat)&&Number.isFinite(x.lon);}).map(function(x){return Object.assign({},x,{_dist:fpHavFeet(lat,lng,x.lat,x.lon)});}).sort(function(a,b){return a._dist-b._dist;});
+  var must=['park','bus_stop','citibike'];
+  var picked=[];
+  must.forEach(function(cat){var item=ranked.find(function(x){return x.category===cat;}); if(item && !picked.includes(item)) picked.push(item);});
+  ranked.forEach(function(x){if(picked.length<10 && !picked.includes(x)) picked.push(x);});
+  return picked;
 }
-function fpRepLine(type,num){var lookup=type==='cc'?window._councilLookup:type==='assembly'?window._assemblyLookup:type==='senate'?window._senateLookup:window._congressLookup;var rep=lookup&&lookup[parseInt(num,10)];return rep?'<a href="'+escH(rep[1])+'" target="_blank" rel="noopener" style="color:#0d1b4b;text-decoration:none">'+escH(rep[0])+'</a>':'District '+fpClean(num);}
-function fpRenderProfile(addr, boro, lbl, lat, lng, gcData, lotMatch, civicItems){
+function fpRepLine(type,num){var lookup=type==='cc'?window._councilLookup:type==='assembly'?window._assemblyLookup:type==='senate'?window._senateLookup:window._congressLookup;var n=parseInt(num,10);var label=type==='cc'?'Council District ':type==='assembly'?'Assembly District ':type==='senate'?'State Senate District ':'Congressional District ';var rep=lookup&&lookup[n];return (Number.isFinite(n)?label+n:'District '+fpClean(num))+(rep?' — <a href="'+escH(rep[1])+'" target="_blank" rel="noopener" style="color:#0d1b4b;text-decoration:none">'+escH(rep[0])+'</a>':'');}
+async function fpMayorResult(a){
+  try{var ed=parseInt(a&&a.electionDistrict,10), ad=parseInt(a&&(a.assemblyDistrict||a.stateLegislativeDistrict),10);if(!Number.isFinite(ed)||!Number.isFinite(ad))return '';
+    var d=await fpLoadJSON('_fpCb6EdResults','data/cb6-ed-results.geojson');var key=String(ad).padStart(2,'0')+String(ed).padStart(3,'0');var f=((d&&d.features)||[]).find(function(x){return String((x.properties||{}).elect_dist||'')===key;});var p=f&&f.properties;return p&&p.general_mayor?(p.ed_label+': '+p.general_mayor):'';
+  }catch(e){return '';}
+}
+function fpRenderProfile(addr, boro, lbl, lat, lng, gcData, lotMatch, civicItems, mayorResult){
   var a=gcData||{}, lotP=lotMatch&&lotMatch.feature?(lotMatch.feature.properties||{}):{};
   var bblRaw=(a.bbl||lotP.bbl||'');
   var bblNum=String(bblRaw).replace(/\D/g,'');
@@ -2276,11 +2305,11 @@ function fpRenderProfile(addr, boro, lbl, lat, lng, gcData, lotMatch, civicItems
   var acrisUrl=lotP.acris_records||(bblNum?('https://a836-acris.nyc.gov/bblsearch/bblsearch.asp?parcel_id='+bblNum):'');
   var zolaUrl=(blockInt&&lotInt)?('https://zola.planning.nyc.gov/l/3/'+blockInt+'/'+lotInt):'';
   var myDistricts='mydistricts.html?address='+encodeURIComponent(addr)+(boro!=='Citywide'?'&borough='+encodeURIComponent(boro):'');
-  var civicHtml=(civicItems||[]).map(function(x){var cat=x.category==='childcare'?'Childcare':x.category==='libraries'?'Library':'School';var link=x.website?'<a href="'+escH(x.website)+'" target="_blank" rel="noopener" style="color:#f47920;font-weight:800;text-decoration:none">open</a>':'';return'<div style="font-size:.76rem;line-height:1.45;padding:7px 0;border-top:1px solid #eee"><strong style="color:#0d1b4b">'+escH(cat+': '+(x.name||'Resource'))+'</strong><br><span style="color:#555">'+fpMilesFeet(x._dist)+' away'+(x.address?' · '+escH(String(x.address).slice(0,110)):'')+'</span> '+link+'</div>';}).join('');
+  var civicHtml=(civicItems||[]).map(function(x){var cat=x.category==='childcare'?'Childcare':x.category==='libraries'?'Library':x.category==='park'?'Park':x.category==='bus_stop'?'Bus Stop':x.category==='citibike'?'Citi Bike':'School';var link=x.website?'<a href="'+escH(x.website)+'" target="_blank" rel="noopener" style="color:#f47920;font-weight:800;text-decoration:none">open</a>':'';return'<div style="font-size:.76rem;line-height:1.45;padding:7px 0;border-top:1px solid #eee"><strong style="color:#0d1b4b">'+escH(cat+': '+(x.name||'Resource'))+'</strong><br><span style="color:#555">'+fpMilesFeet(x._dist)+' away'+(x.address?' · '+escH(String(x.address).slice(0,110)):'')+'</span> '+link+'</div>';}).join('');
   var html='<div style="font-family:DM Sans,sans-serif;color:#0d1b4b">';
   html+='<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;justify-content:space-between;border-left:5px solid #f47920;background:#fffaf5;border-radius:12px;padding:12px 14px;margin-bottom:10px"><div><div style="font-size:.66rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.08em;color:#f47920;font-weight:900">Land-use lot and property profile</div><div style="font-size:1rem;font-weight:900;line-height:1.25;margin-top:3px">'+escH(lbl||addr)+'</div><div style="font-size:.75rem;color:#6b6760;margin-top:4px">'+(inCB6?'Inside Brooklyn CB6':'Community district: '+fpClean(cd))+(lotMatch&&!lotMatch.exact?' · nearest lot match '+fpMilesFeet(lotMatch.distance):'')+'</div></div><div style="font-family:DM Mono,monospace;font-size:.68rem;font-weight:900;color:'+(inCB6?'#166534':'#991b1b')+';background:#fff;border:1px solid '+(inCB6?'#86efac':'#fecaca')+';border-radius:999px;padding:6px 10px">'+(inCB6?'In CB6':'Check district')+'</div></div>';
-  html+=fpCard('Lot, land use, and zoning',[{l:'Block',v:blockInt?String(blockInt):''},{l:'Lot',v:lotInt?String(lotInt):''},{l:'BBL',v:bblNum},{l:'Land Use',v:escH(lotP.land_use||landUseLabel(lotP)||'')},{l:'Land Use Code',v:lotP.land_use_code?escH(landUseCode(lotP.land_use_code)):''},{l:'Zoning',v:escH([zone,zone2].filter(Boolean).join(' / '))},{l:'Owner',v:escH(lotP.owner||a.ownerName||'')},{l:'Units / Structures',v:escH(lotP.units||a.numberOfExistingStructuresOnLot||'')},{l:'Neighborhood',v:escH(lotP.neighborhood||'')},{l:'ZIP',v:escH(lotP.zip||a.zipCode||'')}]);
-  html+=fpCard('Districts and representation',[{l:'Community Board',v:escH(cd),hi:inCB6},{l:'City Council',v:fpRepLine('cc',a.cityCouncilDistrict)},{l:'Assembly',v:fpRepLine('assembly',a.stateLegislativeDistrict||a.assemblyDistrict)},{l:'State Senate',v:fpRepLine('senate',a.stateSenatorialDistrict)},{l:'Congress',v:fpRepLine('congress',a.congressionalDistrict)},{l:'School District',v:escH(a.communitySchoolDistrict?('CSD '+a.communitySchoolDistrict):'')},{l:'Police Precinct',v:escH((a.policePrecinct||a.nycPolicePrecinct||'')?((a.policePrecinct||a.nycPolicePrecinct)+' Pct'):'')},{l:'Election District',v:escH(a.electionDistrict?('ED '+a.electionDistrict):'')}]);
+  html+=fpCard('Land use and zoning',[{l:'Land Use',v:escH(lotP.land_use||landUseLabel(lotP)||'')},{l:'Land Use Code',v:lotP.land_use_code?escH(landUseCode(lotP.land_use_code)):''},{l:'Zoning',v:escH([zone,zone2].filter(Boolean).join(' / '))},{l:'Owner',v:escH(lotP.owner||a.ownerName||'')},{l:'Units / Structures',v:escH(lotP.units||a.numberOfExistingStructuresOnLot||'')},{l:'Neighborhood',v:escH(lotP.neighborhood||'')},{l:'ZIP',v:escH(lotP.zip||a.zipCode||'')}]);
+  html+=fpCard('Districts, representation, and elections',[{l:'Community Board',v:escH(cd),hi:inCB6},{l:'City Council',v:fpRepLine('cc',a.cityCouncilDistrict)},{l:'Assembly',v:fpRepLine('assembly',a.stateLegislativeDistrict||a.assemblyDistrict)},{l:'State Senate',v:fpRepLine('senate',a.stateSenatorialDistrict)},{l:'Congress',v:fpRepLine('congress',a.congressionalDistrict)},{l:'School District',v:escH(a.communitySchoolDistrict?('CSD '+a.communitySchoolDistrict):'')},{l:'Police Precinct',v:escH((a.policePrecinct||a.nycPolicePrecinct||'')?((a.policePrecinct||a.nycPolicePrecinct)+' Pct'):'')},{l:'Election District',v:escH(a.electionDistrict?('ED '+a.electionDistrict):'')},{l:'Mayor Result by ED',v:mayorResult?escH(mayorResult):'Not available for this election district'}]);
   html+='<div style="border:1px solid #e5e2db;border-radius:12px;background:#fff;padding:12px;margin-top:10px"><div style="font-size:.72rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.08em;color:#f47920;font-weight:900;margin-bottom:7px">DOB, ZAP, ACRIS, map, and district links</div>'+fpLink('DOB BIS property profile',dobUrl,'#0d1b4b')+fpLink('ZAP applications',zapUrl,'#7c3aed')+fpLink('ACRIS records',acrisUrl,'#374151')+fpLink('ZoLa zoning map',zolaUrl,'#166534')+fpLink('Full district breakdown',myDistricts,'#f47920')+fpLink('Open full CB6 map','cb6-map.html','#2563eb')+'</div>';
   if(civicHtml) html+='<div style="border:1px solid #e5e2db;border-radius:12px;background:#fff;padding:12px;margin-top:10px"><div style="font-size:.72rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.08em;color:#f47920;font-weight:900">Nearby civic services</div>'+civicHtml+'</div>';
   html+='</div>';
@@ -2311,7 +2340,7 @@ async function doSearch(){
     const boros=boro==='Citywide'?['Brooklyn','Manhattan','Queens','Bronx','Staten Island']:[boro];
     for(const b of boros){
       try{
-        const d=await fpFetchJSON(`https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(m[1])}&street=${encodeURIComponent(m[2])}&borough=${encodeURIComponent(b)}&subscription-key=${KEY}`,3500);
+        const d=await fpFetchJSON(`https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(m[1])}&street=${encodeURIComponent(m[2])}&borough=${encodeURIComponent(b)}&subscription-key=${KEY}`,8000);
         if(d.address&&!d.address.message&&d.address.latitude){gcData=d.address;lat=parseFloat(d.address.latitude);lng=parseFloat(d.address.longitude);lbl=(gcData.houseNumber&&gcData.firstStreetNameNormalized)?(gcData.houseNumber+' '+gcData.firstStreetNameNormalized):addr;break;}
       }catch(e){}
     }
@@ -2325,13 +2354,24 @@ async function doSearch(){
     }catch(e){}
   }
 
+  if(lat&&!gcData&&m){
+    const boros=boro==='Citywide'?['Brooklyn','Manhattan','Queens','Bronx','Staten Island']:[boro];
+    for(const b of boros){
+      try{
+        const d=await fpFetchJSON(`https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(m[1])}&street=${encodeURIComponent(m[2])}&borough=${encodeURIComponent(b)}&subscription-key=${KEY}`,9000);
+        if(d.address&&!d.address.message&&d.address.latitude){gcData=d.address;lat=parseFloat(d.address.latitude);lng=parseFloat(d.address.longitude);lbl=(gcData.houseNumber&&gcData.firstStreetNameNormalized)?(gcData.houseNumber+' '+gcData.firstStreetNameNormalized):lbl;break;}
+      }catch(e){}
+    }
+  }
+
   if(!lat){res.innerHTML='<span style="color:#c81e1e;font-size:.78rem">Address not found.</span>';return;}
   try{if(window.map&&window.L){if(searchMarker)map.removeLayer(searchMarker);searchMarker=L.circleMarker([lat,lng],{radius:8,fillColor:'#f47920',color:'#fff',weight:2,fillOpacity:1}).addTo(map).bindPopup(`<b>${escH(lbl)}</b>`);map.setView([lat,lng],16);}}catch(e){}
 
   var bblNum=gcData&&gcData.bbl?String(gcData.bbl).replace(/\D/g,''):'';
   var lotMatch=await fpFindLotProfile(bblNum,lat,lng);
   var civicItems=await fpNearbyCivic(lat,lng);
-  res.innerHTML=fpRenderProfile(addr,boro,lbl,lat,lng,gcData,lotMatch,civicItems);
+  var mayorResult=await fpMayorResult(gcData||{});
+  res.innerHTML=fpRenderProfile(addr,boro,lbl,lat,lng,gcData,lotMatch,civicItems,mayorResult);
   try{res.scrollIntoView({behavior:'smooth',block:'nearest'});}catch(e){}
   }catch(err){
     var rr=document.getElementById('s-result');

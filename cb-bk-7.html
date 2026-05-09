@@ -835,7 +835,7 @@ window.__cbbk7LandUseInit = (function(){
     } catch (err) { return null; }
   }
   async function profileFetchNearbyServices(lat, lng, foundCd) {
-    var out = { subway: null, bus: null, library: null, park: null, school: null };
+    var out = { subway: null, bus: null, citibike: null, library: null, park: null, school: null, mayor: null };
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return out;
     try {
       var transport = await profileFetchJsonIfAvailable(profileTransportDatasetForCd(foundCd));
@@ -843,6 +843,17 @@ window.__cbbk7LandUseInit = (function(){
       var busFeatures = transport && transport.busstops && transport.busstops.features ? transport.busstops.features : [];
       out.subway = profileNearestFromItems(subwayFeatures, lat, lng, 1)[0] || null;
       out.bus = profileNearestFromItems(busFeatures, lat, lng, 1)[0] || null;
+      var citiFeatures = [];
+      try {
+        var citiLocal = await profileFetchJsonIfAvailable('data/citibike_stations_cb6.geojson');
+        citiFeatures = citiLocal && Array.isArray(citiLocal.features) ? citiLocal.features : [];
+      } catch (citiLocalErr) {}
+      try {
+        var citiRemote = await profileFetchJsonIfAvailable('https://gbfs.citibikenyc.com/gbfs/en/station_information.json');
+        var remoteStations = citiRemote && citiRemote.data && Array.isArray(citiRemote.data.stations) ? citiRemote.data.stations : [];
+        if (remoteStations.length) citiFeatures = remoteStations;
+      } catch (citiRemoteErr) {}
+      out.citibike = profileNearestFromItems(citiFeatures, lat, lng, 1)[0] || null;
     } catch (err1) { console.warn('Nearby transit lookup failed:', err1); }
     try {
       var libraryDataset = await profileFetchJsonIfAvailable('data/nyc_libraries.geojson');
@@ -858,6 +869,17 @@ window.__cbbk7LandUseInit = (function(){
       var parkFeatures = parksDataset && Array.isArray(parksDataset.features) ? parksDataset.features : [];
       out.park = profileNearestFromItems(parkFeatures, lat, lng, 1, function(p){ return String(p.retired || '').toLowerCase() !== 'true'; })[0] || null;
     } catch (err4) { console.warn('Nearby park lookup failed:', err4); }
+    try {
+      var mayorDataset = await profileFetchJsonIfAvailable('data/cb6-ed-results.geojson');
+      var edNum = null, adNum = null;
+      try { edNum = parseInt(window.__profileLastAddress && window.__profileLastAddress.electionDistrict, 10); } catch (edErr) {}
+      try { adNum = parseInt(window.__profileLastAddress && (window.__profileLastAddress.assemblyDistrict || window.__profileLastAddress.stateLegislativeDistrict), 10); } catch (adErr) {}
+      if (mayorDataset && Array.isArray(mayorDataset.features) && Number.isFinite(edNum) && Number.isFinite(adNum)) {
+        var wanted = String(adNum).padStart(2, '0') + String(edNum).padStart(3, '0');
+        var mayorFeature = mayorDataset.features.find(function(f){ return String((f.properties || {}).elect_dist || '') === wanted; });
+        if (mayorFeature && mayorFeature.properties) out.mayor = mayorFeature.properties;
+      }
+    } catch (err5) { console.warn('Nearby mayor lookup failed:', err5); }
     try {
       var schoolItems = await profileFetchJsonIfAvailable('data/nyc_school_points.json');
       if (!Array.isArray(schoolItems) && typeof window !== 'undefined' && Array.isArray(window._overlayData_schools)) schoolItems = window._overlayData_schools;
@@ -891,6 +913,7 @@ window.__cbbk7LandUseInit = (function(){
       + profileNearbyItemHtml('Closest Park', nearby.park, function(p){ return p.signname || p.name311 || 'Park/Open Space'; }, parkDetail)
       + profileNearbyItemHtml('Closest Subway', nearby.subway, function(p){ return p.display_name || p.stop_name || 'Subway station'; }, subwayDetail)
       + profileNearbyItemHtml('Closest Bus Stop', nearby.bus, busName, function(){ return ''; })
+      + profileNearbyItemHtml('Closest Citi Bike', nearby.citibike, function(p){ return p.name || p.station_name || 'Citi Bike station'; }, function(p){ var bits = []; if (p.short_name) bits.push(p.short_name); if (p.capacity) bits.push(String(p.capacity) + ' docks'); return bits.join(' · '); })
       + profileNearbyItemHtml('Closest Library', nearby.library, function(p){ return p.name || 'Library'; }, function(p){ var bits = []; if (p.address) bits.push(p.address); if (p.system) bits.push(p.system); if (p.status && String(p.status).toLowerCase() !== 'unknown') bits.push(p.status); return bits.join(' · '); })
       + profileNearbyItemHtml('Closest School', nearby.school, function(p){ return p.name || 'School'; }, schoolDetail)
       + '</div></div>';
@@ -964,10 +987,8 @@ window.__cbbk7LandUseInit = (function(){
         + profileMiniCardHtml('School District', schoolDistrict ? 'CSD ' + schoolDistrict : '—')
         + profileMiniCardHtml('Police Precinct', policePrecinct ? policePrecinct + ' Precinct' : '—')
         + profileMiniCardHtml('Community Board', communityBoard.label || cfg.shortLabel || '—')
-        + profileMiniCardHtml('BBL', bbl || '—')
+        + profileMiniCardHtml('Mayoral Election Result', nearby && nearby.mayor && nearby.mayor.general_mayor ? nearby.mayor.ed_label + ': ' + nearby.mayor.general_mayor : 'Not available for this election district')
         + profileMiniCardHtml('Borough', boroughDisplay)
-        + profileMiniCardHtml('Block', blockDisplay)
-        + profileMiniCardHtml('Lot', lotDisplay)
         + profileMiniCardHtml('Year Built', yearBuiltDisplay)
         + profileMiniCardHtml('Building Class', buildingClassDisplay)
         + profileMiniCardHtml('Lot Area', lotAreaDisplay)
