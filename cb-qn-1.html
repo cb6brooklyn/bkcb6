@@ -204,6 +204,10 @@ svg,canvas,img{max-width:100%;height:auto}
   .cand-name{max-width:100%;flex-basis:100%}
 }
 </style>
+
+<style id="citywide-profile-dropdown-style">
+.cd-map-dropdown{border:1px solid var(--border,#e5e2db);border-radius:10px;background:#fff;margin-top:10px;overflow:hidden}.cd-map-dropdown>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:#fff;color:var(--navy,#0d1b4b);font-family:'DM Sans',sans-serif;font-weight:800;cursor:pointer;border-bottom:1px solid transparent}.cd-map-dropdown>summary::-webkit-details-marker{display:none}.cd-map-dropdown>summary:after{content:'Show map';font-family:'DM Mono',monospace;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--orange,#f47920)}.cd-map-dropdown[open]>summary{border-bottom-color:var(--border,#e5e2db)}.cd-map-dropdown[open]>summary:after{content:'Hide map'}
+</style>
 </head>
 <body>
 <header><div class="hdr"><div class="hdr-text"><h1>Queens <span>Community Board 1</span></h1><p>CB6 &amp; Beyond</p></div></div></header>
@@ -362,9 +366,12 @@ window.__cbqn1LandUseInit = (function(){
 <div class="cd-search-status" id="cb-qn-1-cd-map-address-search-status">Search an address or use the toggle row to add relevant overlays.</div>
 <div class="cd-search-result" hidden id="cb-qn-1-cd-map-address-search-result"></div>
 </div>
+<details class="cd-map-dropdown" id="cb-qn-1-cd-map-dropdown">
+<summary><span>Interactive map layers and overlays</span></summary>
 <div class="cd-toggle-bar" id="cb-qn-1-cd-map-toggles" aria-label="Map layer toggles"></div>
 <div id="cb-qn-1-cd-map" class="leaflet-map" style="width:100%;height:460px;"></div>
 <div class="cd-map-note" id="cb-qn-1-cd-map-note">Loading boundary fill and overlays…</div>
+</details>
 <script>
 (function(){
   var cfg = {
@@ -394,6 +401,15 @@ window.__cbqn1LandUseInit = (function(){
   if (!el || el.dataset.enhanced === 'true') return;
   el.dataset.enhanced = 'true';
 
+  var map = null, currentLayer = null, allBoundaryFeatures = [], currentFeature = null, searchMarker = null;
+  var toggleLayers = {}, activeLayers = {}, toggleButtons = {}, toggleGroups = {}, currentTogglePanel = null;
+  var toggleBar = document.getElementById(cfg.togglesId);
+
+  map = L.map(el, {scrollWheelZoom:false, zoomControl:true});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',maxZoom:19}).addTo(map);
+  map.setView(cfg.center || [40.7128,-74.0060], cfg.zoom || 12);
+
+
   function setStatus(message){var s=document.getElementById(cfg.searchStatusId); if(s) s.textContent=message;}
   function setNote(message){var n=document.getElementById(cfg.noteId); if(n) n.textContent=message;}
   function escapeHtml(value){return String(value == null ? '' : value).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
@@ -415,166 +431,109 @@ window.__cbqn1LandUseInit = (function(){
   }
 
   function profileDistrictNumber(value) {
-    var normalized = String(value == null ? '' : value).trim();
-    if (!normalized) return '';
-    var parsed = parseInt(normalized, 10);
-    return Number.isFinite(parsed) ? String(parsed) : normalized;
+    var m = String(value || '').match(/\d+/);
+    if (!m) return '';
+    return String(parseInt(m[0], 10));
   }
   function profileLandUseLabel(code) {
-    var normalized = String(code || '').trim().padStart(2, '0');
     var labels = {
-      '01': 'One & Two Family Buildings',
-      '02': 'Multi-Family Walk-Up Buildings',
-      '03': 'Multi-Family Elevator Buildings',
-      '04': 'Mixed Residential & Commercial Buildings',
-      '05': 'Commercial & Office Buildings',
-      '06': 'Industrial & Manufacturing',
-      '07': 'Transportation & Utility',
-      '08': 'Public Facilities & Institutions',
-      '09': 'Open Space & Outdoor Recreation',
-      '10': 'Parking Facilities',
-      '11': 'Vacant Land'
+      '01':'One & Two Family Buildings','02':'Multi-Family Walk-Up Buildings','03':'Multi-Family Elevator Buildings','04':'Mixed Residential & Commercial Buildings','05':'Commercial & Office Buildings','06':'Industrial & Manufacturing','07':'Transportation & Utility','08':'Public Facilities & Institutions','09':'Open Space & Outdoor Recreation','10':'Parking Facilities','11':'Vacant Land'
     };
-    return labels[normalized] || '';
+    var key = String(code || '').trim().padStart(2, '0');
+    return labels[key] || '';
   }
   function profileLandUsePlainEnglish(code, label) {
-    var normalized = String(code || '').trim().padStart(2, '0');
-    var descriptions = {
-      '01': 'This parcel is currently used for one- or two-family housing. Zoning determines whether a larger or different building could be built.',
-      '02': 'This parcel is currently a walk-up multifamily building. Zoning controls whether enlargement, replacement, or ground-floor commercial use is allowed.',
-      '03': 'This parcel is currently an elevator multifamily building. Zoning controls allowable height, floor area, and whether nonresidential uses may be included.',
-      '04': 'This parcel already mixes residential and commercial use, often housing with stores or services. Zoning and any commercial overlay determine what mix is allowed going forward.',
-      '05': 'This parcel is currently commercial or office use. Zoning determines whether housing, larger commercial space, or mixed-use redevelopment is allowed.',
-      '06': 'This parcel is currently industrial or manufacturing use. Conversion to housing or retail depends on the zoning district and any special approvals.',
-      '07': 'This parcel is used for transportation or utility infrastructure. Redevelopment may involve agency, utility, or special-purpose constraints beyond normal zoning.',
-      '08': 'This parcel is used for a public facility or institution. Zoning may allow community-facility use even where ordinary commercial use is limited.',
-      '09': 'This parcel is open space or outdoor recreation. Parks and mapped open spaces often have legal or ownership limits beyond zoning.',
-      '10': 'This parcel is currently parking. Zoning determines whether it can be replaced with housing, commercial, community-facility, or other development.',
-      '11': 'This parcel is vacant land. Zoning is the starting point for what could be built, subject to lot conditions and other rules.'
+    var key = String(code || '').trim().padStart(2, '0');
+    var notes = {
+      '01':'Low-density residential lots, typically one- and two-family homes.',
+      '02':'Walk-up apartment buildings, typically smaller multifamily housing.',
+      '03':'Elevator apartment buildings, typically larger multifamily housing.',
+      '04':'Mixed-use buildings combining residential units with stores, offices, or other commercial uses.',
+      '05':'Commercial or office buildings.',
+      '06':'Industrial, warehouse, or manufacturing uses.',
+      '07':'Transportation or utility infrastructure.',
+      '08':'Public facilities and institutions such as schools, hospitals, houses of worship, or government uses.',
+      '09':'Open space or outdoor recreation, including parks and playgrounds.',
+      '10':'Parking facilities.',
+      '11':'Vacant land.'
     };
-    return descriptions[normalized] || 'Current land use was not available from PLUTO; zoning still controls what may be allowed on the lot.';
+    return notes[key] || (label ? label + '.' : 'Land-use detail was not available from PLUTO.');
   }
-  function profileZoningPlainEnglish(zone) {
-    var normalized = String(zone || '').trim().toUpperCase();
-    if (!normalized) return 'Zoning controls use, building size, and bulk; check ZoLa for the exact district rules.';
-    if (normalized === 'PARK') return 'PARK indicates mapped parkland or open-space zoning. Large public open-space or stadium sites can have ownership, lease, parkland, and agency rules beyond ordinary zoning.';
-    if (/^R(1|2)/.test(normalized)) return normalized + ' is very low-density residential zoning, generally detached one- and two-family homes with yards. Commercial uses are generally not allowed unless another rule or overlay applies.';
-    if (/^R(3|4|5)/.test(normalized)) return normalized + ' is low-density residential zoning, generally one- and two-family homes and small multifamily buildings. Building size and height are limited, and ground-floor commercial usually requires a commercial overlay.';
-    if (/^R6/.test(normalized)) return normalized + ' is medium-density residential zoning. It can allow apartment buildings; exact height and bulk depend on contextual or non-contextual rules, and ground-floor commercial generally requires a commercial overlay or special district permission.';
-    if (/^R(7|8|9|10)/.test(normalized)) return normalized + ' is medium- to high-density residential zoning that can allow larger apartment buildings. Exact height and bulk vary by suffix and mapped rules, and local retail usually requires a commercial overlay, mixed-use district, or special district.';
-    if (/^C(1|2)-/.test(normalized)) return normalized + ' is a commercial overlay, often mapped along retail corridors. It can allow local shops and services, typically on the ground floor, within or alongside an underlying residential district.';
-    if (/^C(3|4|5)/.test(normalized)) return normalized + ' is commercial zoning that can allow a broader range of retail, office, hotel, entertainment, and mixed-use buildings, subject to district-specific bulk rules.';
-    if (/^C6/.test(normalized)) return normalized + ' is high-density central business district zoning. It can allow offices, hotels, retail, and residential or mixed-use buildings; tower form, height, and floor area depend on the exact district and special rules.';
-    if (/^C(7|8)/.test(normalized)) return normalized + ' is commercial zoning for amusement, automotive, heavy commercial, or semi-industrial uses. Housing is generally limited or not allowed unless another rule permits it.';
-    if (/^M1/.test(normalized)) return normalized + ' is light manufacturing zoning that can allow industrial, commercial, office, warehouse, and some community-facility uses. Housing generally requires a mixed-use district, special permit, or other mapped allowance.';
-    if (/^M(2|3)/.test(normalized)) return normalized + ' is heavier manufacturing zoning for more intensive industrial uses, with housing generally not allowed unless another special rule applies.';
-    if (/^[A-Z]{1,4}$/.test(normalized)) return normalized + ' is a special district or mapped special rule area. It modifies or supplements the underlying zoning, so check ZoLa for the exact provisions.';
-    return normalized + ' is the mapped zoning district. Check ZoLa for exact use, height, bulk, and special district rules.';
+  function profileZoningPlainEnglish(zoning) {
+    zoning = String(zoning || '').trim().toUpperCase();
+    if (!zoning) return '';
+    if (/^R/.test(zoning)) return zoning + ' is a residence district. The number generally indicates permitted density and building form; suffixes such as A, B, D, or X refine bulk, height, parking, or contextual rules.';
+    if (/^C/.test(zoning)) return zoning + ' is a commercial district. It generally permits retail, office, service, or mixed commercial activity depending on the district and any mapped overlays.';
+    if (/^M/.test(zoning)) return zoning + ' is a manufacturing district. It generally permits industrial, warehouse, production, or certain commercial uses depending on performance standards.';
+    if (/^PARK$/i.test(zoning)) return 'Mapped parkland or open-space zoning context.';
+    return zoning + ' is a mapped zoning district. Check ZoLa for the controlling text, overlays, and special district rules.';
   }
   function profileNormalizeZoningItem(value) {
-    return String(value == null ? '' : value).trim().toUpperCase();
+    var z = String(value || '').trim().toUpperCase();
+    if (!z || z === 'NA' || z === 'N/A' || z === 'NONE' || z === '0') return '';
+    return z;
   }
-  function profileAddZoningItem(items, seen, value) {
-    var normalized = profileNormalizeZoningItem(value);
-    if (!normalized || normalized === '0' || normalized === 'NA' || normalized === 'N/A') return;
-    if (seen[normalized]) return;
-    seen[normalized] = true;
-    items.push(normalized);
+  function profileAddZoningItem(items, value) {
+    var z = profileNormalizeZoningItem(value);
+    if (z && items.indexOf(z) === -1) items.push(z);
   }
-  function profileCollectZoningItems(a, pluto) {
-    a = a || {}; pluto = pluto || {};
-    var items = [], seen = {};
-    ['zonedist1','zonedist2','zonedist3','zonedist4'].forEach(function(key){ profileAddZoningItem(items, seen, pluto[key]); });
-    ['zoningDistrict1','primaryZoningDistrict','zoningDistrict2'].forEach(function(key){ profileAddZoningItem(items, seen, a[key]); });
-    ['spdist1','spdist2','spdist3'].forEach(function(key){ profileAddZoningItem(items, seen, pluto[key]); });
-    ['overlay1','overlay2'].forEach(function(key){ profileAddZoningItem(items, seen, pluto[key]); });
-    ['overlayDistrict1','overlayDistrict2'].forEach(function(key){ profileAddZoningItem(items, seen, a[key]); });
+  function profileCollectZoningItems(address, pluto) {
+    var items = [];
+    [pluto && pluto.zonedist1, pluto && pluto.zonedist2, pluto && pluto.zonedist3, pluto && pluto.zonedist4, address && address.zoningDistrict1, address && address.zoningDistrict2, address && address.zoningDistrict3, address && address.zoningDistrict4].forEach(function(v){ profileAddZoningItem(items, v); });
     return items;
   }
   function profileZoningDisplay(items) {
-    return (items || []).length ? items.join(' / ') : '';
+    return items && items.length ? items.join(' / ') : 'Not available from PLUTO';
   }
-  function profileZoningSummaryHtml(items, h) {
-    items = items || [];
-    if (!items.length) return h('Zoning controls use, building size, and bulk; check ZoLa for the exact district rules.');
-    if (items.length === 1) return h(profileZoningPlainEnglish(items[0]));
-    var intro = 'Multiple zoning items are mapped to this BBL. Read this as a complex or split-zoned site; exact rules can depend on which part of the parcel is involved, special district boundaries, overlays, and the ZoLa zoning map.';
-    var rows = items.map(function(item){ return '<li><strong>' + h(item) + ':</strong> ' + h(profileZoningPlainEnglish(item)) + '</li>'; }).join('');
-    return h(intro) + '<ul style="margin:6px 0 0 1.1rem;padding:0">' + rows + '</ul>';
+  function profileZoningSummaryHtml(items, escFn) {
+    escFn = escFn || profileCardEscape;
+    if (!items || !items.length) return 'Zoning was not available from PLUTO for this address.';
+    return items.map(function(z){ return '<strong>' + escFn(z) + '</strong>: ' + escFn(profileZoningPlainEnglish(z)); }).join('<br>');
   }
-  function profileMajorSiteNote(input, a, pluto, zoningItems) {
-    var rawBbl = (a && a.bbl) || (pluto && pluto.bbl) || '';
-    var bbl = String(rawBbl).replace(/\D/g, '').slice(0, 10);
-    var known = {
-      '3011180001': 'Barclays Center',
-      '2024930001': 'Yankee Stadium'
-    };
-    if (known[bbl]) {
-      return 'Major site: this BBL is ' + known[bbl] + '. Large arena or stadium sites can span multiple zoning districts or special mapped rules, so use the zoning list as a site-level summary and verify exact boundaries in ZoLa.';
-    }
-    var lotArea = parseFloat(pluto && pluto.lotarea) || 0;
-    var bldgArea = parseFloat(pluto && pluto.bldgarea) || 0;
-    var split = String(pluto && pluto.splitzone || '').toLowerCase() === 'true';
-    if ((zoningItems && zoningItems.length > 2) || split || lotArea >= 200000 || bldgArea >= 500000) {
-      return 'Major or complex site: this property is unusually large, split-zoned, or has several mapped zoning items. Confirm the exact applicable rules and boundaries in ZoLa before treating it like an ordinary single-district lot.';
-    }
+  function profileMajorSiteNote(input, address, pluto, zoningItems) {
+    var text = [input, address && address.firstStreetNameNormalized, address && address.streetName1In].join(' ').toLowerCase();
+    if (text.indexOf('atlantic') !== -1 && text.indexOf('avenue') !== -1 && String(address && address.firstBoroughName || '').toLowerCase().indexOf('brooklyn') !== -1) return 'Major site: Atlantic Avenue corridor context; check zoning, DOB, and ZAP links for parcel-specific details.';
+    if ((zoningItems || []).some(function(z){ return /^M/.test(z); })) return 'Major site: Manufacturing zoning may signal industrial or mixed industrial-commercial context.';
     return '';
   }
-  function profileParseAddressInput(input) {
-    var cleaned = String(input || '').trim();
-    var boroughAliases = {
-      'manhattan': 'Manhattan', 'new york': 'Manhattan', 'ny': 'Manhattan',
-      'bronx': 'Bronx', 'the bronx': 'Bronx',
-      'brooklyn': 'Brooklyn', 'bk': 'Brooklyn',
-      'queens': 'Queens',
-      'staten island': 'Staten Island', 'staten': 'Staten Island'
-    };
-    var borough = cfg.boroughName || 'Brooklyn';
-    var streetPart = cleaned;
-    var parts = cleaned.split(',').map(function(part){ return part.trim(); }).filter(Boolean);
-    if (parts.length > 1) {
-      var possibleBorough = parts[parts.length - 1].toLowerCase();
-      if (boroughAliases[possibleBorough]) {
-        borough = boroughAliases[possibleBorough];
-        streetPart = parts.slice(0, -1).join(', ');
-      } else {
-        streetPart = parts[0];
-      }
-    }
-    var match = streetPart.match(/^(\d+[A-Za-z]?)\s+(.+)/);
-    if (!match) throw new Error('Try: 123 Smith Street');
-    return { houseNumber: match[1], street: match[2].trim(), borough: borough };
+  function profileParseAddressInput(query) {
+    var q = String(query || '').trim().replace(/,\s*(NY|New York)\s*$/i, '');
+    var parts = q.split(',').map(function(p){ return p.trim(); }).filter(Boolean);
+    var streetPart = parts[0] || q;
+    var borough = parts[1] || (typeof cfg !== 'undefined' && cfg.boroughName) || 'Brooklyn';
+    var m = streetPart.match(/^(\d+[A-Za-z-]*)\s+(.+)$/);
+    if (!m) throw new Error('Enter a street address with a house number, e.g. 250 Baltic Street, Brooklyn.');
+    return { houseNumber: m[1], street: m[2], borough: borough };
   }
-  function profileBoroughSlug(value) {
-    var code = String(value || '').trim();
-    var slugs = { '1': 'manhattan', '2': 'bronx', '3': 'brooklyn', '4': 'queens', '5': 'staten-island' };
-    if (slugs[code]) return slugs[code];
-    var name = code.toLowerCase().replace(/\s+/g, '-');
-    if (name === 'the-bronx') return 'bronx';
-    return name || 'brooklyn';
+  function profileBoroughSlug(name) {
+    name = String(name || '').toLowerCase();
+    if (name.indexOf('manhattan') !== -1 || name === '1') return 'mn';
+    if (name.indexOf('bronx') !== -1 || name === '2') return 'bx';
+    if (name.indexOf('brooklyn') !== -1 || name.indexOf('kings') !== -1 || name === '3') return 'bk';
+    if (name.indexOf('queens') !== -1 || name === '4') return 'qn';
+    if (name.indexOf('staten') !== -1 || name.indexOf('richmond') !== -1 || name === '5') return 'si';
+    return '';
   }
   function profileCommunityBoardInfo(a) {
-    var boroughCode = a.communityDistrictBoroughCode || a.bblBoroughCode || a.boroughCode1In || a.firstBoroughName || String(a.communityDistrict || cfg.boroCd || '').charAt(0) || cfg.boroPrefix || '3';
-    var cdNumber = profileDistrictNumber(a.communityDistrictNumber || String(a.communityDistrict || '').slice(-2));
-    var borough = boardLabel(String(boroughCode) + String(cdNumber || '').padStart(2, '0')).replace(/ Community Board .*/, '');
-    var boroughSlug = profileBoroughSlug(boroughCode);
-    var boroughShort = ({ '1': 'mn', '2': 'bx', '3': 'bk', '4': 'qn', '5': 'si' })[String(boroughCode).charAt(0)] || '';
-    var label = cdNumber ? borough + ' Community Board ' + cdNumber : borough + ' Community Board';
-    var profileUrl = cdNumber ? 'https://communityprofiles.planning.nyc.gov/' + boroughSlug + '/' + encodeURIComponent(cdNumber) : 'https://www.nyc.gov/site/cau/community-boards/community-boards.page';
-    var localProfileUrl = (cdNumber && boroughShort) ? 'cb-' + boroughShort + '-' + encodeURIComponent(cdNumber) + '.html' : '';
-    return { borough: borough, number: cdNumber, label: label, profileUrl: profileUrl, localProfileUrl: localProfileUrl, boroCd: String(boroughCode) + String(cdNumber || '').padStart(2, '0') };
+    var cd = String((a && (a.communityDistrict || a.communityDistrictBoroughCode)) || '').replace(/\D/g, '');
+    if (cd.length === 2 && typeof cfg !== 'undefined' && cfg.boroPrefix) cd = String(cfg.boroPrefix) + cd;
+    if (cd.length === 3 && typeof validCommunityBoardCode === 'function' && validCommunityBoardCode(cd)) return { boroCd: cd, label: boardLabel(cd), localProfileUrl: boardSlug(cd), profileUrl: boardSlug(cd) };
+    return { boroCd: (typeof cfg !== 'undefined' && cfg.boroCd) || '', label: (typeof cfg !== 'undefined' && cfg.label) || 'Community Board', localProfileUrl: '', profileUrl: '' };
   }
   async function profileFetchPlutoLot(bbl) {
-    if (!bbl) return {};
+    bbl = String(bbl || '').replace(/\D/g, '');
+    if (bbl.length < 10) return {};
     try {
-      var endpoint = 'https://data.cityofnewyork.us/resource/64uk-42ks.json?bbl=' + encodeURIComponent(bbl) + '&$select=bbl,address,zonedist1,zonedist2,zonedist3,zonedist4,overlay1,overlay2,spdist1,spdist2,spdist3,splitzone,landuse,bldgclass,lotarea,bldgarea&$limit=1';
+      var params = new URLSearchParams({ bbl: bbl, '$select': 'bbl,borough,block,lot,address,landuse,zonedist1,zonedist2,zonedist3,zonedist4,overlay1,overlay2,spdist1,spdist2,spdist3,ltdheight,yearbuilt,unitsres,unitstotal,lotarea,bldgarea', '$limit': '1' });
+      var endpoint = 'https://data.cityofnewyork.us/resource/64uk-42ks.json?' + params.toString();
       var resp = await fetch(endpoint);
       if (!resp.ok) return {};
       var rows = await resp.json();
-      return Array.isArray(rows) && rows.length ? rows[0] : {};
+      return Array.isArray(rows) && rows[0] ? rows[0] : {};
     } catch (err) { console.warn('PLUTO lookup failed:', err); return {}; }
   }
   async function profileFetchLandmarkStatus(bbl) {
+    bbl = String(bbl || '').replace(/\D/g, '');
     if (!bbl) return { historicDistricts: [] };
     try {
       var params = new URLSearchParams({ bbl: bbl, '$select': 'hist_dist,lm_orig,lm_new,des_addres', '$limit': '50' });
@@ -595,11 +554,167 @@ window.__cbqn1LandUseInit = (function(){
     if (!data.address) throw new Error('Address not found');
     return data.address;
   }
-  function profileRenderLookupCard(input, a, foundCd, lat, lng, pluto, landmarkStatus) {
+  function profileCardEscape(value) {
+    if (typeof escapeHtml === 'function') return escapeHtml(value);
+    if (typeof escH === 'function') return escH(value);
+    return String(value == null ? '' : value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function profileAddressValue(obj, names) {
+    obj = obj || {};
+    for (var i = 0; i < names.length; i++) {
+      var value = obj[names[i]];
+      if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+    }
+    return '';
+  }
+  function profileMiniCardHtml(label, value) {
+    return '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">' + profileCardEscape(label) + '</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + profileCardEscape(value || '—') + '</div></div>';
+  }
+  function profileDistanceFeet(lat1, lng1, lat2, lng2) {
+    var R = 3959 * 5280;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLng = (lng2 - lng1) * Math.PI / 180;
+    var a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2) * Math.sin(dLng/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+  function profileMilesLabel(feet) {
+    if (!Number.isFinite(feet)) return '';
+    if (feet < 700) return Math.round(feet / 25) * 25 + ' ft';
+    return (feet / 5280).toFixed(1) + ' mi';
+  }
+  function profileGeometryCenter(geometry) {
+    var coords = [];
+    function collect(value) {
+      if (!value) return;
+      if (Array.isArray(value) && value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number') coords.push(value);
+      else if (Array.isArray(value)) value.forEach(collect);
+    }
+    collect(geometry && geometry.coordinates);
+    if (!coords.length) return null;
+    var sx = 0, sy = 0;
+    coords.forEach(function(c){ sx += parseFloat(c[0]); sy += parseFloat(c[1]); });
+    return { lng: sx / coords.length, lat: sy / coords.length };
+  }
+  function profileFeaturePoint(feature) {
+    if (!feature) return null;
+    if (feature.geometry && feature.geometry.type === 'Point' && feature.geometry.coordinates) {
+      return { lng: parseFloat(feature.geometry.coordinates[0]), lat: parseFloat(feature.geometry.coordinates[1]), properties: feature.properties || {} };
+    }
+    var center = profileGeometryCenter(feature.geometry);
+    if (center && Number.isFinite(center.lat) && Number.isFinite(center.lng)) return { lat: center.lat, lng: center.lng, properties: feature.properties || {} };
+    var p = feature.properties || feature;
+    var lat = parseFloat(p.lat || p.latitude || p.entrance_latitude || p.Latitude || p.LATITUDE);
+    var lng = parseFloat(p.lon || p.lng || p.longitude || p.entrance_longitude || p.Longitude || p.LONGITUDE);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat: lat, lng: lng, properties: p };
+    return null;
+  }
+  function profileNearestFromItems(items, lat, lng, count, filterFn) {
+    return (items || []).map(function(item) {
+      var pt = profileFeaturePoint(item);
+      if (!pt || !Number.isFinite(pt.lat) || !Number.isFinite(pt.lng)) return null;
+      var props = pt.properties || item.properties || item;
+      if (filterFn && !filterFn(props)) return null;
+      return { properties: props, lat: pt.lat, lng: pt.lng, distanceFeet: profileDistanceFeet(lat, lng, pt.lat, pt.lng) };
+    }).filter(Boolean).sort(function(a,b){ return a.distanceFeet - b.distanceFeet; }).slice(0, count || 1);
+  }
+  function profileBoroughKeyForCd(foundCd) {
+    var cd = String(foundCd || (typeof cfg !== 'undefined' && cfg.boroCd) || '').trim();
+    var prefix = cd.charAt(0);
+    return ({'1':'manhattan','2':'bronx','3':'brooklyn','4':'queens','5':'statenisland'})[prefix] || ((typeof cfg !== 'undefined' && cfg.boroughKey) || '');
+  }
+  function profileBoroughShortForCd(foundCd) {
+    var cd = String(foundCd || (typeof cfg !== 'undefined' && cfg.boroCd) || '').trim();
+    var prefix = cd.charAt(0);
+    return ({'1':'mn','2':'bx','3':'bk','4':'qn','5':'si'})[prefix] || '';
+  }
+  function profileTransportDatasetForCd(foundCd) {
+    var cd = String(foundCd || (typeof cfg !== 'undefined' && cfg.boroCd) || '').trim();
+    if (!/^\d{3}$/.test(cd) && typeof PROFILE_LOOKUP_CFG !== 'undefined') cd = String(PROFILE_LOOKUP_CFG.boroCd || '').trim();
+    if (!/^\d{3}$/.test(cd)) return '';
+    var b = profileBoroughShortForCd(cd);
+    var n = parseInt(cd.slice(1), 10);
+    return b && n ? 'transport-data/cb-' + b + '-' + n + '.json' : '';
+  }
+  function profileParksDatasetForCd(foundCd) {
+    var key = profileBoroughKeyForCd(foundCd);
+    return key ? 'data/topmap-parks-' + key + '.geojson' : '';
+  }
+  async function profileFetchJsonIfAvailable(url) {
+    if (!url) return null;
+    try {
+      var resp = await fetch(url);
+      if (!resp.ok) return null;
+      return await resp.json();
+    } catch (err) { return null; }
+  }
+  async function profileFetchNearbyServices(lat, lng, foundCd) {
+    var out = { subway: null, bus: null, library: null, park: null, school: null };
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return out;
+    try {
+      var transport = await profileFetchJsonIfAvailable(profileTransportDatasetForCd(foundCd));
+      var subwayFeatures = transport && transport.subway && transport.subway.features ? transport.subway.features : [];
+      var busFeatures = transport && transport.busstops && transport.busstops.features ? transport.busstops.features : [];
+      out.subway = profileNearestFromItems(subwayFeatures, lat, lng, 1)[0] || null;
+      out.bus = profileNearestFromItems(busFeatures, lat, lng, 1)[0] || null;
+    } catch (err1) { console.warn('Nearby transit lookup failed:', err1); }
+    try {
+      var libraryDataset = await profileFetchJsonIfAvailable('data/nyc_libraries.geojson');
+      var libraryItems = libraryDataset && Array.isArray(libraryDataset.features) ? libraryDataset.features : ((typeof LIBRARIES !== 'undefined' && Array.isArray(LIBRARIES)) ? LIBRARIES : []);
+      var openLibrary = profileNearestFromItems(libraryItems, lat, lng, 1, function(p){
+        var status = String(p.status || '').toLowerCase();
+        return status.indexOf('closed') === -1;
+      })[0] || null;
+      out.library = openLibrary || profileNearestFromItems(libraryItems, lat, lng, 1)[0] || null;
+    } catch (err2) { console.warn('Nearby library lookup failed:', err2); }
+    try {
+      var parksDataset = await profileFetchJsonIfAvailable(profileParksDatasetForCd(foundCd));
+      var parkFeatures = parksDataset && Array.isArray(parksDataset.features) ? parksDataset.features : [];
+      out.park = profileNearestFromItems(parkFeatures, lat, lng, 1, function(p){ return String(p.retired || '').toLowerCase() !== 'true'; })[0] || null;
+    } catch (err4) { console.warn('Nearby park lookup failed:', err4); }
+    try {
+      var schoolItems = (typeof window !== 'undefined' && Array.isArray(window._overlayData_schools)) ? window._overlayData_schools : await profileFetchJsonIfAvailable('schools_childcare_cb6.json');
+      out.school = profileNearestFromItems(Array.isArray(schoolItems) ? schoolItems : [], lat, lng, 1, function(p){ return String(p.category || '').toLowerCase() !== 'childcare'; })[0] || null;
+    } catch (err3) { console.warn('Nearby school lookup failed:', err3); }
+    return out;
+  }
+  function profileNearbyItemHtml(label, item, nameFn, detailFn) {
+    if (!item) return profileMiniCardHtml(label, 'Not available');
+    var p = item.properties || {};
+    var name = nameFn ? nameFn(p) : (p.name || p.stop_name || label);
+    var detail = detailFn ? detailFn(p) : '';
+    var dist = profileMilesLabel(item.distanceFeet);
+    var value = name || label;
+    if (dist) value += ' · ' + dist;
+    if (detail) value += ' · ' + detail;
+    return profileMiniCardHtml(label, value);
+  }
+  function profileNearbyServicesHtml(nearby) {
+    nearby = nearby || {};
+    function subwayDetail(p){ return p.daytime_routes || p.routes || ''; }
+    function busName(p){ var routes = Array.isArray(p.routes) ? p.routes.join(', ') : (p.routes || p.route_short_name || 'Bus'); return routes + ' · ' + (p.stop_name || 'Bus stop'); }
+    function schoolDetail(p){ return p.program_type || p.typecategory || p.address || ''; }
+    function parkDetail(p){ var bits = []; if (p.typecategory) bits.push(p.typecategory); if (p.location) bits.push(p.location); else if (p.address) bits.push(p.address); return bits.join(' · '); }
+    return '<div style="margin-bottom:10px"><div style="font-size:.66rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 5px">Nearby civic services</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px">'
+      + profileNearbyItemHtml('Closest Park', nearby.park, function(p){ return p.signname || p.name311 || 'Park/Open Space'; }, parkDetail)
+      + profileNearbyItemHtml('Closest Subway', nearby.subway, function(p){ return p.display_name || p.stop_name || 'Subway station'; }, subwayDetail)
+      + profileNearbyItemHtml('Closest Bus Stop', nearby.bus, busName, function(){ return ''; })
+      + profileNearbyItemHtml('Closest Library', nearby.library, function(p){ return p.name || 'Library'; }, function(p){ var bits = []; if (p.address) bits.push(p.address); if (p.system) bits.push(p.system); if (p.status && String(p.status).toLowerCase() !== 'unknown') bits.push(p.status); return bits.join(' · '); })
+      + profileNearbyItemHtml('Closest School', nearby.school, function(p){ return p.name || 'School'; }, schoolDetail)
+      + '</div></div>';
+  }
+  function profileRepLabel(type, id, fallbackLabel) {
+    id = profileDistrictNumber(id);
+    if (!id) return '—';
+    var name = (typeof repName === 'function') ? repName(type, id) : '';
+    return (fallbackLabel || 'District') + ' ' + id + (name ? ' — ' + name : '');
+  }
+  function profileRenderLookupCard(input, a, foundCd, lat, lng, pluto, landmarkStatus, nearby) {
     var ed = parseInt(a.electionDistrict), ad = parseInt(a.assemblyDistrict);
     var councilDistrict = profileDistrictNumber(a.cityCouncilDistrict);
     var stateSenateDistrict = profileDistrictNumber(a.stateSenatorialDistrict);
     var congressionalDistrict = profileDistrictNumber(a.congressionalDistrict);
+    var schoolDistrict = profileDistrictNumber(profileAddressValue(a, ['communitySchoolDistrict','schoolDistrict','schoolDistrictNumber']));
+    var policePrecinct = profileDistrictNumber(profileAddressValue(a, ['policePrecinct','policePrecinctCode','nycPolicePrecinct']));
     var bbl = (a.bbl || '').replace(/\D/g, '');
     var boroughCode = bbl.slice(0,1) || String(foundCd || cfg.boroCd || '').charAt(0);
     var block = bbl.slice(1,6), lot = bbl.slice(6,10);
@@ -630,28 +745,30 @@ window.__cbqn1LandUseInit = (function(){
     var repUrl = 'mydistricts.html?address=' + enc;
     var districtSearchUrl = communityBoard.localProfileUrl ? communityBoard.localProfileUrl + '?addr=' + enc + '#sec-map' : communityBoard.profileUrl;
     var electionUrl = inDistrict ? 'elections.html?addr=' + enc : districtSearchUrl;
-    var outsideNotice = !inDistrict ? '<div style="background:#fff7ed;border:1px solid #fdba74;border-radius:6px;padding:8px 10px;margin:8px 0 10px;font-size:.74rem;line-height:1.45;color:#7c2d12"><strong>Outside ' + escapeHtml(cfg.shortLabel) + ':</strong> This address is in <strong>' + escapeHtml(communityBoard.label) + '</strong>. Open that district profile to run the same address search in the correct community-board context; the property links below still work citywide. <a href="' + districtSearchUrl + '" style="color:var(--orange);font-weight:800">Open district address search</a>.</div>' : '';
+    var outsideNotice = !inDistrict ? '<div style="background:#fff7ed;border:1px solid #fdba74;border-radius:6px;padding:8px 10px;margin:8px 0 10px;font-size:.74rem;line-height:1.45;color:#7c2d12"><strong>Outside ' + profileCardEscape(cfg.shortLabel) + ':</strong> This address is in <strong>' + profileCardEscape(communityBoard.label) + '</strong>. Open that district profile to run the same address search in the correct community-board context; the property links below still work citywide. <a href="' + districtSearchUrl + '" style="color:var(--orange);font-weight:800">Open district address search</a>.</div>' : '';
     return '<div style="background:#f0f8f4;border:1.5px solid #a7f3d0;border-radius:8px;padding:12px 14px;margin-top:4px">'
-      + '<div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:2px">&#10003; ' + escapeHtml(input) + '</div>'
-      + '<div style="font-size:.75rem;color:var(--muted);margin-bottom:8px">'
-        + (inDistrict ? '&#10003; In ' + escapeHtml(cfg.shortLabel) + ' &middot; ' : '&#9888; Outside ' + escapeHtml(cfg.shortLabel) + ' &middot; ' + escapeHtml(communityBoard.label) + ' &middot; ')
-        + 'ED ' + (Number.isFinite(ed) ? ed : '—') + ' &middot; AD ' + (Number.isFinite(ad) ? ad : '—')
-        + (councilDistrict ? ' &middot; Council District ' + escapeHtml(councilDistrict) : '')
-        + (stateSenateDistrict ? ' &middot; State Senate District ' + escapeHtml(stateSenateDistrict) : '')
-        + (congressionalDistrict ? ' &middot; Congressional District ' + escapeHtml(congressionalDistrict) : '')
-      + '</div>'
+      + '<div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:2px">&#10003; ' + profileCardEscape(input) + '</div>'
+      + '<div style="font-size:.75rem;color:var(--muted);margin-bottom:8px">' + (inDistrict ? '&#10003; In ' + profileCardEscape(cfg.shortLabel) + ' &middot; ' : '&#9888; Outside ' + profileCardEscape(cfg.shortLabel) + ' &middot; ' + profileCardEscape(communityBoard.label) + ' &middot; ') + 'ED ' + (Number.isFinite(ed) ? ed : '—') + ' &middot; AD ' + (Number.isFinite(ad) ? ad : '—') + (councilDistrict ? ' &middot; Council District ' + profileCardEscape(councilDistrict) : '') + (stateSenateDistrict ? ' &middot; State Senate District ' + profileCardEscape(stateSenateDistrict) : '') + (congressionalDistrict ? ' &middot; Congressional District ' + profileCardEscape(congressionalDistrict) : '') + (schoolDistrict ? ' &middot; School District ' + profileCardEscape(schoolDistrict) : '') + (policePrecinct ? ' &middot; Police Precinct ' + profileCardEscape(policePrecinct) : '') + '</div>'
       + outsideNotice
       + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:10px">'
-        + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">' + escapeHtml(zoningLabel) + '</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + escapeHtml(zoningDisplay || 'Not available') + '</div></div>'
-        + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">Land Use</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + escapeHtml(landUseDisplay) + '</div></div>'
-        + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px">Landmark District</div><div style="font-size:.8rem;font-weight:800;color:var(--navy)">' + escapeHtml(landmarkDisplay) + '</div></div>'
+        + profileMiniCardHtml(zoningLabel, zoningDisplay || 'Not available')
+        + profileMiniCardHtml('Land Use', landUseDisplay)
+        + profileMiniCardHtml('Landmark Status', landmarkDisplay)
+        + profileMiniCardHtml('Election District', Number.isFinite(ed) ? ed : '—')
+        + profileMiniCardHtml('Assembly', profileRepLabel('state_assembly', ad, 'AD'))
+        + profileMiniCardHtml('City Council', profileRepLabel('city_council', councilDistrict, 'CD'))
+        + profileMiniCardHtml('State Senate', profileRepLabel('state_senate', stateSenateDistrict, 'SD'))
+        + profileMiniCardHtml('Congress', profileRepLabel('congress', congressionalDistrict, 'NY'))
+        + profileMiniCardHtml('School District', schoolDistrict ? 'CSD ' + schoolDistrict : '—')
+        + profileMiniCardHtml('Police Precinct', policePrecinct ? policePrecinct + ' Precinct' : '—')
       + '</div>'
       + '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px;font-size:.73rem;line-height:1.45;color:var(--navy)">'
-        + '<div><strong>Zoning:</strong> ' + profileZoningSummaryHtml(zoningItems, escapeHtml) + '</div>'
-        + (majorSiteNote ? '<div style="margin-top:5px"><strong>Major site:</strong> ' + escapeHtml(majorSiteNote.replace(/^Major site:\s*/i, '')) + '</div>' : '')
-        + '<div style="margin-top:5px"><strong>Land use:</strong> ' + escapeHtml(profileLandUsePlainEnglish(pluto.landuse, landUseDisplay)) + '</div>'
-        + (trueHistoricDistricts.length ? '<div style="margin-top:5px"><strong>Historic district:</strong> ' + escapeHtml(landmarkNote) + ' <a href="landmarks.html#lm-intro" style="color:var(--orange);font-weight:800">Landmarks explanation</a>.</div>' : '')
+        + '<div><strong>Zoning:</strong> ' + profileZoningSummaryHtml(zoningItems, profileCardEscape) + '</div>'
+        + (majorSiteNote ? '<div style="margin-top:5px"><strong>Major site:</strong> ' + profileCardEscape(majorSiteNote.replace(/^Major site:\s*/i, '')) + '</div>' : '')
+        + '<div style="margin-top:5px"><strong>Land use:</strong> ' + profileCardEscape(profileLandUsePlainEnglish(pluto.landuse, landUseDisplay)) + '</div>'
+        + (trueHistoricDistricts.length ? '<div style="margin-top:5px"><strong>Historic district:</strong> ' + profileCardEscape(landmarkNote) + ' <a href="landmarks.html#lm-intro" style="color:var(--orange);font-weight:800">Landmarks explanation</a>.</div>' : '')
       + '</div>'
+      + profileNearbyServicesHtml(nearby)
       + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">'
         + '<a href="' + dobUrl + '" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:#fff">&#127962; DOB Permits</a>'
         + '<a href="' + zapUrl + '" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:#fff">&#128204; ZAP Applications</a>'
@@ -660,61 +777,11 @@ window.__cbqn1LandUseInit = (function(){
         + (lat && lng ? '<a href="' + mapUrl + '" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:#fff">&#128205; Map</a>' : '')
       + '</div>'
       + '<div style="border-top:1px solid #d1fae5;padding-top:8px;display:flex;flex-wrap:wrap;gap:12px">'
-        + (inDistrict ? '<a href="' + electionUrl + '" style="font-size:.75rem;color:var(--navy);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy)">&#128499; Election results for this address &rarr;</a>' : '<a href="' + districtSearchUrl + '" style="font-size:.75rem;color:var(--navy);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy)">Open ' + escapeHtml(communityBoard.label) + ' address search &rarr;</a>')
+        + (inDistrict ? '<a href="' + electionUrl + '" style="font-size:.75rem;color:var(--navy);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy)">&#128499; Election results for this address &rarr;</a>' : '<a href="' + districtSearchUrl + '" style="font-size:.75rem;color:var(--navy);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy)">Open ' + profileCardEscape(communityBoard.label) + ' address search &rarr;</a>')
         + '<a href="' + repUrl + '" style="font-size:.75rem;color:var(--orange);font-weight:700;text-decoration:none;border-bottom:1px solid var(--orange)">Who represents me? &rarr;</a>'
       + '</div>'
       + '</div>';
   }
-
-  function layerTypeLabel(t){return {city_council:'Council',state_assembly:'Assembly',state_senate:'Senate',congress:'Congress'}[t] || t || 'District';}
-  function layerLongLabel(t){return {city_council:'City Council',state_assembly:'State Assembly',state_senate:'State Senate',congress:'Congress'}[t] || t || 'District';}
-  function layerId(props){props=props||{}; return props.id || props.coundist || props.assem_dist || props.stsendist || props.congdist || props.distnum || '';}
-  function layerAbbr(t){return {city_council:'CD',state_assembly:'AD',state_senate:'SD',congress:'NY'}[t] || '';}
-  function repName(type,id){var names=(cfg.representativeNames&&cfg.representativeNames[type])||{}; return names[String(id)] || '';}
-  function districtToggleLabel(type,id){var base=layerAbbr(type)+id; var name=repName(type,id); return name ? base+' · '+name : base;}
-  function districtTitle(type,id){var name=repName(type,id); return layerLongLabel(type)+' District '+id+(name ? ' — '+name : '');}
-  function allowedDistrict(type, feature){var list=(cfg.allowedDistricts&&cfg.allowedDistricts[type])||[]; return list.indexOf(String(layerId(feature&&feature.properties))) !== -1;}
-
-  function eachCoord(coords, cb){ if(!coords) return; if(typeof coords[0]==='number' && typeof coords[1]==='number') cb(coords[0],coords[1]); else coords.forEach(function(c){eachCoord(c,cb);}); }
-  function featureBounds(feature){var b={minLng:Infinity,minLat:Infinity,maxLng:-Infinity,maxLat:-Infinity}; eachCoord(feature&&feature.geometry&&feature.geometry.coordinates,function(lng,lat){if(lng<b.minLng)b.minLng=lng;if(lng>b.maxLng)b.maxLng=lng;if(lat<b.minLat)b.minLat=lat;if(lat>b.maxLat)b.maxLat=lat;}); return isFinite(b.minLng)?b:null;}
-  function boundsOverlap(a,b,pad){if(!a||!b)return false; pad=pad||0; return !(a.maxLng+pad<b.minLng || b.maxLng+pad<a.minLng || a.maxLat+pad<b.minLat || b.maxLat+pad<a.minLat);}
-  function pointInRing(point, ring){var x=point[0], y=point[1], inside=false; for(var i=0,j=ring.length-1;i<ring.length;j=i++){var xi=ring[i][0], yi=ring[i][1], xj=ring[j][0], yj=ring[j][1]; var intersect=((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi); if(intersect) inside=!inside;} return inside;}
-  function pointInPolygon(point, coords){if(!coords || !coords.length) return false; if(!pointInRing(point, coords[0])) return false; for(var i=1;i<coords.length;i++){ if(pointInRing(point, coords[i])) return false; } return true;}
-  function pointInFeature(feature, lng, lat){var geom=feature && feature.geometry; if(!geom) return false; var pt=[lng,lat]; if(geom.type==='Polygon') return pointInPolygon(pt, geom.coordinates); if(geom.type==='MultiPolygon') return geom.coordinates.some(function(poly){return pointInPolygon(pt, poly);}); return false;}
-  function samplePoints(feature){var pts=[], coords=[]; eachCoord(feature&&feature.geometry&&feature.geometry.coordinates,function(lng,lat){coords.push([lng,lat]);}); if(!coords.length) return pts; var step=Math.max(1,Math.floor(coords.length/80)); for(var i=0;i<coords.length;i+=step) pts.push(coords[i]); var sumLng=0,sumLat=0; coords.forEach(function(p){sumLng+=p[0];sumLat+=p[1];}); pts.push([sumLng/coords.length,sumLat/coords.length]); return pts;}
-  function featuresOverlap(a,b){if(!a||!b) return false; if(!boundsOverlap(featureBounds(a),featureBounds(b),0.00025)) return false; var ap=samplePoints(a), bp=samplePoints(b); return ap.some(function(p){return pointInFeature(b,p[0],p[1]);}) || bp.some(function(p){return pointInFeature(a,p[0],p[1]);});}
-  function featureTouchesView(feature,bounds){var hit=false; eachCoord(feature&&feature.geometry&&feature.geometry.coordinates,function(lng,lat){ if(!hit && bounds.pad(.02).contains([lat,lng])) hit=true; }); return hit;}
-  function turfIntersect(a,b){if(!window.turf || !turf.intersect) return null; try{return turf.intersect(a,b);}catch(e1){try{return turf.intersect(turf.featureCollection([a,b]));}catch(e2){return null;}}}
-  function clipFeatureToCurrent(feature){
-    if(!feature || !feature.geometry || !currentFeature) return null;
-    var type=feature.geometry.type;
-    var isPoly=(type==='Polygon'||type==='MultiPolygon');
-    if(!boundsOverlap(featureBounds(currentFeature),featureBounds(feature),0.00025)) return null;
-    if(!isPoly) return featuresOverlap(currentFeature,feature) ? feature : null;
-    var clipped=turfIntersect(currentFeature,feature);
-    if(clipped && clipped.geometry && clipped.geometry.coordinates && clipped.geometry.coordinates.length){return {type:'Feature',properties:Object.assign({},feature.properties||{}),geometry:clipped.geometry};}
-    return null;
-  }
-  function clipFeaturesToCurrent(features){var out=[];(features||[]).forEach(function(f){var clipped=clipFeatureToCurrent(f); if(clipped) out.push(clipped);});return out;}
-
-  var map = L.map(cfg.mapId,{scrollWheelZoom:false,zoomControl:true,minZoom:9}).setView(cfg.center, cfg.zoom);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
-  L.control.scale({imperial:true,metric:false}).addTo(map);
-  var labelControl = L.control({position:'topright'});
-  labelControl.onAdd = function(){var div = L.DomUtil.create('div','cd-map-label'); div.textContent = cfg.shortLabel; div.setAttribute('aria-label','community district boundary label'); return div;};
-  labelControl.addTo(map);
-
-  var allBoundaryFeatures = [];
-  var currentFeature = null;
-  var currentLayer = null;
-  var searchMarker = null;
-  var toggleLayers = {};
-  var toggleButtons = {};
-  var activeLayers = {};
-  var toggleBar = document.getElementById(cfg.togglesId);
-  var toggleGroups = {};
-  var currentTogglePanel = toggleBar;
-
   function normalizeGroupLabel(text){return String(text||'').replace(/_/g,' ').trim();}
   function groupStartsOpen(label){return /^(Focus|Overlays)$/i.test(String(label||''));}
   function groupLabelForToggle(key,label){
@@ -756,6 +823,46 @@ window.__cbqn1LandUseInit = (function(){
   function toggleLayer(key,on){var layer=toggleLayers[key]; if(!layer)return; activeLayers[key]=!!on; if(on){layer.addTo(map); if(isNamedDistrictKey(key) && layer.getBounds){var b=layer.getBounds(); if(b && b.isValid && b.isValid()) map.fitBounds(b,{padding:[36,36],maxZoom:12});} keepCurrentBoundaryOnTop();} else map.removeLayer(layer); setButton(toggleButtons[key],!!on);}
   function addToggleLayer(key,label,layer,color,shown,title){toggleLayers[key]=layer; addButton(key,label,color,title||('Toggle '+label),!!shown,function(){toggleLayer(key,!activeLayers[key]);}); if(shown) toggleLayer(key,true);}
   function layerGroupFromFeatures(features,options){return L.geoJSON({type:'FeatureCollection',features:features||[]},options);}
+
+  function featureTouchesView(feature, bounds){
+    if(!feature || !bounds) return false;
+    try {
+      var layer = L.geoJSON(feature);
+      var b = layer.getBounds && layer.getBounds();
+      return !!(b && b.isValid && b.isValid() && b.intersects(bounds));
+    } catch (err) {
+      try {
+        if(typeof turf !== 'undefined' && turf && typeof turf.bbox === 'function') {
+          var bb = turf.bbox(feature);
+          return !(bb[2] < bounds.getWest() || bb[0] > bounds.getEast() || bb[3] < bounds.getSouth() || bb[1] > bounds.getNorth());
+        }
+      } catch (err2) {}
+    }
+    return false;
+  }
+
+  function pointInFeature(feature, lng, lat){
+    if(!feature || !feature.geometry || !Number.isFinite(Number(lng)) || !Number.isFinite(Number(lat))) return false;
+    try {
+      if(typeof turf !== 'undefined' && turf && typeof turf.booleanPointInPolygon === 'function') {
+        return !!turf.booleanPointInPolygon(turf.point([Number(lng), Number(lat)]), feature);
+      }
+    } catch (err) {}
+    function inRing(point, ring){
+      var x=point[0], y=point[1], inside=false;
+      for(var i=0,j=ring.length-1;i<ring.length;j=i++){
+        var xi=Number(ring[i][0]), yi=Number(ring[i][1]);
+        var xj=Number(ring[j][0]), yj=Number(ring[j][1]);
+        var intersect=((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/((yj-yi)||1e-12)+xi);
+        if(intersect) inside=!inside;
+      }
+      return inside;
+    }
+    var geom=feature.geometry, pt=[Number(lng), Number(lat)];
+    if(geom.type==='Polygon') return (geom.coordinates||[]).some(function(ring){ return inRing(pt, ring||[]); });
+    if(geom.type==='MultiPolygon') return (geom.coordinates||[]).some(function(poly){ return (poly||[]).some(function(ring){ return inRing(pt, ring||[]); }); });
+    return false;
+  }
 
   fetchJson('community-district-boundaries.geojson').then(function(data){
     allBoundaryFeatures = data.features || [];
@@ -898,13 +1005,13 @@ window.__cbqn1LandUseInit = (function(){
       var foundCd=found && found.properties && found.properties.boro_cd;
       if(!foundCd && validCommunityBoardCode(a.communityDistrict)) foundCd = String(a.communityDistrict);
       var bbl=(a.bbl||'').replace(/\D/g,'');
-      var extra=await Promise.all([profileFetchPlutoLot(bbl), profileFetchLandmarkStatus(bbl)]);
+      var extra=await Promise.all([profileFetchPlutoLot(bbl), profileFetchLandmarkStatus(bbl), profileFetchNearbyServices(lat, lng, foundCd)]);
       clearMarker();
       try{
         searchMarker=L.marker([lat,lng]).addTo(map).bindPopup('<strong>'+escapeHtml(label)+'</strong><br>'+escapeHtml(foundCd ? boardLabel(foundCd) : 'Community board not identified')).openPopup();
         map.setView([lat,lng],16);
       } catch(mapErr){console.warn('Map marker update failed:', mapErr);}
-      renderResult(profileRenderLookupCard(q, a, foundCd, lat, lng, extra[0] || {}, extra[1] || {historicDistricts:[]}));
+      renderResult(profileRenderLookupCard(q, a, foundCd, lat, lng, extra[0] || {}, extra[1] || {historicDistricts:[]}, extra[2] || {}));
       if(String(foundCd)===cfg.boroCd){setStatus('Search complete: address is inside this community district.');}
       else if(foundCd){setStatus('Search complete: address is in '+boardLabel(foundCd)+'.');}
       else {setStatus('Search complete: address found, but its community district could not be identified from boundary data.');}
