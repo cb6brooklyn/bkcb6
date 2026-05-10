@@ -410,13 +410,13 @@ window.__cbmn8LandUseInit = (function(){
 <div class="cd-search-panel" aria-label="Search this community district map">
 <div class="cd-search-intro">
 <label for="cb-mn-8-cd-map-address-input">Address Search</label>
-<p>Search an NYC address to place it on the boundary map and confirm whether it falls inside MN CB8. The map uses CB6-style toggles for nearby community boards, rents, zoning, land use, parks, historic districts, and only the districts that overlap this community district.</p>
+<p>Search any lot/address inside MN CB8. Out-of-district lots are rejected and linked to the correct community board search. The map uses CB6-style toggles for nearby community boards, rents, zoning, land use, parks, historic districts, and only the districts that overlap this community district.</p>
 </div>
 <div class="cd-search-controls">
 <input aria-label="Search an NYC address on the community district map" id="cb-mn-8-cd-map-address-input" placeholder="Enter an NYC address or intersection" type="text"/>
 <button id="cb-mn-8-cd-map-address-search-btn" type="button">Search</button>
 </div>
-<div class="cd-search-status" id="cb-mn-8-cd-map-address-search-status">Search an address or use the toggle row to add relevant overlays.</div>
+<div class="cd-search-status" id="cb-mn-8-cd-map-address-search-status">Search any in-district lot by address; outside lots will be linked to the correct community board.</div>
 <div class="cd-search-result" hidden id="cb-mn-8-cd-map-address-search-result"></div>
 </div>
 <details class="cd-map-dropdown" id="cb-mn-8-cd-map-dropdown">
@@ -728,7 +728,7 @@ window.__cbmn8LandUseInit = (function(){
     if (typeof AbortController !== 'undefined') {
       controller = new AbortController();
       opts.signal = controller.signal;
-      timer = setTimeout(function(){ controller.abort(); }, 12000);
+      timer = setTimeout(function(){ controller.abort(); }, 25000);
     }
     try {
       var resp = await fetch(url, opts);
@@ -1233,6 +1233,18 @@ window.__cbmn8LandUseInit = (function(){
   var result=document.getElementById(cfg.searchResultId);
   function renderResult(html){if(!result) return; result.hidden=!html; result.innerHTML=html || '';}
   function clearMarker(){if(searchMarker){map.removeLayer(searchMarker); searchMarker=null;}}
+  function profileDistrictRejectStatus(foundCd) {
+    return 'Rejected: this lot is in ' + boardLabel(foundCd) + ', not ' + cfg.shortLabel + '.';
+  }
+  function profileDistrictRejectHtml(q, foundCd) {
+    var targetUrl = boardSlug(foundCd) ? boardSlug(foundCd) + '?addr=' + encodeURIComponent(q) + '#sec-map' : 'mydistricts.html?address=' + encodeURIComponent(q);
+    var targetLabel = boardLabel(foundCd);
+    return '<div style="background:#fff7ed;border:1.5px solid #fdba74;border-radius:8px;padding:12px 14px;margin-top:4px;color:#7c2d12">'
+      + '<div style="font-size:.86rem;font-weight:800;color:#9a3412;margin-bottom:4px">Outside ' + escapeHtml(cfg.shortLabel) + '</div>'
+      + '<div style="font-size:.76rem;line-height:1.5">This lot resolves to <strong>' + escapeHtml(targetLabel) + '</strong>, so it is not shown on the ' + escapeHtml(cfg.shortLabel) + ' district search. Each community-board page is scoped to every lot inside that district only.</div>'
+      + '<div style="margin-top:10px"><a href="' + targetUrl + '" style="font-size:.76rem;color:var(--orange);font-weight:800;text-decoration:none;border-bottom:1px solid var(--orange)">Open ' + escapeHtml(targetLabel) + ' lot search &rarr;</a></div>'
+      + '</div>';
+  }
   async function profileBuildFullLookupResult(q) {
     var a = await profileFetchGeoclientAddress(q);
     var lat = parseFloat(a.latitude), lng = parseFloat(a.longitude);
@@ -1241,6 +1253,22 @@ window.__cbmn8LandUseInit = (function(){
     var found = (allBoundaryFeatures || []).find(function(feature){ return pointInFeature(feature, lng, lat); });
     var foundCd = found && found.properties && found.properties.boro_cd;
     if (!foundCd && validCommunityBoardCode(a.communityDistrict)) foundCd = String(a.communityDistrict);
+    if (foundCd && String(foundCd) !== String(cfg.boroCd)) {
+      return {
+        input: q,
+        address: a,
+        lat: lat,
+        lng: lng,
+        label: label,
+        foundCd: foundCd,
+        pluto: {},
+        landmarkStatus: { historicDistricts: [] },
+        nearby: {},
+        html: profileDistrictRejectHtml(q, foundCd),
+        status: profileDistrictRejectStatus(foundCd),
+        rejectedOutsideDistrict: true
+      };
+    }
     var bbl = normalizeBbl(a.bbl);
     var extraResults = await Promise.allSettled([profileFetchPlutoLot(bbl, lat, lng), profileFetchLandmarkStatus(bbl), profileFetchNearbyServices(lat, lng, foundCd)]);
     var plutoLot = extraResults[0].status === 'fulfilled' ? extraResults[0].value : {};
@@ -1275,6 +1303,16 @@ window.__cbmn8LandUseInit = (function(){
       var found=(allBoundaryFeatures||[]).find(function(feature){return pointInFeature(feature,lng,lat);});
       var foundCd=found && found.properties && found.properties.boro_cd;
       if(!foundCd && validCommunityBoardCode(a.communityDistrict)) foundCd = String(a.communityDistrict);
+      if(foundCd && String(foundCd)!==String(cfg.boroCd)){
+        clearMarker();
+        try{
+          searchMarker=L.marker([lat,lng]).addTo(map).bindPopup('<strong>'+escapeHtml(label)+'</strong><br>'+escapeHtml(boardLabel(foundCd))+' — outside '+escapeHtml(cfg.shortLabel)).openPopup();
+          map.setView([lat,lng],14);
+        } catch(mapErr){console.warn('Map marker update failed:', mapErr);}
+        renderResult(profileDistrictRejectHtml(q, foundCd));
+        setStatus(profileDistrictRejectStatus(foundCd));
+        return;
+      }
       var bbl=normalizeBbl(a.bbl);
       var extraResults=await Promise.allSettled([profileFetchPlutoLot(bbl, lat, lng), profileFetchLandmarkStatus(bbl), profileFetchNearbyServices(lat, lng, foundCd)]);
       var extra=[
