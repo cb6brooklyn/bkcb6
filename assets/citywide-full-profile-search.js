@@ -48,24 +48,36 @@
   window.__bkcbBuildFullAddressProfile = build;
 
   function bindBoroughSearch(){
-    var input=document.querySelector('[id$="-borough-address-input"]');
-    var status=document.querySelector('[id$="-borough-address-search-status"]');
-    var result=document.querySelector('[id$="-borough-address-search-result"]');
-    var button=document.querySelector('[id$="-borough-address-search-btn"]');
-    if(!input||!result) return;
     var h=document.querySelector('.bh-title h2');
     var titleGuess=(h&&h.textContent||'').replace(/by CB/i,'').trim() || (document.title||'').split('—')[0].trim();
-    var boroughName=(input && input.id === 'citywide-borough-address-input') ? '' : knownBoroughName(titleGuess);
-    async function runFull(){
-      var q=input.value.trim();
-      if(!q){if(status) status.textContent='Enter an address to search.'; result.hidden=true; result.innerHTML=''; return;}
-      if(status) status.textContent='Searching full citywide address profile…';
-      result.hidden=true; result.innerHTML='';
-      try{var profile=await build(q,{boroughName:boroughName,shortLabel:boroughName}); result.innerHTML=profile.html; result.hidden=false; if(status) status.textContent=profile.status || 'Search complete.';}catch(err){console.error(err); if(status) status.textContent=err&&err.message?err.message:'Address lookup failed. Please try a full NYC street address.'; result.hidden=true; result.innerHTML='';}
+    var pageBoroughName=knownBoroughName(titleGuess);
+    function bindInstance(root, input, status, result, button){
+      if(!input||!result||input.dataset.fullProfileBound==='true') return null;
+      var declared=root&&root.getAttribute&&root.getAttribute('data-borough-name');
+      var boroughName=(input.id === 'citywide-borough-address-input') ? '' : (knownBoroughName(declared)||pageBoroughName);
+      async function runFull(){
+        var q=input.value.trim();
+        if(!q){if(status) status.textContent='Enter an address to search.'; result.hidden=true; result.innerHTML=''; return;}
+        if(status) status.textContent='Searching full citywide address profile…';
+        result.hidden=true; result.innerHTML='';
+        try{var profile=await build(q,{boroughName:boroughName,shortLabel:boroughName}); result.innerHTML=profile.html; result.hidden=false; if(status) status.textContent=profile.status || 'Search complete.';}catch(err){console.error(err); if(status) status.textContent=err&&err.message?err.message:'Address lookup failed. Please try a full NYC street address.'; result.hidden=true; result.innerHTML='';}
+      }
+      input.dataset.fullProfileBound='true';
+      if(button && button.dataset.fullProfileBound!=='true'){button.dataset.fullProfileBound='true'; button.addEventListener('click', function(e){e.preventDefault(); e.stopImmediatePropagation(); runFull();}, true);}
+      input.addEventListener('keydown', function(e){if(e.key==='Enter'){e.preventDefault(); e.stopImmediatePropagation(); runFull();}}, true);
+      if(root){Array.prototype.forEach.call(root.querySelectorAll('[data-example]'),function(btn){if(btn.dataset.exampleBound==='true') return; btn.dataset.exampleBound='true'; btn.addEventListener('click',function(){input.value=btn.getAttribute('data-example')||''; runFull();});});}
+      return runFull;
     }
-    ['BK','BX','MN','QN','SI'].forEach(function(code){window['run'+code+'BoroughAddressSearch']=runFull;});
-    if(button && button.dataset.fullProfileBound!=='true'){button.dataset.fullProfileBound='true'; button.addEventListener('click', function(e){e.preventDefault(); e.stopImmediatePropagation(); runFull();}, true);}
-    if(input && input.dataset.fullProfileBound!=='true'){input.dataset.fullProfileBound='true'; input.addEventListener('keydown', function(e){if(e.key==='Enter'){e.preventDefault(); e.stopImmediatePropagation(); runFull();}}, true);}
+    Array.prototype.forEach.call(document.querySelectorAll('[data-full-profile-search]'),function(root){
+      bindInstance(root,root.querySelector('[data-full-profile-input]'),root.querySelector('[data-full-profile-status]'),root.querySelector('[data-full-profile-result]'),root.querySelector('[data-full-profile-button]'));
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[id$="-borough-address-input"]'),function(input){
+      var id=input.id.replace(/-input$/,'');
+      var root=input.closest ? input.closest('.zoning-search-panel') : null;
+      var runFull=bindInstance(root,input,document.getElementById(id+'-search-status'),document.getElementById(id+'-search-result'),document.getElementById(id+'-search-btn'));
+      var m=input.id.match(/^([a-z]{2})-/), code=m?m[1].toUpperCase():'';
+      if(runFull && code){window['run'+code+'BoroughAddressSearch']=runFull;}
+    });
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', bindBoroughSearch); else bindBoroughSearch();
 })();
