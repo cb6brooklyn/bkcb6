@@ -55,7 +55,7 @@
     if(!input||!result) return;
     var h=document.querySelector('.bh-title h2');
     var titleGuess=(h&&h.textContent||'').replace(/by CB/i,'').trim() || (document.title||'').split('—')[0].trim();
-    var boroughName=knownBoroughName(titleGuess);
+    var boroughName=(input && input.id === 'citywide-borough-address-input') ? '' : knownBoroughName(titleGuess);
     async function runFull(){
       var q=input.value.trim();
       if(!q){if(status) status.textContent='Enter an address to search.'; result.hidden=true; result.innerHTML=''; return;}
