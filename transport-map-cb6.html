@@ -72,7 +72,7 @@ var visible={speed:true,bike:false,bus:false,busstops:false,subway:false,truck:f
 var citibikeLayer=null,citibikeVisible=false;
 var subwayLayer=null,subwayVisible=false;
 var sammysLayer=null,sammysVisible=false;
-var aspLinesLayer=null,aspPointsLayer=null,aspVisible=false;
+var aspLinesLayer=null,aspVisible=false;
 
 var LEGENDS={
   speed:[{c:'#2a9d8f',l:'20 mph',t:'line'},{c:'#4c78a8',l:'25 mph',t:'line'},{c:'#f4a261',l:'30 mph',t:'line'},{c:'#e63946',l:'35+ mph',t:'line'},{c:'#111827',l:'School Zone',t:'line'}],
@@ -165,46 +165,29 @@ function togASP(btn){
   btn.classList.toggle('active');
   visible.parking=aspVisible;
   if(aspLinesLayer){
-    if(aspVisible){aspLinesLayer.addTo(map);aspPointsLayer.addTo(map);}
-    else{map.removeLayer(aspLinesLayer);map.removeLayer(aspPointsLayer);}
+    if(aspVisible)aspLinesLayer.addTo(map); else map.removeLayer(aspLinesLayer);
     updateLegend();return;
   }
   if(!aspVisible){updateLegend();return;}
-  Promise.all([
-    fetch('data/cb6-asp-lines.geojson').then(function(r){return r.json();}),
-    fetch('data/cb6-asp-points.geojson').then(function(r){return r.json();})
-  ]).then(function(arr){
-    var lines=arr[0],points=arr[1];
+  fetch('data/cb6-asp-lines.geojson').then(function(r){return r.json();}).then(function(lines){
     aspLinesLayer=L.geoJSON(lines,{
-      style:function(f){return{color:ASP_DAY_COLORS[f.properties.primary_day]||'#666',weight:3.5,opacity:.85};},
-      onEachFeature:function(f,l){
-        var p=f.properties;
-        l.bindTooltip('<strong style="color:'+(ASP_DAY_COLORS[p.primary_day]||'#666')+'">🅿️ '+escH(p.schedule)+'</strong><br><span style="font-size:.72rem;color:#555">'+escH(p.location)+'</span>',{sticky:true,opacity:1});
-      }
-    });
-    aspPointsLayer=L.geoJSON(points,{
-      pointToLayer:function(f,ll){
-        var c=ASP_DAY_COLORS[f.properties.primary_day]||'#666';
-        return L.circleMarker(ll,{radius:5,fillColor:c,color:'#fff',weight:1.5,fillOpacity:.95});
-      },
+      style:function(f){return{color:ASP_DAY_COLORS[f.properties.primary_day]||'#666',weight:5,opacity:.85,lineCap:'round'};},
       onEachFeature:function(f,l){
         var p=f.properties;
         var c=ASP_DAY_COLORS[p.primary_day]||'#666';
         var susp=p.next_suspensions?String(p.next_suspensions).split(' | ').map(function(s){return '<div style="font-size:.7rem;color:#444;padding:1px 0">• '+escH(s)+'</div>';}).join(''):'<div style="font-size:.7rem;color:#888">No upcoming suspensions parsed.</div>';
-        var popup='<div style="font-family:DM Sans,sans-serif;min-width:220px;max-width:280px">'+
-          '<div style="font-weight:700;font-size:.85rem;color:#fff;background:'+c+';padding:6px 10px;border-radius:6px 6px 0 0">🅿️ '+escH(p.schedule)+'</div>'+
-          '<div style="padding:8px 10px;background:#fff;border:1px solid #eee;border-top:none;border-radius:0 0 6px 6px">'+
-          '<div style="font-size:.78rem;color:#0d1b4b;margin-bottom:8px">'+escH(p.location)+'</div>'+
-          '<div style="font-size:.62rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:4px">Next ASP suspensions</div>'+
+        var popup='<div style="font-family:DM Sans,sans-serif;min-width:230px;max-width:290px">'+
+          '<div style="font-weight:700;font-size:.88rem;color:#fff;background:'+c+';padding:7px 11px;border-radius:6px 6px 0 0">🅿️ '+escH(p.schedule)+'</div>'+
+          '<div style="padding:9px 11px;background:#fff">'+
+          '<div style="font-size:.8rem;color:#0d1b4b;margin-bottom:9px;line-height:1.35">'+escH(p.location)+'</div>'+
+          '<div style="font-size:.6rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:4px">Next ASP suspensions</div>'+
           susp+
-          (p.suspensions_remaining_2026?'<div style="font-size:.65rem;color:#888;margin-top:6px;padding-top:6px;border-top:1px solid #f0efed">'+p.suspensions_remaining_2026+' suspension'+(p.suspensions_remaining_2026==1?'':'s')+' remaining in 2026</div>':'')+
+          (p.suspensions_remaining_2026?'<div style="font-size:.65rem;color:#888;margin-top:7px;padding-top:6px;border-top:1px solid #f0efed">'+p.suspensions_remaining_2026+' suspension'+(p.suspensions_remaining_2026==1?'':'s')+' remaining in 2026</div>':'')+
           '</div></div>';
         l.bindPopup(popup,{maxWidth:300});
-        l.bindTooltip('<strong>'+escH(p.schedule)+'</strong>',{sticky:true,opacity:.95});
+        l.bindTooltip('<strong style="color:'+c+'">🅿️ '+escH(p.schedule)+'</strong>',{sticky:true,opacity:.95});
       }
-    });
-    aspLinesLayer.addTo(map);
-    aspPointsLayer.addTo(map);
+    }).addTo(map);
     updateLegend();
   });
 }
