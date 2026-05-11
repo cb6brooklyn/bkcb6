@@ -7,7 +7,7 @@ CB6 & Beyond
 Brooklyn Community Board 6
 
 ## Bundle ID
-org.bkcb6.app
+com.mikeracioppo.CB6Beyond
 
 ## Category
 Reference / Government
@@ -41,7 +41,7 @@ https://bkcb6.app
 https://bkcb6.app
 
 ## Privacy Policy URL
-https://bkcb6.app
+https://bkcb6.app/privacy.html
 
 ## Version
 1.0.0
