@@ -1,39 +1,77 @@
-const CACHE = "cb6-v7";
-const OFFLINE = [
-  "/bkcb6/og-image.png",
-  "/bkcb6/manifest.json"
+// CB6 & Beyond — Service Worker
+const CACHE_VERSION = 'cb6-v8';
+const CORE_ASSETS = [
+  '/',
+  '/index.html',
+  '/welcome.html',
+  '/privacy.html',
+  '/cb6-logo.png',
+  '/manifest.json',
+  '/app-home/hero-button.png',
+  '/app-home/btn-bk.png',
+  '/app-home/btn-mn.png',
+  '/app-home/btn-qn.png',
+  '/app-home/btn-bx.png',
+  '/app-home/btn-si.png',
+  '/app-home/btn-nyc.png',
 ];
 
-self.addEventListener("install", e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(OFFLINE)));
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_VERSION).then((cache) =>
+      Promise.all(
+        CORE_ASSETS.map((url) => cache.add(url).catch(() => null))
+      )
+    )
+  );
   self.skipWaiting();
 });
 
-self.addEventListener("activate", e => {
-  e.waitUntil(caches.keys().then(keys =>
-    Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-  ));
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((names) =>
+      Promise.all(
+        names.filter((n) => n !== CACHE_VERSION).map((n) => caches.delete(n))
+      )
+    )
+  );
   self.clients.claim();
 });
 
-self.addEventListener("fetch", e => {
-  const url = new URL(e.request.url);
-  const isHtmlNavigation = e.request.mode === 'navigate' || url.pathname.endsWith('.html');
-  // Never cache HTML — always fetch fresh, including cache-busted URLs
-  if (isHtmlNavigation) {
-    e.respondWith(
-      fetch(e.request, { cache: 'reload' }).catch(() => caches.match(e.request))
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+
+  // Network-first for HTML so updates show quickly; fallback to cache offline
+  const accept = req.headers.get('accept') || '';
+  if (req.destination === 'document' || accept.indexOf('text/html') !== -1) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(req, copy));
+          return res;
+        })
+        .catch(() =>
+          caches.match(req).then((cached) => cached || caches.match('/index.html'))
+        )
     );
     return;
   }
-  // Network-first for everything else
-  e.respondWith(
-    fetch(e.request)
-      .then(r => {
-        const clone = r.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
-        return r;
-      })
-      .catch(() => caches.match(e.request))
+
+  // Cache-first for static assets
+  event.respondWith(
+    caches.match(req).then((cached) => {
+      if (cached) return cached;
+      return fetch(req).then((res) => {
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(req, copy));
+        }
+        return res;
+      });
+    })
   );
 });
