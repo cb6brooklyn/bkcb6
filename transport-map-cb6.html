@@ -57,6 +57,7 @@ body{display:flex;flex-direction:column}
   <button class="trn-btn" onclick="tog('busstops',this)" style="--tc:#f59e0b">🚏 Bus Stops</button>
   <button class="trn-btn" onclick="tog('subway',this)" style="--tc:#0d1b4b">🚇 Subway</button>
   <button class="trn-btn" onclick="tog('truck',this)" style="--tc:#0d9488">🚚 Truck Routes</button>
+  <button class="trn-btn" onclick="togASP(this)" style="--tc:#e41a1c" id="btn-asp">🅿️ Alt Side Parking</button>
 </div>
 <div class="legend-bar" id="legend"></div>
 <div id="map"></div>
@@ -67,10 +68,11 @@ var map = L.map('map',{scrollWheelZoom:true}).setView([40.664,-73.988],13);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
 
 var trnData=null, trnLayers={}, searchMarker=null, subwayAll=null;
-var visible={speed:true,bike:false,bus:false,busstops:false,subway:false,truck:false};
+var visible={speed:true,bike:false,bus:false,busstops:false,subway:false,truck:false,parking:false};
 var citibikeLayer=null,citibikeVisible=false;
 var subwayLayer=null,subwayVisible=false;
 var sammysLayer=null,sammysVisible=false;
+var aspLinesLayer=null,aspPointsLayer=null,aspVisible=false;
 
 var LEGENDS={
   speed:[{c:'#2a9d8f',l:'20 mph',t:'line'},{c:'#4c78a8',l:'25 mph',t:'line'},{c:'#f4a261',l:'30 mph',t:'line'},{c:'#e63946',l:'35+ mph',t:'line'},{c:'#111827',l:'School Zone',t:'line'}],
@@ -78,7 +80,8 @@ var LEGENDS={
   bus:[{c:'#2563eb',l:'Local',t:'line'},{c:'#c1121f',l:'SBS',t:'line'},{c:'#6a1b9a',l:'Express',t:'line'}],
   busstops:[{c:'#2563eb',l:'Local Stop',t:'dot'},{c:'#f59e0b',l:'Timepoint',t:'dot'},{c:'#c1121f',l:'CBD Stop',t:'dot'}],
   subway:[{c:'#0d1b4b',l:'Station',t:'dot'},{c:'#f47920',l:'ADA',t:'dot'}],
-  truck:[{c:'#0d9488',l:'Through',t:'line'},{c:'#2563eb',l:'Local',t:'line'},{c:'#f59e0b',l:'Limited',t:'line'}]
+  truck:[{c:'#0d9488',l:'Through',t:'line'},{c:'#2563eb',l:'Local',t:'line'},{c:'#f59e0b',l:'Limited',t:'line'}],
+  parking:[{c:'#e41a1c',l:'Mon',t:'line'},{c:'#377eb8',l:'Tue',t:'line'},{c:'#4daf4a',l:'Wed',t:'line'},{c:'#984ea3',l:'Thu',t:'line'},{c:'#ff7f00',l:'Fri',t:'line'},{c:'#a65628',l:'Sat',t:'line'},{c:'#999999',l:'Sun',t:'line'}]
 };
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -153,6 +156,56 @@ function togCitibike(btn){
         l.bindTooltip('<strong>🚴 '+escH(p.name)+'</strong><br><span style="font-size:.75rem;color:#555">'+escH(p.street)+' & '+escH(p.cross_street)+'</span>',{sticky:true,opacity:1});
       }
     }).addTo(map);
+  });
+}
+
+var ASP_DAY_COLORS={Mon:'#e41a1c',Tue:'#377eb8',Wed:'#4daf4a',Thu:'#984ea3',Fri:'#ff7f00',Sat:'#a65628',Sun:'#999999'};
+function togASP(btn){
+  aspVisible=!aspVisible;
+  btn.classList.toggle('active');
+  visible.parking=aspVisible;
+  if(aspLinesLayer){
+    if(aspVisible){aspLinesLayer.addTo(map);aspPointsLayer.addTo(map);}
+    else{map.removeLayer(aspLinesLayer);map.removeLayer(aspPointsLayer);}
+    updateLegend();return;
+  }
+  if(!aspVisible){updateLegend();return;}
+  Promise.all([
+    fetch('data/cb6-asp-lines.geojson').then(function(r){return r.json();}),
+    fetch('data/cb6-asp-points.geojson').then(function(r){return r.json();})
+  ]).then(function(arr){
+    var lines=arr[0],points=arr[1];
+    aspLinesLayer=L.geoJSON(lines,{
+      style:function(f){return{color:ASP_DAY_COLORS[f.properties.primary_day]||'#666',weight:3.5,opacity:.85};},
+      onEachFeature:function(f,l){
+        var p=f.properties;
+        l.bindTooltip('<strong style="color:'+(ASP_DAY_COLORS[p.primary_day]||'#666')+'">🅿️ '+escH(p.schedule)+'</strong><br><span style="font-size:.72rem;color:#555">'+escH(p.location)+'</span>',{sticky:true,opacity:1});
+      }
+    });
+    aspPointsLayer=L.geoJSON(points,{
+      pointToLayer:function(f,ll){
+        var c=ASP_DAY_COLORS[f.properties.primary_day]||'#666';
+        return L.circleMarker(ll,{radius:5,fillColor:c,color:'#fff',weight:1.5,fillOpacity:.95});
+      },
+      onEachFeature:function(f,l){
+        var p=f.properties;
+        var c=ASP_DAY_COLORS[p.primary_day]||'#666';
+        var susp=p.next_suspensions?String(p.next_suspensions).split(' | ').map(function(s){return '<div style="font-size:.7rem;color:#444;padding:1px 0">• '+escH(s)+'</div>';}).join(''):'<div style="font-size:.7rem;color:#888">No upcoming suspensions parsed.</div>';
+        var popup='<div style="font-family:DM Sans,sans-serif;min-width:220px;max-width:280px">'+
+          '<div style="font-weight:700;font-size:.85rem;color:#fff;background:'+c+';padding:6px 10px;border-radius:6px 6px 0 0">🅿️ '+escH(p.schedule)+'</div>'+
+          '<div style="padding:8px 10px;background:#fff;border:1px solid #eee;border-top:none;border-radius:0 0 6px 6px">'+
+          '<div style="font-size:.78rem;color:#0d1b4b;margin-bottom:8px">'+escH(p.location)+'</div>'+
+          '<div style="font-size:.62rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:4px">Next ASP suspensions</div>'+
+          susp+
+          (p.suspensions_remaining_2026?'<div style="font-size:.65rem;color:#888;margin-top:6px;padding-top:6px;border-top:1px solid #f0efed">'+p.suspensions_remaining_2026+' suspension'+(p.suspensions_remaining_2026==1?'':'s')+' remaining in 2026</div>':'')+
+          '</div></div>';
+        l.bindPopup(popup,{maxWidth:300});
+        l.bindTooltip('<strong>'+escH(p.schedule)+'</strong>',{sticky:true,opacity:.95});
+      }
+    });
+    aspLinesLayer.addTo(map);
+    aspPointsLayer.addTo(map);
+    updateLegend();
   });
 }
 
