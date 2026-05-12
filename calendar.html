@@ -159,6 +159,9 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 .list-search:focus{border-color:var(--navy)}
 .list-filter{padding:9px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.82rem;font-family:'DM Sans',sans-serif;background:#fff;color:var(--navy);cursor:pointer;outline:none}
 .list-count{font-size:.72rem;color:var(--muted);font-family:'DM Mono',monospace;white-space:nowrap}
+.cat-pill{padding:5px 11px;border:1.5px solid var(--border);border-radius:20px;font-size:.72rem;font-family:'DM Sans',sans-serif;font-weight:600;background:#fff;color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap}
+.cat-pill:hover{border-color:var(--navy);color:var(--navy)}
+.cat-pill.active{background:var(--navy);color:#fff;border-color:var(--navy)}
 .list-wrap{max-width:960px;margin:0 auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
 .list-card{background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start;transition:border-color .12s}
 .list-card:hover{border-color:#999}
@@ -250,6 +253,15 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 <div id="list-view" style="width:380px;min-width:260px;flex-shrink:0;border-right:2px solid var(--border);position:sticky;top:0;max-height:100vh;overflow-y:auto;background:#fff">
   <div class="list-controls">
     <input class="list-search" id="list-search" type="search" placeholder="Search events…" oninput="renderList()">
+    <div id="cat-filter-row" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">
+      <button class="cat-pill active" data-cat="" onclick="setCat(this,'')">All</button>
+      <button class="cat-pill" data-cat="cb6" onclick="setCat(this,'cb6')">CB6</button>
+      <button class="cat-pill" data-cat="arts" onclick="setCat(this,'arts')">Arts</button>
+      <button class="cat-pill" data-cat="food" onclick="setCat(this,'food')">Food & Markets</button>
+      <button class="cat-pill" data-cat="civic" onclick="setCat(this,'civic')">Civic</button>
+      <button class="cat-pill" data-cat="parks" onclick="setCat(this,'parks')">Parks</button>
+      <button class="cat-pill" data-cat="community" onclick="setCat(this,'community')">Community</button>
+    </div>
     <select class="list-filter" id="list-org-filter" onchange="renderList()">
       <option value="">All organizations</option>
       <option value="board">CB6 Full Board</option>
@@ -308,15 +320,6 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
       <option value="altside">Alternate Side</option>
       <option value="cec15">CEC District 15</option>
       <option value="school">NYC Schools</option>
-      <option value="sss">Smith Street Stage</option>
-      <option value="rhba">Red Hook Business Alliance</option>
-      <option value="nitehawk">Nitehawk Cinema</option>
-      <option value="dte">Park Slope Farmers Market</option>
-      <option value="bkpride">Brooklyn Pride</option>
-      <option value="dsny">DSNY</option>
-      <option value="niyn">NYCHA in Your Neighborhood</option>
-      <option value="rhlp">Red Hook Lobster Pound</option>
-      <option value="rrh">Resilient Red Hook</option>
     </select>
     <span class="list-count" id="list-count"></span>
   </div>
@@ -1538,6 +1541,13 @@ function applyInitialResponsiveView(){
   setView('list');
 }
 
+function setCat(btn, cat){
+  document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('list-org-filter').value = '';
+  renderList();
+}
+
 const ORG_ICONS = {
   board:'cb6-full-board.png',committee:'cb6-committee.png',
   prospect:'prospect-park.png',osh:'old-stone-house.png',
@@ -1572,11 +1582,21 @@ const MONTHS_SHORT2 = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oc
 function renderList(){
   const q = (document.getElementById('list-search').value||'').toLowerCase();
   const org = document.getElementById('list-org-filter').value;
+  const cat = (document.getElementById('cat-filter-row').querySelector('.cat-pill.active')||{}).dataset?.cat || '';
+  const CAT_TYPES = {
+    cb6:       new Set(['board','committee']),
+    arts:      new Set(['bkcm','powerhouse','bric','bricarts','artsgowanus','vanalen','jalopy','osh','bkpride','sss','nitehawk','rhba','rhap','whynotart','dredgers','pioneer works','pioneerworks']),
+    food:      new Set(['dte','rhlp','principles','green615']),
+    civic:     new Set(['lpc','dcp','nyccouncil','aviles','bkbp','nycvotes','hpd','rgb','pct76','pct78','fac','rhjc','gcc','cobblehill','cga','aaldc','ps5bid','psos','swbtu','rhi','fofa','cec15','dsny','niyn','rrh']),
+    parks:     new Set(['prospect','bbp','nycparks','bbg']),
+    community: new Set(['bpl','psos','school','altside','ulurp','fof','niyn','rrh','dsny','rhba']),
+  };
   const all = [];
   Object.entries(EVENTS).forEach(([dateKey, evs])=>{
     evs.forEach(ev=>{
       if(hiddenTypes.has(ev.type)) return;
       if(org && ev.type !== org) return;
+      if(cat && CAT_TYPES[cat] && !CAT_TYPES[cat].has(ev.type)) return;
       if(q && !ev.label.toLowerCase().includes(q) &&
               !(ev.location||'').toLowerCase().includes(q) &&
               !(ev.desc||'').toLowerCase().includes(q)) return;
