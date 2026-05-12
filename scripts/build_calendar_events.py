@@ -23,6 +23,11 @@ FEEDS = [
         "type": "prospect",
     },
     {
+        "name": "BRIC Arts Media",
+        "url": "https://bricartsmedia.org/events/list/?ical=1",
+        "type": "bricarts",
+    },
+    {
         "name": "Old Stone House",
         "url": "https://theoldstonehouse.org/?post_type=tribe_events&ical=1&eventDisplay=list",
         "type": "osh",
