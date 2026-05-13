@@ -1,5 +1,5 @@
 // CB6 & Beyond — Service Worker
-const CACHE_VERSION = 'cb6-v10';
+const CACHE_VERSION = 'cb6-v11';
 const CORE_ASSETS = [
   '/',
   '/index.html',
@@ -43,6 +43,11 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+
+  // Never intercept share/stub pages - pass straight to network
+  if (url.pathname.startsWith('/share-') || url.pathname.startsWith('/principles-') || url.pathname.includes('-calendar.html')) {
+    return;
+  }
 
   // Network-first for HTML so updates show quickly; fallback to cache offline
   const accept = req.headers.get('accept') || '';
