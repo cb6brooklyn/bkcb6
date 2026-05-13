@@ -1,5 +1,5 @@
 // CB6 & Beyond — Service Worker
-const CACHE_VERSION = 'cb6-v9';
+const CACHE_VERSION = 'cb6-v10';
 const CORE_ASSETS = [
   '/',
   '/index.html',
@@ -47,6 +47,8 @@ self.addEventListener('fetch', (event) => {
   // Network-first for HTML so updates show quickly; fallback to cache offline
   const accept = req.headers.get('accept') || '';
   if (req.destination === 'document' || accept.indexOf('text/html') !== -1) {
+    // Never serve index.html as fallback for share- pages
+    const isSharePage = url.pathname.startsWith('/share-');
     event.respondWith(
       fetch(req)
         .then((res) => {
@@ -54,9 +56,10 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_VERSION).then((cache) => cache.put(req, copy));
           return res;
         })
-        .catch(() =>
-          caches.match(req).then((cached) => cached || caches.match('/index.html'))
-        )
+        .catch(() => {
+          if (isSharePage) return fetch(req);
+          return caches.match(req).then((cached) => cached || caches.match('/index.html'));
+        })
     );
     return;
   }
