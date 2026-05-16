@@ -19,7 +19,7 @@ FEEDS = [
     },
     {
         "name": "Prospect Park",
-        "url": "https://www.prospectpark.org/events/?ical=1",
+        "url": "https://www.prospectpark.org/events/list/?ical=1",
         "type": "prospect",
     },
     {
