@@ -39,7 +39,7 @@ HTML = r'''<!DOCTYPE html>
   body { font-family: 'DM Sans', sans-serif; background: var(--navy); color: var(--white); min-height: 100vh; }
   .topbar { background: #003a66; border-bottom: 3px solid var(--gold); padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
   .topbar-brand { display: flex; align-items: center; gap: 10px; }
-  .topbar-logo { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; overflow: hidden; background: var(--white); }
+  .topbar-logo { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; overflow: hidden; }
   .topbar-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
   .topbar-title { font-size: 1.1rem; font-weight: 800; color: var(--white); letter-spacing: 0.5px; }
   .topbar-title span { color: var(--orange); }
@@ -192,7 +192,7 @@ HTML = r'''<!DOCTYPE html>
 <div class="main">
   <div id="boardScreen">
     <div class="game-header">
-      <img src="brooklyn-seal.png" alt="Borough of Brooklyn seal" style="width:96px;height:96px;border-radius:50%;background:#fff;padding:4px;box-shadow:0 4px 14px rgba(0,0,0,0.3);margin-bottom:10px;">
+      <img src="brooklyn-seal.png" alt="Borough of Brooklyn seal" style="width:96px;height:96px;border-radius:50%;box-shadow:0 4px 14px rgba(0,0,0,0.3);margin-bottom:10px;">
       <h1>Brooklyn Jeopardy History</h1>
       <div style="font-size:0.85rem;color:var(--gold);font-weight:600;letter-spacing:0.5px;margin-top:6px;">Designed by Mike Racioppo</div>
       <p>Finish the game, find your rank.</p>
