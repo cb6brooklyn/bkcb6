@@ -66,7 +66,9 @@ HTML = r'''<!DOCTYPE html>
   .modal-feedback { font-size: 1rem; min-height: 28px; margin-bottom: 10px; font-weight: bold; }
   .modal-feedback.correct { color: var(--green); }
   .modal-feedback.wrong { color: var(--red); }
-  .modal-answer-reveal { font-size: 0.95rem; color: rgba(255,255,255,0.7); margin-bottom: 10px; min-height: 20px; }
+  .modal-answer-reveal { font-size: 1rem; color: var(--white); margin-bottom: 10px; min-height: 20px; line-height: 1.5; }
+  .modal-answer-reveal strong { color: var(--gold); font-size: 1.1rem; }
+  .reveal-context { font-size: 0.9rem; color: rgba(255,255,255,0.75); }
   .modal-source { font-size: 0.85rem; margin-bottom: 16px; min-height: 18px; }
   .modal-source a { color: var(--gold); text-decoration: none; }
   .modal-source a:hover { text-decoration: underline; }
@@ -202,7 +204,7 @@ function openClue(col, row, cell) {
   document.getElementById('modalInput').value = '';
   document.getElementById('modalNextRow').style.display = 'none';
   document.getElementById('modalInputRow').style.display = 'flex';
-  document.getElementById('modalCategory').textContent = CATEGORIES[col].name + ' \u00b7 CB' + clue.cb;
+  document.getElementById('modalCategory').textContent = CATEGORIES[col].name;
   document.getElementById('modalValue').textContent = '$' + clue.value;
   document.getElementById('modalClue').textContent = clue.clue;
   document.getElementById('clueModal').classList.add('open');
@@ -229,8 +231,9 @@ function checkAnswer() {
     score -= clue.value;
     document.getElementById('modalFeedback').textContent = '\u274c Incorrect! -$' + clue.value;
     document.getElementById('modalFeedback').className = 'modal-feedback wrong';
-    document.getElementById('modalAnswerReveal').textContent = 'Answer: ' + clue.answer;
   }
+  document.getElementById('modalAnswerReveal').innerHTML =
+    '<strong>' + clue.answer + '</strong><br><span class="reveal-context">' + clue.reveal + '</span>';
   const src = document.getElementById('modalSource');
   src.innerHTML = 'Source: <a href="' + clue.src_url + '" target="_blank" rel="noopener">' + clue.src_title + '</a>';
   updateScore();
