@@ -42,7 +42,7 @@ HTML = r'''<!DOCTYPE html>
   .game-header { text-align: center; padding: 20px 0 10px; }
   .game-header h1 { font-size: 2.2rem; color: var(--gold); text-shadow: 2px 2px 8px rgba(0,0,0,0.5); letter-spacing: 1.5px; text-transform: uppercase; }
   .game-header p { color: rgba(255,255,255,0.7); font-size: 0.95rem; margin-top: 6px; font-style: italic; }
-  .board { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 20px; }
+  .board { display: grid; grid-template-columns: repeat(var(--cols, 6), minmax(0, 1fr)); gap: 6px; margin-top: 20px; }
   .category-header { background: var(--blue); border: 2px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 12px 8px; text-align: center; font-size: 0.78rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; color: var(--white); min-height: 70px; display: flex; align-items: center; justify-content: center; line-height: 1.3; }
   .clue-cell { background: var(--blue); border: 2px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 10px 6px; text-align: center; font-size: 1.4rem; font-weight: bold; color: var(--gold); cursor: pointer; min-height: 70px; display: flex; align-items: center; justify-content: center; transition: background 0.15s, transform 0.1s; user-select: none; }
   .clue-cell:hover:not(.used) { background: #2222cc; transform: scale(1.03); }
@@ -69,7 +69,7 @@ HTML = r'''<!DOCTYPE html>
   .modal-answer-reveal { font-size: 1rem; color: var(--white); margin-bottom: 10px; min-height: 20px; line-height: 1.5; }
   .modal-answer-reveal strong { color: var(--gold); font-size: 1.1rem; }
   .reveal-context { font-size: 0.9rem; color: rgba(255,255,255,0.75); }
-  .modal-source { font-size: 0.85rem; margin-bottom: 16px; min-height: 18px; }
+  .modal-source { font-size: 0.85rem; margin-bottom: 16px; min-height: 18px; line-height: 1.7; }
   .modal-source a { color: var(--gold); text-decoration: none; }
   .modal-source a:hover { text-decoration: underline; }
   #resultsScreen { display: none; text-align: center; padding: 30px 20px; }
@@ -87,7 +87,8 @@ HTML = r'''<!DOCTYPE html>
   .footer { text-align: center; padding: 12px; font-size: 0.75rem; color: rgba(255,255,255,0.35); }
   .footer a { color: rgba(255,255,255,0.5); }
   @media (max-width: 600px) {
-    .board { grid-template-columns: repeat(3, 1fr); }
+    #boardScreen { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .board { min-width: 560px; }
     .category-header { font-size: 0.6rem; min-height: 55px; }
     .clue-cell { font-size: 1rem; min-height: 55px; }
     .game-header h1 { font-size: 1.4rem; }
@@ -111,7 +112,7 @@ HTML = r'''<!DOCTYPE html>
   <div id="boardScreen">
     <div class="game-header">
       <h1>Brooklyn Borough History</h1>
-      <p>One clue for every one of Brooklyn's 18 community board districts. Pick a value, then answer in the form of a question. Each clue includes a source link.</p>
+      <p>A clue for every one of Brooklyn's 18 community board districts, plus a few borough-wide. Pick a value, then answer in the form of a question. Each clue includes a source link.</p>
     </div>
     <div class="board" id="board"></div>
   </div>
@@ -167,6 +168,7 @@ let currentClue = null;
 function initBoard() {
   const board = document.getElementById('board');
   board.innerHTML = '';
+  board.style.setProperty('--cols', CATEGORIES.length);
   CATEGORIES.forEach(cat => {
     const hdr = document.createElement('div');
     hdr.className = 'category-header';
@@ -235,7 +237,11 @@ function checkAnswer() {
   document.getElementById('modalAnswerReveal').innerHTML =
     '<strong>' + clue.answer + '</strong><br><span class="reveal-context">' + clue.reveal + '</span>';
   const src = document.getElementById('modalSource');
-  src.innerHTML = 'Source: <a href="' + clue.src_url + '" target="_blank" rel="noopener">' + clue.src_title + '</a>';
+  var html = 'Source: <a href="' + clue.src_url + '" target="_blank" rel="noopener">' + clue.src_title + '</a>';
+  if (clue.app_url) {
+    html += '<br>On the app: <a href="' + clue.app_url + '" target="_blank" rel="noopener">' + clue.app_title + '</a>';
+  }
+  src.innerHTML = html;
   updateScore();
   currentClue.cell.classList.add('used');
   currentClue.cell.textContent = '';
@@ -259,7 +265,7 @@ function showResults() {
   el.className = 'results-score ' + (score >= 0 ? 'positive' : 'negative');
   const maxScore = CATEGORIES.reduce((s, c) => s + c.clues.reduce((a, x) => a + x.value, 0), 0);
   let rating = '';
-  if (score === maxScore) rating = '\ud83c\udfc6 A perfect run through all 18 districts!';
+  if (score === maxScore) rating = '\ud83c\udfc6 A perfect run across all of Brooklyn!';
   else if (score >= maxScore * 0.7) rating = '\u2b50 Strong Brooklyn knowledge!';
   else if (score >= maxScore * 0.3) rating = '\ud83d\udcda Good effort, keep exploring bkcb6.app!';
   else rating = '\ud83d\udd0d Brush up on your borough history and try again!';
