@@ -307,10 +307,19 @@ document.getElementById('modalInput').addEventListener('keydown', e => {
 function checkAnswer() {
   const raw = document.getElementById('modalInput').value.trim().toLowerCase();
   const clue = currentClue.clue;
-  const stripped = raw.replace(/^(what|who|where)\s+(is|are|was|were)\s+/i,'').replace(/[?!.,;]+$/,'').trim();
+  // Strip a Jeopardy-style question lead-in ("what is", "who's", "where are the", etc.)
+  const stripped = raw
+    .replace(/^(what|whats|what's|who|whos|who's|where|when)\s*(is|are|was|were|s)?\s+/i, '')
+    .replace(/^(the|a|an)\s+/i, '')
+    .replace(/[?!.,;]+$/, '')
+    .trim();
+  // Loose key: drop everything except letters and numbers so spacing, hyphens,
+  // apostrophes and punctuation never block a correct answer.
+  const loose = s => s.replace(/[^a-z0-9]/gi, '').toLowerCase();
+  const tries = [raw, stripped, loose(raw), loose(stripped)];
   const correct = clue.accept.some(a => {
     const norm = a.toLowerCase().trim();
-    return raw === norm || stripped === norm;
+    return tries.indexOf(norm) !== -1 || tries.indexOf(loose(norm)) !== -1;
   });
   if (correct) {
     score += clue.value;
