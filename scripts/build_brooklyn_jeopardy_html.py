@@ -23,30 +23,32 @@ HTML = r'''<!DOCTYPE html>
 <meta name="twitter:title" content="Brooklyn Borough History Jeopardy, Brooklyn CB6">
 <meta name="twitter:description" content="A Jeopardy-style game covering the history of all 18 Brooklyn community board districts, with a source link for every clue.">
 <meta name="twitter:image" content="https://bkcb6.app/jeopardy-preview.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --navy: #0d1b4b; --orange: #f47920; --gold: #f5c518; --blue: #060ce9;
-    --light-blue: #1a1aff; --white: #fff; --gray: #ccc; --green: #2ecc71; --red: #e74c3c;
+    --navy: #0d1b4b; --orange: #f47920; --gold: #f47920; --blue: #16235e;
+    --blue-hover: #1e2f78; --white: #fff; --gray: #ccc; --green: #2ecc71; --red: #e74c3c;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Georgia', serif; background: var(--navy); color: var(--white); min-height: 100vh; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--navy); color: var(--white); min-height: 100vh; }
   .topbar { background: var(--navy); border-bottom: 3px solid var(--orange); padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
   .topbar-brand { display: flex; align-items: center; gap: 10px; }
   .topbar-logo { width: 44px; height: 44px; flex-shrink: 0; border-radius: 4px; overflow: hidden; }
   .topbar-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .topbar-title { font-size: 1.1rem; font-weight: bold; color: var(--white); letter-spacing: 0.5px; }
+  .topbar-title { font-size: 1.1rem; font-weight: 800; color: var(--white); letter-spacing: 0.5px; }
   .topbar-title span { color: var(--orange); }
   .topbar-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
   .score-display { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 20px; padding: 4px 14px; font-size: 0.9rem; font-weight: bold; color: var(--gold); }
   .main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 40px; }
   .game-header { text-align: center; padding: 20px 0 10px; }
-  .game-header h1 { font-size: 2.2rem; color: var(--gold); text-shadow: 2px 2px 8px rgba(0,0,0,0.5); letter-spacing: 1.5px; text-transform: uppercase; }
+  .game-header h1 { font-size: 2.2rem; font-weight: 800; color: var(--orange); text-shadow: 2px 2px 8px rgba(0,0,0,0.4); letter-spacing: 0.5px; text-transform: uppercase; }
   .game-header p { color: rgba(255,255,255,0.7); font-size: 0.95rem; margin-top: 6px; font-style: italic; }
   .board { display: grid; grid-template-columns: repeat(var(--cols, 6), minmax(0, 1fr)); gap: 6px; margin-top: 20px; }
-  .category-header { background: var(--blue); border: 2px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 12px 8px; text-align: center; font-size: 0.78rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; color: var(--white); min-height: 70px; display: flex; align-items: center; justify-content: center; line-height: 1.3; }
-  .clue-cell { background: var(--blue); border: 2px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 10px 6px; text-align: center; font-size: 1.4rem; font-weight: bold; color: var(--gold); cursor: pointer; min-height: 70px; display: flex; align-items: center; justify-content: center; transition: background 0.15s, transform 0.1s; user-select: none; }
-  .clue-cell:hover:not(.used) { background: #2222cc; transform: scale(1.03); }
-  .clue-cell.used { background: #0a0a5a; color: #0a0a5a; cursor: default; pointer-events: none; }
+  .category-header { background: var(--blue); border: 1px solid rgba(255,255,255,0.12); border-top: 3px solid var(--orange); border-radius: 6px; padding: 12px 8px; text-align: center; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--white); min-height: 70px; display: flex; align-items: center; justify-content: center; line-height: 1.3; }
+  .clue-cell { background: var(--blue); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 10px 6px; text-align: center; font-size: 1.4rem; font-weight: 800; color: var(--orange); cursor: pointer; min-height: 70px; display: flex; align-items: center; justify-content: center; transition: background 0.15s, transform 0.1s; user-select: none; }
+  .clue-cell:hover:not(.used) { background: var(--blue-hover); transform: scale(1.03); }
+  .clue-cell.used { background: #0a1336; color: #0a1336; cursor: default; pointer-events: none; }
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
   .modal-overlay.open { display: flex; }
   .modal-card { background: var(--navy); border: 3px solid var(--gold); border-radius: 16px; max-width: 640px; width: 100%; padding: 32px 28px; text-align: center; animation: popIn 0.2s ease; }
@@ -55,10 +57,10 @@ HTML = r'''<!DOCTYPE html>
   .modal-value { font-size: 1.1rem; color: rgba(255,255,255,0.6); margin-bottom: 20px; }
   .modal-clue { font-size: 1.3rem; line-height: 1.5; color: var(--white); margin-bottom: 28px; min-height: 80px; display: flex; align-items: center; justify-content: center; }
   .modal-input-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
-  .modal-input { font-size: 1.1rem; padding: 10px 16px; border-radius: 8px; border: 2px solid var(--gold); background: rgba(255,255,255,0.1); color: var(--white); width: 280px; text-align: center; font-family: 'Georgia', serif; }
+  .modal-input { font-size: 1.1rem; padding: 10px 16px; border-radius: 8px; border: 2px solid var(--gold); background: rgba(255,255,255,0.1); color: var(--white); width: 280px; text-align: center; font-family: 'DM Sans', sans-serif; }
   .modal-input::placeholder { color: rgba(255,255,255,0.4); }
   .modal-input:focus { outline: none; border-color: var(--orange); }
-  .btn { padding: 10px 22px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.95rem; font-weight: bold; font-family: 'Georgia', serif; transition: opacity 0.15s; }
+  .btn { padding: 10px 22px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.95rem; font-weight: 700; font-family: 'DM Sans', sans-serif; transition: opacity 0.15s; }
   .btn:hover { opacity: 0.85; }
   .btn-gold { background: var(--gold); color: var(--navy); }
   .btn-gray { background: rgba(255,255,255,0.15); color: var(--white); }
@@ -156,6 +158,7 @@ HTML = r'''<!DOCTYPE html>
 </div>
 <div class="footer">
   A civic history game from <a href="https://bkcb6.app" target="_blank">bkcb6.app</a> &middot; covering all 18 Brooklyn community board districts
+  <div style="margin-top:6px;font-size:0.68rem;color:rgba(255,255,255,0.3)">Game designed by Mike Racioppo</div>
 </div>
 
 <script>
