@@ -31,15 +31,16 @@ HTML = r'''<!DOCTYPE html>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --navy: #0d1b4b; --orange: #f47920; --gold: #f47920; --blue: #16235e;
-    --blue-hover: #1e2f78; --white: #fff; --gray: #ccc; --green: #2ecc71; --red: #e74c3c;
+    --navy: #004b85; --orange: #d4bc2d; --gold: #d4bc2d; --blue: #005a9c;
+    --blue-hover: #0a6cb5; --white: #fff; --gray: #ccc; --green: #2ecc71; --red: #e74c3c;
+    --seal-soft: #fff8d8; --seal-accent: #7ec8e3;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'DM Sans', sans-serif; background: var(--navy); color: var(--white); min-height: 100vh; }
-  .topbar { background: var(--navy); border-bottom: 3px solid var(--orange); padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .topbar { background: #003a66; border-bottom: 3px solid var(--gold); padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
   .topbar-brand { display: flex; align-items: center; gap: 10px; }
-  .topbar-logo { width: 44px; height: 44px; flex-shrink: 0; border-radius: 4px; overflow: hidden; }
-  .topbar-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .topbar-logo { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; overflow: hidden; background: var(--white); }
+  .topbar-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
   .topbar-title { font-size: 1.1rem; font-weight: 800; color: var(--white); letter-spacing: 0.5px; }
   .topbar-title span { color: var(--orange); }
   .topbar-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
@@ -150,7 +151,7 @@ HTML = r'''<!DOCTYPE html>
 <div class="topbar">
   <div class="topbar-brand">
     <a href="https://bkcb6.app" style="display:flex;align-items:center;gap:10px;text-decoration:none;">
-      <div class="topbar-logo"><img src="cb6-logo.png" alt="CB6 Logo"></div>
+      <div class="topbar-logo"><img src="brooklyn-seal.png" alt="Borough of Brooklyn seal"></div>
       <div class="topbar-title">bkcb6<span>.app</span></div>
     </a>
   </div>
@@ -191,8 +192,9 @@ HTML = r'''<!DOCTYPE html>
 <div class="main">
   <div id="boardScreen">
     <div class="game-header">
+      <img src="brooklyn-seal.png" alt="Borough of Brooklyn seal" style="width:96px;height:96px;border-radius:50%;background:#fff;padding:4px;box-shadow:0 4px 14px rgba(0,0,0,0.3);margin-bottom:10px;">
       <h1>Brooklyn Jeopardy History</h1>
-      <div style="font-size:0.85rem;color:var(--orange);font-weight:600;letter-spacing:0.5px;margin-top:6px;">Designed by Mike Racioppo</div>
+      <div style="font-size:0.85rem;color:var(--gold);font-weight:600;letter-spacing:0.5px;margin-top:6px;">Designed by Mike Racioppo</div>
       <p>Finish the game, find your rank.</p>
     </div>
     <div class="board" id="board"></div>
