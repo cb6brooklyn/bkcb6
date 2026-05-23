@@ -146,6 +146,7 @@ HTML = r'''<!DOCTYPE html>
   <div id="boardScreen">
     <div class="game-header">
       <h1>Brooklyn Borough History</h1>
+      <div style="font-size:0.7rem;color:rgba(255,255,255,0.4);letter-spacing:0.5px;margin-top:4px;">Designed by Mike Racioppo</div>
       <p>Finish the game, find your rank.</p>
     </div>
     <div class="board" id="board"></div>
