@@ -146,7 +146,7 @@ HTML = r'''<!DOCTYPE html>
   <div id="boardScreen">
     <div class="game-header">
       <h1>Brooklyn Borough History</h1>
-      <p>Answer clues to climb the ladder from Community Associate to Mayor, then post your score to the leaderboard.</p>
+      <p>Finish the game, find your rank.</p>
     </div>
     <div class="board" id="board"></div>
   </div>
