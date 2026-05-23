@@ -191,7 +191,7 @@ HTML = r'''<!DOCTYPE html>
 <div class="main">
   <div id="boardScreen">
     <div class="game-header">
-      <img src="brooklyn-seal.png" alt="Borough of Brooklyn seal" style="width:96px;height:96px;border-radius:50%;box-shadow:0 4px 14px rgba(0,0,0,0.3);margin-bottom:10px;">
+      <img src="brooklyn-seal-v2.png" alt="Borough of Brooklyn seal" style="width:96px;height:96px;border-radius:50%;box-shadow:0 4px 14px rgba(0,0,0,0.3);margin-bottom:10px;">
       <h1>Brooklyn History Jeopardy</h1>
       <div style="font-size:0.85rem;color:var(--gold);font-weight:600;letter-spacing:0.5px;margin-top:6px;">Designed by Mike Racioppo</div>
       <p>Finish the game, find your rank.</p>
