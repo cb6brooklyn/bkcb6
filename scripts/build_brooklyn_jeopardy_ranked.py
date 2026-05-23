@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate jeopardy-brooklyn-history.html: the single Brooklyn Jeopardy History
+"""Generate jeopardy-brooklyn-history.html: the single Brooklyn History Jeopardy
 Jeopardy game. Everyone who finishes gets a civic title (Community Associate up
 through Mayor) and can post their score to a localStorage leaderboard, matching
 the pattern used by quiz-leaderboard.html on the app."""
@@ -14,17 +14,17 @@ HTML = r'''<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Brooklyn Jeopardy History, Brooklyn CB6</title>
+<title>Brooklyn History Jeopardy, Brooklyn CB6</title>
 <meta name="description" content="A Jeopardy-style game covering the history of all 18 Brooklyn community board districts. Finish the game and find your rank. From Brooklyn Community Board 6.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://bkcb6.app/jeopardy-brooklyn-history.html">
-<meta property="og:title" content="Brooklyn Jeopardy History, Brooklyn CB6">
+<meta property="og:title" content="Brooklyn History Jeopardy, Brooklyn CB6">
 <meta property="og:description" content="Climb from Community Associate to Mayor and post your score to the leaderboard.">
 <meta property="og:image" content="https://bkcb6.app/jeopardy-preview.png">
 <meta property="og:image:width" content="1080">
 <meta property="og:image:height" content="1080">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Brooklyn Jeopardy History, Brooklyn CB6">
+<meta name="twitter:title" content="Brooklyn History Jeopardy, Brooklyn CB6">
 <meta name="twitter:description" content="Climb from Community Associate to Mayor and post your score to the leaderboard.">
 <meta name="twitter:image" content="https://bkcb6.app/jeopardy-preview.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -192,7 +192,7 @@ HTML = r'''<!DOCTYPE html>
   <div id="boardScreen">
     <div class="game-header">
       <img src="brooklyn-seal.png" alt="Borough of Brooklyn seal" style="width:96px;height:96px;border-radius:50%;box-shadow:0 4px 14px rgba(0,0,0,0.3);margin-bottom:10px;">
-      <h1>Brooklyn Jeopardy History</h1>
+      <h1>Brooklyn History Jeopardy</h1>
       <div style="font-size:0.85rem;color:var(--gold);font-weight:600;letter-spacing:0.5px;margin-top:6px;">Designed by Mike Racioppo</div>
       <p>Finish the game, find your rank.</p>
     </div>
