@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""Build crossword-brooklyn-history.html by transforming crossword.html template:
+   - replace PUZZLES data (both script blocks) with Brooklyn history puzzles (sourced)
+   - replace showDefinition() to link to per-entry source instead of glossary
+   - update title/meta/header/footer text
+"""
+import json, re, os
+
+ROOT = os.path.join(os.path.dirname(__file__), '..')
+tmpl = open(os.path.join(ROOT,'crossword.html')).read()
+puzzles = json.load(open(os.path.join(os.path.dirname(__file__),'brooklyn_crossword_puzzles_sourced.json')))
+PUZ_JSON = json.dumps(puzzles, ensure_ascii=False)
+
+# 1) Replace both `const PUZZLES = [...];` occurrences.
+#    The data is a single-line array literal ending in `}];`
+pat = re.compile(r'const PUZZLES = \[.*?\}\];', re.DOTALL)
+n_before = len(pat.findall(tmpl))
+tmpl = pat.sub('const PUZZLES = ' + PUZ_JSON.replace('\\','\\\\') + ';', tmpl)
+print("PUZZLES blocks replaced:", n_before)
+
+# 2) Replace showDefinition to use entry.src_url / entry.src_title.
+old_def = '''function showDefinition(entry) {
+  document.getElementById('defRevealWord').textContent = '\u2705 ' + entry.word;
+  document.getElementById('defRevealText').textContent = entry.clue;
+  document.getElementById('defRevealLink').href = GLOSSARY_BASE + (SLUG_MAP[entry.word] || entry.word.toLowerCase());
+  document.getElementById('defReveal').classList.add('visible');
+}'''
+new_def = '''function showDefinition(entry) {
+  document.getElementById('defRevealWord').textContent = '\u2705 ' + entry.word;
+  document.getElementById('defRevealText').textContent = entry.clue;
+  var link = document.getElementById('defRevealLink');
+  link.href = entry.src_url || (GLOSSARY_BASE + (SLUG_MAP[entry.word] || entry.word.toLowerCase()));
+  var label = link.querySelector('.def-link-label');
+  if (label) label.textContent = entry.src_title ? ('Source: ' + entry.src_title) : 'View in Glossary';
+  document.getElementById('defReveal').classList.add('visible');
+}'''
+c = tmpl.count(old_def)
+tmpl = tmpl.replace(old_def, new_def)
+print("showDefinition replaced:", c)
+
+# 3) Wrap the link label text in a span so JS can update it. Original link inner text is "View in Glossary".
+old_link = '''<line x1="10" y1="14" x2="21" y2="3"/></svg>
+          View in Glossary
+        </a>'''
+new_link = '''<line x1="10" y1="14" x2="21" y2="3"/></svg>
+          <span class="def-link-label">View source</span>
+        </a>'''
+print("link label wrap:", tmpl.count(old_link))
+tmpl = tmpl.replace(old_link, new_link)
+
+# 4) Title / meta / header text swaps (Brooklyn borough history; no em dashes).
+repls = [
+    ('<meta property="og:title" content="CB6 Crossword Puzzle">',
+     '<meta property="og:title" content="Brooklyn Borough History Crossword">'),
+    ('<meta property="og:description" content="Test your knowledge of NYC land use, zoning, and civic process with the CB6 Crossword.">',
+     '<meta property="og:description" content="A crossword covering the history of all 18 Brooklyn community board districts, with a source link for every clue.">'),
+    ('<meta property="og:url" content="https://bkcb6.app/crossword.html">',
+     '<meta property="og:url" content="https://bkcb6.app/crossword-brooklyn-history.html">'),
+    ('<meta name="twitter:title" content="CB6 Crossword Puzzle">',
+     '<meta name="twitter:title" content="Brooklyn Borough History Crossword">'),
+    ('<meta name="twitter:description" content="Test your knowledge of NYC land use, zoning, and civic process.">',
+     '<meta name="twitter:description" content="A crossword covering all 18 Brooklyn community board districts, with sources.">'),
+    ('<title>CB6 Crossword Puzzle</title>',
+     '<title>Brooklyn Borough History Crossword</title>'),
+    ('<div style="font-size:.72rem;color:rgba(255,255,255,.55)">Based on <a href="https://bkcb6.app/glossary.html#crossword-accordion" style="color:#f47920;text-decoration:none;font-weight:600">the glossary</a></div>',
+     '<div style="font-size:.72rem;color:rgba(255,255,255,.55)">One clue for each of Brooklyn\\'s 18 community districts</div>'),
+    ('<div style="color:rgba(255,255,255,.5);font-size:.6rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px">Crossword</div>',
+     '<div style="color:rgba(255,255,255,.5);font-size:.6rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px">Borough History Crossword</div>'),
+    ('<div class="puzzle-eyebrow">Brooklyn Community Board 6</div>\n        <div class="puzzle-title">CB6 <span>Crossword</span></div>',
+     '<div class="puzzle-eyebrow">Brooklyn Community Board 6</div>\n        <div class="puzzle-title">Brooklyn Borough <span>History</span></div>'),
+    ('<div class="page-footer">Terms sourced from <a href="https://bkcb6.app/glossary.html" target="_blank">bkcb6.app/glossary.html</a></div>',
+     '<div class="page-footer">A civic history game covering all 18 Brooklyn community board districts, from <a href="https://bkcb6.app" target="_blank">bkcb6.app</a></div>'),
+    # play counter localStorage key, keep separate from the land-use crossword
+    ("const PLAY_KEY = 'cb6_xw_plays';", "const PLAY_KEY = 'cb6_xw_bk_history_plays';"),
+    ("let playCount = 0; try { playCount = parseInt(localStorage.getItem('cb6_xw_plays') || '0', 10); } catch(e) {}",
+     "let playCount = 0; try { playCount = parseInt(localStorage.getItem('cb6_xw_bk_history_plays') || '0', 10); } catch(e) {}"),
+]
+for a,b in repls:
+    cnt = tmpl.count(a)
+    if cnt == 0:
+        print("  [!] NOT FOUND:", a[:60])
+    tmpl = tmpl.replace(a,b)
+
+out = os.path.join(ROOT,'crossword-brooklyn-history.html')
+open(out,'w').write(tmpl)
+print("Wrote", os.path.abspath(out), "(", len(tmpl), "bytes )")
