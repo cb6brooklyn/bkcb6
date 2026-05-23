@@ -64,6 +64,12 @@ tmpl = tmpl.replace(old_link, new_link)
 
 # 4) Title / meta / header text swaps (Brooklyn borough history; no em dashes).
 repls = [
+    ('<meta property="og:image" content="https://bkcb6.app/icon-quizzes.png">',
+     '<meta property="og:image" content="https://bkcb6.app/crossword-brooklyn-history-og.png">\n<meta property="og:image:width" content="500">\n<meta property="og:image:height" content="500">'),
+    ('<meta name="twitter:card" content="summary_large_image">',
+     '<meta name="twitter:card" content="summary">'),
+    ('<meta name="twitter:image" content="https://cb6brooklyn.github.io/bkcb6/icon-crossword.png">',
+     '<meta name="twitter:image" content="https://bkcb6.app/crossword-brooklyn-history-og.png">'),
     ('<meta property="og:title" content="CB6 Crossword Puzzle">',
      '<meta property="og:title" content="Brooklyn Borough History Crossword">'),
     ('<meta property="og:description" content="Test your knowledge of NYC land use, zoning, and civic process with the CB6 Crossword.">',
