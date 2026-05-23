@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Generate jeopardy-brooklyn-history-ranked.html: the leaderboard version.
-Same board/engine/data as the main game, plus name entry, a civic title ladder
-(Community Associate up through Mayor), and a localStorage leaderboard, matching
+"""Generate jeopardy-brooklyn-history.html: the single Brooklyn Borough History
+Jeopardy game. Everyone who finishes gets a civic title (Community Associate up
+through Mayor) and can post their score to a localStorage leaderboard, matching
 the pattern used by quiz-leaderboard.html on the app."""
 import json, os
 
@@ -14,17 +14,17 @@ HTML = r'''<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Brooklyn Borough History Jeopardy: Ranked, Brooklyn CB6</title>
+<title>Brooklyn Borough History Jeopardy, Brooklyn CB6</title>
 <meta name="description" content="The ranked edition of the Brooklyn Borough History Jeopardy game. Climb from Community Associate to Mayor, and post your score to the local leaderboard. From Brooklyn Community Board 6.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://bkcb6.app/jeopardy-brooklyn-history-ranked.html">
-<meta property="og:title" content="Brooklyn Borough History Jeopardy: Ranked">
+<meta property="og:url" content="https://bkcb6.app/jeopardy-brooklyn-history.html">
+<meta property="og:title" content="Brooklyn Borough History Jeopardy, Brooklyn CB6">
 <meta property="og:description" content="Climb from Community Associate to Mayor and post your score to the leaderboard.">
 <meta property="og:image" content="https://bkcb6.app/jeopardy-preview.png">
 <meta property="og:image:width" content="1080">
 <meta property="og:image:height" content="1080">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Brooklyn Borough History Jeopardy: Ranked">
+<meta name="twitter:title" content="Brooklyn Borough History Jeopardy, Brooklyn CB6">
 <meta name="twitter:description" content="Climb from Community Associate to Mayor and post your score to the leaderboard.">
 <meta name="twitter:image" content="https://bkcb6.app/jeopardy-preview.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -135,7 +135,7 @@ HTML = r'''<!DOCTYPE html>
 <div class="topbar">
   <div class="topbar-brand">
     <div class="topbar-logo"><img src="cb6-logo.png" alt="CB6 Logo"></div>
-    <div class="topbar-title">Borough History <span>Jeopardy: Ranked</span></div>
+    <div class="topbar-title">Brooklyn Borough History <span>Jeopardy</span></div>
   </div>
   <div class="topbar-right">
     <div class="score-display" id="scoreDisplay">Score: $0</div>
@@ -145,7 +145,7 @@ HTML = r'''<!DOCTYPE html>
 <div class="main">
   <div id="boardScreen">
     <div class="game-header">
-      <h1>Brooklyn Borough History: Ranked</h1>
+      <h1>Brooklyn Borough History</h1>
       <p>Answer clues to climb the ladder from Community Associate to Mayor, then post your score to the leaderboard.</p>
     </div>
     <div class="board" id="board"></div>
@@ -183,7 +183,6 @@ HTML = r'''<!DOCTYPE html>
 
     <div class="results-btns" style="margin-top:22px">
       <button class="btn btn-gold" onclick="resetGame()">&#128260; Play Again</button>
-      <a href="jeopardy-brooklyn-history.html" class="btn btn-gray">Untimed version</a>
       <a href="crossword-brooklyn-history.html" class="btn btn-gray">&#129513; Crossword</a>
     </div>
   </div>
@@ -439,7 +438,7 @@ initBoard();
 '''
 
 HTML = HTML.replace('__CAT_JSON__', CAT_JSON)
-out = os.path.join(ROOT, 'jeopardy-brooklyn-history-ranked.html')
+out = os.path.join(ROOT, 'jeopardy-brooklyn-history.html')
 with open(out, 'w') as f:
     f.write(HTML)
 print("Wrote", os.path.abspath(out), "(", len(HTML), "bytes )")
