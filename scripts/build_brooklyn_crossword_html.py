@@ -32,6 +32,16 @@ new_def = '''function showDefinition(entry) {
   link.href = entry.src_url || (GLOSSARY_BASE + (SLUG_MAP[entry.word] || entry.word.toLowerCase()));
   var label = link.querySelector('.def-link-label');
   if (label) label.textContent = entry.src_title ? ('Source: ' + entry.src_title) : 'View in Glossary';
+  var appLink = document.getElementById('defAppLink');
+  if (appLink) {
+    if (entry.app_url) {
+      appLink.href = entry.app_url;
+      appLink.querySelector('.def-app-label').textContent = entry.app_title || 'View on the app';
+      appLink.style.display = 'inline-flex';
+    } else {
+      appLink.style.display = 'none';
+    }
+  }
   document.getElementById('defReveal').classList.add('visible');
 }'''
 c = tmpl.count(old_def)
@@ -44,6 +54,10 @@ old_link = '''<line x1="10" y1="14" x2="21" y2="3"/></svg>
         </a>'''
 new_link = '''<line x1="10" y1="14" x2="21" y2="3"/></svg>
           <span class="def-link-label">View source</span>
+        </a>
+        <a class="def-reveal-link" id="defAppLink" href="#" target="_blank" rel="noopener" style="display:none;margin-left:12px">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          <span class="def-app-label">View on the app</span>
         </a>'''
 print("link label wrap:", tmpl.count(old_link))
 tmpl = tmpl.replace(old_link, new_link)
@@ -63,7 +77,7 @@ repls = [
     ('<title>CB6 Crossword Puzzle</title>',
      '<title>Brooklyn Borough History Crossword</title>'),
     ('<div style="font-size:.72rem;color:rgba(255,255,255,.55)">Based on <a href="https://bkcb6.app/glossary.html#crossword-accordion" style="color:#f47920;text-decoration:none;font-weight:600">the glossary</a></div>',
-     '<div style="font-size:.72rem;color:rgba(255,255,255,.55)">One clue for each of Brooklyn\\'s 18 community districts</div>'),
+     '<div style="font-size:.72rem;color:rgba(255,255,255,.55)">One clue for each of Brooklyn&#39;s 18 community districts</div>'),
     ('<div style="color:rgba(255,255,255,.5);font-size:.6rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px">Crossword</div>',
      '<div style="color:rgba(255,255,255,.5);font-size:.6rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px">Borough History Crossword</div>'),
     ('<div class="puzzle-eyebrow">Brooklyn Community Board 6</div>\n        <div class="puzzle-title">CB6 <span>Crossword</span></div>',
@@ -74,6 +88,15 @@ repls = [
     ("const PLAY_KEY = 'cb6_xw_plays';", "const PLAY_KEY = 'cb6_xw_bk_history_plays';"),
     ("let playCount = 0; try { playCount = parseInt(localStorage.getItem('cb6_xw_plays') || '0', 10); } catch(e) {}",
      "let playCount = 0; try { playCount = parseInt(localStorage.getItem('cb6_xw_bk_history_plays') || '0', 10); } catch(e) {}"),
+    # Add a 4th puzzle tab button after the third
+    ('<button class="btn btn-outline" id="tab2" onclick="loadPuzzle(2)" style="font-size:.75rem;padding:5px 14px;color:rgba(255,255,255,.6);border-color:rgba(255,255,255,.2)">Puzzle 3</button>',
+     '<button class="btn btn-outline" id="tab2" onclick="loadPuzzle(2)" style="font-size:.75rem;padding:5px 14px;color:rgba(255,255,255,.6);border-color:rgba(255,255,255,.2)">Puzzle 3</button>\n    <button class="btn btn-outline" id="tab3" onclick="loadPuzzle(3)" style="font-size:.75rem;padding:5px 14px;color:rgba(255,255,255,.6);border-color:rgba(255,255,255,.2)">Puzzle 4</button>'),
+    # Make tab-highlight loop dynamic over all puzzles
+    ('[0,1,2].forEach(i => {\n    document.getElementById(\'tab\'+i).classList.toggle(\'active\', i === idx);\n  });',
+     'PUZZLES.forEach((_, i) => {\n    var t = document.getElementById(\'tab\'+i);\n    if (t) t.classList.toggle(\'active\', i === idx);\n  });'),
+    ('? \'See all answers — giving up!\'', '? \'See all answers, giving up!\''),
+    ('`${puzzle.title} — all ${puzzle.across.length + puzzle.down.length} answers`;',
+     '`${puzzle.title}, all ${puzzle.across.length + puzzle.down.length} answers`;'),
 ]
 for a,b in repls:
     cnt = tmpl.count(a)

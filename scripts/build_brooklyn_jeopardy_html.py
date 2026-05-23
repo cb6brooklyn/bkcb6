@@ -66,12 +66,14 @@ HTML = r'''<!DOCTYPE html>
   .modal-feedback { font-size: 1rem; min-height: 28px; margin-bottom: 10px; font-weight: bold; }
   .modal-feedback.correct { color: var(--green); }
   .modal-feedback.wrong { color: var(--red); }
-  .modal-answer-reveal { font-size: 1rem; color: var(--white); margin-bottom: 10px; min-height: 20px; line-height: 1.5; }
-  .modal-answer-reveal strong { color: var(--gold); font-size: 1.1rem; }
-  .reveal-context { font-size: 0.9rem; color: rgba(255,255,255,0.75); }
-  .modal-source { font-size: 0.85rem; margin-bottom: 16px; min-height: 18px; line-height: 1.7; }
-  .modal-source a { color: var(--gold); text-decoration: none; }
-  .modal-source a:hover { text-decoration: underline; }
+  .reveal-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 16px 18px; margin: 4px 0 18px; text-align: left; }
+  .reveal-card:empty { display: none; }
+  .reveal-answer { font-size: 1.25rem; font-weight: bold; color: var(--gold); margin-bottom: 6px; }
+  .reveal-context { font-size: 0.92rem; color: rgba(255,255,255,0.82); line-height: 1.55; margin-bottom: 14px; }
+  .reveal-links { display: flex; flex-wrap: wrap; gap: 8px; }
+  .reveal-link { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: bold; text-decoration: none; padding: 7px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); color: var(--white); background: rgba(255,255,255,0.06); transition: background 0.15s, border-color 0.15s; }
+  .reveal-link:hover { background: rgba(255,255,255,0.14); border-color: var(--gold); }
+  .reveal-link .ic { font-size: 0.9rem; }
   #resultsScreen { display: none; text-align: center; padding: 30px 20px; }
   #resultsScreen.active { display: block; }
   .results-title { font-size: 2rem; color: var(--gold); margin-bottom: 8px; }
@@ -140,8 +142,7 @@ HTML = r'''<!DOCTYPE html>
       <button class="btn btn-gold" onclick="checkAnswer()">Submit</button>
     </div>
     <div class="modal-feedback" id="modalFeedback"></div>
-    <div class="modal-answer-reveal" id="modalAnswerReveal"></div>
-    <div class="modal-source" id="modalSource"></div>
+    <div class="reveal-card" id="revealCard"></div>
     <div id="modalNextRow" style="display:none;text-align:center;margin-top:8px;">
       <button class="btn btn-orange" onclick="closeModal()">Continue &#8594;</button>
     </div>
@@ -201,8 +202,7 @@ function openClue(col, row, cell) {
   currentClue = { col, row, cell, clue };
   document.getElementById('modalFeedback').textContent = '';
   document.getElementById('modalFeedback').className = 'modal-feedback';
-  document.getElementById('modalAnswerReveal').textContent = '';
-  document.getElementById('modalSource').innerHTML = '';
+  document.getElementById('revealCard').innerHTML = '';
   document.getElementById('modalInput').value = '';
   document.getElementById('modalNextRow').style.display = 'none';
   document.getElementById('modalInputRow').style.display = 'flex';
@@ -234,14 +234,15 @@ function checkAnswer() {
     document.getElementById('modalFeedback').textContent = '\u274c Incorrect! -$' + clue.value;
     document.getElementById('modalFeedback').className = 'modal-feedback wrong';
   }
-  document.getElementById('modalAnswerReveal').innerHTML =
-    '<strong>' + clue.answer + '</strong><br><span class="reveal-context">' + clue.reveal + '</span>';
-  const src = document.getElementById('modalSource');
-  var html = 'Source: <a href="' + clue.src_url + '" target="_blank" rel="noopener">' + clue.src_title + '</a>';
+  var card = '<div class="reveal-answer">' + clue.answer + '</div>';
+  card += '<div class="reveal-context">' + clue.reveal + '</div>';
+  card += '<div class="reveal-links">';
+  card += '<a class="reveal-link" href="' + clue.src_url + '" target="_blank" rel="noopener"><span class="ic">\ud83d\udcd6</span> Source: ' + clue.src_title + '</a>';
   if (clue.app_url) {
-    html += '<br>On the app: <a href="' + clue.app_url + '" target="_blank" rel="noopener">' + clue.app_title + '</a>';
+    card += '<a class="reveal-link" href="' + clue.app_url + '" target="_blank" rel="noopener"><span class="ic">\ud83c\udfd9\ufe0f</span> ' + clue.app_title + '</a>';
   }
-  src.innerHTML = html;
+  card += '</div>';
+  document.getElementById('revealCard').innerHTML = card;
   updateScore();
   currentClue.cell.classList.add('used');
   currentClue.cell.textContent = '';
