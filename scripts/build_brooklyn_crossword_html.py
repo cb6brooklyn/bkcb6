@@ -107,9 +107,14 @@ repls = [
     ("const PLAY_KEY = 'cb6_xw_plays';", "const PLAY_KEY = 'cb6_xw_bk_history_plays';"),
     ("let playCount = 0; try { playCount = parseInt(localStorage.getItem('cb6_xw_plays') || '0', 10); } catch(e) {}",
      "let playCount = 0; try { playCount = parseInt(localStorage.getItem('cb6_xw_bk_history_plays') || '0', 10); } catch(e) {}"),
-    # Only 2 puzzles now: remove the Puzzle 3 tab button entirely
+    # Single puzzle now: remove the Puzzle 2 and Puzzle 3 tab buttons
+    ('\n    <button class="btn btn-outline" id="tab1" onclick="loadPuzzle(1)" style="font-size:.75rem;padding:5px 14px;color:rgba(255,255,255,.6);border-color:rgba(255,255,255,.2)">Puzzle 2</button>',
+     ''),
     ('\n    <button class="btn btn-outline" id="tab2" onclick="loadPuzzle(2)" style="font-size:.75rem;padding:5px 14px;color:rgba(255,255,255,.6);border-color:rgba(255,255,255,.2)">Puzzle 3</button>',
      ''),
+    # The lone remaining "Puzzle 1" tab is redundant with one puzzle; hide it
+    ('<button class="btn btn-outline active" id="tab0" onclick="loadPuzzle(0)" style="font-size:.75rem;padding:5px 14px;color:#fff;border-color:rgba(255,255,255,.3)">Puzzle 1</button>',
+     '<button class="btn btn-outline active" id="tab0" onclick="loadPuzzle(0)" style="display:none">Puzzle 1</button>'),
     # Make tab-highlight loop dynamic over all puzzles
     ('[0,1,2].forEach(i => {\n    document.getElementById(\'tab\'+i).classList.toggle(\'active\', i === idx);\n  });',
      'PUZZLES.forEach((_, i) => {\n    var t = document.getElementById(\'tab\'+i);\n    if (t) t.classList.toggle(\'active\', i === idx);\n  });'),
