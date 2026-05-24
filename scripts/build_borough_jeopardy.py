@@ -12,33 +12,33 @@ BOROUGHS = {
     'name': 'Manhattan', 'data': 'manhattan_jeopardy_categories.json',
     'out': 'jeopardy-manhattan-history.html', 'seal': 'manhattan-seal.png',
     'og': 'jeopardy-manhattan-history-og.png', 'overview': 'manhattan.html',
-    # Manhattan seal: blue & white
-    'navy': '#1d3a6b', 'bar': '#15294d', 'accent': '#2f5aa8', 'accent_hover': '#3a6cc4',
-    'gold': '#2f5aa8',
+    # Manhattan seal: blue & white. Dark navy board, bright gold text for contrast.
+    'navy': '#0a1f44', 'bar': '#0a1f44', 'accent': '#16356b', 'accent_hover': '#1e4790',
+    'gold': '#ffffff',
   },
   'bronx': {
     'name': 'The Bronx', 'data': 'bronx_jeopardy_categories.json',
     'out': 'jeopardy-bronx-history.html', 'seal': 'bronx-seal.png',
     'og': 'jeopardy-bronx-history-og.png', 'overview': 'bronx.html',
     # Bronx seal: blue field, orange/white/green crest
-    'navy': '#26408b', 'bar': '#1b2f६b'.replace('६','6'), 'accent': '#e8771a', 'accent_hover': '#ff8a35',
-    'gold': '#e8771a',
+    'navy': '#1b2f6b', 'bar': '#1b2f6b', 'accent': '#2a4490', 'accent_hover': '#3454ad',
+    'gold': '#ffffff',
   },
   'queens': {
     'name': 'Queens', 'data': 'queens_jeopardy_categories.json',
     'out': 'jeopardy-queens-history.html', 'seal': 'queens-seal.png',
     'og': 'jeopardy-queens-history-og.png', 'overview': 'queens.html',
     # Queens seal: gold/brown with rose
-    'navy': '#5b4a2f', 'bar': '#40341f', 'accent': '#b8902f', 'accent_hover': '#d4a83a',
-    'gold': '#c79a1e',
+    'navy': '#3a2f1c', 'bar': '#3a2f1c', 'accent': '#5b4a2f', 'accent_hover': '#6e5a39',
+    'gold': '#ffffff',
   },
   'statenisland': {
     'name': 'Staten Island', 'data': 'statenisland_jeopardy_categories.json',
     'out': 'jeopardy-statenisland-history.html', 'seal': 'statenisland-seal.png',
     'og': 'jeopardy-statenisland-history-og.png', 'overview': 'statenisland.html',
     # Staten Island seal: muted green
-    'navy': '#3f5c4a', 'bar': '#2d4435', 'accent': '#5f8c6b', 'accent_hover': '#6fa07c',
-    'gold': '#5f8c6b',
+    'navy': '#243a2c', 'bar': '#243a2c', 'accent': '#3a5a45', 'accent_hover': '#496e54',
+    'gold': '#ffffff',
   },
   'brooklyn': {
     'name': 'Brooklyn', 'data': 'brooklyn_jeopardy_categories.json',
