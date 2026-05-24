@@ -1,32 +1,84 @@
-<!DOCTYPE html>
+#!/usr/bin/env python3
+"""Generate a borough History Jeopardy game (Manhattan, Bronx, Queens, Staten
+Island, Brooklyn). Everyone who finishes gets a civic title (Community Associate
+up through Mayor) and can post their score to a localStorage leaderboard."""
+import json, os, sys
+
+ROOT = os.path.join(os.path.dirname(__file__), '..')
+
+# Per-borough configuration. Colors are pulled from each borough seal.
+BOROUGHS = {
+  'manhattan': {
+    'name': 'Manhattan', 'data': 'manhattan_jeopardy_categories.json',
+    'out': 'jeopardy-manhattan-history.html', 'seal': 'manhattan-seal.png',
+    'og': 'jeopardy-manhattan-history-og.png', 'overview': 'manhattan.html',
+    # Manhattan seal: blue & white
+    'navy': '#1d3a6b', 'bar': '#15294d', 'accent': '#2f5aa8', 'accent_hover': '#3a6cc4',
+    'gold': '#2f5aa8',
+  },
+  'bronx': {
+    'name': 'The Bronx', 'data': 'bronx_jeopardy_categories.json',
+    'out': 'jeopardy-bronx-history.html', 'seal': 'bronx-seal.png',
+    'og': 'jeopardy-bronx-history-og.png', 'overview': 'bronx.html',
+    # Bronx seal: blue field, orange/white/green crest
+    'navy': '#26408b', 'bar': '#1b2f६b'.replace('६','6'), 'accent': '#e8771a', 'accent_hover': '#ff8a35',
+    'gold': '#e8771a',
+  },
+  'queens': {
+    'name': 'Queens', 'data': 'queens_jeopardy_categories.json',
+    'out': 'jeopardy-queens-history.html', 'seal': 'queens-seal.png',
+    'og': 'jeopardy-queens-history-og.png', 'overview': 'queens.html',
+    # Queens seal: gold/brown with rose
+    'navy': '#5b4a2f', 'bar': '#40341f', 'accent': '#b8902f', 'accent_hover': '#d4a83a',
+    'gold': '#c79a1e',
+  },
+  'statenisland': {
+    'name': 'Staten Island', 'data': 'statenisland_jeopardy_categories.json',
+    'out': 'jeopardy-statenisland-history.html', 'seal': 'statenisland-seal.png',
+    'og': 'jeopardy-statenisland-history-og.png', 'overview': 'statenisland.html',
+    # Staten Island seal: muted green
+    'navy': '#3f5c4a', 'bar': '#2d4435', 'accent': '#5f8c6b', 'accent_hover': '#6fa07c',
+    'gold': '#5f8c6b',
+  },
+  'brooklyn': {
+    'name': 'Brooklyn', 'data': 'brooklyn_jeopardy_categories.json',
+    'out': 'jeopardy-brooklyn-history.html', 'seal': 'brooklyn-seal-v2.png',
+    'og': 'jeopardy-brooklyn-history-og.png', 'overview': 'brooklyn.html',
+    'navy': '#004b85', 'bar': '#003a66', 'accent': '#005a9c', 'accent_hover': '#0a6cb5',
+    'gold': '#d4bc2d',
+  },
+}
+
+
+HTML = r'''<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Brooklyn History Jeopardy, Brooklyn CB6</title>
+<title>__NAME__ History Jeopardy, Brooklyn CB6</title>
 <meta name="description" content="A Jeopardy-style game covering the history of all 18 Brooklyn community board districts. Finish the game and find your rank. From Brooklyn Community Board 6.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://bkcb6.app/jeopardy-brooklyn-history.html">
-<meta property="og:title" content="Brooklyn History Jeopardy">
+<meta property="og:url" content="https://bkcb6.app/__OUT__">
+<meta property="og:title" content="__NAME__ History Jeopardy">
 <meta property="og:description" content="Climb from Community Associate to Mayor and post your score to the leaderboard.">
-<meta property="og:image" content="https://bkcb6.app/jeopardy-brooklyn-history-og.png">
+<meta property="og:image" content="https://bkcb6.app/__OG__">
 <meta property="og:image:width" content="500">
 <meta property="og:image:height" content="500">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Brooklyn History Jeopardy">
+<meta name="twitter:title" content="__NAME__ History Jeopardy">
 <meta name="twitter:description" content="Climb from Community Associate to Mayor and post your score to the leaderboard.">
-<meta name="twitter:image" content="https://bkcb6.app/jeopardy-brooklyn-history-og.png">
+<meta name="twitter:image" content="https://bkcb6.app/__OG__">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --navy: #004b85; --orange: #d4bc2d; --gold: #d4bc2d; --blue: #005a9c;
-    --blue-hover: #0a6cb5; --white: #fff; --gray: #ccc; --green: #2ecc71; --red: #e74c3c;
+    --navy: __NAVY__; --orange: __GOLD__; --gold: __GOLD__; --blue: __ACCENT__;
+    --blue-hover: __ACCENT_HOVER__; --white: #fff; --gray: #ccc; --green: #2ecc71; --red: #e74c3c;
     --seal-soft: #fff8d8; --seal-accent: #7ec8e3;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'DM Sans', sans-serif; background: var(--navy); color: var(--white); min-height: 100vh; }
-  .topbar { background: #003a66; border-bottom: 3px solid var(--gold); padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .topbar { background: __BAR__; border-bottom: 3px solid var(--gold); padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
   .topbar-brand { display: flex; align-items: center; gap: 10px; }
   .topbar-logo { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; overflow: hidden; }
   .topbar-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
@@ -180,8 +232,8 @@
 <div class="main">
   <div id="boardScreen">
     <div class="game-header">
-      <img src="brooklyn-seal-v2.png" alt="Brooklyn seal" style="width:96px;height:96px;border-radius:50%;box-shadow:0 4px 14px rgba(0,0,0,0.3);margin-bottom:10px;">
-      <h1>Brooklyn History Jeopardy</h1>
+      <img src="__SEAL__" alt="__NAME__ seal" style="width:96px;height:96px;border-radius:50%;box-shadow:0 4px 14px rgba(0,0,0,0.3);margin-bottom:10px;">
+      <h1>__NAME__ History Jeopardy</h1>
       <div style="font-size:0.85rem;color:var(--gold);font-weight:600;letter-spacing:0.5px;margin-top:6px;">Designed by Mike Racioppo</div>
       <p>Finish the game, find your rank.</p>
     </div>
@@ -220,7 +272,7 @@
 
     <div class="results-btns" style="margin-top:22px">
       <button class="btn btn-gold" onclick="resetGame()">&#128260; Play Again</button>
-      <a href="crossword-brooklyn-history.html" class="btn btn-gray">&#129513; Crossword</a>
+      __CROSSWORD_BTN__
     </div>
   </div>
 </div>
@@ -253,7 +305,7 @@
 </div>
 
 <script>
-const CATEGORIES = [{"name": "Naming Neighborhoods", "clues": [{"value": 200, "cb": 1, "clue": "This CB1 neighborhood was an independent city before being annexed by the City of Brooklyn in 1855; its name honors engineer Jonathan Williams.", "answer": "Williamsburg", "accept": ["williamsburg", "williamsburgh"], "reveal": "Williamsburg (CB1). An independent city until Brooklyn annexed it in 1855; named for engineer Jonathan Williams.", "src_title": "Williamsburg, Brooklyn", "src_url": "https://en.wikipedia.org/wiki/Williamsburg,_Brooklyn", "app_title": "CB1 on the app", "app_url": "https://bkcb6.app/cb-bk-1.html"}, {"value": 400, "cb": 11, "clue": "CB11's Bensonhurst takes its name from the family that owned the farmland here before it was developed in the 1880s.", "answer": "Benson", "accept": ["benson"], "reveal": "Benson (CB11, Bensonhurst). Named for the family that farmed the land before 1880s development.", "src_title": "Bensonhurst, Brooklyn", "src_url": "https://en.wikipedia.org/wiki/Bensonhurst,_Brooklyn", "app_title": "CB11 on the app", "app_url": "https://bkcb6.app/cb-bk-11.html"}, {"value": 600, "cb": 16, "clue": "Developed by Charles S. Brown in the late 1800s, this CB16 neighborhood became a densely populated Jewish immigrant community in the early 20th century.", "answer": "Brownsville", "accept": ["brownsville"], "reveal": "Brownsville (CB16). Developed by Charles S. Brown; a major Jewish immigrant community by the early 1900s.", "src_title": "Brownsville, Brooklyn", "src_url": "https://en.wikipedia.org/wiki/Brownsville,_Brooklyn", "app_title": "CB16 on the app", "app_url": "https://bkcb6.app/cb-bk-16.html"}, {"value": 800, "cb": 5, "clue": "East New York (CB5) was founded in the 1830s by John Pitkin, a merchant from this New England state who hoped to rival Manhattan.", "answer": "Connecticut", "accept": ["connecticut"], "reveal": "Connecticut (CB5, East New York). Founder John Pitkin came from Connecticut and hoped to rival Manhattan.", "src_title": "East New York, Brooklyn", "src_url": "https://en.wikipedia.org/wiki/East_New_York,_Brooklyn", "app_title": "CB5 on the app", "app_url": "https://bkcb6.app/cb-bk-5.html"}, {"value": 1000, "cb": 9, "clue": "This CB9 neighborhood and its preserved 18th-century Dutch farmhouse in Prospect Park both carry the name of an old Brooklyn family.", "answer": "Lefferts", "accept": ["lefferts", "prospect lefferts gardens", "lefferts gardens"], "reveal": "Lefferts (CB9). Named for an old Dutch family whose 18th-century farmhouse is preserved in Prospect Park.", "src_title": "Prospect Lefferts Gardens", "src_url": "https://en.wikipedia.org/wiki/Prospect_Lefferts_Gardens", "app_title": "CB9 on the app", "app_url": "https://bkcb6.app/cb-bk-9.html"}, {"value": 1200, "cb": 0, "clue": "All of Brooklyn sits within this New York State county, whose name also appears on the borough's hospital and Supreme Court.", "answer": "Kings", "accept": ["kings", "kings county", "county of kings"], "reveal": "Kings County. Brooklyn is coextensive with Kings County, named in 1683 for King Charles II of England. The borough has 18 community districts in all.", "src_title": "Brooklyn", "src_url": "https://en.wikipedia.org/wiki/Brooklyn", "app_title": "Brooklyn overview", "app_url": "https://bkcb6.app/brooklyn.html"}]}, {"name": "Routes to Town", "clues": [{"value": 200, "cb": 14, "clue": "One of the six original towns of Kings County, this CB14 area was settled by the Dutch in 1651 as Midwout, meaning 'middle woods'.", "answer": "Flatbush", "accept": ["flatbush"], "reveal": "Flatbush (CB14). Settled by the Dutch in 1651 as Midwout; one of the six original towns of Kings County.", "src_title": "Flatbush, Brooklyn", "src_url": "https://en.wikipedia.org/wiki/Flatbush,_Brooklyn", "app_title": "CB14 on the app", "app_url": "https://bkcb6.app/cb-bk-14.html"}, {"value": 400, "cb": 18, "clue": "This CB18 neighborhood is named for the Lenape people who lived in the area; it was farmland and a fishing resort before 20th-century development.", "answer": "Canarsie", "accept": ["canarsie"], "reveal": "Canarsie (CB18). Named for the Lenape band who lived there; once farmland and a fishing resort.", "src_title": "Canarsie, Brooklyn", "src_url": "https://en.wikipedia.org/wiki/Canarsie,_Brooklyn", "app_title": "CB18 on the app", "app_url": "https://bkcb6.app/cb-bk-18.html"}, {"value": 600, "cb": 3, "clue": "This CB3 district holds one of the nation's largest collections of intact Victorian architecture; its hyphenated name joins Bedford with this Dutch-derived word.", "answer": "Stuyvesant", "accept": ["stuyvesant", "bedford-stuyvesant", "bedford stuyvesant", "bed-stuy", "bedstuy", "bed stuy"], "reveal": "Bedford-Stuyvesant (CB3). Holds one of the largest stocks of intact Victorian rowhouses in the country.", "src_title": "Bedford-Stuyvesant, Brooklyn", "src_url": "https://en.wikipedia.org/wiki/Bedford%E2%80%93Stuyvesant,_Brooklyn", "app_title": "CB3 on the app", "app_url": "https://bkcb6.app/cb-bk-3.html"}, {"value": 800, "cb": 2, "clue": "In 1965 this CB2 neighborhood became New York City's first designated Historic District; its name pairs with 'Brooklyn'.", "answer": "Heights", "accept": ["heights", "brooklyn heights"], "reveal": "Brooklyn Heights (CB2). Designated New York City's first Historic District in 1965.", "src_title": "Brooklyn Heights Historic District", "src_url": "https://en.wikipedia.org/wiki/Brooklyn_Heights_Historic_District", "app_title": "CB2 on the app", "app_url": "https://bkcb6.app/cb-bk-2.html"}, {"value": 1000, "cb": 0, "clue": "Brooklynites call this 1898 event, when their city dissolved into Greater New York and became one of five boroughs, the 'Great Mistake'.", "answer": "Consolidation", "accept": ["consolidation", "the great mistake", "great mistake", "great mistake of 1898", "consolidation of 1898", "the consolidation", "nyc consolidation"], "reveal": "Consolidation (1898). On January 1, 1898 Brooklyn ceased to be an independent city and became one of New York City's five boroughs. Many Brooklynites called it the 'Great Mistake of 1898'.", "src_title": "History of Brooklyn", "src_url": "https://en.wikipedia.org/wiki/History_of_Brooklyn", "app_title": "Brooklyn overview", "app_url": "https://bkcb6.app/brooklyn.html"}, {"value": 1200, "cb": 0, "clue": "The name 'Brooklyn' evolved from this Dutch town, established by settlers in the 1640s.", "answer": "Breukelen", "accept": ["breukelen", "breuckelen"], "reveal": "Breukelen. The borough's name comes from the Dutch town of Breukelen, settled in the 1640s on the shore of Long Island.", "src_title": "History of Brooklyn", "src_url": "https://en.wikipedia.org/wiki/History_of_Brooklyn", "app_title": "Brooklyn overview", "app_url": "https://bkcb6.app/brooklyn.html"}]}, {"name": "BK Build", "clues": [{"value": 200, "cb": 6, "clue": "This CB6 canal, designated a federal Superfund site in 2010, was once a tidal creek used by the Lenape and Dutch settlers.", "answer": "Gowanus", "accept": ["gowanus", "gowanus canal"], "reveal": "Gowanus (CB6). A Lenape tidal creek, later a canal, named a federal Superfund site in 2010.", "src_title": "Gowanus Canal", "src_url": "https://en.wikipedia.org/wiki/Gowanus_Canal", "app_title": "CB6 on the app", "app_url": "https://bkcb6.app/cb-bk-6.html"}, {"value": 400, "cb": 7, "clue": "Industrialist Irving T. Bush built this massive Sunset Park (CB7) shipping and manufacturing complex on the waterfront in the early 1900s; today it is Industry City's neighbor.", "answer": "Bush Terminal", "accept": ["bush terminal", "bushterminal"], "reveal": "Bush Terminal (CB7, Sunset Park). Built by Irving T. Bush in the early 1900s; today the neighbor of Industry City.", "src_title": "Bush Terminal", "src_url": "https://en.wikipedia.org/wiki/Bush_Terminal", "app_title": "CB7 on the app", "app_url": "https://bkcb6.app/cb-bk-7.html"}, {"value": 600, "cb": 10, "clue": "Opened in 1964 from CB10's Bay Ridge to Staten Island, this was the world's longest suspension bridge at the time; it honors an Italian explorer.", "answer": "Verrazzano", "accept": ["verrazzano", "verrazano", "verrazzano-narrows", "verrazano-narrows", "verrazzano narrows", "verrazano narrows"], "reveal": "Verrazzano (CB10, Bay Ridge). The 1964 bridge to Staten Island, then the world's longest suspension span.", "src_title": "Verrazzano-Narrows Bridge", "src_url": "https://en.wikipedia.org/wiki/Verrazzano-Narrows_Bridge", "app_title": "CB10 on the app", "app_url": "https://bkcb6.app/cb-bk-10.html"}, {"value": 800, "cb": 12, "clue": "Designed by Olmsted and Vaux and running through CB12, this boulevard opened in 1880 and has the country's first dedicated bike path along it.", "answer": "Ocean Parkway", "accept": ["ocean parkway", "oceanparkway"], "reveal": "Ocean Parkway (CB12). An Olmsted and Vaux boulevard, opened 1880, with the country's first dedicated bike path (1894).", "src_title": "Ocean Parkway (Brooklyn)", "src_url": "https://en.wikipedia.org/wiki/Ocean_Parkway_(Brooklyn)", "app_title": "CB12 on the app", "app_url": "https://bkcb6.app/cb-bk-12.html"}, {"value": 1000, "cb": 17, "clue": "CB17's East Flatbush is home to this county-named hospital center, one of the borough's largest public medical campuses.", "answer": "Kings", "accept": ["kings", "kings county", "kings county hospital"], "reveal": "Kings (CB17, East Flatbush). Kings County Hospital Center, one of the borough's largest public medical campuses.", "src_title": "Kings County Hospital Center", "src_url": "https://en.wikipedia.org/wiki/Kings_County_Hospital_Center", "app_title": "CB17 on the app", "app_url": "https://bkcb6.app/cb-bk-17.html"}, {"value": 1200, "cb": 0, "clue": "With more than 2.7 million residents, Brooklyn ranks first among New York City's boroughs by this measure.", "answer": "Population", "accept": ["population", "most populous", "most populous borough", "population size"], "reveal": "Population. Brooklyn is the most populous of New York City's five boroughs, with roughly 2.7 million residents across its 18 community districts.", "src_title": "Brooklyn", "src_url": "https://en.wikipedia.org/wiki/Brooklyn", "app_title": "Brooklyn overview", "app_url": "https://bkcb6.app/brooklyn.html"}]}, {"name": "Only the Dead Know...", "clues": [{"value": 200, "cb": 4, "clue": "By the late 1800s CB4's Bushwick was a national capital of this beverage industry, home to a stretch nicknamed 'Brewers' Row'.", "answer": "Brewing", "accept": ["brewing", "beer brewing", "beer", "brewery", "breweries"], "reveal": "Brewing (CB4, Bushwick). A national beer capital in the 1800s, with a stretch known as Brewers' Row.", "src_title": "Bushwick, Brooklyn", "src_url": "https://en.wikipedia.org/wiki/Bushwick,_Brooklyn", "app_title": "CB4 on the app", "app_url": "https://bkcb6.app/cb-bk-4.html"}, {"value": 400, "cb": 8, "clue": "From 1913 to 1957 the Brooklyn Dodgers played at this ballpark in CB8's Crown Heights, later replaced by apartments.", "answer": "Ebbets", "accept": ["ebbets", "ebbets field"], "reveal": "Ebbets Field (CB8). Home of the Brooklyn Dodgers from 1913 to 1957, later replaced by apartments.", "src_title": "Ebbets Field", "src_url": "https://en.wikipedia.org/wiki/Ebbets_Field", "app_title": "CB8 on the app", "app_url": "https://bkcb6.app/cb-bk-8.html"}, {"value": 600, "cb": 13, "clue": "Opened in 1927 in CB13's Coney Island and now a city landmark, this wooden roller coaster is among the most famous in the world.", "answer": "Cyclone", "accept": ["cyclone", "the cyclone", "coney island cyclone"], "reveal": "Cyclone (CB13, Coney Island). The 1927 wooden roller coaster, now a New York City landmark.", "src_title": "Coney Island Cyclone", "src_url": "https://en.wikipedia.org/wiki/Cyclone_(roller_coaster)", "app_title": "CB13 on the app", "app_url": "https://bkcb6.app/cb-bk-13.html"}, {"value": 800, "cb": 15, "clue": "This CB15 bay and neighborhood are named for a local fish; the area was famous for seafood restaurants and a 19th-century racetrack.", "answer": "Sheepshead", "accept": ["sheepshead", "sheepshead bay"], "reveal": "Sheepshead Bay (CB15). Named for a local fish; once known for seafood and a 19th-century racetrack.", "src_title": "Sheepshead Bay, Brooklyn", "src_url": "https://en.wikipedia.org/wiki/Sheepshead_Bay,_Brooklyn", "app_title": "CB15 on the app", "app_url": "https://bkcb6.app/cb-bk-15.html"}, {"value": 1000, "cb": 0, "clue": "Frederick Law Olmsted and Calvert Vaux considered this 526-acre Brooklyn park, opened in 1867, their masterpiece, greater than Central Park.", "answer": "Prospect Park", "accept": ["prospect park", "prospect"], "reveal": "Prospect Park (1867). The 526-acre park by Olmsted and Vaux, the same designers as Central Park, who reportedly considered Prospect Park their finest work.", "src_title": "Prospect Park", "src_url": "https://en.wikipedia.org/wiki/Prospect_Park_(Brooklyn)", "app_title": "Brooklyn overview", "app_url": "https://bkcb6.app/brooklyn.html"}, {"value": 1200, "cb": 0, "clue": "Opened in 1883 after 14 years of work, this East River span linked Brooklyn to Manhattan and helped pave the way for consolidation.", "answer": "Brooklyn Bridge", "accept": ["brooklyn bridge", "the brooklyn bridge", "bridge"], "reveal": "Brooklyn Bridge (1883). The East River crossing, once the world's longest suspension bridge, tied Brooklyn to Manhattan and accelerated the push toward consolidation.", "src_title": "Brooklyn Bridge", "src_url": "https://en.wikipedia.org/wiki/Brooklyn_Bridge", "app_title": "Brooklyn overview", "app_url": "https://bkcb6.app/brooklyn.html"}]}];
+const CATEGORIES = __CAT_JSON__;
 
 // Civic title ladder, low to high. minPct is the share of max score needed.
 const TITLES = [
@@ -498,3 +550,35 @@ initBoard();
 </script>
 </body>
 </html>
+'''
+
+def build(slug):
+    cfg = BOROUGHS[slug]
+    cats = json.load(open(os.path.join(os.path.dirname(__file__), cfg['data'])))
+    CAT_JSON = json.dumps(cats, ensure_ascii=False)
+    html = HTML
+    html = html.replace('__CAT_JSON__', CAT_JSON)
+    html = html.replace('__NAME__', cfg['name'])
+    html = html.replace('__OUT__', cfg['out'])
+    html = html.replace('__OG__', cfg['og'])
+    html = html.replace('__SEAL__', cfg['seal'])
+    html = html.replace('__NAVY__', cfg['navy'])
+    html = html.replace('__BAR__', cfg['bar'])
+    html = html.replace('__ACCENT__', cfg['accent'])
+    html = html.replace('__ACCENT_HOVER__', cfg['accent_hover'])
+    html = html.replace('__GOLD__', cfg['gold'])
+    # Crossword button only for Brooklyn (others have no crossword yet)
+    if slug == 'brooklyn':
+        html = html.replace('__CROSSWORD_BTN__', '<a href="crossword-brooklyn-history.html" class="btn btn-gray">&#129513; Crossword</a>')
+    else:
+        html = html.replace('__CROSSWORD_BTN__', '<a href="https://bkcb6.app/' + cfg['overview'] + '" class="btn btn-gray">&#127963; ' + cfg['name'] + '</a>')
+    out = os.path.join(ROOT, cfg['out'])
+    with open(out, 'w') as fh:
+        fh.write(html)
+    print("Wrote", os.path.abspath(out), "(", len(html), "bytes )")
+
+if __name__ == '__main__':
+    targets = sys.argv[1:] if len(sys.argv) > 1 else ['brooklyn']
+    for t in targets:
+        build(t)
+
