@@ -80,11 +80,11 @@ repls = [
     ('--navy:  #1a2744;', '--navy:  #0d3a66;'),
     ('--blue:  #2563eb;', '--blue:  #005a9c;'),
     ('--gold:  #f59e0b;', '--gold:  #c79a1e;'),
-    # --- Seal in the header above the title ---
-    ('<div class="puzzle-header">\n        <div class="puzzle-eyebrow">Brooklyn Community Board 6</div>',
-     '<div class="puzzle-header">\n        <img src="brooklyn-seal-v2.png" alt="Borough of Brooklyn seal" style="width:64px;height:64px;display:block;margin-bottom:8px;">\n        <div class="puzzle-eyebrow">Brooklyn Community Board 6</div>'),
     ('<meta property="og:title" content="CB6 Crossword Puzzle">',
-     '<meta property="og:title" content="Brooklyn Borough History Crossword">'),
+     '<meta property="og:title" content="Brooklyn History Crossword">'),
+    # --- Top bar: match Jeopardy (show bkcb6.app, not "Community Board 6") ---
+    ('<span style="color:#fff;font-size:.85rem;font-weight:700">Brooklyn <span style="color:#f47920">Community Board 6</span></span>',
+     '<a href="https://bkcb6.app" style="text-decoration:none;color:#fff;font-size:1.1rem;font-weight:800;letter-spacing:.5px">bkcb6<span style="color:#f47920">.app</span></a>'),
     ('<meta property="og:description" content="Test your knowledge of NYC land use, zoning, and civic process with the CB6 Crossword.">',
      '<meta property="og:description" content="A crossword covering the history of all 18 Brooklyn community board districts, with a source link for every clue.">'),
     ('<meta property="og:url" content="https://bkcb6.app/crossword.html">',
@@ -99,8 +99,8 @@ repls = [
      '<div style="font-size:.72rem;color:rgba(255,255,255,.55)">One clue for each of Brooklyn&#39;s 18 community districts</div>'),
     ('<div style="color:rgba(255,255,255,.5);font-size:.6rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px">Crossword</div>',
      '<div style="color:rgba(255,255,255,.5);font-size:.6rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px">Borough History Crossword</div>'),
-    ('<div class="puzzle-eyebrow">Brooklyn Community Board 6</div>\n        <div class="puzzle-title">CB6 <span>Crossword</span></div>',
-     '<div class="puzzle-eyebrow">Brooklyn Community Board 6</div>\n        <div class="puzzle-title">Brooklyn Borough <span>History</span></div>'),
+    ('<div class="puzzle-header">\n        <div class="puzzle-eyebrow">Brooklyn Community Board 6</div>\n        <div class="puzzle-title">CB6 <span>Crossword</span></div>',
+     '<div class="puzzle-header" style="text-align:center">\n        <img src="brooklyn-seal-v2.png" alt="Borough of Brooklyn seal" style="width:96px;height:96px;border-radius:50%;box-shadow:0 4px 14px rgba(0,0,0,0.15);margin:0 auto 10px;display:block;">\n        <div class="puzzle-title" style="font-size:2rem;text-transform:uppercase;letter-spacing:.5px;color:var(--blue)">Brooklyn History <span style="color:var(--gold)">Crossword</span></div>\n        <div style="font-size:0.85rem;color:var(--gold);font-weight:700;letter-spacing:.5px;margin-top:6px">Designed by Mike Racioppo</div>\n        <div style="font-size:0.92rem;color:var(--muted);font-style:italic;margin-top:4px">Fill the grid, one clue per Brooklyn district.</div>'),
     ('<div class="page-footer">Terms sourced from <a href="https://bkcb6.app/glossary.html" target="_blank">bkcb6.app/glossary.html</a></div>',
      '<div class="page-footer">A civic history game covering all 18 Brooklyn community board districts, from <a href="https://bkcb6.app" target="_blank">bkcb6.app</a></div>'),
     # play counter localStorage key, keep separate from the land-use crossword
