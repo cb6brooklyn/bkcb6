@@ -64,6 +64,25 @@ tmpl = tmpl.replace(old_link, new_link)
 
 # 4) Title / meta / header text swaps (Brooklyn borough history; no em dashes).
 repls = [
+    # --- Share / OG image (branded crossword preview) ---
+    ('<meta property="og:image" content="https://bkcb6.app/icon-quizzes.png">',
+     '<meta property="og:image" content="https://bkcb6.app/crossword-brooklyn-history-og.png">\n<meta property="og:image:width" content="500">\n<meta property="og:image:height" content="500">'),
+    ('<meta name="twitter:card" content="summary_large_image">',
+     '<meta name="twitter:card" content="summary">'),
+    ('<meta name="twitter:image" content="https://cb6brooklyn.github.io/bkcb6/icon-crossword.png">',
+     '<meta name="twitter:image" content="https://bkcb6.app/crossword-brooklyn-history-og.png">'),
+    # --- Fonts: Inter + Playfair -> DM Sans (match Jeopardy / app brand) ---
+    ('<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">',
+     '<link rel="preconnect" href="https://fonts.googleapis.com">\n<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">'),
+    ("font-family:'Inter',sans-serif", "font-family:'DM Sans',sans-serif"),
+    ("font-family:'Playfair Display',serif", "font-family:'DM Sans',sans-serif"),
+    # --- Palette: shift to Brooklyn seal colors (keep light, readable grid) ---
+    ('--navy:  #1a2744;', '--navy:  #0d3a66;'),
+    ('--blue:  #2563eb;', '--blue:  #005a9c;'),
+    ('--gold:  #f59e0b;', '--gold:  #c79a1e;'),
+    # --- Seal in the header above the title ---
+    ('<div class="puzzle-header">\n        <div class="puzzle-eyebrow">Brooklyn Community Board 6</div>',
+     '<div class="puzzle-header">\n        <img src="brooklyn-seal-v2.png" alt="Borough of Brooklyn seal" style="width:64px;height:64px;display:block;margin-bottom:8px;">\n        <div class="puzzle-eyebrow">Brooklyn Community Board 6</div>'),
     ('<meta property="og:title" content="CB6 Crossword Puzzle">',
      '<meta property="og:title" content="Brooklyn Borough History Crossword">'),
     ('<meta property="og:description" content="Test your knowledge of NYC land use, zoning, and civic process with the CB6 Crossword.">',
