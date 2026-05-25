@@ -425,6 +425,9 @@ function checkAnswer() {
   if (clue.app_url) {
     card += '<a class="reveal-link" href="' + clue.app_url + '" target="_blank" rel="noopener"><span class="ic">\ud83c\udfd9\ufe0f</span> ' + clue.app_title + '</a>';
   }
+  if (clue.extra_url) {
+    card += '<a class="reveal-link" href="' + clue.extra_url + '" target="_blank" rel="noopener"><span class="ic">\ud83d\udccb</span> ' + clue.extra_title + '</a>';
+  }
   card += '</div>';
   document.getElementById('revealCard').innerHTML = card;
   updateScore();
