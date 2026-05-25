@@ -39,8 +39,9 @@
   .instr { text-align:center; font-size:.8rem; color:var(--muted); margin:8px 0; font-family:'DM Mono',monospace; }
   .list { list-style:none; margin:8px 0; }
   .step { display:flex; align-items:center; gap:10px; background:#fff; color:#16213e; border-radius:10px; padding:12px 14px; margin-bottom:8px; cursor:grab; box-shadow:0 2px 6px rgba(0,0,0,.25); border-left:6px solid var(--orange); touch-action:none; }
-  .step.dragging { opacity:.5; }
-  .step.over { outline:2px dashed var(--orange); }
+  .step.floating { position:fixed; z-index:1000; box-shadow:0 8px 24px rgba(0,0,0,.45); transform:scale(1.03); margin:0; pointer-events:none; }
+  .placeholder { list-style:none; border:2px dashed var(--orange); border-radius:10px; margin-bottom:8px; background:rgba(244,121,32,.12); }
+  .step .grip { flex:none; color:#9aa6bd; font-size:1.15rem; cursor:grab; padding:0 2px; touch-action:none; }
   .step .num { width:26px; height:26px; flex:none; border-radius:50%; background:var(--navy); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:.82rem; }
   .step .body { flex:1; }
   .step .title { font-weight:700; font-size:.95rem; }
@@ -76,12 +77,12 @@
     <img src="seal-nycflag.png" alt="New York City seal">
     <h1>Land Use Review<br>Order Game</h1>
     <div class="by">Designed by Mike Racioppo</div>
-    <p>Tap the arrows to order the steps.</p>
+    <p>Drag the handle or tap the arrows to order the steps.</p>
   </div>
 
   <div class="tracks" id="tracks"></div>
   <div class="track-desc" id="trackDesc"></div>
-  <div class="instr">Use the &#9650;&#9660; arrows to put the steps in order, then tap Check.</div>
+  <div class="instr">Drag the Use the &#9650;&#9660; arrows to put the steps in order, then tap Check.#9776; handle, or use the Use the &#9650;&#9660; arrows to put the steps in order, then tap Check.#9650;Use the &#9650;&#9660; arrows to put the steps in order, then tap Check.#9660; arrows, to order the steps. Then tap Check.</div>
 
   <ul class="list" id="list"></ul>
 
@@ -136,9 +137,10 @@ function render(){
   items.forEach(function(origIdx,pos){
     var s=tr.steps[origIdx];
     var li=document.createElement('li');
-    li.className='step'; li.draggable=true; li.dataset.pos=pos;
+    li.className='step'; li.dataset.pos=pos; li.dataset.orig=origIdx;
     var tagHtml = s.tag ? '<span class="tagpill tag-'+s.tag+'">'+s.tag+'</span>' : '';
-    li.innerHTML='<span class="num">'+(pos+1)+'</span>'+
+    li.innerHTML='<span class="grip" aria-label="Drag">&#9776;</span>'+
+      '<span class="num">'+(pos+1)+'</span>'+
       '<div class="body"><div class="title">'+s.t+'</div>'+
       '<div class="meta">'+s.d+'</div></div>'+
       tagHtml+
@@ -146,37 +148,81 @@ function render(){
         '<button class="arrow" data-dir="up" aria-label="Move up"'+(pos===0?' disabled':'')+'>&#9650;</button>'+
         '<button class="arrow" data-dir="down" aria-label="Move down"'+(pos===n-1?' disabled':'')+'>&#9660;</button>'+
       '</span>';
-    // arrow handlers
     li.querySelector('[data-dir=up]').addEventListener('click',function(e){ e.stopPropagation(); if(pos>0) moveItem(pos,pos-1); });
     li.querySelector('[data-dir=down]').addEventListener('click',function(e){ e.stopPropagation(); if(pos<n-1) moveItem(pos,pos+1); });
-    addDnD(li);
+    addDrag(li);
     list.appendChild(li);
   });
 }
 
-// --- Drag and drop (mouse + touch) ---
-var dragPos=null;
-function addDnD(li){
-  li.addEventListener('dragstart',function(e){ dragPos=+li.dataset.pos; li.classList.add('dragging'); });
-  li.addEventListener('dragend',function(){ li.classList.remove('dragging'); clearOver(); });
-  li.addEventListener('dragover',function(e){ e.preventDefault(); li.classList.add('over'); });
-  li.addEventListener('dragleave',function(){ li.classList.remove('over'); });
-  li.addEventListener('drop',function(e){ e.preventDefault(); var to=+li.dataset.pos; moveItem(dragPos,to); });
-  // touch
-  li.addEventListener('touchstart',function(e){ dragPos=+li.dataset.pos; li.classList.add('dragging'); },{passive:true});
-  li.addEventListener('touchmove',function(e){
-    e.preventDefault();
-    var t=e.touches[0]; var el=document.elementFromPoint(t.clientX,t.clientY);
-    clearOver(); var step=el&&el.closest?el.closest('.step'):null; if(step) step.classList.add('over');
-  },{passive:false});
-  li.addEventListener('touchend',function(e){
-    var t=e.changedTouches[0]; var el=document.elementFromPoint(t.clientX,t.clientY);
-    var step=el&&el.closest?el.closest('.step'):null;
-    li.classList.remove('dragging'); clearOver();
-    if(step){ moveItem(dragPos, +step.dataset.pos); }
+// --- Pointer-based drag that follows the finger and reorders live ---
+var drag=null;
+function addDrag(li){
+  function start(clientY, pointerId){
+    var list=document.getElementById('list');
+    var rect=li.getBoundingClientRect();
+    drag={
+      li:li, fromPos:+li.dataset.pos,
+      offsetY: clientY-rect.top,
+      height: rect.height,
+      placeholder: null
+    };
+    // placeholder keeps the space while the card floats
+    var ph=document.createElement('li'); ph.className='placeholder'; ph.style.height=rect.height+'px';
+    li.parentNode.insertBefore(ph, li.nextSibling);
+    drag.placeholder=ph;
+    li.classList.add('floating');
+    li.style.width=rect.width+'px';
+    li.style.left=rect.left+'px';
+    li.style.top=rect.top+'px';
+    document.body.style.overflow='hidden';
+  }
+  function moveTo(clientY){
+    if(!drag) return;
+    drag.li.style.top=(clientY-drag.offsetY)+'px';
+    // find the sibling we're hovering over
+    var list=document.getElementById('list');
+    var sibs=Array.prototype.slice.call(list.querySelectorAll('.step:not(.floating)'));
+    var ph=drag.placeholder;
+    var placed=false;
+    for(var i=0;i<sibs.length;i++){
+      var r=sibs[i].getBoundingClientRect();
+      var mid=r.top+r.height/2;
+      if(clientY<mid){ list.insertBefore(ph, sibs[i]); placed=true; break; }
+    }
+    if(!placed){ list.appendChild(ph); }
+  }
+  function end(){
+    if(!drag) return;
+    var list=document.getElementById('list');
+    // compute new index from placeholder position
+    var nodes=Array.prototype.slice.call(list.children).filter(function(c){ return c.classList.contains('step')||c.classList.contains('placeholder'); });
+    var toPos=nodes.indexOf(drag.placeholder);
+    var fromPos=drag.fromPos;
+    // cleanup floating styles
+    drag.li.classList.remove('floating');
+    drag.li.style.width=drag.li.style.left=drag.li.style.top=drag.li.style.width='';
+    drag.placeholder.parentNode.removeChild(drag.placeholder);
+    document.body.style.overflow='';
+    drag=null;
+    // account for the placeholder occupying a slot
+    if(toPos>fromPos) toPos--;
+    moveItem(fromPos,toPos);
+  }
+  // Touch — drag starts from the grip handle only
+  var grip=li.querySelector('.grip');
+  grip.addEventListener('touchstart',function(e){ if(e.cancelable) e.preventDefault(); start(e.touches[0].clientY); },{passive:false});
+  li.addEventListener('touchmove',function(e){ if(!drag) return; if(e.cancelable) e.preventDefault(); moveTo(e.touches[0].clientY); },{passive:false});
+  li.addEventListener('touchend',function(e){ if(drag) end(); });
+  li.addEventListener('touchcancel',function(e){ if(drag) end(); });
+  // Mouse — drag from grip
+  grip.addEventListener('mousedown',function(e){
+    e.preventDefault(); start(e.clientY);
+    function mm(ev){ moveTo(ev.clientY); }
+    function mu(){ document.removeEventListener('mousemove',mm); document.removeEventListener('mouseup',mu); if(drag) end(); }
+    document.addEventListener('mousemove',mm); document.addEventListener('mouseup',mu);
   });
 }
-function clearOver(){ Array.prototype.forEach.call(document.querySelectorAll('.step.over'),function(s){s.classList.remove('over');}); }
 function moveItem(from,to){
   if(from==null||to==null||from===to) return;
   var m=items.splice(from,1)[0]; items.splice(to,0,m); render();
