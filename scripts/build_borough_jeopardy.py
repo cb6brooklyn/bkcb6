@@ -49,7 +49,7 @@ BOROUGHS = {
   },
   'citygov': {
     'name': 'NYC Government', 'data': 'citygov_jeopardy_categories.json',
-    'out': 'jeopardy-citygov.html', 'seal': 'seal-nyc.png',
+    'out': 'jeopardy-citygov.html', 'seal': 'seal-nycflag.png',
     'og': 'jeopardy-citygov-og.png', 'overview': 'govhub.html',
     'navy': '#1a4480', 'bar': '#13315c', 'accent': '#2a5599', 'accent_hover': '#3366b3',
     'gold': '#ffffff',
