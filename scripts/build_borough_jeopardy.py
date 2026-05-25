@@ -47,6 +47,27 @@ BOROUGHS = {
     'navy': '#004b85', 'bar': '#003a66', 'accent': '#005a9c', 'accent_hover': '#0a6cb5',
     'gold': '#d4bc2d',
   },
+  'citygov': {
+    'name': 'NYC Government', 'data': 'citygov_jeopardy_categories.json',
+    'out': 'jeopardy-citygov.html', 'seal': 'seal-citygov.png',
+    'og': 'jeopardy-citygov-og.png', 'overview': 'govhub.html',
+    'navy': '#0f1b4d', 'bar': '#0f1b4d', 'accent': '#1e2f6b', 'accent_hover': '#2a3f8a',
+    'gold': '#ffffff',
+  },
+  'stategov': {
+    'name': 'NY State Government', 'data': 'stategov_jeopardy_categories.json',
+    'out': 'jeopardy-stategov.html', 'seal': 'seal-stategov.png',
+    'og': 'jeopardy-stategov-og.png', 'overview': 'govhub.html',
+    'navy': '#0f1b4d', 'bar': '#0f1b4d', 'accent': '#1e2f6b', 'accent_hover': '#2a3f8a',
+    'gold': '#ffffff',
+  },
+  'agencies': {
+    'name': 'Government Agencies', 'data': 'agencies_jeopardy_categories.json',
+    'out': 'jeopardy-agencies.html', 'seal': 'seal-agencies.png',
+    'og': 'jeopardy-agencies-og.png', 'overview': 'govhub.html',
+    'navy': '#0f1b4d', 'bar': '#0f1b4d', 'accent': '#1e2f6b', 'accent_hover': '#2a3f8a',
+    'gold': '#ffffff',
+  },
 }
 
 
