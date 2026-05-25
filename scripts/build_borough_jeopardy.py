@@ -383,7 +383,7 @@ function openClue(col, row, cell) {
   document.getElementById('modalInputRow').style.display = 'flex';
   document.getElementById('modalCategory').textContent = CATEGORIES[col].name;
   document.getElementById('modalValue').textContent = '$' + clue.value;
-  document.getElementById('modalClue').textContent = clue.clue;
+  document.getElementById('modalClue').innerHTML = clue.clue;
   document.getElementById('clueModal').classList.add('open');
   setTimeout(() => document.getElementById('modalInput').focus(), 100);
 }
