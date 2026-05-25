@@ -56,9 +56,9 @@ BOROUGHS = {
   },
   'stategov': {
     'name': 'NY State Government', 'data': 'stategov_jeopardy_categories.json',
-    'out': 'jeopardy-stategov.html', 'seal': 'seal-stategov.png',
+    'out': 'jeopardy-stategov.html', 'seal': 'seal-nystate.png',
     'og': 'jeopardy-stategov-og.png', 'overview': 'govhub.html',
-    'navy': '#0f1b4d', 'bar': '#0f1b4d', 'accent': '#1e2f6b', 'accent_hover': '#2a3f8a',
+    'navy': '#10316b', 'bar': '#0a2150', 'accent': '#1c4288', 'accent_hover': '#27539f',
     'gold': '#ffffff',
   },
   'agencies': {
