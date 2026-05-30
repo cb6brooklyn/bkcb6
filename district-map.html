@@ -1643,14 +1643,25 @@ function polyInDistrict(f, boundary){
 function loadLandUseArcGIS(){
   var env = districtEnvelope();
   if(!env){ setTimeout(loadLandUseArcGIS,500); return; }
-  var url = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?'+
-    'where=1%3D1&geometry='+encodeURIComponent(JSON.stringify(env))+
-    '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
-    '&outFields=LandUse,Address,BBL,ZoneDist1&returnGeometry=true&f=geojson&resultRecordCount=2000&outSR=4326';
-  fetch(url).then(r=>r.json()).then(function(d){
-    window._overlayData_landuse=d;
-    buildLandUsePolys(d);
-  }).catch(function(e){console.warn('land use load failed',e);});
+  var note=document.getElementById('note');
+  if(note) note.textContent='Loading land use lots…';
+  var all=[];
+  function fetchPage(offset){
+    var url = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?'+
+      'where=1%3D1&geometry='+encodeURIComponent(JSON.stringify(env))+
+      '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
+      '&outFields=LandUse,Address,BBL,ZoneDist1&returnGeometry=true&f=geojson&resultOffset='+offset+'&resultRecordCount=1000&outSR=4326';
+    return fetch(url).then(r=>r.json()).then(function(d){
+      var feats=(d&&d.features)||[];
+      all=all.concat(feats);
+      if(feats.length===1000 && offset<5000){ return fetchPage(offset+1000); }
+      var fc={type:'FeatureCollection',features:all};
+      window._overlayData_landuse=fc;
+      buildLandUsePolys(fc);
+      if(note) note.textContent=all.length+' land use lots loaded.';
+    });
+  }
+  fetchPage(0).catch(function(e){console.warn('land use load failed',e); if(note) note.textContent='Land use could not be loaded.';});
 }
 var LANDUSE_COLORS={'01':'#FEFFA8','02':'#FCB842','03':'#B16E00','04':'#ff8341','05':'#fc2929','06':'#E362FB','07':'#E0BEEB','08':'#44A3D5','09':'#78D271','10':'#BAB8B6','11':'#555555'};
 var LANDUSE_LABELS={'01':'1-2 Family','02':'Walk-Up MF','03':'Elevator MF','04':'Mixed Res/Comm','05':'Commercial','06':'Industrial','07':'Transportation','08':'Public Facilities','09':'Open Space','10':'Parking','11':'Vacant'};
@@ -1660,7 +1671,7 @@ function buildLandUsePolys(d){
   var b=window._selectedCBFeature;
   var feats = ((d&&d.features)||[]).filter(function(f){return f&&f.geometry&&b&&polyInDistrict(f,b);});
   landUseLotsLayer = L.geoJSON({type:'FeatureCollection',features:feats},{
-    style:function(f){var c=luNorm((f.properties||{}).LandUse);return{fillColor:LANDUSE_COLORS[c]||'#9aa0a6',fillOpacity:.7,color:'#fff',weight:.4};},
+    style:function(f){var p=f.properties||{};var c=luNorm(p.LandUse||p.landuse||p.LANDUSE);return{fillColor:LANDUSE_COLORS[c]||'#9aa0a6',fillOpacity:.72,color:'#fff',weight:.4};},
     onEachFeature:function(f,l){var p=f.properties||{},c=luNorm(p.LandUse);l.bindPopup('<strong>'+(LANDUSE_LABELS[c]||'Unknown')+'</strong><br>'+escH(p.Address||'')+(p.ZoneDist1?'<br>Zoning: '+escH(p.ZoneDist1):''));}
   });
   if(subState.landuse) landUseLotsLayer.addTo(map);
@@ -1674,13 +1685,13 @@ function loadZoningArcGIS(){
     buildZoningPolys(d);
   }).catch(function(e){console.warn('zoning load failed',e);});
 }
-function zoneFamily(z){z=String(z||'').toUpperCase();if(z[0]==='R')return['Residential','#f59e0b'];if(z[0]==='C')return['Commercial','#2563eb'];if(z[0]==='M')return['Manufacturing','#7c3aed'];if(/PARK/.test(z))return['Park','#22c55e'];return['Other','#8b5cf6'];}
+function zoneFamily(z){z=String(z||'').toUpperCase();if(/^R/.test(z))return['Residential','#fcd34d'];if(/^C/.test(z))return['Commercial','#2563eb'];if(/^M/.test(z))return['Manufacturing','#a855f7'];if(/PARK|PLAYGROUND/.test(z))return['Park/Open Space','#22c55e'];if(/^BPC|^MX|MIXED/.test(z))return['Mixed Use','#0d9488'];return['Other','#94a3b8'];}
 function buildZoningPolys(d){
   if(zoningLayer) map.removeLayer(zoningLayer);
   var b=window._selectedCBFeature;
   var feats = ((d&&d.features)||[]).filter(function(f){return f&&f.geometry&&b&&polyInDistrict(f,b);});
   zoningLayer = L.geoJSON({type:'FeatureCollection',features:feats},{
-    style:function(f){var z=(f.properties||{}).ZONEDIST||(f.properties||{}).Zonedist||'';var fam=zoneFamily(z);return{color:fam[1],weight:1.2,opacity:.9,fillColor:fam[1],fillOpacity:.2};},
+    style:function(f){var z=(f.properties||{}).ZONEDIST||(f.properties||{}).Zonedist||'';var fam=zoneFamily(z);return{color:fam[1],weight:1,opacity:.85,fillColor:fam[1],fillOpacity:.42};},
     onEachFeature:function(f,l){var p=f.properties||{};var z=p.ZONEDIST||p.Zonedist||'Zoning';var fam=zoneFamily(z);l.bindPopup('<strong>'+escH(z)+'</strong><br>'+fam[0]);}
   });
   if(subState.zoning) zoningLayer.addTo(map);
