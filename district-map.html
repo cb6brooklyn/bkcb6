@@ -398,6 +398,7 @@ var cdsData = null;
       var _boroNames={'1':'Manhattan','2':'The Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
       var _num = parseInt((targetFeature.properties.boro_cd||'').slice(1));
       var _lbl = (_boroNames[_boro]||'') + ' Community Board ' + _num;
+      window._districtLabel = _boroNames[_boro] ? 'CB'+_num+' '+_boroNames[_boro] : _urlCd;
       var _titleEl = document.getElementById('map-title');
       if(_titleEl) _titleEl.innerHTML = _lbl.replace(/Community Board (\d+)/, 'CB<span>$1</span>');
       document.title = _lbl + ' Map';
@@ -615,7 +616,20 @@ var VIEW_BOUNDS = {
 };
 
 function filterByView(features, getLat, getLng) {
-  var b = VIEW_BOUNDS[activeMain];
+  // In district mode, use the selected district's bounding box
+  var b = null;
+  if(window._selectedCBFeature && window._selectedCBFeature.geometry) {
+    try {
+      var layer = L.geoJSON(window._selectedCBFeature);
+      var bounds = layer.getBounds();
+      if(bounds && bounds.isValid()) {
+        var pad = 0.02;
+        b = {minLat:bounds.getSouth()-pad, maxLat:bounds.getNorth()+pad,
+             minLng:bounds.getWest()-pad,  maxLng:bounds.getEast()+pad};
+      }
+    } catch(e) {}
+  }
+  if(!b) b = VIEW_BOUNDS[activeMain];
   if(!b) return features;
   return features.filter(function(f){
     var lat=getLat(f), lng=getLng(f);
