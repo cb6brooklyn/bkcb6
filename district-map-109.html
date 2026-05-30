@@ -51,7 +51,8 @@ body{display:flex;flex-direction:column}
 #map{flex:1;min-height:0}
 .note-bar{padding:4px 14px;font-size:.65rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.3);background:#0d1b4b;flex-shrink:0}
 .note-bar a{color:#f47920;text-decoration:none}
-.subway-station-icon-wrap,.citibike-station-icon-wrap{background:transparent;border:0}
+.subway-station-icon-wrap,.citibike-station-icon-wrap,.orient-park-wrap{background:transparent;border:0}
+.orient-park{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:#16a34a;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);transform:translate(-50%,-50%)}
 .subway-icon-stack{display:flex;align-items:center;gap:2px;padding:3px 4px;background:#fff;border:2px solid #111;border-radius:15px;box-shadow:0 2px 7px rgba(0,0,0,.4);white-space:nowrap;transform:translate(-50%,-50%)}
 .subway-route-badge{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:800;line-height:22px;color:#fff;border:1px solid rgba(0,0,0,.25)}
 .subway-route-more{display:inline-flex;align-items:center;justify-content:center;height:18px;min-width:18px;border-radius:9px;background:#111;color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:800;padding:0 3px}
@@ -1920,25 +1921,34 @@ updateLegend();
 setTimeout(()=>map.invalidateSize(),200);
 // District opens clean — user toggles overlays on themselves
 // Lightweight orientation icons: small park & subway markers always shown so users get their bearings
+var _orientLayer = L.layerGroup();
+function parkPinIcon(name){
+  return L.divIcon({className:'orient-park-wrap',html:'<div class="orient-park" title="'+escH(name||'Park')+'"><svg viewBox="0 0 24 24" width="13" height="13" fill="#fff"><path d="M12 2l3.5 5h-2l3 4.5h-2.2L17 16h-4v6h-2v-6H7l2.7-4.5H7.5l3-4.5h-2L12 2z"/></svg></div>',iconSize:[20,20],iconAnchor:[10,10],tooltipAnchor:[0,-10]});
+}
 function _addOrientationIcons(){
   if(!window._selectedCBFeature){ setTimeout(_addOrientationIcons,300); return; }
   var b = window._selectedCBFeature;
-  // Parks — small tree icons on parks inside the district
+  _orientLayer.addTo(map);
+  // Parks — proper green leaf pins on parks inside the district
   fetch('data/topmap-parks-'+_boroKey+'.geojson').then(r=>r.json()).then(function(d){
     var feats = ((d&&d.features)||[]).filter(function(f){ return f&&f.geometry&&polyInDistrict(f,b); });
     feats.slice(0,40).forEach(function(f){
       try{
         var c = centroid(f);
-        L.marker([c[0],c[1]],{interactive:false,icon:L.divIcon({className:'orient-icon',html:'<div style="font-size:14px;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.4))">🌳</div>',iconSize:[16,16],iconAnchor:[8,8]})}).addTo(map);
+        var nm = (f.properties&&(f.properties.signname||f.properties.name||f.properties.park_name))||'Park';
+        L.marker([c[0],c[1]],{interactive:true,icon:parkPinIcon(nm)}).bindTooltip(nm,{sticky:true}).addTo(_orientLayer);
       }catch(e){}
     });
   }).catch(function(){});
-  // Subway — small train icons at stations inside the district
+  // Subway — proper MTA bullet markers at stations inside the district
   fetch('data/nyc-subway-stations.geojson').then(r=>r.json()).then(function(d){
     var feats = ((d&&d.features)||[]).filter(function(f){ try{var c=f.geometry.coordinates;return pip(c[0],c[1],b);}catch(e){return false;} });
+    feats = dedupeSubwayStations(feats);
     feats.forEach(function(f){
       var c=f.geometry.coordinates;
-      L.marker([c[1],c[0]],{interactive:false,icon:L.divIcon({className:'orient-icon',html:'<div style="font-size:13px;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.4))">🚇</div>',iconSize:[15,15],iconAnchor:[7,7]})}).addTo(map);
+      var nm = f.properties.display_name||f.properties.stop_name||'Subway station';
+      var routes = f.properties.daytime_routes?'<br>Routes: '+escH(f.properties.daytime_routes):'';
+      L.marker([c[1],c[0]],{interactive:true,icon:subwayStationIcon(f),riseOnHover:true}).bindTooltip('<strong>'+escH(nm)+'</strong>'+routes,{sticky:true}).addTo(_orientLayer);
     });
   }).catch(function(){});
 }
