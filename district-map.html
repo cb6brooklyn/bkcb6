@@ -1613,6 +1613,58 @@ function buildRents(d){
   if(subState.rents) rentsLayer.addTo(map);
 }
 
+
+// ── Land Use & Zoning via ArcGIS (citywide, scoped to district bbox) ──
+function districtEnvelope(){
+  var f = window._selectedCBFeature;
+  if(!f || !f.geometry) return null;
+  var b = L.geoJSON(f).getBounds();
+  return {xmin:b.getWest(),ymin:b.getSouth(),xmax:b.getEast(),ymax:b.getNorth(),spatialReference:{wkid:4326}};
+}
+function loadLandUseArcGIS(){
+  var env = districtEnvelope();
+  if(!env){ setTimeout(loadLandUseArcGIS,500); return; }
+  var url = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?'+
+    'where=1%3D1&geometry='+encodeURIComponent(JSON.stringify(env))+
+    '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
+    '&outFields=LandUse,Address,BBL,ZoneDist1&returnGeometry=true&f=geojson&resultRecordCount=2000&outSR=4326';
+  fetch(url).then(r=>r.json()).then(function(d){
+    window._overlayData_landuse=d;
+    buildLandUsePolys(d);
+  }).catch(function(e){console.warn('land use load failed',e);});
+}
+var LANDUSE_COLORS={'01':'#FEFFA8','02':'#FCB842','03':'#B16E00','04':'#ff8341','05':'#fc2929','06':'#E362FB','07':'#E0BEEB','08':'#44A3D5','09':'#78D271','10':'#BAB8B6','11':'#555555'};
+var LANDUSE_LABELS={'01':'1-2 Family','02':'Walk-Up MF','03':'Elevator MF','04':'Mixed Res/Comm','05':'Commercial','06':'Industrial','07':'Transportation','08':'Public Facilities','09':'Open Space','10':'Parking','11':'Vacant'};
+function luNorm(v){var s=String(v==null?'':v).replace(/\.0+$/,'');return s.length===1?'0'+s:s;}
+function buildLandUsePolys(d){
+  if(landUseLotsLayer) map.removeLayer(landUseLotsLayer);
+  var feats = filteredBySelectedDistricts((d&&d.features)||[], true);
+  landUseLotsLayer = L.geoJSON({type:'FeatureCollection',features:feats},{
+    style:function(f){var c=luNorm((f.properties||{}).LandUse);return{fillColor:LANDUSE_COLORS[c]||'#9aa0a6',fillOpacity:.7,color:'#fff',weight:.4};},
+    onEachFeature:function(f,l){var p=f.properties||{},c=luNorm(p.LandUse);l.bindPopup('<strong>'+(LANDUSE_LABELS[c]||'Unknown')+'</strong><br>'+escH(p.Address||'')+(p.ZoneDist1?'<br>Zoning: '+escH(p.ZoneDist1):''));}
+  });
+  if(subState.landuse) landUseLotsLayer.addTo(map);
+}
+function loadZoningArcGIS(){
+  var env = districtEnvelope();
+  if(!env){ setTimeout(loadZoningArcGIS,500); return; }
+  var url='https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(env))+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&f=geojson&resultRecordCount=2000';
+  fetch(url).then(r=>r.json()).then(function(d){
+    window._overlayData_zoning=d;
+    buildZoningPolys(d);
+  }).catch(function(e){console.warn('zoning load failed',e);});
+}
+function zoneFamily(z){z=String(z||'').toUpperCase();if(z[0]==='R')return['Residential','#f59e0b'];if(z[0]==='C')return['Commercial','#2563eb'];if(z[0]==='M')return['Manufacturing','#7c3aed'];if(/PARK/.test(z))return['Park','#22c55e'];return['Other','#8b5cf6'];}
+function buildZoningPolys(d){
+  if(zoningLayer) map.removeLayer(zoningLayer);
+  var feats = filteredBySelectedDistricts((d&&d.features)||[], true);
+  zoningLayer = L.geoJSON({type:'FeatureCollection',features:feats},{
+    style:function(f){var z=(f.properties||{}).ZONEDIST||(f.properties||{}).Zonedist||'';var fam=zoneFamily(z);return{color:fam[1],weight:1.2,opacity:.9,fillColor:fam[1],fillOpacity:.2};},
+    onEachFeature:function(f,l){var p=f.properties||{};var z=p.ZONEDIST||p.Zonedist||'Zoning';var fam=zoneFamily(z);l.bindPopup('<strong>'+escH(z)+'</strong><br>'+fam[0]);}
+  });
+  if(subState.zoning) zoningLayer.addTo(map);
+}
+
 function toggleOverlay(name, on){
   subState[name]=on;
   if(name==='bus'){
@@ -1629,8 +1681,8 @@ function toggleOverlay(name, on){
     busroutes:()=>loadOverlay('busroutes','transport-data/'+_boroKey+'.json',buildBusRoutes),
     busstops:()=>loadOverlay('busstops','transport-data/'+_boroKey+'.json',buildBusStops),
     speedlimits:()=>loadOverlay('speedlimits','data/speed-limits.geojson',buildSpeedLimits),
-    landuse:()=>{ /* land use: PLUTO API only, not available citywide */ },
-    zoning:()=>{ /* zoning: no citywide file available */ },
+    landuse:()=>{ if(window._overlayData_landuse) buildLandUsePolys(window._overlayData_landuse); else loadLandUseArcGIS(); },
+    zoning:()=>{ if(window._overlayData_zoning) buildZoningPolys(window._overlayData_zoning); else loadZoningArcGIS(); },
     parks:()=>loadOverlay('parks','data/topmap-parks-'+_boroKey+'.geojson',buildParks),
     schools:()=>{ /* schools: no citywide file available */ },
     childcare:()=>{ /* childcare: no citywide file available */ },
@@ -1732,6 +1784,8 @@ function buildSubToggles(){
     {k:'bus',c:'#f59e0b',tc:'#111827',l:'🚌 Bus'},
     {k:'parks',c:'#22c55e',tc:'#052e16',l:'🌳 Parks'},
     {k:'libraries',c:'#f97316',tc:'#fff',l:'📚 Libraries'},
+    {k:'landuse',c:'#8b5e34',tc:'#fff',l:'🏘 Land Use'},
+    {k:'zoning',c:'#8b5cf6',tc:'#fff',l:'🏙 Zoning'},
     {k:'historic',c:'#a16207',tc:'#fff',l:'🏛 Historic Districts'},
     {k:'speedlimits',c:'#111827',tc:'#fff',l:'🚦 Speed Limits'},
     {k:'nypd',c:'#e11d48',tc:'#fff',l:'👮 NYPD'},
