@@ -1921,11 +1921,41 @@ updateLegend();
 setTimeout(()=>map.invalidateSize(),200);
 // District opens clean — user toggles overlays on themselves
 // District opens clean — subway stations shown for orientation (proper MTA bullets)
-var _orientLayer = L.layerGroup();
+var _orientLayer = L.layerGroup();      // routes (drawn under)
+var _orientStationLayer = L.layerGroup(); // station bullets (drawn over)
+function _clipLineToDistrict(f, b){
+  // keep only the coordinate runs inside the district
+  var g=f.geometry; if(!g) return [];
+  var lines = g.type==='LineString' ? [g.coordinates] : (g.type==='MultiLineString'? g.coordinates : []);
+  var kept=[];
+  lines.forEach(function(coords){
+    var cur=[];
+    coords.forEach(function(c){
+      if(pip(c[0],c[1],b)){ cur.push(c); }
+      else { if(cur.length>=2) kept.push(cur); cur=[]; }
+    });
+    if(cur.length>=2) kept.push(cur);
+  });
+  return kept;
+}
 function _addSubwayOrientation(){
   if(!window._selectedCBFeature){ setTimeout(_addSubwayOrientation,300); return; }
   var b = window._selectedCBFeature;
   _orientLayer.addTo(map);
+  _orientStationLayer.addTo(map);
+  // Route lines (citywide), clipped to the district, in official MTA colors — drawn first (under bullets)
+  fetch('data/nyc-subway-routes.geojson').then(r=>r.json()).then(function(d){
+    ((d&&d.features)||[]).forEach(function(f){
+      var segs=_clipLineToDistrict(f,b);
+      if(!segs.length) return;
+      var col=(f.properties&&f.properties.color)||'#4D5055';
+      segs.forEach(function(seg){
+        var latlngs=seg.map(function(c){return [c[1],c[0]];});
+        L.polyline(latlngs,{color:col,weight:5,opacity:.9,lineCap:'round',lineJoin:'round'}).addTo(_orientLayer);
+      });
+    });
+  }).catch(function(){});
+  // Station bullets on top
   fetch('data/nyc-subway-stations.geojson').then(r=>r.json()).then(function(d){
     var feats = ((d&&d.features)||[]).filter(function(f){ try{var c=f.geometry.coordinates;return pip(c[0],c[1],b);}catch(e){return false;} });
     feats = dedupeSubwayStations(feats);
@@ -1933,7 +1963,7 @@ function _addSubwayOrientation(){
       var c=f.geometry.coordinates;
       var nm = f.properties.display_name||f.properties.stop_name||'Subway station';
       var routes = f.properties.daytime_routes?'<br>Routes: '+escH(f.properties.daytime_routes):'';
-      L.marker([c[1],c[0]],{interactive:true,icon:subwayStationIcon(f),riseOnHover:true}).bindTooltip('<strong>'+escH(nm)+'</strong>'+routes,{sticky:true}).addTo(_orientLayer);
+      L.marker([c[1],c[0]],{interactive:true,icon:subwayStationIcon(f),riseOnHover:true}).bindTooltip('<strong>'+escH(nm)+'</strong>'+routes,{sticky:true}).addTo(_orientStationLayer);
     });
   }).catch(function(){});
 }
