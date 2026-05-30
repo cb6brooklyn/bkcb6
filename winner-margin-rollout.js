@@ -1,7 +1,7 @@
 (function () {
-  var NAVY_LIGHT = '#d7e3ff';
+  var NAVY_LIGHT = '#5b85d4';
   var NAVY_DARK = '#0d1b4b';
-  var ORANGE_LIGHT = '#fde1cf';
+  var ORANGE_LIGHT = '#f4a86a';
   var ORANGE_DARK = '#f47920';
   var SLIWA = '#cc0000';
   var BASE_OUTLINE = '#ffffff';
