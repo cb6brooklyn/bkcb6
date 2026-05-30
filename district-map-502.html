@@ -52,7 +52,7 @@ body{display:flex;flex-direction:column}
 .note-bar{padding:4px 14px;font-size:.65rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.3);background:#0d1b4b;flex-shrink:0}
 .note-bar a{color:#f47920;text-decoration:none}
 .subway-station-icon-wrap,.citibike-station-icon-wrap,.orient-park-wrap{background:transparent;border:0}
-.orient-park{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:#16a34a;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);transform:translate(-50%,-50%)}
+.orient-park{display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#16a34a;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);transform:translate(-50%,-50%)}
 .subway-icon-stack{display:flex;align-items:center;gap:2px;padding:3px 4px;background:#fff;border:2px solid #111;border-radius:15px;box-shadow:0 2px 7px rgba(0,0,0,.4);white-space:nowrap;transform:translate(-50%,-50%)}
 .subway-route-badge{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:800;line-height:22px;color:#fff;border:1px solid rgba(0,0,0,.25)}
 .subway-route-more{display:inline-flex;align-items:center;justify-content:center;height:18px;min-width:18px;border-radius:9px;background:#111;color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:800;padding:0 3px}
@@ -1923,21 +1923,44 @@ setTimeout(()=>map.invalidateSize(),200);
 // Lightweight orientation icons: small park & subway markers always shown so users get their bearings
 var _orientLayer = L.layerGroup();
 function parkPinIcon(name){
-  return L.divIcon({className:'orient-park-wrap',html:'<div class="orient-park" title="'+escH(name||'Park')+'"><svg viewBox="0 0 24 24" width="13" height="13" fill="#fff"><path d="M12 2l3.5 5h-2l3 4.5h-2.2L17 16h-4v6h-2v-6H7l2.7-4.5H7.5l3-4.5h-2L12 2z"/></svg></div>',iconSize:[20,20],iconAnchor:[10,10],tooltipAnchor:[0,-10]});
+  return L.divIcon({className:'orient-park-wrap',html:'<div class="orient-park" title="'+escH(name||'Park')+'"><svg viewBox="0 0 24 24" width="11" height="11" fill="#fff"><path d="M12 3l4 6h-2.4l3.4 5h-3L17 18h-4v3h-2v-3H7l3-4H7l3.4-5H8l4-6z"/></svg></div>',iconSize:[16,16],iconAnchor:[8,8],tooltipAnchor:[0,-8]});
 }
+// Centroid of the LARGEST polygon ring so the pin lands inside the actual park
+function largestPolyCentroid(f){
+  var g=f.geometry; if(!g) return null;
+  var polys = g.type==='Polygon' ? [g.coordinates] : (g.type==='MultiPolygon'? g.coordinates : null);
+  if(!polys) return null;
+  var best=null, bestArea=-1;
+  polys.forEach(function(poly){
+    var ring=poly[0]||[]; if(ring.length<3) return;
+    var a=0,cx=0,cy=0;
+    for(var i=0;i<ring.length-1;i++){var x0=ring[i][0],y0=ring[i][1],x1=ring[i+1][0],y1=ring[i+1][1];var cr=x0*y1-x1*y0;a+=cr;cx+=(x0+x1)*cr;cy+=(y0+y1)*cr;}
+    a*=0.5; if(Math.abs(a)<1e-12) return;
+    var area=Math.abs(a);
+    if(area>bestArea){bestArea=area;best=[cy/(6*a),cx/(6*a)];} // [lat,lng]
+  });
+  return best;
+}
+var PARK_SKIP_CATS = {'Triangle/Plaza':1,'Strip':1,'Mall':1,'Parkway':1,'Operations':1,'Buildings/Institutions':1,'Undeveloped':1};
 function _addOrientationIcons(){
   if(!window._selectedCBFeature){ setTimeout(_addOrientationIcons,300); return; }
   var b = window._selectedCBFeature;
   _orientLayer.addTo(map);
-  // Parks — proper green leaf pins on parks inside the district
+  // Major named parks only — real parks >= 1 acre, junk categories excluded, pin on largest polygon
   fetch('data/topmap-parks-'+_boroKey+'.geojson').then(r=>r.json()).then(function(d){
-    var feats = ((d&&d.features)||[]).filter(function(f){ return f&&f.geometry&&polyInDistrict(f,b); });
-    feats.slice(0,40).forEach(function(f){
-      try{
-        var c = centroid(f);
-        var nm = (f.properties&&(f.properties.signname||f.properties.name||f.properties.park_name))||'Park';
-        L.marker([c[0],c[1]],{interactive:true,icon:parkPinIcon(nm)}).bindTooltip(nm,{sticky:true}).addTo(_orientLayer);
-      }catch(e){}
+    var feats = ((d&&d.features)||[]).filter(function(f){
+      if(!f||!f.geometry) return false;
+      var p=f.properties||{};
+      if(!p.signname) return false;
+      if(parseFloat(p.acres||0) < 1.0) return false;
+      if(PARK_SKIP_CATS[p.typecategory]) return false;
+      return polyInDistrict(f,b);
+    });
+    feats.forEach(function(f){
+      var c = largestPolyCentroid(f);
+      if(!c || !pip(c[1],c[0],b)) return; // pin must be inside the district
+      var nm = f.properties.signname;
+      L.marker([c[0],c[1]],{interactive:true,icon:parkPinIcon(nm)}).bindTooltip(nm,{sticky:true}).addTo(_orientLayer);
     });
   }).catch(function(){});
   // Subway — proper MTA bullet markers at stations inside the district
