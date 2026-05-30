@@ -1921,7 +1921,24 @@ buildSubToggles();
 updateLegend();
 setTimeout(()=>map.invalidateSize(),200);
 // District opens clean — user toggles overlays on themselves
-// District opens clean — no orientation markers; user toggles overlays themselves
+// District opens clean — subway stations shown for orientation (proper MTA bullets)
+var _orientLayer = L.layerGroup();
+function _addSubwayOrientation(){
+  if(!window._selectedCBFeature){ setTimeout(_addSubwayOrientation,300); return; }
+  var b = window._selectedCBFeature;
+  _orientLayer.addTo(map);
+  fetch('data/nyc-subway-stations.geojson').then(r=>r.json()).then(function(d){
+    var feats = ((d&&d.features)||[]).filter(function(f){ try{var c=f.geometry.coordinates;return pip(c[0],c[1],b);}catch(e){return false;} });
+    feats = dedupeSubwayStations(feats);
+    feats.forEach(function(f){
+      var c=f.geometry.coordinates;
+      var nm = f.properties.display_name||f.properties.stop_name||'Subway station';
+      var routes = f.properties.daytime_routes?'<br>Routes: '+escH(f.properties.daytime_routes):'';
+      L.marker([c[1],c[0]],{interactive:true,icon:subwayStationIcon(f),riseOnHover:true}).bindTooltip('<strong>'+escH(nm)+'</strong>'+routes,{sticky:true}).addTo(_orientLayer);
+    });
+  }).catch(function(){});
+}
+_addSubwayOrientation();
 
 // ── AUTOCOMPLETE ──
 let _acT=null;
