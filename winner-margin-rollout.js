@@ -397,6 +397,97 @@
     }).addTo(map);
 
     map.fitBounds(layer.getBounds(), { padding: isCitywide ? [24, 24] : [14, 14] });
+
+    // Borough labels — exact centroids from community-district-boundaries.geojson
+    if (isCitywide) {
+      var BOROUGH_LABELS = [
+        { name: 'Manhattan',     lat: 40.784533, lng: -73.964266 },
+        { name: 'The Bronx',     lat: 40.846908, lng: -73.834737 },
+        { name: 'Brooklyn',      lat: 40.621421, lng: -73.907156 },
+        { name: 'Queens',        lat: 40.667911, lng: -73.824823 },
+        { name: 'Staten Island', lat: 40.576316, lng: -74.168934 }
+      ];
+      BOROUGH_LABELS.forEach(function(b) {
+        L.marker([b.lat, b.lng], {
+          icon: L.divIcon({
+            className: '',
+            html: '<div style="font-family:\'DM Sans\',sans-serif;font-size:11px;font-weight:700;color:#0d1b4b;text-shadow:1px 1px 0 #fff,-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,0 1px 0 #fff,0 -1px 0 #fff,1px 0 #fff,-1px 0 #fff;white-space:nowrap;pointer-events:none;letter-spacing:.02em">' + b.name + '</div>',
+            iconSize: [100, 20],
+            iconAnchor: [50, 10]
+          }),
+          interactive: false
+        }).addTo(map);
+      });
+    }
+
+    // Update scoreboard
+    updateScoreboard(data, config, isCitywide);
+  }
+
+  // Borough display names matching data keys
+  var BORO_DISPLAY = {
+    manhattan:   'Manhattan',
+    bronx:       'The Bronx',
+    brooklyn:    'Brooklyn',
+    queens:      'Queens',
+    statenisland:'Staten Island'
+  };
+  var BORO_ORDER = ['manhattan','bronx','brooklyn','queens','statenisland'];
+
+  function updateScoreboard(data, config, isCitywide) {
+    var el = document.getElementById('cb-scoreboard');
+    if (!el) return;
+
+    var districts = data.districts || {};
+    var boroughs  = data.boroughs  || {};
+
+    // Tally per borough
+    function tallyBoro(rows) {
+      var navy = 0, orange = 0;
+      rows.forEach(function(d) {
+        if (d[config.winnerKey] === config.navyWinnerValue) navy++;
+        else orange++;
+      });
+      return { navy: navy, orange: orange, total: rows.length };
+    }
+
+    // Citywide tally
+    var allRows = Object.values(districts);
+    var cw = tallyBoro(allRows);
+
+    var isNavyBetter = function(t) { return t.navy >= t.orange; };
+
+    function scoreRow(label, tally, highlight) {
+      var navyPct  = tally.total ? Math.round(100 * tally.navy  / tally.total) : 0;
+      var orangePct= tally.total ? Math.round(100 * tally.orange / tally.total) : 0;
+      var navyWin  = tally.navy >= tally.orange;
+      return '<tr' + (highlight ? ' class="sb-total-row"' : '') + '>' +
+        '<td class="sb-boro">' + label + '</td>' +
+        '<td class="sb-total">' + tally.total + '</td>' +
+        '<td class="sb-navy' + (navyWin  ? ' sb-win' : '') + '">' + tally.navy  + '<span class="sb-pct">(' + navyPct  + '%)</span></td>' +
+        '<td class="sb-orange' + (!navyWin ? ' sb-win' : '') + '">' + tally.orange + '<span class="sb-pct">(' + orangePct + '%)</span></td>' +
+        '</tr>';
+    }
+
+    var rows = '';
+    BORO_ORDER.forEach(function(slug) {
+      var boroRows = boroughs[slug] || [];
+      if (!boroRows.length) return;
+      rows += scoreRow(BORO_DISPLAY[slug], tallyBoro(boroRows), false);
+    });
+    rows += scoreRow('New York City', cw, true);
+
+    el.innerHTML =
+      '<div class="sb-label">Community Board Breakdown — ' + config.eyebrow + '</div>' +
+      '<div class="sb-table-wrap"><table class="sb-table">' +
+        '<thead><tr>' +
+          '<th>Borough</th>' +
+          '<th>CBs</th>' +
+          '<th style="color:#d7e3ff">' + config.navyLabel + '</th>' +
+          '<th style="color:#fde1cf">' + config.orangeLabel + '</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table></div>';
   }
 
   function renderRoot(root, geojson) {
