@@ -1641,38 +1641,38 @@ function polyInDistrict(f, boundary){
 }
 
 function loadLandUseArcGIS(){
-  var env = districtEnvelope();
-  if(!env){ setTimeout(loadLandUseArcGIS,500); return; }
-  var note=document.getElementById('note');
-  if(note) note.textContent='Loading land use lots…';
-  var all=[];
-  function fetchPage(offset){
-    var url = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?'+
-      'where=1%3D1&geometry='+encodeURIComponent(JSON.stringify(env))+
-      '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
-      '&outFields=LandUse,Address,BBL,ZoneDist1&returnGeometry=true&f=geojson&resultOffset='+offset+'&resultRecordCount=1000&outSR=4326';
-    return fetch(url).then(r=>r.json()).then(function(d){
-      var feats=(d&&d.features)||[];
-      all=all.concat(feats);
-      if(feats.length===1000 && offset<5000){ return fetchPage(offset+1000); }
-      var fc={type:'FeatureCollection',features:all};
-      window._overlayData_landuse=fc;
-      buildLandUsePolys(fc);
-      if(note) note.textContent=all.length+' land use lots loaded.';
-    });
+  // Progressive viewport-based loading (zoom 14+), the only approach that works citywide
+  if(!window._luBound){
+    window._luBound = true;
+    map.on('moveend zoomend', function(){ if(subState.landuse) luLoadParcels(); });
   }
-  fetchPage(0).catch(function(e){console.warn('land use load failed',e); if(note) note.textContent='Land use could not be loaded.';});
+  luLoadParcels();
 }
 var LANDUSE_COLORS={'01':'#FEFFA8','02':'#FCB842','03':'#B16E00','04':'#ff8341','05':'#fc2929','06':'#E362FB','07':'#E0BEEB','08':'#44A3D5','09':'#78D271','10':'#BAB8B6','11':'#555555'};
 var LANDUSE_LABELS={'01':'1-2 Family','02':'Walk-Up MF','03':'Elevator MF','04':'Mixed Res/Comm','05':'Commercial','06':'Industrial','07':'Transportation','08':'Public Facilities','09':'Open Space','10':'Parking','11':'Vacant'};
 function luNorm(v){var s=String(v==null?'':v).replace(/\.0+$/,'');return s.length===1?'0'+s:s;}
+function luLoadParcels(){
+  var note=document.getElementById('note');
+  var zoom=map.getZoom();
+  if(zoom<14){ if(note) note.textContent='Zoom in to level 14+ to load land use lots.'; return; }
+  var b=map.getBounds();
+  if(note) note.textContent='Loading land use lots…';
+  var url='https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?'+
+    'where=1%3D1&geometry='+encodeURIComponent(JSON.stringify({xmin:b.getWest(),ymin:b.getSouth(),xmax:b.getEast(),ymax:b.getNorth(),spatialReference:{wkid:4326}}))+
+    '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
+    '&outFields=LandUse,Address,BBL,ZoneDist1&returnGeometry=true&f=geojson&resultRecordCount=1000&outSR=4326';
+  fetch(url).then(function(r){return r.json();}).then(function(d){
+    buildLandUsePolys(d);
+    if(note) note.textContent=((d.features||[]).length)+' land use lots loaded. Click any lot for details.';
+  }).catch(function(){ if(note) note.textContent='Could not load land use lots.'; });
+}
 function buildLandUsePolys(d){
   if(landUseLotsLayer) map.removeLayer(landUseLotsLayer);
   var b=window._selectedCBFeature;
-  var feats = ((d&&d.features)||[]).filter(function(f){return f&&f.geometry&&b&&polyInDistrict(f,b);});
+  var feats=((d&&d.features)||[]).filter(function(f){ return f&&f.geometry&&(!b||polyInDistrict(f,b)); });
   landUseLotsLayer = L.geoJSON({type:'FeatureCollection',features:feats},{
     style:function(f){var p=f.properties||{};var c=luNorm(p.LandUse||p.landuse||p.LANDUSE);return{fillColor:LANDUSE_COLORS[c]||'#9aa0a6',fillOpacity:.72,color:'#fff',weight:.4};},
-    onEachFeature:function(f,l){var p=f.properties||{},c=luNorm(p.LandUse);l.bindPopup('<strong>'+(LANDUSE_LABELS[c]||'Unknown')+'</strong><br>'+escH(p.Address||'')+(p.ZoneDist1?'<br>Zoning: '+escH(p.ZoneDist1):''));}
+    onEachFeature:function(f,l){var p=f.properties||{},c=luNorm(p.LandUse||p.landuse||p.LANDUSE);l.bindPopup('<strong>'+(LANDUSE_LABELS[c]||'Unknown')+'</strong><br>'+escH(p.Address||'')+(p.ZoneDist1?'<br>Zoning: '+escH(p.ZoneDist1):''));}
   });
   if(subState.landuse) landUseLotsLayer.addTo(map);
 }
