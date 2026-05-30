@@ -783,8 +783,25 @@ function filteredBySelectedDistricts(features, clipPolygons){
       return;
     }
     if(gtype === 'LineString' || gtype === 'MultiLineString'){
-      // Keep line if any coordinate falls inside the district
-      if(lineHasPointInBoundary(f, boundary)) out.push(f);
+      // Clip line to only the segments inside the district
+      var lines = gtype === 'LineString' ? [f.geometry.coordinates] : f.geometry.coordinates;
+      var keptSegments = [];
+      lines.forEach(function(coords){
+        var current = [];
+        coords.forEach(function(c){
+          if(pip(c[0],c[1],boundary)){
+            current.push(c);
+          } else {
+            if(current.length >= 2) keptSegments.push(current);
+            current = [];
+          }
+        });
+        if(current.length >= 2) keptSegments.push(current);
+      });
+      if(keptSegments.length){
+        out.push({type:'Feature',properties:Object.assign({},f.properties),
+          geometry:{type:'MultiLineString',coordinates:keptSegments}});
+      }
       return;
     }
     // Polygon features — use turf intersect if clipPolygons, else bbox touch
