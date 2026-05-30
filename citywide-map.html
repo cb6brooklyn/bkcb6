@@ -119,6 +119,7 @@ body{display:flex;flex-direction:column}
 </div>
 <div class="main-toggles"<div class="main-toggles" id="main-toggles" style="display:none"></div>
 <div class="sub-toggles" id="sub-row"></div>
+<div class="sub-toggles" id="boro-row"></div>
 <div class="legend-bar" id="legend"></div>
 <div style="position:relative;flex:1;min-height:0"><div id="map" style="width:100%;height:100%"></div><div class="addr-result" id="s-result"></div></div>
 <div class="note-bar" id="note">Loading district boundary…</div>
@@ -413,6 +414,7 @@ var BORO_CB_PROFILE_KEY = {'1':'mn','2':'bx','3':'bk','4':'qn','5':'si'};
 function showCitywide(){
   var SEAL_COLORS = {'1':'#2a52a0','2':'#e87722','3':'#1a3a6b','4':'#7a5c2e','5':'#6b8e7f'};
   var SEAL_ACCENT = {'1':'#2a52a0','2':'#4a8b3a','3':'#f2c84b','4':'#8a9a6b','5':'#6b8e7f'};
+  window._SEAL_COLORS = SEAL_COLORS;
   window._districtLabel = 'New York City';
   var _titleEl = document.getElementById('map-title');
   if(_titleEl) _titleEl.innerHTML = 'New York City \u2014 Community Districts';
@@ -429,22 +431,45 @@ function showCitywide(){
   });
   window._selectedCBFeature.geometry.coordinates = allCoords;
 
-  // Draw all five borough fills in their own seal colors, then fit to the whole city
+  // One layer group per borough so each can be toggled on/off as a unit
+  window._boroGroups = {};
+  window._boroVisible = {'1':true,'2':true,'3':true,'4':true,'5':true};
+  ['1','2','3','4','5'].forEach(function(bc){ window._boroGroups[bc] = L.layerGroup().addTo(map); });
+
+  // CB districts (outline + label) added to their borough group
+  allCB.forEach(function(f){
+    var code = String(f.properties.boro_cd);
+    var bcode = code.charAt(0);
+    if(!window._boroGroups[bcode]) return;
+    var num = parseInt(code.slice(1));
+    var col = SEAL_COLORS[bcode] || '#888';
+    var lyr = L.geoJSON(f,{style:{color:col,weight:1,opacity:.5,fill:false,lineJoin:'round'}});
+    lyr.on('mouseover',function(){ lyr.setStyle({opacity:1,weight:2.5}); });
+    lyr.on('mouseout',function(){ lyr.setStyle({opacity:.5,weight:1}); });
+    lyr.on('click',function(){ window.open('cb-'+BORO_CB_PROFILE_KEY[bcode]+'-'+num+'.html','_top'); });
+    lyr.bindTooltip('<strong>'+(BORO_ABBR2[bcode]||'')+' CB'+num+'</strong><br>Tap to open profile',{sticky:true});
+    lyr.addTo(window._boroGroups[bcode]);
+    try{
+      var c = centroid(f);
+      L.marker([c[0],c[1]],{interactive:false,icon:L.divIcon({className:'cb-num-label',html:'<div style="color:'+col+';font-family:\'DM Sans\',sans-serif;font-weight:700;font-size:.62rem;white-space:nowrap;text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff">CB'+num+'</div>',iconSize:null,iconAnchor:[12,6]})}).addTo(window._boroGroups[bcode]);
+    }catch(e){}
+  });
+
+  // Borough fills + name labels added to their borough group
   fetch('data/borough-boundaries.geojson').then(r=>r.json()).then(function(bd){
-    var allLayer = L.geoJSON({type:'FeatureCollection',features:bd.features||[]},{
-      style:function(f){
-        var bc = String(f.properties.borocode);
-        return {color:SEAL_COLORS[bc]||'#888',weight:3.5,opacity:1,fill:true,fillColor:SEAL_ACCENT[bc]||'#888',fillOpacity:.30,lineJoin:'round'};
-      }
-    }).addTo(map);
-    try{ map.fitBounds(allLayer.getBounds(),{padding:[12,12]}); }catch(e){}
-    // Borough name labels (one per borough, on top)
+    (bd.features||[]).forEach(function(f){
+      var bc = String(f.properties.borocode);
+      if(!window._boroGroups[bc]) return;
+      L.geoJSON(f,{style:{color:SEAL_COLORS[bc]||'#888',weight:3.5,opacity:1,fill:true,fillColor:SEAL_ACCENT[bc]||'#888',fillOpacity:.30,lineJoin:'round'}}).addTo(window._boroGroups[bc]);
+    });
+    try{ map.fitBounds(L.geoJSON({type:'FeatureCollection',features:bd.features||[]}).getBounds(),{padding:[12,12]}); }catch(e){}
     setTimeout(function(){
       (bd.features||[]).forEach(function(f){
         var bc = String(f.properties.borocode);
+        if(!window._boroGroups[bc]) return;
         try{
           var ctr = L.geoJSON(f).getBounds().getCenter();
-          L.marker([ctr.lat,ctr.lng],{interactive:false,zIndexOffset:2000,icon:L.divIcon({className:'borough-name-label',html:'<div class="boro-big-label" style="color:'+(SEAL_COLORS[bc]||'#333')+'">'+(BORO_NAMES_FULL[bc]||'').replace('The ','')+'</div>',iconSize:null,iconAnchor:[55,14]})}).addTo(map);
+          L.marker([ctr.lat,ctr.lng],{interactive:false,zIndexOffset:2000,icon:L.divIcon({className:'borough-name-label',html:'<div class="boro-big-label" style="color:'+(SEAL_COLORS[bc]||'#333')+'">'+(BORO_NAMES_FULL[bc]||'').replace('The ','')+'</div>',iconSize:null,iconAnchor:[55,14]})}).addTo(window._boroGroups[bc]);
         }catch(e){}
       });
     }, 400);
@@ -452,21 +477,48 @@ function showCitywide(){
     try{ map.fitBounds(L.geoJSON({type:'FeatureCollection',features:allCB}).getBounds(),{padding:[12,12]}); }catch(e){}
   });
 
-  // All CB districts as thin seal-colored outlines, tappable to their profiles
-  allCB.forEach(function(f){
-    var code = String(f.properties.boro_cd);
-    var bcode = code.charAt(0);
-    var num = parseInt(code.slice(1));
-    var col = SEAL_COLORS[bcode] || '#888';
-    var lyr = L.geoJSON(f,{style:{color:col,weight:1,opacity:.5,fill:false,lineJoin:'round'}}).addTo(map);
-    lyr.on('mouseover',function(){ lyr.setStyle({opacity:1,weight:2.5}); });
-    lyr.on('mouseout',function(){ lyr.setStyle({opacity:.5,weight:1}); });
-    lyr.on('click',function(){ window.open('cb-'+BORO_CB_PROFILE_KEY[bcode]+'-'+num+'.html','_top'); });
-    lyr.bindTooltip('<strong>'+(BORO_ABBR2[bcode]||'')+' CB'+num+'</strong><br>Tap to open profile',{sticky:true});
-    try{
-      var c = centroid(f);
-      L.marker([c[0],c[1]],{interactive:false,icon:L.divIcon({className:'cb-num-label',html:'<div style="color:'+col+';font-family:\'DM Sans\',sans-serif;font-weight:700;font-size:.62rem;white-space:nowrap;text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff">CB'+num+'</div>',iconSize:null,iconAnchor:[12,6]})}).addTo(map);
-    }catch(e){}
+  buildBoroughToggleRow();
+}
+function setBoroughVisible(bc, on){
+  if(!window._boroGroups || !window._boroGroups[bc]) return;
+  window._boroVisible[bc] = on;
+  if(on) window._boroGroups[bc].addTo(map);
+  else map.removeLayer(window._boroGroups[bc]);
+}
+function buildBoroughToggleRow(){
+  var row = document.getElementById('boro-row');
+  if(!row) return;
+  row.innerHTML='';
+  var SEAL = window._SEAL_COLORS || {'1':'#2a52a0','2':'#e87722','3':'#1a3a6b','4':'#7a5c2e','5':'#6b8e7f'};
+  var lbl=document.createElement('span');
+  lbl.style.cssText='font-size:.58rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#777;margin:0 2px 0 0;flex-shrink:0';
+  lbl.textContent='Boroughs';
+  row.appendChild(lbl);
+  // All NYC restore button
+  var allBtn=document.createElement('button');
+  allBtn.className='plyr-sub on';
+  allBtn.style.setProperty('--sc','#0d1b4b');allBtn.style.setProperty('--stc','#fff');
+  allBtn.textContent='All NYC';
+  allBtn.type='button';
+  allBtn.onclick=function(){
+    ['1','2','3','4','5'].forEach(function(bc){ setBoroughVisible(bc,true); });
+    Array.prototype.forEach.call(row.querySelectorAll('button[data-bc]'),function(b){ b.classList.add('on'); });
+  };
+  row.appendChild(allBtn);
+  [['1','MN'],['2','BX'],['3','BK'],['4','QNS'],['5','SI']].forEach(function(pair){
+    var bc=pair[0];
+    var btn=document.createElement('button');
+    btn.className='plyr-sub on';
+    btn.setAttribute('data-bc',bc);
+    btn.style.setProperty('--sc',SEAL[bc]||'#888');btn.style.setProperty('--stc','#fff');
+    btn.textContent=pair[1];
+    btn.type='button';
+    btn.onclick=function(){
+      var on=!window._boroVisible[bc];
+      setBoroughVisible(bc,on);
+      btn.classList.toggle('on',on);
+    };
+    row.appendChild(btn);
   });
 }
 
