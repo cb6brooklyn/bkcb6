@@ -463,6 +463,10 @@ function showCitywide(){
     lyr.on('mouseout',function(){ lyr.setStyle({opacity:.5,weight:1}); });
     lyr.on('click',function(){ window.open('cb-'+BORO_CB_PROFILE_KEY[bcode]+'-'+num+'.html','_top'); });
     lyr.bindTooltip('<strong>'+(BORO_ABBR2[bcode]||'')+' CB'+num+'</strong><br>Tap to open profile',{sticky:true});
+    try{
+      var c = centroid(f);
+      L.marker([c[0],c[1]],{interactive:false,icon:L.divIcon({className:'cb-num-label',html:'<div style="color:'+col+';font-family:\'DM Sans\',sans-serif;font-weight:700;font-size:.62rem;white-space:nowrap;text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff">CB'+num+'</div>',iconSize:null,iconAnchor:[12,6]})}).addTo(map);
+    }catch(e){}
   });
 }
 
@@ -1070,13 +1074,43 @@ function buildSubwayRoutes(d){
   if(subState.subway) subwayRoutesLayer.addTo(map);
 }
 function buildSubwayCombined(){
-  // district-map: use citywide data only, no CB6-specific files
+  // Citywide: routes always show when toggled; stations only when zoomed in (>=14)
+  fetch('data/nyc-subway-routes.geojson').then(r=>r.json()).then(d=>{
+    window._overlayData_subwayroutes=d;
+    buildSubwayRoutesCitywide(d);
+  });
   fetch('data/nyc-subway-stations.geojson').then(r=>r.json()).then(d=>{
     window._overlayData_subway=d;
-    window._overlayData_subwaystops={type:'FeatureCollection',features:[]};
-    buildSubway(d);
+    refreshSubwayStationsByZoom();
   });
-  // No subway routes file available citywide — skip
+  if(!window._subwayZoomBound){
+    window._subwayZoomBound=true;
+    map.on('zoomend', function(){ if(subState.subway) refreshSubwayStationsByZoom(); });
+  }
+}
+function buildSubwayRoutesCitywide(d){
+  if(subwayRoutesLayer){ map.removeLayer(subwayRoutesLayer); }
+  subwayRoutesLayer = L.geoJSON({type:'FeatureCollection',features:(d&&d.features)||[]},{
+    style:function(f){var p=f.properties||{};return{color:p.color||'#4D5055',weight:3.5,opacity:.92,lineCap:'round',lineJoin:'round'};},
+    onEachFeature:function(f,l){var p=f.properties||{};l.bindTooltip('<strong>'+escH(p.line||p.name||'Subway line')+'</strong>',{sticky:true});}
+  });
+  if(subState.subway) subwayRoutesLayer.addTo(map);
+}
+function refreshSubwayStationsByZoom(){
+  var d = window._overlayData_subway;
+  if(subwayLayer){ map.removeLayer(subwayLayer); subwayLayer=null; }
+  if(!subState.subway) return;
+  if(map.getZoom() < 14) return; // stations only when zoomed in
+  if(!d) return;
+  var feats = dedupeSubwayStations((d.features||[]));
+  subwayLayer = L.geoJSON({type:'FeatureCollection',features:feats},{
+    pointToLayer:(f,ll)=>L.marker(ll,{icon:subwayStationIcon(f),riseOnHover:true}),
+    onEachFeature:(f,l)=>{
+      var name=f.properties.display_name||f.properties.stop_name||'Subway station';
+      var routes=f.properties.daytime_routes?'<br>Routes: '+escH(f.properties.daytime_routes):'';
+      l.bindTooltip('<strong>'+escH(name)+'</strong>'+routes,{sticky:true});
+    }
+  }).addTo(map);
 }
 function citibikeStationIcon(f){
   var name = f && f.properties ? (f.properties.name || 'Citi Bike station') : 'Citi Bike station';
@@ -1264,8 +1298,19 @@ function buildBusStops(d){
   if(subState.bus || subState.busstops) busStopsLayer.addTo(map);
 }
 function buildBusCombined(){
-  loadOverlay('busroutes','transport-data/'+_boroKey+'.json',buildBusRoutes);
-  loadOverlay('busstops','transport-data/'+_boroKey+'.json',buildBusStops);
+  // Citywide: bus ROUTES only (no stops), across all five boroughs
+  var boros=['manhattan','bronx','brooklyn','queens','statenisland'];
+  if(busRoutesLayer){ map.removeLayer(busRoutesLayer); }
+  busRoutesLayer = L.layerGroup();
+  if(subState.bus) busRoutesLayer.addTo(map);
+  boros.forEach(function(bk){
+    fetch('transport-data/'+bk+'.json').then(r=>r.json()).then(function(d){
+      var rd = normalizeTransportFeatureCollection(d,'bus');
+      var gj = {type:'FeatureCollection',features:(rd.features||[])};
+      L.geoJSON(gj,{style:function(){return{color:'#fff',weight:6,opacity:.7,lineCap:'round',lineJoin:'round'};},interactive:false}).addTo(busRoutesLayer);
+      L.geoJSON(gj,{style:function(f){return{color:busRouteColor(f.properties||{}),weight:3,opacity:.9,lineCap:'round',lineJoin:'round'};},onEachFeature:function(f,l){var p=f.properties||{};l.bindTooltip('<strong>🚌 '+escH(busRouteName(p))+'</strong>',{sticky:true,opacity:1});}}).addTo(busRoutesLayer);
+    }).catch(function(){});
+  });
 }
 
 var LAND_USE_COLORS = {'01':'#FEFFA8','02':'#FCB842','03':'#B16E00','04':'#ff8341','05':'#fc2929','06':'#E362FB','07':'#E0BEEB','08':'#44A3D5','09':'#78D271','10':'#BAB8B6','11':'#555555'};
@@ -2015,7 +2060,7 @@ function _addSubwayOrientation(){
     });
   }).catch(function(){});
 }
-if(typeof _AUTO_SUBWAY==='undefined' || _AUTO_SUBWAY){ _addSubwayOrientation(); }
+// citywide: subway shown only via toggle; stations appear on zoom-in
 
 // ── AUTOCOMPLETE ──
 let _acT=null;
