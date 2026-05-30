@@ -324,7 +324,7 @@ function addCB6BoundaryLabel(){
 var BORO_FILL = {'1':'#003580','2':'#b84800','3':'#1a3a8a','4':'#6b4f00','5':'#1a5a50'};
 var boroBoundaryLayer = null;
 
-fetch('data/borough-boundaries.geojson').then(r=>r.json()).then(d=>{
+if(false) fetch('data/borough-boundaries.geojson').then(r=>r.json()).then(d=>{
   boroBoundaryLayer = L.geoJSON(d, {
     style: f => ({
       color: BORO_FILL[f.properties.borocode]||'#888',
@@ -368,7 +368,14 @@ fetch('data/borough-boundaries.geojson').then(r=>r.json()).then(d=>{
     fetch('data/state-assembly-districts.geojson').then(r=>r.json()).then(d=>{window._assemblyData=d;}),
     fetch('data/state-senate-districts.geojson').then(r=>r.json()).then(d=>{window._senateData=d;}),
     fetch('data/congressional-districts.geojson').then(r=>r.json()).then(d=>{window._congressData=d;}),
-    fetch('community-district-boundaries.geojson').then(r=>r.json()).then(d=>{cdsData=d;})
+    fetch('community-district-boundaries.geojson').then(r=>r.json()).then(d=>{
+      cdsData=d;
+      // Set selected feature immediately so toggles work as soon as they're clicked
+      if(_urlCd && !window._selectedCBFeature){
+        var f=d.features.find(function(x){return String(x.properties.boro_cd)===String(_urlCd);});
+        if(f) window._selectedCBFeature=f;
+      }
+    })
   ];
   if(isCB6Mode) fetches.push(fetch('data/cb6_boundary.geojson').then(r=>r.json()));
   Promise.all(fetches).then(function(results){
@@ -646,19 +653,11 @@ function selectedDistrictFeatures(){
 
 function selectedCommunityBoardFeatures(){
   var cbs = [];
-  Object.keys(cbLayerState||{}).forEach(function(code){
-    var state = cbLayerState[code];
-    if(state && state.on && state.layer) cbs = cbs.concat(layerToFeatures(state.layer));
-  });
-  if(!cbs.length && window._selectedCBFeature) cbs.push(window._selectedCBFeature);
-  if(!cbs.length && cdsData){
-    var selectedCode = window._selectedCBFeature && window._selectedCBFeature.properties ? window._selectedCBFeature.properties.boro_cd : null;
-    var cb = selectedCode ? cdsData.features.find(function(f){return f.properties.boro_cd===selectedCode;}) : null;
-    if(!cb && activeMain==='cb6') cb = cdsData.features.find(function(f){return f.properties.boro_cd==='306';});
+  if(window._selectedCBFeature) cbs.push(window._selectedCBFeature);
+  if(!cbs.length && cdsData && _urlCd){
+    var cb = cdsData.features.find(function(f){return String(f.properties.boro_cd)===String(_urlCd);});
     if(cb) cbs.push(cb);
   }
-  if(!cbs.length && window._cb6BoundaryFeatures && window._cb6BoundaryFeatures.length) cbs = cbs.concat(window._cb6BoundaryFeatures);
-  if(!cbs.length && cb6Layer) cbs = cbs.concat(layerToFeatures(cb6Layer));
   return cbs.filter(function(f){return f && f.geometry;});
 }
 function shouldSuppressCBOverlapFragments(){
@@ -1685,19 +1684,19 @@ function buildSubToggles(){
     {k:'congress',c:'#dc2626',l:'🇺🇸 Congress'},
   ];
   const overlays = [
-    {k:'nypd',c:'#e11d48',tc:'#fff',l:'👮 NYPD'},
     {k:'subway',c:'#0039a6',tc:'#fff',l:'🚇 Subway'},
     {k:'citibike',c:'#00a676',tc:'#fff',l:'🚲 Bike'},
     {k:'bus',c:'#f59e0b',tc:'#111827',l:'🚌 Bus'},
-    {k:'speedlimits',c:'#111827',tc:'#fff',l:'🚦 Speed Limits'},
-    {k:'landuse',c:'#8b5e34',tc:'#fff',l:'🏘 Land Use Lots'},
-    {k:'zoning',c:'#8b5cf6',tc:'#fff',l:'🏙 Zoning'},
     {k:'parks',c:'#22c55e',tc:'#052e16',l:'🌳 Parks'},
     {k:'schools',c:'#0ea5e9',tc:'#082f49',l:'🏫 Schools'},
-    {k:'childcare',c:'#d946ef',tc:'#fff',l:'🧸 Childcare'},
     {k:'libraries',c:'#f97316',tc:'#fff',l:'📚 Libraries'},
-    {k:'schooldistricts',c:'#14b8a6',tc:'#042f2e',l:'🏫 School Districts'},
+    {k:'landuse',c:'#8b5e34',tc:'#fff',l:'🏘 Land Use'},
+    {k:'zoning',c:'#8b5cf6',tc:'#fff',l:'🏙 Zoning'},
     {k:'historic',c:'#a16207',tc:'#fff',l:'🏛 Historic Districts'},
+    {k:'speedlimits',c:'#111827',tc:'#fff',l:'🚦 Speed Limits'},
+    {k:'childcare',c:'#d946ef',tc:'#fff',l:'🧸 Childcare'},
+    {k:'schooldistricts',c:'#14b8a6',tc:'#042f2e',l:'🏫 School Districts'},
+    {k:'nypd',c:'#e11d48',tc:'#fff',l:'👮 NYPD'},
   ];
   var overlayLabel=document.createElement('span');
   overlayLabel.style.cssText='font-size:.58rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#777;margin:0 2px 0 0;flex-shrink:0';
