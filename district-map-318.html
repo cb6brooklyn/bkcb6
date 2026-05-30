@@ -171,7 +171,7 @@ var cbOverlapLayer=null;
 // Sub-toggle state
 var subState = {
   // CB mode overlays
-  nypd:false, fire:false, subway:true, citibike:false, bus:false, busroutes:false, busstops:false, speedlimits:false, landuse:false, zoning:true, parks:true, schools:false, childcare:false, libraries:false, schooldistricts:false, gowanus:false, rents:false, historic:false,
+  nypd:false, fire:false, subway:false, citibike:false, bus:false, busroutes:false, busstops:false, speedlimits:false, landuse:false, zoning:false, parks:false, schools:false, childcare:false, libraries:false, schooldistricts:false, gowanus:false, rents:false, historic:false,
   // Legislative (disabled until files uploaded)
   cc:false, assembly:false, senate:false, congress:false
 };
@@ -513,7 +513,7 @@ function showCBDistricts(feature) {
 
   // District boundary uses borough branding color
   var boroColor = BORO_COLORS[boro] || '#f47920';
-  var highlight = L.geoJSON(feature, {style:{color:boroColor,weight:4,opacity:1,fill:true,fillColor:boroColor,fillOpacity:.22,lineJoin:'round'}}).addTo(map);
+  var highlight = L.geoJSON(feature, {style:{color:boroColor,weight:4,opacity:1,fill:true,fillColor:boroColor,fillOpacity:.28,lineJoin:'round'}}).addTo(map);
   highlightLayers.push(highlight);
 
   // Find center point of CB
@@ -1918,13 +1918,31 @@ function updateLegend(){
 buildSubToggles();
 updateLegend();
 setTimeout(()=>map.invalidateSize(),200);
-// Activate default-on overlays once the boundary is ready
-function _activateDefaults(){
-  if(!window._selectedCBFeature){ setTimeout(_activateDefaults,300); return; }
-  ['subway','parks','zoning'].forEach(function(k){ if(subState[k]) toggleOverlay(k,true); });
-  updateLegend();
+// District opens clean — user toggles overlays on themselves
+// Lightweight orientation icons: small park & subway markers always shown so users get their bearings
+function _addOrientationIcons(){
+  if(!window._selectedCBFeature){ setTimeout(_addOrientationIcons,300); return; }
+  var b = window._selectedCBFeature;
+  // Parks — small tree icons on parks inside the district
+  fetch('data/topmap-parks-'+_boroKey+'.geojson').then(r=>r.json()).then(function(d){
+    var feats = ((d&&d.features)||[]).filter(function(f){ return f&&f.geometry&&polyInDistrict(f,b); });
+    feats.slice(0,40).forEach(function(f){
+      try{
+        var c = centroid(f);
+        L.marker([c[0],c[1]],{interactive:false,icon:L.divIcon({className:'orient-icon',html:'<div style="font-size:14px;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.4))">🌳</div>',iconSize:[16,16],iconAnchor:[8,8]})}).addTo(map);
+      }catch(e){}
+    });
+  }).catch(function(){});
+  // Subway — small train icons at stations inside the district
+  fetch('data/nyc-subway-stations.geojson').then(r=>r.json()).then(function(d){
+    var feats = ((d&&d.features)||[]).filter(function(f){ try{var c=f.geometry.coordinates;return pip(c[0],c[1],b);}catch(e){return false;} });
+    feats.forEach(function(f){
+      var c=f.geometry.coordinates;
+      L.marker([c[1],c[0]],{interactive:false,icon:L.divIcon({className:'orient-icon',html:'<div style="font-size:13px;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.4))">🚇</div>',iconSize:[15,15],iconAnchor:[7,7]})}).addTo(map);
+    });
+  }).catch(function(){});
 }
-_activateDefaults();
+_addOrientationIcons();
 
 // ── AUTOCOMPLETE ──
 let _acT=null;
