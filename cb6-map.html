@@ -106,7 +106,7 @@ body{display:flex;flex-direction:column}
 </head>
 <body>
 <div class="top-bar">
-  <h1>BKCB6 <span>Map</span></h1>
+  <h1 id="map-title">BKCB6 <span>Map</span></h1>
   <div class="search-row" style="position:relative">
     <select id="boro-sel" style="font-family:'DM Mono',monospace;font-size:.72rem;padding:6px 8px;border:none;border-radius:6px;background:rgba(255,255,255,.12);color:#fff;outline:none;cursor:pointer">
       <option value="Brooklyn">Brooklyn</option>
@@ -141,7 +141,20 @@ body{display:flex;flex-direction:column}
 </div>
 <script>
 
-var map = L.map('map',{scrollWheelZoom:true, zoomSnap:.25, zoomDelta:.25}).setView([40.6771,-74.0012],13);
+var _initCenter = (function(){
+  if(_urlCd) {
+    // Will be recentered after boundary loads — use NYC center for now
+    return {center:[40.706,-73.94],zoom:11};
+  }
+  return {center:[40.6771,-74.0012],zoom:13};
+})();
+var map = L.map('map',{scrollWheelZoom:true, zoomSnap:.25, zoomDelta:.25}).setView(_initCenter.center,_initCenter.zoom);
+if(_iframeMode) {
+  var _tl = document.getElementById('map-title');
+  if(_tl) _tl.innerHTML = 'CB District <span>Map</span>';
+  var _bl = document.querySelector('.back-link');
+  if(_bl) _bl.style.display='none';
+}
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
 
 // Representative lookup tables
@@ -151,7 +164,9 @@ window._senateLookup = {10:["Andrew Gounardes","https://www.nysenate.gov/senator
 window._congressLookup = {5:["Gregory Meeks","https://meeks.house.gov"],6:["Grace Meng","https://meng.house.gov"],7:["Nydia Velázquez","https://velazquez.house.gov"],8:["Hakeem Jeffries","https://jeffries.house.gov"],9:["Yvette Clarke","https://clarke.house.gov"],10:["Dan Goldman","https://goldman.house.gov"],11:["Nicole Malliotakis","https://malliotakis.house.gov"],12:["Jerry Nadler","https://nadler.house.gov"],13:["Adriano Espaillat","https://espaillat.house.gov"],14:["Alexandria Ocasio-Cortez","https://ocasio-cortez.house.gov"],15:["Ritchie Torres","https://torres.house.gov"],16:["George Latimer","https://latimer.house.gov"]};
 
 var activeMain = 'cb6';
-var activeBoroFilter = '306'; // boro_cd prefix or specific code
+var _urlCd = new URLSearchParams(location.search).get('cd');
+var activeBoroFilter = (_urlCd && /^\d{3}$/.test(_urlCd)) ? _urlCd : '306'; // boro_cd prefix or specific code
+var _iframeMode = !!_urlCd; // hide CB6-specific chrome when embedded for another district
 var searchMarker = null;
 
 // Borough colors from seals
@@ -393,11 +408,11 @@ fetch('data/cb6_boundary.geojson').then(r=>r.json()).then(d=>{
     fetch('data/congressional-districts.geojson').then(r=>r.json()).then(d=>{window._congressData=d;}),
     fetch('community-district-boundaries.geojson').then(r=>r.json()).then(d=>{
       cdsData=d;
-      var cb6Feature = d.features.find(f=>f.properties.boro_cd==='306');
+      var cb6Feature = d.features.find(f=>f.properties.boro_cd===activeBoroFilter);
       if(cb6Feature) showCBDistricts(cb6Feature);
     })
   ]).then(function(){
-    var cb6Feature = cdsData && cdsData.features.find(f=>f.properties.boro_cd==='306');
+    var cb6Feature = cdsData && cdsData.features.find(f=>f.properties.boro_cd===activeBoroFilter);
     if(cb6Feature) {
       window._selectedCBFeature = cb6Feature;
       showCBDistricts(cb6Feature);
@@ -659,7 +674,7 @@ function selectedCommunityBoardFeatures(){
   if(!cbs.length && cdsData){
     var selectedCode = window._selectedCBFeature && window._selectedCBFeature.properties ? window._selectedCBFeature.properties.boro_cd : null;
     var cb = selectedCode ? cdsData.features.find(function(f){return f.properties.boro_cd===selectedCode;}) : null;
-    if(!cb && activeMain==='cb6') cb = cdsData.features.find(function(f){return f.properties.boro_cd==='306';});
+    if(!cb && activeMain==='cb6') cb = cdsData.features.find(function(f){return f.properties.boro_cd===activeBoroFilter;});
     if(cb) cbs.push(cb);
   }
   if(!cbs.length && window._cb6BoundaryFeatures && window._cb6BoundaryFeatures.length) cbs = cbs.concat(window._cb6BoundaryFeatures);
@@ -1424,7 +1439,7 @@ function bkcb6AllowedDistrictFallback(type){
   return {cc:[38,39], assembly:[44,51,52], senate:[20,26], congress:[10]}[type] || null;
 }
 function shouldUseBKCB6TemplateDistricts(){
-  return activeMain === 'cb6' || (window._selectedCBFeature && window._selectedCBFeature.properties && String(window._selectedCBFeature.properties.boro_cd) === '306');
+  return activeMain === 'cb6' || (window._selectedCBFeature && window._selectedCBFeature.properties && String(window._selectedCBFeature.properties.boro_cd) === activeBoroFilter);
 }
 function bkcb6TemplateDistrictDataVar(type){ return '_bkcb6TemplateDistrictData_'+type; }
 function bkcb6TemplateDistrictData(type){
