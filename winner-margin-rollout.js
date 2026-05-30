@@ -315,14 +315,14 @@
       color: BASE_OUTLINE,
       weight: 1.2,
       fillColor: district ? marginFill(district, maxMargin, config) : '#d1d5db',
-      fillOpacity: district ? 0.92 : 0.45
+      fillOpacity: district ? 0.65 : 0.3
     };
   }
 
   function bindInteractions(layer, district, detailEl, mapLabel, config) {
     layer.on({
       mouseover: function () {
-        layer.setStyle({ weight: 2.6, color: ACTIVE_OUTLINE, fillOpacity: 1 });
+        layer.setStyle({ weight: 2.6, color: ACTIVE_OUTLINE, fillOpacity: 0.5 });
         if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
           layer.bringToFront();
         }
@@ -330,11 +330,7 @@
       },
       mouseout: function () {
         if (!layer._map) return;
-        var m = layer._map;
-        var baseZ = m._winnerMarginBaseZoom || m.getZoom();
-        var z = m.getZoom();
-        var opacity = Math.max(0.3, 0.88 - (z - baseZ) * 0.12);
-        layer.setStyle({ weight: 1.2, color: BASE_OUTLINE, fillOpacity: opacity });
+        layer.setStyle({ weight: 1.2, color: BASE_OUTLINE, fillOpacity: 0.65 });
       },
       click: function () {
         setDetail(detailEl, district, mapLabel, config);
@@ -401,18 +397,6 @@
 
     map.fitBounds(layer.getBounds(), { padding: isCitywide ? [24, 24] : [14, 14] });
 
-    // Fade opacity as user zooms in so basemap is readable up close
-    function updateOpacityForZoom() {
-      var z = map.getZoom();
-      var baseZ = map._winnerMarginBaseZoom || z;
-      // At base zoom: 0.88. Each zoom level in: subtract 0.12, min 0.3
-      var opacity = Math.max(0.3, 0.88 - (z - baseZ) * 0.12);
-      layer.setStyle({ fillOpacity: opacity });
-    }
-    map.once('zoomend', function() {
-      map._winnerMarginBaseZoom = map.getZoom();
-    });
-    map.on('zoomend', updateOpacityForZoom);
 
     // Borough labels — exact centroids from community-district-boundaries.geojson
     if (isCitywide) {
