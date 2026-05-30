@@ -436,38 +436,46 @@ function showBorough(){
   });
   window._selectedCBFeature.geometry.coordinates = allCoords;
 
-  // Borough outline filled in the borough branding color
+  // Borough fill in the seal ACCENT color (e.g. Brooklyn gold), outline in the primary seal color
   fetch('data/borough-boundaries.geojson').then(r=>r.json()).then(function(bd){
     var bf = (bd.features||[]).filter(function(f){return String(f.properties.borocode)===_boroCode;});
     var boroLayer = L.geoJSON({type:'FeatureCollection',features:bf},{
-      style:{color:boroColor,weight:4.5,opacity:1,fill:true,fillColor:boroColor,fillOpacity:.20,lineJoin:'round'}
+      style:{color:boroColor,weight:4.5,opacity:1,fill:true,fillColor:boroAccent,fillOpacity:.30,lineJoin:'round'}
     }).addTo(map);
     try{ map.fitBounds(boroLayer.getBounds(),{padding:[16,16]}); }catch(e){}
-    // Big borough name label centered on the borough
-    try{
-      var bc = boroLayer.getBounds().getCenter();
-      L.marker([bc.lat,bc.lng],{interactive:false,zIndexOffset:1000,icon:L.divIcon({className:'borough-name-label',html:'<div class="boro-big-label" style="color:'+boroColor+'">'+(BORO_NAMES_FULL[_boroCode]||'').replace('The ','')+'</div>',iconSize:null,iconAnchor:[60,16]})}).addTo(map);
-    }catch(e){}
+    window._boroCenter = boroLayer.getBounds().getCenter();
+    drawBoroughLabel();
   }).catch(function(){
     try{ map.fitBounds(L.geoJSON({type:'FeatureCollection',features:cbFeatures}).getBounds(),{padding:[16,16]}); }catch(e){}
   });
 
-  // CB districts: very faint thin outlines (no fill), tappable to profile; label reads CB#
+  // CB districts: thin outline in seal color, no fill (borough fill shows through); tappable; number label
   cbFeatures.forEach(function(f){
     var code = String(f.properties.boro_cd);
     var num = parseInt(code.slice(1));
     var lyr = L.geoJSON(f,{
-      style:{color:boroColor,weight:1,opacity:.45,fill:true,fillColor:boroColor,fillOpacity:.01,lineJoin:'round'}
+      style:{color:boroColor,weight:1.2,opacity:.55,fill:false,lineJoin:'round'}
     }).addTo(map);
-    lyr.on('mouseover',function(){ lyr.setStyle({opacity:.9,weight:2,fillOpacity:.12}); });
-    lyr.on('mouseout',function(){ lyr.setStyle({opacity:.45,weight:1,fillOpacity:.01}); });
+    lyr.on('mouseover',function(){ lyr.setStyle({opacity:1,weight:2.5}); });
+    lyr.on('mouseout',function(){ lyr.setStyle({opacity:.55,weight:1.2}); });
     lyr.on('click',function(){ window.open('cb-'+BORO_CB_PROFILE_KEY[_boroCode]+'-'+num+'.html','_top'); });
     lyr.bindTooltip('<strong>CB'+num+'</strong><br>Tap to open profile',{sticky:true});
     try{
       var c = centroid(f);
-      L.marker([c[0],c[1]],{interactive:false,icon:L.divIcon({className:'cb-num-label',html:'<div style="color:'+boroColor+';font-family:\'DM Sans\',sans-serif;font-weight:700;font-size:.72rem;opacity:.75;white-space:nowrap;text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff">CB'+num+'</div>',iconSize:null,iconAnchor:[14,7]})}).addTo(map);
+      L.marker([c[0],c[1]],{interactive:false,icon:L.divIcon({className:'cb-num-label',html:'<div style="color:'+boroColor+';font-family:\'DM Sans\',sans-serif;font-weight:800;font-size:.85rem;white-space:nowrap;text-shadow:-1.25px -1.25px 0 #fff,1.25px -1.25px 0 #fff,-1.25px 1.25px 0 #fff,1.25px 1.25px 0 #fff">'+num+'</div>',iconSize:null,iconAnchor:[7,8]})}).addTo(map);
     }catch(e){}
   });
+  // Draw the big borough label LAST so it sits on top of everything
+  setTimeout(drawBoroughLabel, 600);
+}
+var _boroLabelDrawn = false;
+function drawBoroughLabel(){
+  if(_boroLabelDrawn || !window._boroCenter) return;
+  _boroLabelDrawn = true;
+  var SEAL_COLORS = {'1':'#2a52a0','2':'#e87722','3':'#1a3a6b','4':'#7a5c2e','5':'#6b8e7f'};
+  var boroColor = SEAL_COLORS[_boroCode] || '#f47920';
+  var bc = window._boroCenter;
+  L.marker([bc.lat,bc.lng],{interactive:false,zIndexOffset:2000,icon:L.divIcon({className:'borough-name-label',html:'<div class="boro-big-label" style="color:'+boroColor+'">'+(BORO_NAMES_FULL[_boroCode]||'').replace('The ','')+'</div>',iconSize:null,iconAnchor:[70,18]})}).addTo(map);
 }
 
 // Load community districts (lazy)
