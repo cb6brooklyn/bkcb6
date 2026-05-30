@@ -125,6 +125,13 @@ body{display:flex;flex-direction:column}
 var _urlCd = (new URLSearchParams(location.search)).get('cd') || '';
 _urlCd = /^\d{3}$/.test(_urlCd) ? _urlCd : '306'; // always in district mode
 
+
+// Borough key from boro_cd for selecting borough-specific data files
+var _boroKey = (function(){
+  var prefix = _urlCd ? _urlCd.charAt(0) : '3';
+  return {'1':'manhattan','2':'bronx','3':'brooklyn','4':'queens','5':'statenisland'}[prefix] || 'brooklyn';
+})();
+
 var _initView = [[40.706,-73.94],11];
 var map = L.map('map',{scrollWheelZoom:true, zoomSnap:.25, zoomDelta:.25}).setView(_initView[0],_initView[1]);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
@@ -616,20 +623,15 @@ var VIEW_BOUNDS = {
 };
 
 function filterByView(features, getLat, getLng) {
-  // In district mode, use the selected district's bounding box
-  var b = null;
   if(window._selectedCBFeature && window._selectedCBFeature.geometry) {
-    try {
-      var layer = L.geoJSON(window._selectedCBFeature);
-      var bounds = layer.getBounds();
-      if(bounds && bounds.isValid()) {
-        var pad = 0.02;
-        b = {minLat:bounds.getSouth()-pad, maxLat:bounds.getNorth()+pad,
-             minLng:bounds.getWest()-pad,  maxLng:bounds.getEast()+pad};
-      }
-    } catch(e) {}
+    // Filter points to those inside the district polygon
+    return features.filter(function(f){
+      var lat=getLat(f), lng=getLng(f);
+      if(!lat||!lng) return false;
+      return pip(lng, lat, window._selectedCBFeature);
+    });
   }
-  if(!b) b = VIEW_BOUNDS[activeMain];
+  var b = VIEW_BOUNDS[activeMain];
   if(!b) return features;
   return features.filter(function(f){
     var lat=getLat(f), lng=getLng(f);
@@ -968,23 +970,13 @@ function buildSubwayRoutes(d){
   if(subState.subway) subwayRoutesLayer.addTo(map);
 }
 function buildSubwayCombined(){
-  if(window._overlayData_subwayroutes) buildSubwayRoutes(window._overlayData_subwayroutes);
-  else fetch('data/cb6-subway-routes.geojson').then(r=>r.json()).then(d=>{window._overlayData_subwayroutes=d;buildSubwayRoutes(d);});
-  function mergeAndBuildSubwayStations(){
-    if(!window._overlayData_subway || !window._overlayData_subwaystops) return;
-    var merged = {
-      type:'FeatureCollection',
-      features:[].concat(window._overlayData_subway.features||[], window._overlayData_subwaystops.features||[])
-    };
-    buildSubway(merged);
-  }
-  if(!window._overlayData_subway){
-    fetch('data/nyc-subway-stations.geojson').then(r=>r.json()).then(d=>{window._overlayData_subway=d;mergeAndBuildSubwayStations();});
-  }
-  if(!window._overlayData_subwaystops){
-    fetch('data/cb6-subway-stops.geojson').then(r=>r.json()).then(d=>{window._overlayData_subwaystops=d;mergeAndBuildSubwayStations();});
-  }
-  mergeAndBuildSubwayStations();
+  // district-map: use citywide data only, no CB6-specific files
+  fetch('data/nyc-subway-stations.geojson').then(r=>r.json()).then(d=>{
+    window._overlayData_subway=d;
+    window._overlayData_subwaystops={type:'FeatureCollection',features:[]};
+    buildSubway(d);
+  });
+  // No subway routes file available citywide — skip
 }
 function citibikeStationIcon(f){
   var name = f && f.properties ? (f.properties.name || 'Citi Bike station') : 'Citi Bike station';
@@ -1015,8 +1007,8 @@ function buildBikeRoutes(d){
   if(subState.citibike) bikeRoutesLayer.addTo(map);
 }
 function buildCitibikeCombined(){
-  loadOverlay('citibike','data/citibike_stations_cb6.geojson',buildCitibike);
-  loadOverlay('bikeroutes','data/cb6-bike-routes.geojson',buildBikeRoutes);
+  // citibike: no citywide file available
+  // bike routes: no citywide file available
 }
 
 function speedLimitColor(speed){
@@ -1161,8 +1153,8 @@ function buildBusStops(d){
   if(subState.bus || subState.busstops) busStopsLayer.addTo(map);
 }
 function buildBusCombined(){
-  loadOverlay('busroutes','transport-data/cb-bk-6.json',buildBusRoutes);
-  loadOverlay('busstops','transport-data/cb-bk-6.json',buildBusStops);
+  loadOverlay('busroutes','transport-data/'+_boroKey+'.json',buildBusRoutes);
+  loadOverlay('busstops','transport-data/'+_boroKey+'.json',buildBusStops);
 }
 
 var LAND_USE_COLORS = {'01':'#FEFFA8','02':'#FCB842','03':'#B16E00','04':'#ff8341','05':'#fc2929','06':'#E362FB','07':'#E0BEEB','08':'#44A3D5','09':'#78D271','10':'#BAB8B6','11':'#555555'};
@@ -1226,7 +1218,7 @@ function buildParks(d){
 function buildParksCombined(){
   Promise.all([
     fetch('Parks_Properties_20260414.geojson').then(r=>r.json()),
-    fetch('data/prospect-park.geojson').then(r=>r.json())
+    Promise.resolve({type:'FeatureCollection',features:[]})
   ]).then(function(results){
     window._overlayData_parks = results[0];
     window._overlayData_prospectpark = results[1];
@@ -1595,13 +1587,13 @@ function toggleOverlay(name, on){
     busroutes:()=>loadOverlay('busroutes','transport-data/cb-bk-6.json',buildBusRoutes),
     busstops:()=>loadOverlay('busstops','transport-data/cb-bk-6.json',buildBusStops),
     speedlimits:()=>loadOverlay('speedlimits','data/speed-limits.geojson',buildSpeedLimits),
-    landuse:()=>loadOverlay('landuse','data/cb6-land-use-lots.geojson',buildLandUseLots),
-    zoning:()=>loadOverlay('zoning','data/cb6-zoning.geojson',buildZoning),
+    landuse:()=>{ /* land use: PLUTO API only, not available citywide */ },
+    zoning:()=>{ /* zoning: no citywide file available */ },
     parks:()=>buildParksCombined(),
-    schools:()=>loadOverlay('schools','schools_childcare_cb6.json',buildSchools),
-    childcare:()=>loadOverlay('childcare','schools_childcare_cb6.json',buildChildcare),
+    schools:()=>{ /* schools: no citywide file available */ },
+    childcare:()=>{ /* childcare: no citywide file available */ },
     libraries:()=>buildLibraries(),
-    schooldistricts:()=>loadOverlay('schooldistricts','school_districts_cb6.geojson',buildSchoolDistricts),
+    schooldistricts:()=>{ /* school districts: no citywide file available */ },
     gowanus:()=>loadOverlay('gowanus','data/Gowanus-Rezoning-Boundary-2.geojson',buildGowanus),
     historic:()=>loadOverlay('historic','data/historic-districts.geojson',buildHistoric),
     rents:()=>loadOverlay('rents','data/citywide-rents.geojson',buildRents),
@@ -1856,7 +1848,7 @@ function updateLegend(){
     if(bk) html+=`<span class="li"><span class="ls" style="background:${BORO_COLORS[bk]}"></span>${BORO_NAMES[bk]} CBs</span>`;
     else {Object.entries(BORO_COLORS).forEach(([k,c])=>{ html+=`<span class="li"><span class="ls" style="background:${c}"></span>${BORO_NAMES[k]}</span>`; }); }
   } else {
-    html+='<span class="li"><span class="ls" style="background:#f47920;border-radius:0"></span>BKCB6</span>';
+    html+='<span class="li"><span class="ls" style="background:#f47920;border-radius:0"></span>'+(window._districtLabel||'District')+'</span>';
   }
   active.forEach(k=>{ if(labels[k]) html+=`<span class="li"><span class="ls" style="background:${labels[k][0]}"></span>${labels[k][1]}</span>`; });
   if(subState.landuse){
