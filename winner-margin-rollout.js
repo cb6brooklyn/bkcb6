@@ -295,7 +295,6 @@
 
   function buildCardHtml(mapLabel, data, config) {
     return '' +
-      '<h3>' + mapLabel + ' ' + config.cardTitle + '</h3>' +
       '<p>' + config.intro + '</p>' +
       '<div class="winner-margin-layout">' +
         '<div>' +
