@@ -759,40 +759,50 @@ function featureTouchesAnyBoundary(feature, group){
     catch(e) { return overlayPointInBoundary(feature,b); }
   });
 }
+function lineCoords(f){
+  var g=f.geometry;
+  if(!g) return [];
+  if(g.type==='LineString') return g.coordinates||[];
+  if(g.type==='MultiLineString') return (g.coordinates||[]).reduce(function(a,b){return a.concat(b);});
+  return [];
+}
+function lineHasPointInBoundary(f, boundary){
+  var coords = lineCoords(f);
+  return coords.some(function(c){ return pip(c[0],c[1],boundary); });
+}
 function filteredBySelectedDistricts(features, clipPolygons){
-  var groups = boundaryGroupsForOverlayFiltering();
-  if(!groups.length) return [];
+  var boundary = window._selectedCBFeature;
+  if(!boundary || !boundary.geometry) return [];
   var out = [];
   features.forEach(function(f){
     if(!f || !f.geometry) return;
-    if(f.geometry.type === 'Point'){
-      var keepPoint = groups.every(function(group){ return group.some(function(b){return overlayPointInBoundary(f,b);}); });
-      if(keepPoint) out.push(f);
+    var gtype = f.geometry.type;
+    if(gtype === 'Point'){
+      var c = f.geometry.coordinates;
+      if(pip(c[0],c[1],boundary)) out.push(f);
       return;
     }
-    if(clipPolygons && (!window.turf || !turf.booleanIntersects || !turf.intersect)) return;
-    if(!clipPolygons){
-      if(groups.every(function(group){ return featureTouchesAnyBoundary(f, group); })) out.push(f);
+    if(gtype === 'LineString' || gtype === 'MultiLineString'){
+      // Keep line if any coordinate falls inside the district
+      if(lineHasPointInBoundary(f, boundary)) out.push(f);
       return;
     }
-    var pieces = [f];
-    groups.forEach(function(group){
-      var next = [];
-      pieces.forEach(function(piece){
-        group.forEach(function(b){
-          try {
-            if(!turf.booleanIntersects(piece,b)) return;
-            var clipped = safeTurfIntersect(piece,b);
-            if(clipped && clipped.geometry){
-              clipped.properties = Object.assign({}, f.properties);
-              next.push(clipped);
-            }
-          } catch(e) {}
-        });
-      });
-      pieces = next;
-    });
-    pieces.forEach(function(piece){ out.push(piece); });
+    // Polygon features — use turf intersect if clipPolygons, else bbox touch
+    if(clipPolygons && window.turf && turf.booleanIntersects && turf.intersect){
+      try {
+        if(!turf.booleanIntersects(f,boundary)) return;
+        var clipped = safeTurfIntersect(f,boundary);
+        if(clipped && clipped.geometry){
+          clipped.properties = Object.assign({},f.properties);
+          out.push(clipped);
+        }
+      } catch(e) {}
+    } else {
+      try {
+        if(window.turf && turf.booleanIntersects ? turf.booleanIntersects(f,boundary) : overlayPointInBoundary(f,boundary))
+          out.push(f);
+      } catch(e) {}
+    }
   });
   return out;
 }
