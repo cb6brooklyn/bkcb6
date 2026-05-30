@@ -441,7 +441,6 @@
     var districts = data.districts || {};
     var boroughs  = data.boroughs  || {};
 
-    // Tally per borough
     function tallyBoro(rows) {
       var navy = 0, orange = 0;
       rows.forEach(function(d) {
@@ -451,43 +450,58 @@
       return { navy: navy, orange: orange, total: rows.length };
     }
 
-    // Citywide tally
     var allRows = Object.values(districts);
     var cw = tallyBoro(allRows);
 
-    var isNavyBetter = function(t) { return t.navy >= t.orange; };
-
-    function scoreRow(label, tally, highlight) {
-      var navyPct  = tally.total ? Math.round(100 * tally.navy  / tally.total) : 0;
-      var orangePct= tally.total ? Math.round(100 * tally.orange / tally.total) : 0;
-      var navyWin  = tally.navy >= tally.orange;
-      return '<tr' + (highlight ? ' class="sb-total-row"' : '') + '>' +
-        '<td class="sb-boro">' + label + '</td>' +
-        '<td class="sb-total">' + tally.total + '</td>' +
-        '<td class="sb-navy' + (navyWin  ? ' sb-win' : '') + '">' + tally.navy  + '<span class="sb-pct">(' + navyPct  + '%)</span></td>' +
-        '<td class="sb-orange' + (!navyWin ? ' sb-win' : '') + '">' + tally.orange + '<span class="sb-pct">(' + orangePct + '%)</span></td>' +
-        '</tr>';
-    }
-
-    var rows = '';
+    // Build rows: boroughs + citywide total
+    var chartRows = [];
     BORO_ORDER.forEach(function(slug) {
       var boroRows = boroughs[slug] || [];
       if (!boroRows.length) return;
-      rows += scoreRow(BORO_DISPLAY[slug], tallyBoro(boroRows), false);
+      var t = tallyBoro(boroRows);
+      chartRows.push({ label: BORO_DISPLAY[slug], navy: t.navy, orange: t.orange, total: t.total, isTotal: false });
     });
-    rows += scoreRow('New York City', cw, true);
+    chartRows.push({ label: 'New York City', navy: cw.navy, orange: cw.orange, total: cw.total, isTotal: true });
 
-    el.innerHTML =
-      '<div class="sb-label">Community Board Breakdown — ' + config.eyebrow + '</div>' +
-      '<div class="sb-table-wrap"><table class="sb-table">' +
-        '<thead><tr>' +
-          '<th>Borough</th>' +
-          '<th>CBs</th>' +
-          '<th style="color:#d7e3ff">' + config.navyLabel + '</th>' +
-          '<th style="color:#fde1cf">' + config.orangeLabel + '</th>' +
-        '</tr></thead>' +
-        '<tbody>' + rows + '</tbody>' +
-      '</table></div>';
+    // Render as stacked bar chart
+    var html = '<div class="sb-label">Community Board Breakdown — ' + config.eyebrow + '</div>'
+      + '<div class="sb-chart">';
+
+    chartRows.forEach(function(row) {
+      var navyPct   = row.total ? (row.navy   / row.total * 100) : 0;
+      var orangePct = row.total ? (row.orange / row.total * 100) : 0;
+      var navyWins  = row.navy >= row.orange;
+      var rowClass  = row.isTotal ? 'sb-chart-row sb-chart-total' : 'sb-chart-row';
+
+      html += '<div class="' + rowClass + '">'
+        + '<div class="sb-chart-label">' + row.label + '</div>'
+        + '<div class="sb-chart-bars">'
+        +   '<div class="sb-chart-bar-wrap">'
+        +     '<div class="sb-chart-seg sb-chart-seg-navy" style="width:' + navyPct.toFixed(1) + '%">'
+        +       '<span class="sb-chart-num">' + (row.navy > 0 ? row.navy : '') + '</span>'
+        +     '</div>'
+        +     '<div class="sb-chart-seg sb-chart-seg-orange" style="width:' + orangePct.toFixed(1) + '%">'
+        +       '<span class="sb-chart-num sb-chart-num-orange">' + (row.orange > 0 ? row.orange : '') + '</span>'
+        +     '</div>'
+        +   '</div>'
+        +   '<div class="sb-chart-legend-inline">'
+        +     '<span class="sb-chart-winner-label" style="color:' + (navyWins ? 'var(--navy)' : 'var(--orange)') + '">'
+        +       (navyWins ? config.navyLabel : config.orangeLabel)
+        +       ' ' + (navyWins ? row.navy : row.orange) + '/' + row.total
+        +     '</span>'
+        +   '</div>'
+        + '</div>'
+        + '</div>';
+    });
+
+    // Legend
+    html += '</div>'
+      + '<div class="sb-chart-key">'
+      + '<span class="sb-key-dot" style="background:var(--navy)"></span>' + config.navyLabel + '&nbsp;&nbsp;'
+      + '<span class="sb-key-dot" style="background:var(--orange)"></span>' + config.orangeLabel
+      + '</div>';
+
+    el.innerHTML = html;
   }
 
   function renderRoot(root, geojson) {
