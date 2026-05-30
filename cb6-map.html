@@ -375,36 +375,39 @@ fetch('data/borough-boundaries.geojson').then(r=>r.json()).then(d=>{
   }).addTo(map);
 });
 
-fetch('data/cb6_boundary.geojson').then(r=>r.json()).then(d=>{
-  window._cb6BoundaryFeatures = geojsonFeatureArray(d);
-  if(!window._selectedCBFeature && window._cb6BoundaryFeatures.length) window._selectedCBFeature = window._cb6BoundaryFeatures[0];
-  cb6Layer = L.geoJSON(d,{style:{color:'#f47920',weight:3,fill:true,fillColor:'#f47920',fillOpacity:.07}});
-  cb6Layer.addTo(map);
-  var cb6LabelPos = addCB6BoundaryLabel();
-  var cb6FitBounds = cb6Layer.getBounds();
-  if(cb6LabelPos) cb6FitBounds = cb6FitBounds.extend(cb6LabelPos);
-  map.fitBounds(cb6FitBounds,{padding:[20,20]});
-  document.getElementById('note').textContent = 'Click any community board to see its overlapping districts.';
-  // Auto-load legislative data and show CB6 districts
-  Promise.all([
+(function initBoundary(){
+  var targetCd = _urlCd || '306';
+  var isCB6Mode = !_urlCd;
+  var fetches = [
     fetch('data/city-council-districts.geojson').then(r=>r.json()).then(d=>{window._ccData=d;}),
     fetch('data/state-assembly-districts.geojson').then(r=>r.json()).then(d=>{window._assemblyData=d;}),
     fetch('data/state-senate-districts.geojson').then(r=>r.json()).then(d=>{window._senateData=d;}),
     fetch('data/congressional-districts.geojson').then(r=>r.json()).then(d=>{window._congressData=d;}),
-    fetch('community-district-boundaries.geojson').then(r=>r.json()).then(d=>{
-      cdsData=d;
-      var cb6Feature = d.features.find(f=>f.properties.boro_cd==='306');
-      if(cb6Feature) showCBDistricts(cb6Feature);
-    })
-  ]).then(function(){
-    var cb6Feature = cdsData && cdsData.features.find(f=>f.properties.boro_cd==='306');
-    if(cb6Feature) {
-      window._selectedCBFeature = cb6Feature;
-      showCBDistricts(cb6Feature);
+    fetch('community-district-boundaries.geojson').then(r=>r.json()).then(d=>{cdsData=d;})
+  ];
+  if(isCB6Mode) fetches.push(fetch('data/cb6_boundary.geojson').then(r=>r.json()));
+  Promise.all(fetches).then(function(results){
+    var cb6BoundaryData = isCB6Mode ? results[5] : null;
+    var targetFeature = cdsData && cdsData.features.find(f=>String(f.properties.boro_cd)===String(targetCd));
+    if(isCB6Mode && cb6BoundaryData){
+      window._cb6BoundaryFeatures = geojsonFeatureArray(cb6BoundaryData);
+      if(!window._selectedCBFeature && window._cb6BoundaryFeatures.length) window._selectedCBFeature = window._cb6BoundaryFeatures[0];
+      cb6Layer = L.geoJSON(cb6BoundaryData,{style:{color:'#f47920',weight:3,fill:true,fillColor:'#f47920',fillOpacity:.07}});
+      cb6Layer.addTo(map);
+      var cb6LabelPos = addCB6BoundaryLabel();
+      var cb6FitBounds = cb6Layer.getBounds();
+      if(cb6LabelPos) cb6FitBounds = cb6FitBounds.extend(cb6LabelPos);
+      map.fitBounds(cb6FitBounds,{padding:[20,20]});
+    }
+    if(targetFeature){
+      window._selectedCBFeature = targetFeature;
+      showCBDistricts(targetFeature);
+      if(!isCB6Mode) map.fitBounds(L.geoJSON(targetFeature).getBounds(),{padding:[24,24]});
       refreshCBOverlapLayer();
     }
-  });
-});
+    document.getElementById('note').textContent = 'Click any community board to see its overlapping districts.';
+  }).catch(function(err){console.error('Init error',err);});
+})();
 
 // Load community districts (lazy)
 var cdsData = null;
