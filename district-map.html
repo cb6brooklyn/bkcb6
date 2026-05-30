@@ -500,13 +500,22 @@ function showCBDistricts(feature) {
 
   clearHighlights();
 
-  // Highlight the clicked CB
-  var highlight = L.geoJSON(feature, {style:{color:'#f47920',weight:3,fillColor:'#f47920',fillOpacity:.15}}).addTo(map);
+  // District boundary: heavy white casing + dark navy line, NO fill (never clashes with overlay colors)
+  var casing = L.geoJSON(feature, {style:{color:'#ffffff',weight:8,opacity:.95,fill:false,lineJoin:'round'}}).addTo(map);
+  highlightLayers.push(casing);
+  var highlight = L.geoJSON(feature, {style:{color:'#0b1f44',weight:3.5,opacity:1,fill:false,lineJoin:'round'}}).addTo(map);
   highlightLayers.push(highlight);
 
   // Find center point of CB
   var c = centroid(feature);
   var cLat = c[0], cLng = c[1];
+
+  // Permanent district label at the centroid
+  var labelMarker = L.marker([cLat, cLng], {
+    interactive:false,
+    icon: L.divIcon({className:'district-name-label', html:'<div style="background:#0b1f44;color:#fff;font-family:\'DM Sans\',sans-serif;font-weight:800;font-size:.82rem;padding:3px 9px;border-radius:13px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.35);border:1.5px solid #fff">'+escH(cbName)+'</div>', iconSize:null})
+  }).addTo(map);
+  highlightLayers.push(labelMarker);
 
   // Find overlapping districts - check multiple points of CB boundary against each district
   var districts = {cc:[], assembly:[], senate:[], congress:[]};
@@ -1668,8 +1677,7 @@ function luLoadParcels(){
 }
 function buildLandUsePolys(d){
   if(landUseLotsLayer) map.removeLayer(landUseLotsLayer);
-  var b=window._selectedCBFeature;
-  var feats=((d&&d.features)||[]).filter(function(f){ return f&&f.geometry&&(!b||polyInDistrict(f,b)); });
+  var feats=((d&&d.features)||[]).filter(function(f){ return f&&f.geometry; });
   landUseLotsLayer = L.geoJSON({type:'FeatureCollection',features:feats},{
     style:function(f){var p=f.properties||{};var c=luNorm(p.LandUse||p.landuse||p.LANDUSE);return{fillColor:LANDUSE_COLORS[c]||'#9aa0a6',fillOpacity:.72,color:'#fff',weight:.4};},
     onEachFeature:function(f,l){var p=f.properties||{},c=luNorm(p.LandUse||p.landuse||p.LANDUSE);l.bindPopup('<strong>'+(LANDUSE_LABELS[c]||'Unknown')+'</strong><br>'+escH(p.Address||'')+(p.ZoneDist1?'<br>Zoning: '+escH(p.ZoneDist1):''));}
