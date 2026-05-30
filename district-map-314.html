@@ -1920,66 +1920,7 @@ buildSubToggles();
 updateLegend();
 setTimeout(()=>map.invalidateSize(),200);
 // District opens clean — user toggles overlays on themselves
-// Lightweight orientation icons: small park & subway markers always shown so users get their bearings
-var _orientLayer = L.layerGroup();
-function parkPinIcon(name){
-  return L.divIcon({className:'orient-park-wrap',html:'<div class="orient-park" title="'+escH(name||'Park')+'"></div>',iconSize:[12,12],iconAnchor:[6,6],tooltipAnchor:[0,-7]});
-}
-// Centroid of the LARGEST polygon ring so the pin lands inside the actual park
-function largestPolyCentroid(f){
-  var g=f.geometry; if(!g) return null;
-  var polys = g.type==='Polygon' ? [g.coordinates] : (g.type==='MultiPolygon'? g.coordinates : null);
-  if(!polys) return null;
-  var best=null, bestArea=-1;
-  polys.forEach(function(poly){
-    var ring=poly[0]||[]; if(ring.length<3) return;
-    var a=0,cx=0,cy=0;
-    for(var i=0;i<ring.length-1;i++){var x0=ring[i][0],y0=ring[i][1],x1=ring[i+1][0],y1=ring[i+1][1];var cr=x0*y1-x1*y0;a+=cr;cx+=(x0+x1)*cr;cy+=(y0+y1)*cr;}
-    a*=0.5; if(Math.abs(a)<1e-12) return;
-    var area=Math.abs(a);
-    if(area>bestArea){bestArea=area;best=[cy/(6*a),cx/(6*a)];} // [lat,lng]
-  });
-  return best;
-}
-var PARK_SKIP_CATS = {'Triangle/Plaza':1,'Strip':1,'Mall':1,'Parkway':1,'Operations':1,'Buildings/Institutions':1,'Undeveloped':1};
-function _addOrientationIcons(){
-  if(!window._selectedCBFeature){ setTimeout(_addOrientationIcons,300); return; }
-  var b = window._selectedCBFeature;
-  _orientLayer.addTo(map);
-  // Major named parks only — real parks >= 1 acre, junk categories excluded, pin on largest polygon
-  fetch('data/topmap-parks-'+_boroKey+'.geojson').then(r=>r.json()).then(function(d){
-    var feats = ((d&&d.features)||[]).filter(function(f){
-      if(!f||!f.geometry) return false;
-      var p=f.properties||{};
-      if(!p.signname) return false;
-      if(parseFloat(p.acres||0) < 5.0) return false;
-      if(PARK_SKIP_CATS[p.typecategory]) return false;
-      return polyInDistrict(f,b);
-    });
-    feats.sort(function(a,b2){return parseFloat(b2.properties.acres||0)-parseFloat(a.properties.acres||0);});
-    var shown=0;
-    feats.forEach(function(f){
-      if(shown>=8) return;
-      var c = largestPolyCentroid(f);
-      if(!c || !pip(c[1],c[0],b)) return; // pin must be inside the district
-      shown++;
-      var nm = f.properties.signname;
-      L.marker([c[0],c[1]],{interactive:true,icon:parkPinIcon(nm)}).bindTooltip(nm,{sticky:true}).addTo(_orientLayer);
-    });
-  }).catch(function(){});
-  // Subway — proper MTA bullet markers at stations inside the district
-  fetch('data/nyc-subway-stations.geojson').then(r=>r.json()).then(function(d){
-    var feats = ((d&&d.features)||[]).filter(function(f){ try{var c=f.geometry.coordinates;return pip(c[0],c[1],b);}catch(e){return false;} });
-    feats = dedupeSubwayStations(feats);
-    feats.forEach(function(f){
-      var c=f.geometry.coordinates;
-      var nm = f.properties.display_name||f.properties.stop_name||'Subway station';
-      var routes = f.properties.daytime_routes?'<br>Routes: '+escH(f.properties.daytime_routes):'';
-      L.marker([c[1],c[0]],{interactive:true,icon:subwayStationIcon(f),riseOnHover:true}).bindTooltip('<strong>'+escH(nm)+'</strong>'+routes,{sticky:true}).addTo(_orientLayer);
-    });
-  }).catch(function(){});
-}
-_addOrientationIcons();
+// District opens clean — no orientation markers; user toggles overlays themselves
 
 // ── AUTOCOMPLETE ──
 let _acT=null;
