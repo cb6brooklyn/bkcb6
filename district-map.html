@@ -1621,6 +1621,25 @@ function districtEnvelope(){
   var b = L.geoJSON(f).getBounds();
   return {xmin:b.getWest(),ymin:b.getSouth(),xmax:b.getEast(),ymax:b.getNorth(),spatialReference:{wkid:4326}};
 }
+
+function polyInDistrict(f, boundary){
+  // Keep polygon if any vertex is inside the district, or the district center is inside the polygon
+  var g=f.geometry; if(!g) return false;
+  var rings=[];
+  if(g.type==='Polygon') rings=g.coordinates;
+  else if(g.type==='MultiPolygon') g.coordinates.forEach(function(p){rings=rings.concat(p);});
+  var anyVertexInDistrict = rings.some(function(ring){ return (ring||[]).some(function(pt){ return pip(pt[0],pt[1],boundary); }); });
+  if(anyVertexInDistrict) return true;
+  // Also: is the polygon's first vertex's lot fully containing? check district sample point inside polygon
+  try {
+    var bg=boundary.geometry; var bpt=null;
+    if(bg.type==='Polygon') bpt=bg.coordinates[0][0];
+    else if(bg.type==='MultiPolygon') bpt=bg.coordinates[0][0][0];
+    if(bpt) return pip(bpt[0],bpt[1],f);
+  } catch(e){}
+  return false;
+}
+
 function loadLandUseArcGIS(){
   var env = districtEnvelope();
   if(!env){ setTimeout(loadLandUseArcGIS,500); return; }
@@ -1638,7 +1657,8 @@ var LANDUSE_LABELS={'01':'1-2 Family','02':'Walk-Up MF','03':'Elevator MF','04':
 function luNorm(v){var s=String(v==null?'':v).replace(/\.0+$/,'');return s.length===1?'0'+s:s;}
 function buildLandUsePolys(d){
   if(landUseLotsLayer) map.removeLayer(landUseLotsLayer);
-  var feats = filteredBySelectedDistricts((d&&d.features)||[], true);
+  var b=window._selectedCBFeature;
+  var feats = ((d&&d.features)||[]).filter(function(f){return f&&f.geometry&&b&&polyInDistrict(f,b);});
   landUseLotsLayer = L.geoJSON({type:'FeatureCollection',features:feats},{
     style:function(f){var c=luNorm((f.properties||{}).LandUse);return{fillColor:LANDUSE_COLORS[c]||'#9aa0a6',fillOpacity:.7,color:'#fff',weight:.4};},
     onEachFeature:function(f,l){var p=f.properties||{},c=luNorm(p.LandUse);l.bindPopup('<strong>'+(LANDUSE_LABELS[c]||'Unknown')+'</strong><br>'+escH(p.Address||'')+(p.ZoneDist1?'<br>Zoning: '+escH(p.ZoneDist1):''));}
@@ -1657,7 +1677,8 @@ function loadZoningArcGIS(){
 function zoneFamily(z){z=String(z||'').toUpperCase();if(z[0]==='R')return['Residential','#f59e0b'];if(z[0]==='C')return['Commercial','#2563eb'];if(z[0]==='M')return['Manufacturing','#7c3aed'];if(/PARK/.test(z))return['Park','#22c55e'];return['Other','#8b5cf6'];}
 function buildZoningPolys(d){
   if(zoningLayer) map.removeLayer(zoningLayer);
-  var feats = filteredBySelectedDistricts((d&&d.features)||[], true);
+  var b=window._selectedCBFeature;
+  var feats = ((d&&d.features)||[]).filter(function(f){return f&&f.geometry&&b&&polyInDistrict(f,b);});
   zoningLayer = L.geoJSON({type:'FeatureCollection',features:feats},{
     style:function(f){var z=(f.properties||{}).ZONEDIST||(f.properties||{}).Zonedist||'';var fam=zoneFamily(z);return{color:fam[1],weight:1.2,opacity:.9,fillColor:fam[1],fillOpacity:.2};},
     onEachFeature:function(f,l){var p=f.properties||{};var z=p.ZONEDIST||p.Zonedist||'Zoning';var fam=zoneFamily(z);l.bindPopup('<strong>'+escH(z)+'</strong><br>'+fam[0]);}
