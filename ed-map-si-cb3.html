@@ -41,6 +41,14 @@ body{display:flex;flex-direction:column}
   </div>
   <a class="back-link" href="javascript:history.back()">← Back</a>
 </div>
+<div class="search-row" style="display:flex;gap:6px;align-items:center;padding:8px 16px;background:rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0;position:relative">
+  <input id="addr" type="text" placeholder="Search an address to find its Election District…" autocomplete="off"
+    style="flex:1;font-family:'DM Sans',sans-serif;font-size:.8rem;padding:7px 11px;border:none;border-radius:6px;background:rgba(255,255,255,.12);color:#fff;outline:none"
+    onkeydown="if(event.key==='Enter')edSearch()"/>
+  <button onclick="edSearch()" style="padding:7px 14px;background:#f47920;color:#fff;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap">Search</button>
+  <button onclick="edLocate()" title="Use my location" style="padding:7px 11px;background:transparent;color:rgba(255,255,255,.75);border:1px solid rgba(255,255,255,.3);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.8rem;cursor:pointer;white-space:nowrap">📍</button>
+  <button onclick="edClear()" id="ed-clear" style="display:none;padding:7px 10px;background:transparent;color:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.3);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.8rem;cursor:pointer;white-space:nowrap">Clear</button>
+</div>
 <div class="legend" id="legend"></div>
 <div id="map"></div>
 <div class="source">Source: NYC Board of Elections, 2025 General Election &nbsp;|&nbsp; Shading intensity = margin of victory &nbsp;|&nbsp; bkcb6.app</div>
@@ -102,7 +110,7 @@ function getTooltip(p){
 function drawLayer(){
   if(geoLayer)map.removeLayer(geoLayer);
   if(labelGroup)map.removeLayer(labelGroup);
-  labelGroup=L.layerGroup().addTo(map);
+  labelGroup=L.layerGroup();
   geoLayer=L.geoJSON(data,{
     style:function(f){return {fillColor:getFill(f.properties),fillOpacity:0.82,color:'#fff',weight:1.3};},
     onEachFeature:function(f,lyr){
@@ -115,7 +123,15 @@ function drawLayer(){
     }
   }).addTo(map);
   map.fitBounds(geoLayer.getBounds(),{padding:[20,20]});
+  refreshLabels();
 }
+var LABEL_ZOOM=14;
+function refreshLabels(){
+  if(!labelGroup)return;
+  if(map.getZoom()>=LABEL_ZOOM){ if(!map.hasLayer(labelGroup))labelGroup.addTo(map); }
+  else { if(map.hasLayer(labelGroup))map.removeLayer(labelGroup); }
+}
+map.on("zoomend",refreshLabels);
 
 function updateLegend(){
   var html='';
@@ -136,7 +152,28 @@ function updateLegend(){
 
 function setMode(m,btn){mode=m;document.querySelectorAll('.map-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');if(data){drawLayer();updateLegend();}}
 
-fetch('data/si-cb3-ed.geojson').then(function(r){return r.json();}).then(function(d){data=d;drawLayer();updateLegend();});
+// ---- CB label (clearer CB identification on the map) ----
+var CB_NAME='Staten Island CB3';
+var cbLabel=null;
+function drawCBOutline(){
+  try{
+    if(cbLabel)map.removeLayer(cbLabel);
+    var b=geoLayer.getBounds();
+    var c=b.getCenter();
+    cbLabel=L.marker([b.getNorth(),c.lng],{interactive:false,zIndexOffset:3000,icon:L.divIcon({className:"",html:'<div style="font-family:DM Sans,sans-serif;font-weight:800;font-size:1rem;color:#0d1b4b;background:rgba(255,255,255,.92);border:2px solid #f47920;border-radius:7px;padding:3px 10px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.25);transform:translate(-50%,-50%)">'+CB_NAME+'</div>',iconAnchor:[0,0]})}).addTo(map);
+  }catch(e){}
+}
+function ptInRing(pt,ring){var x=pt[0],y=pt[1],inside=false;for(var i=0,j=ring.length-1;i<ring.length;j=i++){var xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];var hit=((yi>y)!=(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi);if(hit)inside=!inside;}return inside;}
+function ptInFeature(pt,geom){if(geom.type==="Polygon"){if(!ptInRing(pt,geom.coordinates[0]))return false;for(var h=1;h<geom.coordinates.length;h++){if(ptInRing(pt,geom.coordinates[h]))return false;}return true;}if(geom.type==="MultiPolygon"){for(var p=0;p<geom.coordinates.length;p++){var poly=geom.coordinates[p];if(ptInRing(pt,poly[0])){var inHole=false;for(var hh=1;hh<poly.length;hh++){if(ptInRing(pt,poly[hh]))inHole=true;}if(!inHole)return true;}}}return false;}
+function findED(lng,lat){if(!data)return null;for(var i=0;i<data.features.length;i++){if(ptInFeature([lng,lat],data.features[i].geometry))return data.features[i];}return null;}
+var searchMarker=null;
+function edClear(){if(searchMarker){map.removeLayer(searchMarker);searchMarker=null;}document.getElementById("addr").value="";document.getElementById("ed-clear").style.display="none";if(geoLayer)map.fitBounds(geoLayer.getBounds(),{padding:[20,20]});}
+async function edSearch(){var addr=document.getElementById("addr").value.trim();if(!addr)return;var lat=null,lng=null,lbl=addr;try{var r=await fetch("https://geosearch.planninglabs.nyc/v2/search?text="+encodeURIComponent(addr+" Staten Island New York")+"&size=1");var d=await r.json();if(d.features&&d.features.length){lng=d.features[0].geometry.coordinates[0];lat=d.features[0].geometry.coordinates[1];lbl=(d.features[0].properties||{}).label||addr;}}catch(e){}if(lat==null){alert("Address not found. Try including the street number.");return;}showEDResult(lat,lng,lbl);}
+function edLocate(){if(!navigator.geolocation){alert("Location is not available on this device.");return;}navigator.geolocation.getCurrentPosition(function(pos){showEDResult(pos.coords.latitude,pos.coords.longitude,"Your location");},function(){alert("Could not get your location. You can type an address instead.");},{enableHighAccuracy:true,timeout:8000});}
+function showEDResult(lat,lng,lbl){if(searchMarker)map.removeLayer(searchMarker);searchMarker=L.circleMarker([lat,lng],{radius:8,fillColor:"#f47920",color:"#fff",weight:2.5,fillOpacity:1,zIndexOffset:5000}).addTo(map);map.setView([lat,lng],15);document.getElementById("ed-clear").style.display="";var ed=findED(lng,lat);var meta=MODE_META[mode];var html;if(ed){var p=ed.properties;html='<div style="font-family:DM Sans,sans-serif;max-width:270px">'+'<div style="font-weight:700;font-size:.8rem;color:#0d1b4b;margin-bottom:2px">'+escapeH(lbl)+'</div>'+'<div style="font-weight:700;font-size:.86rem;color:#0d1b4b;border-bottom:2px solid #f47920;padding-bottom:4px;margin-bottom:7px">'+(p.popup_title||p.ed_label||("ED "+p.elect_dist))+'</div>'+'<div style="font-size:.72rem;color:#888;font-weight:600;margin-bottom:4px">'+meta.label+'</div>'+'<div style="font-size:.78rem;color:#222;line-height:1.45">'+(p[meta.text]||"No results reported for this district.")+'</div>'+'</div>';}else{html='<div style="font-family:DM Sans,sans-serif;max-width:240px"><div style="font-weight:700;font-size:.8rem;color:#0d1b4b">'+escapeH(lbl)+'</div><div style="font-size:.76rem;color:#c81e1e;margin-top:4px">This location falls outside '+CB_NAME+'.</div></div>';}searchMarker.bindPopup(html,{maxWidth:280}).openPopup();}
+function escapeH(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
+
+fetch('data/si-cb3-ed.geojson').then(function(r){return r.json();}).then(function(d){data=d;drawLayer();drawCBOutline();updateLegend();});
 </script>
 </body>
 </html>
