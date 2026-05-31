@@ -53,6 +53,7 @@ body{display:flex;flex-direction:column}
 .note-bar a{color:#f47920;text-decoration:none}
 .subway-station-icon-wrap,.citibike-station-icon-wrap,.orient-park-wrap,.borough-name-label,.cb-num-label{background:transparent;border:0}
 .boro-big-label{font-family:'DM Sans',sans-serif;font-weight:800;font-size:1.15rem;letter-spacing:-.01em;line-height:1;white-space:nowrap;opacity:.78;text-shadow:-1px -1px 0 rgba(255,255,255,.85),1px -1px 0 rgba(255,255,255,.85),-1px 1px 0 rgba(255,255,255,.85),1px 1px 0 rgba(255,255,255,.85);transform:translate(-50%,-50%);display:inline-block}
+.boro-big-label.boro-label-strong{font-weight:900;opacity:.95;text-shadow:-2px -2px 0 #fff,2px -2px 0 #fff,-2px 2px 0 #fff,2px 2px 0 #fff,0 0 3px #fff,0 1px 4px rgba(0,0,0,.25)}
 .orient-park{width:11px;height:11px;border-radius:50%;background:#16a34a;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.45);transform:translate(-50%,-50%)}
 .subway-icon-stack{display:flex;align-items:center;gap:2px;padding:3px 4px;background:#fff;border:2px solid #111;border-radius:15px;box-shadow:0 2px 7px rgba(0,0,0,.4);white-space:nowrap;transform:translate(-50%,-50%)}
 .subway-route-badge{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:50%;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:800;line-height:19px;color:#fff;border:1px solid rgba(0,0,0,.25)}
@@ -515,7 +516,9 @@ function showCitywide(){
         try{
           var ll = BORO_LABEL_LATLNG[bc];
           if(!ll){ var c=L.geoJSON(f).getBounds().getCenter(); ll=[c.lat,c.lng]; }
-          L.marker(ll,{interactive:false,zIndexOffset:2000,icon:L.divIcon({className:'borough-name-label',html:'<div class="boro-big-label" style="color:'+(SEAL_COLORS[bc]||'#333')+'">'+(BORO_NAMES_FULL[bc]||'').replace('The ','')+'</div>',iconSize:null,iconAnchor:[0,0]})}).addTo(window._boroGroups[bc]);
+          var _labCol = (bc==='3') ? (SEAL_ACCENT[bc]||'#f2c84b') : (SEAL_COLORS[bc]||'#333');
+          var _labCls = (bc==='1') ? 'boro-big-label boro-label-strong' : 'boro-big-label';
+          L.marker(ll,{interactive:false,zIndexOffset:2000,icon:L.divIcon({className:'borough-name-label',html:'<div class="'+_labCls+'" style="color:'+_labCol+'">'+(BORO_NAMES_FULL[bc]||'').replace('The ','')+'</div>',iconSize:null,iconAnchor:[0,0]})}).addTo(window._boroGroups[bc]);
         }catch(e){}
       });
     }, 400);
@@ -595,11 +598,18 @@ function applyDataOverlayMode(){
 }
 function refreshCBLabelsByZoom(){
   if(!window._cbLabels) return;
-  var show = map.getZoom() >= 12; // CB labels only when zoomed into a borough
+  var z = map.getZoom();
+  // Faintly visible even citywide so a screenshot shows the CB detail; fuller as you zoom in.
+  var op = z>=14 ? 1 : (z>=12 ? .8 : (z>=11 ? .5 : .32));
   window._cbLabels.forEach(function(o){
     var boroOn = window._boroVisible[o.bc];
-    if(show && boroOn){ if(!map.hasLayer(o.marker)) o.marker.addTo(map); }
-    else { if(map.hasLayer(o.marker)) map.removeLayer(o.marker); }
+    if(boroOn){
+      if(!map.hasLayer(o.marker)) o.marker.addTo(map);
+      var el = o.marker.getElement && o.marker.getElement();
+      if(el){ var d=el.firstChild; if(d) d.style.opacity = op; }
+    } else {
+      if(map.hasLayer(o.marker)) map.removeLayer(o.marker);
+    }
   });
 }
 function buildBoroughToggleRow(){
