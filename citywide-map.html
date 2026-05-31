@@ -1167,15 +1167,27 @@ function buildSubwayRoutesCitywide(d){
   });
   if(subState.subway) subwayRoutesLayer.addTo(map);
 }
+function subwayStopDotIcon(f){
+  // Small dot: a white-ringed circle tinted by the station's first route color. Used at mid zoom.
+  var raw = ((f.properties&&(f.properties.daytime_routes||f.properties.routes))||'').trim();
+  var first = raw ? raw.split(/\s+/)[0] : '';
+  var st = subwayRouteStyle(first||'MTA');
+  var html = '<span style="display:block;width:9px;height:9px;border-radius:50%;background:'+st.bg+';border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35)"></span>';
+  return L.divIcon({className:'subway-stop-dot-wrap',html:html,iconSize:[13,13],iconAnchor:[6.5,6.5],tooltipAnchor:[0,-8]});
+}
 function refreshSubwayStationsByZoom(){
   var d = window._overlayData_subway;
   if(subwayLayer){ map.removeLayer(subwayLayer); subwayLayer=null; }
   if(!subState.subway) return;
-  if(map.getZoom() < 12) return; // stations appear as you zoom toward a borough
+  var z = map.getZoom();
+  if(z < 12) return; // nothing until you zoom toward a borough
   if(!d) return;
   var feats = dedupeSubwayStations((d.features||[]));
+  var full = z >= 14; // full bullets (train + letters) only when zoomed in close
   subwayLayer = L.geoJSON({type:'FeatureCollection',features:feats},{
-    pointToLayer:(f,ll)=>L.marker(ll,{icon:subwayStationIcon(f),riseOnHover:true}),
+    pointToLayer:function(f,ll){
+      return L.marker(ll,{icon: full ? subwayStationIcon(f) : subwayStopDotIcon(f), riseOnHover:true});
+    },
     onEachFeature:(f,l)=>{
       var name=f.properties.display_name||f.properties.stop_name||'Subway station';
       var routes=f.properties.daytime_routes?'<br>Routes: '+escH(f.properties.daytime_routes):'';
