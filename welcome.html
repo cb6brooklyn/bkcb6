@@ -2271,14 +2271,30 @@ async function fpFindLotProfile(bblNum,lat,lng){
 async function fpFetchCitywideLotProfile(bblNum){
   var bbl=String(bblNum||'').replace(/\D/g,'');
   if(!/^\d{10}$/.test(bbl))return null;
+  var sel='bbl,borough,block,lot,address,landuse,zonedist1,zonedist2,zonedist3,zonedist4,overlay1,overlay2,spdist1,ownername,yearbuilt,unitsres,unitstotal,bldgclass,lotarea,bldgarea,cd,council,policeprct,schooldist,zipcode';
+  // Primary: exact BBL match
   try{
     var q=new URLSearchParams();
     q.set('$where','bbl='+bbl);
-    q.set('$select','bbl,borough,block,lot,address,landuse,zonedist1,zonedist2,zonedist3,zonedist4,ownername,yearbuilt,unitsres,unitstotal,bldgclass,lotarea,bldgarea,cd,council,policeprct,schooldist');
+    q.set('$select',sel);
     q.set('$limit','1');
     var rows=await fpFetchJSON('https://data.cityofnewyork.us/resource/64uk-42ks.json?'+q.toString(),8000);
-    return Array.isArray(rows)&&rows[0]?rows[0]:null;
-  }catch(e){return null;}
+    if(Array.isArray(rows)&&rows[0]) return rows[0];
+  }catch(e){}
+  // Fallback: query by borough code + block + lot (handles BBL stored without leading borough digit edge cases)
+  try{
+    var bc={'1':'MN','2':'BX','3':'BK','4':'QN','5':'SI'}[bbl.charAt(0)]||'';
+    var blk=parseInt(bbl.slice(1,6),10), lt=parseInt(bbl.slice(6,10),10);
+    if(bc){
+      var q2=new URLSearchParams();
+      q2.set('$where', "borough='"+bc+"' AND block="+blk+" AND lot="+lt);
+      q2.set('$select',sel);
+      q2.set('$limit','1');
+      var rows2=await fpFetchJSON('https://data.cityofnewyork.us/resource/64uk-42ks.json?'+q2.toString(),8000);
+      if(Array.isArray(rows2)&&rows2[0]) return rows2[0];
+    }
+  }catch(e){}
+  return null;
 }
 async function fpNearbyCivic(lat,lng){
   var items=[];
@@ -2328,7 +2344,13 @@ async function fpMayorResult(a){
   }catch(e){return '';}
 }
 function fpRenderProfile(addr, boro, lbl, lat, lng, gcData, lotMatch, civicItems, mayorResult, cityLot){
-  var a=gcData||{}, localP=lotMatch&&lotMatch.feature?(lotMatch.feature.properties||{}):{}, cityP=cityLot||{}, lotP=Object.assign({},cityP,localP);
+  var a=gcData||{}, cityP=cityLot||{};
+  var localExact = lotMatch && lotMatch.feature && lotMatch.exact; // only trust local CB6 lot if it's the SAME bbl
+  var localP = localExact ? (lotMatch.feature.properties||{}) : {};
+  // Citywide PLUTO is the base for every lot in the city; exact local CB6 match can enrich it.
+  var lotP = Object.assign({}, localP, cityP);
+  // Prefer citywide values when present, fall back to local CB6 extras (links etc.)
+  if(localExact){ var lx=lotMatch.feature.properties||{}; ['dob_permits','zap_applications','acris_records','doc_link','neighborhood'].forEach(function(k){ if(lx[k]&&!lotP[k]) lotP[k]=lx[k]; }); }
   var bblRaw=(a.bbl||lotP.bbl||cityP.bbl||'');
   var bblNum=String(bblRaw).replace(/\D/g,'').slice(0,10);
   var boroughCode=bblNum?bblNum.charAt(0):({BK:'3',MN:'1',BX:'2',QN:'4',SI:'5'}[String(lotP.borough||cityP.borough||'').toUpperCase()]||'');
