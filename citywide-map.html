@@ -111,7 +111,15 @@ body{display:flex;flex-direction:column}
 <div class="top-bar">
   <h1 id="map-title">District <span>Map</span></h1>
   <div class="search-row" style="position:relative">
-    <input id="s-input" type="text" placeholder="Search any NYC address…" autocomplete="off"
+    <select id="boro-sel" onchange="this.style.borderColor='#f47920'" style="flex-shrink:0;border:1.5px solid #f47920;border-radius:6px;padding:0 8px;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:700;color:#0d1b4b;background:#fff;height:38px;margin-right:6px">
+      <option value="">Borough…</option>
+      <option value="Manhattan">Manhattan</option>
+      <option value="Bronx">The Bronx</option>
+      <option value="Brooklyn">Brooklyn</option>
+      <option value="Queens">Queens</option>
+      <option value="Staten Island">Staten Island</option>
+    </select>
+    <input id="s-input" type="text" placeholder="Search an address…" autocomplete="off"
       oninput="doAC(this.value)" onkeydown="if(event.key==='Enter')doSearch()"/>
     <div id="ac-drop" style="position:absolute;top:100%;left:0;right:80px;background:#0d1b4b;border:1.5px solid #f47920;border-top:none;border-radius:0 0 6px 6px;z-index:9999;display:none;max-height:180px;overflow-y:auto"></div>
     <button onclick="doSearch()">Search</button>
@@ -2234,8 +2242,9 @@ async function doAC(val){
   _acT=setTimeout(async()=>{
     try{
       const _bs=document.getElementById('boro-sel');
-      const boro=_bs?_bs.value:'Citywide';
-      const boroQ=boro!=='Citywide'?` ${boro} New York`:' New York City';
+      const boro=_bs?_bs.value:'';
+      if(!boro){ drop.style.display='none'; return; }
+      const boroQ=` ${boro} New York`;
       const r=await fetch(`https://geosearch.planninglabs.nyc/v2/autocomplete?text=${encodeURIComponent(val+boroQ)}&size=6`);
       const d=await r.json();
       drop.innerHTML='';
@@ -2300,10 +2309,16 @@ function pRow(icon,label,val){return'<tr style="border-bottom:1px solid #f0efed"
 async function doSearch(){
   const addr=document.getElementById('s-input').value.trim();
   const _bs=document.getElementById('boro-sel');
-  const boro=_bs?_bs.value:'Citywide';
+  const boro=_bs?_bs.value:'';
   if(!addr)return;
-  document.getElementById('ac-drop').style.display='none';
   const res=document.getElementById('s-result');
+  if(!boro){
+    res.style.cssText='display:block;padding:10px 14px;background:#fff;border-bottom:2px solid #f47920;flex-shrink:0';
+    res.innerHTML='<span style="color:#c81e1e;font-size:.78rem;font-weight:700">Please choose a borough first.</span>';
+    var _bsel=document.getElementById('boro-sel'); if(_bsel){ _bsel.style.borderColor='#c81e1e'; _bsel.focus(); }
+    return;
+  }
+  document.getElementById('ac-drop').style.display='none';
   res.style.display='block';
   res.innerHTML='<span style="color:#888;font-size:.78rem;font-family:DM Mono,monospace">Searching…</span>';
 
@@ -2321,13 +2336,9 @@ async function doSearch(){
   let lat=null,lng=null,lbl=addr,gcData=null;
 
   if(m){
-    // Try the typed borough first (if any), then the selector, then all five.
-    let boros;
-    if(typedBoro) boros=[typedBoro];
-    else if(boro!=='Citywide') boros=[boro];
-    else boros=['Brooklyn','Manhattan','Queens','Bronx','Staten Island'];
-    // Always ensure all five are attempted as fallback if the first choice misses.
-    ['Manhattan','Bronx','Brooklyn','Queens','Staten Island'].forEach(function(b){ if(boros.indexOf(b)<0) boros.push(b); });
+    // Borough is required and chosen; try typed-borough override first, then the chosen borough.
+    let boros = typedBoro ? [typedBoro, boro] : [boro];
+    boros = boros.filter(function(b,i){ return boros.indexOf(b)===i; });
     for(const b of boros){
       try{
         const r=await fetch(`https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(m[1])}&street=${encodeURIComponent(m[2])}&borough=${encodeURIComponent(b)}&subscription-key=${KEY}`);
