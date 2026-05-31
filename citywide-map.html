@@ -499,6 +499,22 @@ function setBoroughVisible(bc, on){
   else map.removeLayer(window._boroGroups[bc]);
   refreshCBLabelsByZoom();
 }
+function applyDataOverlayMode(){
+  // When land use or zoning is active, remove the borough fills + CB outlines/labels so the data is visible.
+  var dataOn = subState.landuse || subState.zoning;
+  if(!window._boroGroups) return;
+  ['1','2','3','4','5'].forEach(function(bc){
+    var g = window._boroGroups[bc];
+    if(!g) return;
+    if(dataOn){ if(map.hasLayer(g)) map.removeLayer(g); }
+    else { if(window._boroVisible[bc] && !map.hasLayer(g)) g.addTo(map); }
+  });
+  // CB labels: also drop while data overlay is on
+  if(window._cbLabels){
+    window._cbLabels.forEach(function(o){ if(dataOn && map.hasLayer(o.marker)) map.removeLayer(o.marker); });
+  }
+  if(!dataOn) refreshCBLabelsByZoom();
+}
 function refreshCBLabelsByZoom(){
   if(!window._cbLabels) return;
   var show = map.getZoom() >= 12; // CB labels only when zoomed into a borough
@@ -1907,7 +1923,7 @@ function buildZoningPolys(d){
   if(zoningLayer) map.removeLayer(zoningLayer);
   var feats = ((d&&d.features)||[]).filter(function(f){return f&&f.geometry;});
   zoningLayer = L.geoJSON({type:'FeatureCollection',features:feats},{
-    style:function(f){var z=(f.properties||{}).ZONEDIST||(f.properties||{}).Zonedist||'';var fam=zoneFamily(z);return{color:fam[1],weight:1,opacity:.85,fillColor:fam[1],fillOpacity:.42};},
+    style:function(f){var z=(f.properties||{}).ZONEDIST||(f.properties||{}).Zonedist||'';var fam=zoneFamily(z);return{color:fam[1],weight:.5,opacity:.6,fillColor:fam[1],fillOpacity:.5};},
     onEachFeature:function(f,l){var p=f.properties||{};var z=p.ZONEDIST||p.Zonedist||'Zoning';var fam=zoneFamily(z);l.bindPopup('<strong>'+escH(z)+'</strong><br>'+fam[0]);}
   });
   if(subState.zoning) zoningLayer.addTo(map);
@@ -1919,6 +1935,7 @@ function toggleOverlay(name, on){
     subState.busroutes=false;
     subState.busstops=false;
   }
+  if(name==='landuse' || name==='zoning'){ applyDataOverlayMode(); }
   // Lazy load
   const loaders = {
     nypd:()=>loadOverlay('nypd','data/nypd_sectors.geojson',buildNYPD),
