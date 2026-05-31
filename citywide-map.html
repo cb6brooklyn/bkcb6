@@ -2308,11 +2308,26 @@ async function doSearch(){
   res.innerHTML='<span style="color:#888;font-size:.78rem;font-family:DM Mono,monospace">Searching…</span>';
 
   const KEY='b913bdfb9c47466589d0f08c99c75b21';
-  const m=addr.match(/^(\d+[-\d]*)\s+(.+)$/);
+  // Parse a borough hint from the typed address (e.g. "250 Baltic St, Brooklyn" or zip), so the correct borough is tried first.
+  const BORO_ALIAS={'manhattan':'Manhattan','new york':'Manhattan','ny':'Manhattan','nyc':'Manhattan','bronx':'Bronx','the bronx':'Bronx','brooklyn':'Brooklyn','bk':'Brooklyn','bklyn':'Brooklyn','queens':'Queens','staten island':'Staten Island','staten':'Staten Island','si':'Staten Island'};
+  let typedBoro=null, streetAddr=addr;
+  const parts=addr.split(',').map(s=>s.trim()).filter(Boolean);
+  if(parts.length>1){
+    const tail=parts[parts.length-1].toLowerCase().replace(/\s+\d{5}.*$/,'').replace(/\bny\b.*$/,'').trim();
+    if(BORO_ALIAS[tail]){ typedBoro=BORO_ALIAS[tail]; streetAddr=parts.slice(0,-1).join(', '); }
+    else { streetAddr=parts[0]; }
+  }
+  const m=streetAddr.match(/^(\d+[-\d]*)\s+(.+)$/);
   let lat=null,lng=null,lbl=addr,gcData=null;
 
   if(m){
-    const boros=boro==='Citywide'?['Brooklyn','Manhattan','Queens','Bronx','Staten Island']:[boro];
+    // Try the typed borough first (if any), then the selector, then all five.
+    let boros;
+    if(typedBoro) boros=[typedBoro];
+    else if(boro!=='Citywide') boros=[boro];
+    else boros=['Brooklyn','Manhattan','Queens','Bronx','Staten Island'];
+    // Always ensure all five are attempted as fallback if the first choice misses.
+    ['Manhattan','Bronx','Brooklyn','Queens','Staten Island'].forEach(function(b){ if(boros.indexOf(b)<0) boros.push(b); });
     for(const b of boros){
       try{
         const r=await fetch(`https://api.nyc.gov/geoclient/v2/address.json?houseNumber=${encodeURIComponent(m[1])}&street=${encodeURIComponent(m[2])}&borough=${encodeURIComponent(b)}&subscription-key=${KEY}`);
