@@ -2395,10 +2395,46 @@ async function doSearch(){
     if(gcData.policePrecinct) html+=pRow('👮','NYPD Precinct','Precinct '+parseInt(gcData.policePrecinct));
     if(gcData.zipCode) html+=pRow('📮','ZIP',gcData.zipCode);
   }
-  html+='<tr><td colspan="2" style="padding:6px 0"><a href="mydistricts.html?address='+encodeURIComponent(addr)+(boro!=='Citywide'?'&borough='+encodeURIComponent(boro):'')+'\" target="_blank" style="color:#f47920;font-size:.72rem;font-family:DM Mono,monospace;font-weight:700">Full district breakdown ↗</a></td></tr>';
   html+='</table>';
-  res.style.cssText='display:block;padding:10px 14px;background:#fff;border-bottom:2px solid #f47920;flex-shrink:0';
-  res.innerHTML=html;
+  res.style.cssText='display:block;padding:10px 14px;background:#fff;border-bottom:2px solid #f47920;flex-shrink:0;max-height:62vh;overflow-y:auto';
+
+  var bbl=(gcData&&(gcData.bbl||gcData.bblBoroughCodeBlockLot||''))+'';
+  bbl=bbl.replace(/\D/g,'');
+  var bcode=bbl.slice(0,1), block=bbl.slice(1,6), lot=bbl.slice(6,10);
+  var bkLink='<table style="border-collapse:collapse;width:100%;font-size:.78rem"><tr><td colspan="2" style="padding:6px 0"><a href="mydistricts.html?address='+encodeURIComponent(addr)+'&borough='+encodeURIComponent(boro)+'" target="_blank" style="color:#f47920;font-size:.72rem;font-family:DM Mono,monospace;font-weight:700">Full district breakdown ↗</a></td></tr></table>';
+
+  if(bbl.length<10){ res.innerHTML=html+bkLink; return; }
+
+  res.innerHTML=html+'<div style="font-size:.7rem;color:#888;font-family:DM Mono,monospace;padding:4px 0">Loading zoning, use group, land use…</div>'+bkLink;
+
+  Promise.all([luFetchPlutoLot(bbl), luFetchLandmark(bbl)]).then(function(out){
+    var pluto=out[0]||{}, hist=out[1]||[];
+    var zPrimary=pluto.zonedist1||(gcData&&(gcData.zoningDistrict1||gcData.primaryZoningDistrict))||'';
+    var zSecondary=pluto.zonedist2||(gcData&&(gcData.zoningDistrict2||gcData.overlayDistrict1))||'';
+    var zDisplay=zPrimary?zPrimary+(zSecondary&&zSecondary!==zPrimary?' / '+zSecondary:''):'Not available';
+    var luLabel=luLandUseLabel(pluto.landuse)||(pluto.landuse?'Code '+pluto.landuse:'Not available');
+    var useGroup=luUseGroup(zPrimary);
+    var lmDisplay=hist.length?hist.join(' / '):'Not in an LPC historic district';
+    var dobUrl=(bcode&&block&&lot)?'https://a810-bisweb.nyc.gov/bisweb/PropertyBrowseByBBLServlet?allborough='+bcode+'&allblock='+parseInt(block)+'&alllot='+parseInt(lot)+'&filetype=html&requestid=0':'#';
+    var zapUrl=(block&&lot)?'https://zap.planning.nyc.gov/projects?block='+parseInt(block)+'&lot='+parseInt(lot):'#';
+    var acrisUrl=(bcode&&block&&lot)?'https://a836-acris.nyc.gov/DS/DocumentSearch/BBL?REQUEST_BBL='+bcode+block+lot:'#';
+    var zolaUrl=(bcode&&block&&lot)?'https://zola.planning.nyc.gov/l/lot/'+bcode+'/'+parseInt(block)+'/'+parseInt(lot):'#';
+
+    var t2='<table style="border-collapse:collapse;width:100%;font-size:.78rem;margin-top:2px">';
+    t2+=pRow('🏙','Zoning',escH(zDisplay));
+    t2+=pRow('📐','Use Group',escH(useGroup));
+    t2+=pRow('🏘','Land Use',escH(luLabel));
+    t2+=pRow('🏛','Landmark',escH(lmDisplay));
+    if(pluto.ownername) t2+=pRow('👤','Owner',escH(pluto.ownername));
+    t2+='</table>';
+    var links='<div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0">'
+      + '<a href="'+dobUrl+'" target="_blank" style="font-size:.7rem;font-weight:600;color:#0d1b4b;text-decoration:none;padding:5px 9px;border:1px solid #e5e2db;border-radius:5px;background:#fff">🏗 DOB</a>'
+      + '<a href="'+zapUrl+'" target="_blank" style="font-size:.7rem;font-weight:600;color:#0d1b4b;text-decoration:none;padding:5px 9px;border:1px solid #e5e2db;border-radius:5px;background:#fff">📌 ZAP</a>'
+      + '<a href="'+acrisUrl+'" target="_blank" style="font-size:.7rem;font-weight:600;color:#0d1b4b;text-decoration:none;padding:5px 9px;border:1px solid #e5e2db;border-radius:5px;background:#fff">📄 ACRIS</a>'
+      + '<a href="'+zolaUrl+'" target="_blank" style="font-size:.7rem;font-weight:600;color:#2e7d32;text-decoration:none;padding:5px 9px;border:1px solid #a5d6a7;border-radius:5px;background:#f1f8f1">🏙 ZoLa</a>'
+      + '</div>';
+    res.innerHTML=html+t2+links+bkLink;
+  }).catch(function(){ res.innerHTML=html+bkLink; });
 }
 </script>
 
