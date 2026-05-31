@@ -2260,6 +2260,40 @@ async function doAC(val){
 }
 document.addEventListener('click',e=>{if(!e.target.closest('.search-row'))document.getElementById('ac-drop').style.display='none';});
 
+// ── Land use enrichment helpers (ported from landuse.html) ──
+function luLandUseLabel(code){
+  const n=String(code||'').trim().padStart(2,'0');
+  const labels={'01':'One & Two Family Buildings','02':'Multi-Family Walk-Up','03':'Multi-Family Elevator','04':'Mixed Residential & Commercial','05':'Commercial & Office','06':'Industrial & Manufacturing','07':'Transportation & Utility','08':'Public Facilities & Institutions','09':'Open Space & Recreation','10':'Parking Facilities','11':'Vacant Land'};
+  return labels[n]||'';
+}
+function luZoningPlainEnglish(zone){
+  const n=String(zone||'').trim().toUpperCase();
+  if(!n) return 'Zoning controls what can be built here.';
+  if(n.charAt(0)==='R') return n+' is a residential zoning district.';
+  if(n.charAt(0)==='C') return n+' is a commercial zoning district.';
+  if(n.charAt(0)==='M') return n+' is a manufacturing zoning district.';
+  return n+' is the mapped zoning district.';
+}
+async function luFetchPlutoLot(bbl){
+  if(!bbl) return {};
+  try{
+    const ep='https://data.cityofnewyork.us/resource/64uk-42ks.json?bbl='+encodeURIComponent(bbl)+'&$select=bbl,zonedist1,zonedist2,landuse,bldgclass,ownername,unitstotal,address&$limit=1';
+    const r=await fetch(ep); if(!r.ok) return {};
+    const rows=await r.json(); return Array.isArray(rows)&&rows.length?rows[0]:{};
+  }catch(e){ return {}; }
+}
+async function luFetchLandmark(bbl){
+  if(!bbl) return [];
+  try{
+    const p=new URLSearchParams({bbl:bbl,'$select':'hist_dist,lm_orig,lm_new','$limit':'50'});
+    const r=await fetch('https://data.cityofnewyork.us/resource/gpmc-yuvp.json?'+p.toString());
+    if(!r.ok) return [];
+    const rows=await r.json();
+    return Array.from(new Set((Array.isArray(rows)?rows:[]).map(x=>String(x.hist_dist||'').trim()).filter(n=>n&&n!=='0')));
+  }catch(e){ return []; }
+}
+function luCard(label,val){return '<div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px"><div style="font-size:.6rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:2px">'+label+'</div><div style="font-size:.78rem;font-weight:800;color:#0d1b4b">'+val+'</div></div>';}
+
 // ── SEARCH ──
 function pRow(icon,label,val){return'<tr style="border-bottom:1px solid #f0efed"><td style="padding:6px 10px 6px 0;vertical-align:top;white-space:nowrap"><span style="font-size:.85rem">'+icon+'</span><span style="font-size:.63rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-left:4px">'+label+'</span></td><td style="padding:6px 0;font-size:.78rem;color:#0d1b4b;line-height:1.4">'+val+'</td></tr>';}
 
