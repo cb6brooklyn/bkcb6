@@ -1411,10 +1411,26 @@ function buildSchoolDistrictsCombined(){
 function buildSchoolDistricts(d){
   if(schoolDistrictsLayer) map.removeLayer(schoolDistrictsLayer);
   var features = ((d&&d.features)||[]).slice();
-  schoolDistrictsLayer = L.geoJSON({type:'FeatureCollection',features:features},{
-    style:function(f){ var p=f.properties||{}, num=p.SchoolDist||p.schooldist||p.school_dist||''; return districtStyle('schooldistricts', num, {weight:2.8, fillOpacity:.18, dashArray:'6 4'}); },
-    onEachFeature:function(f,l){ var p=f.properties||{}, num=p.SchoolDist||p.schooldist||p.school_dist||''; l.bindTooltip('CSD '+escH(num),{sticky:true}); l.bindPopup('<h4>CSD '+escH(num)+'</h4><p>Community School District '+escH(num)+' overlapping CB6</p><div class="small">School district boundary overlay</div>'); }
+  var group = L.layerGroup();
+  features.forEach(function(f){
+    var p=f.properties||{}, num=p.SchoolDist||p.schooldist||p.school_dist||'';
+    var col = districtColor('schooldistricts', num);
+    // Bold opaque boundary, faint fill, so divisions are readable
+    var poly = L.geoJSON(f,{style:{color:col, weight:3, opacity:.95, fillColor:col, fillOpacity:.08, lineJoin:'round'}});
+    poly.on('mouseover',function(){ poly.setStyle({weight:4.5, fillOpacity:.2}); });
+    poly.on('mouseout',function(){ poly.setStyle({weight:3, fillOpacity:.08}); });
+    poly.bindTooltip('CSD '+escH(num),{sticky:true});
+    poly.addTo(group);
+    // Permanent CSD number label at centroid
+    try{
+      var c = centroid(f);
+      if(c){
+        var lbl = L.marker([c[0],c[1]],{interactive:false,icon:L.divIcon({className:'csd-num-label',html:'<div style="color:#475569;font-family:\'DM Mono\',monospace;font-weight:600;font-size:.6rem;letter-spacing:.02em;white-space:nowrap;opacity:.85;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 2px #fff">CSD '+escH(num)+'</div>',iconSize:null,iconAnchor:[14,6]})});
+        lbl.addTo(group);
+      }
+    }catch(e){}
   });
+  schoolDistrictsLayer = group;
   if(subState.schooldistricts) schoolDistrictsLayer.addTo(map);
 }
 
