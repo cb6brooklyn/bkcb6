@@ -46,6 +46,7 @@ body{display:flex;flex-direction:column}
     style="flex:1;font-family:'DM Sans',sans-serif;font-size:.8rem;padding:7px 11px;border:none;border-radius:6px;background:rgba(255,255,255,.12);color:#fff;outline:none"
     onkeydown="if(event.key==='Enter')edSearch()"/>
   <button onclick="edSearch()" style="padding:7px 14px;background:#f47920;color:#fff;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap">Search</button>
+  <button onclick="edLocate()" title="Use my location" style="padding:7px 11px;background:transparent;color:rgba(255,255,255,.75);border:1px solid rgba(255,255,255,.3);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.8rem;cursor:pointer;white-space:nowrap">📍</button>
   <button onclick="edClear()" id="ed-clear" style="display:none;padding:7px 10px;background:transparent;color:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.3);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.8rem;cursor:pointer;white-space:nowrap">Clear</button>
 </div>
 <div class="legend" id="legend"></div>
@@ -109,7 +110,7 @@ function getTooltip(p){
 function drawLayer(){
   if(geoLayer)map.removeLayer(geoLayer);
   if(labelGroup)map.removeLayer(labelGroup);
-  labelGroup=L.layerGroup().addTo(map);
+  labelGroup=L.layerGroup();
   geoLayer=L.geoJSON(data,{
     style:function(f){return {fillColor:getFill(f.properties),fillOpacity:0.82,color:'#fff',weight:1.3};},
     onEachFeature:function(f,lyr){
@@ -122,7 +123,17 @@ function drawLayer(){
     }
   }).addTo(map);
   map.fitBounds(geoLayer.getBounds(),{padding:[20,20]});
+  refreshLabels();
 }
+var LABEL_ZOOM=14; // show ED numbers only when zoomed in this far
+function refreshLabels(){
+  if(!labelGroup)return;
+  if(map.getZoom()>=LABEL_ZOOM){ if(!map.hasLayer(labelGroup))labelGroup.addTo(map); }
+  else { if(map.hasLayer(labelGroup))map.removeLayer(labelGroup); }
+}
+map.on('zoomend',refreshLabels);
+
+
 
 function updateLegend(){
   var html='';
@@ -204,6 +215,15 @@ async function edSearch(){
     if(d.features&&d.features.length){lng=d.features[0].geometry.coordinates[0];lat=d.features[0].geometry.coordinates[1];lbl=(d.features[0].properties||{}).label||addr;}
   }catch(e){}
   if(lat==null){alert('Address not found. Try including the street number.');return;}
+  showEDResult(lat,lng,lbl);
+}
+function edLocate(){
+  if(!navigator.geolocation){alert('Location is not available on this device.');return;}
+  navigator.geolocation.getCurrentPosition(function(pos){
+    showEDResult(pos.coords.latitude,pos.coords.longitude,'Your location');
+  },function(){alert('Could not get your location. You can type an address instead.');},{enableHighAccuracy:true,timeout:8000});
+}
+function showEDResult(lat,lng,lbl){
   if(searchMarker)map.removeLayer(searchMarker);
   searchMarker=L.circleMarker([lat,lng],{radius:8,fillColor:'#f47920',color:'#fff',weight:2.5,fillOpacity:1,zIndexOffset:5000}).addTo(map);
   map.setView([lat,lng],15);
@@ -220,7 +240,7 @@ async function edSearch(){
       '<div style="font-size:.78rem;color:#222;line-height:1.45">'+(p[meta.text]||'No results reported for this district.')+'</div>'+
       '</div>';
   } else {
-    html='<div style="font-family:DM Sans,sans-serif;max-width:240px"><div style="font-weight:700;font-size:.8rem;color:#0d1b4b">'+escapeH(lbl)+'</div><div style="font-size:.76rem;color:#c81e1e;margin-top:4px">This address falls outside '+CB_NAME+'.</div></div>';
+    html='<div style="font-family:DM Sans,sans-serif;max-width:240px"><div style="font-weight:700;font-size:.8rem;color:#0d1b4b">'+escapeH(lbl)+'</div><div style="font-size:.76rem;color:#c81e1e;margin-top:4px">This location falls outside '+CB_NAME+'.</div></div>';
   }
   searchMarker.bindPopup(html,{maxWidth:280}).openPopup();
 }
