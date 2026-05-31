@@ -1873,19 +1873,33 @@ function buildLandUsePolys(d){
   if(subState.landuse) landUseLotsLayer.addTo(map);
 }
 function loadZoningArcGIS(){
-  var env = districtEnvelope();
-  if(!env){ setTimeout(loadZoningArcGIS,500); return; }
-  var url='https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(env))+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&f=geojson&resultRecordCount=2000';
+  // Viewport-based loading (zoom 14+), same approach as land use — works in every borough, no exceptions
+  if(!window._zoningBound){
+    window._zoningBound = true;
+    map.on('moveend zoomend', function(){ if(subState.zoning) zoningLoadView(); });
+  }
+  zoningLoadView();
+}
+function zoningLoadView(){
+  var note=document.getElementById('note');
+  var zoom=map.getZoom();
+  if(zoom<14){ if(note) note.textContent='Zoom in to level 14+ to load zoning.'; return; }
+  var b=map.getBounds();
+  if(note) note.textContent='Loading zoning…';
+  var url='https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?'+
+    'where=1%3D1&geometry='+encodeURIComponent(JSON.stringify({xmin:b.getWest(),ymin:b.getSouth(),xmax:b.getEast(),ymax:b.getNorth(),spatialReference:{wkid:4326}}))+
+    '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
+    '&outFields=ZONEDIST&returnGeometry=true&f=geojson&resultRecordCount=2000&outSR=4326';
   fetch(url).then(r=>r.json()).then(function(d){
     window._overlayData_zoning=d;
     buildZoningPolys(d);
-  }).catch(function(e){console.warn('zoning load failed',e);});
+    if(note) note.textContent=((d.features||[]).length)+' zoning districts loaded. Click any area for details.';
+  }).catch(function(e){ if(note) note.textContent='Could not load zoning.'; });
 }
 function zoneFamily(z){z=String(z||'').toUpperCase();if(/^R/.test(z))return['Residential','#fcd34d'];if(/^C/.test(z))return['Commercial','#2563eb'];if(/^M/.test(z))return['Manufacturing','#a855f7'];if(/PARK|PLAYGROUND/.test(z))return['Park/Open Space','#22c55e'];if(/^BPC|^MX|MIXED/.test(z))return['Mixed Use','#0d9488'];return['Other','#94a3b8'];}
 function buildZoningPolys(d){
   if(zoningLayer) map.removeLayer(zoningLayer);
-  var b=window._selectedCBFeature;
-  var feats = ((d&&d.features)||[]).filter(function(f){return f&&f.geometry&&b&&polyInDistrict(f,b);});
+  var feats = ((d&&d.features)||[]).filter(function(f){return f&&f.geometry;});
   zoningLayer = L.geoJSON({type:'FeatureCollection',features:feats},{
     style:function(f){var z=(f.properties||{}).ZONEDIST||(f.properties||{}).Zonedist||'';var fam=zoneFamily(z);return{color:fam[1],weight:1,opacity:.85,fillColor:fam[1],fillOpacity:.42};},
     onEachFeature:function(f,l){var p=f.properties||{};var z=p.ZONEDIST||p.Zonedist||'Zoning';var fam=zoneFamily(z);l.bindPopup('<strong>'+escH(z)+'</strong><br>'+fam[0]);}
@@ -1910,7 +1924,7 @@ function toggleOverlay(name, on){
     busstops:()=>loadOverlay('busstops','transport-data/'+_boroKey+'.json',buildBusStops),
     speedlimits:()=>loadOverlay('speedlimits','data/speed-limits.geojson',buildSpeedLimits),
     landuse:()=>{ if(window._overlayData_landuse) buildLandUsePolys(window._overlayData_landuse); else loadLandUseArcGIS(); },
-    zoning:()=>{ if(window._overlayData_zoning) buildZoningPolys(window._overlayData_zoning); else loadZoningArcGIS(); },
+    zoning:()=>{ loadZoningArcGIS(); },
     parks:()=>loadOverlay('parks','data/topmap-parks-'+_boroKey+'.geojson',buildParks),
     schools:()=>{ /* schools: no citywide file available */ },
     childcare:()=>{ /* childcare: no citywide file available */ },
