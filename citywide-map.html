@@ -434,6 +434,7 @@ function showCitywide(){
   // One layer group per borough so each can be toggled on/off as a unit
   window._boroGroups = {};
   window._boroVisible = {'1':true,'2':true,'3':true,'4':true,'5':true};
+  window._cbLabels = [];
   ['1','2','3','4','5'].forEach(function(bc){ window._boroGroups[bc] = L.layerGroup().addTo(map); });
 
   // CB districts (outline + label) added to their borough group
@@ -451,9 +452,15 @@ function showCitywide(){
     lyr.addTo(window._boroGroups[bcode]);
     try{
       var c = centroid(f);
-      L.marker([c[0],c[1]],{interactive:false,icon:L.divIcon({className:'cb-num-label',html:'<div style="color:'+col+';font-family:\'DM Sans\',sans-serif;font-weight:700;font-size:.62rem;white-space:nowrap;text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff">CB'+num+'</div>',iconSize:null,iconAnchor:[12,6]})}).addTo(window._boroGroups[bcode]);
+      var cbMarker = L.marker([c[0],c[1]],{interactive:false,icon:L.divIcon({className:'cb-num-label',html:'<div style="color:'+col+';font-family:\'DM Sans\',sans-serif;font-weight:700;font-size:.62rem;white-space:nowrap;text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff">CB'+num+'</div>',iconSize:null,iconAnchor:[12,6]})});
+      window._cbLabels.push({marker:cbMarker, bc:bcode});
     }catch(e){}
   });
+  refreshCBLabelsByZoom();
+  if(!window._cbLabelZoomBound){
+    window._cbLabelZoomBound=true;
+    map.on('zoomend', refreshCBLabelsByZoom);
+  }
 
   // Borough fills + name labels added to their borough group
   fetch('data/borough-boundaries.geojson').then(r=>r.json()).then(function(bd){
@@ -469,7 +476,9 @@ function showCitywide(){
         if(!window._boroGroups[bc]) return;
         try{
           var ctr = L.geoJSON(f).getBounds().getCenter();
-          L.marker([ctr.lat,ctr.lng],{interactive:false,zIndexOffset:2000,icon:L.divIcon({className:'borough-name-label',html:'<div class="boro-big-label" style="color:'+(SEAL_COLORS[bc]||'#333')+'">'+(BORO_NAMES_FULL[bc]||'').replace('The ','')+'</div>',iconSize:null,iconAnchor:[55,14]})}).addTo(window._boroGroups[bc]);
+          var latAdj = ctr.lat, lngAdj = ctr.lng;
+          if(bc==='4'){ latAdj += 0.045; lngAdj -= 0.01; } // nudge Queens north, away from Brooklyn
+          L.marker([latAdj,lngAdj],{interactive:false,zIndexOffset:2000,icon:L.divIcon({className:'borough-name-label',html:'<div class="boro-big-label" style="color:'+(SEAL_COLORS[bc]||'#333')+'">'+(BORO_NAMES_FULL[bc]||'').replace('The ','')+'</div>',iconSize:null,iconAnchor:[55,14]})}).addTo(window._boroGroups[bc]);
         }catch(e){}
       });
     }, 400);
@@ -484,6 +493,16 @@ function setBoroughVisible(bc, on){
   window._boroVisible[bc] = on;
   if(on) window._boroGroups[bc].addTo(map);
   else map.removeLayer(window._boroGroups[bc]);
+  refreshCBLabelsByZoom();
+}
+function refreshCBLabelsByZoom(){
+  if(!window._cbLabels) return;
+  var show = map.getZoom() >= 12; // CB labels only when zoomed into a borough
+  window._cbLabels.forEach(function(o){
+    var boroOn = window._boroVisible[o.bc];
+    if(show && boroOn){ if(!map.hasLayer(o.marker)) o.marker.addTo(map); }
+    else { if(map.hasLayer(o.marker)) map.removeLayer(o.marker); }
+  });
 }
 function buildBoroughToggleRow(){
   var row = document.getElementById('boro-row');
