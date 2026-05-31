@@ -1393,10 +1393,18 @@ function buildResourcePoints(data, category, layerVar) {
 function buildSchools(d){ buildResourcePoints(d,'schools','schoolsLayer'); schoolsLayer=window.schoolsLayer; }
 function buildChildcare(d){ buildResourcePoints(d,'childcare','childcareLayer'); childcareLayer=window.childcareLayer; }
 function buildLibraries(){ window._overlayData_libraries = LIBRARIES; buildResourcePoints(LIBRARIES,'libraries','librariesLayer'); librariesLayer=window.librariesLayer; }
+function buildSchoolDistrictsCombined(){
+  var boros=['manhattan','bronx','brooklyn','queens','statenisland'];
+  Promise.all(boros.map(function(b){ return fetch('data/school-districts-'+b+'.geojson').then(function(r){return r.json();}).catch(function(){return {features:[]};}); }))
+    .then(function(all){
+      var feats=[];
+      all.forEach(function(d){ ((d&&d.features)||[]).forEach(function(f){ feats.push(f); }); });
+      buildSchoolDistricts({type:'FeatureCollection',features:feats});
+    });
+}
 function buildSchoolDistricts(d){
   if(schoolDistrictsLayer) map.removeLayer(schoolDistrictsLayer);
   var features = ((d&&d.features)||[]).slice();
-  features = filteredBySelectedDistricts(features, true);
   schoolDistrictsLayer = L.geoJSON({type:'FeatureCollection',features:features},{
     style:function(f){ var p=f.properties||{}, num=p.SchoolDist||p.schooldist||p.school_dist||''; return districtStyle('schooldistricts', num, {weight:2.8, fillOpacity:.18, dashArray:'6 4'}); },
     onEachFeature:function(f,l){ var p=f.properties||{}, num=p.SchoolDist||p.schooldist||p.school_dist||''; l.bindTooltip('CSD '+escH(num),{sticky:true}); l.bindPopup('<h4>CSD '+escH(num)+'</h4><p>Community School District '+escH(num)+' overlapping CB6</p><div class="small">School district boundary overlay</div>'); }
@@ -2003,7 +2011,7 @@ function toggleOverlay(name, on){
     schools:()=>{ /* schools: no citywide file available */ },
     childcare:()=>{ /* childcare: no citywide file available */ },
     libraries:()=>buildLibraries(),
-    schooldistricts:()=>{ /* school districts: no citywide file available */ },
+    schooldistricts:()=>buildSchoolDistrictsCombined(),
     gowanus:()=>loadOverlay('gowanus','data/Gowanus-Rezoning-Boundary-2.geojson',buildGowanus),
     historic:()=>loadOverlay('historic','data/historic-districts.geojson',buildHistoric),
     rents:()=>loadOverlay('rents','data/citywide-rents.geojson',buildRents),
@@ -2102,6 +2110,7 @@ function buildSubToggles(){
     {k:'landuse',c:'#475569',tc:'#fff',l:'🏘 Land Use'},
     {k:'zoning',c:'#9333ea',tc:'#fff',l:'🏙 Zoning'},
     {k:'historic',c:'#a16207',tc:'#fff',l:'🏛 Historic Districts'},
+    {k:'schooldistricts',c:'#14b8a6',tc:'#fff',l:'🏫 School Districts'},
     {k:'speedlimits',c:'#111827',tc:'#fff',l:'🚦 Speed Limits'},
     {k:'nypd',c:'#e11d48',tc:'#fff',l:'👮 NYPD'},
   ];
