@@ -28,13 +28,22 @@ jobs:
 
       - name: Run data refresh scripts
         run: |
-          python scripts/build_cb6_dob_now_recent_feed.py
-          python scripts/build_cb6_dot_recent_feed.py
-          python scripts/build_cb6_film_permits_feed.py
-          python scripts/build_cb6_permitted_events_feed.py
-          python scripts/build_cb6_resurfacing_feed.py
+          set +e
+          status=0
+          for script in \
+            build_cb6_dob_now_recent_feed.py \
+            build_cb6_dot_recent_feed.py \
+            build_cb6_film_permits_feed.py \
+            build_cb6_permitted_events_feed.py \
+            build_cb6_resurfacing_feed.py; do
+            echo "::group::$script"
+            python "scripts/$script" || { echo "::error::$script failed"; status=1; }
+            echo "::endgroup::"
+          done
+          exit $status
 
       - name: Commit updated data files
+        if: always()
         run: |
           git config user.email "mracioppo@cb.nyc.gov"
           git config user.name "Mike Racioppo"
@@ -47,9 +56,11 @@ jobs:
           git push
 
       - name: Upload Pages artifact
+        if: always()
         uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
 
       - name: Deploy to GitHub Pages
+        if: always()
         uses: actions/deploy-pages@v4
