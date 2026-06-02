@@ -28,9 +28,15 @@ def fetch_csv_rows() -> tuple[str, list[dict[str, str]]]:
         response.raise_for_status()
         text = response.text
         source = CSV_URL
-    except Exception:
-        text = FALLBACK_CSV.read_text(encoding='utf-8-sig')
-        source = str(FALLBACK_CSV)
+    except Exception as exc:
+        if FALLBACK_CSV.exists():
+            print(f'Live resurfacing fetch failed ({exc}); using local CSV fallback.')
+            text = FALLBACK_CSV.read_text(encoding='utf-8-sig')
+            source = str(FALLBACK_CSV)
+        else:
+            raise RuntimeError(
+                f'Live resurfacing fetch failed and no fallback CSV present at {FALLBACK_CSV}: {exc}'
+            ) from exc
     reader = csv.DictReader(io.StringIO(text))
     rows = [
         row for row in reader
