@@ -203,11 +203,19 @@ tbody tr:hover{background:#fcfbf9}
             <option value="Film Permits">Film permits only</option>
           </select>
         </div>
+        <div class="field" id="pinField">
+          <label for="radiusSlider">Near a pin <span id="pinState" style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— click the map to drop one</span></label>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input id="radiusSlider" type="range" min="100" max="1000" step="50" value="400" style="flex:1" disabled>
+            <span id="radiusValue" style="font-family:'DM Mono',monospace;font-size:.8rem;color:var(--navy);min-width:54px;text-align:right">400 m</span>
+            <button class="btn" id="clearPinBtn" type="button" style="padding:6px 12px;font-size:.78rem" disabled>Clear pin</button>
+          </div>
+        </div>
       </div>
       <div class="actions">
         <button class="btn btn-primary" id="searchBtn" type="button">Search permits</button>
       </div>
-      <p class="filter-note">The button loads the selected date and jumps to the records. The filter still narrows the map and both lists.</p>
+      <p class="filter-note">The button loads the selected date and jumps to the records. The filter still narrows the map and both lists. Click anywhere on the map to drop a pin and show only permits within the chosen radius.</p>
     </div>
 
     <div class="status-row">
@@ -390,6 +398,10 @@ const dom = {
   addressFilter: document.getElementById('addressFilter'),
   sourceFilter: document.getElementById('sourceFilter'),
   searchBtn: document.getElementById('searchBtn'),
+  radiusSlider: document.getElementById('radiusSlider'),
+  radiusValue: document.getElementById('radiusValue'),
+  clearPinBtn: document.getElementById('clearPinBtn'),
+  pinState: document.getElementById('pinState'),
   statusMsg: document.getElementById('statusMsg'),
   recordsSection: document.getElementById('recordsSection'),
   tableBody: document.getElementById('permitTableBody'),
@@ -441,6 +453,10 @@ let permittedEventsFeed = null;
 let resurfacingFeed = null;
 let filmPermitsFeed = null;
 const bisRecentFeedCache = {};
+let pinLatLng = null;
+let pinMarker = null;
+let pinRadiusCircle = null;
+let pinRadiusMeters = 400;
 
 const MAP_SOURCE_META = {
   'DOB NOW': { label: 'DOB NOW', stroke: '#0f766e', fill: '#14b8a6' },
@@ -536,6 +552,58 @@ function initMap() {
   markersLayer = L.layerGroup().addTo(map);
   map.setView(BOARD_CONFIG.center, BOARD_CONFIG.zoom);
   renderMapLegend();
+  map.on('click', e => setPin(e.latlng.lat, e.latlng.lng));
+}
+
+function metersBetween(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function setPin(lat, lng) {
+  pinLatLng = { lat, lng };
+  if (pinMarker) {
+    pinMarker.setLatLng([lat, lng]);
+  } else {
+    pinMarker = L.marker([lat, lng], { draggable: true }).addTo(map);
+    pinMarker.on('dragend', () => {
+      const p = pinMarker.getLatLng();
+      setPin(p.lat, p.lng);
+    });
+  }
+  if (pinRadiusCircle) {
+    pinRadiusCircle.setLatLng([lat, lng]).setRadius(pinRadiusMeters);
+  } else {
+    pinRadiusCircle = L.circle([lat, lng], {
+      radius: pinRadiusMeters, color: '#0d1b4b', weight: 1.5, fillColor: '#0d1b4b', fillOpacity: 0.07
+    }).addTo(map);
+  }
+  dom.radiusSlider.disabled = false;
+  dom.clearPinBtn.disabled = false;
+  dom.pinState.textContent = `— showing permits within ${pinRadiusMeters} m`;
+  renderFilteredResults();
+}
+
+function clearPin() {
+  pinLatLng = null;
+  if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
+  if (pinRadiusCircle) { map.removeLayer(pinRadiusCircle); pinRadiusCircle = null; }
+  dom.radiusSlider.disabled = true;
+  dom.clearPinBtn.disabled = true;
+  dom.pinState.textContent = '— click the map to drop one';
+  renderFilteredResults();
+}
+
+function rowsWithinPin(rows) {
+  if (!pinLatLng) return rows;
+  return rows.filter(r => {
+    if (!Number.isFinite(r.lat) || !Number.isFinite(r.lng)) return false;
+    return metersBetween(pinLatLng.lat, pinLatLng.lng, r.lat, r.lng) <= pinRadiusMeters;
+  });
 }
 
 function eventSubtypeKey(value) {
@@ -1549,7 +1617,9 @@ function renderMap(rows) {
   const mapped = rows.filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng));
   dom.mapCount.textContent = `${mapped.length.toLocaleString()} visible pin${mapped.length === 1 ? '' : 's'}`;
   if (!mapped.length) {
-    if (boundaryLayer) {
+    if (pinLatLng && pinRadiusCircle) {
+      map.fitBounds(pinRadiusCircle.getBounds(), { padding: [24, 24] });
+    } else if (boundaryLayer) {
       map.fitBounds(boundaryLayer.getBounds(), { padding: [18, 18] });
     } else {
       map.setView(BOARD_CONFIG.center, BOARD_CONFIG.zoom);
@@ -1575,12 +1645,16 @@ function renderMap(rows) {
     markersLayer.addLayer(marker);
     bounds.push([row.lat, row.lng]);
   });
-  if (boundaryLayer) bounds.push(...boundaryLayer.getBounds().toBBoxString().split(',').reduce((acc, value, index, arr) => {
-    if (index === 0) acc.push([Number(arr[1]), Number(arr[0])]);
-    if (index === 2) acc.push([Number(arr[3]), Number(arr[2])]);
-    return acc;
-  }, []));
-  map.fitBounds(bounds, { padding: [24, 24] });
+  if (pinLatLng && pinRadiusCircle) {
+    map.fitBounds(pinRadiusCircle.getBounds(), { padding: [24, 24] });
+  } else {
+    if (boundaryLayer) bounds.push(...boundaryLayer.getBounds().toBBoxString().split(',').reduce((acc, value, index, arr) => {
+      if (index === 0) acc.push([Number(arr[1]), Number(arr[0])]);
+      if (index === 2) acc.push([Number(arr[3]), Number(arr[2])]);
+      return acc;
+    }, []));
+    map.fitBounds(bounds, { padding: [24, 24] });
+  }
 }
 
 function getMapRows(rows) {
@@ -1590,8 +1664,8 @@ function getMapRows(rows) {
 function renderFilteredResults() {
   const permitRows = Array.isArray(allPermits) ? allPermits : [];
   const filmPermitRows = Array.isArray(allFilmPermits) ? allFilmPermits : [];
-  const rows = getFilteredPermits();
-  const filmRows = getFilteredFilmPermits();
+  const rows = rowsWithinPin(getFilteredPermits());
+  const filmRows = rowsWithinPin(getFilteredFilmPermits());
   const visiblePermitRows = currentSearchMode === 'upcoming'
     ? sortUpcomingRows(rows.filter(row => rowCurrentOrFuture(row, dom.date.value)), dom.date.value)
     : rows;
@@ -1720,6 +1794,16 @@ async function init() {
   });
   dom.addressFilter.addEventListener('input', renderFilteredResults);
   dom.sourceFilter.addEventListener('change', renderFilteredResults);
+  dom.radiusSlider.addEventListener('input', () => {
+    pinRadiusMeters = Number(dom.radiusSlider.value);
+    dom.radiusValue.textContent = `${pinRadiusMeters} m`;
+    if (pinLatLng) {
+      if (pinRadiusCircle) pinRadiusCircle.setRadius(pinRadiusMeters);
+      dom.pinState.textContent = `— showing permits within ${pinRadiusMeters} m`;
+      renderFilteredResults();
+    }
+  });
+  dom.clearPinBtn.addEventListener('click', clearPin);
   dom.date.addEventListener('keydown', (event) => { if (event.key === 'Enter') runSearch(null, { scrollToResults: true }); });
   dom.addressFilter.addEventListener('keydown', (event) => { if (event.key === 'Enter') runSearch(null, { scrollToResults: true }); });
   setStatus(`Loading records for ${formatHumanDate(dom.date.value)}.`, 'Loading…');
