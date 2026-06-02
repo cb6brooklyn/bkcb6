@@ -184,8 +184,23 @@ tbody tr:hover{background:#fcfbf9}
       <p>Today opens a current-and-future view. Pick a past or future date to load that day’s permits, then type below to filter the map and lists.</p>
       <div class="control-grid">
         <div class="field">
+          <label>View</label>
+          <div role="group" aria-label="View mode" style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+            <button type="button" id="modeDayBtn" class="mode-btn is-active" style="flex:1;padding:9px 12px;border:0;background:var(--navy);color:#fff;font-family:'DM Sans',sans-serif;font-size:.86rem;cursor:pointer">Day</button>
+            <button type="button" id="modeWeekBtn" class="mode-btn" style="flex:1;padding:9px 12px;border:0;background:#fff;color:var(--navy);font-family:'DM Sans',sans-serif;font-size:.86rem;cursor:pointer">Week</button>
+          </div>
+        </div>
+        <div class="field" id="dayField">
           <label for="permitDate">Date</label>
           <input class="input" id="permitDate" type="date">
+        </div>
+        <div class="field" id="weekField" hidden>
+          <label>Week (Sun &ndash; Sat)</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button type="button" id="weekPrevBtn" aria-label="Previous week" class="btn" style="padding:8px 12px">&#9664;</button>
+            <span id="weekLabel" style="flex:1;text-align:center;font-family:'DM Mono',monospace;font-size:.82rem;color:var(--navy);white-space:nowrap">&mdash;</span>
+            <button type="button" id="weekNextBtn" aria-label="Next week" class="btn" style="padding:8px 12px">&#9654;</button>
+          </div>
         </div>
         <div class="field">
           <label for="addressFilter">Filter</label>
@@ -398,6 +413,13 @@ const dom = {
   addressFilter: document.getElementById('addressFilter'),
   sourceFilter: document.getElementById('sourceFilter'),
   searchBtn: document.getElementById('searchBtn'),
+  modeDayBtn: document.getElementById('modeDayBtn'),
+  modeWeekBtn: document.getElementById('modeWeekBtn'),
+  dayField: document.getElementById('dayField'),
+  weekField: document.getElementById('weekField'),
+  weekPrevBtn: document.getElementById('weekPrevBtn'),
+  weekNextBtn: document.getElementById('weekNextBtn'),
+  weekLabel: document.getElementById('weekLabel'),
   radiusSlider: document.getElementById('radiusSlider'),
   radiusValue: document.getElementById('radiusValue'),
   clearPinBtn: document.getElementById('clearPinBtn'),
@@ -457,6 +479,8 @@ let pinLatLng = null;
 let pinMarker = null;
 let pinRadiusCircle = null;
 let pinRadiusMeters = 400;
+let viewMode = 'day';
+let currentWeekStart = null;
 
 const MAP_SOURCE_META = {
   'DOB NOW': { label: 'DOB NOW', stroke: '#0f766e', fill: '#14b8a6' },
@@ -909,6 +933,40 @@ function rowPastBeforeDate(row, isoDate) {
   if (start) return start < isoDate;
   if (issued) return issued < isoDate;
   return false;
+}
+
+function rowActiveInRange(row, startIso, endIso) {
+  const { issued, start, end } = getRowDateParts(row);
+  const rowStart = start || issued || end;
+  const rowEnd = end || issued || start;
+  if (!rowStart && !rowEnd) return false;
+  // Overlap test: row window intersects [startIso, endIso] inclusive.
+  if (rowEnd && rowEnd < startIso) return false;
+  if (rowStart && rowStart > endIso) return false;
+  return true;
+}
+
+function weekStartIso(isoDate) {
+  // Sunday-anchored week start for the week containing isoDate.
+  const d = new Date(isoDate + 'T00:00:00');
+  d.setDate(d.getDate() - d.getDay());
+  return d.toISOString().slice(0, 10);
+}
+
+function weekEndIso(weekStartIsoDate) {
+  const d = new Date(weekStartIsoDate + 'T00:00:00');
+  d.setDate(d.getDate() + 6);
+  return d.toISOString().slice(0, 10);
+}
+
+function shiftWeekIso(weekStartIsoDate, deltaWeeks) {
+  const d = new Date(weekStartIsoDate + 'T00:00:00');
+  d.setDate(d.getDate() + deltaWeeks * 7);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatWeekLabel(startIso, endIso) {
+  return `${formatHumanDate(startIso)} \u2013 ${formatHumanDate(endIso)}`;
 }
 
 function sortUpcomingRows(rows, isoDate) {
@@ -1500,12 +1558,16 @@ function getFilteredFilmPermits() {
 
 function updateSummary(allRows, filteredRows, isoDate) {
   const mapped = filteredRows.filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng));
-  const modeText = currentSearchMode === 'upcoming' ? `${formatHumanDate(isoDate)} and later` : formatHumanDate(isoDate);
+  const isWeek = currentSearchMode === 'week';
+  const weekRange = isWeek && currentWeekStart ? formatWeekLabel(currentWeekStart, weekEndIso(currentWeekStart)) : '';
+  const modeText = isWeek ? weekRange : (currentSearchMode === 'upcoming' ? `${formatHumanDate(isoDate)} and later` : formatHumanDate(isoDate));
   dom.statDate.textContent = modeText;
-  dom.statDateSub.textContent = currentSearchMode === 'upcoming' ? 'Current and future records from this date.' : 'Records for this selected date.';
-  dom.mapSubhead.textContent = currentSearchMode === 'upcoming'
-    ? 'Permit, event, and resurfacing locations within the CB6 boundary for the current and future view.'
-    : 'Permit, event, and resurfacing locations within the CB6 boundary for the selected day.';
+  dom.statDateSub.textContent = isWeek ? 'Records active during this week.' : (currentSearchMode === 'upcoming' ? 'Current and future records from this date.' : 'Records for this selected date.');
+  dom.mapSubhead.textContent = isWeek
+    ? 'Permit, event, and resurfacing locations within the CB6 boundary for the selected week.'
+    : (currentSearchMode === 'upcoming'
+      ? 'Permit, event, and resurfacing locations within the CB6 boundary for the current and future view.'
+      : 'Permit, event, and resurfacing locations within the CB6 boundary for the selected day.');
   dom.statTotal.textContent = filteredRows.length.toLocaleString();
   dom.statDobNow.textContent = filteredRows.filter(r => r.source === 'DOB NOW').length.toLocaleString();
   dom.statBis.textContent = filteredRows.filter(r => r.source === 'BIS').length.toLocaleString();
@@ -1515,12 +1577,16 @@ function updateSummary(allRows, filteredRows, isoDate) {
   dom.statMapped.textContent = mapped.length.toLocaleString();
   dom.tableCount.textContent = `${filteredRows.length.toLocaleString()} record${filteredRows.length === 1 ? '' : 's'}`;
   dom.tableSubhead.textContent = filteredRows.length
-    ? (currentSearchMode === 'upcoming'
-      ? `Showing ${filteredRows.length.toLocaleString()} current and upcoming construction, street, event, and resurfacing record${filteredRows.length === 1 ? '' : 's'} in ${BOARD_CONFIG.title}.`
-      : `Showing ${filteredRows.length.toLocaleString()} construction, street, event, and resurfacing record${filteredRows.length === 1 ? '' : 's'} in ${BOARD_CONFIG.title} for ${formatHumanDate(isoDate)}.`)
-    : (currentSearchMode === 'upcoming'
-      ? `No current or upcoming records matched the current filters in ${BOARD_CONFIG.title}.`
-      : `No records matched the current filters for ${formatHumanDate(isoDate)}.`);
+    ? (isWeek
+      ? `Showing ${filteredRows.length.toLocaleString()} construction, street, event, and resurfacing record${filteredRows.length === 1 ? '' : 's'} active in ${BOARD_CONFIG.title} during ${weekRange}.`
+      : (currentSearchMode === 'upcoming'
+        ? `Showing ${filteredRows.length.toLocaleString()} current and upcoming construction, street, event, and resurfacing record${filteredRows.length === 1 ? '' : 's'} in ${BOARD_CONFIG.title}.`
+        : `Showing ${filteredRows.length.toLocaleString()} construction, street, event, and resurfacing record${filteredRows.length === 1 ? '' : 's'} in ${BOARD_CONFIG.title} for ${formatHumanDate(isoDate)}.`))
+    : (isWeek
+      ? `No records matched the current filters during ${weekRange}.`
+      : (currentSearchMode === 'upcoming'
+        ? `No current or upcoming records matched the current filters in ${BOARD_CONFIG.title}.`
+        : `No records matched the current filters for ${formatHumanDate(isoDate)}.`));
 }
 
 function buildPermitRowsHtml(rows) {
@@ -1574,8 +1640,10 @@ function updateFilmSummary(allRows, filteredRows, isoDate) {
   const televisionCount = allRows.filter(row => row.category === 'Television').length;
   const photographyCount = allRows.filter(row => row.category === 'Still Photography').length;
   const otherCount = allRows.length - filmCount - televisionCount - photographyCount;
-  dom.filmStatDate.textContent = currentSearchMode === 'upcoming' ? `${formatHumanDate(isoDate)} and later` : formatHumanDate(isoDate);
-  dom.filmStatDateSub.textContent = currentSearchMode === 'upcoming' ? 'Film permits current or upcoming from this date.' : 'Film permits for this selected date.';
+  const isWeek = currentSearchMode === 'week';
+  const weekRange = isWeek && currentWeekStart ? formatWeekLabel(currentWeekStart, weekEndIso(currentWeekStart)) : '';
+  dom.filmStatDate.textContent = isWeek ? weekRange : (currentSearchMode === 'upcoming' ? `${formatHumanDate(isoDate)} and later` : formatHumanDate(isoDate));
+  dom.filmStatDateSub.textContent = isWeek ? 'Film permits active during this week.' : (currentSearchMode === 'upcoming' ? 'Film permits current or upcoming from this date.' : 'Film permits for this selected date.');
   dom.filmStatTotal.textContent = filteredRows.length.toLocaleString();
   dom.filmStatFilm.textContent = filmCount.toLocaleString();
   dom.filmStatTelevision.textContent = televisionCount.toLocaleString();
@@ -1583,12 +1651,16 @@ function updateFilmSummary(allRows, filteredRows, isoDate) {
   dom.filmStatOther.textContent = otherCount.toLocaleString();
   dom.filmTableCount.textContent = `${filteredRows.length.toLocaleString()} record${filteredRows.length === 1 ? '' : 's'}`;
   dom.filmTableSubhead.textContent = filteredRows.length
-    ? (currentSearchMode === 'upcoming'
-      ? `Showing ${filteredRows.length.toLocaleString()} film permit record${filteredRows.length === 1 ? '' : 's'} current or upcoming in ${BOARD_CONFIG.title}.`
-      : `Showing ${filteredRows.length.toLocaleString()} film permit record${filteredRows.length === 1 ? '' : 's'} active in ${BOARD_CONFIG.title} on ${formatHumanDate(isoDate)}.`)
-    : (currentSearchMode === 'upcoming'
-      ? `No current or upcoming film permit records matched the current filters in ${BOARD_CONFIG.title}.`
-      : `No film permit records matched the current filters for ${formatHumanDate(isoDate)}.`);
+    ? (isWeek
+      ? `Showing ${filteredRows.length.toLocaleString()} film permit record${filteredRows.length === 1 ? '' : 's'} active in ${BOARD_CONFIG.title} during ${weekRange}.`
+      : (currentSearchMode === 'upcoming'
+        ? `Showing ${filteredRows.length.toLocaleString()} film permit record${filteredRows.length === 1 ? '' : 's'} current or upcoming in ${BOARD_CONFIG.title}.`
+        : `Showing ${filteredRows.length.toLocaleString()} film permit record${filteredRows.length === 1 ? '' : 's'} active in ${BOARD_CONFIG.title} on ${formatHumanDate(isoDate)}.`))
+    : (isWeek
+      ? `No film permit records matched the current filters during ${weekRange}.`
+      : (currentSearchMode === 'upcoming'
+        ? `No current or upcoming film permit records matched the current filters in ${BOARD_CONFIG.title}.`
+        : `No film permit records matched the current filters for ${formatHumanDate(isoDate)}.`));
 }
 
 function renderFilmTable(rows) {
@@ -1666,15 +1738,20 @@ function renderFilteredResults() {
   const filmPermitRows = Array.isArray(allFilmPermits) ? allFilmPermits : [];
   const rows = rowsWithinPin(getFilteredPermits());
   const filmRows = rowsWithinPin(getFilteredFilmPermits());
-  const visiblePermitRows = currentSearchMode === 'upcoming'
-    ? sortUpcomingRows(rows.filter(row => rowCurrentOrFuture(row, dom.date.value)), dom.date.value)
-    : rows;
+  const isWeek = currentSearchMode === 'week';
+  const visiblePermitRows = isWeek
+    ? sortPastRows(rows)
+    : (currentSearchMode === 'upcoming'
+      ? sortUpcomingRows(rows.filter(row => rowCurrentOrFuture(row, dom.date.value)), dom.date.value)
+      : rows);
   const pastPermitRows = currentSearchMode === 'upcoming'
     ? sortPastRows(rows.filter(row => rowPastBeforeDate(row, dom.date.value)))
     : [];
-  const visibleFilmRows = currentSearchMode === 'upcoming'
-    ? sortUpcomingRows(filmRows.filter(row => rowCurrentOrFuture(row, dom.date.value)), dom.date.value)
-    : filmRows;
+  const visibleFilmRows = isWeek
+    ? sortPastRows(filmRows)
+    : (currentSearchMode === 'upcoming'
+      ? sortUpcomingRows(filmRows.filter(row => rowCurrentOrFuture(row, dom.date.value)), dom.date.value)
+      : filmRows);
   const combinedRows = [...visiblePermitRows, ...visibleFilmRows];
   const mapRows = getMapRows(combinedRows);
   updateSummary(permitRows, visiblePermitRows, dom.date.value);
@@ -1707,6 +1784,73 @@ async function findLatestAvailableResult(startIsoDate, maxLookbackDays = 14) {
     probeDate = previousIsoDate(probeDate);
   }
   return fallbackAny || { isoDate: startIsoDate, result: lastResult || { combined: [], warnings: [] }, usedFallback: false, usedAnyPermitFallback: false };
+}
+
+async function runWeekSearch(options = {}) {
+  if (!currentWeekStart) currentWeekStart = weekStartIso(dom.date.value || localIsoDate());
+  const startIso = currentWeekStart;
+  const endIso = weekEndIso(startIso);
+  const rangeLabel = formatWeekLabel(startIso, endIso);
+  currentSearchMode = 'week';
+  dom.weekLabel.textContent = rangeLabel;
+  dom.searchBtn.disabled = true;
+  dom.weekPrevBtn.disabled = true;
+  dom.weekNextBtn.disabled = true;
+  setStatus(`Loading records active during ${rangeLabel}.`, 'Loading…');
+  dom.tableBody.innerHTML = '<tr><td colspan="7" class="empty">Loading records…</td></tr>';
+  dom.pastRecordsSection.hidden = true;
+  dom.filmTableBody.innerHTML = '<tr><td colspan="6" class="empty">Loading film permits…</td></tr>';
+  try {
+    const [result, filmAll] = await Promise.all([
+      fetchUpcomingPermits(startIso),
+      getFilmPermitsFeed().then(rows => rows.map(normalizeFilmRow))
+    ]);
+    const combined = (result.combined || []).filter(row => rowActiveInRange(row, startIso, endIso));
+    const filmRows = filmAll.filter(row => rowActiveInRange(row, startIso, endIso));
+    allPermits = combined;
+    allFilmPermits = filmRows;
+    dom.sourceFilter.value = 'all';
+    renderFilteredResults();
+    const constructionText = `${combined.length.toLocaleString()} construction, event, and resurfacing record${combined.length === 1 ? '' : 's'}`;
+    const filmText = `${filmRows.length.toLocaleString()} film permit record${filmRows.length === 1 ? '' : 's'}`;
+    if (!combined.length && !filmRows.length) {
+      setStatus(`No records active during ${rangeLabel}.`, 'No results.');
+    } else if (result.warnings && result.warnings.length) {
+      setStatus(`Loaded ${constructionText} and ${filmText} for ${rangeLabel}. ${result.warnings.join(' ')}`, 'Loaded with warning.');
+    } else {
+      setStatus(`Loaded ${constructionText} and ${filmText} for ${rangeLabel}.`, 'Loaded.');
+    }
+    if (options.scrollToResults) dom.recordsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (err) {
+    console.error(err);
+    allPermits = [];
+    allFilmPermits = [];
+    renderFilteredResults();
+    setStatus(err.message || 'Could not load records right now.', 'Request failed.');
+  } finally {
+    dom.searchBtn.disabled = false;
+    dom.weekPrevBtn.disabled = false;
+    dom.weekNextBtn.disabled = false;
+  }
+}
+
+function setViewMode(mode) {
+  viewMode = mode === 'week' ? 'week' : 'day';
+  const isWeek = viewMode === 'week';
+  dom.dayField.hidden = isWeek;
+  dom.weekField.hidden = !isWeek;
+  dom.modeDayBtn.classList.toggle('is-active', !isWeek);
+  dom.modeWeekBtn.classList.toggle('is-active', isWeek);
+  dom.modeDayBtn.style.background = isWeek ? '#fff' : 'var(--navy)';
+  dom.modeDayBtn.style.color = isWeek ? 'var(--navy)' : '#fff';
+  dom.modeWeekBtn.style.background = isWeek ? 'var(--navy)' : '#fff';
+  dom.modeWeekBtn.style.color = isWeek ? '#fff' : 'var(--navy)';
+  if (isWeek) {
+    currentWeekStart = weekStartIso(dom.date.value || localIsoDate());
+    runWeekSearch({ scrollToResults: false });
+  } else {
+    runSearch(null, { scrollToResults: false });
+  }
 }
 
 async function runSearch(preloadedResult = null, options = {}) {
@@ -1780,7 +1924,17 @@ async function init() {
       setStatus('Map boundary could not load. Some street layers may be off until refresh.', 'Boundary warning.');
 
   }
-  dom.searchBtn.addEventListener('click', () => runSearch(null, { scrollToResults: true }));
+  dom.searchBtn.addEventListener('click', () => (viewMode === 'week' ? runWeekSearch({ scrollToResults: true }) : runSearch(null, { scrollToResults: true })));
+  dom.modeDayBtn.addEventListener('click', () => setViewMode('day'));
+  dom.modeWeekBtn.addEventListener('click', () => setViewMode('week'));
+  dom.weekPrevBtn.addEventListener('click', () => {
+    currentWeekStart = shiftWeekIso(currentWeekStart || weekStartIso(dom.date.value || localIsoDate()), -1);
+    runWeekSearch({ scrollToResults: false });
+  });
+  dom.weekNextBtn.addEventListener('click', () => {
+    currentWeekStart = shiftWeekIso(currentWeekStart || weekStartIso(dom.date.value || localIsoDate()), 1);
+    runWeekSearch({ scrollToResults: false });
+  });
   document.addEventListener('click', e => {
     const link = e.target.closest('.view-map-link');
     if (!link) return;
@@ -1805,7 +1959,7 @@ async function init() {
   });
   dom.clearPinBtn.addEventListener('click', clearPin);
   dom.date.addEventListener('keydown', (event) => { if (event.key === 'Enter') runSearch(null, { scrollToResults: true }); });
-  dom.addressFilter.addEventListener('keydown', (event) => { if (event.key === 'Enter') runSearch(null, { scrollToResults: true }); });
+  dom.addressFilter.addEventListener('keydown', (event) => { if (event.key === 'Enter') (viewMode === 'week' ? runWeekSearch({ scrollToResults: true }) : runSearch(null, { scrollToResults: true })); });
   setStatus(`Loading records for ${formatHumanDate(dom.date.value)}.`, 'Loading…');
   runSearch();
 }
