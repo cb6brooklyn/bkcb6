@@ -79,6 +79,7 @@ body{display:flex;flex-direction:column}
 .cb-overlap-fragment{mix-blend-mode:multiply}
 .district-map-label{background:transparent;border:0;box-shadow:none;color:#fff;font-family:'DM Sans',Arial,sans-serif;font-size:1.15rem;font-weight:900;line-height:1.12;text-align:center;text-shadow:-1.25px -1.25px 0 rgba(13,27,75,.62),1.25px -1.25px 0 rgba(13,27,75,.62),-1.25px 1.25px 0 rgba(13,27,75,.62),1.25px 1.25px 0 rgba(13,27,75,.62),0 2px 5px rgba(13,27,75,.35);white-space:nowrap;pointer-events:none}
 .district-map-label.senate{font-size:1.25rem}
+.district-map-label.historic-label{font-size:.82rem;font-weight:800;text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff,0 1px 3px rgba(0,0,0,.3)}
 .cb6-boundary-label{background:transparent;border:0;pointer-events:none}
 .cb6-boundary-label-text{display:inline-block;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none;color:#f47920;font-family:'DM Sans',Arial,sans-serif;font-size:1.45rem;font-weight:900;letter-spacing:-.035em;line-height:1;text-transform:none;text-shadow:-1.25px -1.25px 0 rgba(255,255,255,.95),1.25px -1.25px 0 rgba(255,255,255,.95),-1.25px 1.25px 0 rgba(255,255,255,.95),1.25px 1.25px 0 rgba(255,255,255,.95),0 2px 3px rgba(13,27,75,.16);white-space:nowrap}
 
@@ -1557,14 +1558,42 @@ function refreshLegislativeLayers(){
   if(window._senateData && subState.senate){ buildSenate(window._senateData); }
   if(window._congressData && subState.congress){ buildCongress(window._congressData); }
 }
+var HISTORIC_COLORS = {
+  'Carroll Gardens Historic District':'#0d9488',
+  'Cobble Hill Historic District':'#7c3aed',
+  'Cobble Hill Historic District Extension':'#a855f7',
+  'Park Slope Historic District':'#dc2626',
+  'Park Slope Historic District Extension':'#ea580c',
+  'Park Slope Historic District Extension II':'#d97706'
+};
+var HISTORIC_LABELS = {
+  'Carroll Gardens Historic District':'Carroll Gardens',
+  'Cobble Hill Historic District':'Cobble Hill',
+  'Cobble Hill Historic District Extension':'Cobble Hill Ext.',
+  'Park Slope Historic District':'Park Slope',
+  'Park Slope Historic District Extension':'Park Slope Ext.',
+  'Park Slope Historic District Extension II':'Park Slope Ext. II'
+};
+var HISTORIC_EXCLUDE = {
+  'Brooklyn Heights Historic District':1,
+  'Boerum Hill Historic District':1,
+  'Boerum Hill Historic District Extension':1
+};
 function buildHistoric(d){
   var histFeatures = filterByView(d.features, f=>{try{var r=f.geometry.type==='Polygon'?f.geometry.coordinates[0]:f.geometry.coordinates[0][0];return r.reduce((s,c)=>s+c[1],0)/r.length;}catch(e){return 0;}}, f=>{try{var r=f.geometry.type==='Polygon'?f.geometry.coordinates[0]:f.geometry.coordinates[0][0];return r.reduce((s,c)=>s+c[0],0)/r.length;}catch(e){return 0;}});
   histFeatures = filteredBySelectedDistricts(histFeatures, true);
+  histFeatures = histFeatures.filter(function(f){return !HISTORIC_EXCLUDE[f.properties.area_name];});
   var historicLayer = L.geoJSON({type:'FeatureCollection',features:histFeatures},{
-    style:{color:'#a16207',weight:1.5,fillColor:'#d97706',fillOpacity:.25,dashArray:'4,3'},
+    style:function(f){var c=HISTORIC_COLORS[f.properties.area_name]||'#a16207';return {color:c,weight:1.5,fillColor:c,fillOpacity:.3};},
     onEachFeature:(f,l)=>{
       var name=f.properties.area_name||'Historic District';
-      l.bindTooltip('<strong>'+name+'</strong>',{sticky:true});
+      l.bindTooltip('<strong>'+escH(name)+'</strong>',{sticky:true});
+      var label=HISTORIC_LABELS[name]||name;
+      try{
+        var center=l.getBounds().getCenter();
+        var color=HISTORIC_COLORS[name]||'#a16207';
+        L.marker(center,{interactive:false,keyboard:false,icon:L.divIcon({className:'district-map-label historic-label',html:'<div style="color:'+color+'">'+escH(label)+'</div>',iconSize:null,iconAnchor:[0,0]})}).addTo(historicLayer);
+      }catch(e){}
     }
   });
   window._historicLayer=historicLayer;
