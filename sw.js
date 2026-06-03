@@ -1,5 +1,5 @@
 // CB6 & Beyond — Service Worker
-const CACHE_VERSION = 'cb6-v43';
+const CACHE_VERSION = 'cb6-v44';
 const CORE_ASSETS = [
   '/',
   '/index.html',
@@ -52,6 +52,19 @@ self.addEventListener('fetch', (event) => {
         .then((res) => {
           const copy = res.clone();
           caches.open(CACHE_VERSION).then((cache) => cache.put(req, copy));
+          return res;
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // Network-first for images so updated icons refresh promptly
+  if (req.destination === 'image') {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok) { const copy = res.clone(); caches.open(CACHE_VERSION).then((cache) => cache.put(req, copy)); }
           return res;
         })
         .catch(() => caches.match(req))
