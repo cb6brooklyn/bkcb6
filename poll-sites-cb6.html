@@ -25,7 +25,7 @@ body{display:flex;flex-direction:column;min-height:100vh}
 .search-bar button:hover{background:#d4631a}
 .search-bar button:disabled{background:rgba(255,255,255,.2);cursor:default}
 .result-bar{background:#0d1b4b;padding:0 14px;overflow:hidden;max-height:0;transition:max-height .3s ease,padding .3s ease;flex-shrink:0}
-.result-bar.open{max-height:540px;padding:10px 14px 14px}
+.result-bar.open{max-height:780px;padding:10px 14px 14px}
 .result-panels{display:flex;gap:10px;flex-wrap:wrap}
 .result-panel{flex:1;min-width:220px;background:rgba(255,255,255,.07);border-radius:0 8px 8px 0;padding:10px 14px}
 .result-panel.eday{border-left:4px solid #f47920}
@@ -113,6 +113,19 @@ body{display:flex;flex-direction:column;min-height:100vh}
 .ev-day-row.past .ev-day-hours,.ev-day-row.past .ev-day-name{color:rgba(255,255,255,.32)}
 .r-ballot{display:inline-block;margin-top:8px;padding:6px 12px;background:#f47920;color:#fff;border-radius:6px;font-size:.76rem;font-weight:700;text-decoration:none;font-family:'DM Sans',sans-serif}
 .r-ballot:hover{background:#d4631a}
+/* ── Interactive ballot ── */
+.ballot-wrap{margin-top:12px;border-top:1px solid rgba(255,255,255,.12);padding-top:10px}
+.ballot-title{font-size:.62rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.4);margin-bottom:8px}
+.ballot-race{margin-bottom:10px}
+.ballot-race-name{font-size:.72rem;font-weight:700;color:rgba(255,255,255,.9);margin-bottom:5px}
+.ballot-race-sub{font-size:.62rem;color:rgba(255,255,255,.4);font-family:'DM Mono',monospace;margin-bottom:5px}
+.ballot-candidates{display:flex;flex-direction:column;gap:4px}
+.ballot-candidate{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.06);border-radius:6px;padding:6px 10px;gap:8px}
+.ballot-candidate-name{font-size:.82rem;font-weight:600;color:#fff}
+.ballot-candidate-link{font-size:.65rem;font-family:'DM Mono',monospace;color:#f47920;text-decoration:none;white-space:nowrap;flex-shrink:0}
+.ballot-candidate-link:hover{text-decoration:underline}
+.ballot-pdf-link{display:inline-flex;align-items:center;gap:5px;margin-top:6px;font-size:.68rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.4);text-decoration:none}
+.ballot-pdf-link:hover{color:#f47920}
 .cb6-boundary-label{background:transparent;border:0;pointer-events:none}
 .cb6-boundary-label-text{display:inline-block;color:#f47920;font-family:'DM Sans',Arial,sans-serif;font-size:1.45rem;font-weight:900;letter-spacing:-.035em;line-height:1;text-shadow:-1.25px -1.25px 0 rgba(255,255,255,.95),1.25px -1.25px 0 rgba(255,255,255,.95),-1.25px 1.25px 0 rgba(255,255,255,.95),1.25px 1.25px 0 rgba(255,255,255,.95),0 2px 3px rgba(13,27,75,.16);white-space:nowrap}
 </style>
@@ -164,6 +177,39 @@ var BALLOTS = {
   '44': {url:'https://drive.google.com/file/d/1K7Vzkz7fKXkQxUBsBzdofvED7GoJnboM/view', label:'AD 44 Sample Ballot'},
   '51': {url:'https://drive.google.com/file/d/15EX0X4wi08EsfccPppV3LVLr8ETwNErP/view', label:'AD 51 Sample Ballot'},
   '52': {url:'https://drive.google.com/file/d/1mr03yV9cIpoJd6W9i_fkdN1NlIxjsPnS/view', label:'AD 52 Sample Ballot'},
+};
+
+/* ── Ballot races by AD ── */
+var BALLOT_RACES = {
+  'all': [
+    {
+      office: 'State Comptroller',
+      sub: 'Vote for One \u2022 Statewide',
+      candidates: [
+        {name:'Thomas P. DiNapoli', url:'https://www.tomdinapoli.com/'},
+        {name:'Drew Warshaw',       url:'https://www.drewwarshaw.com/'},
+        {name:'Raj Goyle',          url:'https://www.rajgoyle.com/'},
+      ]
+    },
+    {
+      office: 'Representative in Congress',
+      sub: 'Vote for One \u2022 NY-10',
+      candidates: [
+        {name:'Dan Goldman',  url:'https://www.dangoldmanforny.com/'},
+        {name:'Brad Lander',  url:'https://www.bradlanderforcongress.com/'},
+      ]
+    },
+  ],
+  '52': [
+    {
+      office: 'Member of the Assembly',
+      sub: 'Vote for One \u2022 AD 52',
+      candidates: [
+        {name:'Jo Anne Simon',    url:'https://simonforbrooklyn.com/'},
+        {name:'Lydia Bella Green',url:'https://www.lydiagreenbk.com/'},
+      ]
+    },
+  ],
 };
 
 /* ── Early Voting schedule (June 2026 Primary, per BOE) ── */
@@ -329,7 +375,7 @@ function showResult(rawAddr,site,ev,edLabel){
           '<div class="r-zip">'+esc(site.city)+', NY '+esc(site.zip_code)+'</div>'+
           (ent?'<div class="r-ent">'+ent+'</div>':'')+
           '<div class="r-ed">'+esc(edLabel)+'</div>'+
-          (function(){var ad=edLabel.match(/AD\s*(\d+)/);var b=ad&&BALLOTS[ad[1]];return b?'<a class="r-ballot" href="'+b.url+'" target="_blank" rel="noopener">&#x1F5CE; '+b.label+'</a>':'';})()+ 
+          ballotHtml(edLabel)+
           '</div>';
   } else {
     html+='<div class="result-panel eday"><div class="r-label">Election Day</div><div class="result-error">No site assigned in BOE data.</div></div>';
@@ -414,6 +460,30 @@ function highlightEdayCard(sn){
 }
 
 /* ── Helpers ── */
+function ballotHtml(edLabel){
+  var adM=edLabel.match(/AD\s*(\d+)/); if(!adM) return '';
+  var ad=adM[1];
+  var b=BALLOTS[ad]; if(!b) return '';
+  var races=[].concat(BALLOT_RACES['all']||([])).concat(BALLOT_RACES[ad]||[]);
+  if(!races.length) return '';
+  var out='<div class="ballot-wrap"><div class="ballot-title">Your Ballot \u2022 Democratic Primary</div>';
+  races.forEach(function(race){
+    out+='<div class="ballot-race">'+
+         '<div class="ballot-race-name">'+esc(race.office)+'</div>'+
+         '<div class="ballot-race-sub">'+esc(race.sub)+'</div>'+
+         '<div class="ballot-candidates">';
+    race.candidates.forEach(function(c){
+      out+='<div class="ballot-candidate">'+
+           '<span class="ballot-candidate-name">'+esc(c.name)+'</span>'+
+           '<a class="ballot-candidate-link" href="'+c.url+'" target="_blank" rel="noopener">website &rarr;</a>'+
+           '</div>';
+    });
+    out+='</div></div>';
+  });
+  out+='<a class="ballot-pdf-link" href="'+b.url+'" target="_blank" rel="noopener">&#x1F5CE; View full sample ballot PDF</a>';
+  out+='</div>';
+  return out;
+}
 function toggleDir(key){
   var body=document.getElementById(key+'-body');
   var arrow=document.getElementById(key+'-arrow');
