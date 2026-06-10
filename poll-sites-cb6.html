@@ -504,6 +504,31 @@ function showError(msg){
 function resetBtn(){searchBtn.disabled=false;searchBtn.textContent='Find My Sites';}
 
 /* ── Election Day directory ── */
+/* Build site address -> list of EDs from ED_DATA */
+var siteEds={};
+ED_DATA.features.forEach(function(f){
+  var st=f.properties.site;
+  if(!st||!st.address) return;
+  var key=st.address;
+  if(!siteEds[key]) siteEds[key]=[];
+  siteEds[key].push(f.properties.elect_dist);
+});
+function edListHtml(addr){
+  var eds=siteEds[addr];
+  if(!eds||!eds.length) return '';
+  /* group by AD */
+  var byAd={};
+  eds.forEach(function(e){
+    var ad=e.slice(0,2), ed=parseInt(e.slice(2),10);
+    if(!byAd[ad]) byAd[ad]=[];
+    byAd[ad].push(ed);
+  });
+  var parts=[];
+  Object.keys(byAd).sort().forEach(function(ad){
+    parts.push('AD '+parseInt(ad,10)+' ED '+byAd[ad].sort(function(a,b){return a-b;}).join(', '));
+  });
+  return '<div class="ent" style="margin-top:6px"><b style="font-family:\'DM Mono\',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:#f47920;display:block;margin-bottom:1px;font-weight:500">Election districts voting here</b>'+esc(parts.join(' \u2022 '))+'</div>';
+}
 var edayCardEls={};
 var edayGrid=document.getElementById('eday-grid');
 CB6_SITES.forEach(function(s){
@@ -512,7 +537,7 @@ CB6_SITES.forEach(function(s){
   if(he&&he!==ve) ent+='<div class="row"><b>Accessible entrance</b>'+esc(he)+'</div>';
   var c=document.createElement('div');
   c.className='card eday-card';
-  c.innerHTML='<h3>'+esc(s.site_name)+'</h3><div class="addr">'+esc(s.address)+'</div><div class="zip">'+esc(s.city)+', NY '+esc(s.zip_code)+'</div>'+(ent?'<div class="ent">'+ent+'</div>':'');
+  c.innerHTML='<h3>'+esc(s.site_name)+'</h3><div class="addr">'+esc(s.address)+'</div><div class="zip">'+esc(s.city)+', NY '+esc(s.zip_code)+'</div>'+(ent?'<div class="ent">'+ent+'</div>':'')+edListHtml(s.address);
   c.addEventListener('click',function(){
     if(s.lat&&s.lon){map.setView([s.lat,s.lon],15,{animate:true});if(edayMarkers[s.site_number])edayMarkers[s.site_number].openPopup();}
     document.getElementById('map').scrollIntoView({behavior:'smooth',block:'start'});
