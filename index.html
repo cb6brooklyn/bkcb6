@@ -308,6 +308,51 @@
   @media(min-width:520px){
     body{max-width:480px;margin:0 auto;border-left:none;border-right:none}
   }
+
+/* ── Vote Clock ── */
+.vote-clock{border-radius:14px;overflow:hidden;margin:0 0 18px;font-family:'DM Sans',sans-serif;cursor:default}
+.vc-pre{background:#0d1b4b;border:2px solid #f47920;border-radius:14px;padding:16px 14px}
+.vc-pre-label{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.45);margin-bottom:8px}
+.vc-pre-title{font-size:1.05rem;font-weight:900;color:#fff;margin-bottom:12px;line-height:1.2}
+.vc-digits{display:flex;gap:8px;justify-content:center;margin-bottom:4px}
+.vc-unit{display:flex;flex-direction:column;align-items:center;flex:1}
+.vc-num{font-size:2.1rem;font-weight:900;color:#f47920;line-height:1;font-family:'DM Mono','DM Sans',monospace;min-width:2ch;text-align:center}
+.vc-label{font-size:.52rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.4);margin-top:2px;font-weight:600}
+.vc-sep{font-size:2rem;font-weight:900;color:rgba(244,121,32,.4);align-self:flex-start;padding-top:2px;flex:none}
+.vc-sub{font-size:.68rem;color:rgba(255,255,255,.4);text-align:center;font-family:'DM Mono',monospace;margin-top:4px}
+
+/* EV open state */
+.vc-ev{background:#0d1b4b;border:2px solid #16a34a;border-radius:14px;padding:14px 14px}
+.vc-ev-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.vc-ev-headline{font-size:1.05rem;font-weight:900;color:#fff;line-height:1.2}
+.vc-ev-headline span{color:#4ade80}
+.vc-ev-badge{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;font-weight:700;padding:3px 10px;border-radius:10px;white-space:nowrap;flex-shrink:0}
+.vc-ev-badge.open{background:rgba(34,197,94,.2);color:#4ade80}
+.vc-ev-badge.open::before{content:'';width:7px;height:7px;border-radius:50%;background:#4ade80;animation:vc-pulse 1.4s ease infinite}
+.vc-ev-badge.soon{background:rgba(250,204,21,.15);color:#fde047}
+.vc-ev-badge.done{background:rgba(156,163,175,.15);color:#9ca3af}
+.vc-ev-hours{font-size:.78rem;color:rgba(255,255,255,.7);margin-bottom:10px}
+.vc-ev-hours strong{color:#fff}
+.vc-ev-cta{display:block;background:#16a34a;color:#fff;text-align:center;text-decoration:none;border-radius:8px;padding:9px;font-size:.82rem;font-weight:700;transition:background .15s}
+.vc-ev-cta:hover{background:#15803d}
+.vc-ev-time{font-size:.68rem;color:rgba(255,255,255,.35);text-align:center;margin-top:6px;font-family:'DM Mono',monospace}
+
+/* Election day state */
+.vc-eday{background:#0d1b4b;border:2px solid #f47920;border-radius:14px;padding:14px 14px}
+.vc-eday-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.vc-eday-headline{font-size:1.05rem;font-weight:900;color:#fff}
+.vc-eday-headline span{color:#f47920}
+.vc-eday-sub{font-size:.75rem;color:rgba(255,255,255,.6);margin-bottom:10px}
+.vc-eday-remaining{font-size:.68rem;color:rgba(255,255,255,.35);text-align:center;margin-top:6px;font-family:'DM Mono',monospace}
+
+/* Eve state */
+.vc-eve{background:#0d1b4b;border:2px solid #f47920;border-radius:14px;padding:14px 14px;text-align:center}
+.vc-eve-headline{font-size:1.05rem;font-weight:900;color:#fff;margin-bottom:4px}
+.vc-eve-sub{font-size:.78rem;color:rgba(255,255,255,.6)}
+.vc-eve-sub span{color:#f47920;font-weight:700}
+
+@keyframes vc-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+
 </style>
 </head>
 <body>
@@ -348,6 +393,7 @@
     <img src="app-home/hero-button.png" alt="CB6 — Brooklyn Community Board 6">
   </a>
 
+  <div class="vote-clock" id="vote-clock"></div>
   <a class="vote-banner" href="poll-sites-cb6.html">
     <div class="vote-banner-top">
       <div class="vote-banner-headline">VOTE<span>!</span></div>
@@ -443,5 +489,119 @@
 </script>
 <script src="find-my-cb.js"></script>
 <script src="app-shared.js"></script>
+<script>
+
+(function(){
+  var EV_DAYS=[
+    {date:'2026-06-13',o:9*60, c:17*60,label:'Sat, Jun 13'},
+    {date:'2026-06-14',o:9*60, c:17*60,label:'Sun, Jun 14'},
+    {date:'2026-06-15',o:9*60, c:17*60,label:'Mon, Jun 15'},
+    {date:'2026-06-16',o:10*60,c:20*60,label:'Tue, Jun 16'},
+    {date:'2026-06-17',o:10*60,c:20*60,label:'Wed, Jun 17'},
+    {date:'2026-06-18',o:8*60, c:16*60,label:'Thu, Jun 18'},
+    {date:'2026-06-19',o:9*60, c:17*60,label:'Fri, Jun 19'},
+    {date:'2026-06-20',o:9*60, c:17*60,label:'Sat, Jun 20'},
+    {date:'2026-06-21',o:9*60, c:17*60,label:'Sun, Jun 21'},
+  ];
+  var EV_FIRST=new Date('2026-06-13T00:00:00');
+  var EV_LAST =new Date('2026-06-21T23:59:59');
+  var EDAY    =new Date('2026-06-23T00:00:00');
+  var EDAY_END=new Date('2026-06-23T21:00:00');
+  var POLL_URL='poll-sites-cb6.html';
+
+  function pad(n){return String(n).padStart(2,'0');}
+  function fmtH(m){var h=Math.floor(m/60),mn=m%60,ap=h>=12?'pm':'am';h=h>12?h-12:(h===0?12:h);return h+(mn?':'+pad(mn):'')+ap;}
+  function ymd(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+
+  function render(){
+    var el=document.getElementById('vote-clock');
+    if(!el) return;
+    var now=new Date();
+    var todayStr=ymd(now);
+    var nowMins=now.getHours()*60+now.getMinutes();
+
+    /* ── After election day ── */
+    if(now>EDAY_END){el.innerHTML='';return;}
+
+    /* ── Election Day ── */
+    if(todayStr==='2026-06-23'){
+      if(now<EDAY){
+        el.innerHTML='<div class="vc-eday"><div class="vc-eday-top"><div class="vc-eday-headline"><span>Today\'s the day.</span></div><span class="vc-ev-badge open">Polls open 6am</span></div><div class="vc-eday-sub">Election Day \u2022 Polls open 6:00AM \u2013 9:00PM</div><a class="vc-ev-cta" href="'+POLL_URL+'">Find your poll site &rarr;</a></div>';
+        return;
+      }
+      if(now<=EDAY_END){
+        var left=Math.max(0,Math.floor((EDAY_END-now)/1000));
+        var lh=Math.floor(left/3600),lm=Math.floor((left%3600)/60),ls=left%60;
+        el.innerHTML='<div class="vc-eday"><div class="vc-eday-top"><div class="vc-eday-headline"><span>Vote today.</span></div><span class="vc-ev-badge open">Polls open now</span></div><div class="vc-eday-sub">Polls close at 9:00PM</div><a class="vc-ev-cta" href="'+POLL_URL+'">Find your poll site &rarr;</a><div class="vc-eday-remaining">'+lh+'h '+pad(lm)+'m '+pad(ls)+'s until polls close</div></div>';
+        return;
+      }
+      el.innerHTML='';return;
+    }
+
+    /* ── Election eve ── */
+    if(todayStr==='2026-06-22'){
+      el.innerHTML='<div class="vc-eve"><div class="vc-eve-headline">Election Day is tomorrow.</div><div class="vc-eve-sub">Polls open <span>6:00AM \u2013 9:00PM</span> \u2022 Tuesday, June 23</div><a class="vc-ev-cta" href="'+POLL_URL+'" style="margin-top:10px;display:block">Find your poll site &rarr;</a></div>';
+      return;
+    }
+
+    /* ── Early voting window ── */
+    if(todayStr>='2026-06-13'&&todayStr<='2026-06-21'){
+      var today=EV_DAYS.find(function(d){return d.date===todayStr;});
+      var badge,hoursLine,subLine='';
+      if(today){
+        if(nowMins<today.o){
+          var minsUntil=today.o-nowMins;
+          badge='<span class="vc-ev-badge soon">Opens in '+(minsUntil>=60?Math.floor(minsUntil/60)+'h '+pad(minsUntil%60)+'m':minsUntil+'m')+'</span>';
+          hoursLine='Today: <strong>'+fmtH(today.o)+' \u2013 '+fmtH(today.c)+'</strong>';
+          subLine='<div class="vc-ev-time">Early voting runs Jun 13\u201321</div>';
+        } else if(nowMins<=today.c){
+          var left2=today.c-nowMins;
+          badge='<span class="vc-ev-badge open">Open now</span>';
+          hoursLine='Today: <strong>'+fmtH(today.o)+' \u2013 '+fmtH(today.c)+'</strong>';
+          subLine='<div class="vc-ev-time">Closes in '+(left2>=60?Math.floor(left2/60)+'h '+pad(left2%60)+'m':left2+'m')+'</div>';
+        } else {
+          badge='<span class="vc-ev-badge done">Closed today</span>';
+          /* find next open day */
+          var next=EV_DAYS.find(function(d){return d.date>todayStr;});
+          hoursLine=next?'Next: <strong>'+next.label+', '+fmtH(next.o)+'\u2013'+fmtH(next.c)+'</strong>':'Election Day is June 23';
+          subLine='<div class="vc-ev-time">Early voting runs Jun 13\u201321</div>';
+        }
+      }
+      el.innerHTML='<div class="vc-ev">'+
+        '<div class="vc-ev-top"><div class="vc-ev-headline">Voting today?<br><span>When are you voting?</span></div>'+badge+'</div>'+
+        '<div class="vc-ev-hours">'+hoursLine+'</div>'+
+        '<a class="vc-ev-cta" href="'+POLL_URL+'">Find your poll site &amp; ballot &rarr;</a>'+
+        subLine+'</div>';
+      return;
+    }
+
+    /* ── Pre-early-voting countdown ── */
+    var target=new Date('2026-06-13T09:00:00'); /* EV opens 9am */
+    var diff=Math.max(0,Math.floor((target-now)/1000));
+    var dd=Math.floor(diff/86400);
+    var hh=Math.floor((diff%86400)/3600);
+    var mm=Math.floor((diff%3600)/60);
+    var ss=diff%60;
+    el.innerHTML='<div class="vc-pre">'+
+      '<div class="vc-pre-label">Primary Election 2026</div>'+
+      '<div class="vc-pre-title">Early voting opens in&hellip;</div>'+
+      '<div class="vc-digits">'+
+        '<div class="vc-unit"><div class="vc-num" id="vc-dd">'+dd+'</div><div class="vc-label">Days</div></div>'+
+        '<div class="vc-sep">:</div>'+
+        '<div class="vc-unit"><div class="vc-num" id="vc-hh">'+pad(hh)+'</div><div class="vc-label">Hours</div></div>'+
+        '<div class="vc-sep">:</div>'+
+        '<div class="vc-unit"><div class="vc-num" id="vc-mm">'+pad(mm)+'</div><div class="vc-label">Min</div></div>'+
+        '<div class="vc-sep">:</div>'+
+        '<div class="vc-unit"><div class="vc-num" id="vc-ss">'+pad(ss)+'</div><div class="vc-label">Sec</div></div>'+
+      '</div>'+
+      '<div class="vc-sub">Sat, June 13 &bull; 9:00AM &bull; Election Day June 23</div>'+
+    '</div>';
+  }
+
+  render();
+  setInterval(render,1000);
+})();
+
+</script>
 </body>
 </html>
