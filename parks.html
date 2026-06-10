@@ -116,16 +116,24 @@ function buildLabels(){
   labelGroup=L.layerGroup();
   var zoom=map.getZoom();
   if(zoom<14)return;
+  var groups={};
   allData.features.forEach(function(f){
     var p=f.properties;
     var name=p.name||p.sign_name||'';
     if(!name)return;
     var show=(f.properties.layer==='park'&&visPark)||(f.properties.layer==='athletic_facility'&&visAthletic);
     if(!show)return;
-    var ctr=getBoundsCenter(f);
+    var key=f.properties.layer+'|'+name;
+    if(!groups[key])groups[key]={layer:f.properties.layer,name:name,features:[]};
+    groups[key].features.push(f);
+  });
+  Object.keys(groups).forEach(function(key){
+    var g=groups[key];
+    var ctr;
+    try{ctr=L.geoJSON({type:'FeatureCollection',features:g.features}).getBounds().getCenter();}catch(e){return;}
     if(!ctr)return;
-    var cls=f.properties.layer==='park'?'park-label':'athletic-label';
-    var short=name.length>22?name.substring(0,20)+'…':name;
+    var cls=g.layer==='park'?'park-label':'athletic-label';
+    var short=g.name.length>22?g.name.substring(0,20)+'…':g.name;
     L.marker([ctr.lat,ctr.lng],{
       icon:L.divIcon({className:cls,html:escH(short),iconAnchor:[0,0]}),
       interactive:false,zIndexOffset:-100
