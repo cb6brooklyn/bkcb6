@@ -69,6 +69,13 @@
   .muted.small{font-size:13px;margin:8px 0 4px;padding:8px 10px;background:#f3f4fa;border-radius:8px}
   .contest.gated .hd{background:#6b6f8a}
   .groupsep{text-align:center;font-size:11px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;padding:6px 0;background:#f3f4fa}
+  /* Embed mode: trimmer chrome for iframe use */
+  html.embed body{background:transparent}
+  html.embed header.app{padding:12px 16px}
+  html.embed header.app h1{font-size:17px}
+  html.embed header.app .tag{font-size:11px}
+  html.embed .layout{padding:12px}
+  html.embed footer{display:none}
 </style>
 </head>
 <body>
@@ -412,6 +419,27 @@ function leafletPip(pt, layer){
 }
 
 try{ initMap(); }catch(e){ console.warn('Map init failed; lookup still works.',e); }
+
+// ---- Embed support ----
+// When loaded in an iframe with ?embed=1, post our content height to the parent
+// so the iframe can auto-resize, and slim the header to avoid redundancy.
+(function(){
+  var embed = /[?&]embed=1/.test(location.search) || (window.self!==window.top);
+  if(!embed) return;
+  document.documentElement.classList.add('embed');
+  function postHeight(){
+    var h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+    try{ parent.postMessage({type:'bkcb6-pollfinder-height', height:h}, '*'); }catch(e){}
+  }
+  // re-measure on load, resize, and whenever the result panel changes
+  window.addEventListener('load', postHeight);
+  window.addEventListener('resize', postHeight);
+  var ro = ('ResizeObserver' in window) ? new ResizeObserver(postHeight) : null;
+  if(ro) ro.observe(document.body);
+  var res = document.getElementById('result');
+  if(res && 'MutationObserver' in window){ new MutationObserver(postHeight).observe(res,{childList:true,subtree:true,attributes:true}); }
+  setTimeout(postHeight, 300); setTimeout(postHeight, 1200);
+})();
 </script>
 </body>
 </html>
