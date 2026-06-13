@@ -102,6 +102,9 @@
   .vc-muted{font-style:italic}
   .vc-dir{flex:0 0 auto;font-size:12px;font-weight:700;color:var(--navy);text-decoration:none;border-bottom:2px solid var(--orange);align-self:center}
   .vc-foot{font-size:11px;color:var(--muted);margin-top:8px}
+  .vc-rowtoday{border:2px solid var(--orange);box-shadow:0 0 0 3px rgba(244,121,32,.12)}
+  .vc-today{display:inline-block;background:var(--orange);color:#fff;font-size:9px;font-weight:700;letter-spacing:.5px;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:middle}
+  .vc-today-closed{background:var(--muted)}
 </style>
 </head>
 <body>
@@ -220,17 +223,43 @@ function highlightED(code){
 
 // Voting calendar — official NYC BOE hours for the June 23, 2026 Primary (source: vote.nyc)
 var VOTING_DAYS = [
-  {d:'Sat', date:'June 13', hours:'9 AM – 5 PM', ev:true},
-  {d:'Sun', date:'June 14', hours:'9 AM – 5 PM', ev:true},
-  {d:'Mon', date:'June 15', hours:'9 AM – 5 PM', ev:true},
-  {d:'Tue', date:'June 16', hours:'10 AM – 8 PM', ev:true},
-  {d:'Wed', date:'June 17', hours:'10 AM – 8 PM', ev:true},
-  {d:'Thu', date:'June 18', hours:'8 AM – 4 PM', ev:true},
-  {d:'Fri', date:'June 19', hours:'9 AM – 5 PM', ev:true, note:'Juneteenth'},
-  {d:'Sat', date:'June 20', hours:'9 AM – 5 PM', ev:true},
-  {d:'Sun', date:'June 21', hours:'9 AM – 5 PM', ev:true},
-  {d:'Tue', date:'June 23', hours:'6 AM – 9 PM', ev:false, eday:true}
+  {d:'Sat', date:'June 13', iso:'2026-06-13', open:9,  close:17, hours:'9 AM – 5 PM', ev:true},
+  {d:'Sun', date:'June 14', iso:'2026-06-14', open:9,  close:17, hours:'9 AM – 5 PM', ev:true},
+  {d:'Mon', date:'June 15', iso:'2026-06-15', open:9,  close:17, hours:'9 AM – 5 PM', ev:true},
+  {d:'Tue', date:'June 16', iso:'2026-06-16', open:10, close:20, hours:'10 AM – 8 PM', ev:true},
+  {d:'Wed', date:'June 17', iso:'2026-06-17', open:10, close:20, hours:'10 AM – 8 PM', ev:true},
+  {d:'Thu', date:'June 18', iso:'2026-06-18', open:8,  close:16, hours:'8 AM – 4 PM', ev:true},
+  {d:'Fri', date:'June 19', iso:'2026-06-19', open:9,  close:17, hours:'9 AM – 5 PM', ev:true, note:'Juneteenth'},
+  {d:'Sat', date:'June 20', iso:'2026-06-20', open:9,  close:17, hours:'9 AM – 5 PM', ev:true},
+  {d:'Sun', date:'June 21', iso:'2026-06-21', open:9,  close:17, hours:'9 AM – 5 PM', ev:true},
+  {d:'Tue', date:'June 23', iso:'2026-06-23', open:6,  close:21, hours:'6 AM – 9 PM', ev:false, eday:true}
 ];
+// Current date/time in America/New_York, as {iso:'YYYY-MM-DD', hourFloat:Number}
+function nyNow(){
+  try{
+    var parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date());
+    var o={}; parts.forEach(function(p){o[p.type]=p.value;});
+    var hh=parseInt(o.hour,10); if(hh===24) hh=0;
+    return {iso:o.year+'-'+o.month+'-'+o.day, hourFloat:hh+parseInt(o.minute,10)/60};
+  }catch(e){ return {iso:'',hourFloat:0}; }
+}
+function fmtLeft(hoursLeft){
+  var mins=Math.round(hoursLeft*60);
+  var h=Math.floor(mins/60), m=mins%60;
+  if(h>0 && m>0) return h+' hr '+m+' min';
+  if(h>0) return h+' hr';
+  return m+' min';
+}
+// Returns a friendly status line for "today" relative to the voting calendar, or null if today is not a voting day.
+function todayStatus(){
+  var now=nyNow(); if(!now.iso) return null;
+  var day=VOTING_DAYS.filter(function(x){return x.iso===now.iso;})[0];
+  if(!day) return null;
+  var label = day.eday ? 'Election Day' : 'Early voting';
+  if(now.hourFloat < day.open) return {state:'before', text:label+' today — opens '+day.hours.split(' – ')[0]+' (open until '+day.hours.split(' – ')[1]+')'};
+  if(now.hourFloat >= day.close) return {state:'closed', text:label+' is closed for today (was '+day.hours+')'};
+  return {state:'open', text:'Open now until '+day.hours.split(' – ')[1]+' · '+fmtLeft(day.close-now.hourFloat)+' left today'};
+}
 function votingCalendar(edRec, evRec){
   var rows = VOTING_DAYS.map(function(x){
     var site = x.eday ? edRec : evRec;
@@ -239,9 +268,18 @@ function votingCalendar(edRec, evRec){
     var q = site ? encodeURIComponent(site[0]+' '+site[1]+' Brooklyn NY') : '';
     var tagClass = x.eday ? 'vc-eday' : 'vc-ev';
     var label = x.eday ? 'ELECTION DAY' : 'EARLY VOTING';
-    return '<div class="vc-row '+(x.eday?'vc-rowe':'')+'">'+
+    var now=nyNow();
+    var isToday = now.iso===x.iso;
+    var todayBadge='';
+    if(isToday){
+      var hf=now.hourFloat;
+      if(hf < x.open) todayBadge=' <span class="vc-today">TODAY · opens soon</span>';
+      else if(hf >= x.close) todayBadge=' <span class="vc-today vc-today-closed">TODAY · closed</span>';
+      else todayBadge=' <span class="vc-today">TODAY · '+fmtLeft(x.close-hf)+' left</span>';
+    }
+    return '<div class="vc-row '+(x.eday?'vc-rowe':'')+(isToday?' vc-rowtoday':'')+'">'+
       '<div class="vc-date"><span class="vc-dow">'+x.d+'</span><span class="vc-day">'+x.date+'</span></div>'+
-      '<div class="vc-mid"><span class="vc-tag '+tagClass+'">'+label+'</span>'+
+      '<div class="vc-mid"><span class="vc-tag '+tagClass+'">'+label+'</span>'+todayBadge+
         '<div class="vc-hours">'+x.hours+(x.note?' · <span class="vc-note">'+x.note+'</span>':'')+'</div>'+
         (siteName?'<div class="vc-site">'+siteName+'</div>':'<div class="vc-site vc-muted">Site not listed</div>')+
       '</div>'+
@@ -401,8 +439,14 @@ function selectED(code, districts){
   const box=document.getElementById('result'); box.style.display='block';
   let html = `<span class="edtag">AD ${ad} · ED ${ed}</span>`;
   if(layerReady && !foundOnMap) html += `<div class="warn">This ED isn't in the current map layer, but its poll sites are listed below.</div>`;
+  var ts = todayStatus();
+  var evSub, edSub;
+  if(ts && ts.state==='open'){ evSub = ts.text; }
+  else if(ts && ts.state==='before'){ evSub = ts.text; }
+  else if(ts && ts.state==='closed'){ evSub = ts.text+' — see other days below'; }
+  else { evSub = 'See each day\u2019s hours below'; }
   html += siteCard('Election Day — Tue, June 23 · 6 AM–9 PM','Vote at this site on Primary Day',edRec);
-  html += siteCard('Early Voting — June 13–21','Hours vary by day; see vote.nyc',evRec);
+  html += siteCard('Early Voting — June 13–21', evSub, evRec);
   html += votingCalendar(edRec, evRec);
   html += buildBallot(parseInt(ad,10), districts);
   box.innerHTML=html;
