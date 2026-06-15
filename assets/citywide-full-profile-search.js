@@ -57,7 +57,7 @@
       var fams={};
       var layer=L.geoJSON(d,{
         style:function(f){var z=(f.properties||{}).ZONEDIST||'';var g=zoneGray(z);fams[g[0]]=g[1];return{color:'#333',weight:1,opacity:.9,fillColor:g[1],fillOpacity:.55};},
-        onEachFeature:function(f,l){var z=(f.properties||{}).ZONEDIST||'Zoning';var g=zoneGray(z);l.bindPopup('<strong>'+esc(z)+'</strong><br>'+g[0]);}
+        onEachFeature:function(f,l){var z=(f.properties||{}).ZONEDIST||'Zoning';var g=zoneGray(z);l.bindPopup('<strong>'+esc(z)+'</strong><br>'+g[0]); if(z){var c=l.getBounds&&l.getBounds().isValid&&l.getBounds().isValid()?l.getBounds().getCenter():null; if(c){var dark=/^M/.test(String(z).toUpperCase()); L.tooltip({permanent:true,direction:'center',className:'zone-label '+(dark?'zone-label-light':'zone-label-dark'),opacity:1}).setLatLng(c).setContent(esc(z)).addTo(map);}}}
       });
       layer.addTo(map); layer.bringToBack();
       var keys=Object.keys(fams);
