@@ -2997,12 +2997,39 @@ function renderAllYearsReport(allData, yearResults, curYear, lastMonth, spanLo, 
   const _pkEarly = _shareEarly('parking'), _pkLate = _shareLate('parking');
   _arc.push(`What residents call about has shifted as much as how often. Parking went from roughly ${Math.round(_pkEarly)}% of all complaints in the early years to about ${Math.round(_pkLate)}% recently, and it is now the number one category by a wide margin, ${_n(_topCatN)} complaints in all, around ${_arcShare}% of everything filed. That climb is not a quirk of the data. It is a neighborhood where parking pressure is real and enforcement is uneven, and residents have been saying so for years.`);
 
-  // P3 - what grew, what shrank
-  const _topRisers = _risers.slice(0,3).filter(r=>r.g>40);
+  // P3 - what grew, what shrank, with real numbers and timing
+  // Per-year series + early/late annual averages + the year of the biggest jump.
+  function _seriesFor(cat){ return _fullYrs.map(y=>(_yc[y]&&_yc[y][cat])||0); }
+  function _annAvg(cat, ys){ let s=0; ys.forEach(y=>{ s+=(_yc[y]&&_yc[y][cat])||0; }); return Math.round(s/ys.length); }
+  function _takeoffYear(cat){
+    const ser=_seriesFor(cat); let bestY=null,best=0;
+    for(let i=1;i<ser.length;i++){ const j=ser[i]-ser[i-1]; if(j>best){best=j;bestY=_fullYrs[i];} }
+    return bestY;
+  }
+  function _phrase(cat, cap){
+    let lbl=(CAT_LABELS[cat]||cat); lbl = cap ? lbl : lbl.toLowerCase();
+    const e=_annAvg(cat,_earlyYs), l=_annAvg(cat,_lateYs), ty=_takeoffYear(cat);
+    return `${lbl} went from about ${_n(e)} a year early on to roughly ${_n(l)} a year recently${ty?`, climbing fastest in ${ty}`:''}`;
+  }
+  // Risers that genuinely ended higher than they started (late avg well above early avg).
+  const _risen = _catGrowth.filter(x=>x.cat!=='parking' && x.e>=80 && _annAvg(x.cat,_lateYs) > _annAvg(x.cat,_earlyYs)*1.4)
+                           .sort((a,b)=> (_annAvg(b.cat,_lateYs)/Math.max(_annAvg(b.cat,_earlyYs),1)) - (_annAvg(a.cat,_lateYs)/Math.max(_annAvg(a.cat,_earlyYs),1)) )
+                           .slice(0,3);
   let p3 = '';
-  if (_topRisers.length) p3 = `Other categories moved too. By volume, the fastest growth came in ${_topRisers.map(r=>`${(CAT_LABELS[r.cat]||r.cat).toLowerCase()} (up about ${Math.round(r.g)}%)`).join(', ')}.`;
-  const _shrinkers = _fallShare.filter(x=>x.shareShift < -1).slice(0,2);
-  if (_shrinkers.length) p3 += (p3?' ':'') + `At the same time, ${_shrinkers.map(s=>(CAT_LABELS[s.cat]||s.cat).toLowerCase()).join(' and ')} shrank as a share of the whole, because parking and sanitation grew so much faster.`;
+  if (_risen.length) {
+    p3 = `Parking is not the only thing that grew. ${_risen.map((r,i)=>_phrase(r.cat, i===0)).join('; ')}.`;
+  }
+  // Categories that spiked then receded (late avg below their own peak year materially)
+  function _peakYearVal(cat){ const ser=_seriesFor(cat); let mi=0; for(let i=1;i<ser.length;i++) if(ser[i]>ser[mi]) mi=i; return {year:_fullYrs[mi], val:ser[mi]}; }
+  const _sanPeak = _peakYearVal('sanitation');
+  if (_sanPeak.val > _annAvg('sanitation',_lateYs)*1.6) {
+    p3 += (p3?' ':'') + `Not every rise stuck. Sanitation complaints surged around ${_sanPeak.year} (about ${_n(_sanPeak.val)} that year) and have since settled back to roughly ${_n(_annAvg('sanitation',_lateYs))} a year.`;
+  }
+  // Share-of-pie shrinkers (raw counts may be flat, but parking crowded them out)
+  const _shrinkers = _fallShare.filter(x=>x.shareShift < -2).slice(0,2);
+  if (_shrinkers.length) {
+    p3 += (p3?' ':'') + `And some categories that once led the list, like ${_shrinkers.map(s=>(CAT_LABELS[s.cat]||s.cat).toLowerCase()).join(' and ')}, fell as a share of the whole, not because residents stopped calling but because parking grew so much faster around them.`;
+  }
   if (p3) _arc.push(p3);
 
   // P4 - geography over time
