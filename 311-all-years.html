@@ -501,6 +501,17 @@ footer a{color:var(--orange);text-decoration:none}
         <button onclick="clearReportCache()" style="padding:6px 14px;background:#fff;color:var(--navy);border:1px solid var(--border);border-radius:5px;font-family:'DM Sans',sans-serif;font-size:.78rem;cursor:pointer">Clear Cache</button>
         <span id="rptGenProgress" style="font-size:.72rem;font-family:'DM Mono',monospace;color:var(--muted)"></span>
       </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+        <span style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Multi-year report:</span>
+        <select id="spanFrom" style="font-family:'DM Mono',monospace;font-size:.78rem;padding:5px 8px;border:1px solid var(--border);border-radius:5px;background:#fff;color:var(--navy)"></select>
+        <span style="font-size:.72rem;color:var(--muted)">to</span>
+        <select id="spanTo" style="font-family:'DM Mono',monospace;font-size:.78rem;padding:5px 8px;border:1px solid var(--border);border-radius:5px;background:#fff;color:var(--navy)"></select>
+        <button onclick="loadSpanReportFromControls()" style="padding:6px 14px;background:var(--navy);color:#fff;border:none;border-radius:5px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer">Generate Span Report</button>
+        <span style="font-size:.62rem;font-family:'DM Mono',monospace;color:var(--muted)">quick:</span>
+        <button onclick="loadAllYearsReport(2010,2014)" style="padding:5px 10px;background:#fff;color:var(--navy);border:1px solid var(--border);border-radius:5px;font-family:'DM Mono',monospace;font-size:.72rem;cursor:pointer">2010–2014</button>
+        <button onclick="loadAllYearsReport(2015,2019)" style="padding:5px 10px;background:#fff;color:var(--navy);border:1px solid var(--border);border-radius:5px;font-family:'DM Mono',monospace;font-size:.72rem;cursor:pointer">2015–2019</button>
+        <button onclick="loadAllYearsReport(2020,2024)" style="padding:5px 10px;background:#fff;color:var(--navy);border:1px solid var(--border);border-radius:5px;font-family:'DM Mono',monospace;font-size:.72rem;cursor:pointer">2020–2024</button>
+      </div>
     </div><!-- end controls -->
     <div id="rptOut" style="padding:0 0 40px"><div style="padding:40px 24px;text-align:center;font-family:'DM Mono',monospace;font-size:.82rem;color:#6b6760">Select a year and period above, then tap <strong style="color:#0d1b4b">Generate Report</strong>.</div></div>
   </div><!-- end panel311Reports -->
@@ -2733,7 +2744,26 @@ async function fetchReportData(year, month) {
   sel.value = lastY;
   rptM.value = String(lastM).padStart(2, '0');
   updateCacheCount();
+
+  // Populate the multi-year span dropdowns (2010 .. last full year)
+  const lastFull = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const sf = document.getElementById('spanFrom');
+  const st = document.getElementById('spanTo');
+  if (sf && st) {
+    for (let y = 2010; y <= lastFull; y++) {
+      const o1 = document.createElement('option'); o1.value = y; o1.textContent = y; sf.appendChild(o1);
+      const o2 = document.createElement('option'); o2.value = y; o2.textContent = y; st.appendChild(o2);
+    }
+    sf.value = 2010;
+    st.value = lastFull;
+  }
 })();
+
+function loadSpanReportFromControls() {
+  const f = parseInt(document.getElementById('spanFrom').value);
+  const t = parseInt(document.getElementById('spanTo').value);
+  if (f > t) { loadAllYearsReport(t, f); } else { loadAllYearsReport(f, t); }
+}
 
 
 async function loadReport() {
@@ -2775,25 +2805,29 @@ async function loadReport() {
   }
 }
 
-async function loadAllYearsReport() {
+async function loadAllYearsReport(spanFrom, spanTo) {
   const out  = document.getElementById('rptOut');
   const spin = document.getElementById('rptSpinner');
   const err  = document.getElementById('rptError');
   err.style.display = 'none';
   spin.style.display = 'block';
-  out.innerHTML = '<div style="padding:60px 24px;text-align:center;font-family:\'DM Mono\',monospace;font-size:.88rem;color:#0d1b4b;font-weight:700">⏳ Fetching all years…<br><span style="font-weight:400;color:#6b6760;font-size:.75rem">This may take a minute</span></div>';
+  const spanLabel = (spanFrom && spanTo) ? `${spanFrom}–${spanTo}` : 'all years';
+  out.innerHTML = `<div style="padding:60px 24px;text-align:center;font-family:'DM Mono',monospace;font-size:.88rem;color:#0d1b4b;font-weight:700">⏳ Building the ${spanLabel} report…<br><span style="font-weight:400;color:#6b6760;font-size:.75rem">This may take a moment</span></div>`;
   setTimeout(() => { out.scrollIntoView({behavior:'smooth', block:'start'}); }, 80);
 
   try {
     // Fetch each available full year
     const now = new Date();
     const lastFullYear = now.getFullYear() - 1; // 2025
+    const loY = spanFrom ? parseInt(spanFrom) : 2010;
+    const hiY = spanTo ? parseInt(spanTo) : lastFullYear;
     const years = [];
-    for (let y = 2010; y <= lastFullYear; y++) years.push(String(y));
-    // Also include current year up to last complete month
+    for (let y = Math.max(2010, loY); y <= Math.min(lastFullYear, hiY); y++) years.push(String(y));
+    // Also include current year up to last complete month, only if it falls in the span
     const curYear = String(now.getFullYear());
     const lastMonth = now.getMonth(); // 0-indexed, so this is the last complete month number
-    if (lastMonth > 0) years.push(curYear + '_partial');
+    const includeCurrent = lastMonth > 0 && parseInt(curYear) >= loY && parseInt(curYear) <= hiY;
+    if (includeCurrent) years.push(curYear + '_partial');
 
     // Fetch all years in parallel (full year queries)
     const fetches = years.filter(y => !y.includes('_partial')).map(async y => {
@@ -2804,9 +2838,9 @@ async function loadAllYearsReport() {
       return { year: y, ...result };
     });
 
-    // For current partial year, fetch Jan through last complete month
+    // For current partial year, fetch Jan through last complete month (only if in span)
     let partialData = [];
-    if (lastMonth > 0) {
+    if (includeCurrent) {
       const start = `${curYear}-01-01T00:00:00`;
       const endDate = new Date(parseInt(curYear), lastMonth, 1);
       const end = `${endDate.getFullYear()}-${String(endDate.getMonth()+1).padStart(2,'0')}-01T00:00:00`;
@@ -2848,7 +2882,7 @@ async function loadAllYearsReport() {
     });
     partialData.forEach(d => allData.push(d));
 
-    renderAllYearsReport(allData, results, curYear, lastMonth);
+    renderAllYearsReport(allData, results, curYear, includeCurrent ? lastMonth : 0, loY, Math.min(hiY, includeCurrent ? parseInt(curYear) : lastFullYear));
   } catch(e) {
     err.textContent = '⚠ ' + e.message;
     err.style.display = 'block';
@@ -2857,11 +2891,14 @@ async function loadAllYearsReport() {
   }
 }
 
-function renderAllYearsReport(allData, yearResults, curYear, lastMonth) {
+function renderAllYearsReport(allData, yearResults, curYear, lastMonth, spanLo, spanHi) {
   const out = document.getElementById('rptOut');
   const now = new Date();
   const lastFullYear = now.getFullYear() - 1;
-  const periodLabel = `2020–${lastMonth > 0 ? curYear : lastFullYear} All Years`;
+  const _lo = spanLo || 2010;
+  const _hi = spanHi || (lastMonth > 0 ? parseInt(curYear) : lastFullYear);
+  const isFullRun = (_lo <= 2010 && _hi >= lastFullYear);
+  const periodLabel = isFullRun ? `Since 2010` : `${_lo}–${_hi}`;
 
   const total = allData.length;
 
@@ -2953,9 +2990,9 @@ function renderAllYearsReport(allData, yearResults, curYear, lastMonth) {
 
   out.innerHTML = `
 <div style="padding:20px 24px;background:#fff;border-bottom:1px solid var(--border)">
-  <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:4px">CB6 311 — Report Since 2010</div>
-  <h2 style="font-size:1.4rem;font-weight:700;color:var(--navy);margin:0 0 4px">${yearList[0]}–${yearList[yearList.length-1]} · Every Year</h2>
-  <div style="font-size:.8rem;color:#666">Brooklyn Community Board 6 &nbsp;·&nbsp; the full record since 2010</div>
+  <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:4px">CB6 311 Report</div>
+  <h2 style="font-size:1.4rem;font-weight:700;color:var(--navy);margin:0 0 4px">${periodLabel}</h2>
+  <div style="font-size:.8rem;color:#666">Brooklyn Community Board 6 &nbsp;·&nbsp; ${isFullRun ? 'the full record since 2010' : 'multi-year complaint analysis'}</div>
   <div style="margin-top:14px;padding:16px 18px;background:#fafaf8;border-left:3px solid var(--orange);border-radius:6px">
     ${_arc.map(p=>`<p style="font-size:.86rem;color:#333;line-height:1.65;margin:0 0 10px">${p}</p>`).join('')}
     <p style="font-size:.78rem;color:#6b6760;margin:6px 0 0">— Mike Racioppo, District Manager · <a href="mailto:Mike@bkcb6.org" style="color:#f47920;text-decoration:none">Mike@bkcb6.org</a></p>
@@ -3021,6 +3058,21 @@ function renderAllYearsReport(allData, yearResults, curYear, lastMonth) {
     </table>
   </div>
 </div>`;
+
+  // Show the PDF button and stash this span report for the PDF export.
+  var _pdfBtn = document.getElementById('rptPdfBtn');
+  if (_pdfBtn) _pdfBtn.style.display = 'block';
+  window.__lastReport = {
+    kind: 'span',
+    periodLabel,
+    total,
+    narrative: _arc,
+    catEntries: catEntries.map(([c,n])=>[CAT_LABELS[c]||c, n]),
+    topTypes: topTypes.slice(0,10),
+    peakDay, peakHourLabel,
+    pctChange: null, priorTotal: null, monthComplete: true,
+    chartIds: { cat: ids.cat, hr: ids.hr, dow: ids.dow, yr: ids.yr }
+  };
 
   requestAnimationFrame(() => {
     // Year over year bar
