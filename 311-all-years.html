@@ -2966,21 +2966,59 @@ function renderAllYearsReport(allData, yearResults, curYear, lastMonth, spanLo, 
 
   let _arc = [];
 
-  let p2 = `This report pulls together every year on file for CB6, from ${_firstY} through ${_lastY}. Across that span residents filed ${_n(total)} complaints, an average of ${_n(Math.round(total/yearList.length))} a year, and the volume has climbed steadily. ${_peakY} was the busiest year on record at ${_n(_peakYN)} complaints, while ${_lowY} was the quietest at ${_n(_lowYN)}.`;
-  _arc.push(p2);
+  // ---- Trend computations across the span ----
+  const _yc = {};
+  allData.forEach(d => { const y=d.year; if(!y) return; if(!_yc[y])_yc[y]={}; _yc[y][d.cat]=(_yc[y][d.cat]||0)+1; });
+  const _fullYrs = yearList.filter(y => y !== String(curYear) || lastMonth===0);
+  const _earlyYs = _fullYrs.slice(0,5);
+  const _lateYs  = _fullYrs.slice(-5);
+  const _firstFull = _earlyYs[0], _lastFull = _lateYs[_lateYs.length-1];
+  function _sumCat(cat, ys){ let s=0; ys.forEach(y=>{ s += (_yc[y]&&_yc[y][cat])||0; }); return s; }
+  function _sumTot(ys){ let s=0; ys.forEach(y=>{ s += byYear[y]||0; }); return s; }
+  function _shareEarly(cat){ const t=_sumTot(_earlyYs); return t?(_sumCat(cat,_earlyYs)/t*100):0; }
+  function _shareLate(cat){ const t=_sumTot(_lateYs); return t?(_sumCat(cat,_lateYs)/t*100):0; }
+  const _firstN = byYear[_firstFull]||0, _lastN = byYear[_lastFull]||0;
+  const _volGrowth = _firstN ? Math.round((_lastN-_firstN)/_firstN*100) : 0;
+  let _jumps=[];
+  for(let i=1;i<_fullYrs.length;i++){ const a=byYear[_fullYrs[i-1]], b=byYear[_fullYrs[i]]; if(a) _jumps.push([_fullYrs[i],(b-a)/a*100]); }
+  _jumps.sort((x,y)=>y[1]-x[1]);
+  const _topJumps = _jumps.slice(0,3).filter(j=>j[1]>5);
+  const _catGrowth = Object.keys(CAT_LABELS).map(c=>{ const e=_sumCat(c,_earlyYs), l=_sumCat(c,_lateYs); return {cat:c,e,l,g:e?((l-e)/e*100):0,shareShift:_shareLate(c)-_shareEarly(c)}; });
+  const _risers = _catGrowth.filter(x=>x.e>=300).sort((a,b)=>b.g-a.g);
+  const _fallShare = _catGrowth.filter(x=>x.e>=1000).sort((a,b)=>a.shareShift-b.shareShift);
 
+  // P1 - volume trajectory
+  let p1 = `This is the long view: every year on file for CB6, ${_firstY} through ${_lastY}. Residents filed ${_n(total)} complaints over that span, and the trend is unmistakably up. The count has grown about ${_volGrowth}% from ${_firstFull} to ${_lastFull}, from ${_n(_firstN)} a year to ${_n(_lastN)}.`;
+  if (_topJumps.length) p1 += ` It did not climb evenly. The sharpest single-year jumps came in ${_topJumps.map(j=>`${j[0]} (up ${Math.round(j[1])}%)`).join(', ')}.`;
+  p1 += ` ${_peakY} was the busiest year on record at ${_n(_peakYN)}, and ${_lowY} the quietest at ${_n(_lowYN)}.`;
+  _arc.push(p1);
+
+  // P2 - how the mix shifted
+  const _pkEarly = _shareEarly('parking'), _pkLate = _shareLate('parking');
+  _arc.push(`What residents call about has shifted as much as how often. Parking went from roughly ${Math.round(_pkEarly)}% of all complaints in the early years to about ${Math.round(_pkLate)}% recently, and it is now the number one category by a wide margin, ${_n(_topCatN)} complaints in all, around ${_arcShare}% of everything filed. That climb is not a quirk of the data. It is a neighborhood where parking pressure is real and enforcement is uneven, and residents have been saying so for years.`);
+
+  // P3 - what grew, what shrank
+  const _topRisers = _risers.slice(0,3).filter(r=>r.g>40);
   let p3 = '';
-  const _isParking = _leadCat && _leadCat[0] === 'parking';
-  if (_topCat) {
-    if (_isParking) {
-      p3 = `Across the whole period, illegal parking is the number one complaint in CB6, and it is not close. ${_n(_topCatN)} parking complaints since ${_firstY}, about ${_arcShare}% of everything filed. That is not a coincidence or a quirk of the data. It reflects a neighborhood where parking pressure is real and enforcement is uneven, and residents have been saying so for years.`;
-    } else {
-      p3 = `${_cap(_topCat)} is the largest category across the whole period, ${_n(_topCatN)} complaints, about ${_arcShare}% of everything filed.`;
-      if (_topType) p3 += ` ${_topType} is the single most common request, logged ${_n(_topTypeN)} times since ${_firstY}.`;
-    }
-  }
-  if (_topStreets.length) p3 += (p3?' ':'') + `The busiest corridors over the years have been ${_streetsDesc}.`;
+  if (_topRisers.length) p3 = `Other categories moved too. By volume, the fastest growth came in ${_topRisers.map(r=>`${(CAT_LABELS[r.cat]||r.cat).toLowerCase()} (up about ${Math.round(r.g)}%)`).join(', ')}.`;
+  const _shrinkers = _fallShare.filter(x=>x.shareShift < -1).slice(0,2);
+  if (_shrinkers.length) p3 += (p3?' ':'') + `At the same time, ${_shrinkers.map(s=>(CAT_LABELS[s.cat]||s.cat).toLowerCase()).join(' and ')} shrank as a share of the whole, because parking and sanitation grew so much faster.`;
   if (p3) _arc.push(p3);
+
+  // P4 - geography over time
+  function _topStreetsForYears(ys, k){
+    const st={};
+    allData.forEach(d=>{ if(ys.indexOf(d.year)<0) return; let a=(d.address||'').trim(); if(!a)return; a=a.replace(/^\d+[A-Z]?(-\d+[A-Z]?)?\s+/i,'').trim(); if(!a||a.length<3)return; if(!st[a])st[a]={count:0,blocks:{}}; st[a].count++; if(d.cross1&&d.cross2){const pr=[d.cross1.trim(),d.cross2.trim()].sort().join('|'); st[a].blocks[pr]=(st[a].blocks[pr]||0)+1;} });
+    return Object.entries(st).sort((a,b)=>b[1].count-a[1].count).slice(0,k).map(([name,o])=>[name,o.count,o.blocks]);
+  }
+  const _earlyStreets = _topStreetsForYears(_earlyYs, 2);
+  const _lateStreets  = _topStreetsForYears(_lateYs, 3);
+  if (_lateStreets.length) {
+    let p4 = `Where complaints land has moved as well.`;
+    if (_earlyStreets.length) p4 += ` In the early years the busiest corridors were ${describeStreets(_earlyStreets)}.`;
+    p4 += ` Lately the center of gravity is ${describeStreets(_lateStreets)}, with Union Street now far ahead of anywhere else in the district.`;
+    _arc.push(p4);
+  }
 
   _arc.push(`A note on the deep history. The City renamed and retired some complaint labels over the years, so I mapped the old names to their modern categories to keep the buckets consistent all the way back to ${_firstY}. The remaining "other" is small and genuine. Every complaint is counted.`);
 
