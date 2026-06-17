@@ -2003,13 +2003,12 @@ function buildReportNarrative(opts) {
   return lines;
 }
 // ===== END narrative ADD-ON =====
-// ===== ADD-ON: human-readable street names + extent =====
+// ===== ADD-ON: human-readable street names + cross-street blocks =====
 function prettyStreetName(raw) {
   if (!raw) return '';
   let s = raw.trim().toLowerCase();
-  // Title-case each word
   s = s.replace(/\b\w/g, c => c.toUpperCase());
-  // Ordinalize leading or standalone numbers used as street/avenue names: "5 Avenue" -> "5th Avenue", "3 Street" -> "3rd Street"
+  // Ordinalize numbers used as street/avenue names: "5 Avenue" -> "5th Avenue"
   s = s.replace(/\b(\d+)\b/g, (m, d) => {
     const num = parseInt(d, 10);
     const t = num % 100;
@@ -2021,32 +2020,35 @@ function prettyStreetName(raw) {
     }
     return num + suf;
   });
-  // Common abbreviations / fixups
   s = s.replace(/\bSt\b/g, 'Street').replace(/\bAve\b/g, 'Avenue').replace(/\bPl\b/g, 'Place');
   return s;
 }
 
-// Given the house numbers seen on a street, describe the extent in human terms.
-function streetExtent(nums) {
-  const vals = nums.filter(n => Number.isFinite(n) && n > 0).sort((a,b)=>a-b);
-  if (vals.length < 3) return ''; // not enough to characterize
-  const lo = vals[0], hi = vals[vals.length-1];
-  if (hi - lo < 40) return ''; // too tight to bother describing
-  const loB = Math.floor(lo/100)*100;
-  const hiB = Math.floor(hi/100)*100;
-  const blockName = b => b === 0 ? 'the low blocks' : `the ${b}s`;
-  if (loB === hiB) return `mostly around ${blockName(loB)}`;
-  return `${blockName(loB)} up through ${blockName(hiB)}`;
-}
-
-// Build a human sentence fragment for the top streets with their extents.
-// streetData: [ [name, count, [houseNums...]], ... ]
+// Build "Street between A and B" for the busiest block on each top street.
+// streetData: [ [name, count, blocks{ "A|B": n }], ... ]
 function describeStreets(streetData) {
   if (!streetData || !streetData.length) return '';
-  const parts = streetData.slice(0,3).map(([name, count, nums]) => {
+  const parts = streetData.slice(0,3).map(([name, count, blocks]) => {
     const pretty = prettyStreetName(name);
-    const ext = streetExtent(nums || []);
-    return ext ? `${pretty} (${ext})` : pretty;
+    // pick the busiest cross-street pair on this street
+    let bestPair = null, bestN = 0;
+    if (blocks) {
+      for (const k in blocks) {
+        if (blocks[k] > bestN && k.indexOf('|') > -1) {
+          const [a,b] = k.split('|');
+          if (a && b) { bestN = blocks[k]; bestPair = [a,b]; }
+        }
+      }
+    }
+    if (bestPair) {
+      // Drop a trailing "Street" on the cross streets so it reads the way people talk:
+      // "Union Street between Henry and Hicks" rather than "...Henry Street and Hicks Street".
+      const trim = s => s.replace(/\s+Street$/i, '');
+      const a = trim(prettyStreetName(bestPair[0]));
+      const b = trim(prettyStreetName(bestPair[1]));
+      return `${pretty} between ${a} and ${b}`;
+    }
+    return pretty;
   });
   if (parts.length === 1) return parts[0];
   if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
@@ -2666,7 +2668,7 @@ async function fetchReportData(year, month) {
   const HIST_DS = 'https://data.cityofnewyork.us/resource/76ig-c548.json'; // 2010–2019
   const CURR_DS = 'https://data.cityofnewyork.us/resource/erm2-nwe9.json'; // 2020–present
   const BOUNDARY = '2020-01-01T00:00:00';
-  const SELECT = `$select=created_date,complaint_type,descriptor,incident_address,latitude,longitude`;
+  const SELECT = `$select=created_date,complaint_type,descriptor,incident_address,cross_street_1,cross_street_2,latitude,longitude`;
   const oneQs = (ds, s, e) => `${ds}?${SELECT}&$where=community_board='06 BROOKLYN' AND created_date>='${s}' AND created_date<'${e}'&$limit=50000&$$app_token=${APP_TOKEN}`;
 
   // Fetch a date range, splitting across the 2020 dataset boundary when needed.
@@ -2698,6 +2700,8 @@ async function fetchReportData(year, month) {
     complaint_type: d.complaint_type||'',
     descriptor: d.descriptor||'',
     address: d.incident_address||'',
+    cross1: d.cross_street_1||'',
+    cross2: d.cross_street_2||'',
     lat:   parseFloat(d.latitude) || null,
     lng:   parseFloat(d.longitude) || null,
     cat:   categorize(d.complaint_type||'')
@@ -2807,7 +2811,7 @@ async function loadAllYearsReport() {
       const endDate = new Date(parseInt(curYear), lastMonth, 1);
       const end = `${endDate.getFullYear()}-${String(endDate.getMonth()+1).padStart(2,'0')}-01T00:00:00`;
       try {
-        const resp = await fetch(`https://data.cityofnewyork.us/resource/erm2-nwe9.json?$select=created_date,complaint_type,latitude,longitude&$where=community_board='06 BROOKLYN' AND created_date>='${start}' AND created_date<'${end}'&$limit=50000&$$app_token=${APP_TOKEN}`);
+        const resp = await fetch(`https://data.cityofnewyork.us/resource/erm2-nwe9.json?$select=created_date,complaint_type,incident_address,cross_street_1,cross_street_2,latitude,longitude&$where=community_board='06 BROOKLYN' AND created_date>='${start}' AND created_date<'${end}'&$limit=50000&$$app_token=${APP_TOKEN}`);
         if (resp.ok) {
           const raw = await resp.json();
           partialData = raw.map(d => ({
@@ -2817,6 +2821,9 @@ async function loadAllYearsReport() {
             month: (d.created_date||'').substring(5,7),
             year: (d.created_date||'').substring(0,4),
             complaint_type: d.complaint_type||'',
+            address: d.incident_address||'',
+            cross1: d.cross_street_1||'',
+            cross2: d.cross_street_2||'',
             cat: categorize(d.complaint_type||'')
           }));
         }
@@ -2900,23 +2907,24 @@ function renderAllYearsReport(allData, yearResults, curYear, lastMonth) {
   const _topType = topTypes[0] ? topTypes[0][0] : null;
   const _topTypeN = topTypes[0] ? topTypes[0][1] : 0;
   const _arcShare = total ? Math.round((_topCatN/total)*100) : 0;
-  // Busiest corridors across the whole span, with house numbers for extent.
+  // Busiest corridors across the whole span, with cross-street blocks.
   const _streets = {};
   allData.forEach(d => {
     let a = (d.address||'').trim();
     if (!a) return;
-    const nm = a.match(/^(\d+)/);
-    const hn = nm ? parseInt(nm[1],10) : null;
     a = a.replace(/^\d+[A-Z]?(-\d+[A-Z]?)?\s+/i, '').trim();
     if (!a || a.length < 3) return;
-    if (!_streets[a]) _streets[a] = { count:0, nums:[] };
+    if (!_streets[a]) _streets[a] = { count:0, blocks:{} };
     _streets[a].count++;
-    if (hn) _streets[a].nums.push(hn);
+    if (d.cross1 && d.cross2) {
+      const pair = [d.cross1.trim(), d.cross2.trim()].sort().join('|');
+      _streets[a].blocks[pair] = (_streets[a].blocks[pair]||0) + 1;
+    }
   });
   const _topStreets = Object.entries(_streets)
     .sort((a,b)=>b[1].count-a[1].count)
     .slice(0,3)
-    .map(([name,o])=>[name,o.count,o.nums]);
+    .map(([name,o])=>[name,o.count,o.blocks]);
   const _streetsDesc = (typeof describeStreets==='function') ? describeStreets(_topStreets) : _topStreets.map(x=>x[0]).join(', ');
 
   let _arc = [];
@@ -3094,24 +3102,25 @@ function renderReport(data, prior, year, month, isFullYear) {
   const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const peakDay = DOW[days.indexOf(Math.max(...days))];
 
-  // Busiest locations: group by street, keeping house numbers to describe the extent.
+  // Busiest locations: group by street, tracking the busiest block (cross-street pair).
   const streets = {};
   data.forEach(d => {
     let a = (d.address||'').trim();
     if (!a) return;
-    const numMatch = a.match(/^(\d+)/);
-    const houseNum = numMatch ? parseInt(numMatch[1], 10) : null;
-    a = a.replace(/^\d+[A-Z]?(-\d+[A-Z]?)?\s+/i, '').trim(); // drop leading house number(s)
+    a = a.replace(/^\d+[A-Z]?(-\d+[A-Z]?)?\s+/i, '').trim(); // street name only
     if (!a || a.length < 3) return;
-    if (!streets[a]) streets[a] = { count: 0, nums: [] };
+    if (!streets[a]) streets[a] = { count: 0, blocks: {} };
     streets[a].count++;
-    if (houseNum) streets[a].nums.push(houseNum);
+    if (d.cross1 && d.cross2) {
+      // normalize pair order so A|B and B|A combine
+      const pair = [d.cross1.trim(), d.cross2.trim()].sort().join('|');
+      streets[a].blocks[pair] = (streets[a].blocks[pair]||0) + 1;
+    }
   });
-  // [name, count, [houseNums]]
   const topStreets = Object.entries(streets)
     .sort((a,b)=>b[1].count - a[1].count)
     .slice(0,5)
-    .map(([name, o]) => [name, o.count, o.nums]);
+    .map(([name, o]) => [name, o.count, o.blocks]);
 
   const uid = () => 'rc'+Math.random().toString(36).slice(2,8);
   const ids = {cat:uid(),yoy:uid(),hr:uid(),dow:uid(),mo:uid(),map:uid(),mapSub:uid()};
