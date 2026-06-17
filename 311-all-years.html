@@ -1902,7 +1902,7 @@ function buildReportNarrative(opts) {
   // opts: { kind:'month'|'year', year, month, total, priorTotal, monthComplete,
   //         pctChange, catEntries, topTypes, peakDay, peakHourLabel, byMonth }
   const { kind, year, month, total, priorTotal, monthComplete, pctChange,
-          catEntries, topTypes, peakDay, peakHourLabel, byMonth } = opts;
+          catEntries, topTypes, peakDay, peakHourLabel, byMonth, topStreets } = opts;
   const n = x => x.toLocaleString();
   const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : s;
   const CATN = (typeof CAT_LABELS!=='undefined') ? CAT_LABELS : {};
@@ -1919,45 +1919,72 @@ function buildReportNarrative(opts) {
 
   let lines = [];
 
+  // Opening frame: what 311 is and what this report covers. (Mirrors the page intro.)
+  const frame = `311 is how New York City tracks non-emergency complaints and service requests from residents. Every call, text, or online submission becomes a record, and those records, taken together, tell you a lot about what a neighborhood is actually dealing with on the ground.`;
+
   if (kind === 'month') {
     const label = `${MONTHS[parseInt(month)-1]} ${year}`;
-    lines.push(`In ${label}, CB6 residents filed ${n(total)} 311 complaints.`);
+    const intro = `This report covers CB6's 311 activity for ${label}.`;
+
+    // Body paragraph in prose.
+    let body = `In ${label}, CB6 residents filed ${n(total)} 311 complaints.`;
     if (monthComplete && pctChange !== null && priorTotal) {
       const dir = pctChange > 0 ? 'up' : 'down';
-      lines.push(`That is ${dir} ${Math.abs(pctChange)}% from the same month a year earlier, when the count was ${n(priorTotal)}.`);
+      body += ` That is ${dir} ${Math.abs(pctChange)}% from the same month a year earlier, when the count was ${n(priorTotal)}.`;
     }
     if (topCat) {
-      lines.push(`${cap(topCat)} led the month with ${n(topCatN)} complaints, about ${share}% of everything filed.`);
+      body += ` ${cap(topCat)} led the month with ${n(topCatN)} complaints, about ${share}% of everything filed`;
+      body += topType ? `, and the single most common request was ${topType}, logged ${n(topTypeN)} times.` : `.`;
+    } else if (topType) {
+      body += ` The single most common request was ${topType}, logged ${n(topTypeN)} times.`;
     }
-    if (topType) {
-      lines.push(`The single most common request was ${topType}, logged ${n(topTypeN)} times.`);
-    }
+    let when = '';
     if (peakDay && peakHourLabel) {
-      lines.push(`Complaints clustered on ${peakDay}s and peaked around ${peakHourLabel}.`);
+      const dayFull = {Sun:'Sunday',Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday'}[peakDay] || peakDay;
+      when = `Complaints clustered on ${dayFull}s and peaked around ${peakHourLabel}.`;
     }
+    if (topStreets && topStreets.length) {
+      const s = topStreets.slice(0,3).map(x=>x[0]).join(', ');
+      when += (when ? ' ' : '') + `The busiest blocks ran along ${s}, which is where the pressure shows up first.`;
+    }
+
+    lines.push(frame);
+    lines.push(intro + ' ' + body);
+    if (when) lines.push(when);
+
   } else {
     // YEAR
-    lines.push(`Across ${year}, CB6 generated ${n(total)} 311 complaints.`);
+    const intro = `This report covers all of ${year} for CB6.`;
+    let body = `Across ${year}, CB6 generated ${n(total)} 311 complaints.`;
     if (monthComplete && pctChange !== null && priorTotal) {
       const dir = pctChange > 0 ? 'an increase' : 'a decrease';
-      lines.push(`That marks ${dir} of ${Math.abs(pctChange)}% over ${parseInt(year)-1}, which closed at ${n(priorTotal)}.`);
+      body += ` That marks ${dir} of ${Math.abs(pctChange)}% over ${parseInt(year)-1}, which closed at ${n(priorTotal)}.`;
     }
     if (topCat) {
-      lines.push(`${cap(topCat)} was the dominant category at ${n(topCatN)} complaints, roughly ${share}% of the year's total.`);
-      if (secondCat) lines.push(`${cap(secondCat)} followed.`);
+      body += ` ${cap(topCat)} was the dominant category at ${n(topCatN)} complaints, roughly ${share}% of the year's total`;
+      body += secondCat ? `, with ${secondCat.toLowerCase()} the next largest.` : `.`;
     }
     if (topType) {
-      lines.push(`${topType} was the most filed complaint type, appearing ${n(topTypeN)} times.`);
+      body += ` ${topType} was the most filed complaint type, appearing ${n(topTypeN)} times.`;
     }
-    // busiest month within the year
+    let extra = '';
     if (byMonth && Object.keys(byMonth).length) {
       let bm=null,bmN=-1;
       Object.entries(byMonth).forEach(([m,c])=>{ if(c>bmN){bmN=c;bm=m;} });
-      if (bm) lines.push(`${MONTHS[parseInt(bm)-1]} was the busiest stretch, with ${n(bmN)} complaints in that month alone.`);
+      if (bm) extra = `${MONTHS[parseInt(bm)-1]} was the busiest stretch of the year, with ${n(bmN)} complaints in that month alone.`;
     }
+    if (topStreets && topStreets.length) {
+      const s = topStreets.slice(0,3).map(x=>x[0]).join(', ');
+      extra += (extra ? ' ' : '') + `Geographically, complaints concentrated along ${s}.`;
+    }
+
+    lines.push(frame);
+    lines.push(intro + ' ' + body);
+    if (extra) lines.push(extra);
   }
 
-  return lines.join(' ');
+  // Return an array of prose paragraphs.
+  return lines;
 }
 // ===== END narrative ADD-ON =====
 
@@ -2806,13 +2833,30 @@ function renderAllYearsReport(allData, yearResults, curYear, lastMonth) {
   const _topType = topTypes[0] ? topTypes[0][0] : null;
   const _topTypeN = topTypes[0] ? topTypes[0][1] : 0;
   const _arcShare = total ? Math.round((_topCatN/total)*100) : 0;
+  // Busiest corridors across the whole span
+  const _streets = {};
+  allData.forEach(d => {
+    let a = (d.address||'').trim();
+    if (!a) return;
+    a = a.replace(/^\d+[A-Z]?(-\d+[A-Z]?)?\s+/i, '').trim();
+    if (!a || a.length < 3) return;
+    _streets[a] = (_streets[a]||0) + 1;
+  });
+  const _topStreets = Object.entries(_streets).sort((a,b)=>b[1]-a[1]).slice(0,3);
+
   let _arc = [];
-  _arc.push(`Since ${_firstY}, CB6 has generated ${_n(total)} 311 complaints, an average of ${_n(Math.round(total/yearList.length))} a year.`);
-  _arc.push(`Volume has climbed over time. ${_peakY} was the busiest year on record with ${_n(_peakYN)} complaints, while ${_lowY} was the quietest at ${_n(_lowYN)}.`);
-  if (_topCat) _arc.push(`${_cap(_topCat)} is the largest category across the whole span, ${_n(_topCatN)} complaints, about ${_arcShare}% of everything filed.`);
-  if (_topType) _arc.push(`${_topType} is the single most common request, logged ${_n(_topTypeN)} times since ${_firstY}.`);
-  _arc.push(`One caveat on the deep history: the City renamed and retired some complaint labels over the years, so category mixes before 2020 are broad strokes, not exact. Every complaint is still counted.`);
-  const arcNarrative = _arc.join(' ');
+  _arc.push(`311 is how New York City tracks non-emergency complaints and service requests from residents. Every call, text, or online submission becomes a record, and those records, taken together, tell you a lot about what a neighborhood is actually dealing with on the ground.`);
+
+  let p2 = `This report pulls together every year on file for CB6, from ${_firstY} through ${_lastY}. Across that span residents filed ${_n(total)} complaints, an average of ${_n(Math.round(total/yearList.length))} a year, and the volume has climbed steadily. ${_peakY} was the busiest year on record at ${_n(_peakYN)} complaints, while ${_lowY} was the quietest at ${_n(_lowYN)}.`;
+  _arc.push(p2);
+
+  let p3 = '';
+  if (_topCat) p3 += `${_cap(_topCat)} is the largest category across the whole period, ${_n(_topCatN)} complaints, about ${_arcShare}% of everything filed.`;
+  if (_topType) p3 += (p3?' ':'') + `${_topType} is the single most common request, logged ${_n(_topTypeN)} times since ${_firstY}.`;
+  if (_topStreets.length) p3 += (p3?' ':'') + `The busiest corridors over the years have been ${_topStreets.map(x=>x[0]).join(', ')}.`;
+  if (p3) _arc.push(p3);
+
+  _arc.push(`One caveat on the deep history. The City renamed and retired some complaint labels over the years, so category mixes before 2020 are broad strokes, not exact. Every complaint is still counted.`);
 
   const uid = () => 'ay'+Math.random().toString(36).slice(2,8);
   const ids = { yr: uid(), cat: uid(), hr: uid(), dow: uid() };
@@ -2822,9 +2866,9 @@ function renderAllYearsReport(allData, yearResults, curYear, lastMonth) {
   <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:4px">CB6 311 — Report Since 2010</div>
   <h2 style="font-size:1.4rem;font-weight:700;color:var(--navy);margin:0 0 4px">${yearList[0]}–${yearList[yearList.length-1]} · Every Year</h2>
   <div style="font-size:.8rem;color:#666">Brooklyn Community Board 6 &nbsp;·&nbsp; the full record since 2010</div>
-  <div style="margin-top:14px;padding:14px 16px;background:#fafaf8;border-left:3px solid var(--orange);border-radius:6px">
-    <div style="font-size:.82rem;color:#333;line-height:1.6">${arcNarrative}</div>
-    <div style="font-size:.72rem;color:var(--muted);margin-top:8px;font-style:italic">— Mike Racioppo, District Manager</div>
+  <div style="margin-top:14px;padding:16px 18px;background:#fafaf8;border-left:3px solid var(--orange);border-radius:6px">
+    ${_arc.map(p=>`<p style="font-size:.86rem;color:#333;line-height:1.65;margin:0 0 10px">${p}</p>`).join('')}
+    <p style="font-size:.78rem;color:#6b6760;margin:6px 0 0">— Mike Racioppo, District Manager · <a href="mailto:Mike@bkcb6.org" style="color:#f47920;text-decoration:none">Mike@bkcb6.org</a></p>
   </div>
 </div>
 
@@ -2968,13 +3012,24 @@ function renderReport(data, prior, year, month, isFullYear) {
   const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const peakDay = DOW[days.indexOf(Math.max(...days))];
 
+  // Busiest locations: group by street (strip the house number).
+  const streets = {};
+  data.forEach(d => {
+    let a = (d.address||'').trim();
+    if (!a) return;
+    a = a.replace(/^\d+[A-Z]?(-\d+[A-Z]?)?\s+/i, '').trim(); // drop leading house number(s)
+    if (!a || a.length < 3) return;
+    streets[a] = (streets[a]||0) + 1;
+  });
+  const topStreets = Object.entries(streets).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
   const uid = () => 'rc'+Math.random().toString(36).slice(2,8);
   const ids = {cat:uid(),yoy:uid(),hr:uid(),dow:uid(),mo:uid(),map:uid(),mapSub:uid()};
 
   const narrative = buildReportNarrative({
     kind: isFullYear ? 'year' : 'month',
     year, month, total, priorTotal, monthComplete, pctChange,
-    catEntries, topTypes, peakDay, peakHourLabel, byMonth
+    catEntries, topTypes, peakDay, peakHourLabel, byMonth, topStreets
   });
 
   out.innerHTML = `
@@ -2982,9 +3037,9 @@ function renderReport(data, prior, year, month, isFullYear) {
   <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:4px">CB6 311 Report</div>
   <h2 style="font-size:1.4rem;font-weight:700;color:var(--navy);margin:0 0 4px">${periodLabel}</h2>
   <div style="font-size:.8rem;color:#666">Brooklyn Community Board 6 &nbsp;·&nbsp; 311 complaint analysis</div>
-  <div style="margin-top:14px;padding:14px 16px;background:#fafaf8;border-left:3px solid var(--orange);border-radius:6px">
-    <div style="font-size:.82rem;color:#333;line-height:1.6">${narrative}</div>
-    <div style="font-size:.72rem;color:var(--muted);margin-top:8px;font-style:italic">— Mike Racioppo, District Manager</div>
+  <div style="margin-top:14px;padding:16px 18px;background:#fafaf8;border-left:3px solid var(--orange);border-radius:6px">
+    ${narrative.map(p=>`<p style="font-size:.86rem;color:#333;line-height:1.65;margin:0 0 10px">${p}</p>`).join('')}
+    <p style="font-size:.78rem;color:#6b6760;margin:6px 0 0">— Mike Racioppo, District Manager · <a href="mailto:Mike@bkcb6.org" style="color:#f47920;text-decoration:none">Mike@bkcb6.org</a></p>
   </div>
 </div>
 
