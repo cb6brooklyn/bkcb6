@@ -519,6 +519,7 @@ footer a{color:var(--orange);text-decoration:none}
 </div><!-- end section-complaints -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script>
 // Post our height to a parent frame so it can size the iframe to fit (no inner scrollbar).
 (function(){
@@ -3454,7 +3455,7 @@ function printReport() {
     doc.addPage();
   }
 
-  coverPage();
+  // The branded cover comes from the matching PDF in /covers/ (stitched in at save).
   band();
   y = 76;
 
@@ -3556,7 +3557,47 @@ function printReport() {
 
   footer();
   var fname = 'CB6-311-' + R.periodLabel.replace(/[^A-Za-z0-9]+/g,'-') + '.pdf';
-  doc.save(fname);
+
+  // Figure out which cover PDF matches this report.
+  function coverUrlFor(rep) {
+    var MN = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+    if (rep.kind === 'month') {
+      var m = rep.periodLabel.match(/^([A-Za-z]+)\s+(\d{4})$/);
+      if (m) { var mm = MN.indexOf(m[1].toLowerCase()); if (mm >= 0) return 'covers/cover-' + m[2] + '-' + String(mm+1).padStart(2,'0') + '.pdf'; }
+    } else if (rep.kind === 'year') {
+      var y = rep.periodLabel.match(/(\d{4})/);
+      if (y && y[1] === '2010') return 'covers/cover-2010-year.pdf'; // only 2010 has a year cover
+    }
+    return null; // spans and non-2010 years: no prebuilt cover
+  }
+
+  var coverUrl = coverUrlFor(R);
+  var doSave = function(){ doc.save(fname); };
+
+  if (coverUrl && typeof PDFLib !== 'undefined') {
+    // Merge: cover PDF first, then the jsPDF body pages.
+    fetch(coverUrl).then(function(r){ if(!r.ok) throw new Error('no cover'); return r.arrayBuffer(); })
+      .then(function(coverBytes){
+        var bodyBytes = doc.output('arraybuffer');
+        return Promise.all([PDFLib.PDFDocument.load(coverBytes), PDFLib.PDFDocument.load(bodyBytes)]);
+      })
+      .then(function(docs){
+        var coverDoc = docs[0], bodyDoc = docs[1];
+        var merged = coverDoc; // cover page is already page 1
+        return merged.copyPages(bodyDoc, bodyDoc.getPageIndices()).then(function(pages){
+          pages.forEach(function(p){ merged.addPage(p); });
+          return merged.save();
+        });
+      })
+      .then(function(mergedBytes){
+        var blob = new Blob([mergedBytes], {type:'application/pdf'});
+        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname;
+        document.body.appendChild(a); a.click(); a.remove();
+      })
+      .catch(function(){ doSave(); }); // if cover fetch/merge fails, save body alone
+  } else {
+    doSave();
+  }
 }
 
 // --- LEAFLET 311 MAP ---
