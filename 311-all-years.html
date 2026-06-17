@@ -1919,71 +1919,83 @@ function buildReportNarrative(opts) {
 
   let lines = [];
 
-  // Opening frame: what 311 is and what this report covers. (Mirrors the page intro.)
+  // Opening frame: Mike's own words about what 311 is and what the data shows.
   const frame = `311 is how New York City tracks non-emergency complaints and service requests from residents. Every call, text, or online submission becomes a record, and those records, taken together, tell you a lot about what a neighborhood is actually dealing with on the ground.`;
+  const isParkingTop = leadCat && leadCat[0] === 'parking';
+  const dayFull = peakDay ? ({Sun:'Sunday',Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday'}[peakDay] || peakDay) : null;
+  const streetsList = (topStreets && topStreets.length) ? topStreets.slice(0,3).map(x=>x[0]).join(', ') : null;
 
   if (kind === 'month') {
     const label = `${MONTHS[parseInt(month)-1]} ${year}`;
-    const intro = `This report covers CB6's 311 activity for ${label}.`;
 
-    // Body paragraph in prose.
-    let body = `In ${label}, CB6 residents filed ${n(total)} 311 complaints.`;
+    let p2 = `In ${label}, residents filed ${n(total)} 311 complaints in CB6.`;
     if (monthComplete && pctChange !== null && priorTotal) {
-      const dir = pctChange > 0 ? 'up' : 'down';
-      body += ` That is ${dir} ${Math.abs(pctChange)}% from the same month a year earlier, when the count was ${n(priorTotal)}.`;
+      if (Math.abs(pctChange) < 2) {
+        p2 += ` That is about flat against the same month a year earlier, when the count was ${n(priorTotal)}.`;
+      } else {
+        const dir = pctChange > 0 ? 'higher' : 'lower';
+        p2 += ` That is ${Math.abs(pctChange)}% ${dir} than the same month a year earlier, when residents filed ${n(priorTotal)}.`;
+      }
     }
+
+    let p3 = '';
     if (topCat) {
-      body += ` ${cap(topCat)} led the month with ${n(topCatN)} complaints, about ${share}% of everything filed`;
-      body += topType ? `, and the single most common request was ${topType}, logged ${n(topTypeN)} times.` : `.`;
+      if (isParkingTop) {
+        p3 = `Parking led the month, and that is no surprise. It is the number one complaint in CB6 year after year, and ${label} was no exception, with ${n(topCatN)} complaints, about ${share}% of everything filed. Parking pressure here is real, enforcement is uneven, and residents keep saying so.`;
+      } else {
+        p3 = `${cap(topCat)} led the month with ${n(topCatN)} complaints, about ${share}% of everything residents filed.`;
+        if (secondCat) p3 += ` ${cap(secondCat)} came next.`;
+      }
+      if (topType) p3 += ` The single most common request was ${topType}, logged ${n(topTypeN)} times.`;
     } else if (topType) {
-      body += ` The single most common request was ${topType}, logged ${n(topTypeN)} times.`;
+      p3 = `The most common request was ${topType}, logged ${n(topTypeN)} times.`;
     }
-    let when = '';
-    if (peakDay && peakHourLabel) {
-      const dayFull = {Sun:'Sunday',Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday'}[peakDay] || peakDay;
-      when = `Complaints clustered on ${dayFull}s and peaked around ${peakHourLabel}.`;
-    }
-    if (topStreets && topStreets.length) {
-      const s = topStreets.slice(0,3).map(x=>x[0]).join(', ');
-      when += (when ? ' ' : '') + `The busiest blocks ran along ${s}, which is where the pressure shows up first.`;
-    }
+
+    let p4 = '';
+    if (dayFull && peakHourLabel) p4 = `Complaints ran heaviest on ${dayFull}s, peaking around ${peakHourLabel}.`;
+    if (streetsList) p4 += (p4 ? ' ' : '') + `They concentrated along ${streetsList}. That is where the pressure shows up first, and it is worth watching.`;
 
     lines.push(frame);
-    lines.push(intro + ' ' + body);
-    if (when) lines.push(when);
+    lines.push(p2);
+    if (p3) lines.push(p3);
+    if (p4) lines.push(p4);
 
   } else {
-    // YEAR
-    const intro = `This report covers all of ${year} for CB6.`;
-    let body = `Across ${year}, CB6 generated ${n(total)} 311 complaints.`;
+    let p2 = `In ${year}, residents filed ${n(total)} 311 complaints in CB6.`;
     if (monthComplete && pctChange !== null && priorTotal) {
-      const dir = pctChange > 0 ? 'an increase' : 'a decrease';
-      body += ` That marks ${dir} of ${Math.abs(pctChange)}% over ${parseInt(year)-1}, which closed at ${n(priorTotal)}.`;
+      if (Math.abs(pctChange) < 2) {
+        p2 += ` That held about steady against ${parseInt(year)-1}, which closed at ${n(priorTotal)}.`;
+      } else {
+        const dir = pctChange > 0 ? 'up' : 'down';
+        p2 += ` That is ${dir} ${Math.abs(pctChange)}% from ${parseInt(year)-1}, which closed at ${n(priorTotal)}.`;
+      }
     }
+
+    let p3 = '';
     if (topCat) {
-      body += ` ${cap(topCat)} was the dominant category at ${n(topCatN)} complaints, roughly ${share}% of the year's total`;
-      body += secondCat ? `, with ${secondCat.toLowerCase()} the next largest.` : `.`;
+      if (isParkingTop) {
+        p3 = `Parking led the year, and it is not close. Illegal parking is the number one complaint in CB6 and has been for years, ${n(topCatN)} complaints in ${year} alone, about ${share}% of everything filed. That is not a quirk of the data. It reflects a neighborhood where parking pressure is real and enforcement is uneven, and residents have been saying so for a long time.`;
+      } else {
+        p3 = `${cap(topCat)} was the largest category at ${n(topCatN)} complaints, roughly ${share}% of the year's total.`;
+        if (secondCat) p3 += ` ${cap(secondCat)} was the next largest.`;
+      }
+      if (topType) p3 += ` ${topType} was the most filed request, appearing ${n(topTypeN)} times.`;
     }
-    if (topType) {
-      body += ` ${topType} was the most filed complaint type, appearing ${n(topTypeN)} times.`;
-    }
-    let extra = '';
+
+    let p4 = '';
     if (byMonth && Object.keys(byMonth).length) {
       let bm=null,bmN=-1;
       Object.entries(byMonth).forEach(([m,c])=>{ if(c>bmN){bmN=c;bm=m;} });
-      if (bm) extra = `${MONTHS[parseInt(bm)-1]} was the busiest stretch of the year, with ${n(bmN)} complaints in that month alone.`;
+      if (bm) p4 = `${MONTHS[parseInt(bm)-1]} was the busiest stretch of the year, ${n(bmN)} complaints in that month alone.`;
     }
-    if (topStreets && topStreets.length) {
-      const s = topStreets.slice(0,3).map(x=>x[0]).join(', ');
-      extra += (extra ? ' ' : '') + `Geographically, complaints concentrated along ${s}.`;
-    }
+    if (streetsList) p4 += (p4 ? ' ' : '') + `Geographically, the complaints concentrated along ${streetsList}.`;
 
     lines.push(frame);
-    lines.push(intro + ' ' + body);
-    if (extra) lines.push(extra);
+    lines.push(p2);
+    if (p3) lines.push(p3);
+    if (p4) lines.push(p4);
   }
 
-  // Return an array of prose paragraphs.
   return lines;
 }
 // ===== END narrative ADD-ON =====
@@ -2851,8 +2863,15 @@ function renderAllYearsReport(allData, yearResults, curYear, lastMonth) {
   _arc.push(p2);
 
   let p3 = '';
-  if (_topCat) p3 += `${_cap(_topCat)} is the largest category across the whole period, ${_n(_topCatN)} complaints, about ${_arcShare}% of everything filed.`;
-  if (_topType) p3 += (p3?' ':'') + `${_topType} is the single most common request, logged ${_n(_topTypeN)} times since ${_firstY}.`;
+  const _isParking = _leadCat && _leadCat[0] === 'parking';
+  if (_topCat) {
+    if (_isParking) {
+      p3 = `Across the whole period, illegal parking is the number one complaint in CB6, and it is not close. ${_n(_topCatN)} parking complaints since ${_firstY}, about ${_arcShare}% of everything filed. That is not a coincidence or a quirk of the data. It reflects a neighborhood where parking pressure is real and enforcement is uneven, and residents have been saying so for years.`;
+    } else {
+      p3 = `${_cap(_topCat)} is the largest category across the whole period, ${_n(_topCatN)} complaints, about ${_arcShare}% of everything filed.`;
+      if (_topType) p3 += ` ${_topType} is the single most common request, logged ${_n(_topTypeN)} times since ${_firstY}.`;
+    }
+  }
   if (_topStreets.length) p3 += (p3?' ':'') + `The busiest corridors over the years have been ${_topStreets.map(x=>x[0]).join(', ')}.`;
   if (p3) _arc.push(p3);
 
