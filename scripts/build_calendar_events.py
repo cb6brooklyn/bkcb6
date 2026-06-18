@@ -41,6 +41,49 @@ FEEDS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Manual post-processing layer (survives the daily refresh).
+#   EXCLUDES  — drop any source event whose date + label substring match.
+#   OVERRIDES — patch fields on any source event whose date + label substring
+#               match (e.g. swap a city-calendar link for a Zoom registration).
+# ---------------------------------------------------------------------------
+EXCLUDES = [
+    # June 22, 2026 Business Affairs & Licenses committee meeting — removed.
+    {"date": "2026-06-22", "label_contains": "Business Affairs and Licenses"},
+]
+
+OVERRIDES = [
+    # June 25, 2026 Landmarks, Land Use & Housing — meeting is on Zoom.
+    {
+        "date": "2026-06-25",
+        "label_contains": "Landmarks, Land Use & Housing",
+        "set": {
+            "location": "Zoom (register to attend)",
+            "href": "https://zoom.us/webinar/register/WN_m-fa5stQSni-zAO3uEOEvQ",
+            "linkText": "Register on Zoom \u2197",
+            "desc": "Register in advance to attend via Zoom.",
+        },
+    },
+]
+
+
+def apply_manual_layer(events):
+    kept = []
+    for ev in events:
+        if any(
+            ex["date"] == ev.get("date") and ex["label_contains"] in (ev.get("label") or "")
+            for ex in EXCLUDES
+        ):
+            print(f"  Excluded: {ev.get('date')} {ev.get('label')}")
+            continue
+        for ov in OVERRIDES:
+            if ov["date"] == ev.get("date") and ov["label_contains"] in (ev.get("label") or ""):
+                ev.update(ov["set"])
+                print(f"  Overrode: {ev.get('date')} {ev.get('label')}")
+        kept.append(ev)
+    return kept
+
+
 def classify_event(summary, cats, url, forced_type):
     if forced_type:
         return forced_type
@@ -180,6 +223,8 @@ def main():
                 "href": ev["url"] or None,
                 "linkText": "Full details \u2197" if ev["url"] else None,
             })
+
+    all_events = apply_manual_layer(all_events)
 
     out = {
         "generated": datetime.now(timezone.utc).isoformat(),
