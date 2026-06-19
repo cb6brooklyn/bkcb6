@@ -103,6 +103,9 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 .today-flyers-head .dot{width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 0 rgba(232,122,47,.7);animation:todayPulse 1.8s infinite}
 @keyframes todayPulse{0%{box-shadow:0 0 0 0 rgba(232,122,47,.6)}70%{box-shadow:0 0 0 7px rgba(232,122,47,0)}100%{box-shadow:0 0 0 0 rgba(232,122,47,0)}}
 .today-flyers-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:2px}
+.today-flyers-head .tf-scroll-hint{margin-left:auto;color:var(--orange);font-size:.66rem;letter-spacing:.04em}
+.today-flyers-wrap{position:relative}
+.today-flyers-wrap::after{content:'';position:absolute;top:0;right:0;bottom:8px;width:34px;background:linear-gradient(to right,transparent,var(--navy));pointer-events:none}
 .today-flyer-card{flex-shrink:0;width:128px;cursor:zoom-in;background:rgba(255,255,255,.08);border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,.18)}
 .today-flyer-card img{display:block;width:128px;height:128px;object-fit:cover}
 .today-flyer-card .tfc-label{color:#fff;font-size:.66rem;line-height:1.25;padding:6px 7px;font-weight:600}
@@ -1820,8 +1823,8 @@ function buildTodayFlyers(){
   if(!el) return;
   const now = new Date();
   const key = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
-  const evs = (EVENTS[key]||[]).filter(e => e && e.flyer);
-  if(evs.length === 0){ el.style.display='none'; el.innerHTML=''; return; }
+  const all = (EVENTS[key]||[]).filter(e => e && e.label);
+  if(all.length === 0){ el.style.display='none'; el.innerHTML=''; return; }
   // Order: most important first. Priority by type, then by start time.
   const PRIORITY = { nycvotes:0, board:1, committee:2, dep:3 };
   const prio = ev => (ev.type in PRIORITY) ? PRIORITY[ev.type] : 50;
@@ -1831,23 +1834,51 @@ function buildTodayFlyers(){
     let h=+m[1]%12; if(/pm/i.test(m[3])) h+=12;
     return h*60 + (+m[2]);
   };
-  evs.sort((a,b) => prio(a)-prio(b) || mins(a)-mins(b));
-  // De-dupe by flyer URL so repeated entries (e.g. early voting) show once
+  const evs = all.slice().sort((a,b) => prio(a)-prio(b) || mins(a)-mins(b));
+  // De-dupe: by flyer URL when present, else by label, so repeats collapse
   const seen = new Set();
   const cards = [];
   for(const ev of evs){
-    if(seen.has(ev.flyer)) continue;
-    seen.add(ev.flyer);
-    const safe = ev.flyer.replace(/'/g,"\\'");
-    cards.push(
-      `<div class="today-flyer-card" onclick="openFlyer('${safe}')">`+
-      `<img src="${ev.flyer}" alt="${ev.label} flyer" loading="lazy">`+
-      `<div class="tfc-label">${ev.label}</div></div>`
-    );
+    const dedupeKey = ev.flyer || ('label:'+ev.label);
+    if(seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    const t = TYPES[ev.type] || TYPES.community;
+    if(ev.flyer){
+      const safe = ev.flyer.replace(/'/g,"\\'");
+      cards.push(
+        `<div class="today-flyer-card" onclick="openFlyer('${safe}')">`+
+        `<img src="${ev.flyer}" alt="${ev.label} flyer" loading="lazy">`+
+        `<div class="tfc-label">${ev.label}</div></div>`
+      );
+    } else {
+      // No flyer yet: placeholder card showing the org logo/emoji + label, opens day detail
+      const logo = ORG_ICONS[ev.type];
+      const visual = logo
+        ? `<img src="${logo}" alt="" style="width:40px;height:40px;border-radius:6px;background:#fff;object-fit:cover">`
+        : `<span style="font-size:1.8rem">${t.icon}</span>`;
+      const meta = [ev.time, ev.location].filter(Boolean).join(' \u00b7 ');
+      cards.push(
+        `<div class="today-flyer-card today-flyer-noimg" style="background:${t.bg}" onclick="openTodayDay('${key}')">`+
+        `<div class="tfc-noimg-art">${visual}</div>`+
+        `<div class="tfc-label">${ev.label}${meta?`<span class="tfc-meta">${meta}</span>`:''}</div></div>`
+      );
+    }
   }
-  el.innerHTML = '<div class="today-flyers-head"><span class="dot"></span>Happening today \u2014 tap a flyer</div>'+
+  const n = cards.length;
+  const headLabel = n === 1 ? 'Happening today \u2014 tap for details'
+                  : 'Happening today \u00b7 ' + n + ' \u2014 tap for details';
+  const hint = n > 3 ? '<span class="tf-scroll-hint">swipe \u2192</span>' : '';
+  el.innerHTML = '<div class="today-flyers-head"><span class="dot"></span>'+headLabel+hint+'</div>'+
                  '<div class="today-flyers-row">'+cards.join('')+'</div>';
   el.style.display='';
+}
+
+function openTodayDay(key){
+  setView('cal');
+  try { renderMonth(); } catch(e){}
+  selectDay(key);
+  const panel = document.getElementById('day-detail');
+  if(panel) panel.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
 function buildNextUp(){
