@@ -91,6 +91,11 @@
   function zoneFam(z){z=String(z||'').toUpperCase().trim(); if(!z) return 'Other'; if(/^MX/.test(z)) return 'Mixed Use'; if(z.indexOf('/')>-1 && /M\d/.test(z) && /R\d/.test(z)) return 'Mixed Use'; if(/^R/.test(z)) return 'Residential'; if(/^C/.test(z)) return 'Commercial'; if(/^M/.test(z)) return 'Manufacturing'; if(/PARK|PLAYGROUND/.test(z)) return 'Park/Open Space'; if(/^BPC/.test(z)) return 'Mixed Use'; return 'Other';}
   var ZONE_FAM_GRAY={'Residential':'#e0e0e0','Commercial':'#9e9e9e','Manufacturing':'#4a4a4a','Park/Open Space':'#c4c4c4','Mixed Use':'#757575','Other':'#b3b3b3'};
   var ZONE_FAM_LABEL={'Residential':'#f7c948','Commercial':'#2f6fed','Manufacturing':'#c2410c','Park/Open Space':'#15803d','Mixed Use':'#9333ea','Other':'#475569'};
+  // Okabe-Ito colorblind-safe qualitative palette (Okabe & Ito 2002; Wong, Nature Methods 2011).
+  // Hues distinguish nominal zoning families; fill is the hue, label uses a darkened hue for legibility on the light fill.
+  var ZONE_FAM_FILL={'Residential':'#56B4E9','Commercial':'#E69F00','Manufacturing':'#D55E00','Mixed Use':'#CC79A7','Park/Open Space':'#009E73','Other':'#999999'};
+  var ZONE_FAM_TEXT={'Residential':'#1b6fa3','Commercial':'#946400','Manufacturing':'#8a3d00','Mixed Use':'#8a4e6e','Park/Open Space':'#00674c','Other':'#5c5c5c'};
+  function zoneColor(z){var fam=zoneFam(z); return [fam, ZONE_FAM_FILL[fam]||ZONE_FAM_FILL.Other];}
   function zoneGray(z){var fam=zoneFam(z); return [fam, ZONE_FAM_GRAY[fam]||ZONE_FAM_GRAY.Other];}
   function loadResultZoning(map,lat,lng){
     var dy=0.0035, dx=0.0045;
@@ -100,8 +105,8 @@
       if(!d||!d.features||!d.features.length) return;
       var fams={};
       var layer=L.geoJSON(d,{
-        style:function(f){var z=(f.properties||{}).ZONEDIST||'';var g=zoneGray(z);fams[g[0]]=g[1];return{color:'#333',weight:1,opacity:.9,fillColor:g[1],fillOpacity:.55};},
-        onEachFeature:function(f,l){var z=(f.properties||{}).ZONEDIST||'Zoning';var g=zoneGray(z);l.bindPopup('<strong>'+esc(z)+'</strong><br>'+g[0]); if(z){var c=l.getBounds&&l.getBounds().isValid&&l.getBounds().isValid()?l.getBounds().getCenter():null; if(c){var col=ZONE_FAM_LABEL[g[0]]||ZONE_FAM_LABEL.Other; L.tooltip({permanent:true,direction:'center',className:'zone-label',opacity:1}).setLatLng(c).setContent('<span style="color:'+col+'">'+esc(z)+'</span>').addTo(map);}}}
+        style:function(f){var z=(f.properties||{}).ZONEDIST||'';var g=zoneColor(z);fams[g[0]]=g[1];return{color:'#374151',weight:1,opacity:.9,fillColor:g[1],fillOpacity:.5};},
+        onEachFeature:function(f,l){var z=(f.properties||{}).ZONEDIST||'Zoning';var g=zoneColor(z);l.bindPopup('<strong>'+esc(z)+'</strong><br>'+g[0]); if(z){var c=l.getBounds&&l.getBounds().isValid&&l.getBounds().isValid()?l.getBounds().getCenter():null; if(c){var col=ZONE_FAM_TEXT[g[0]]||ZONE_FAM_TEXT.Other; L.tooltip({permanent:true,direction:'center',className:'zone-label',opacity:1}).setLatLng(c).setContent('<span style="color:'+col+'">'+esc(z)+'</span>').addTo(map);}}}
       });
       layer.addTo(map); layer.bringToBack();
       var keys=Object.keys(fams);
@@ -112,6 +117,12 @@
       }
     }).catch(function(e){console.warn('result zoning load failed',e);});
   }
+  function ensureZoneLabelCss(){
+    if(document.getElementById('cw-zone-label-css')) return;
+    var st=document.createElement('style'); st.id='cw-zone-label-css';
+    st.textContent=".leaflet-tooltip.zone-label{background:none;border:0;box-shadow:none;padding:0;font-family:'DM Sans',sans-serif;font-weight:800;font-size:11px;white-space:nowrap}.leaflet-tooltip.zone-label:before{display:none}.zone-label span{text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff,0 0 3px #fff}";
+    document.head.appendChild(st);
+  }
   function initResultMap(root){
     if(typeof L==='undefined'||!root) return;
     var el=root.querySelector('.citywide-result-map');
@@ -119,6 +130,7 @@
     var lat=parseFloat(el.getAttribute('data-lat')), lng=parseFloat(el.getAttribute('data-lng'));
     if(!Number.isFinite(lat)||!Number.isFinite(lng)) return;
     el.dataset.mapReady='true';
+    ensureZoneLabelCss();
     try{
       var map=L.map(el,{scrollWheelZoom:false}).setView([lat,lng],16);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
