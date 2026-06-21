@@ -97,6 +97,15 @@
     if(cardOnly) url+='&card=1';
     return url;
   }
+  function stampUrl(address){
+    try{
+      if(!history.replaceState) return;
+      var p=new URLSearchParams(location.search);
+      p.set('address',address);
+      p.delete('v');
+      history.replaceState(null,'',location.pathname+'?'+p.toString());
+    }catch(e){}
+  }
   function applyCardMode(){
     if(!cardModeRequested()||document.body.classList.contains('card-only')) return;
     document.body.classList.add('card-only');
@@ -123,7 +132,10 @@
         var title='Citywide Address Search — '+address;
         function flash(msg){var prev=btn.textContent; btn.textContent=msg; setTimeout(function(){btn.textContent=prev;},1800);}
         if(navigator.share){
-          navigator.share({title:title,text:title,url:url}).catch(function(){});
+          navigator.share({title:title,url:url}).then(function(){},function(){
+            if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(function(){flash('Link copied');},function(){window.prompt('Copy this link to share:',url);});}
+            else{window.prompt('Copy this link to share:',url);}
+          });
           return;
         }
         if(navigator.clipboard&&navigator.clipboard.writeText){
@@ -155,7 +167,7 @@
         }
         if(status) status.textContent='Searching full '+(boroughName||'citywide')+' address profile…';
         result.hidden=true; result.innerHTML='';
-        try{var profile=await build(q,{boroughName:boroughName,shortLabel:boroughName}); result.innerHTML=profile.html; result.hidden=false; initResultMap(result); bindShare(result); injectCardBar(result); if(status) status.textContent=profile.status || 'Search complete.';}catch(err){console.error(err); if(status) status.textContent=err&&err.message?err.message:'Address lookup failed. Please try a full NYC street address.'; result.hidden=true; result.innerHTML='';}
+        try{var profile=await build(q,{boroughName:boroughName,shortLabel:boroughName}); result.innerHTML=profile.html; result.hidden=false; initResultMap(result); bindShare(result); injectCardBar(result); stampUrl(q); if(status) status.textContent=profile.status || 'Search complete.';}catch(err){console.error(err); if(status) status.textContent=err&&err.message?err.message:'Address lookup failed. Please try a full NYC street address.'; result.hidden=true; result.innerHTML='';}
       }
       input.dataset.fullProfileBound='true';
       if(button && button.dataset.fullProfileBound!=='true'){button.dataset.fullProfileBound='true'; button.addEventListener('click', function(e){e.preventDefault(); e.stopImmediatePropagation(); runFull();}, true);}
