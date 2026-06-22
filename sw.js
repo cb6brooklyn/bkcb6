@@ -1,8 +1,12 @@
 // CB6 & Beyond — Service Worker
-const CACHE_VERSION = 'cb6-v123';
+const CACHE_VERSION = 'cb6-v124';
 const CORE_ASSETS = [
   '/',
   '/index.html',
+  '/cb6-parking-explorer.html',
+  '/cb6-crime-explorer.html',
+  '/cb6-sanitation-explorer.html',
+  '/cb6-parking-map.html',
   '/welcome.html',
   '/privacy.html',
   '/cb6-logo.png',
