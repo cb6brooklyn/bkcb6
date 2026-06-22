@@ -465,7 +465,19 @@ document.getElementById('s-input').addEventListener('keydown',function(e){if(e.k
 /* ===== Standalone Landmarks map ===== */
 var lmMap=null, lmDistLayer=null, lmSearchMarker=null, lmMapReady=false;
 function lmType(name){return /Extension/i.test(name||'')?'ext':'hd';}
-var LM_TYPE_COLOR={hd:'#b5862b',ext:'#7a5c1e'};
+// Per-district categorical colors. Okabe-Ito colorblind-safe palette (Wong 2011,
+// Nature Methods). Paired by hue family: Park Slope = blues, Cobble Hill = warms;
+// Carroll Gardens and Park Slope Ext. II stand alone on maximally distant hues.
+var LM_DIST={
+  'Park Slope Historic District':            {c:'#0072B2',short:'Park Slope',fam:'Park Slope'},
+  'Park Slope Historic District Extension':  {c:'#56B4E9',short:'Park Slope Ext.',fam:'Park Slope'},
+  'Park Slope Historic District Extension II':{c:'#CC79A7',short:'Park Slope Ext. II',fam:'Park Slope'},
+  'Cobble Hill Historic District':           {c:'#D55E00',short:'Cobble Hill',fam:'Cobble Hill'},
+  'Cobble Hill Historic District Extension': {c:'#E69F00',short:'Cobble Hill Ext.',fam:'Cobble Hill'},
+  'Carroll Gardens Historic District':       {c:'#009E73',short:'Carroll Gardens',fam:'Carroll Gardens'}
+};
+function lmColor(name){return (LM_DIST[name]||{}).c||'#9aa0a6';}
+function lmShort(name){return (LM_DIST[name]||{}).short||String(name||'').replace(' Historic District','').replace(' Extension',' Ext.');}
 function toggleLm(){
   var sec=document.getElementById('lmSection');
   var open=sec.classList.toggle('open');
@@ -486,14 +498,13 @@ function drawLmDistricts(){
   if(lmDistLayer)lmMap.removeLayer(lmDistLayer);
   lmDistLayer=L.geoJSON(lmData,{
     filter:function(f){return !LM_EXCLUDE[f.properties.area_name||''];},
-    style:function(f){var t=lmType(f.properties.area_name);var c=LM_TYPE_COLOR[t];return{color:c,weight:2,fillColor:c,fillOpacity:.28};},
-    onEachFeature:function(f,l){var n=f.properties.area_name||'Historic District';var t=lmType(n);l.bindTooltip('<strong>'+escH(n)+'</strong><br><span style="font-size:.72rem;color:#666">'+(t==='ext'?'District Extension':'Historic District')+'</span>',{sticky:true,opacity:1});l.on('mouseover',function(){l.setStyle({fillOpacity:.5,weight:3});});l.on('mouseout',function(){lmDistLayer.resetStyle(l);});}
+    style:function(f){var c=lmColor(f.properties.area_name);return{color:c,weight:2,fillColor:c,fillOpacity:.32};},
+    onEachFeature:function(f,l){var n=f.properties.area_name||'Historic District';var t=lmType(n);l.bindTooltip('<strong>'+escH(n)+'</strong><br><span style="font-size:.72rem;color:#666">'+(t==='ext'?'District Extension':'Historic District')+'</span>',{sticky:true,opacity:1});l.on('mouseover',function(){l.setStyle({fillOpacity:.55,weight:3});});l.on('mouseout',function(){lmDistLayer.resetStyle(l);});}
   }).addTo(lmMap);
   // boundary overlay
   fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}).then(function(b){var cb6=(b.features||[]).find(function(f){return String(f.properties&&f.properties.boro_cd)==='306';});if(cb6)L.geoJSON(cb6,{style:function(){return{color:'#0d1b4b',weight:2,fill:false,dashArray:'4 3'};}}).addTo(lmMap);}).catch(function(){});
-  document.getElementById('lm-legend').innerHTML=
-    '<span class="li"><span class="ls" style="background:'+LM_TYPE_COLOR.hd+'"></span>Historic District</span>'+
-    '<span class="li"><span class="ls" style="background:'+LM_TYPE_COLOR.ext+'"></span>District Extension</span>';
+  var legOrder=['Park Slope Historic District','Park Slope Historic District Extension','Park Slope Historic District Extension II','Cobble Hill Historic District','Cobble Hill Historic District Extension','Carroll Gardens Historic District'];
+  document.getElementById('lm-legend').innerHTML=legOrder.map(function(n){return '<span class="li"><span class="ls" style="background:'+LM_DIST[n].c+'"></span>'+escH(LM_DIST[n].short)+'</span>';}).join('');
 }
 function doLmSearch(){
   var addr=document.getElementById('lm-input').value.trim();if(!addr)return;
@@ -518,7 +529,7 @@ function doLmSearch(){
       var luData=both[0],lpcPerms=both[1];
       var lu='—';if(luData&&luData[0]&&luData[0].landuse){var c=normLU(luData[0].landuse);lu=(LU_LABELS[c]||'Unknown')+' ('+c+')';}
       var statusHtml=inLm
-        ?'<div style="font-weight:700;font-size:.92rem;color:#fff;background:'+LM_TYPE_COLOR[lmType(lm)]+';padding:8px 12px;border-radius:8px 8px 0 0">✓ In a Historic District</div><div style="padding:8px 12px 4px;font-size:.85rem;color:#5c4f2e"><strong>'+escH(lm)+'</strong> <span style="color:#8a7a55">('+(lmType(lm)==='ext'?'Extension':'Historic District')+')</span></div>'
+        ?'<div style="font-weight:700;font-size:.92rem;color:#fff;background:'+lmColor(lm)+';padding:8px 12px;border-radius:8px 8px 0 0">✓ In a Historic District</div><div style="padding:8px 12px 4px;font-size:.85rem;color:#5c4f2e"><strong>'+escH(lm)+'</strong> <span style="color:#8a7a55">('+(lmType(lm)==='ext'?'Extension':'Historic District')+')</span></div>'
         :'<div style="font-weight:700;font-size:.92rem;color:#fff;background:#9aa0a6;padding:8px 12px;border-radius:8px 8px 0 0">Not in a Historic District</div>';
       var lpcHtml='';
       if(inLm){
