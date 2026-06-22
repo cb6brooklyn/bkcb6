@@ -11,7 +11,9 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff}
-body{display:flex;flex-direction:column}
+body{display:flex;flex-direction:column;min-height:100%;height:auto}
+.map-wrap{display:flex;flex-direction:column;height:100vh;flex-shrink:0}
+.map-wrap #map{flex:1;min-height:0}
 .top-bar{background:#0d1b4b;border-bottom:3px solid #f47920;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-shrink:0}
 .top-bar h1{font-size:.92rem;font-weight:700;color:#fff;white-space:nowrap;flex-shrink:0}
 .top-bar h1 span{color:#f47920}
@@ -39,6 +41,26 @@ body{display:flex;flex-direction:column}
 .addr-popup .leaflet-popup-content{margin:0;width:auto!important;max-height:46vh;overflow-y:auto}
 .addr-popup .leaflet-popup-content table{margin:0 10px 8px}
 .addr-popup .leaflet-popup-content table td{padding-top:4px!important;padding-bottom:4px!important}
+/* Standalone landmarks section */
+.lm-section{background:#fdfaf3;border-top:4px solid #b5862b;flex-shrink:0}
+.lm-head{display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;user-select:none}
+.lm-head .lm-ico{font-size:1.3rem}
+.lm-head h2{font-size:1rem;font-weight:700;color:#0d1b4b;margin:0}
+.lm-head p{font-size:.74rem;color:#8a7a55;margin:2px 0 0;font-weight:500}
+.lm-head .lm-chev{margin-left:auto;font-size:1.1rem;color:#b5862b;transition:transform .2s}
+.lm-section.open .lm-chev{transform:rotate(180deg)}
+.lm-body{display:none}
+.lm-section.open .lm-body{display:block}
+.lm-searchbar{display:flex;gap:6px;padding:0 16px 12px}
+.lm-searchbar input{flex:1;font-family:'DM Sans',sans-serif;font-size:.83rem;padding:8px 12px;border:1.5px solid #e0d6bd;border-radius:6px;background:#fff;color:#0d1b4b;outline:none}
+.lm-searchbar input::placeholder{color:#b3a787}
+.lm-searchbar button{padding:8px 16px;background:#b5862b;color:#fff;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;white-space:nowrap}
+.lm-legend{display:flex;flex-wrap:wrap;gap:14px;padding:0 16px 10px;align-items:center}
+.lm-legend .li{font-size:.74rem;color:#5c4f2e;font-weight:600}
+.lm-result{display:none;margin:0 16px 12px;background:#fff;border:1.5px solid #e0d6bd;border-radius:8px;padding:10px 14px}
+#lm-map{height:62vh;min-height:340px;width:100%}
+.lm-foot{padding:8px 16px 14px;font-size:.68rem;font-family:'DM Mono',monospace;color:#a59669}
+.lm-foot a{color:#b5862b;text-decoration:none}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -62,6 +84,7 @@ body{display:flex;flex-direction:column}
 </style>
 </head>
 <body>
+<div class="map-wrap">
 <div class="top-bar">
   <h1>BKCB6 <span>Land Use, Zoning & Landmarks</span></h1>
   <div class="search-row">
@@ -82,6 +105,28 @@ body{display:flex;flex-direction:column}
 <div class="legend-bar" id="legend"></div>
 <div id="map"></div>
 <div class="note-bar" id="note">Loading… &nbsp;|&nbsp; <a href="cb-bk-6.html#sec-planning">Embedded version on CB6 profile ↗</a></div>
+</div><!-- /.map-wrap -->
+
+<section class="lm-section" id="lmSection">
+  <div class="lm-head" onclick="toggleLm()">
+    <span class="lm-ico">🏛</span>
+    <div>
+      <h2>Is it in a Historic District?</h2>
+      <p>Search any CB6 address to check landmark status, permits, zoning & land use</p>
+    </div>
+    <span class="lm-chev">▾</span>
+  </div>
+  <div class="lm-body">
+    <div class="lm-searchbar">
+      <input id="lm-input" type="text" placeholder="Search any CB6 address…"/>
+      <button onclick="doLmSearch()">Check</button>
+    </div>
+    <div class="lm-legend" id="lm-legend"></div>
+    <div class="lm-result" id="lm-result"></div>
+    <div id="lm-map"></div>
+    <div class="lm-foot">CB6 LPC-designated historic districts. Tap a district or search an address. <a href="https://www.nyc.gov/site/lpc/designations/designations.page" target="_blank">LPC designations ↗</a></div>
+  </div>
+</section>
 
 <script>
 var map = L.map('map',{scrollWheelZoom:true}).setView([40.664,-73.988],13);
@@ -416,6 +461,88 @@ function doSearch(){
   }).catch(function(){res.innerHTML='<span style="color:#c81e1e;font-size:.78rem">Search failed.</span>';});
 }
 document.getElementById('s-input').addEventListener('keydown',function(e){if(e.key==='Enter')doSearch();});
+
+/* ===== Standalone Landmarks map ===== */
+var lmMap=null, lmDistLayer=null, lmSearchMarker=null, lmMapReady=false;
+function lmType(name){return /Extension/i.test(name||'')?'ext':'hd';}
+var LM_TYPE_COLOR={hd:'#b5862b',ext:'#7a5c1e'};
+function toggleLm(){
+  var sec=document.getElementById('lmSection');
+  var open=sec.classList.toggle('open');
+  if(open&&!lmMapReady){initLmMap();}
+  else if(open&&lmMap){setTimeout(function(){lmMap.invalidateSize();},60);}
+}
+function initLmMap(){
+  lmMapReady=true;
+  lmMap=L.map('lm-map',{scrollWheelZoom:true}).setView([40.679,-73.99],13);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(lmMap);
+  drawLmDistricts();
+  // CB6 outline if available
+  if(window.cb6Bounds){lmMap.fitBounds(window.cb6Bounds,{padding:[16,16]});}
+  setTimeout(function(){lmMap.invalidateSize();},60);
+}
+function drawLmDistricts(){
+  if(!lmData){setTimeout(drawLmDistricts,200);return;}
+  if(lmDistLayer)lmMap.removeLayer(lmDistLayer);
+  lmDistLayer=L.geoJSON(lmData,{
+    filter:function(f){return !LM_EXCLUDE[f.properties.area_name||''];},
+    style:function(f){var t=lmType(f.properties.area_name);var c=LM_TYPE_COLOR[t];return{color:c,weight:2,fillColor:c,fillOpacity:.28};},
+    onEachFeature:function(f,l){var n=f.properties.area_name||'Historic District';var t=lmType(n);l.bindTooltip('<strong>'+escH(n)+'</strong><br><span style="font-size:.72rem;color:#666">'+(t==='ext'?'District Extension':'Historic District')+'</span>',{sticky:true,opacity:1});l.on('mouseover',function(){l.setStyle({fillOpacity:.5,weight:3});});l.on('mouseout',function(){lmDistLayer.resetStyle(l);});}
+  }).addTo(lmMap);
+  // boundary overlay
+  fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}).then(function(b){var cb6=(b.features||[]).find(function(f){return String(f.properties&&f.properties.boro_cd)==='306';});if(cb6)L.geoJSON(cb6,{style:function(){return{color:'#0d1b4b',weight:2,fill:false,dashArray:'4 3'};}}).addTo(lmMap);}).catch(function(){});
+  document.getElementById('lm-legend').innerHTML=
+    '<span class="li"><span class="ls" style="background:'+LM_TYPE_COLOR.hd+'"></span>Historic District</span>'+
+    '<span class="li"><span class="ls" style="background:'+LM_TYPE_COLOR.ext+'"></span>District Extension</span>';
+}
+function doLmSearch(){
+  var addr=document.getElementById('lm-input').value.trim();if(!addr)return;
+  var res=document.getElementById('lm-result');res.style.display='block';res.innerHTML='<span style="color:#8a7a55;font-size:.78rem;font-family:DM Mono,monospace">Checking…</span>';
+  fetch('https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(addr)+'&size=1').then(function(r){return r.json();}).then(function(geo){
+    if(!geo.features||!geo.features.length){res.innerHTML='<span style="color:#c81e1e;font-size:.78rem">Address not found.</span>';return;}
+    var feat=geo.features[0],lat=feat.geometry.coordinates[1],lng=feat.geometry.coordinates[0],lbl=feat.properties.label||addr;
+    var pad=feat.properties.addendum&&feat.properties.addendum.pad||{};
+    var bbl=pad.bbl||'';var bblN=String(bbl).replace(/\D/g,'');
+    var block=bblN.slice(1,6),lot=bblN.slice(6,10);
+    // landmark
+    var lm='None';
+    (lmData&&lmData.features||[]).forEach(function(f){if(lm!=='None')return;if(LM_EXCLUDE[f.properties.area_name||''])return;if(pip(lng,lat,f))lm=f.properties.area_name||'Historic District';});
+    var inLm=lm!=='None';
+    // zoning
+    var zone='—';
+    (zoningData&&zoningData.features||[]).forEach(function(f){if(zone!=='—')return;if(pip(lng,lat,f))zone=normZ(getZLbl(f.properties||{}));});
+    var luP=bbl?fetch('https://data.cityofnewyork.us/resource/64uk-42ks.json?bbl='+encodeURIComponent(bbl)+'&$select=landuse').then(function(r){return r.json();}).catch(function(){return[];}):Promise.resolve([]);
+    var lpcBlk=String(parseInt(block,10)||''),lpcLot=String(parseInt(lot,10)||'');
+    var lpcP=(inLm&&lpcBlk&&lpcLot)?fetch('https://data.cityofnewyork.us/resource/dpm2-m9mq.json?communityboard=BK-06&block='+lpcBlk+'&lot='+lpcLot+'&$order=issue_date%20DESC&$limit=200&$select=regulation_type,issue_date,received_date').then(function(r){return r.json();}).catch(function(){return[];}):Promise.resolve([]);
+    Promise.all([luP,lpcP]).then(function(both){
+      var luData=both[0],lpcPerms=both[1];
+      var lu='—';if(luData&&luData[0]&&luData[0].landuse){var c=normLU(luData[0].landuse);lu=(LU_LABELS[c]||'Unknown')+' ('+c+')';}
+      var statusHtml=inLm
+        ?'<div style="font-weight:700;font-size:.92rem;color:#fff;background:'+LM_TYPE_COLOR[lmType(lm)]+';padding:8px 12px;border-radius:8px 8px 0 0">✓ In a Historic District</div><div style="padding:8px 12px 4px;font-size:.85rem;color:#5c4f2e"><strong>'+escH(lm)+'</strong> <span style="color:#8a7a55">('+(lmType(lm)==='ext'?'Extension':'Historic District')+')</span></div>'
+        :'<div style="font-weight:700;font-size:.92rem;color:#fff;background:#9aa0a6;padding:8px 12px;border-radius:8px 8px 0 0">Not in a Historic District</div>';
+      var lpcHtml='';
+      if(inLm){
+        if(lpcPerms&&lpcPerms.length){var lgrps={};lpcPerms.forEach(function(p){var rt=p.regulation_type||'Other';if(!lgrps[rt])lgrps[rt]={n:0,last:''};lgrps[rt].n++;var d=(p.issue_date||p.received_date||'').slice(0,10);if(d>lgrps[rt].last)lgrps[rt].last=d;});
+          var inner=Object.keys(lgrps).sort(function(a,b){return lgrps[b].last.localeCompare(lgrps[a].last);}).map(function(rt){var g=lgrps[rt];return'<strong style="color:#b5862b">'+escH(rt)+'</strong> — '+g.n+(g.last?' <span style="color:#888">('+g.last.slice(0,4)+')</span>':'');}).join('<br>');
+          var soql='SELECT * WHERE block=\''+lpcBlk+'\' AND lot=\''+lpcLot+'\' AND communityboard=\'BK-06\' ORDER BY issue_date DESC';
+          var url='https://data.cityofnewyork.us/Housing-Development/LPC-Permit-Application-Information/dpm2-m9mq/explore/query/'+encodeURIComponent(soql)+'/page/filter';
+          lpcHtml=pRow('📜','LPC Permits',inner+'<br><a href="'+url+'" target="_blank" style="color:#b5862b;font-size:.72rem;font-family:DM Mono,monospace">All '+lpcPerms.length+' filings ↗</a>');
+        } else { lpcHtml=pRow('📜','LPC Permits','<span style="color:#888">None on file (since 2016)</span>'); }
+      }
+      var table='<table style="border-collapse:collapse;width:100%;font-size:.8rem">'+pRow('🧭','Zoning','<strong>'+escH(zone)+'</strong>')+pRow('🏘','Land Use',escH(lu))+lpcHtml+'</table>';
+      var card='<div style="font-family:DM Sans,sans-serif">'+statusHtml+'<div style="padding:2px 0 4px">'+table+'</div></div>';
+      res.innerHTML='<div style="font-weight:700;font-size:.82rem;color:#0d1b4b;margin-bottom:8px">📍 '+escH(lbl)+'</div>'+card;
+      if(lmMap){
+        if(lmSearchMarker)lmMap.removeLayer(lmSearchMarker);
+        lmSearchMarker=L.marker([lat,lng],{zIndexOffset:9999}).addTo(lmMap);
+        lmSearchMarker.bindPopup('<div style="font-family:DM Sans,sans-serif;min-width:200px">'+statusHtml+'</div>',{maxWidth:300,className:'addr-popup'});
+        lmMap.setView([lat,lng],16);
+        lmSearchMarker.openPopup();
+      }
+    });
+  }).catch(function(){res.innerHTML='<span style="color:#c81e1e;font-size:.78rem">Search failed.</span>';});
+}
+var lmIn=document.getElementById('lm-input');if(lmIn)lmIn.addEventListener('keydown',function(e){if(e.key==='Enter')doLmSearch();});
 </script>
 <div style="background:#f8f7f4;border-top:2px solid #0d1b4b;padding:10px 14px;flex-shrink:0;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
   <span style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-right:2px">More</span>
