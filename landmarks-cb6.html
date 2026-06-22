@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BKCB6 — Historic Districts & Landmarks</title>
+<meta name="description" content="Is your address in a Brooklyn CB6 historic district? Search any address to check landmark status, LPC permits, zoning, and land use. Covers Park Slope, Cobble Hill, and Carroll Gardens historic districts.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff}
+body{display:flex;flex-direction:column}
+.top-bar{background:#0d1b4b;border-bottom:3px solid #b5862b;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-shrink:0}
+.top-bar h1{font-size:.92rem;font-weight:700;color:#fff;white-space:nowrap;flex-shrink:0}
+.top-bar h1 span{color:#b5862b}
+.search-row{display:flex;gap:6px;flex:1;min-width:200px}
+.search-row input{flex:1;font-family:'DM Sans',sans-serif;font-size:.85rem;padding:7px 11px;border:1.5px solid #2a3a6e;border-radius:6px;background:#fff;color:#0d1b4b;outline:none}
+.search-row input::placeholder{color:#9aa3c0}
+.search-row button{padding:7px 16px;background:#b5862b;color:#fff;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.83rem;font-weight:700;cursor:pointer;white-space:nowrap}
+.top-bar a.back{color:#9aa3c0;font-size:.8rem;text-decoration:none;font-family:'DM Mono',monospace;white-space:nowrap}
+.legend-bar{background:#fdfaf3;display:flex;flex-wrap:wrap;gap:14px;padding:9px 16px;align-items:center;flex-shrink:0;border-bottom:1px solid #ece3cd}
+.legend-bar .li{font-size:.74rem;color:#5c4f2e;font-weight:600;display:flex;align-items:center;gap:5px}
+.legend-bar .ls{width:14px;height:14px;border-radius:3px;display:inline-block;flex-shrink:0}
+#map{flex:1;min-height:0}
+.foot{padding:6px 16px;font-size:.66rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.4);background:#0d1b4b;flex-shrink:0}
+.foot a{color:#b5862b;text-decoration:none}
+.addr-popup .leaflet-popup-content-wrapper{padding:0;border-radius:10px;overflow:hidden;box-shadow:0 6px 28px rgba(0,0,0,.28)}
+.addr-popup .leaflet-popup-content{margin:0;width:auto!important;max-height:50vh;overflow-y:auto}
+.addr-popup .leaflet-popup-content table{margin:0 10px 8px}
+.addr-popup .leaflet-popup-content table td{padding-top:4px!important;padding-bottom:4px!important}
+.result-card{position:absolute;top:10px;right:10px;z-index:1000;width:300px;max-width:calc(100vw - 20px);background:#fff;border-radius:10px;box-shadow:0 6px 28px rgba(0,0,0,.28);display:none;max-height:calc(100% - 20px);overflow-y:auto}
+.result-card .rc-close{position:absolute;top:6px;right:8px;cursor:pointer;color:#fff;font-size:1.1rem;font-weight:700;z-index:2;opacity:.85}
+@media(max-width:560px){.result-card{top:auto;bottom:10px;right:10px;left:10px;width:auto}}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <h1>🏛 CB6 <span>Historic Districts</span></h1>
+  <div class="search-row">
+    <input id="lm-input" type="text" placeholder="Search any CB6 address…"/>
+    <button onclick="doLmSearch()">Check</button>
+  </div>
+  <a class="back" href="planning-map-cb6.html">← Planning Map</a>
+</div>
+<div class="legend-bar" id="lm-legend"></div>
+<div id="map">
+  <div class="result-card" id="lm-result"></div>
+</div>
+<div class="foot">CB6 LPC-designated historic districts. Tap a district or search an address. <a href="https://www.nyc.gov/site/lpc/designations/designations.page" target="_blank">LPC designations ↗</a> &nbsp;|&nbsp; <a href="cb-bk-6.html#sec-planning">CB6 profile ↗</a></div>
+
+<script>
+/* ---------- shared helpers (parity with planning-map-cb6.html) ---------- */
+var LU_LABELS={'01':'One & Two Family','02':'Multi-Family Walk-Up','03':'Multi-Family Elevator','04':'Mixed Res/Commercial','05':'Commercial/Office','06':'Industrial/Manufacturing','07':'Transportation/Utility','08':'Public Facilities','09':'Open Space','10':'Parking','11':'Vacant Land'};
+function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function getZLbl(p){return p.zonedist||p.ZONEDIST||p.zone_dist||p.label||'Unknown';}
+function normZ(lbl){var c=String(lbl||'').toUpperCase().trim();if(/^[RCM]\d[A-Z]?$/.test(c))return c[0]+'-'+c.slice(1);return c;}
+function normLU(v){var s=String(v==null?'':v).replace(/\.0+$/,'');return s.length===1?'0'+s:s;}
+function pip(lng,lat,feat){var g=feat.geometry;if(!g)return false;var rings=g.type==='Polygon'?[g.coordinates]:g.coordinates;for(var p=0;p<rings.length;p++){var o=rings[p][0],inside=false;for(var i=0,j=o.length-1;i<o.length;j=i++){var xi=o[i][0],yi=o[i][1],xj=o[j][0],yj=o[j][1];if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))inside=!inside;}if(inside)return true;}return false;}
+function pRow(icon,label,val){return'<tr style="border-bottom:1px solid #f0efed"><td style="padding:6px 10px 6px 0;vertical-align:top;white-space:nowrap"><span style="font-size:.85rem">'+icon+'</span><span style="font-size:.63rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-left:4px">'+label+'</span></td><td style="padding:6px 0;font-size:.78rem;color:#0d1b4b;line-height:1.4">'+val+'</td></tr>';}
+
+/* ---------- landmark district colors (Okabe-Ito, colorblind-safe) ---------- */
+var LM_EXCLUDE={'Boerum Hill Historic District':1,'Brooklyn Heights Historic District':1};
+function lmType(name){return /Extension/i.test(name||'')?'ext':'hd';}
+var LM_DIST={
+  'Park Slope Historic District':            {c:'#0072B2',short:'Park Slope'},
+  'Park Slope Historic District Extension':  {c:'#56B4E9',short:'Park Slope Ext.'},
+  'Park Slope Historic District Extension II':{c:'#CC79A7',short:'Park Slope Ext. II'},
+  'Cobble Hill Historic District':           {c:'#D55E00',short:'Cobble Hill'},
+  'Cobble Hill Historic District Extension': {c:'#E69F00',short:'Cobble Hill Ext.'},
+  'Carroll Gardens Historic District':       {c:'#009E73',short:'Carroll Gardens'}
+};
+function lmColor(name){return (LM_DIST[name]||{}).c||'#9aa0a6';}
+
+/* ---------- map ---------- */
+var map=L.map('map',{scrollWheelZoom:true}).setView([40.679,-73.99],13);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO &copy; OpenStreetMap',subdomains:'abcd',maxZoom:19}).addTo(map);
+
+var lmData=null, zoningData=null, lmDistLayer=null, lmSearchMarker=null;
+
+// CB6 boundary + zoning (envelope-bounded ArcGIS query, same source as planning map)
+fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}).then(function(b){
+  var cb6=(b.features||[]).find(function(f){return String(f.properties&&f.properties.boro_cd)==='306';});
+  if(!cb6)return;
+  L.geoJSON(cb6,{style:function(){return{color:'#0d1b4b',weight:2,fill:false,dashArray:'4 3'};}}).addTo(map);
+  var bounds=L.geoJSON(cb6).getBounds();map.fitBounds(bounds,{padding:[16,16]});
+  // zoning envelope for search lookups
+  var sw=bounds.getSouthWest(),ne=bounds.getNorthEast();
+  var env={xmin:sw.lng,ymin:sw.lat,xmax:ne.lng,ymax:ne.lat,spatialReference:{wkid:4326}};
+  fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(env))+'&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&f=pgeojson')
+    .then(function(r){return r.json();}).then(function(zd){zoningData=zd;}).catch(function(){});
+}).catch(function(){});
+
+// historic districts
+fetch('historic_districts_by_cb_files/bk_cb6_historic_districts.geojson').then(function(r){return r.json();}).then(function(ld){
+  lmData=ld;
+  lmDistLayer=L.geoJSON(ld,{
+    filter:function(f){return !LM_EXCLUDE[f.properties.area_name||''];},
+    style:function(f){var c=lmColor(f.properties.area_name);return{color:c,weight:2,fillColor:c,fillOpacity:.32};},
+    onEachFeature:function(f,l){var n=f.properties.area_name||'Historic District';var t=lmType(n);l.bindTooltip('<strong>'+escH(n)+'</strong><br><span style="font-size:.72rem;color:#666">'+(t==='ext'?'District Extension':'Historic District')+'</span>',{sticky:true,opacity:1});l.on('mouseover',function(){l.setStyle({fillOpacity:.55,weight:3});});l.on('mouseout',function(){lmDistLayer.resetStyle(l);});}
+  }).addTo(map);
+  var legOrder=['Park Slope Historic District','Park Slope Historic District Extension','Park Slope Historic District Extension II','Cobble Hill Historic District','Cobble Hill Historic District Extension','Carroll Gardens Historic District'];
+  document.getElementById('lm-legend').innerHTML=legOrder.map(function(n){return '<span class="li"><span class="ls" style="background:'+LM_DIST[n].c+'"></span>'+escH(LM_DIST[n].short)+'</span>';}).join('');
+}).catch(function(){});
+
+/* ---------- search ---------- */
+function doLmSearch(){
+  var addr=document.getElementById('lm-input').value.trim();if(!addr)return;
+  var res=document.getElementById('lm-result');res.style.display='block';res.innerHTML='<div style="padding:12px 14px"><span style="color:#8a7a55;font-size:.78rem;font-family:DM Mono,monospace">Checking…</span></div>';
+  fetch('https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(addr)+'&size=1').then(function(r){return r.json();}).then(function(geo){
+    if(!geo.features||!geo.features.length){res.innerHTML='<div style="padding:12px 14px"><span style="color:#c81e1e;font-size:.78rem">Address not found.</span></div>';return;}
+    var feat=geo.features[0],lat=feat.geometry.coordinates[1],lng=feat.geometry.coordinates[0],lbl=feat.properties.label||addr;
+    var pad=feat.properties.addendum&&feat.properties.addendum.pad||{};
+    var bbl=pad.bbl||'';var bblN=String(bbl).replace(/\D/g,'');
+    var block=bblN.slice(1,6),lot=bblN.slice(6,10);
+    var lm='None';
+    (lmData&&lmData.features||[]).forEach(function(f){if(lm!=='None')return;if(LM_EXCLUDE[f.properties.area_name||''])return;if(pip(lng,lat,f))lm=f.properties.area_name||'Historic District';});
+    var inLm=lm!=='None';
+    var zone='—';
+    (zoningData&&zoningData.features||[]).forEach(function(f){if(zone!=='—')return;if(pip(lng,lat,f))zone=normZ(getZLbl(f.properties||{}));});
+    var luP=bbl?fetch('https://data.cityofnewyork.us/resource/64uk-42ks.json?bbl='+encodeURIComponent(bbl)+'&$select=landuse').then(function(r){return r.json();}).catch(function(){return[];}):Promise.resolve([]);
+    var lpcBlk=String(parseInt(block,10)||''),lpcLot=String(parseInt(lot,10)||'');
+    var lpcP=(inLm&&lpcBlk&&lpcLot)?fetch('https://data.cityofnewyork.us/resource/dpm2-m9mq.json?communityboard=BK-06&block='+lpcBlk+'&lot='+lpcLot+'&$order=issue_date%20DESC&$limit=200&$select=regulation_type,issue_date,received_date').then(function(r){return r.json();}).catch(function(){return[];}):Promise.resolve([]);
+    Promise.all([luP,lpcP]).then(function(both){
+      var luData=both[0],lpcPerms=both[1];
+      var lu='—';if(luData&&luData[0]&&luData[0].landuse){var c=normLU(luData[0].landuse);lu=(LU_LABELS[c]||'Unknown')+' ('+c+')';}
+      var statusHtml=inLm
+        ?'<div style="font-weight:700;font-size:.92rem;color:#fff;background:'+lmColor(lm)+';padding:10px 30px 10px 14px;border-radius:10px 10px 0 0">✓ In a Historic District</div><div style="padding:8px 14px 4px;font-size:.85rem;color:#5c4f2e"><strong>'+escH(lm)+'</strong> <span style="color:#8a7a55">('+(lmType(lm)==='ext'?'Extension':'Historic District')+')</span></div>'
+        :'<div style="font-weight:700;font-size:.92rem;color:#fff;background:#9aa0a6;padding:10px 30px 10px 14px;border-radius:10px 10px 0 0">Not in a Historic District</div>';
+      var lpcHtml='';
+      if(inLm){
+        if(lpcPerms&&lpcPerms.length){var lgrps={};lpcPerms.forEach(function(p){var rt=p.regulation_type||'Other';if(!lgrps[rt])lgrps[rt]={n:0,last:''};lgrps[rt].n++;var d=(p.issue_date||p.received_date||'').slice(0,10);if(d>lgrps[rt].last)lgrps[rt].last=d;});
+          var inner=Object.keys(lgrps).sort(function(a,b){return lgrps[b].last.localeCompare(lgrps[a].last);}).map(function(rt){var g=lgrps[rt];return'<strong style="color:#b5862b">'+escH(rt)+'</strong> — '+g.n+(g.last?' <span style="color:#888">('+g.last.slice(0,4)+')</span>':'');}).join('<br>');
+          var soql='SELECT * WHERE block=\''+lpcBlk+'\' AND lot=\''+lpcLot+'\' AND communityboard=\'BK-06\' ORDER BY issue_date DESC';
+          var url='https://data.cityofnewyork.us/Housing-Development/LPC-Permit-Application-Information/dpm2-m9mq/explore/query/'+encodeURIComponent(soql)+'/page/filter';
+          lpcHtml=pRow('📜','LPC Permits',inner+'<br><a href="'+url+'" target="_blank" style="color:#b5862b;font-size:.72rem;font-family:DM Mono,monospace">All '+lpcPerms.length+' filings ↗</a>');
+        } else { lpcHtml=pRow('📜','LPC Permits','<span style="color:#888">None on file (since 2016)</span>'); }
+      }
+      var table='<table style="border-collapse:collapse;width:100%;font-size:.8rem">'+pRow('🧭','Zoning','<strong>'+escH(zone)+'</strong>')+pRow('🏘','Land Use',escH(lu))+lpcHtml+'</table>';
+      res.innerHTML='<span class="rc-close" onclick="document.getElementById(\'lm-result\').style.display=\'none\'">×</span>'+statusHtml+'<div style="padding:4px 14px 8px"><div style="font-weight:700;font-size:.8rem;color:#0d1b4b;margin:2px 0 6px">📍 '+escH(lbl)+'</div>'+table+'</div>';
+      if(lmSearchMarker)map.removeLayer(lmSearchMarker);
+      lmSearchMarker=L.marker([lat,lng],{zIndexOffset:9999}).addTo(map);
+      lmSearchMarker.bindPopup('<div style="font-family:DM Sans,sans-serif;min-width:200px">'+statusHtml+'</div>',{maxWidth:300,className:'addr-popup'});
+      map.setView([lat,lng],16);
+      lmSearchMarker.openPopup();
+    });
+  }).catch(function(){res.innerHTML='<div style="padding:12px 14px"><span style="color:#c81e1e;font-size:.78rem">Search failed.</span></div>';});
+}
+document.getElementById('lm-input').addEventListener('keydown',function(e){if(e.key==='Enter')doLmSearch();});
+</script>
+</body>
+</html>
