@@ -690,6 +690,17 @@ html,body{margin:0;padding:0;height:100%;font-family:'DM Sans',system-ui,sans-se
 .stat.lander .v{color:var(--lander)} .stat.goldman .v{color:var(--goldman)}
 .stat .pct{font-size:.78rem;font-weight:500;color:#9a9aae;margin-left:4px}
 #wrap{position:relative;height:calc(100% - 0px)}
+.searchbar{background:#fff;border-bottom:1px solid #ece4d2;padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.searchbar input{flex:1 1 240px;min-width:0;padding:9px 12px;border:1.5px solid #d9d2c2;border-radius:7px;font-family:'DM Sans',sans-serif;font-size:.92rem;color:#1b1b1b}
+.searchbar input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(244,121,32,.15)}
+.searchbar button{padding:9px 15px;border:none;border-radius:7px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:.86rem;cursor:pointer}
+#go{background:var(--navy);color:#fff}
+#go:hover{background:#16276a}
+#clear{background:#efeadd;color:#6a6450}
+#clear:hover{background:#e4ddc9}
+#searchmsg{flex-basis:100%;font-size:.8rem;color:#7a7363;min-height:1px}
+#searchmsg.err{color:#b3322a}
+#searchmsg b{color:var(--navy)}
 #map{width:100%;height:62vh;min-height:380px;background:#eef0f3}
 .legend{background:#fff;padding:11px 13px;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.18);font-size:.74rem;line-height:1.5;max-width:210px}
 .legend h4{margin:0 0 7px;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--navy);font-weight:700}
@@ -722,8 +733,15 @@ html,body{margin:0;padding:0;height:100%;font-family:'DM Sans',system-ui,sans-se
   <div class="stat"><div class="k">EDs won</div><div class="v">71<span class="pct">– 3</span></div></div>
   <div class="stat"><div class="k">Total votes</div><div class="v">22,749</div></div>
 </div>
+<div class="searchbar">
+  <input id="addr" type="text" inputmode="search" autocomplete="off"
+    placeholder="Enter an address to find your election district…">
+  <button id="go">Find ED</button>
+  <button id="clear" title="Clear">Clear</button>
+  <div id="searchmsg"></div>
+</div>
 <div id="wrap"><div id="map"></div></div>
-<div class="footer">74 election districts across ADs 44 / 51 / 52 · figures verified against <a href="https://enr.boenyc.gov">enr.boenyc.gov</a> · <a href="https://bkcb6.app">bkcb6.app</a></div>
+<div class="footer">Unofficial election-night results · figures verified against <a href="https://enr.boenyc.gov">enr.boenyc.gov</a> · <a href="https://bkcb6.app">bkcb6.app</a></div>
 
 <script>
 /* @preserve
@@ -764,8 +782,7 @@ function popupHtml(p){
   const lpct = tot? (100*p.lander/tot):0, gpct = tot? (100*p.goldman/tot):0;
   const winColor = p.winner==='lander'?'var(--lander)':(p.winner==='goldman'?'var(--goldman)':'#888');
   const winName = p.winner==='lander'?'Lander':(p.winner==='goldman'?'Goldman':'—');
-  return `<div class="pop-ed">ED ${p.ed.replace('-','-')}</div>
-    <div class="pop-ad">Assembly District ${p.ad}</div>
+  return `<div class="pop-ed">ED ${p.ed}</div>
     <div class="pop-bar">
       <div style="width:${lpct}%;background:var(--lander)"></div>
       <div style="width:${gpct}%;background:var(--goldman)"></div>
@@ -804,6 +821,105 @@ document.addEventListener('change',function(e){
   if(e.target && e.target.id==='lblToggle'){
     if(e.target.checked){ labelLayer.addTo(map); } else { map.removeLayer(labelLayer); }
   }
+});
+
+// ---- Address search: geocode via NYC Geoclient, resolve ED by point-in-polygon ----
+const GEOCLIENT_KEY = 'b913bdfb9c47466589d0f08c99c75b21';
+let pinMarker=null, foundLayer=null;
+const layersByEd={};
+layer.eachLayer(l=>{ const k=l.feature&&l.feature.properties&&l.feature.properties.ed; if(k) layersByEd[k]=l; });
+
+function pointInRing(pt, ring){
+  let x=pt[0], y=pt[1], inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const xi=ring[i][0], yi=ring[i][1], xj=ring[j][0], yj=ring[j][1];
+    const intersect=((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi);
+    if(intersect) inside=!inside;
+  }
+  return inside;
+}
+function pointInPolygon(pt, geom){
+  if(geom.type==='Polygon'){
+    const rings=geom.coordinates;
+    if(!pointInRing(pt, rings[0])) return false;
+    for(let h=1;h<rings.length;h++){ if(pointInRing(pt, rings[h])) return false; }
+    return true;
+  } else if(geom.type==='MultiPolygon'){
+    for(const poly of geom.coordinates){
+      if(pointInRing(pt, poly[0])){
+        let inHole=false;
+        for(let h=1;h<poly.length;h++){ if(pointInRing(pt, poly[h])){inHole=true;break;} }
+        if(!inHole) return true;
+      }
+    }
+    return false;
+  }
+  return false;
+}
+function edAtPoint(lng, lat){
+  for(const f of ED_DATA.features){ if(pointInPolygon([lng,lat], f.geometry)) return f; }
+  return null;
+}
+function setMsg(html, isErr){
+  const m=document.getElementById('searchmsg');
+  m.innerHTML=html; m.className=isErr?'err':'';
+}
+function clearSearch(){
+  if(pinMarker){ map.removeLayer(pinMarker); pinMarker=null; }
+  if(foundLayer){ foundLayer.setStyle({weight:1,color:'#ffffff'}); foundLayer=null; }
+  document.getElementById('addr').value='';
+  setMsg('');
+}
+function showEd(f, lat, lng){
+  if(foundLayer){ foundLayer.setStyle({weight:1,color:'#ffffff'}); }
+  const lyr=layersByEd[f.properties.ed];
+  if(pinMarker) map.removeLayer(pinMarker);
+  pinMarker=L.circleMarker([lat,lng],{radius:7,color:'#f47920',weight:3,fillColor:'#fff',fillOpacity:1}).addTo(map);
+  if(lyr){
+    foundLayer=lyr;
+    lyr.setStyle({weight:3,color:'#f47920'});
+    map.fitBounds(lyr.getBounds(),{padding:[40,40],maxZoom:16});
+    lyr.openPopup();
+  } else { map.setView([lat,lng],15); }
+  const p=f.properties, tot=p.total||0;
+  const win=p.winner==='lander'?'Lander':(p.winner==='goldman'?'Goldman':'\u2014');
+  setMsg(`Found in <b>ED ${p.ed}</b> \u2014 won by ${win} (${tot} votes). Tap the district for the full breakdown.`);
+}
+async function geocode(){
+  const raw=document.getElementById('addr').value.trim();
+  if(!raw){ setMsg('Type a street address first, e.g. 250 Baltic St',true); return; }
+  setMsg('Searching\u2026');
+  const m=raw.match(/^\s*(\d+[A-Za-z]?)\s+(.+)$/);
+  try{
+    if(!m) throw new Error('format');
+    const num=encodeURIComponent(m[1]);
+    const st=encodeURIComponent(m[2].replace(/,?\s*brooklyn.*$/i,'').trim());
+    const url=`https://api.nyc.gov/geo/geoclient/v1/address.json?houseNumber=${num}&street=${st}&borough=Brooklyn`;
+    const r=await fetch(url,{headers:{'Ocp-Apim-Subscription-Key':GEOCLIENT_KEY}});
+    if(!r.ok) throw new Error('geocode '+r.status);
+    const j=await r.json();
+    const a=j.address||{};
+    const lat=parseFloat(a.latitude), lng=parseFloat(a.longitude);
+    if(isNaN(lat)||isNaN(lng)) throw new Error('no coords');
+    const f=edAtPoint(lng,lat);
+    if(!f){
+      setMsg('That address is outside CB6\u2019s 74 election districts.',true);
+      if(pinMarker) map.removeLayer(pinMarker);
+      pinMarker=L.circleMarker([lat,lng],{radius:7,color:'#b3322a',weight:3,fillColor:'#fff',fillOpacity:1}).addTo(map);
+      map.setView([lat,lng],14);
+      return;
+    }
+    showEd(f,lat,lng);
+  }catch(err){
+    setMsg('Could not find that address. Enter it as house number + street, e.g. <b>250 Baltic St</b>. You can also tap any district on the map.',true);
+  }
+}
+document.getElementById('go').addEventListener('click',geocode);
+document.getElementById('clear').addEventListener('click',clearSearch);
+document.getElementById('addr').addEventListener('keydown',e=>{ if(e.key==='Enter') geocode(); });
+map.on('click',function(e){
+  const f=edAtPoint(e.latlng.lng,e.latlng.lat);
+  if(f) showEd(f,e.latlng.lat,e.latlng.lng);
 });
 </script>
 </body>
