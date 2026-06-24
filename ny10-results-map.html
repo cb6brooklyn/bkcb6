@@ -706,6 +706,8 @@ html,body{margin:0;padding:0;height:100%;font-family:'DM Sans',system-ui,sans-se
 .search-label{font-size:.82rem;font-weight:700;color:var(--navy);margin-bottom:9px;letter-spacing:-.005em}
 .search-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .searchbar input{flex:1 1 240px;min-width:0;padding:11px 13px;border:2px solid #e9bd7a;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.96rem;color:#1b1b1b;background:#fff}
+.searchbar .in-num{flex:0 0 78px;text-align:center}
+.searchbar .in-st{flex:1 1 220px}
 .searchbar input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(244,121,32,.18)}
 .searchbar button{padding:11px 17px;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:.9rem;cursor:pointer}
 #go{background:var(--orange);color:#fff;box-shadow:0 1px 3px rgba(244,121,32,.3)}
@@ -836,10 +838,10 @@ html,body{margin:0;padding:0;height:100%;font-family:'DM Sans',system-ui,sans-se
     <span class="mt-toggle">Show map</span>
   </summary>
   <div class="searchbar">
-    <div class="search-label">🔎 Find your election district — enter your address</div>
+    <div class="search-label">🔎 Find your election district</div>
     <div class="search-row">
-      <input id="addr" type="text" inputmode="search" autocomplete="off"
-        placeholder="e.g. 250 Baltic St">
+      <input id="addrNum" type="text" inputmode="numeric" autocomplete="off" class="in-num" placeholder="No.">
+      <input id="addrSt" type="text" autocomplete="off" class="in-st" placeholder="Street name — e.g. Tiffany Place">
       <button id="go">Find ED</button>
       <button id="clear" title="Clear">Clear</button>
     </div>
@@ -977,56 +979,61 @@ function setMsg(html, isErr){
 function clearSearch(){
   if(pinMarker){ map.removeLayer(pinMarker); pinMarker=null; }
   if(foundLayer){ foundLayer.setStyle({weight:1,color:'#ffffff'}); foundLayer=null; }
-  document.getElementById('addr').value='';
+  const n=document.getElementById('addrNum'); if(n) n.value='';
+  const s=document.getElementById('addrSt'); if(s) s.value='';
   setMsg('');
 }
 function showEd(f, lat, lng){
   if(foundLayer){ foundLayer.setStyle({weight:1,color:'#ffffff'}); }
   const lyr=layersByEd[f.properties.ed];
-  if(pinMarker) map.removeLayer(pinMarker);
-  pinMarker=L.circleMarker([lat,lng],{radius:7,color:'#f47920',weight:3,fillColor:'#fff',fillOpacity:1}).addTo(map);
+  if(pinMarker){ map.removeLayer(pinMarker); pinMarker=null; }
+  if(lat!=null && lng!=null){
+    pinMarker=L.circleMarker([lat,lng],{radius:7,color:'#f47920',weight:3,fillColor:'#fff',fillOpacity:1}).addTo(map);
+  }
   if(lyr){
     foundLayer=lyr;
     lyr.setStyle({weight:3,color:'#f47920'});
     map.fitBounds(lyr.getBounds(),{padding:[40,40],maxZoom:16});
     lyr.openPopup();
-  } else { map.setView([lat,lng],15); }
+  } else if(lat!=null && lng!=null){ map.setView([lat,lng],15); }
   const p=f.properties, tot=p.total||0;
   const win=p.winner==='lander'?'Lander':(p.winner==='goldman'?'Goldman':'\u2014');
   setMsg(`Found in <b>ED ${p.ed}</b> \u2014 won by ${win} (${tot} votes). Tap the district for the full breakdown.`);
 }
 async function geocode(){
-  const raw=document.getElementById('addr').value.trim();
-  if(!raw){ setMsg('Type a street address first, e.g. 250 Baltic St',true); return; }
+  const num=(document.getElementById('addrNum').value||'').trim();
+  const st=(document.getElementById('addrSt').value||'').trim().replace(/,?\s*brooklyn.*$/i,'').trim();
+  if(!num || !st){ setMsg('Enter both a house number and street \u2014 e.g. 63 and Tiffany Place',true); return; }
   setMsg('Searching\u2026');
-  const m=raw.match(/^\s*(\d+[A-Za-z]?)\s+(.+)$/);
   try{
-    if(!m) throw new Error('format');
-    const num=encodeURIComponent(m[1]);
-    const st=encodeURIComponent(m[2].replace(/,?\s*brooklyn.*$/i,'').trim());
-    const url=`https://api.nyc.gov/geo/geoclient/v1/address.json?houseNumber=${num}&street=${st}&borough=Brooklyn`;
+    const url=`https://api.nyc.gov/geoclient/v2/address.json?subscription-key=${GEOCLIENT_KEY}&houseNumber=${encodeURIComponent(num)}&street=${encodeURIComponent(st)}&borough=Brooklyn`;
     const r=await fetch(url,{headers:{'Ocp-Apim-Subscription-Key':GEOCLIENT_KEY}});
-    if(!r.ok) throw new Error('geocode '+r.status);
+    if(!r.ok) throw new Error('API '+r.status);
     const j=await r.json();
-    const a=j.address||{};
+    const a=j.address;
+    if(!a || a.geosupportReturnCode2==='11' || !a.electionDistrict) throw new Error('notfound');
+    const ad=parseInt(a.assemblyDistrict,10), ed=parseInt(a.electionDistrict,10);
+    const key=`${ad}-${ed}`;
+    const f=ED_DATA.features.find(ff=>ff.properties.ed===key);
     const lat=parseFloat(a.latitude), lng=parseFloat(a.longitude);
-    if(isNaN(lat)||isNaN(lng)) throw new Error('no coords');
-    const f=edAtPoint(lng,lat);
     if(!f){
-      setMsg('That address is outside CB6\u2019s 74 election districts.',true);
-      if(pinMarker) map.removeLayer(pinMarker);
-      pinMarker=L.circleMarker([lat,lng],{radius:7,color:'#b3322a',weight:3,fillColor:'#fff',fillOpacity:1}).addTo(map);
-      map.setView([lat,lng],14);
+      setMsg(`That address is in AD ${ad}, ED ${String(ed).padStart(3,'0')} \u2014 outside CB6\u2019s 74 election districts in this race.`,true);
+      if(!isNaN(lat)&&!isNaN(lng)){ if(pinMarker) map.removeLayer(pinMarker); pinMarker=L.circleMarker([lat,lng],{radius:7,color:'#b3322a',weight:3,fillColor:'#fff',fillOpacity:1}).addTo(map); map.setView([lat,lng],14); }
       return;
     }
-    showEd(f,lat,lng);
+    showEd(f, isNaN(lat)?null:lat, isNaN(lng)?null:lng);
   }catch(err){
-    setMsg('Could not find that address. Enter it as house number + street, e.g. <b>250 Baltic St</b>. You can also tap any district on the map.',true);
+    if(String(err.message)==='notfound'){
+      setMsg('Address not found. Check the spelling and try the full street name (e.g. <b>Tiffany Place</b>).',true);
+    } else {
+      setMsg('Search is temporarily unavailable. You can still tap any district on the map to see its results.',true);
+    }
   }
 }
 document.getElementById('go').addEventListener('click',geocode);
 document.getElementById('clear').addEventListener('click',clearSearch);
-document.getElementById('addr').addEventListener('keydown',e=>{ if(e.key==='Enter') geocode(); });
+document.getElementById('addrNum').addEventListener('keydown',e=>{ if(e.key==='Enter') geocode(); });
+document.getElementById('addrSt').addEventListener('keydown',e=>{ if(e.key==='Enter') geocode(); });
 map.on('click',function(e){
   const f=edAtPoint(e.latlng.lng,e.latlng.lat);
   if(f) showEd(f,e.latlng.lat,e.latlng.lng);
