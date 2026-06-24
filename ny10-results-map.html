@@ -729,6 +729,11 @@ html,body{margin:0;padding:0;height:100%;font-family:'DM Sans',system-ui,sans-se
 .pop-row .nm{font-weight:500}
 .pop-win{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-top:5px}
 .footer{background:var(--navy);color:#cdd4ec;font-size:.72rem;padding:13px 18px;font-family:'DM Mono',monospace}
+.geo-section{background:#fff;padding:6px 0 0}
+.geo-head{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#7a7363;font-weight:700;padding:16px 20px 4px}
+.geo-section .resultcard{border-bottom:1px solid #f0ead9}
+.geo-section .resultcard:last-child{border-bottom:1px solid #ece4d2}
+.geo-section .rc-top{max-width:none}
 .footer a{color:var(--orange);text-decoration:none}
 @media(max-width:560px){#map{height:54vh}.topbar h1{font-size:1.02rem}.stat{min-width:50%}}
 .resultcard{background:#fff;border-bottom:1px solid #ece4d2;display:flex;align-items:center;gap:26px;padding:16px 20px;flex-wrap:wrap}
@@ -818,6 +823,10 @@ html,body{margin:0;padding:0;height:100%;font-family:'DM Sans',system-ui,sans-se
   </summary>
   <div id="wrap"><div id="map"></div></div>
 </details>
+<div class="geo-section">
+  <div class="geo-head">How the rest of the district voted</div>
+  <div id="geo-cards"></div>
+</div>
 <div class="footer">Unofficial election-night results · figures verified against <a href="https://enr.boenyc.gov">enr.boenyc.gov</a> · <a href="https://bkcb6.app">bkcb6.app</a></div>
 
 <script>
@@ -1020,6 +1029,53 @@ mapbox.addEventListener('toggle',function(){
       map.fitBounds(layer.getBounds(),{padding:[14,14]});
     },60);
   }
+});
+
+// ---- Geography donut cards: Brooklyn, Manhattan, Full district ----
+const GEOS = [
+  {label:'Brooklyn',   sublabel:'NY-10 districts in Brooklyn',  goldman:13946, lander:37025, writein:104},
+  {label:'Manhattan',  sublabel:'NY-10 districts in Manhattan', goldman:14499, lander:18035, writein:52},
+  {label:'NY-10',      sublabel:'Full congressional district',  goldman:28445, lander:55060, writein:156},
+];
+const CIRC = 2*Math.PI*50; // r=50
+function fmt(n){ return n.toLocaleString('en-US'); }
+function geoCard(g){
+  const tot=g.goldman+g.lander+g.writein;
+  const lpct=g.lander/tot, gpct=g.goldman/tot;
+  const lpctS=(100*lpct).toFixed(1), gpctS=(100*gpct).toFixed(1);
+  const winner = g.lander>=g.goldman ? 'Lander' : 'Goldman';
+  const winPct = g.lander>=g.goldman ? lpctS : gpctS;
+  const landerDash = (lpct*CIRC).toFixed(2);
+  return `<div class="resultcard">
+    <div class="ring-wrap">
+      <svg class="donut" viewBox="0 0 120 120" role="img" aria-label="${g.label}: Lander ${lpctS}%, Goldman ${gpctS}%">
+        <circle class="track" cx="60" cy="60" r="50" fill="none" stroke="#eef0f3" stroke-width="18"/>
+        <circle cx="60" cy="60" r="50" fill="none" stroke="#FD8C1B" stroke-width="18" stroke-dasharray="${CIRC.toFixed(3)}" transform="rotate(-90 60 60)"/>
+        <circle cx="60" cy="60" r="50" fill="none" stroke="#06024D" stroke-width="18" stroke-dasharray="${landerDash} ${CIRC.toFixed(3)}" transform="rotate(-90 60 60)"/>
+      </svg>
+      <div class="ring-center">
+        <div class="rc-top">${winner} wins ${g.label}</div>
+        <div class="rc-pct">${winPct}%</div>
+      </div>
+    </div>
+    <div class="readout">
+      <div class="cand lander"><span class="dot"></span>
+        <div class="cand-txt"><div class="cand-name">Lander</div><div class="cand-pct">${lpctS}%</div><div class="cand-votes">${fmt(g.lander)} votes</div></div></div>
+      <div class="cand goldman"><span class="dot"></span>
+        <div class="cand-txt"><div class="cand-name">Goldman</div><div class="cand-pct">${gpctS}%</div><div class="cand-votes">${fmt(g.goldman)} votes</div></div></div>
+      <div class="cand meta">
+        <div class="cand-txt"><div class="cand-name">${g.sublabel}</div><div class="cand-pct meta-num">${fmt(tot)}</div><div class="cand-votes">total votes</div></div></div>
+    </div>
+  </div>`;
+}
+document.getElementById('geo-cards').innerHTML = GEOS.map(geoCard).join('');
+// wire tap-to-pop on the new cards too
+document.querySelectorAll('#geo-cards .cand, #geo-cards .ring-wrap').forEach(function(el){
+  el.addEventListener('click',function(){
+    const was=el.classList.contains('popped');
+    el.classList.toggle('popped');
+    setTimeout(function(){ if(!was) el.classList.remove('popped'); },650);
+  });
 });
 </script>
 </body>
