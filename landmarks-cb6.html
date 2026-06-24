@@ -278,7 +278,10 @@ function doLmSearch(){
         } else { lpcHtml=pRow('📜','LPC Permits','<span style="color:#888">None on file (since 2016)</span>'); }
       }
       var table='<table style="border-collapse:collapse;width:100%;font-size:.8rem">'+pRow('🧭','Zoning','<strong>'+escH(zone)+'</strong>')+pRow('🏘','Land Use',escH(lu))+lpcHtml+'</table>';
-      res.innerHTML='<span class="rc-close" onclick="document.getElementById(\'lm-result\').style.display=\'none\'">×</span>'+statusHtml+'<div style="padding:4px 14px 8px">'+agHtml+'<div style="font-weight:700;font-size:.8rem;color:#0d1b4b;margin:2px 0 6px">📍 '+escH(lbl)+'</div>'+table+'</div>';
+      var shareUrl=location.origin+location.pathname+'?address='+encodeURIComponent(lbl);
+      try{if(history.replaceState)history.replaceState(null,'',location.pathname+'?address='+encodeURIComponent(lbl));}catch(e){}
+      var shareBtn='<div style="padding:0 14px 10px"><button onclick="lmCopyLink(this,\''+shareUrl.replace(/'/g,"\\'")+'\')" style="font-size:.72rem;font-weight:700;color:#fff;background:#b5862b;border:none;border-radius:5px;padding:6px 12px;cursor:pointer;font-family:DM Mono,monospace">🔗 Copy link to this address</button></div>';
+      res.innerHTML='<span class="rc-close" onclick="document.getElementById(\'lm-result\').style.display=\'none\'">×</span>'+statusHtml+'<div style="padding:4px 14px 8px">'+agHtml+'<div style="font-weight:700;font-size:.8rem;color:#0d1b4b;margin:2px 0 6px">📍 '+escH(lbl)+'</div>'+table+'</div>'+shareBtn;
       if(lmSearchMarker)map.removeLayer(lmSearchMarker);
       lmSearchMarker=L.marker([lat,lng],{zIndexOffset:9999}).addTo(map);
       lmSearchMarker.bindPopup('<div style="font-family:DM Sans,sans-serif;min-width:200px">'+statusHtml+(agHtml?'<div style="padding:8px 10px 0">'+agHtml+'</div>':'')+'</div>',{maxWidth:300,className:'addr-popup'});
@@ -288,6 +291,16 @@ function doLmSearch(){
   }).catch(function(){res.innerHTML='<div style="padding:12px 14px"><span style="color:#c81e1e;font-size:.78rem">Search failed.</span></div>';});
 }
 document.getElementById('lm-input').addEventListener('keydown',function(e){if(e.key==='Enter')doLmSearch();});
+function lmCopyLink(btn,url){
+  function done(){var t=btn.textContent;btn.textContent='✓ Link copied';setTimeout(function(){btn.textContent=t;},1600);}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(done).catch(function(){prompt('Copy this link:',url);});}
+  else{prompt('Copy this link:',url);}
+}
+// auto-run search if ?address= is present (shareable links)
+(function(){try{var qp=new URLSearchParams(location.search).get('address');if(qp){var inp=document.getElementById('lm-input');inp.value=qp;
+  // wait for district + zoning data so the result is complete
+  var tries=0;(function go(){if((lmData&&zoningData)||tries>40){doLmSearch();}else{tries++;setTimeout(go,150);}})();
+}}catch(e){}})();
 
 /* ---------- permits database ---------- */
 var DB_PAGE=50, dbOffset=0, dbBusy=false;
