@@ -739,6 +739,16 @@ header.app .sub{font-size:.86rem;color:#c9cbe6;margin-top:3px}
 .contest.resolved .prompt{display:none}
 .disclaim{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-top:18px;font-size:12px;color:var(--muted);line-height:1.5}
 .disclaim a{color:var(--orange);text-decoration:none}
+.fullres{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.fullres-bar{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fbf7ef;border:1px solid var(--line);border-radius:9px;padding:10px 13px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:13px;color:var(--navy);user-select:none}
+.fullres-bar::-webkit-details-marker{display:none}
+.fullres-bar:hover{background:#f6efe1}
+.fr-label{display:flex;align-items:center;gap:8px}
+.fr-label::before{content:"";display:inline-block;width:14px;height:14px;background:var(--orange);-webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7zm0 9.5A2.5 2.5 0 1112 6.5a2.5 2.5 0 010 5z'/></svg>") center/contain no-repeat;mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7zm0 9.5A2.5 2.5 0 1112 6.5a2.5 2.5 0 010 5z'/></svg>") center/contain no-repeat}
+.fr-chev{color:var(--orange);font-size:20px;line-height:1;transition:transform .2s ease}
+.fullres[open] .fr-chev{transform:rotate(90deg)}
+.fullres-body{margin-top:10px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.fr-frame{display:block;width:100%;height:520px;border:0}
 .leaflet-popup-content{font-family:'DM Sans',sans-serif;margin:10px 12px}
 .pop-h{font-weight:800;color:var(--navy);font-family:'Poppins',sans-serif;font-size:13px;margin-bottom:7px}
 .pop-r{display:flex;justify-content:space-between;gap:14px;font-size:12px;font-variant-numeric:tabular-nums;padding:1px 0}
@@ -812,13 +822,13 @@ var CB6_BOUNDARY={"type":"MultiPolygon","coordinates":[[[[-74.001744,40.692407],
 <script>
 /* ===== CB6 sample ballot — how your ED voted ===== */
 var CAND = {
-  ny10: {office:"U.S. House — 10th Congressional District", inst:"Vote for one", key:"ny10",
+  ny10: {office:"U.S. House — 10th Congressional District", inst:"Vote for one", key:"ny10", page:"ny10-results-map.html",
     cands:[{id:"goldman",nm:"Dan Goldman",pty:"Democratic",col:"#FD8C1B"},
            {id:"lander", nm:"Brad Lander", pty:"Democratic",col:"#06024D"}]},
-  ad52: {office:"State Assembly — 52nd District", inst:"Vote for one", key:"ad52",
+  ad52: {office:"State Assembly — 52nd District", inst:"Vote for one", key:"ad52", page:"ad52-results-map.html",
     cands:[{id:"simon",nm:"Jo Anne Simon",pty:"Democratic",col:"#06024D"},
            {id:"green",nm:"Lydia Bella Green",pty:"Democratic",col:"#FD8C1B"}]},
-  comp: {office:"State Comptroller", inst:"Vote for one · Citywide", key:"comp",
+  comp: {office:"State Comptroller", inst:"Vote for one · Citywide", key:"comp", page:"comptroller-results-map.html",
     cands:[{id:"dinapoli",nm:"Thomas P. DiNapoli",pty:"Democratic",col:"#06024D"},
            {id:"warshaw", nm:"Drew Warshaw", pty:"Democratic",col:"#1f8a4c"},
            {id:"goyle",   nm:"Raj Goyle",    pty:"Democratic",col:"#FD8C1B"}]}
@@ -846,6 +856,10 @@ function ballotMarkup(){
     h+='<div class="winbar" id="winbar-'+k+'"></div>';
     h+='<div class="prompt">Find your address or tap the map to see how your ED voted in this race.</div>';
     h+='<div class="howvoted" id="howvoted-'+k+'"></div>';
+    h+='<details class="fullres" id="fullres-'+k+'">'+
+       '<summary class="fullres-bar"><span class="fr-label">See the full district results map</span><span class="fr-chev" aria-hidden="true">&rsaquo;</span></summary>'+
+       '<div class="fullres-body" id="frbody-'+k+'" data-page="'+esc(c.page)+'"></div>'+
+       '</details>';
     h+='</div>';
   });
   el('ballot').innerHTML=h;
@@ -1062,6 +1076,31 @@ el('edreset').addEventListener('click', function(){
   if(map){ map.closePopup(); }
   if(edLayer){ edLayer.eachLayer(function(ly){ ly.setStyle(STYLE_BASE); }); }
   if(map){ var cb6=L.geoJSON({type:'Feature',geometry:CB6_BOUNDARY}); map.fitBounds(cb6.getBounds(),{padding:[16,16]}); }
+});
+/* ---- collapsible full-district-results: lazy-load iframe on first open ---- */
+ORDER.forEach(function(k){
+  var d=el('fullres-'+k);
+  d.addEventListener('toggle',function(){
+    if(!d.open) return;
+    var body=el('frbody-'+k);
+    if(body.getAttribute('data-loaded')) return;
+    body.setAttribute('data-loaded','1');
+    var page=body.getAttribute('data-page');
+    var f=document.createElement('iframe');
+    f.className='fr-frame'; f.id='frframe-'+k;
+    f.setAttribute('loading','lazy'); f.setAttribute('title','Full district results');
+    f.setAttribute('scrolling','no');
+    f.src=page;
+    body.appendChild(f);
+  });
+});
+/* receive auto-height from the embedded results pages */
+window.addEventListener('message',function(ev){
+  var data=ev&&ev.data; if(!data||typeof data.cb6FrameHeight!=='number') return;
+  ORDER.forEach(function(k){
+    var f=el('frframe-'+k);
+    if(f&&f.contentWindow===ev.source){ f.style.height=Math.max(320,data.cb6FrameHeight)+'px'; }
+  });
 });
 /* embed height emitter */
 (function(){
