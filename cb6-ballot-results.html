@@ -740,9 +740,14 @@ header.app .sub{font-size:.86rem;color:#c9cbe6;margin-top:3px}
 .disclaim{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-top:18px;font-size:12px;color:var(--muted);line-height:1.5}
 .disclaim a{color:var(--orange);text-decoration:none}
 .leaflet-popup-content{font-family:'DM Sans',sans-serif;margin:10px 12px}
-.pop-h{font-weight:800;color:var(--navy);font-family:'Poppins',sans-serif;font-size:13px;margin-bottom:5px}
+.pop-h{font-weight:800;color:var(--navy);font-family:'Poppins',sans-serif;font-size:13px;margin-bottom:7px}
 .pop-r{display:flex;justify-content:space-between;gap:14px;font-size:12px;font-variant-numeric:tabular-nums;padding:1px 0}
 .pop-r .nm{font-weight:600}
+.pop-btn{display:inline-block;border:0;border-radius:8px;background:var(--orange);color:#fff;font-family:'DM Sans',sans-serif;font-weight:700;font-size:12.5px;padding:8px 13px;cursor:pointer}
+.pop-btn:hover{background:var(--orange2)}
+.ed-label{background:transparent;border:0;box-shadow:none;color:#0d1b4b;font-family:'DM Mono',ui-monospace,monospace;font-size:9px;font-weight:500;padding:0;pointer-events:none;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 2px #fff}
+.ed-label::before{display:none}
+.leaflet-interactive{cursor:pointer}
 .warn{background:#fff6ec;border:1px solid #f6d6b0;color:#8a4b08;border-radius:9px;padding:10px 12px;font-size:13px;margin:10px 2px 0;display:none}
 .warn.show{display:block}
 
@@ -766,7 +771,7 @@ header.app .sub{font-size:.86rem;color:#c9cbe6;margin-top:3px}
 
   <div class="or">or tap the map</div>
   <div id="map"></div>
-  <div class="maphint">Tap anywhere inside the CB6 outline to load that election district.</div>
+  <div class="maphint">Hover an election district to highlight it, then tap to see how it voted.</div>
 
   <div class="warn" id="warn"></div>
 
@@ -868,14 +873,16 @@ function findED(race, lng, lat){
 }
 
 /* ---- resolve a coordinate across all three races ---- */
-var marker=null, edLayer=null;
-function resolveAt(lng, lat, label){
-  var anyED=null, edLabel=null, edGeom=null;
+var marker=null, edLayer=null, activeEdId=null;
+
+function resolveByEd(edId, lng, lat){
+  // edId is the NY-10 / shared AD-ED key from the clicked feature
+  var anyED=null, edLabel=null;
   ORDER.forEach(function(k){
-    var hit=findED(k, lng, lat);
+    var hit = (lng!=null && lat!=null) ? findED(k, lng, lat) : findEdById(k, edId);
     var contest=el('contest-'+k);
     if(hit){
-      anyED=anyED||hit; edLabel=edLabel||hit.ed; edGeom=edGeom||hit.g;
+      anyED=anyED||hit; edLabel=edLabel||hit.ed;
       fillContest(k, hit.r, hit.ed);
       contest.classList.add('resolved');
     }else{
@@ -884,22 +891,50 @@ function resolveAt(lng, lat, label){
     }
   });
   if(anyED){
-    var bar=el('edbar'); bar.classList.add('show');
+    el('edbar').classList.add('show');
     el('edtagtext').innerHTML='Your election district: <b>'+esc(edLabel)+'</b>';
     el('warn').classList.remove('show');
-    if(map){
-      if(edLayer) map.removeLayer(edLayer);
-      if(marker) map.removeLayer(marker);
-      // highlight the actual ED shape in light orange with a clear boundary
-      edLayer=L.geoJSON({type:'Feature',geometry:edGeom},
-        {style:{color:'#FD8C1B',weight:2.5,opacity:1,fill:true,fillColor:'#FD8C1B',fillOpacity:0.25}}).addTo(map);
+    setActiveEd(edId);
+    if(marker && map){ map.removeLayer(marker); marker=null; }
+    if(lng!=null && lat!=null && map){
       marker=L.circleMarker([lat,lng],{radius:4,color:'#fff',weight:2,fillColor:'#0d1b4b',fillOpacity:1}).addTo(map);
-      map.fitBounds(edLayer.getBounds(),{padding:[40,40],maxZoom:16});
     }
+    // scroll ballot into view on small screens
+    var bh=el('ballot'); if(bh) bh.scrollIntoView({behavior:'smooth',block:'start'});
   }else{
     el('warn').innerHTML='That location is outside Community Board 6. Try an address in Park Slope, Carroll Gardens, Cobble Hill, Gowanus, Red Hook, or the Columbia Street Waterfront.';
     el('warn').classList.add('show');
   }
+}
+
+function findEdById(race, edId){
+  var arr=BALLOT_DATA[race]||[];
+  for(var i=0;i<arr.length;i++){ if(arr[i].ed===edId) return arr[i]; }
+  return null;
+}
+
+/* entry point used by address search and bare map taps */
+function resolveAt(lng, lat){
+  // find which ED polygon contains the point (prefer ny10 coverage, then ad52, then comp)
+  var edId=null;
+  ['ny10','ad52','comp'].some(function(k){
+    var hit=findED(k, lng, lat); if(hit){ edId=hit.ed; return true; } return false;
+  });
+  if(edId) resolveByEd(edId, lng, lat);
+  else {
+    el('warn').innerHTML='That location is outside Community Board 6. Try an address in Park Slope, Carroll Gardens, Cobble Hill, Gowanus, Red Hook, or the Columbia Street Waterfront.';
+    el('warn').classList.add('show');
+  }
+}
+
+function setActiveEd(edId){
+  activeEdId=edId;
+  if(!edLayer) return;
+  edLayer.eachLayer(function(ly){
+    var isActive = ly.feature && ly.feature.properties && ly.feature.properties.ed===edId;
+    ly.setStyle(isActive ? STYLE_ACTIVE : STYLE_BASE);
+    if(isActive){ ly.bringToFront(); if(map) map.fitBounds(ly.getBounds(),{padding:[40,40],maxZoom:16}); }
+  });
 }
 
 function fillContest(k, r, ed){
@@ -956,18 +991,54 @@ async function geocode(){
 
 /* ---- map ---- */
 var map=null;
+var STYLE_BASE   = {color:'#0d1b4b',weight:1,opacity:0.55,fill:true,fillColor:'#0d1b4b',fillOpacity:0.05};
+var STYLE_HOVER  = {color:'#FD8C1B',weight:2,opacity:1,fill:true,fillColor:'#FD8C1B',fillOpacity:0.18};
+var STYLE_ACTIVE = {color:'#FD8C1B',weight:2.5,opacity:1,fill:true,fillColor:'#FD8C1B',fillOpacity:0.30};
+
+function edFeatureCollection(){
+  // union of EDs across races, preferring ny10 geometry, then ad52, then comp
+  var seen={}, feats=[];
+  ['ny10','ad52','comp'].forEach(function(k){
+    (BALLOT_DATA[k]||[]).forEach(function(o){
+      if(seen[o.ed]) return;
+      seen[o.ed]=1;
+      feats.push({type:'Feature',properties:{ed:o.ed},geometry:o.g});
+    });
+  });
+  return {type:'FeatureCollection',features:feats};
+}
+
 function buildMap(){
   map=L.map('map',{scrollWheelZoom:false,zoomControl:true});
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
     {subdomains:'abcd',maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
-  var labels=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
-    {subdomains:'abcd',maxZoom:19,pane:'shadowPane'});
-  labels.addTo(map);
-  // CB6 outline
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
+    {subdomains:'abcd',maxZoom:19,pane:'shadowPane'}).addTo(map);
+
+  // CB6 outline (dashed, behind EDs)
   var cb6=L.geoJSON({type:'Feature',geometry:CB6_BOUNDARY},
-    {style:{color:'#0d1b4b',weight:2.5,fill:true,fillColor:'#0d1b4b',fillOpacity:0.16,dashArray:'4 4'}}).addTo(map);
+    {style:{color:'#0d1b4b',weight:2.5,fill:false,dashArray:'4 4'},interactive:false}).addTo(map);
+
+  // interactive ED layer
+  edLayer=L.geoJSON(edFeatureCollection(),{
+    style:function(){ return STYLE_BASE; },
+    onEachFeature:function(feature, layer){
+      var edId=feature.properties.ed;
+      // permanent small label with the ED number
+      layer.bindTooltip(edId,{permanent:true,direction:'center',className:'ed-label',opacity:0.9});
+      // hover highlight
+      layer.on('mouseover',function(){ if(edId!==activeEdId){ layer.setStyle(STYLE_HOVER); layer.bringToFront(); } });
+      layer.on('mouseout', function(){ if(edId!==activeEdId){ layer.setStyle(STYLE_BASE); } });
+      // click -> popup offering to see results
+      layer.on('click',function(e){
+        var html='<div class="pop-h">Election District '+esc(edId)+'</div>'+
+                 '<button class="pop-btn" onclick="resolveByEd(\''+edId+'\',null,null)">See how this ED voted &rsaquo;</button>';
+        L.popup({closeButton:true,className:'ed-popup'}).setLatLng(e.latlng).setContent(html).openOn(map);
+      });
+    }
+  }).addTo(map);
+
   map.fitBounds(cb6.getBounds(),{padding:[16,16]});
-  map.on('click',function(e){ resolveAt(e.latlng.lng, e.latlng.lat); });
 }
 
 /* ---- init ---- */
@@ -979,8 +1050,10 @@ el('edreset').addEventListener('click', function(){
   ORDER.forEach(function(k){ el('contest-'+k).classList.remove('resolved'); el('sub-'+k).textContent='How your election district voted'; });
   el('edbar').classList.remove('show'); el('warn').classList.remove('show');
   el('addr').value='';
+  activeEdId=null;
   if(marker&&map){ map.removeLayer(marker); marker=null; }
-  if(edLayer&&map){ map.removeLayer(edLayer); edLayer=null; }
+  if(map){ map.closePopup(); }
+  if(edLayer){ edLayer.eachLayer(function(ly){ ly.setStyle(STYLE_BASE); }); }
   if(map){ var cb6=L.geoJSON({type:'Feature',geometry:CB6_BOUNDARY}); map.fitBounds(cb6.getBounds(),{padding:[16,16]}); }
 });
 /* embed height emitter */
