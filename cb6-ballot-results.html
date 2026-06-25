@@ -868,14 +868,14 @@ function findED(race, lng, lat){
 }
 
 /* ---- resolve a coordinate across all three races ---- */
-var marker=null;
+var marker=null, edLayer=null;
 function resolveAt(lng, lat, label){
-  var anyED=null, edLabel=null;
+  var anyED=null, edLabel=null, edGeom=null;
   ORDER.forEach(function(k){
     var hit=findED(k, lng, lat);
     var contest=el('contest-'+k);
     if(hit){
-      anyED=anyED||hit; edLabel=edLabel||hit.ed;
+      anyED=anyED||hit; edLabel=edLabel||hit.ed; edGeom=edGeom||hit.g;
       fillContest(k, hit.r, hit.ed);
       contest.classList.add('resolved');
     }else{
@@ -888,9 +888,13 @@ function resolveAt(lng, lat, label){
     el('edtagtext').innerHTML='Your election district: <b>'+esc(edLabel)+'</b>';
     el('warn').classList.remove('show');
     if(map){
+      if(edLayer) map.removeLayer(edLayer);
       if(marker) map.removeLayer(marker);
-      marker=L.circleMarker([lat,lng],{radius:7,color:'#fff',weight:2,fillColor:'#FD8C1B',fillOpacity:1}).addTo(map);
-      map.setView([lat,lng], Math.max(map.getZoom(),15));
+      // highlight the actual ED shape in light orange with a clear boundary
+      edLayer=L.geoJSON({type:'Feature',geometry:edGeom},
+        {style:{color:'#FD8C1B',weight:2.5,opacity:1,fill:true,fillColor:'#FD8C1B',fillOpacity:0.25}}).addTo(map);
+      marker=L.circleMarker([lat,lng],{radius:4,color:'#fff',weight:2,fillColor:'#0d1b4b',fillOpacity:1}).addTo(map);
+      map.fitBounds(edLayer.getBounds(),{padding:[40,40],maxZoom:16});
     }
   }else{
     el('warn').innerHTML='That location is outside Community Board 6. Try an address in Park Slope, Carroll Gardens, Cobble Hill, Gowanus, Red Hook, or the Columbia Street Waterfront.';
@@ -976,6 +980,7 @@ el('edreset').addEventListener('click', function(){
   el('edbar').classList.remove('show'); el('warn').classList.remove('show');
   el('addr').value='';
   if(marker&&map){ map.removeLayer(marker); marker=null; }
+  if(edLayer&&map){ map.removeLayer(edLayer); edLayer=null; }
   if(map){ var cb6=L.geoJSON({type:'Feature',geometry:CB6_BOUNDARY}); map.fitBounds(cb6.getBounds(),{padding:[16,16]}); }
 });
 /* embed height emitter */
