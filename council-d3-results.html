@@ -55,9 +55,17 @@ section{padding:30px 0;border-bottom:1px solid var(--line)}
 .seg{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:9px;overflow:hidden;flex-wrap:wrap}
 .seg button{border:0;background:transparent;font:inherit;font-size:13px;padding:8px 13px;cursor:pointer;color:var(--muted);border-right:1px solid var(--line);font-weight:600}
 .seg button:last-child{border-right:0}.seg button.on{background:var(--navy);color:#fff}
-.search{flex:1;min-width:200px;display:flex;gap:8px}
-.search input{flex:1;font:inherit;font-size:14px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink)}
+.search{flex:1;min-width:260px;display:flex;gap:8px;flex-wrap:wrap}
+.search input{font:inherit;font-size:14px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink)}
+#addrNum{flex:0 0 74px;min-width:64px}
+#addrSt{flex:1;min-width:140px}
 .search input:focus{outline:2px solid var(--orange);border-color:transparent}
+.go-btn{font:inherit;font-weight:700;font-size:14px;padding:9px 18px;border:0;border-radius:9px;background:var(--orange);color:#fff;cursor:pointer}
+.go-btn:hover{background:var(--orange2)}
+.clr-btn{font:inherit;font-weight:600;font-size:14px;padding:9px 14px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--muted);cursor:pointer}
+.search-msg{font-size:13px;margin:0 0 12px;min-height:1px;color:var(--ink)}
+.search-msg.err{color:#b3322a}
+.search-msg b{color:var(--orange)}
 .legend{background:#fff;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:12.5px;margin-top:12px}
 .legend .row{display:flex;align-items:center;gap:8px;margin:4px 0}
 .sw2{width:15px;height:15px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.15)}
@@ -116,8 +124,14 @@ footer{padding:26px 0 50px;color:var(--muted);font-size:13px}footer b{color:var(
       <button data-mode="Boylan">Boylan %</button>
       <button data-mode="turnout">Ballots cast</button>
     </div>
-    <div class="search"><input id="edSearch" placeholder="Find an ED — 66/19, 75-43, or 43" autocomplete="off"></div>
+    <div class="search">
+      <input id="addrNum" placeholder="No." autocomplete="off" inputmode="numeric" aria-label="House number">
+      <input id="addrSt" placeholder="Street — e.g. West 23 Street" autocomplete="off" aria-label="Street name">
+      <button id="addrGo" class="go-btn">Search</button>
+      <button id="addrClear" class="clr-btn" aria-label="Clear search">Clear</button>
+    </div>
   </div>
+  <div id="searchMsg" class="search-msg"></div>
   <div id="map"></div>
   <div id="legend" class="legend"></div>
   <p class="note">Each shape is one election district, shaded by its community board by default. Heavier outlines are the board boundaries. Switch modes to see the ED-level winner, a candidate's share, or ballots cast. Zero-vote EDs excluded.</p>
@@ -239,13 +253,44 @@ window.__edFocus=function(f){if(!layer||!f._layer)return false;
   document.querySelector('.controls').style.display='none';document.getElementById('legend').style.display='none';
   window.__edFocus=function(){return false;};}
 
-/* search */
-const idx={};ED.features.forEach(f=>{const p=f.properties;idx[`${p.AD}/${p.ED}`]=f;idx[`${p.AD}-${p.ED}`]=f;idx[p.key]=f;});
-document.getElementById('edSearch').addEventListener('keydown',e=>{if(e.key!=='Enter')return;
-  let q=e.target.value.trim().replace(/\s/g,'');let f=idx[q]||idx[q.replace('-','/')];
-  if(!f){const hits=ED.features.filter(x=>String(x.properties.ED)===q);if(hits.length===1)f=hits[0];}
-  if(f){window.__edFocus(f);highlightRow(f.properties.key);}else e.target.style.outline='2px solid #c0392b';
-  setTimeout(()=>e.target.style.outline='',900);});
+/* address search via NYC Geoclient → AD/ED → focus map + table */
+const GEOCLIENT_KEY='b913bdfb9c47466589d0f08c99c75b21';
+const byKey={};ED.features.forEach(f=>{byKey[f.properties.key]=f;});
+let pin=null;
+function setMsg(html,err){const m=document.getElementById('searchMsg');m.innerHTML=html||'';m.className='search-msg'+(err?' err':'');}
+async function addrSearch(){
+  const num=(document.getElementById('addrNum').value||'').trim();
+  const st=(document.getElementById('addrSt').value||'').trim().replace(/,?\s*(new york|manhattan|ny).*$/i,'').trim();
+  if(!num||!st){setMsg('Enter a house number and street — e.g. 250 and West 23 Street',true);return;}
+  setMsg('Searching…');
+  try{
+    const url=`https://api.nyc.gov/geoclient/v2/address.json?subscription-key=${GEOCLIENT_KEY}&houseNumber=${encodeURIComponent(num)}&street=${encodeURIComponent(st)}&borough=Manhattan`;
+    const r=await fetch(url);
+    if(!r.ok)throw new Error('API '+r.status);
+    const j=await r.json(),a=j.address;
+    if(!a||!a.electionDistrict||a.geosupportReturnCode2==='11')throw new Error('notfound');
+    const ad=parseInt(a.assemblyDistrict,10),ed=parseInt(a.electionDistrict,10);
+    const key=`${ad}${String(ed).padStart(3,'0')}`;
+    const f=byKey[key];
+    const lat=parseFloat(a.latitude),lng=parseFloat(a.longitude);
+    if(!f){setMsg(`That address is in AD ${ad}, ED ${String(ed).padStart(3,'0')} — outside Council District 3’s ${ED.features.length} election districts in this race.`,true);
+      if(layer&&!isNaN(lat)&&!isNaN(lng)){if(pin)pin.remove();pin=L.circleMarker([lat,lng],{radius:7,color:'#b3322a',weight:3,fillColor:'#fff',fillOpacity:1}).addTo(layer._map||undefined);}return;}
+    const p=f.properties;
+    if(window.__edFocus(f)){if(pin){pin.remove();pin=null;}
+      if(!isNaN(lat)&&!isNaN(lng)&&f._layer&&f._layer._map){pin=L.circleMarker([lat,lng],{radius:7,color:'#f47920',weight:3,fillColor:'#fff',fillOpacity:1}).addTo(f._layer._map);}}
+    highlightRow(p.key);
+    setMsg(`Found in <b>ED ${p.AD}/${String(p.ED).padStart(3,'0')}</b> · ${p.cb_name} — ${p.winner} led with ${fmt(p.total)} ballots cast. Tap the district for the full breakdown.`);
+  }catch(err){
+    if(String(err.message)==='notfound')setMsg('Address not found. Try the full street name — e.g. <b>West 23 Street</b>.',true);
+    else setMsg('Search is temporarily unavailable. You can still tap any district on the map.',true);
+  }
+}
+function addrClear(){document.getElementById('addrNum').value='';document.getElementById('addrSt').value='';
+  if(pin){pin.remove();pin=null;}setMsg('');}
+document.getElementById('addrGo').addEventListener('click',addrSearch);
+document.getElementById('addrClear').addEventListener('click',addrClear);
+document.getElementById('addrNum').addEventListener('keydown',e=>{if(e.key==='Enter')addrSearch();});
+document.getElementById('addrSt').addEventListener('keydown',e=>{if(e.key==='Enter')addrSearch();});
 
 /* table */
 const tb=document.querySelector('#edTable tbody');
