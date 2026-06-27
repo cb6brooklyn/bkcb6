@@ -15,14 +15,28 @@ header{background:var(--navy);color:#fff;padding:28px 0 24px;border-bottom:4px s
 .eyebrow{font-family:"DM Mono",monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--orange2);margin:0 0 6px}
 h1{font-size:clamp(25px,4.6vw,42px);line-height:1.05;margin:0;font-weight:700;letter-spacing:-.01em}
 .sub{margin:11px 0 0;color:#cfd6e8;font-size:15px;max-width:66ch}
-.tot-strip{display:flex;flex-wrap:wrap;gap:0;margin-top:22px;border:1px solid rgba(255,255,255,.18);border-radius:10px;overflow:hidden}
-.tot{flex:1;min-width:120px;padding:12px 15px;border-right:1px solid rgba(255,255,255,.14)}
-.tot:last-child{border-right:0}
-.tot .nm{font-family:"DM Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#cfd6e8}
-.tot .v{font-size:23px;font-weight:700;margin-top:3px}
-.tot .p{font-size:12px;color:#aab4d0}
-.tot.win{background:rgba(244,121,32,.16)}
-.tot .bar{height:4px;border-radius:3px;margin-top:7px;opacity:.9}
+.scoreboard{display:flex;flex-wrap:wrap;align-items:center;gap:26px;margin-top:24px}
+.score-ring{position:relative;width:148px;height:148px;flex:none}
+.score-ring svg{width:148px;height:148px;transform:rotate(-90deg)}
+.ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.ring-center .rc-num{font-size:38px;font-weight:700;line-height:1;color:#fff}
+.ring-center .rc-lab{font-family:"DM Mono",monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#aab4d0;margin-top:3px}
+.score-list{flex:1;min-width:280px;display:flex;flex-direction:column;gap:11px}
+.score-row{display:flex;align-items:center;gap:13px}
+.score-row .dot{width:15px;height:15px;border-radius:4px;flex:none}
+.score-row .nm{font-weight:700;font-size:16px;min-width:86px}
+.score-row .big{font-size:25px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.score-row .of{color:#aab4d0;font-size:13px;font-weight:400}
+.score-row .meta{margin-left:auto;text-align:right;font-family:"DM Mono",monospace;font-size:12px;color:#cfd6e8;line-height:1.35}
+.score-row .meta b{color:#fff;font-size:14px}
+/* secondary popular-vote strip */
+.pv-strip{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;margin-top:4px}
+.pv{flex:1;min-width:120px;padding:11px 14px;border-right:1px solid var(--line)}
+.pv:last-child{border-right:0}
+.pv .nm{font-family:"DM Mono",monospace;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.pv .v{font-size:20px;font-weight:700;margin-top:2px}
+.pv .p{font-size:12px;color:var(--muted)}
+.pv .bar{height:4px;border-radius:3px;margin-top:6px;opacity:.92}
 section{padding:32px 0;border-bottom:1px solid var(--line)}
 .sec-h{font-family:"DM Mono",monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 16px;display:flex;align-items:center;gap:10px}
 .sec-h::before{content:"";width:22px;height:2px;background:var(--orange)}
@@ -98,13 +112,21 @@ footer{padding:26px 0 50px;color:var(--muted);font-size:13px}footer b{color:var(
 <header><div class="wrap">
   <p class="eyebrow">NYS Comptroller · Democratic Primary · June 23, 2026</p>
   <h1>The Comptroller Primary across Brooklyn, by Community Board</h1>
-  <p class="sub">All 18 Brooklyn community districts — who carried each board, and the election-district detail underneath. Tap any board to open its full breakdown.</p>
-  <div class="tot-strip" id="totStrip"></div>
+  <p class="sub">Who carried each of Brooklyn's 18 community boards in the Comptroller primary — with the election-district detail underneath. Tap any board to open its full breakdown.</p>
+  <div class="scoreboard">
+    <div class="score-ring">
+      <svg viewBox="0 0 120 120" id="donut" aria-label="Board wins donut chart"></svg>
+      <div class="ring-center"><div class="rc-num" id="rcNum">18</div><div class="rc-lab">boards</div></div>
+    </div>
+    <div class="score-list" id="scoreList"></div>
+  </div>
 </div></header>
 
 <div class="wrap">
 <section>
   <p class="sec-h">Brooklyn by community board</p>
+  <div class="pv-strip" id="pvStrip"></div>
+  <p class="note" style="margin:8px 0 18px">Borough-wide popular vote across all 1,375 election districts — the underlying totals behind the 18 board outcomes above.</p>
   <div class="controls">
     <div class="layer-toggle" id="layerToggle">
       <button data-layer="cb" class="on">Community boards</button>
@@ -174,14 +196,41 @@ const C={'DiNapoli':'#0d1b4b','Warshaw':'#f47920','Goyle':'#5a9e6f','Write-in':'
 const ORDER=['DiNapoli','Warshaw','Goyle','Write-in'];
 const fmt=n=>n.toLocaleString('en-US');
 
-(()=>{const el=document.getElementById('totStrip');const t=OV.totals,g=OV.grand;
- const win=Object.entries(t).filter(([k])=>k!=='Write-in').sort((a,b)=>b[1]-a[1])[0][0];
+/* board-level scoreboard with donut */
+(()=>{
+ const cands=['DiNapoli','Warshaw','Goyle'];
+ // donut colors tuned for the dark navy header (DiNapoli navy would vanish, so use a lighter blue)
+ const DC={'DiNapoli':'#5b76d6','Warshaw':'#f47920','Goyle':'#5a9e6f'};
+ const wins={DiNapoli:0,Warshaw:0,Goyle:0};
+ OV.boards.forEach(b=>{const lead=cands.reduce((a,c)=>b[c]>b[a]?c:a,'DiNapoli');wins[lead]++;});
+ const total=OV.boards.length;
+ const svg=document.getElementById('donut');const cx=60,cy=60,r=44,sw=18,Cc=2*Math.PI*r;
+ svg.insertAdjacentHTML('beforeend',`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="${sw}"/>`);
+ let off=0;
+ cands.forEach(c=>{if(!wins[c])return;const frac=wins[c]/total,len=frac*Cc;
+   // tiny gap between segments for separation
+   const gap=wins[c]<total?1.5:0;
+   svg.insertAdjacentHTML('beforeend',
+     `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${DC[c]}" stroke-width="${sw}" stroke-linecap="butt" stroke-dasharray="${Math.max(len-gap,0)} ${Cc-Math.max(len-gap,0)}" stroke-dashoffset="${-off}"/>`);
+   off+=len;});
+ const el=document.getElementById('scoreList');
+ cands.forEach(c=>{if(!wins[c]&&c==='Goyle')return;
+   const w=wins[c],share=(w/total*100).toFixed(0);
+   el.insertAdjacentHTML('beforeend',
+   `<div class="score-row"><span class="dot" style="background:${DC[c]}"></span>
+     <span class="nm" style="color:#fff">${c}</span>
+     <span class="big" style="color:${DC[c]}">${w}<span class="of"> / ${total} boards</span></span>
+     <span class="meta"><b>${share}%</b><br>of boards won</span></div>`);});
+})();
+
+/* secondary popular-vote strip */
+(()=>{const el=document.getElementById('pvStrip');const t=OV.totals,g=OV.grand;
  ORDER.forEach(c=>{const v=t[c],p=v/g*100;
    el.insertAdjacentHTML('beforeend',
-   `<div class="tot ${c===win?'win':''}"><div class="nm">${c}</div><div class="v">${fmt(v)}</div>
+   `<div class="pv"><div class="nm">${c}</div><div class="v">${fmt(v)}</div>
     <div class="p">${p.toFixed(1)}%</div><div class="bar" style="background:${C[c]};width:${Math.max(p,3)}%"></div></div>`);});
  el.insertAdjacentHTML('beforeend',
-   `<div class="tot"><div class="nm">Boards</div><div class="v">18</div><div class="p">${fmt(g)} votes · 1,375 EDs</div></div>`);})();
+   `<div class="pv"><div class="nm">Total ballots</div><div class="v">${fmt(g)}</div><div class="p">1,375 EDs · 18 boards</div></div>`);})();
 
 let cbLayer=null, edLayer=null, edBuilt=false, LAYER='cb', MODE='winner';
 const maxTurnED=Math.max(...ED.features.map(f=>f.properties.total));
