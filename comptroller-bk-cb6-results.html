@@ -112,12 +112,28 @@ const fmt=n=>Number(n).toLocaleString('en-US');
 const BORONAMES={mn:'Manhattan',bk:'Brooklyn',bx:'Bronx',qn:'Queens',si:'Staten Island'};
 const built={};let activeContest='comp';
 
-// Drop orphan EDs that recorded zero CB6 ballots (geographic spillover from
-// EDs that only graze CB6). Keeps map, legend, table, and counts to the
-// election districts that actually cast ballots in CB6.
+// Canonical CB6 election districts: the verified 74-ED set carried by the
+// Comptroller contest (CB6 sits 100% within NY-10; ADs 44/51/52). Other
+// contests' source files include neighbouring-CB spillover EDs, so we tag
+// each feature with whether it belongs to CB6. Default view shows CB6 only;
+// a toggle lets the user expand to the full contest collection.
+const CB6_KEYS=new Set(
+  (APP.contests.comp&&APP.contests.comp.ED&&APP.contests.comp.ED.features||[])
+    .filter(f=>f.properties.total>0).map(f=>f.properties.key)
+);
+let edScope='cb6'; // 'cb6' = only EDs in CB6, 'all' = full contest collection
 Object.values(APP.contests).forEach(CT=>{
-  if(CT.ED&&CT.ED.features){CT.ED.features=CT.ED.features.filter(f=>f.properties.total>0);}
+  if(CT.ED&&CT.ED.features){
+    CT.ED.features=CT.ED.features.filter(f=>f.properties.total>0);
+    CT.ED.features.forEach(f=>{f.properties.in_cb6=CB6_KEYS.has(f.properties.key);});
+    CT._allFeatures=CT.ED.features;
+    CT._hasOutside=CT.ED.features.some(f=>!f.properties.in_cb6);
+  }
 });
+// Features for the current scope.
+function edFeats(CT){
+  return edScope==='cb6'? CT._allFeatures.filter(f=>f.properties.in_cb6) : CT._allFeatures;
+}
 
 function panelHTML(){return `
   <section>
@@ -133,11 +149,12 @@ function panelHTML(){return `
       </div>
     </div>
     <div class="searchMsg search-msg"></div>
+    <div class="scopeSeg seg" style="margin:0 0 8px"></div>
     <div class="mapbox"></div>
     <div class="legend legendbox"></div>
   </section>
   <section>
-    <p class="sec-h">Every election district in CB6</p>
+    <p class="sec-h edScopeHdr">Every election district in CB6</p>
     <div class="tbl-scroll"><table class="edt"><thead><tr class="edhead"></tr></thead><tbody></tbody></table></div>
   </section>
   <section>
@@ -149,22 +166,23 @@ function panelHTML(){return `
 
 function distTot(){
   const CT=APP.contests[activeContest];
+  const inCB6=edScope==='cb6';
   if(!CT.cbs){
-    const f=CT.ED.features,grand=f.reduce((a,x)=>a+x.properties.total,0);
+    const f=edFeats(CT),grand=f.reduce((a,x)=>a+x.properties.total,0);
     const wins={};f.forEach(x=>wins[x.properties.winner]=(wins[x.properties.winner]||0)+1);
     const lead=Object.entries(wins).sort((a,b)=>b[1]-a[1])[0][0];
     document.getElementById('distTot').innerHTML=
-      `<div><b>${fmt(grand)}</b>ballots in CB6</div>`+
-      `<div><b>${f.length}</b>CB6 election districts</div>`+
+      `<div><b>${fmt(grand)}</b>${inCB6?'ballots in CB6':'ballots in AD 52'}</div>`+
+      `<div><b>${f.length}</b>${inCB6?'CB6 election districts':'AD 52 election districts'}</div>`+
       `<div><b>${lead}</b>led most EDs</div>`+
       `<div><b>AD 52 only</b>covers part of CB6</div>`;
     return;}
   const self=CT.cbs.find(c=>c.is_self);
-  const tot=CT.cbs.reduce((a,c)=>{a.grand+=c.grand;a.eds+=c.n_eds;return a;},{grand:0,eds:0});
   const lead=self.lead, lp=self.lead_pct;
+  const edCount=edFeats(CT).length;
   document.getElementById('distTot').innerHTML=
     `<div><b>${fmt(self.grand)}</b>ballots in CB6</div>`+
-    `<div><b>74</b>CB6 election districts</div>`+
+    `<div><b>${edCount}</b>${inCB6?'CB6 election districts':'EDs in district'}</div>`+
     `<div><b>${lead} ${lp}%</b>CB6winner</div>`+
     `<div><b>${CT.cbs.length}</b>${CT.scope==='citywide'?'community boards citywide':'community boards in the district'}</div>`;
 }
@@ -184,12 +202,13 @@ function buildPanel(id){
 }
 
 function buildEDmap(root,CT){
-  const ED=CT.ED,C=CT.colors,ORDER=CT.order;
+  const C=CT.colors,ORDER=CT.order;
   const mapEl=root.querySelector('.mapbox');
   let layer=null,MODE=CT.modes[0][0],pin=null,map=null,edFocus=()=>false;
-  const byKey={};ED.features.forEach(f=>byKey[f.properties.key]=f);
-  const maxTurn=Math.max(...ED.features.map(f=>f.properties.total));
+  const byKey={};CT._allFeatures.forEach(f=>byKey[f.properties.key]=f);
+  const maxTurn=Math.max(...CT._allFeatures.map(f=>f.properties.total));
   const pct=(p,c)=>p.total?p[c]/p.total*100:0;
+  const fc=()=>({type:'FeatureCollection',features:edFeats(CT)});
   function ramp(t,base){const b=parseInt(base.slice(1),16),r=b>>16,g=(b>>8)&255,bl=b&255;
     const f=0.20+0.80*t,mix=x=>Math.round(255+(x-255)*f);return `rgb(${mix(r)},${mix(g)},${mix(bl)})`;}
   function styleFor(p){let fill='#ccc';
@@ -202,35 +221,54 @@ function buildEDmap(root,CT){
     return `<div class="pop-h">ED ${p.AD}/${String(p.ED).padStart(3,'0')}</div>
       <div class="pop-cb">${p.cb_name} · ${fmt(p.total)} ballots</div>
       <table class="pop-tbl">${rows}</table>`;}
+  function drawLayer(){
+    if(layer){map.removeLayer(layer);layer=null;}
+    layer=L.geoJSON(fc(),{style:f=>styleFor(f.properties),
+      onEachFeature:(f,l)=>{l.bindPopup(popup(f.properties));
+        l.on('mouseover',()=>l.setStyle({weight:2,color:'#06024D'}));
+        l.on('mouseout',()=>l.setStyle({weight:0.7,color:'#fff'}));f._layer=l;}}).addTo(map);
+    map.fitBounds(layer.getBounds(),{padding:[12,12]});}
   try{
     if(typeof L==='undefined')throw new Error('no leaflet');
     map=L.map(mapEl,{scrollWheelZoom:false,zoomControl:true}).setView([40.676,-73.994],13.5);
     map.on('click',()=>map.scrollWheelZoom.enable());
     L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_nolabels/{z}/{x}/{y}.png',
       {attribution:'© OpenStreetMap, © CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
-    layer=L.geoJSON(ED,{style:f=>styleFor(f.properties),
-      onEachFeature:(f,l)=>{l.bindPopup(popup(f.properties));
-        l.on('mouseover',()=>l.setStyle({weight:2,color:'#06024D'}));
-        l.on('mouseout',()=>l.setStyle({weight:0.7,color:'#fff'}));f._layer=l;}}).addTo(map);
+    drawLayer();
     L.geoJSON({type:'FeatureCollection',features:Object.entries(AD).map(([k,g])=>({type:'Feature',geometry:g,properties:{}}))},
       {style:{fill:false,color:'#06024D',weight:2.4,opacity:.9}}).addTo(map);
-    map.fitBounds(layer.getBounds(),{padding:[12,12]});
-    edFocus=f=>{if(!layer||!f._layer)return false;map.fitBounds(f._layer.getBounds(),{maxZoom:16,padding:[40,40]});f._layer.openPopup();return true;};
+    edFocus=f=>{const t=byKey[f.properties.key];if(!layer||!t||!t._layer)return false;map.fitBounds(t._layer.getBounds(),{maxZoom:16,padding:[40,40]});t._layer.openPopup();return true;};
     CT._invalidate=()=>map.invalidateSize();
   }catch(err){
     mapEl.style.cssText+=';display:flex;align-items:center;justify-content:center;background:#fff;color:var(--muted);text-align:center;padding:20px';
     mapEl.innerHTML='<div>The map needs an internet connection to load.<br>The tables below are working.</div>';
     root.querySelector('.controls').style.display='none';root.querySelector('.legendbox').style.display='none';
   }
-  function legend(){const el=root.querySelector('.legendbox');let h='';
+  function legend(){const el=root.querySelector('.legendbox');let h='';const F=edFeats(CT);
     if(MODE==='winner'){h='<b style="font-size:12px">Winner</b>';
-      ORDER.forEach(c=>{const n=ED.features.filter(f=>f.properties.winner===c).length;
+      ORDER.forEach(c=>{const n=F.filter(f=>f.properties.winner===c).length;
         if(n)h+=`<div class="row"><span class="sw2" style="background:${C[c]}"></span>${c} <span style="color:#999;font-family:DM Mono">— ${n} ED${n!=1?'s':''}</span></div>`;});}
     else if(MODE==='turnout'){h='<b style="font-size:12px">Ballots cast</b>'+
       `<div class="row"><span class="sw2" style="background:${ramp(.2,'#0d1b4b')}"></span>fewer</div><div class="row"><span class="sw2" style="background:${ramp(1,'#0d1b4b')}"></span>up to ${fmt(maxTurn)}</div>`;}
     else{h=`<b style="font-size:12px">${MODE} vote share</b><div class="row"><span class="sw2" style="background:${ramp(.15,C[MODE]||'#0d1b4b')}"></span>lower</div><div class="row"><span class="sw2" style="background:${ramp(1,C[MODE]||'#0d1b4b')}"></span>70%+</div>`;}
     el.innerHTML=h;}
   legend();
+  // scope toggle: CB6 only vs full contest collection (only when there are outside EDs)
+  const scopeSeg=root.querySelector('.scopeSeg');
+  if(CT._hasOutside){
+    const allLbl=CT.cbs?'Whole district':'All of AD 52';
+    scopeSeg.innerHTML=`<button data-scope="cb6"${edScope==='cb6'?' class="on"':''}>In CB6</button>`+
+      `<button data-scope="all"${edScope==='all'?' class="on"':''}>${allLbl}</button>`;
+    scopeSeg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+      edScope=b.dataset.scope;CT._redrawScope&&CT._redrawScope();});
+  }else{scopeSeg.style.display='none';}
+  CT._redrawScope=()=>{
+    root.querySelectorAll('.scopeSeg button').forEach(x=>x.classList.toggle('on',x.dataset.scope===edScope));
+    const hdr=root.querySelector('.edScopeHdr');
+    if(hdr)hdr.textContent= edScope==='cb6'?'Every election district in CB6'
+      :(CT.cbs?'Every election district in the district':'Every election district in AD 52');
+    if(map&&layer)drawLayer();
+    legend();distTot();CT._refreshTable&&CT._refreshTable();};
   root.querySelector('.modeSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
     root.querySelectorAll('.modeSeg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
     MODE=b.dataset.mode;if(layer)layer.setStyle(f=>styleFor(f.properties));legend();});
@@ -238,26 +276,28 @@ function buildEDmap(root,CT){
 }
 
 function buildEDtable(root,CT){
-  const ED=CT.ED,C=CT.colors,TC=CT.tablecols;
+  const C=CT.colors,TC=CT.tablecols;
   const tb=root.querySelector('.edt tbody');
   function rowHtml(p){const lead=C[p.winner_full]||C[p.winner];
     return `<tr data-key="${p.key}">
      <td class="wd">${p.AD}/${String(p.ED).padStart(3,'0')}</td>
      ${TC.map(c=>`<td>${fmt(p[c])}</td>`).join('')}
      <td class="wd">${fmt(p.total)}</td><td><span class="pill" style="background:${lead}">${p.winner}</span></td><td>${p.win_pct.toFixed(1)}%</td></tr>`;}
-  let data=ED.features.map(f=>f.properties),sortK='total',sortDir=-1;
+  let data=edFeats(CT).map(f=>f.properties),sortK='total',sortDir=-1;
+  function applySort(){data.sort((a,b)=>{let x=a[sortK],y=b[sortK];if(sortK==='key'){x=a.AD*1000+a.ED;y=b.AD*1000+b.ED;}
+    if(typeof x==='string')return x.localeCompare(y)*sortDir;return (x-y)*sortDir;});}
   function render(){tb.innerHTML=data.map(rowHtml).join('');}
   function sortBy(k){if(sortK===k)sortDir*=-1;else{sortK=k;sortDir=(k==='key'||k==='winner')?1:-1;}
-    data.sort((a,b)=>{let x=a[k],y=b[k];if(k==='key'){x=a.AD*1000+a.ED;y=b.AD*1000+b.ED;}
-      if(typeof x==='string')return x.localeCompare(y)*sortDir;return (x-y)*sortDir;});
+    applySort();
     root.querySelectorAll('.edt th').forEach(th=>th.className='');
-    root.querySelector(`.edt th[data-k="${k}"]`).className=sortDir>0?'s-asc':'s-desc';render();}
+    root.querySelector(`.edt th[data-k="${sortK}"]`).className=sortDir>0?'s-asc':'s-desc';render();}
   root.querySelectorAll('.edt th').forEach(th=>th.onclick=()=>sortBy(th.dataset.k));
   sortBy('total');
+  CT._refreshTable=()=>{data=edFeats(CT).map(f=>f.properties);applySort();render();};
   function hl(key){root.querySelectorAll('.edt tbody tr').forEach(tr=>{
     tr.classList.toggle('hl',tr.dataset.key===key);if(tr.dataset.key===key)tr.scrollIntoView({block:'center',behavior:'smooth'});});}
   tb.addEventListener('click',e=>{const tr=e.target.closest('tr');if(!tr)return;
-    const f=ED.features.find(x=>x.properties.key===tr.dataset.key);if(f){CT._edFocus(f);hl(f.properties.key);}});
+    const f=CT._allFeatures.find(x=>x.properties.key===tr.dataset.key);if(f){CT._edFocus(f);hl(f.properties.key);}});
   CT._hl=hl;
   // address search
   function setMsg(html,err){const m=root.querySelector('.searchMsg');m.innerHTML=html||'';m.className='searchMsg search-msg'+(err?' err':'');}
@@ -283,6 +323,7 @@ function buildEDtable(root,CT){
         setMsg(msg+` This page covers CB6 only.`,true);
         if(map&&!isNaN(lat)&&!isNaN(lng)){const op=CT._getpin();if(op)op.remove();CT._pin(L.circleMarker([lat,lng],{radius:7,color:'#b3322a',weight:3,fillColor:'#fff',fillOpacity:1}).addTo(map));map.setView([lat,lng],14);}return;}
       const p=f.properties;
+      if(!p.in_cb6&&edScope==='cb6'&&CT._hasOutside){edScope='all';CT._redrawScope&&CT._redrawScope();}
       if(CT._edFocus(f)){const op=CT._getpin();if(op)op.remove();CT._pin(null);
         if(!isNaN(lat)&&!isNaN(lng)&&map)CT._pin(L.circleMarker([lat,lng],{radius:7,color:'#f47920',weight:3,fillColor:'#fff',fillOpacity:1}).addTo(map));}
       CT._hl(p.key);
@@ -335,11 +376,13 @@ function buildCBtable(root,CT){
 
 function show(id){
   activeContest=id;
+  edScope='cb6';
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.c===id));
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.dataset.panel===id));
   if(!built[id]){buildPanel(id);built[id]=true;}
-  distTot();
-  const CT=APP.contests[id];if(CT._invalidate)setTimeout(CT._invalidate,30);
+  const CT=APP.contests[id];
+  if(CT._redrawScope)CT._redrawScope(); else distTot();
+  if(CT._invalidate)setTimeout(CT._invalidate,30);
 }
 document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)show(b.dataset.c);});
 show('ny10');
