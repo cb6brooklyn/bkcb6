@@ -105,6 +105,15 @@ body.embed .wrap{padding:10px}
 .hvi-legend .sc{display:flex;border-radius:5px;overflow:hidden;border:1px solid var(--line)}
 .hvi-legend .sc span{width:34px;height:14px;display:block}
 .hvi-note{font-size:12px;color:#9aa3b2;margin-top:10px}
+.hvi-intro{font-size:13.5px;color:#3c4660;line-height:1.55;margin:6px 0 12px}
+.hvi-intro b{color:var(--ink)}
+.hvi-key{margin:14px 0 6px;display:grid;gap:8px}
+.hvi-key .kr{display:flex;gap:11px;align-items:flex-start;font-size:13px;color:#3c4660;line-height:1.45}
+.hvi-key .kb{width:26px;height:26px;border-radius:7px;flex:none;display:flex;align-items:center;justify-content:center;font-family:"DM Mono",ui-monospace,monospace;font-weight:600;font-size:14px}
+.hvi-key .kr b{color:var(--ink)}
+.hvi-maplead{font-size:12.5px;color:#5b6478;margin:14px 0 0}
+.hvi-result .rwhat{margin-top:7px;font-size:13px;color:#3c4660;line-height:1.45}
+
 </style>
 </head>
 <body>
@@ -138,19 +147,28 @@ body.embed .wrap{padding:10px}
 <p class="count" id="count"></p>
 <div class="grid" id="grid"></div>
 <p class="src">Sites: NYC Facilities Database, NYC Parks Pools &amp; Spray Showers (Open Data). Live activation: <a href="https://finder.nyc.gov/coolingcenters/locations?mView=map" target="_blank" rel="noopener">NYC Cool Options</a>. Pool season June 27&ndash;Sept 13, daily 11am&ndash;7pm (closed 3&ndash;4pm for cleaning). Status is best-effort and may differ from live conditions.</p>
-<div class="hvi-wrap" id="hviWrap">
-<button class="hvi-head" id="hviToggle" aria-expanded="false">
+<div class="hvi-wrap open" id="hviWrap">
+<button class="hvi-head" id="hviToggle" aria-expanded="true">
 <span class="ic">&#x1F321;&#xFE0F;</span>
-<span class="htxt"><b>Check heat vulnerability by address</b><small>See any NYC address's Heat Vulnerability Index, the risk of harm during extreme heat (1 = lowest, 5 = highest).</small></span>
+<span class="htxt"><b>How risky is the heat where you live?</b><small>Look up any NYC address to see its heat vulnerability, then scroll for what the score means.</small></span>
 <span class="chev">&#x25BC;</span>
 </button>
 <div class="hvi-body">
+<p class="hvi-intro">The city's <b>Heat Vulnerability Index (HVI)</b> rates every neighborhood from <b>1 to 5</b> for how likely residents are to get sick or die during a heat wave. It is built from things that make heat more dangerous: how hot the streets get, how little tree cover and green space there is, how many homes lack air conditioning, and how many residents are low-income or are groups the city has found face higher heat risk. <b>1 is the lowest risk. 5 is the highest.</b> It describes a whole ZIP area, not a single building.</p>
 <div class="hvi-search">
-<input id="hviInput" placeholder="Enter an address, e.g. 250 Baltic Street, Brooklyn" autocomplete="off">
-<button id="hviBtn">Check</button>
+<input id="hviInput" placeholder="Type an address, e.g. 250 Baltic Street, Brooklyn" autocomplete="off">
+<button id="hviBtn">Look up</button>
 </div>
 <div class="hvi-result" id="hviResult"></div>
 <div class="hvi-err" id="hviErr"></div>
+<div class="hvi-key" id="hviKey">
+<div class="kr"><span class="kb" style="background:#2c7fb8;color:#fff">1</span><div><b>Lowest risk.</b> Heat is still dangerous in a long heat wave, especially for older adults and people without AC. Know where the nearest cool place is.</div></div>
+<div class="kr"><span class="kb" style="background:#7fb1d3;color:#0d1430">2</span><div><b>Lower risk.</b> Check on older or sick neighbors during heat waves and keep cool spots in mind.</div></div>
+<div class="kr"><span class="kb" style="background:#f0e8c8;color:#0d1430">3</span><div><b>Moderate risk.</b> Plan ahead: have a way to stay cool, drink water, and use a cooling center if your home gets too hot.</div></div>
+<div class="kr"><span class="kb" style="background:#f4a259;color:#fff">4</span><div><b>Higher risk.</b> Take heat warnings seriously. If you do not have working AC, go to a cooling center or air-conditioned public place on hot days.</div></div>
+<div class="kr"><span class="kb" style="background:#c1453b;color:#fff">5</span><div><b>Highest risk.</b> These areas see the most heat illness. On hot days get to air conditioning, check on neighbors, and call 311 if someone shows signs of heat illness.</div></div>
+</div>
+<p class="hvi-maplead">The map shades every NYC ZIP area by its score. The orange outline is Brooklyn Community Board 6.</p>
 <div id="hviMap"></div>
 <div class="hvi-legend">
 <span>Lower risk</span>
@@ -158,7 +176,7 @@ body.embed .wrap{padding:10px}
 <span>Higher risk</span>
 <span style="margin-left:auto;font-family:monospace">HVI 1&ndash;5</span>
 </div>
-<p class="hvi-note">Source: NYC DOHMH Heat Vulnerability Index by 2020 ZCTA and Modified ZIP Code Tabulation Areas (Open Data). The orange outline is CB6. Lower risk is not no risk; extreme heat remains the deadliest weather hazard in the city.</p>
+<p class="hvi-note">Source: NYC DOHMH Heat Vulnerability Index by 2020 ZCTA and Modified ZIP Code Tabulation Areas (Open Data). A lower score is not no risk; extreme heat is the deadliest weather hazard in New York. If it is hot and your home is too warm, use the cooling options above.</p>
 </div>
 </div>
 </div>
@@ -361,7 +379,7 @@ async function hviSearch(){
   const res=document.getElementById("hviResult"), err=document.getElementById("hviErr");
   const q=inp.value.trim(); if(!q) return;
   err.classList.remove("show"); res.classList.remove("show");
-  btn.disabled=true; btn.textContent="Checking...";
+  btn.disabled=true; btn.textContent="Looking up...";
   try{
     initHviMap();
     const a=await hviGeocode(q);
@@ -369,9 +387,17 @@ async function hviSearch(){
     const props=hviLookup(lng,lat);
     if(!props){ throw new Error("That address falls outside the mapped ZIP areas."); }
     const h=props.hvi;
+    const LABEL={1:"Lowest risk",2:"Lower risk",3:"Moderate risk",4:"Higher risk",5:"Highest risk"};
+    const WHAT={
+      1:"This area is among the least heat-vulnerable in the city. Heat is still dangerous in a long heat wave, especially for older adults and anyone without working AC, so know where the nearest cool place is.",
+      2:"This area has lower heat vulnerability than most of the city. Check on older or sick neighbors during heat waves and keep nearby cool spots in mind.",
+      3:"This area has moderate heat vulnerability. Plan ahead on hot days: have a way to stay cool, drink water, and use a cooling center if your home gets too hot.",
+      4:"This area has higher heat vulnerability. Take heat warnings seriously. If you do not have working AC, head to a cooling center or air-conditioned public place on hot days.",
+      5:"This area is among the most heat-vulnerable in the city and sees the most heat illness. On hot days get to air conditioning, check on neighbors, and call 311 if someone shows signs of heat illness."
+    };
     res.innerHTML="<div class='rcard'><div class='score' style='background:"+HVICOL[h]+";color:"+HVITXT[h]+"'>"+h+"</div>"+
-      "<div class='rmeta'><b>HVI "+h+" of 5</b><div>ZIP "+props.modzcta+(props.boro?" \u00b7 "+props.boro:"")+"</div>"+
-      "<div>"+(h<=2?"Lower heat vulnerability":h===3?"Moderate heat vulnerability":"Higher heat vulnerability")+"</div></div></div>";
+      "<div class='rmeta'><b>"+LABEL[h]+" \u2014 HVI "+h+" of 5</b><div>ZIP "+props.modzcta+(props.boro?" \u00b7 "+props.boro:"")+"</div>"+
+      "<div class='rwhat'>"+WHAT[h]+"</div></div></div>";
     res.classList.add("show");
     if(hviPin) hviMap.removeLayer(hviPin);
     hviPin=L.marker([lat,lng]).addTo(hviMap);
@@ -379,7 +405,7 @@ async function hviSearch(){
     postHeight();
   }catch(e){
     err.textContent=e.message||"Lookup failed. Try again."; err.classList.add("show"); postHeight();
-  }finally{ btn.disabled=false; btn.textContent="Check"; }
+  }finally{ btn.disabled=false; btn.textContent="Look up"; }
 }
 document.getElementById("hviBtn").addEventListener("click",hviSearch);
 document.getElementById("hviInput").addEventListener("keydown",e=>{if(e.key==="Enter")hviSearch();});
