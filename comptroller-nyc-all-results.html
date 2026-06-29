@@ -19,6 +19,12 @@ h1{font-size:clamp(23px,4.2vw,38px);line-height:1.07;margin:0;font-weight:700;le
 .tabs{display:flex;gap:4px;margin-top:22px;flex-wrap:wrap}
 .tabs button{border:0;background:rgba(255,255,255,.10);color:#cfd6e8;font:inherit;font-weight:700;font-size:14px;padding:11px 17px;border-radius:10px 10px 0 0;cursor:pointer;border-bottom:3px solid transparent}
 .tabs button.on{background:var(--paper);color:var(--ink);border-bottom-color:var(--orange)}
+.officebar{display:flex;gap:6px;flex-wrap:wrap}
+.officebar button{border:0;background:rgba(255,255,255,.10);color:#cfd6e8;font:inherit;font-weight:700;font-size:15px;padding:11px 20px;border-radius:10px 10px 0 0;cursor:pointer;border-bottom:3px solid transparent}
+.officebar button.on{background:var(--paper);color:var(--ink);border-bottom-color:var(--orange)}
+.subbar{display:flex;gap:5px;flex-wrap:wrap;padding:11px 0 2px;margin-top:2px}
+.subbar button{border:1px solid var(--line);background:#fff;color:var(--muted);font:inherit;font-weight:600;font-size:12.5px;padding:6px 12px;border-radius:20px;cursor:pointer}
+.subbar button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 section{padding:30px 0;border-bottom:1px solid var(--line)}
 .sec-h{font-family:"DM Mono",monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 16px;display:flex;align-items:center;gap:10px}
 .sec-h::before{content:"";width:22px;height:2px;background:var(--orange)}
@@ -146,11 +152,36 @@ function initMap(root,CT){
 }
 
 const tabsEl=document.getElementById('tabs'),panelsEl=document.getElementById('panels');
-APP.order.forEach((key,i)=>{const CT=APP.contests[key];
-  tabsEl.insertAdjacentHTML('beforeend',`<button data-c="${key}"${i===0?' class="on"':''}>${CT.label}</button>`);
-  panelsEl.insertAdjacentHTML('beforeend',`<div class="panel${i===0?' on':''}" data-panel="${key}"></div>`);});
-function show(key){active=key;document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.c===key));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.dataset.panel===key));if(!built[key]){buildPanel(key);built[key]=true;}distTot();const CT=APP.contests[key];if(CT._inval)setTimeout(CT._inval,40);}
-tabsEl.addEventListener('click',e=>{const b=e.target.closest('button');if(b)show(b.dataset.c);});
-show(APP.order[0]);
+// build panels for every contest (hidden until shown)
+APP.order.forEach((key,i)=>{panelsEl.insertAdjacentHTML('beforeend',`<div class="panel" data-panel="${key}"></div>`);});
+// group contests by office
+const OFFICES=[['comp','Comptroller'],['cong','Congress'],['sd','State Senate'],['ad','Assembly']];
+function officeOf(key){if(key==='comp')return 'comp';if(key.startsWith('ny'))return 'cong';if(key.startsWith('sd'))return 'sd';if(key.startsWith('ad'))return 'ad';}
+const groups={comp:[],cong:[],sd:[],ad:[]};
+APP.order.forEach(key=>groups[officeOf(key)].push(key));
+// borough sub-options for comptroller
+const BFILTER=[['all','Citywide'],['mn','Manhattan'],['bx','Bronx'],['bk','Brooklyn'],['qn','Queens'],['si','Staten Island']];
+let curOffice='comp',curBoro='all';
+// two-level markup
+tabsEl.insertAdjacentHTML('beforeend','<div class="officebar" id="officebar"></div><div class="subbar" id="subbar"></div>');
+const officebar=document.getElementById('officebar'),subbar=document.getElementById('subbar');
+officebar.innerHTML=OFFICES.map((o,i)=>`<button data-office="${o[0]}"${i===0?' class="on"':''}>${o[1]}</button>`).join('');
+function shortLabel(key){const CT=APP.contests[key];if(key==='comp')return 'Comptroller';return CT.label.replace(' Congress','').replace(' Senate','').replace(' Assembly','');}
+function renderSub(){
+  if(curOffice==='comp'){subbar.innerHTML=BFILTER.map(b=>`<button data-boro="${b[0]}"${b[0]===curBoro?' class="on"':''}>${b[1]}</button>`).join('');}
+  else{const keys=groups[curOffice];subbar.innerHTML=keys.map((k,i)=>`<button data-c="${k}"${(k===active)?' class="on"':''}>${shortLabel(k)}</button>`).join('');}
+}
+function applyBoroFilter(){const root=document.querySelector('.panel[data-panel="comp"]');if(!root)return;
+  root.querySelectorAll('.borogroup').forEach(g=>{const full=g.querySelector('h3')?.textContent||'';const ab={'Manhattan':'mn','Bronx':'bx','Brooklyn':'bk','Queens':'qn','Staten Island':'si'}[full];g.style.display=(curBoro==='all'||ab===curBoro)?'':'none';});
+  const roll=root.querySelector('.boro-roll');if(roll)roll.parentElement.style.display=(curBoro==='all')?'':'none';
+}
+function show(key){active=key;document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.dataset.panel===key));if(!built[key]){buildPanel(key);built[key]=true;}distTot();if(key==='comp')applyBoroFilter();const CT=APP.contests[key];if(CT._inval)setTimeout(CT._inval,40);}
+officebar.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;curOffice=b.dataset.office;document.querySelectorAll('#officebar button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  if(curOffice==='comp'){renderSub();show('comp');}
+  else{const first=groups[curOffice][0];renderSub();show(first);renderSub();}});
+subbar.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(curOffice==='comp'){curBoro=b.dataset.boro;document.querySelectorAll('#subbar button').forEach(x=>x.classList.remove('on'));b.classList.add('on');applyBoroFilter();const CT=APP.contests['comp'];if(CT._inval)setTimeout(CT._inval,40);}
+  else{show(b.dataset.c);document.querySelectorAll('#subbar button').forEach(x=>x.classList.remove('on'));b.classList.add('on');}});
+renderSub();show('comp');
 </script>
 </body></html>
