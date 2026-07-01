@@ -55,6 +55,12 @@ def article_page(issue, prev_issue, next_issue):
     title = html.escape(issue["title"])
     dek = html.escape(issue["dek"])
 
+    # split "Wednesday, July 1, 2026" -> dow / month-day / year for masthead
+    _d = datetime.date.fromisoformat(issue["date"])
+    dow = _d.strftime("%A")
+    md = _d.strftime("%B ") + str(_d.day)   # no leading zero on day
+    yr = str(_d.year)
+
     ld = {
         "@context": "https://schema.org",
         "@type": "NewsArticle",
@@ -111,8 +117,9 @@ def article_page(issue, prev_issue, next_issue):
 </script>
 <style>
   :root{{
-    --ink:#1a1a1a; --paper:#fbfaf7; --rule:#e2ddd3;
-    --accent:#0b5d3b; --muted:#6b6459; --link:#0b5d3b;
+    --navy:#06024D; --orange:#FD890E; --white:#FDFDFD;
+    --ink:#1a1a2e; --paper:#ffffff; --rule:#e4e2ee;
+    --muted:#5c5a72; --link:#1a3fb8;
     --measure:38rem;
   }}
   *{{box-sizing:border-box}}
@@ -123,64 +130,91 @@ def article_page(issue, prev_issue, next_issue):
     line-height:1.62; font-size:19px;
   }}
   a{{color:var(--link)}}
+
+  /* ── CB6 masthead ── */
+  .masthead{{
+    background:var(--navy); padding:22px 20px;
+  }}
+  .masthead-inner{{
+    max-width:var(--measure); margin:0 auto;
+    display:flex; align-items:center; gap:20px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  }}
+  .cb6-mark{{
+    flex:0 0 auto; border:3px solid var(--orange); border-radius:6px;
+    padding:8px 14px 10px; text-align:center; line-height:1;
+  }}
+  .cb6-mark .big{{
+    font-size:2.5rem; font-weight:900; color:var(--white);
+    letter-spacing:-.02em; display:block;
+  }}
+  .cb6-mark .sub{{
+    font-size:.5rem; font-weight:800; color:var(--orange);
+    letter-spacing:.08em; margin-top:5px; display:block; line-height:1.25;
+  }}
+  .mast-date{{
+    flex:1 1 auto; min-width:0; color:var(--white);
+    font-weight:800; letter-spacing:-.01em; line-height:1.02;
+  }}
+  .mast-date .dow{{font-size:2.2rem; display:block}}
+  .mast-date .md{{font-size:2.2rem}}
+  .mast-date .yr{{font-size:2.2rem; color:var(--orange)}}
+
   .wrap{{max-width:var(--measure); margin:0 auto; padding:0 22px 96px}}
-  header.site{{
-    border-bottom:2px solid var(--ink); margin-bottom:34px;
-    padding:20px 0 12px;
+
+  .backbar{{
+    max-width:var(--measure); margin:0 auto; padding:11px 22px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+    font-size:12px; letter-spacing:.1em; text-transform:uppercase;
+    font-weight:700; border-bottom:1px solid var(--rule);
+    display:flex; justify-content:space-between; align-items:center;
   }}
-  header.site .kicker{{
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    font-size:12px; letter-spacing:.14em; text-transform:uppercase;
-    color:var(--muted); font-weight:600; margin:0;
-    display:flex; justify-content:space-between; align-items:baseline; gap:12px;
-  }}
-  header.site .kicker a{{color:var(--muted); text-decoration:none}}
-  header.site .mast{{
-    font-size:15px; font-weight:700; letter-spacing:.02em;
-    margin:6px 0 0; font-family:Georgia,serif;
-  }}
-  article{{margin-top:8px}}
+  .backbar span{{color:var(--muted)}}
+  .backbar a{{color:var(--navy); text-decoration:none}}
+
+  article{{margin-top:30px}}
   .eyebrow{{
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
     font-size:12px; letter-spacing:.12em; text-transform:uppercase;
-    color:var(--accent); font-weight:700; margin:0 0 10px;
+    color:var(--orange); font-weight:800; margin:0 0 10px;
   }}
   h1{{
     font-size:2.15rem; line-height:1.12; margin:0 0 14px;
-    font-weight:700; letter-spacing:-.01em;
+    font-weight:800; letter-spacing:-.01em; color:var(--navy);
   }}
   .dek{{
     font-size:1.12rem; color:var(--muted); font-style:italic;
     margin:0 0 22px; line-height:1.5;
   }}
   .byline{{
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    font-size:13px; color:var(--muted); border-top:1px solid var(--rule);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+    font-size:13px; color:var(--muted); border-top:2px solid var(--navy);
     border-bottom:1px solid var(--rule); padding:11px 0; margin:0 0 30px;
     display:flex; flex-wrap:wrap; gap:6px 16px;
   }}
-  .byline strong{{color:var(--ink); font-weight:600}}
+  .byline strong{{color:var(--ink); font-weight:700}}
   article p{{margin:0 0 20px}}
   article h2{{
-    font-size:1.3rem; margin:34px 0 12px; line-height:1.2;
+    font-size:1.3rem; margin:34px 0 12px; line-height:1.2; color:var(--navy);
   }}
   .signoff{{
     margin-top:34px; padding-top:20px; border-top:1px solid var(--rule);
     font-size:.95rem; color:var(--muted);
   }}
-  .signoff .name{{color:var(--ink); font-weight:600; font-style:normal}}
+  .signoff .name{{color:var(--navy); font-weight:700; font-style:normal}}
   .source-note{{
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
     font-size:12.5px; color:var(--muted); margin-top:26px;
-    background:#f2efe8; border:1px solid var(--rule); border-radius:8px;
+    background:#f4f4fb; border:1px solid var(--rule);
+    border-left:4px solid var(--orange); border-radius:6px;
     padding:12px 14px;
   }}
   nav.prevnext{{
     display:flex; justify-content:space-between; gap:14px; margin-top:44px;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
   }}
   nav.prevnext a{{
-    text-decoration:none; color:var(--ink); font-size:13px; font-weight:600;
+    text-decoration:none; color:var(--navy); font-size:13px; font-weight:700;
     max-width:47%;
   }}
   nav.prevnext a.older{{text-align:right; margin-left:auto}}
@@ -189,13 +223,15 @@ def article_page(issue, prev_issue, next_issue):
     margin-top:3px; font-family:Georgia,serif;
   }}
   footer.site{{
-    margin-top:56px; padding-top:20px; border-top:2px solid var(--ink);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    font-size:12.5px; color:var(--muted); line-height:1.6;
+    margin-top:56px; padding:24px 22px; background:var(--navy); color:var(--white);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+    font-size:12.5px; line-height:1.7; text-align:center;
   }}
-  footer.site a{{color:var(--muted)}}
+  footer.site a{{color:var(--orange); text-decoration:none}}
   @media (max-width:480px){{
     body{{font-size:18px}} h1{{font-size:1.8rem}}
+    .cb6-mark .big{{font-size:2rem}}
+    .mast-date .dow, .mast-date .md, .mast-date .yr{{font-size:1.7rem}}
   }}
   @media (prefers-reduced-motion:no-preference){{
     article{{animation:fade .5s ease both}}
@@ -204,13 +240,24 @@ def article_page(issue, prev_issue, next_issue):
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header class="site">
-    <p class="kicker"><span>Brooklyn Community Board 6</span>
-      <a href="index.html">All issues &rarr;</a></p>
-    <p class="mast">The CB6 Newsletter &middot; District Manager\u2019s Notes</p>
-  </header>
+  <div class="masthead">
+    <div class="masthead-inner">
+      <div class="cb6-mark">
+        <span class="big">CB6</span>
+        <span class="sub">BROOKLYN<br>COMMUNITY BOARD 6</span>
+      </div>
+      <div class="mast-date">
+        <span class="dow">{dow}</span>
+        <span class="md">{md} </span><span class="yr">{yr}</span>
+      </div>
+    </div>
+  </div>
+  <div class="backbar">
+    <span>The CB6 Newsletter</span>
+    <a href="index.html">All issues &rarr;</a>
+  </div>
 
+<div class="wrap">
   <article>
     <p class="eyebrow">District Manager\u2019s Notes</p>
     <h1>{title}</h1>
@@ -238,14 +285,14 @@ def article_page(issue, prev_issue, next_issue):
   <nav class="prevnext">
       {nav_html}
   </nav>
+</div>
 
-  <footer class="site">
+<footer class="site">
     Brooklyn Community Board 6 &middot; 250 Baltic Street &middot; Brooklyn, NY 11201<br>
     <a href="{SITE}/">bkcb6.app</a> &middot;
     <a href="index.html">Newsletter archive</a> &middot;
     <a href="mailto:Mike@bkcb6.org">Contact</a>
-  </footer>
-</div>
+</footer>
 </body>
 </html>
 """
@@ -269,47 +316,66 @@ def index_page(issues):
 <meta name="description" content="Web archive of the Brooklyn Community Board 6 newsletter \u2014 District Manager Mike Racioppo\u2019s notes on elections, land use, heat, transit, and local government.">
 <link rel="canonical" href="{SITE}{BASE}/">
 <style>
-  :root{{--ink:#1a1a1a;--paper:#fbfaf7;--rule:#e2ddd3;--accent:#0b5d3b;--muted:#6b6459}}
+  :root{{--navy:#06024D;--orange:#FD890E;--white:#FDFDFD;
+    --ink:#1a1a2e;--paper:#ffffff;--rule:#e4e2ee;--muted:#5c5a72}}
   *{{box-sizing:border-box}}
   body{{margin:0;background:var(--paper);color:var(--ink);
     font-family:Georgia,"Iowan Old Style",serif;line-height:1.6}}
+  .masthead{{background:var(--navy);padding:26px 20px}}
+  .masthead-inner{{max-width:44rem;margin:0 auto;display:flex;align-items:center;gap:20px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}}
+  .cb6-mark{{flex:0 0 auto;border:3px solid var(--orange);border-radius:6px;
+    padding:8px 14px 10px;text-align:center;line-height:1}}
+  .cb6-mark .big{{font-size:2.5rem;font-weight:900;color:var(--white);
+    letter-spacing:-.02em;display:block}}
+  .cb6-mark .sub{{font-size:.5rem;font-weight:800;color:var(--orange);
+    letter-spacing:.08em;margin-top:5px;display:block;line-height:1.25}}
+  .mast-title{{flex:1 1 auto;color:var(--white)}}
+  .mast-title .t{{font-size:2rem;font-weight:900;line-height:1.05;letter-spacing:-.01em}}
+  .mast-title .t .accent{{color:var(--orange)}}
   .wrap{{max-width:44rem;margin:0 auto;padding:0 22px 90px}}
-  header.site{{border-bottom:2px solid var(--ink);padding:22px 0 14px;margin-bottom:8px}}
-  .kicker{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
-    font-weight:600;margin:0}}
-  header.site h1{{font-size:2rem;margin:8px 0 6px;letter-spacing:-.01em}}
-  header.site p.sub{{color:var(--muted);font-style:italic;margin:0 0 4px}}
-  ul{{list-style:none;padding:0;margin:26px 0 0}}
+  .sub{{max-width:44rem;margin:0 auto;padding:16px 22px 0;color:var(--muted);
+    font-style:italic}}
+  ul{{list-style:none;padding:0;margin:20px 0 0}}
   .entry{{padding:22px 0;border-bottom:1px solid var(--rule)}}
-  .entry time{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);
-    font-weight:700}}
+  .entry time{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+    font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--orange);
+    font-weight:800}}
   .entry a{{text-decoration:none;color:var(--ink)}}
-  .entry h2{{font-size:1.4rem;margin:6px 0 8px;line-height:1.18}}
-  .entry a:hover h2{{color:var(--accent)}}
+  .entry h2{{font-size:1.4rem;margin:6px 0 8px;line-height:1.18;color:var(--navy)}}
+  .entry a:hover h2{{color:var(--orange)}}
   .entry p{{margin:0;color:var(--muted);font-size:1.02rem}}
-  footer.site{{margin-top:40px;padding-top:18px;border-top:2px solid var(--ink);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    font-size:12.5px;color:var(--muted)}}
-  footer.site a{{color:var(--muted)}}
+  footer.site{{margin-top:40px;padding:24px 22px;background:var(--navy);color:var(--white);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+    font-size:12.5px;text-align:center}}
+  footer.site a{{color:var(--orange);text-decoration:none}}
+  @media (max-width:480px){{
+    .cb6-mark .big{{font-size:2rem}} .mast-title .t{{font-size:1.55rem}}
+  }}
 </style>
 </head>
 <body>
+  <div class="masthead">
+    <div class="masthead-inner">
+      <div class="cb6-mark">
+        <span class="big">CB6</span>
+        <span class="sub">BROOKLYN<br>COMMUNITY BOARD 6</span>
+      </div>
+      <div class="mast-title">
+        <div class="t">Newsletter <span class="accent">Archive</span></div>
+      </div>
+    </div>
+  </div>
+  <p class="sub">District Manager\u2019s notes on elections, land use, heat, transit, and local government.</p>
 <div class="wrap">
-  <header class="site">
-    <p class="kicker">Brooklyn Community Board 6</p>
-    <h1>Newsletter Archive</h1>
-    <p class="sub">District Manager\u2019s notes on elections, land use, heat, transit, and local government.</p>
-  </header>
   <ul>
 {rows_html}
   </ul>
-  <footer class="site">
-    Brooklyn Community Board 6 &middot; 250 Baltic Street &middot; Brooklyn, NY 11201 &middot;
-    <a href="{SITE}/">bkcb6.app</a>
-  </footer>
 </div>
+<footer class="site">
+    Brooklyn Community Board 6 &middot; 250 Baltic Street &middot; Brooklyn, NY 11201<br>
+    <a href="{SITE}/">bkcb6.app</a>
+</footer>
 </body>
 </html>
 """
