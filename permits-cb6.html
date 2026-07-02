@@ -202,7 +202,7 @@ input[type=range]{width:100%;margin:0;accent-color:var(--orange)}
   </div>
 
   <div class="foot">
-    <div class="note" id="datanote">Geometry is available through mid-January 2026. Later permits exist in the source but are not yet geocoded by the city, so they can't be placed on the map.</div>
+    <div class="note" id="datanote">Permits through Jan 15, 2026 use the city's mapped coordinates. Newer permits aren't geocoded in the source, so this page locates them by address as it loads. <span id="geostat"></span></div>
     Source: <a href="https://data.cityofnewyork.us/Transportation/Street-Construction-Permits-2022-Present-/tqtj-sjs8/about_data" target="_blank" rel="noopener">NYC DOT Street Construction Permits</a>. Boundary: Brooklyn CB6. A permit authorizes work; it does not always mean work is underway.
   </div>
 </aside>
@@ -235,17 +235,126 @@ const fmtDate=d=>{ if(!d) return '—'; const [y,m,dd]=d.split('-');
   const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1]; 
   return `${mo} ${+dd}, ${y}`; };
 
+const GEO_KEY='b913bdfb9c47466589d0f08c99c75b21';
+const GEO_CACHE_KEY='cb6_permit_geocode_v1';
+
+function rebuildDates(){
+  const ds=[...new Set(ALL.map(p=>p.d).filter(Boolean))].sort();
+  const atMax = !state.dates.length || state.to===state.dates.length-1;
+  state.dates=ds;
+  state.from=0; state.to=ds.length-1;
+  if($('#rFrom')){ // slider exists — refresh its bounds
+    const n=ds.length-1;
+    $('#rFrom').max=n; $('#rTo').max=n;
+    $('#rFrom').value=0; $('#rTo').value=n;
+    $('#lblFrom').textContent=fmtDate(ds[0]);
+    $('#lblTo').textContent=fmtDate(ds[n]);
+  }
+}
+
 Promise.all([
   fetch('permits.json').then(r=>r.json()),
   fetch('cb6-boundary.json').then(r=>r.json())
 ]).then(([permits,boundary])=>{
   ALL=permits; BOUND=boundary;
-  // build sorted unique date index for the slider
-  const ds=[...new Set(permits.map(p=>p.d).filter(Boolean))].sort();
-  state.dates=ds; state.from=0; state.to=ds.length-1;
+  rebuildDates();
   init();
   $('#loader').style.display='none';
+  loadRecent();   // fetch + geocode newer permits in the background
 });
+
+// ---- Recent permits: geocode client-side, merge in ----
+function loadRecent(){
+  fetch('recent-permits.json').then(r=>r.json()).then(recent=>{
+    // unique addresses
+    const cache=readCache();
+    const addrKey=r=>r.hn+'|'+r.on;
+    const uniq=new Map();
+    recent.forEach(r=>{ if(!uniq.has(addrKey(r))) uniq.set(addrKey(r),{hn:r.hn,on:r.on}); });
+    const todo=[...uniq.values()].filter(a=>!(('c'in cache)&&cache.c[a.hn+'|'+a.on]!==undefined));
+    // apply anything already cached, then geocode the rest
+    geocodeQueue(recent, [...uniq.values()], cache);
+  }).catch(()=>{ $('#geostat').textContent=''; });
+}
+
+function readCache(){
+  try{ const raw=localStorage.getItem(GEO_CACHE_KEY);
+    if(raw){ const o=JSON.parse(raw); if(o&&o.c) return o; } }catch(e){}
+  return {c:{}};
+}
+function writeCache(cache){
+  try{ localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(cache)); }catch(e){}
+}
+
+async function geocodeQueue(recent, addrs, cache){
+  const total=addrs.length; let done=0, added=0;
+  const setStat=()=>{ $('#geostat').textContent=
+    done<total ? `Locating recent permits… ${Math.round(done/total*100)}%` : ''; };
+  setStat();
+
+  // pull anything already cached into the map right away
+  const merge=()=>{
+    const key=r=>r.hn+'|'+r.on;
+    const fresh=[];
+    recent.forEach(r=>{
+      const ll=cache.c[key(r)];
+      if(ll && ll.length===2 && !r._done){
+        r._ll=ll; r._done=true;
+        fresh.push(mapRec(r));
+      }
+    });
+    if(fresh.length){ ALL=ALL.concat(fresh); added+=fresh.length; }
+  };
+  merge();
+  if(added){ rebuildDates(); render(); }
+
+  const CONCURRENCY=6;
+  let idx=0;
+  async function worker(){
+    while(idx<addrs.length){
+      const a=addrs[idx++];
+      const k=a.hn+'|'+a.on;
+      if(cache.c[k]!==undefined){ done++; continue; }
+      const ll=await geocodeOne(a.hn,a.on);
+      cache.c[k]= ll || null;   // null = geocoded but outside CB6 / failed
+      done++;
+      if(done%40===0){ setStat(); writeCache(cache); merge(); rebuildDates(); render(); }
+    }
+  }
+  await Promise.all(Array.from({length:CONCURRENCY},worker));
+  writeCache(cache); merge();
+  rebuildDates(); render(); setStat();
+}
+
+function mapRec(r){
+  return {p:r.p,s:r.s,t:r.t,a:r.a,st:r.st,d:r.d,ws:r.ws,we:r.we,
+    loc:r.loc,on:r.on,by:r.by,pc:r.pc,y:r._ll[0],x:r._ll[1]};
+}
+
+async function geocodeOne(hn,st){
+  const url='https://api.nyc.gov/geo/geoclient/v2/address.json?'+
+    new URLSearchParams({houseNumber:hn,street:st,borough:'Brooklyn'});
+  try{
+    const res=await fetch(url,{headers:{'Ocp-Apim-Subscription-Key':GEO_KEY}});
+    if(!res.ok) return null;
+    const d=(await res.json()).address||{};
+    const lat=parseFloat(d.latitude), lon=parseFloat(d.longitude);
+    if(!lat||!lon) return null;
+    if(!pointInCB6(lat,lon)) return null;
+    return [Math.round(lat*1e5)/1e5, Math.round(lon*1e5)/1e5];
+  }catch(e){ return null; }
+}
+
+// ray-casting point in polygon (BOUND is [[lat,lng],...])
+function pointInCB6(lat,lon){
+  let inside=false;
+  for(let i=0,j=BOUND.length-1;i<BOUND.length;j=i++){
+    const yi=BOUND[i][0],xi=BOUND[i][1],yj=BOUND[j][0],xj=BOUND[j][1];
+    const hit=((yi>lat)!==(yj>lat)) && (lon < (xj-xi)*(lat-yi)/(yj-yi)+xi);
+    if(hit) inside=!inside;
+  }
+  return inside;
+}
 
 function init(){
   map=L.map('map',{zoomControl:false,preferCanvas:true,minZoom:12,maxZoom:19})
