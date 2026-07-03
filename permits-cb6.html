@@ -182,7 +182,7 @@ input[type=range]{width:100%;margin:0;accent-color:var(--orange)}
       <input id="q" type="text" placeholder="e.g. Carroll St, Con Ed, sidewalk…" autocomplete="off">
     </div>
     <div class="btnrow">
-      <button class="btn" id="btnActive">Active only</button>
+      <button class="btn" id="btnExpired">Show expired</button>
       <button class="btn" id="btnReset">Reset</button>
     </div>
   </div>
@@ -226,8 +226,9 @@ const CATS = [
 ];
 const CATMAP = Object.fromEntries(CATS.map(c=>[c[0],{name:c[1],color:c[2]}]));
 const ACTIVE_STATUS = new Set(['ISSUED & PRINTED','SUBMITTED',"CONFIRMATION REC'D",'DELINQUENT EMERGENCY']);
+const isExpired = st => (st||'').includes('EXPIRED') || (st||'').includes('VOID');
 
-let ALL=[], BOUND=[], state={cats:new Set(CATS.map(c=>c[0])),q:'',active:false,from:0,to:0,dates:[]};
+let ALL=[], BOUND=[], state={cats:new Set(CATS.map(c=>c[0])),q:'',showExpired:false,from:0,to:0,dates:[]};
 let map, layer, boundaryLayer;
 
 const $=s=>document.querySelector(s);
@@ -408,11 +409,11 @@ function buildSlider(){
 
 function wire(){
   let t; $('#q').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{state.q=e.target.value.toLowerCase().trim();render();},180)};
-  $('#btnActive').onclick=function(){state.active=!state.active;this.classList.toggle('active',state.active);render();};
+  $('#btnExpired').onclick=function(){state.showExpired=!state.showExpired;this.classList.toggle('active',state.showExpired);render();};
   $('#btnReset').onclick=()=>{
-    state.cats=new Set(CATS.map(c=>c[0])); state.q=''; state.active=false;
+    state.cats=new Set(CATS.map(c=>c[0])); state.q=''; state.showExpired=false;
     document.querySelectorAll('.cat').forEach(c=>c.classList.remove('off'));
-    $('#q').value=''; $('#btnActive').classList.remove('active');
+    $('#q').value=''; $('#btnExpired').classList.remove('active');
     const n=state.dates.length-1; $('#rFrom').value=0; $('#rTo').value=n;
     state.from=0; state.to=n;
     $('#lblFrom').textContent=fmtDate(state.dates[0]);
@@ -426,7 +427,7 @@ function filtered(){
   const df=state.dates[state.from], dt=state.dates[state.to], q=state.q;
   return ALL.filter(p=>{
     if(!state.cats.has(p.s)) return false;
-    if(state.active && !ACTIVE_STATUS.has(p.st)) return false;
+    if(!state.showExpired && isExpired(p.st)) return false;
     if(p.d<df||p.d>dt) return false;
     if(q){
       const hay=(p.loc+' '+p.by+' '+p.t+' '+p.p+' '+CATMAP[p.s].name).toLowerCase();
@@ -439,7 +440,7 @@ function filtered(){
 function render(){
   const data=filtered();
   $('#count').innerHTML=data.length.toLocaleString().replace(/(\d+)/,'<span>$1</span>');
-  $('#countsub').textContent = state.active? 'active permits shown' : 'permits shown';
+  $('#countsub').textContent = state.showExpired? 'permits shown (incl. expired)' : 'current permits shown';
   layer.clearLayers();
   const z=map.getZoom();
   const r = z>=17?5 : z>=15?4 : z>=14?3.2 : 2.4;
