@@ -166,13 +166,13 @@ input[type=range]{width:100%;margin:0;accent-color:var(--orange)}
 
   <div class="masthead">
     <p class="eyebrow">Brooklyn Community Board 6</p>
-    <h1>Street &amp; Sidewalk Permits</h1>
-    <p>Every DOT street-work permit issued in the district, mapped from open data.</p>
+    <h1>Active Street Work</h1>
+    <p>DOT street and sidewalk permits with an open work window right now.</p>
   </div>
 
   <div class="counter">
     <div class="big" id="count">0</div>
-    <div class="sub" id="countsub">permits shown</div>
+    <div class="sub" id="countsub">active permits</div>
   </div>
 
   <div class="panel">
@@ -182,8 +182,8 @@ input[type=range]{width:100%;margin:0;accent-color:var(--orange)}
       <input id="q" type="text" placeholder="e.g. Carroll St, Con Ed, sidewalk…" autocomplete="off">
     </div>
     <div class="btnrow">
-      <button class="btn" id="btnExpired">Show expired</button>
       <button class="btn" id="btnReset">Reset</button>
+      <a class="btn" id="btnArchive" href="permits-archive.html" style="text-decoration:none;display:flex;align-items:center;justify-content:center">Archive →</a>
     </div>
   </div>
 
@@ -193,7 +193,7 @@ input[type=range]{width:100%;margin:0;accent-color:var(--orange)}
   </div>
 
   <div class="panel">
-    <h2>Issued between</h2>
+    <h2>Work ends between</h2>
     <div class="rangewrap">
       <div class="lbls"><span id="lblFrom">—</span><span id="lblTo">—</span></div>
       <input type="range" id="rFrom" min="0" max="100" value="0">
@@ -202,8 +202,8 @@ input[type=range]{width:100%;margin:0;accent-color:var(--orange)}
   </div>
 
   <div class="foot">
-    <div class="note" id="datanote">Permits through Jan 15, 2026 use the city's mapped coordinates. Newer permits aren't geocoded in the source, so this page locates them by address as it loads. <span id="geostat"></span></div>
-    Source: <a href="https://data.cityofnewyork.us/Transportation/Street-Construction-Permits-2022-Present-/tqtj-sjs8/about_data" target="_blank" rel="noopener">NYC DOT Street Construction Permits</a>. Boundary: Brooklyn CB6. A permit authorizes work; it does not always mean work is underway.
+    <div class="note" id="datanote">Shows permits whose work window is open as of today. Each is placed at its street address. <span id="geostat"></span></div>
+    Source: <a href="https://data.cityofnewyork.us/Transportation/Street-Construction-Permits-2022-Present-/tqtj-sjs8/about_data" target="_blank" rel="noopener">NYC DOT Street Construction Permits</a>. Boundary: Brooklyn CB6. Older and expired permits are in the <a href="permits-archive.html">searchable archive</a>. A permit authorizes work; it does not always mean work is underway.
   </div>
 </aside>
 
@@ -222,13 +222,13 @@ const CATS = [
   ['refuse','Refuse container', '#8a6d3b'],
   ['equipment','Placed equipment', '#00897b'],
   ['manhole','Manhole embargo', '#7e57c2'],
+  ['canopy','Canopy', '#d081c4'],
   ['other','Other', '#9aa0ad'],
 ];
 const CATMAP = Object.fromEntries(CATS.map(c=>[c[0],{name:c[1],color:c[2]}]));
-const ACTIVE_STATUS = new Set(['ISSUED & PRINTED','SUBMITTED',"CONFIRMATION REC'D",'DELINQUENT EMERGENCY']);
-const isExpired = st => (st||'').includes('EXPIRED') || (st||'').includes('VOID');
+const ACTIVE_STATUS = new Set(['ISSUED & PRINTED','SUBMITTED',"CONFIRMATION REC'D",'EMERGENCY',"DELINQUENT EMERGENCY"]);
 
-let ALL=[], BOUND=[], state={cats:new Set(CATS.map(c=>c[0])),q:'',showExpired:false,from:0,to:0,dates:[]};
+let ALL=[], BOUND=[], state={cats:new Set(CATS.map(c=>c[0])),q:'',from:0,to:0,dates:[]};
 let map, layer, boundaryLayer;
 
 const $=s=>document.querySelector(s);
@@ -236,15 +236,12 @@ const fmtDate=d=>{ if(!d) return '—'; const [y,m,dd]=d.split('-');
   const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1]; 
   return `${mo} ${+dd}, ${y}`; };
 
-const GEO_KEY='b913bdfb9c47466589d0f08c99c75b21';
-const GEO_CACHE_KEY='cb6_permit_geocode_v1';
-
+// date slider indexes on work-end date ('we')
 function rebuildDates(){
-  const ds=[...new Set(ALL.map(p=>p.d).filter(Boolean))].sort();
-  const atMax = !state.dates.length || state.to===state.dates.length-1;
+  const ds=[...new Set(ALL.map(p=>p.we).filter(Boolean))].sort();
   state.dates=ds;
-  state.from=0; state.to=ds.length-1;
-  if($('#rFrom')){ // slider exists — refresh its bounds
+  state.from=0; state.to=ds.length?ds.length-1:0;
+  if($('#rFrom') && ds.length){
     const n=ds.length-1;
     $('#rFrom').max=n; $('#rTo').max=n;
     $('#rFrom').value=0; $('#rTo').value=n;
@@ -254,108 +251,16 @@ function rebuildDates(){
 }
 
 Promise.all([
-  fetch('permits.json').then(r=>r.json()),
+  fetch('active-permits.json').then(r=>r.json()),
   fetch('cb6-boundary.json').then(r=>r.json())
 ]).then(([permits,boundary])=>{
   ALL=permits; BOUND=boundary;
-  rebuildDates();
   init();
+  buildCats(); rebuildDates(); render();
+  $('#geostat').textContent='';
   $('#loader').style.display='none';
-  loadRecent();   // fetch + geocode newer permits in the background
-});
-
-// ---- Recent permits: geocode client-side, merge in ----
-function loadRecent(){
-  fetch('recent-permits.json').then(r=>r.json()).then(recent=>{
-    // unique addresses
-    const cache=readCache();
-    const addrKey=r=>r.hn+'|'+r.on;
-    const uniq=new Map();
-    recent.forEach(r=>{ if(!uniq.has(addrKey(r))) uniq.set(addrKey(r),{hn:r.hn,on:r.on}); });
-    const todo=[...uniq.values()].filter(a=>!(('c'in cache)&&cache.c[a.hn+'|'+a.on]!==undefined));
-    // apply anything already cached, then geocode the rest
-    geocodeQueue(recent, [...uniq.values()], cache);
-  }).catch(()=>{ $('#geostat').textContent=''; });
-}
-
-function readCache(){
-  try{ const raw=localStorage.getItem(GEO_CACHE_KEY);
-    if(raw){ const o=JSON.parse(raw); if(o&&o.c) return o; } }catch(e){}
-  return {c:{}};
-}
-function writeCache(cache){
-  try{ localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(cache)); }catch(e){}
-}
-
-async function geocodeQueue(recent, addrs, cache){
-  const total=addrs.length; let done=0, added=0;
-  const setStat=()=>{ $('#geostat').textContent=
-    done<total ? `Locating recent permits… ${Math.round(done/total*100)}%` : ''; };
-  setStat();
-
-  // pull anything already cached into the map right away
-  const merge=()=>{
-    const key=r=>r.hn+'|'+r.on;
-    const fresh=[];
-    recent.forEach(r=>{
-      const ll=cache.c[key(r)];
-      if(ll && ll.length===2 && !r._done){
-        r._ll=ll; r._done=true;
-        fresh.push(mapRec(r));
-      }
-    });
-    if(fresh.length){ ALL=ALL.concat(fresh); added+=fresh.length; }
-  };
-  merge();
-  if(added){ rebuildDates(); render(); }
-
-  const CONCURRENCY=6;
-  let idx=0;
-  async function worker(){
-    while(idx<addrs.length){
-      const a=addrs[idx++];
-      const k=a.hn+'|'+a.on;
-      if(cache.c[k]!==undefined){ done++; continue; }
-      const ll=await geocodeOne(a.hn,a.on);
-      cache.c[k]= ll || null;   // null = geocoded but outside CB6 / failed
-      done++;
-      if(done%40===0){ setStat(); writeCache(cache); merge(); rebuildDates(); render(); }
-    }
-  }
-  await Promise.all(Array.from({length:CONCURRENCY},worker));
-  writeCache(cache); merge();
-  rebuildDates(); render(); setStat();
-}
-
-function mapRec(r){
-  return {p:r.p,s:r.s,t:r.t,a:r.a,st:r.st,d:r.d,ws:r.ws,we:r.we,
-    loc:r.loc,on:r.on,by:r.by,pc:r.pc,y:r._ll[0],x:r._ll[1]};
-}
-
-async function geocodeOne(hn,st){
-  const url='https://api.nyc.gov/geo/geoclient/v2/address.json?'+
-    new URLSearchParams({houseNumber:hn,street:st,borough:'Brooklyn'});
-  try{
-    const res=await fetch(url,{headers:{'Ocp-Apim-Subscription-Key':GEO_KEY}});
-    if(!res.ok) return null;
-    const d=(await res.json()).address||{};
-    const lat=parseFloat(d.latitude), lon=parseFloat(d.longitude);
-    if(!lat||!lon) return null;
-    if(!pointInCB6(lat,lon)) return null;
-    return [Math.round(lat*1e5)/1e5, Math.round(lon*1e5)/1e5];
-  }catch(e){ return null; }
-}
-
-// ray-casting point in polygon (BOUND is [[lat,lng],...])
-function pointInCB6(lat,lon){
-  let inside=false;
-  for(let i=0,j=BOUND.length-1;i<BOUND.length;j=i++){
-    const yi=BOUND[i][0],xi=BOUND[i][1],yj=BOUND[j][0],xj=BOUND[j][1];
-    const hit=((yi>lat)!==(yj>lat)) && (lon < (xj-xi)*(lat-yi)/(yj-yi)+xi);
-    if(hit) inside=!inside;
-  }
-  return inside;
-}
+}).catch(()=>{ $('#geostat').textContent='Could not load permit data.';
+  $('#loader').style.display='none'; });
 
 function init(){
   map=L.map('map',{zoomControl:false,preferCanvas:true,minZoom:12,maxZoom:19})
@@ -381,11 +286,11 @@ function init(){
 
 function buildCats(){
   const counts={}; ALL.forEach(p=>counts[p.s]=(counts[p.s]||0)+1);
-  const wrap=$('#cats');
+  const wrap=$('#cats'); wrap.innerHTML='';
   CATS.forEach(([key,name,color])=>{
     if(!counts[key]) return;
     const b=document.createElement('button');
-    b.className='cat'; b.dataset.k=key;
+    b.className='cat'+(state.cats.has(key)?'':' off'); b.dataset.k=key;
     b.innerHTML=`<span class="dot" style="background:${color}"></span>
       <span class="nm">${name}</span><span class="ct">${counts[key].toLocaleString()}</span>`;
     b.onclick=()=>{ state.cats.has(key)?state.cats.delete(key):state.cats.add(key);
@@ -409,11 +314,10 @@ function buildSlider(){
 
 function wire(){
   let t; $('#q').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{state.q=e.target.value.toLowerCase().trim();render();},180)};
-  $('#btnExpired').onclick=function(){state.showExpired=!state.showExpired;this.classList.toggle('active',state.showExpired);render();};
   $('#btnReset').onclick=()=>{
-    state.cats=new Set(CATS.map(c=>c[0])); state.q=''; state.showExpired=false;
+    state.cats=new Set(CATS.map(c=>c[0])); state.q='';
     document.querySelectorAll('.cat').forEach(c=>c.classList.remove('off'));
-    $('#q').value=''; $('#btnExpired').classList.remove('active');
+    $('#q').value='';
     const n=state.dates.length-1; $('#rFrom').value=0; $('#rTo').value=n;
     state.from=0; state.to=n;
     $('#lblFrom').textContent=fmtDate(state.dates[0]);
@@ -427,8 +331,7 @@ function filtered(){
   const df=state.dates[state.from], dt=state.dates[state.to], q=state.q;
   return ALL.filter(p=>{
     if(!state.cats.has(p.s)) return false;
-    if(!state.showExpired && isExpired(p.st)) return false;
-    if(p.d<df||p.d>dt) return false;
+    if(state.dates.length && (p.we<df||p.we>dt)) return false;
     if(q){
       const hay=(p.loc+' '+p.by+' '+p.t+' '+p.p+' '+CATMAP[p.s].name).toLowerCase();
       if(!hay.includes(q)) return false;
@@ -440,11 +343,10 @@ function filtered(){
 function render(){
   const data=filtered();
   $('#count').innerHTML=data.length.toLocaleString().replace(/(\d+)/,'<span>$1</span>');
-  $('#countsub').textContent = state.showExpired? 'permits shown (incl. expired)' : 'current permits shown';
+  $('#countsub').textContent = data.length===1? 'active permit' : 'active permits';
   layer.clearLayers();
   const z=map.getZoom();
   const r = z>=17?5 : z>=15?4 : z>=14?3.2 : 2.4;
-  // cap rendering for perf; if huge, draw all but small
   const canvas=L.canvas({padding:.5});
   data.forEach(p=>{
     const c=CATMAP[p.s].color;
