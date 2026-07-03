@@ -208,8 +208,8 @@ input[type=range]{width:100%;margin:0;accent-color:var(--orange)}
 </aside>
 
 <div id="map">
-  <div class="zoomhint" id="zoomhint">Zoom in to separate nearby permits</div>
-  <div class="maptip" id="maptip">Click any point for permit details</div>
+  <div class="zoomhint" id="zoomhint">Zoom in to see individual blocks</div>
+  <div class="maptip" id="maptip">Highlighted streets have active permits · click one for details</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -263,15 +263,20 @@ Promise.all([
   $('#loader').style.display='none'; });
 
 function init(){
-  map=L.map('map',{zoomControl:false,preferCanvas:true,minZoom:12,maxZoom:19})
+  map=L.map('map',{zoomControl:false,preferCanvas:false,minZoom:12,maxZoom:19})
       .setView([40.6775,-73.992],14);
   L.control.zoom({position:'topright'}).addTo(map);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
-    attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:19
-  }).addTo(map);
+  // Primary basemap: CARTO Voyager (has street names). Fall back to OSM if it errors.
+  const carto=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+    attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:19});
+  const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'&copy; OpenStreetMap contributors', maxZoom:19});
+  let switched=false;
+  carto.on('tileerror',()=>{ if(!switched){ switched=true; map.removeLayer(carto); osm.addTo(map);} });
+  carto.addTo(map);
 
-  boundaryLayer=L.polygon(BOUND,{color:'#06024D',weight:2.5,opacity:.9,
-    fill:true,fillColor:'#06024D',fillOpacity:.04,dashArray:'2 5'}).addTo(map);
+  boundaryLayer=L.polygon(BOUND,{color:'#06024D',weight:2.5,opacity:.85,
+    fill:false,dashArray:'3 6',interactive:false}).addTo(map);
   map.fitBounds(boundaryLayer.getBounds(),{padding:[30,30]});
 
   layer=L.layerGroup().addTo(map);
@@ -346,15 +351,39 @@ function render(){
   $('#countsub').textContent = data.length===1? 'active permit' : 'active permits';
   layer.clearLayers();
   const z=map.getZoom();
-  const r = z>=17?5 : z>=15?4 : z>=14?3.2 : 2.4;
-  const canvas=L.canvas({padding:.5});
+  const w = z>=17?9 : z>=16?7 : z>=15?6 : z>=14?5 : 4;      // line weight
+  const rr = z>=17?6 : z>=15?5 : 4;                          // fallback dot radius
+
+  // group segments on the same block so we can fan them out slightly
+  const groups={};
+  data.forEach(p=>{ if(p.line){ const k=p.line[0].join(',')+'|'+p.line[p.line.length-1].join(','); (groups[k]=groups[k]||[]).push(p);} });
+
   data.forEach(p=>{
     const c=CATMAP[p.s].color;
-    const m=L.circleMarker([p.y,p.x],{renderer:canvas,radius:r,
-      color:'#fff',weight:.6,fillColor:c,fillOpacity:.82});
-    m.on('click',()=>openPop(p,m));
-    layer.addLayer(m);
+    if(p.line){
+      const g=groups[p.line[0].join(',')+'|'+p.line[p.line.length-1].join(',')];
+      const idx=g.indexOf(p), n=g.length;
+      const off=(idx-(n-1)/2); // fan index
+      const line = off? offsetLine(p.line, off*(z>=16?0.4:0.7)) : p.line;
+      // white casing under the colored line for contrast on any basemap
+      layer.addLayer(L.polyline(line,{color:'#fff',weight:w+3,opacity:.9,lineCap:'round'}));
+      const pl=L.polyline(line,{color:c,weight:w,opacity:.95,lineCap:'round'});
+      pl.on('click',e=>openPop(p,e.latlng)); layer.addLayer(pl);
+    } else if(p.pt){
+      const m=L.circleMarker(p.pt,{radius:rr,color:'#fff',weight:1.2,fillColor:c,fillOpacity:.9});
+      m.on('click',()=>openPop(p,m.getLatLng())); layer.addLayer(m);
+    }
   });
+}
+
+// shift a [lat,lng] polyline perpendicular by ~metersFactor (in ~1e-5 deg units)
+function offsetLine(line, k){
+  if(line.length<2) return line;
+  const [y0,x0]=line[0], [y1,x1]=line[line.length-1];
+  let dy=y1-y0, dx=x1-x0; const len=Math.hypot(dy,dx)||1;
+  // perpendicular unit vector, scaled small
+  const ny=-dx/len, nx=dy/len; const s=k*0.00006;
+  return line.map(([y,x])=>[y+ny*s, x+nx*s]);
 }
 
 function statusColor(st){
@@ -364,16 +393,17 @@ function statusColor(st){
   return '#8a6d3b';
 }
 
-function openPop(p,m){
+function openPop(p,latlng){
   const cat=CATMAP[p.s], c=cat.color;
-  const active=ACTIVE_STATUS.has(p.st);
   const badgeBg = statusColor(p.st);
+  const block = (p.fr&&p.to)? `${esc(p.on)} · ${esc(p.fr)} to ${esc(p.to)}` : esc(p.loc||p.on||'Location on file');
   const html=`<div class="pop">
     <div class="ph" style="background:${c}">
-      <div class="k">${cat.name}${p.a?' · '+p.a:''}</div>
+      <div class="k">${cat.name}${p.a?' · '+esc(p.a):''}</div>
       <div class="loc">${esc(p.loc||p.on||'Location on file')}</div>
     </div>
     <div class="pb">
+      <div class="row"><span class="lab">Block</span><span class="val">${block}</span></div>
       <div class="row"><span class="lab">Status</span>
         <span class="val"><span class="badge" style="background:${badgeBg}22;color:${badgeBg}">${esc(p.st||'—')}</span></span></div>
       <div class="row"><span class="lab">Work</span><span class="val">${esc(p.t||'—')}</span></div>
@@ -384,7 +414,7 @@ function openPop(p,m){
       <div class="row"><span class="lab">Permit #</span><span class="val" style="font-family:'DM Mono',monospace;font-size:11px">${esc(p.p)}</span></div>
     </div></div>`;
   L.popup({maxWidth:280,closeButton:true,autoPan:true})
-    .setLatLng(m.getLatLng()).setContent(html).openOn(map);
+    .setLatLng(latlng).setContent(html).openOn(map);
 }
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function titlecase(s){if(!s)return '—'; return s.replace(/\w\S*/g,t=>{
