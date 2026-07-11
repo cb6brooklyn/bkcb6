@@ -782,6 +782,20 @@ header.app .sub{font-size:.86rem;color:#c9cbe6;margin-top:3px}
 .edtable td.tot{font-weight:700;color:var(--navy);border-left:1px solid var(--line)}
 .edtable .grp.sep{border-left:2px solid #fff}
 .edtable td.sep,.edtable th.sep{border-left:2px solid var(--line)}
+.edsearchbar{display:flex;gap:8px;margin:0 2px 6px}
+.edsearchbar input{flex:1;min-width:0;border:1px solid var(--line);border-radius:9px;padding:11px 12px;font-size:15px;font-family:inherit;background:#fff}
+.edsearchbar button{cursor:pointer;border:0;border-radius:9px;font-family:inherit;font-weight:700;font-size:15px;padding:11px 16px;background:var(--orange);color:#fff}
+.edsearch-note{font-size:.82rem;color:var(--muted);margin:0 2px 14px;min-height:1em}
+.edsearch-note b{color:var(--navy)}
+.edsection{border:1px solid var(--line);border-radius:10px;background:#fff;margin:0 2px 10px;overflow:hidden}
+.edsection>summary{cursor:pointer;list-style:none;padding:13px 15px;font-family:'Poppins',sans-serif;font-weight:700;font-size:1rem;color:var(--navy);display:flex;align-items:center;justify-content:space-between;user-select:none}
+.edsection>summary::-webkit-details-marker{display:none}
+.edsection>summary::after{content:'+';font-family:'DM Mono',monospace;font-size:1.2rem;color:var(--orange);font-weight:700}
+.edsection[open]>summary::after{content:'\2212'}
+.edsection>summary:hover{background:#faf7ef}
+.edcount{font-family:'DM Mono',monospace;font-size:.78rem;font-weight:500;color:var(--muted);margin-left:auto;margin-right:12px}
+.edtable tbody tr.edhit td{background:#fff4e2 !important}
+.edtable tbody tr.edhit td.edcol{background:#fde8c8 !important;box-shadow:2px 0 0 #fde8c8}
 .disclaim a{color:var(--orange);text-decoration:none}
 .fullres{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
 .fullres-bar{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fbf7ef;border:1px solid var(--line);border-radius:9px;padding:10px 13px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:13px;color:var(--navy);user-select:none}
@@ -862,17 +876,35 @@ header.app .sub{font-size:.86rem;color:#c9cbe6;margin-top:3px}
     Results are returns by election district, verified against <a href="https://enr.boenyc.gov" target="_blank" rel="noopener">enr.boenyc.gov</a>. Some election districts split across more than one neighborhood; the result shown is for the full district that contains the point you selected. The NY-10 Congressional and Comptroller races appear on ballots across Community Board 6; the 52nd Assembly race only covers the part of CB6 inside Assembly District 52.
   </div>
 
-  <div class="edtable-head">Every election district: Congress and Comptroller</div>
-  <div class="edtable-sub">Full returns by ED across all of Community Board 6, for the two races on every ballot. Verified against enr.boenyc.gov.</div>
-  <div class="edtable-scroll">
-    <table class="edtable" id="edtable-main"><thead id="edtable-main-head"></thead><tbody id="edtable-main-body"></tbody></table>
-  </div>
+  <div class="edtable-head">Full results by election district</div>
+  <div class="edtable-sub">Every ED across Community Board 6, one section per race. Sections are collapsed by default. Search an address to jump to your ED, or open a section to browse. Verified against enr.boenyc.gov.</div>
 
-  <div class="edtable-head">Assembly District 52 election districts</div>
-  <div class="edtable-sub">The Simon vs Green Assembly race was only on the ballot in the part of Community Board 6 inside Assembly District 52. These are the 54 EDs where it appeared.</div>
-  <div class="edtable-scroll">
-    <table class="edtable" id="edtable-ad52"><thead id="edtable-ad52-head"></thead><tbody id="edtable-ad52-body"></tbody></table>
+  <div class="edsearchbar">
+    <input id="edsearch" type="text" placeholder="Search an address or ED number (e.g. 52-46)" autocomplete="off" inputmode="text">
+    <button id="edsearchbtn">Search</button>
   </div>
+  <div class="edsearch-note" id="edsearch-note"></div>
+
+  <details class="edsection" id="edsec-ny10">
+    <summary>NY-10 Congress <span class="edcount" id="edcount-ny10"></span></summary>
+    <div class="edtable-scroll">
+      <table class="edtable" id="edtable-ny10"><thead id="edtable-ny10-head"></thead><tbody id="edtable-ny10-body"></tbody></table>
+    </div>
+  </details>
+
+  <details class="edsection" id="edsec-comp">
+    <summary>State Comptroller <span class="edcount" id="edcount-comp"></span></summary>
+    <div class="edtable-scroll">
+      <table class="edtable" id="edtable-comp"><thead id="edtable-comp-head"></thead><tbody id="edtable-comp-body"></tbody></table>
+    </div>
+  </details>
+
+  <details class="edsection" id="edsec-ad52">
+    <summary>AD-52 Assembly <span class="edcount" id="edcount-ad52"></span></summary>
+    <div class="edtable-scroll">
+      <table class="edtable" id="edtable-ad52"><thead id="edtable-ad52-head"></thead><tbody id="edtable-ad52-body"></tbody></table>
+    </div>
+  </details>
 
   <div style="text-align:center;margin:2.25rem 0 1rem;">
     <a href="https://bkcb6.app/primary-2026-overview.html"
@@ -1166,58 +1198,99 @@ function edtHeader(races){
   });
   return grp+'</tr>'+col+'</tr>';
 }
-function edtRows(eds,races,byEd){
-  var rows='';
+function edtRows(eds,race,byEd){
+  var c=CAND[race], rows='';
   eds.forEach(function(ed){
     var r='<td class="edcol">'+esc(ed)+'</td>';
-    races.forEach(function(race,ri){
-      var c=CAND[race], data=byEd[ed]&&byEd[ed][race], sep=ri?' sep':'';
-      if(!data || !data.t){
-        var blanks=c.cands.length*2;
-        for(var i=0;i<blanks;i++){ r+='<td class="blank'+((i===0)?sep:'')+'">&ndash;</td>'; }
-        r+='<td class="tot">&ndash;</td>';
-        return;
-      }
-      var t=data.t;
-      c.cands.forEach(function(cd,ci){
-        var v=data[cd.id]||0, pct=t?(v/t*100):0;
-        var isWin=(data.w===cd.id);
-        var cls=(ci===0?sep:'')+(isWin?' win':'');
-        var sty=isWin?' style="color:'+cd.col+';background:'+edtRgba(cd.col,0.14)+'"':'';
-        r+='<td class="'+cls.trim()+'"'+sty+'>'+v+'</td>';
-        r+='<td'+sty+'>'+pct.toFixed(1)+'</td>';
-      });
-      r+='<td class="tot">'+t+'</td>';
+    var data=byEd[ed]&&byEd[ed][race], t=data?data.t:0;
+    c.cands.forEach(function(cd){
+      var v=data?(data[cd.id]||0):0, pct=t?(v/t*100):0;
+      var isWin=data&&(data.w===cd.id);
+      var sty=isWin?' style="color:'+cd.col+';background:'+edtRgba(cd.col,0.14)+'"':'';
+      r+='<td class="'+(isWin?'win':'')+'"'+sty+'>'+v+'</td>';
+      r+='<td'+sty+'>'+pct.toFixed(1)+'</td>';
     });
-    rows+='<tr>'+r+'</tr>';
+    r+='<td class="tot">'+t+'</td>';
+    rows+='<tr data-ed="'+esc(ed)+'">'+r+'</tr>';
   });
   return rows;
 }
 function buildEdTable(){
-  var byEd={}, mainEds={}, ad52Eds={};
+  var byEd={}, edsByRace={ny10:{}, ad52:{}, comp:{}};
   ORDER.forEach(function(race){
     (BALLOT_DATA[race]||[]).forEach(function(o){
       if(!o.r || !o.r.t) return;
       if(!byEd[o.ed]) byEd[o.ed]={};
       byEd[o.ed][race]=o.r;
-      if(race==='ad52') ad52Eds[o.ed]=1; else mainEds[o.ed]=1;
+      edsByRace[race][o.ed]=1;
     });
   });
-  var mainHead=el('edtable-main-head'), mainBody=el('edtable-main-body');
-  if(mainHead && mainBody){
-    var me=Object.keys(mainEds).sort(edtSortEds);
-    mainHead.innerHTML=edtHeader(['ny10','comp']);
-    mainBody.innerHTML=edtRows(me,['ny10','comp'],byEd);
+  window._edByEd=byEd;
+  ['ny10','ad52','comp'].forEach(function(race){
+    var head=el('edtable-'+race+'-head'), body=el('edtable-'+race+'-body');
+    if(!head||!body) return;
+    var eds=Object.keys(edsByRace[race]).sort(edtSortEds);
+    head.innerHTML=edtHeader([race]);
+    body.innerHTML=edtRows(eds,race,byEd);
+    var cnt=el('edcount-'+race); if(cnt) cnt.textContent=eds.length+' EDs';
+  });
+}
+/* jump the ED tables to a given ED: open sections that contain it, highlight + scroll the row */
+function edTableJumpToEd(edId){
+  if(!edId) return false;
+  var found=false, first=null;
+  ['ny10','comp','ad52'].forEach(function(race){
+    var body=el('edtable-'+race+'-body'); if(!body) return;
+    // clear old hits in this table
+    Array.prototype.forEach.call(body.querySelectorAll('tr.edhit'), function(tr){ tr.classList.remove('edhit'); });
+    var row=body.querySelector('tr[data-ed="'+edId+'"]');
+    if(row){
+      found=true;
+      var sec=el('edsec-'+race); if(sec) sec.open=true;
+      row.classList.add('edhit');
+      if(!first) first=row;
+    }
+  });
+  if(first){ first.scrollIntoView({behavior:'smooth', block:'center'}); }
+  return found;
+}
+/* table search: accept an ED number directly, or geocode an address to an ED */
+function edTableSearch(){
+  var q=(el('edsearch').value||'').trim();
+  var note=el('edsearch-note');
+  if(!q){ if(note) note.textContent=''; return; }
+  var edMatch=q.match(/^(\d{2})\s*-\s*(\d{1,3})$/);
+  if(edMatch){
+    var edId=edMatch[1]+'-'+parseInt(edMatch[2],10);
+    var ok=edTableJumpToEd(edId);
+    if(note) note.innerHTML = ok ? 'Showing <b>ED '+esc(edId)+'</b>.' : 'No results for ED '+esc(edId)+' in Community Board 6.';
+    return;
   }
-  var a52Head=el('edtable-ad52-head'), a52Body=el('edtable-ad52-body');
-  if(a52Head && a52Body){
-    var ae=Object.keys(ad52Eds).sort(edtSortEds);
-    a52Head.innerHTML=edtHeader(['ad52']);
-    a52Body.innerHTML=edtRows(ae,['ad52'],byEd);
+  if(note) note.textContent='Looking up that address...';
+  edGeocodeToEd(q);
+}
+async function edGeocodeToEd(q){
+  var note=el('edsearch-note');
+  try{
+    var url='https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(q)+'&size=1';
+    var res=await fetch(url);
+    var j=await res.json();
+    if(!j.features || !j.features.length){ if(note) note.textContent='Could not find that address.'; return; }
+    var coord=j.features[0].geometry.coordinates; // [lng,lat]
+    var edId=null;
+    ['ny10','ad52','comp'].some(function(k){ var hit=findED(k, coord[0], coord[1]); if(hit){ edId=hit.ed; return true; } return false; });
+    if(!edId){ if(note) note.innerHTML='That address is outside Community Board 6.'; return; }
+    var ok=edTableJumpToEd(edId);
+    var label=(j.features[0].properties && j.features[0].properties.label) || q;
+    if(note) note.innerHTML = ok ? '<b>'+esc(label)+'</b> is in <b>ED '+esc(edId)+'</b>.' : 'Found ED '+esc(edId)+' but no results to show.';
+  }catch(e){
+    if(note) note.textContent='Address lookup failed. Try an ED number like 52-46.';
   }
 }
 el('go').addEventListener('click', geocode);
 el('addr').addEventListener('keydown', function(e){ if(e.key==='Enter') geocode(); });
+el('edsearchbtn').addEventListener('click', edTableSearch);
+el('edsearch').addEventListener('keydown', function(e){ if(e.key==='Enter') edTableSearch(); });
 el('edreset').addEventListener('click', function(){
   ORDER.forEach(function(k){ el('contest-'+k).classList.remove('resolved'); el('sub-'+k).textContent='How your election district voted'; });
   el('edbar').classList.remove('show'); el('warn').classList.remove('show');
