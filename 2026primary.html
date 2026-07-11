@@ -862,10 +862,16 @@ header.app .sub{font-size:.86rem;color:#c9cbe6;margin-top:3px}
     Results are returns by election district, verified against <a href="https://enr.boenyc.gov" target="_blank" rel="noopener">enr.boenyc.gov</a>. Some election districts split across more than one neighborhood; the result shown is for the full district that contains the point you selected. The NY-10 Congressional and Comptroller races appear on ballots across Community Board 6; the 52nd Assembly race only covers the part of CB6 inside Assembly District 52.
   </div>
 
-  <div class="edtable-head">Every election district, all three races</div>
-  <div class="edtable-sub">Full returns by ED across Community Board 6. AD-52 columns are blank where an ED sits outside Assembly District 52. Verified against enr.boenyc.gov.</div>
+  <div class="edtable-head">Every election district: Congress and Comptroller</div>
+  <div class="edtable-sub">Full returns by ED across all of Community Board 6, for the two races on every ballot. Verified against enr.boenyc.gov.</div>
   <div class="edtable-scroll">
-    <table class="edtable" id="edtable"><thead id="edtable-head"></thead><tbody id="edtable-body"></tbody></table>
+    <table class="edtable" id="edtable-main"><thead id="edtable-main-head"></thead><tbody id="edtable-main-body"></tbody></table>
+  </div>
+
+  <div class="edtable-head">Assembly District 52 election districts</div>
+  <div class="edtable-sub">The Simon vs Green Assembly race was only on the ballot in the part of Community Board 6 inside Assembly District 52. These are the 54 EDs where it appeared.</div>
+  <div class="edtable-scroll">
+    <table class="edtable" id="edtable-ad52"><thead id="edtable-ad52-head"></thead><tbody id="edtable-ad52-body"></tbody></table>
   </div>
 
   <div style="text-align:center;margin:2.25rem 0 1rem;">
@@ -1141,28 +1147,16 @@ function edtRgba(hex,a){
   var n=parseInt(h,16), rr=(n>>16)&255, gg=(n>>8)&255, bb=n&255;
   return 'rgba('+rr+','+gg+','+bb+','+a+')';
 }
-function buildEdTable(){
-  var head=el('edtable-head'), body=el('edtable-body');
-  if(!head||!body) return;
-  // index every race's data by ED
-  var byEd={}, allEds={};
-  ORDER.forEach(function(race){
-    (BALLOT_DATA[race]||[]).forEach(function(o){
-      if(!byEd[o.ed]) byEd[o.ed]={};
-      byEd[o.ed][race]=o.r; allEds[o.ed]=1;
-    });
-  });
-  // sort EDs by AD number then ED number
-  var eds=Object.keys(allEds).sort(function(a,b){
-    var pa=a.split('-').map(Number), pb=b.split('-').map(Number);
-    return pa[0]-pb[0] || pa[1]-pb[1];
-  });
-  // header: group row + column row
+function edtSortEds(a,b){
+  var pa=a.split('-').map(Number), pb=b.split('-').map(Number);
+  return pa[0]-pb[0] || pa[1]-pb[1];
+}
+function edtHeader(races){
   var grp='<tr class="grp"><th class="edcol" rowspan="2">ED</th>';
   var col='<tr>';
-  ORDER.forEach(function(race,ri){
+  races.forEach(function(race,ri){
     var c=CAND[race], sep=ri?' sep':'';
-    var span=c.cands.length*2+1; // count+pct per candidate, plus total
+    var span=c.cands.length*2+1;
     var label=race==='ny10'?'NY-10 Congress':race==='ad52'?'AD-52 Assembly':'Comptroller';
     grp+='<th class="grp'+sep+'" colspan="'+span+'">'+label+'</th>';
     c.cands.forEach(function(cd,ci){
@@ -1170,16 +1164,15 @@ function buildEdTable(){
     });
     col+='<th class="tot">Total</th>';
   });
-  grp+='</tr>'; col+='</tr>';
-  head.innerHTML=grp+col;
-  // body
+  return grp+'</tr>'+col+'</tr>';
+}
+function edtRows(eds,races,byEd){
   var rows='';
   eds.forEach(function(ed){
     var r='<td class="edcol">'+esc(ed)+'</td>';
-    ORDER.forEach(function(race,ri){
+    races.forEach(function(race,ri){
       var c=CAND[race], data=byEd[ed]&&byEd[ed][race], sep=ri?' sep':'';
       if(!data || !data.t){
-        // race not on this ED's ballot (or zero) -> blank cells
         var blanks=c.cands.length*2;
         for(var i=0;i<blanks;i++){ r+='<td class="blank'+((i===0)?sep:'')+'">&ndash;</td>'; }
         r+='<td class="tot">&ndash;</td>';
@@ -1198,7 +1191,30 @@ function buildEdTable(){
     });
     rows+='<tr>'+r+'</tr>';
   });
-  body.innerHTML=rows;
+  return rows;
+}
+function buildEdTable(){
+  var byEd={}, mainEds={}, ad52Eds={};
+  ORDER.forEach(function(race){
+    (BALLOT_DATA[race]||[]).forEach(function(o){
+      if(!o.r || !o.r.t) return;
+      if(!byEd[o.ed]) byEd[o.ed]={};
+      byEd[o.ed][race]=o.r;
+      if(race==='ad52') ad52Eds[o.ed]=1; else mainEds[o.ed]=1;
+    });
+  });
+  var mainHead=el('edtable-main-head'), mainBody=el('edtable-main-body');
+  if(mainHead && mainBody){
+    var me=Object.keys(mainEds).sort(edtSortEds);
+    mainHead.innerHTML=edtHeader(['ny10','comp']);
+    mainBody.innerHTML=edtRows(me,['ny10','comp'],byEd);
+  }
+  var a52Head=el('edtable-ad52-head'), a52Body=el('edtable-ad52-body');
+  if(a52Head && a52Body){
+    var ae=Object.keys(ad52Eds).sort(edtSortEds);
+    a52Head.innerHTML=edtHeader(['ad52']);
+    a52Body.innerHTML=edtRows(ae,['ad52'],byEd);
+  }
 }
 el('go').addEventListener('click', geocode);
 el('addr').addEventListener('keydown', function(e){ if(e.key==='Enter') geocode(); });
