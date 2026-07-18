@@ -627,8 +627,8 @@ function hviParseAddr(q){
   q=(q||"").trim();
   let borough="";
   const boros=["Brooklyn","Manhattan","Queens","Bronx","Staten Island"];
-  for(const b of boros){ const re=new RegExp(",?\\s*"+b+"\\s*$","i"); if(re.test(q)){borough=b;q=q.replace(re,"").trim();} }
-  const m=q.match(/^(\\d+[A-Za-z]?)\\s+(.*)$/);
+  for(const b of boros){ const re=new RegExp(",?\s*"+b+"\s*$","i"); if(re.test(q)){borough=b;q=q.replace(re,"").trim();} }
+  const m=q.match(/^(\d+[A-Za-z]?)\s+(.*)$/);
   return {houseNumber:m?m[1]:"", street:m?m[2]:q, borough:borough};
 }
 async function hviGeocode(q){
@@ -636,10 +636,17 @@ async function hviGeocode(q){
   const p=hviParseAddr(q);
   if(!p.houseNumber||!p.street) throw new Error("Enter a street number and name, e.g. 250 Baltic Street, Brooklyn.");
   const boros=p.borough?[p.borough]:["Brooklyn","Manhattan","Queens","Bronx","Staten Island"];
+  // CB6 is entirely in Brooklyn; if no borough given, try Brooklyn first as a fast clean path
+  if(!p.borough){
+    const bk=await look("Brooklyn");
+    if(bk) return bk;
+  }
   async function look(b){
     const url="https://api.nyc.gov/geoclient/v2/address.json?houseNumber="+encodeURIComponent(p.houseNumber)+"&street="+encodeURIComponent(p.street)+"&borough="+encodeURIComponent(b)+"&subscription-key="+encodeURIComponent(key);
-    const r=await fetch(url); if(!r.ok) return null; const d=await r.json(); const a=d&&d.address;
-    if(a&&isFinite(parseFloat(a.latitude))&&isFinite(parseFloat(a.longitude))){a.__boro=b;return a;} return null;
+    const ctl=new AbortController(); const to=setTimeout(()=>ctl.abort(),8000);
+    try{ const r=await fetch(url,{signal:ctl.signal}); clearTimeout(to); if(!r.ok) return null; const d=await r.json(); const a=d&&d.address;
+      if(a&&isFinite(parseFloat(a.latitude))&&isFinite(parseFloat(a.longitude))){a.__boro=b;return a;} return null;
+    }catch(e){ clearTimeout(to); return null; }
   }
   if(p.borough){const a=await look(p.borough); if(a) return a; throw new Error("Address not found. Check the number and borough.");}
   const settled=await Promise.allSettled(boros.map(look));
