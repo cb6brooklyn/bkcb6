@@ -709,25 +709,32 @@ function buildRainLayer(scn){
 let baseTiles=null, cb6Outline=null, activeMapLayer=null;
 function initFloodMap(){
   if(floodInit) return; floodInit=true;
-  floodMap=L.map("floodMap",{scrollWheelZoom:false}).setView([40.675,-73.998],13);
-  baseTiles=L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",{attribution:"&copy; OpenStreetMap &copy; CARTO",maxZoom:19}).addTo(floodMap);
-  floodLayers.current=buildFloodLayer("current");
-  floodLayers.future=buildFloodLayer("future");
-  activeMapLayer=floodLayers[floodEra];
-  activeMapLayer.addTo(floodMap);
-  cb6Outline=L.polygon(POLY,{color:"#f47920",weight:3,fill:false}).addTo(floodMap);
-  floodMap.fitBounds(L.polygon(POLY).getBounds(),{padding:[10,10]});
-  setTimeout(()=>floodMap.invalidateSize(),60);
+  // Defer to next frame so the now-visible container has layout dimensions
+  requestAnimationFrame(function(){
+    floodMap=L.map("floodMap",{scrollWheelZoom:false}).setView([40.675,-73.998],13);
+    baseTiles=L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",{attribution:"&copy; OpenStreetMap &copy; CARTO",maxZoom:19}).addTo(floodMap);
+    floodLayers.current=buildFloodLayer("current");
+    floodLayers.future=buildFloodLayer("future");
+    activeMapLayer=floodLayers[floodEra];
+    activeMapLayer.addTo(floodMap);
+    cb6Outline=L.polygon(POLY,{color:"#f47920",weight:3,fill:false}).addTo(floodMap);
+    floodMap.fitBounds(L.polygon(POLY).getBounds(),{padding:[10,10]});
+    floodMap.invalidateSize();
+    setTimeout(function(){floodMap.invalidateSize();floodMap.fitBounds(L.polygon(POLY).getBounds(),{padding:[10,10]});},150);
+    setTimeout(function(){floodMap.invalidateSize();},400);
+    if(floodLayerType==="rain") loadStormwater();
+  });
 }
 function swapMapLayer(newLayer){
+  if(!floodMap){setTimeout(function(){swapMapLayer(newLayer);},120);return;}
   if(activeMapLayer) floodMap.removeLayer(activeMapLayer);
   activeMapLayer=newLayer;
   activeMapLayer.addTo(floodMap);
   if(cb6Outline){cb6Outline.bringToFront&&cb6Outline.bringToFront();}
 }
 function setFloodEra(era){
-  if(!floodInit) return;
   floodEra=era;
+  if(!floodInit||!floodLayers[era]){setTimeout(function(){if(floodLayers[era])swapMapLayer(floodLayers[era]);},160);return;}
   swapMapLayer(floodLayers[era]);
 }
 function showRainScenario(scn){
