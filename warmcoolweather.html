@@ -251,6 +251,24 @@ body.embed .wrap{padding:10px}
 .aqi-d-row{display:flex;align-items:center;gap:8px;margin:3px 0}
 .aqi-d-dot{width:11px;height:11px;border-radius:3px;flex:none}
 .aqi-d-note{font-size:11.5px;color:#9aa3b2;line-height:1.45;margin-top:4px}
+
+.wx-section{margin:0 0 14px}
+.wx-head{font-size:12px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px}
+.wx-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.wx-card{border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:#fff;min-width:0}
+.wx-name{font-size:12.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wx-now{margin-top:5px;display:flex;align-items:center;gap:7px}
+.wx-temp{font-size:22px;font-weight:800;color:var(--ink);line-height:1}
+.wx-ico{font-size:18px}
+.wx-desc{font-size:11.5px;color:#5b6478;margin-top:3px;line-height:1.3}
+.wx-hi-lo{font-size:11.5px;color:#5b6478;margin-top:4px}
+.wx-fc{display:flex;gap:6px;margin-top:7px}
+.wx-fc-day{flex:1;text-align:center;background:#f7fafc;border-radius:7px;padding:4px 2px}
+.wx-fc-dow{font-size:9.5px;color:#6b7280;text-transform:uppercase;letter-spacing:.02em}
+.wx-fc-ic{font-size:13px;margin:1px 0}
+.wx-fc-t{font-size:10.5px;color:#28303f;font-weight:600}
+.wx-note{font-size:11.5px;color:#9aa3b2;margin-top:8px;line-height:1.45}
+@media(max-width:560px){.wx-grid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -291,6 +309,18 @@ body.embed .wrap{padding:10px}
 <div class="aqi-d-body" id="aqiYdBody">Loading...</div>
 </div>
 <div class="aqi-d-note">Source: U.S. EPA AirNow, the same data as airnow.gov. Readings update hourly and are preliminary. AQI shown is the highest among reported pollutants.</div>
+</div>
+<div class="wx-section" id="wxSection">
+<div class="wx-head">Weather across CB6</div>
+<div class="wx-grid" id="wxGrid">
+<div class="wx-card" data-hood="Park Slope" data-lat="40.6710" data-lon="-73.9814"><div class="wx-name">Park Slope</div><div class="wx-now">Loading...</div></div>
+<div class="wx-card" data-hood="Gowanus" data-lat="40.6753" data-lon="-73.9885"><div class="wx-name">Gowanus</div><div class="wx-now">Loading...</div></div>
+<div class="wx-card" data-hood="Carroll Gardens" data-lat="40.6795" data-lon="-73.9990"><div class="wx-name">Carroll Gardens</div><div class="wx-now">Loading...</div></div>
+<div class="wx-card" data-hood="Cobble Hill" data-lat="40.6862" data-lon="-73.9962"><div class="wx-name">Cobble Hill</div><div class="wx-now">Loading...</div></div>
+<div class="wx-card" data-hood="Red Hook" data-lat="40.6751" data-lon="-74.0097"><div class="wx-name">Red Hook</div><div class="wx-now">Loading...</div></div>
+<div class="wx-card" data-hood="Columbia Waterfront" data-lat="40.6879" data-lon="-74.0030"><div class="wx-name">Columbia Waterfront</div><div class="wx-now">Loading...</div></div>
+</div>
+<div class="wx-note">Source: Open-Meteo forecast. Temperatures in &deg;F. These neighborhoods are close together, so readings will be similar.</div>
 </div>
 <div id="floodBanner" class="banner flood-alert topbanner" style="display:none">
 <span class="ico">&#x26C8;&#xFE0F;</span>
@@ -768,6 +798,68 @@ function handleAnchor(){
   }
 }
 window.addEventListener("hashchange",handleAnchor);
+// ===== Weather across CB6 (Open-Meteo, no key) =====
+(function(){
+  function wxCode(c){
+    // WMO weather code -> [emoji, short desc]
+    if(c===0) return ["\u2600\uFE0F","Clear"];
+    if(c===1) return ["\u{1F324}\uFE0F","Mostly clear"];
+    if(c===2) return ["\u26C5","Partly cloudy"];
+    if(c===3) return ["\u2601\uFE0F","Cloudy"];
+    if(c===45||c===48) return ["\u{1F32B}\uFE0F","Fog"];
+    if(c>=51&&c<=57) return ["\u{1F327}\uFE0F","Drizzle"];
+    if(c>=61&&c<=67) return ["\u{1F327}\uFE0F","Rain"];
+    if(c>=71&&c<=77) return ["\u2744\uFE0F","Snow"];
+    if(c>=80&&c<=82) return ["\u{1F326}\uFE0F","Showers"];
+    if(c>=85&&c<=86) return ["\u{1F328}\uFE0F","Snow showers"];
+    if(c>=95) return ["\u26C8\uFE0F","Thunderstorm"];
+    return ["\u{1F321}\uFE0F",""];
+  }
+  function dow(dateStr){ return new Date(dateStr+"T00:00:00").toLocaleDateString(undefined,{weekday:"short"}); }
+  function loadCard(card){
+    var lat=card.getAttribute("data-lat"), lon=card.getAttribute("data-lon");
+    var now=card.querySelector(".wx-now");
+    var url="https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+
+      "&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=America%2FNew_York&forecast_days=4&_="+Date.now();
+    var ctl=new AbortController(); var to=setTimeout(function(){ctl.abort();},8000);
+    fetch(url,{signal:ctl.signal,cache:"no-store"}).then(function(r){clearTimeout(to);return r.json();}).then(function(j){
+      if(!j||!j.current){ now.textContent="Unavailable"; return; }
+      var t=Math.round(j.current.temperature_2m);
+      var ci=wxCode(j.current.weather_code);
+      var html="<span class='wx-ico'>"+ci[0]+"</span><span class='wx-temp'>"+t+"\u00b0</span>";
+      var extra="<div class='wx-desc'>"+ci[1]+"</div>";
+      // daily forecast strip: skip today (index 0), show next 3
+      if(j.daily&&j.daily.time){
+        var fc="<div class='wx-fc'>";
+        for(var i=1;i<Math.min(4,j.daily.time.length);i++){
+          var dc=wxCode(j.daily.weather_code[i]);
+          var hi=Math.round(j.daily.temperature_2m_max[i]);
+          var lo=Math.round(j.daily.temperature_2m_min[i]);
+          fc+="<div class='wx-fc-day'><div class='wx-fc-dow'>"+dow(j.daily.time[i])+"</div><div class='wx-fc-ic'>"+dc[0]+"</div><div class='wx-fc-t'>"+hi+"\u00b0/"+lo+"\u00b0</div></div>";
+        }
+        fc+="</div>";
+        extra+=fc;
+      }
+      now.innerHTML=html;
+      // append extra after .wx-now if not already
+      var card2=now.parentNode;
+      var ex=card2.querySelector(".wx-extra");
+      if(!ex){ ex=document.createElement("div"); ex.className="wx-extra"; card2.appendChild(ex); }
+      ex.innerHTML=extra;
+      if(typeof postHeight==="function") postHeight();
+    }).catch(function(){clearTimeout(to);now.textContent="Unavailable";});
+  }
+  function loadWx(){
+    var cards=document.querySelectorAll("#wxGrid .wx-card");
+    cards.forEach(loadCard);
+  }
+  if(document.getElementById("wxSection")){
+    loadWx();
+    setInterval(loadWx, 900000); // refresh every 15 min
+    document.addEventListener("visibilitychange",function(){ if(!document.hidden) loadWx(); });
+  }
+})();
+
 handleAnchor();
 
 // ===== Air Quality gauge (AirNow / EPA official AQI) =====
