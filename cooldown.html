@@ -239,6 +239,18 @@ body.embed .wrap{padding:10px}
 .aqi-sub{font-size:12.5px;color:#5b6478;margin-top:3px;line-height:1.45}
 .aqi-link{margin-top:6px;font-size:12.5px}
 .aqi-link a{color:#0e7490}
+
+.aqi-more{margin-top:8px;background:none;border:0;padding:0;color:#0e7490;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.aqi-more .chev{font-size:9px;transition:transform .2s}
+.aqi-more.open .chev{transform:rotate(180deg)}
+.aqi-detail{display:none;border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;margin:-14px 0 14px;padding:14px 16px;background:#fbfcfd}
+.aqi-detail.open{display:block}
+.aqi-d-block{margin-bottom:12px}
+.aqi-d-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#6b7280;margin-bottom:5px}
+.aqi-d-body{font-size:13.5px;color:#28303f;line-height:1.5}
+.aqi-d-row{display:flex;align-items:center;gap:8px;margin:3px 0}
+.aqi-d-dot{width:11px;height:11px;border-radius:3px;flex:none}
+.aqi-d-note{font-size:11.5px;color:#9aa3b2;line-height:1.45;margin-top:4px}
 </style>
 </head>
 <body>
@@ -271,7 +283,23 @@ body.embed .wrap{padding:10px}
 <div class="aqi-cat" id="aqiCat">Loading current air quality...</div>
 <div class="aqi-sub" id="aqiSub"></div>
 <div class="aqi-link"><a href="https://www.airnow.gov/?city=Brooklyn&amp;state=NY&amp;country=USA" target="_blank" rel="noopener">Official AirNow reading &amp; forecast</a></div>
+<button class="aqi-more" id="aqiMore" aria-expanded="false">More detail <span class="chev">&#x25BC;</span></button>
 </div>
+</div>
+<div class="aqi-detail" id="aqiDetail">
+<div class="aqi-d-block" id="aqiPollutants">
+<div class="aqi-d-head">Pollutant breakdown</div>
+<div class="aqi-d-body" id="aqiPollBody">Loading...</div>
+</div>
+<div class="aqi-d-block" id="aqiForecast">
+<div class="aqi-d-head">Forecast</div>
+<div class="aqi-d-body" id="aqiFcBody">Loading...</div>
+</div>
+<div class="aqi-d-block" id="aqiYesterday">
+<div class="aqi-d-head">Yesterday vs today</div>
+<div class="aqi-d-body" id="aqiYdBody">Loading...</div>
+</div>
+<div class="aqi-d-note">Source: U.S. EPA AirNow, the same data as airnow.gov. Readings update hourly and are preliminary. AQI shown is the highest among reported pollutants.</div>
 </div>
 <div class="msg" id="dmMsg">
 <p>This page is a running weather resource for Community Board 6: whatever the season is throwing at us, from heat waves to heavy storms and flooding. Right now it includes:</p>
@@ -771,9 +799,74 @@ handleAnchor();
     if(cat) cat.textContent="Air quality unavailable right now";
     if(sub) sub.textContent="Tap the AirNow link for the current reading.";
   }
+  var AQI_KEY="CCF1088A-E89A-45A7-A8AE-FDFFBCB46F9A";
+  var AQI_LAT=40.6767, AQI_LON=-73.9832;
+  function catColor(v){ return aqiInfo(v).c; }
+  function fmtPollutant(name){
+    if(name==="PM2.5") return "PM2.5 (fine particles)";
+    if(name==="PM10") return "PM10 (coarse particles)";
+    if(name==="O3"||name==="OZONE"||name==="Ozone") return "Ozone";
+    if(name==="NO2") return "Nitrogen dioxide";
+    if(name==="CO") return "Carbon monoxide";
+    return name;
+  }
+  function renderPollutants(arr){
+    var el=document.getElementById("aqiPollBody"); if(!el) return;
+    if(!arr||!arr.length){el.textContent="No pollutant data available right now.";return;}
+    var html="";
+    arr.forEach(function(o){
+      if(o&&typeof o.AQI==="number"){
+        var cn=(o.Category&&o.Category.Name)||aqiInfo(o.AQI).cat;
+        html+="<div class='aqi-d-row'><span class='aqi-d-dot' style='background:"+catColor(o.AQI)+"'></span><span><b>"+fmtPollutant(o.ParameterName)+":</b> AQI "+o.AQI+" &middot; "+cn+"</span></div>";
+      }
+    });
+    el.innerHTML=html||"No pollutant data available right now.";
+  }
+  function loadForecast(){
+    var el=document.getElementById("aqiFcBody"); if(!el) return;
+    var url="https://www.airnowapi.org/aq/forecast/latLong/?format=application/json&latitude="+AQI_LAT+"&longitude="+AQI_LON+"&distance=25&API_KEY="+AQI_KEY+"&_="+Date.now();
+    var ctl=new AbortController(); var to=setTimeout(function(){ctl.abort();},8000);
+    fetch(url,{signal:ctl.signal,cache:"no-store"}).then(function(r){clearTimeout(to);return r.json();}).then(function(j){
+      if(!Array.isArray(j)||!j.length){el.textContent="No forecast available right now.";return;}
+      // group by date, take highest AQI per day across pollutants
+      var byDate={};
+      j.forEach(function(o){
+        if(!o||!o.DateForecast) return;
+        var d=o.DateForecast.trim();
+        if(o.AQI!=null && o.AQI>=0){ if(!byDate[d]||o.AQI>byDate[d].AQI) byDate[d]={AQI:o.AQI,cat:(o.Category&&o.Category.Name)||aqiInfo(o.AQI).cat}; }
+        else if(!byDate[d]) byDate[d]={AQI:null,cat:(o.Category&&o.Category.Name)||""};
+      });
+      var dates=Object.keys(byDate).sort();
+      var html="";
+      dates.slice(0,3).forEach(function(d){
+        var o=byDate[d];
+        var label=new Date(d+"T00:00:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
+        if(o.AQI!=null) html+="<div class='aqi-d-row'><span class='aqi-d-dot' style='background:"+catColor(o.AQI)+"'></span><span><b>"+label+":</b> AQI "+o.AQI+" &middot; "+o.cat+"</span></div>";
+        else if(o.cat) html+="<div class='aqi-d-row'><span class='aqi-d-dot' style='background:#9aa3b2'></span><span><b>"+label+":</b> "+o.cat+"</span></div>";
+      });
+      el.innerHTML=html||"No forecast available right now.";
+    }).catch(function(){clearTimeout(to);el.textContent="Forecast unavailable right now.";});
+  }
+  function loadYesterday(){
+    var el=document.getElementById("aqiYdBody"); if(!el) return;
+    var d=new Date(Date.now()-86400000);
+    var ds=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    var url="https://www.airnowapi.org/aq/observation/latLong/historical/?format=application/json&latitude="+AQI_LAT+"&longitude="+AQI_LON+"&date="+ds+"T00-0000&distance=25&API_KEY="+AQI_KEY+"&_="+Date.now();
+    var ctl=new AbortController(); var to=setTimeout(function(){ctl.abort();},8000);
+    fetch(url,{signal:ctl.signal,cache:"no-store"}).then(function(r){clearTimeout(to);return r.json();}).then(function(j){
+      if(!Array.isArray(j)||!j.length){el.textContent="No reading for yesterday available.";return;}
+      var top=null;
+      j.forEach(function(o){ if(o&&typeof o.AQI==="number"&&(top===null||o.AQI>top.AQI)) top=o; });
+      if(!top){el.textContent="No reading for yesterday available.";return;}
+      var cn=(top.Category&&top.Category.Name)||aqiInfo(top.AQI).cat;
+      el.innerHTML="<div class='aqi-d-row'><span class='aqi-d-dot' style='background:"+catColor(top.AQI)+"'></span><span>Yesterday's peak: AQI "+top.AQI+" &middot; "+cn+"</span></div>";
+    }).catch(function(){clearTimeout(to);el.textContent="Yesterday's reading unavailable.";});
+  }
+  var detailLoaded=false;
+  function loadDetail(){ if(detailLoaded) return; detailLoaded=true; loadForecast(); loadYesterday(); }
   function load(){
-    const key="CCF1088A-E89A-45A7-A8AE-FDFFBCB46F9A";
-    const url="https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=40.6767&longitude=-73.9832&distance=25&API_KEY="+key+"&_="+Date.now();
+    const key=AQI_KEY;
+    const url="https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude="+AQI_LAT+"&longitude="+AQI_LON+"&distance=25&API_KEY="+key+"&_="+Date.now();
     const ctl=new AbortController(); const to=setTimeout(()=>ctl.abort(),8000);
     fetch(url,{signal:ctl.signal,cache:"no-store"}).then(r=>{clearTimeout(to);return r.json();}).then(j=>{
       if(!Array.isArray(j)||!j.length){fail();return;}
@@ -782,9 +875,21 @@ handleAnchor();
       for(const o of j){ if(o&&typeof o.AQI==="number" && (top===null||o.AQI>top.AQI)) top=o; }
       if(!top||top.AQI==null||isNaN(top.AQI)){fail();return;}
       render(Math.round(top.AQI));
+      renderPollutants(j);
     }).catch(()=>{clearTimeout(to);fail();});
   }
   if(document.getElementById("aqiCard")){
+    var moreBtn=document.getElementById("aqiMore");
+    if(moreBtn){
+      moreBtn.addEventListener("click",function(){
+        var det=document.getElementById("aqiDetail");
+        var open=det.classList.toggle("open");
+        this.classList.toggle("open",open);
+        this.setAttribute("aria-expanded",open?"true":"false");
+        if(open) loadDetail();
+        if(typeof postHeight==="function") postHeight();
+      });
+    }
     load();
     // refresh every 10 minutes while the page is open, and whenever it regains focus
     setInterval(load, 600000);
