@@ -201,6 +201,20 @@ body.embed .wrap{padding:10px}
 .flood-intro{font-size:13.5px;color:#3c4660;line-height:1.55;margin:6px 0 12px}
 .flood-intro b{color:var(--ink)}
 
+
+.flood-search{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
+.flood-search input{flex:1 1 240px;min-width:200px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px}
+.flood-search button{padding:10px 16px;border:0;border-radius:10px;background:#0e7490;color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+.flood-search button:disabled{opacity:.5;cursor:default}
+#floodClear{background:#eef1f5;color:#3c4660}
+.flood-result{margin:0 0 10px;font-size:13.5px;display:none;line-height:1.5}
+.flood-result.show{display:block}
+.flood-result .rc{border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.flood-result .rc b{color:var(--ink)}
+.flood-result .zline{margin-top:6px;display:flex;gap:8px;align-items:flex-start}
+.flood-result .zdot{width:12px;height:12px;border-radius:3px;flex:none;margin-top:3px}
+.flood-err{color:#b91c1c;font-size:13px;margin:0 0 10px;display:none}
+.flood-err.show{display:block}
 .flood-layerswitch{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:10px}
 .fl-layer{padding:9px 16px;border:0;background:#fff;color:#3c4660;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
 .fl-layer.active{background:#0e7490;color:#fff}
@@ -355,7 +369,17 @@ body.embed .wrap{padding:10px}
 <span class="chev">&#x25BC;</span>
 </button>
 <div class="flood-body">
-<p class="flood-intro">Parts of Community Board 6, especially Red Hook, the Columbia Waterfront, and the Gowanus Canal area, face flood risk. Two kinds are mapped here. <b>Coastal flooding</b> is the FEMA 1% annual chance floodplain (the 100-year flood zone) driven by storm surge and high tides. <b>Rainfall (stormwater) flooding</b> is where heavy downpours pond in the streets, which can happen well inland, away from the water. Switch between them below.</p>
+<p class="flood-intro">Parts of Community Board 6, especially Red Hook, the Columbia Waterfront, and the Gowanus Canal area, face flood risk. Two very different kinds are mapped here, and an address can be exposed to one, both, or neither.</p>
+<p class="flood-intro"><b>Coastal flooding</b> comes from the harbor: storm surge during hurricanes and nor'easters, plus rising high tides. The shaded area is FEMA's <b>1% annual chance floodplain</b>, the zone with about a 1 in 100 chance of flooding in any given year (the "100-year flood zone"). Darker blue marks the <b>high-hazard zone</b>, where fast-moving or wave-driven water is expected, so it is the most dangerous. The <b>Today</b> and <b>2050s</b> buttons show how the mapped zone grows as sea levels rise. If your home is in this zone, flood insurance and an evacuation plan matter, and coastal flooding is what hurricane evacuation orders respond to.</p>
+<p class="flood-intro"><b>Rainfall (stormwater) flooding</b> is different: it is what happens when a heavy downpour drops water faster than the sewers can carry it away, so it ponds in low spots and streets. This can happen blocks from the water, on a clear-weather cloudburst, with no connection to the tide. This is the kind of flooding that filled basements across the city during Hurricane Ida. The map shades two depths from NYC's Stormwater Flood Map: <b>nuisance flooding</b> (4 inches to about 1 foot, lighter) and <b>deep and contiguous flooding</b> (1 foot or more, darker), plus a future high-tide layer in the later scenarios. The buttons step through a moderate storm today, the 2050s, and an extreme 2080 downpour.</p>
+<p class="flood-intro">Type an address below to drop a pin and see which zones it falls in. Switch layers with the buttons underneath.</p>
+<div class="flood-search">
+<input id="floodInput" placeholder="Enter an address, e.g. 155 Bay Street, Brooklyn" autocomplete="off">
+<button id="floodBtn">Drop pin</button>
+<button id="floodClear" style="display:none">Clear</button>
+</div>
+<div class="flood-result" id="floodResult"></div>
+<div class="flood-err" id="floodErr"></div>
 <div class="flood-layerswitch">
 <button class="fl-layer active" data-layer="coastal">Coastal flooding</button>
 <button class="fl-layer" data-layer="rain">Rainfall flooding</button>
@@ -790,6 +814,88 @@ document.querySelectorAll("#rainToggle .ft-btn").forEach(function(btn){
     this.classList.add("active");
     showRainScenario(this.dataset.rain);
   });
+});
+
+// ---- Flood address search + pin drop ----
+let floodPin=null;
+function floodPIP(lng,lat,rings){
+  let inside=false;const ring=rings[0];
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];
+    if(((yi>lat)!==(yj>lat)) && (lng < (xj-xi)*(lat-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+function floodInGeom(lng,lat,geom){
+  if(!geom) return false;
+  if(geom.type==="Polygon") return floodPIP(lng,lat,geom.coordinates);
+  if(geom.type==="MultiPolygon"){ for(const poly of geom.coordinates){ if(floodPIP(lng,lat,poly)) return true; } return false; }
+  return false;
+}
+function floodZonesAt(lng,lat){
+  const out=[];
+  // Coastal (current)
+  const c=FLOOD.current;
+  if(c){
+    if(floodInGeom(lng,lat,c.high)) out.push({c:"#1d4ed8",t:"Coastal high-hazard zone (wave action), today"});
+    else if(floodInGeom(lng,lat,c.moderate)) out.push({c:"#60a5fa",t:"Coastal 1% annual chance floodplain, today"});
+  }
+  const cf=FLOOD.future;
+  if(cf && !out.length){
+    if(floodInGeom(lng,lat,cf.high)||floodInGeom(lng,lat,cf.moderate)) out.push({c:"#93c5fd",t:"Coastal floodplain in the 2050s projection (not in today's zone)"});
+  }
+  // Rainfall (needs STORM loaded)
+  if(STORM){
+    const s=STORM.current;
+    if(s){
+      if(floodInGeom(lng,lat,s.deep)) out.push({c:"#0891b2",t:"Deep rainfall flooding (1 ft or more) in a moderate storm"});
+      else if(floodInGeom(lng,lat,s.nuisance)) out.push({c:"#67e8f9",t:"Nuisance rainfall flooding (4 in to 1 ft) in a moderate storm"});
+    }
+  }
+  return out;
+}
+function floodShowResult(a,lat,lng){
+  const res=document.getElementById("floodResult");
+  const zones=floodZonesAt(lng,lat);
+  let inner="<div class='rc'><b>"+(a.houseNumber?a.houseNumber+" ":"")+(a.streetName||a.__q||"")+"</b>";
+  if(zones.length){
+    zones.forEach(z=>{ inner+="<div class='zline'><span class='zdot' style='background:"+z.c+"'></span><span>"+z.t+"</span></div>"; });
+  }else{
+    inner+="<div class='zline'><span class='zdot' style='background:#16a34a'></span><span>Not in a mapped flood zone at this location. Nearby areas may still flood, and rainfall zones only show once the Rainfall layer is loaded.</span></div>";
+  }
+  if(!STORM){ inner+="<div style='margin-top:6px;color:#6b7280;font-size:12px'>Tip: switch to the Rainfall flooding layer to also check stormwater zones at this address.</div>"; }
+  inner+="</div>";
+  res.innerHTML=inner; res.classList.add("show");
+}
+async function floodSearch(){
+  const inp=document.getElementById("floodInput"),btn=document.getElementById("floodBtn");
+  const err=document.getElementById("floodErr"),res=document.getElementById("floodResult");
+  const q=inp.value.trim(); if(!q) return;
+  err.classList.remove("show"); res.classList.remove("show");
+  btn.disabled=true; btn.textContent="Locating...";
+  try{
+    if(!floodInit) initFloodMap();
+    const a=await hviGeocode(q); a.__q=q;
+    const lat=parseFloat(a.latitude), lng=parseFloat(a.longitude);
+    if(floodPin) floodMap.removeLayer(floodPin);
+    floodPin=L.marker([lat,lng]).addTo(floodMap);
+    floodMap.setView([lat,lng],16);
+    floodShowResult(a,lat,lng);
+    document.getElementById("floodClear").style.display="";
+    postHeight();
+  }catch(e){
+    err.textContent=e.message||"Address not found."; err.classList.add("show"); postHeight();
+  }finally{ btn.disabled=false; btn.textContent="Drop pin"; }
+}
+document.getElementById("floodBtn").addEventListener("click",floodSearch);
+document.getElementById("floodInput").addEventListener("keydown",e=>{if(e.key==="Enter")floodSearch();});
+document.getElementById("floodClear").addEventListener("click",function(){
+  if(floodPin&&floodMap){floodMap.removeLayer(floodPin);floodPin=null;}
+  document.getElementById("floodResult").classList.remove("show");
+  document.getElementById("floodInput").value="";
+  this.style.display="none";
+  if(floodMap) floodMap.fitBounds(L.polygon(POLY).getBounds(),{padding:[10,10]});
+  postHeight();
 });
 
 
