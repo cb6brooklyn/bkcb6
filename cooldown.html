@@ -227,6 +227,15 @@ body.embed .wrap{padding:10px}
 .flood-legend .fl-sw{display:inline-block;width:16px;height:12px;border-radius:3px;margin-right:6px;vertical-align:middle}
 .flood-note{font-size:12px;color:#9aa3b2;margin-top:10px;line-height:1.5}
 .flood-note a{color:#5b6478}
+
+.aqi-card{display:flex;align-items:center;gap:16px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:0 0 14px;background:#fff}
+.aqi-gauge{flex:none}
+.aqi-info{flex:1;min-width:0}
+.aqi-label{font-size:12px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.aqi-cat{font-size:17px;font-weight:800;color:var(--ink);margin-top:2px;line-height:1.2}
+.aqi-sub{font-size:12.5px;color:#5b6478;margin-top:3px;line-height:1.45}
+.aqi-link{margin-top:6px;font-size:12.5px}
+.aqi-link a{color:#0e7490}
 </style>
 </head>
 <body>
@@ -244,6 +253,21 @@ body.embed .wrap{padding:10px}
 <p>NYC Emergency Management has activated the city's Flash Flood Emergency Plan. The National Weather Service has a Flood Watch for the city from 10 a.m. Saturday, July 18 into early Sunday. Heaviest rain and strongest storms are expected Saturday afternoon into the evening, ending around 9 p.m.</p>
 <p>Expect 1 to 1.5 inches of rain, with isolated spots getting 2 to 4 inches and localized flash flooding in low-lying and poor-drainage areas. The strongest storms may bring damaging wind gusts of 50 to 70 mph; an isolated tornado cannot be ruled out.</p>
 <p class="fa-last"><b>Do not walk, drive, or return into flooded areas.</b> Even shallow water can stall a car. Allow extra travel time, secure loose outdoor items, and move indoors if you hear thunder. See the flood risk map below, and check <a href="https://www.nyc.gov/notifynyc" target="_blank" rel="noopener">nyc.gov/notifynyc</a> for alerts and <a href="https://www.nyc.gov/beready" target="_blank" rel="noopener">nyc.gov/beready</a> to prepare.</p>
+</div>
+</div>
+<div class="aqi-card" id="aqiCard">
+<div class="aqi-gauge">
+<svg viewBox="0 0 120 78" width="120" height="78" aria-hidden="true">
+<path d="M10 70 A50 50 0 0 1 110 70" fill="none" stroke="#e6e9ef" stroke-width="12" stroke-linecap="round"/>
+<path id="aqiArc" d="M10 70 A50 50 0 0 1 110 70" fill="none" stroke="#9aa3b2" stroke-width="12" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="157"/>
+<text id="aqiNum" x="60" y="60" text-anchor="middle" font-size="30" font-weight="800" fill="#1f2733">--</text>
+</svg>
+</div>
+<div class="aqi-info">
+<div class="aqi-label">Air Quality Index &middot; Brooklyn</div>
+<div class="aqi-cat" id="aqiCat">Loading current air quality...</div>
+<div class="aqi-sub" id="aqiSub"></div>
+<div class="aqi-link"><a href="https://www.airnow.gov/?city=Brooklyn&amp;state=NY&amp;country=USA" target="_blank" rel="noopener">Official AirNow reading &amp; forecast</a></div>
 </div>
 </div>
 <div class="msg" id="dmMsg">
@@ -715,6 +739,47 @@ function handleAnchor(){
 }
 window.addEventListener("hashchange",handleAnchor);
 handleAnchor();
+
+// ===== Air Quality gauge (Open-Meteo US AQI, no key) =====
+(function(){
+  function aqiInfo(v){
+    if(v<=50) return {c:"#00e400",cat:"Good",sub:"Air quality is satisfactory and poses little or no risk."};
+    if(v<=100) return {c:"#f7c800",cat:"Moderate",sub:"Acceptable, but unusually sensitive people should consider limiting long outdoor exertion."};
+    if(v<=150) return {c:"#ff7e00",cat:"Unhealthy for Sensitive Groups",sub:"Older adults, children, and people with heart or lung conditions should limit prolonged outdoor exertion."};
+    if(v<=200) return {c:"#ff0000",cat:"Unhealthy",sub:"Everyone may feel effects; sensitive groups should avoid prolonged outdoor exertion."};
+    if(v<=300) return {c:"#8f3f97",cat:"Very Unhealthy",sub:"Health alert: everyone should avoid prolonged outdoor exertion. Consider staying indoors."};
+    return {c:"#7e0023",cat:"Hazardous",sub:"Health warning of emergency conditions. Stay indoors and keep exertion low."};
+  }
+  function render(v){
+    const info=aqiInfo(v);
+    const arc=document.getElementById("aqiArc"), num=document.getElementById("aqiNum");
+    const cat=document.getElementById("aqiCat"), sub=document.getElementById("aqiSub");
+    const total=157; // arc length approx
+    const frac=Math.max(0,Math.min(1, v/300)); // scale 0-300 across the dial, cap at 300+
+    arc.setAttribute("stroke",info.c);
+    arc.setAttribute("stroke-dashoffset", String(total*(1-frac)));
+    num.textContent=String(v);
+    num.setAttribute("fill",info.c);
+    cat.textContent="AQI "+v+" \u00b7 "+info.cat;
+    sub.textContent=info.sub;
+    if(typeof postHeight==="function") postHeight();
+  }
+  function fail(){
+    const cat=document.getElementById("aqiCat"), sub=document.getElementById("aqiSub");
+    if(cat) cat.textContent="Air quality unavailable right now";
+    if(sub) sub.textContent="Tap the AirNow link for the current reading.";
+  }
+  function load(){
+    const url="https://air-quality-api.open-meteo.com/v1/air-quality?latitude=40.6767&longitude=-73.9832&current=us_aqi&timezone=America%2FNew_York";
+    const ctl=new AbortController(); const to=setTimeout(()=>ctl.abort(),8000);
+    fetch(url,{signal:ctl.signal}).then(r=>{clearTimeout(to);return r.json();}).then(j=>{
+      const v=j&&j.current&&j.current.us_aqi;
+      if(v==null||isNaN(v)){fail();return;}
+      render(Math.round(v));
+    }).catch(()=>{clearTimeout(to);fail();});
+  }
+  if(document.getElementById("aqiCard")) load();
+})();
 
 // ===== Flood risk map (collapsible) =====
 let FLOOD=null, coastalLoading=false;
