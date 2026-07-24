@@ -45,6 +45,11 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
 .rsr-cell{background:#fff;padding:9px 10px}
 .rsr-cell .l{font-size:.54rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#6b6760}
 .rsr-cell .v{font-size:.92rem;font-weight:800;color:#132D65;font-family:'DM Mono',monospace;margin-top:2px}
+.rsr-ranges{padding:8px 13px;background:#fff;border-top:1px solid #f0ede8;display:flex;flex-direction:column;gap:5px}
+.rsr-range{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:.7rem}
+.rsr-range .rl{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.06em;color:#6b6760;flex-shrink:0}
+.rsr-range .rv{font-weight:700;color:#132D65;text-align:right}
+.rsr-range .rb{font-weight:400;color:#9ca3af;font-family:'DM Mono',monospace;font-size:.62rem}
 .rsr-foot{padding:9px 13px;background:#f8f7f4;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .rsr-rank{font-size:.66rem;font-family:'DM Mono',monospace;color:#6b6760}
 .rsr-link{margin-left:auto;font-size:.7rem;font-weight:700;color:#f47920;text-decoration:none;font-family:'DM Sans',sans-serif;white-space:nowrap}
@@ -181,11 +186,26 @@ var PREFIX='QN';
 
 /* ---- neighborhood / CD selector ---- */
 (function(){
-  var IDX=null, NBGEO=null, selLayer=null, pin=null, nbLayer=null;
+  var IDX=null, NBGEO=null, ROLL=null, selLayer=null, pin=null, nbLayer=null;
+  fetch('data/rent-ranges-rollup.json').then(function(r){return r.json();}).then(function(j){ROLL=j;}).catch(function(){});
   var $=function(i){return document.getElementById(i);};
   var res=$('rentsearch-result'), selNb=$('rentsearch-nb'), selCd=$('rentsearch-cd'), cbx=$('nb-toggle');
   var BEDS=[['studio','Studio'],['1br','1 BR'],['2br','2 BR'],['3br','3+ BR'],['all','All']];
   function money(v){ return (v==null||v==='')?'n/a':'$'+Number(v).toLocaleString('en-US'); }
+  function rangeBlock(P,entry){
+    var out='';
+    if(P.range_lo!=null && P.range_hi!=null){
+      out+='<div class="rsr-range"><span class="rl">By unit type</span>'+
+        '<span class="rv">'+money(P.range_lo)+' <span class="rb">'+(P.range_lo_bed||'')+'</span> &ndash; '+money(P.range_hi)+' <span class="rb">'+(P.range_hi_bed||'')+'</span></span></div>';
+    }
+    if(P.sub_lo!=null && P.sub_hi!=null){
+      var k=P.sub_kind||'area';
+      function nm(x){ return (typeof x==='string' && /CB\d/.test(x)) ? x.replace(/^(MN|BX|BK|QN|SI)CB/,'CD ') : x; }
+      out+='<div class="rsr-range"><span class="rl">Across '+k+'s</span>'+
+        '<span class="rv">'+money(P.sub_lo)+' <span class="rb">'+nm(P.sub_lo_name)+'</span> &ndash; '+money(P.sub_hi)+' <span class="rb">'+nm(P.sub_hi_name)+'</span></span></div>';
+    }
+    return out?('<div class="rsr-ranges">'+out+'</div>'):'';
+  }
 
   fetch('data/rent-search-index.json').then(function(r){return r.json();}).then(function(j){
     IDX=j.filter(function(e){ return PREFIX==='' || e.cd.indexOf(PREFIX)===0; });
@@ -275,6 +295,7 @@ var PREFIX='QN';
       res.innerHTML='<div class="rsr-card"><div class="rsr-head"><div><div class="t">'+title+'</div><div class="s">'+sub+'</div></div>'+
         '<button class="rsr-clear" id="rsr-clear">Clear</button></div>'+
         '<div class="rsr-grid">'+cells+'</div>'+
+        rangeBlock(Object.assign({}, (isNb?props:p), {sub_lo:p.sub_lo,sub_lo_name:p.sub_lo_name,sub_hi:p.sub_hi,sub_hi_name:p.sub_hi_name,sub_kind:p.sub_kind}), entry)+
         '<div class="rsr-foot"><span class="rsr-rank">'+(rank||'&nbsp;')+'</span>'+
         '<a class="rsr-link" target="_top" href="/rentpastpresent">Full history since 2010 &rarr;</a></div></div>';
       res.style.display='block';
@@ -311,7 +332,7 @@ var PREFIX='QN';
     }).join('');
     return '<div style="font-family:DM Sans,sans-serif;min-width:170px">'+
       '<div style="font-weight:700;font-size:.9rem;color:#0d1b4b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:6px">'+p.nb+'</div>'+rows+
-      '<div style="font-size:.62rem;color:#999;margin-top:6px;border-top:1px solid #eee;padding-top:4px">Neighborhood median &middot; '+p.cd+'</div></div>';
+      (p.range_lo!=null?'<div style="font-size:.66rem;color:#0d1b4b;margin-top:6px;border-top:1px solid #eee;padding-top:5px"><b>Range:</b> '+money(p.range_lo)+' ('+(p.range_lo_bed||'')+') to '+money(p.range_hi)+' ('+(p.range_hi_bed||'')+')</div>':'')+'<div style="font-size:.62rem;color:#999;margin-top:6px;border-top:1px solid #eee;padding-top:4px">Neighborhood median &middot; '+p.cd+'</div></div>';
   }
   function drawNb(){
     if(nbLayer){ map.removeLayer(nbLayer); nbLayer=null; }
