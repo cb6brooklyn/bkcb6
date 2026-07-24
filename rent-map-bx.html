@@ -54,6 +54,11 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
 .rsr-rank{font-size:.66rem;font-family:'DM Mono',monospace;color:#6b6760}
 .rsr-link{margin-left:auto;font-size:.7rem;font-weight:700;color:#f47920;text-decoration:none;font-family:'DM Sans',sans-serif;white-space:nowrap}
 .rsr-link:hover{text-decoration:underline}
+
+.nbtoggle{display:flex;align-items:center;gap:7px;padding:8px 14px;background:#f8f7f4;border-bottom:1px solid #e5e2db;font-family:'DM Sans',sans-serif}
+.nbtoggle label{display:flex;align-items:center;gap:7px;cursor:pointer;font-size:.74rem;font-weight:600;color:#132D65}
+.nbtoggle input{width:15px;height:15px;accent-color:#f47920;cursor:pointer}
+.nbtoggle .hint{font-family:'DM Mono',monospace;font-size:.6rem;color:#9ca3af;margin-left:auto}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -117,6 +122,10 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
     </div>
   </div>
   <div id="rentsearch-result"></div>
+</div>
+<div class="nbtoggle">
+  <label><input type="checkbox" id="nb-toggle"> Show neighborhood boundaries</label>
+  <span class="hint">approximate</span>
 </div>
 <div id="map"></div>
 <div class="source">Source: StreetEasy median asking rent, as of June 1, 2026 &nbsp;|&nbsp; bkcb6.app</div>
@@ -184,6 +193,43 @@ function toggle(m, btn) {
 }
 
 var PREFIX='BX';
+
+/* ---- neighborhood boundary overlay ---- */
+(function(){
+  var nbLayer=null, nbData=null, cbx=document.getElementById('nb-toggle');
+  if(!cbx) return;
+  function money(v){ return (v==null)?'n/a':'$'+Number(v).toLocaleString('en-US'); }
+  function tip(p){
+    var rows=[['studio','Studio'],['1br','1 BR'],['2br','2 BR'],['3br','3+ BR'],['all','All']].map(function(b){
+      var v=p['rent_'+b[0]];
+      return '<div style="display:flex;justify-content:space-between;gap:14px;font-size:.72rem"><span style="color:#666">'+b[1]+'</span><span style="font-weight:700;color:#0d1b4b">'+money(v)+'</span></div>';
+    }).join('');
+    return '<div style="font-family:DM Sans,sans-serif;min-width:170px">'+
+      '<div style="font-weight:700;font-size:.9rem;color:#0d1b4b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:6px">'+p.nb+'</div>'+
+      rows+
+      '<div style="font-size:.62rem;color:#999;margin-top:6px;border-top:1px solid #eee;padding-top:4px">Neighborhood median &middot; '+p.cd+'</div></div>';
+  }
+  function draw(){
+    if(nbLayer){ map.removeLayer(nbLayer); nbLayer=null; }
+    var feats=nbData.features.filter(function(f){ return PREFIX==='' || f.properties.cd.indexOf(PREFIX)===0; });
+    nbLayer=L.geoJSON({type:'FeatureCollection',features:feats},{
+      style:function(){ return {color:'#0d1b4b',weight:1,opacity:.55,fill:true,fillOpacity:0,dashArray:'3,3'}; },
+      onEachFeature:function(f,l){
+        l.bindTooltip(tip(f.properties),{sticky:true,opacity:1});
+        l.on('mouseover',function(){ l.setStyle({weight:2.5,opacity:1,color:'#f47920',fillOpacity:.12,fillColor:'#f47920'}); if(l.bringToFront) l.bringToFront(); });
+        l.on('mouseout',function(){ l.setStyle({weight:1,opacity:.55,color:'#0d1b4b',fillOpacity:0}); });
+      }
+    }).addTo(map);
+  }
+  cbx.addEventListener('change',function(){
+    if(!this.checked){ if(nbLayer){ map.removeLayer(nbLayer); nbLayer=null; } return; }
+    if(nbData){ draw(); return; }
+    cbx.disabled=true;
+    fetch('data/neighborhood-rents.geojson').then(function(r){return r.json();}).then(function(j){
+      nbData=j; cbx.disabled=false; if(cbx.checked) draw();
+    }).catch(function(){ cbx.disabled=false; cbx.checked=false; });
+  });
+})();
 
 /* ---- neighborhood / CD search ---- */
 (function(){
