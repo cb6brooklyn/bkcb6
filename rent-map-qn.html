@@ -25,13 +25,16 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
 .back-link:hover{color:#f47920}
 .source{font-size:.65rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.35);padding:4px 16px;flex-shrink:0;background:#0d1b4b}
 
-.rentsearch-wrap{padding:12px 14px;background:#fff;border-top:1px solid #e5e2db;font-family:'DM Sans',sans-serif;position:relative}
+.rentsearch-wrap{padding:12px 14px;background:#fff;border-bottom:1px solid #e5e2db;font-family:'DM Sans',sans-serif;position:relative;z-index:900}
+.rentsearch-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.rentsearch-col{position:relative;min-width:0}
 .rentsearch-label{display:block;font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700;margin-bottom:5px}
 .rentsearch-box{position:relative}
-#rentsearch{width:100%;padding:9px 30px 9px 11px;font-family:'DM Sans',sans-serif;font-size:.82rem;border:2px solid #132D65;border-radius:8px;color:#132D65;font-weight:600;background:#fff}
-#rentsearch:focus{outline:none;border-color:#f47920}
+#rentsearch,#rentsearch-nb,#rentsearch-cd{width:100%;padding:9px 11px;font-family:'DM Sans',sans-serif;font-size:.8rem;border:2px solid #132D65;border-radius:8px;color:#132D65;font-weight:600;background:#fff}
+#rentsearch{padding-right:30px}
+#rentsearch:focus,#rentsearch-nb:focus,#rentsearch-cd:focus{outline:none;border-color:#f47920}
 #rentsearch-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;font-size:1.1rem;color:#9ca3af;cursor:pointer;line-height:1;padding:2px 6px;display:none}
-#rentsearch-list{position:absolute;left:14px;right:14px;z-index:1200;background:#fff;border:1px solid #e5e2db;border-radius:8px;box-shadow:0 6px 18px rgba(13,27,75,.14);max-height:230px;overflow-y:auto;display:none}
+#rentsearch-list{position:absolute;left:0;right:0;top:100%;margin-top:3px;z-index:1200;background:#fff;border:1px solid #e5e2db;border-radius:8px;box-shadow:0 6px 18px rgba(13,27,75,.14);max-height:230px;overflow-y:auto;display:none}
 .rentsearch-item{padding:8px 12px;font-size:.78rem;color:#132D65;cursor:pointer;border-bottom:1px solid #f4f2ee;display:flex;align-items:center;gap:8px}
 .rentsearch-item:last-child{border-bottom:none}
 .rentsearch-item:hover,.rentsearch-item.active{background:#fff6ef}
@@ -94,19 +97,31 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
   <span class="legend-item"><span class="legend-swatch" style="background:#FC9272"></span>Less Expensive</span>
   <span class="legend-item"><span class="legend-swatch" style="background:#FEE0D2"></span>Least Expensive</span>
 </div>
+<div class="rentsearch-wrap">
+  <div class="rentsearch-row">
+    <div class="rentsearch-col">
+      <label class="rentsearch-label" for="rentsearch">Search</label>
+      <div class="rentsearch-box">
+        <input id="rentsearch" type="text" autocomplete="off" placeholder="Type a neighborhood or district">
+        <button id="rentsearch-clear" type="button" aria-label="Clear search">&times;</button>
+      </div>
+      <div id="rentsearch-list"></div>
+    </div>
+    <div class="rentsearch-col">
+      <label class="rentsearch-label" for="rentsearch-nb">Neighborhood</label>
+      <select id="rentsearch-nb"><option value="">Select&hellip;</option></select>
+    </div>
+    <div class="rentsearch-col">
+      <label class="rentsearch-label" for="rentsearch-cd">Community district</label>
+      <select id="rentsearch-cd"><option value="">Select&hellip;</option></select>
+    </div>
+  </div>
+  <div id="rentsearch-result"></div>
+</div>
 <div id="map"></div>
 <div class="source">Source: StreetEasy median asking rent, as of June 1, 2026 &nbsp;|&nbsp; bkcb6.app</div>
 
 
-<div class="rentsearch-wrap">
-  <label class="rentsearch-label" for="rentsearch">Find a neighborhood or community district</label>
-  <div class="rentsearch-box">
-    <input id="rentsearch" type="text" autocomplete="off" placeholder="Try Park Slope, Astoria, or Brooklyn Community District 6">
-    <button id="rentsearch-clear" type="button" aria-label="Clear search">&times;</button>
-  </div>
-  <div id="rentsearch-list"></div>
-  <div id="rentsearch-result"></div>
-</div>
 <script>
 var map = L.map('map', {scrollWheelZoom: true}).setView([40.728, -73.794], 11);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
@@ -172,13 +187,33 @@ var PREFIX='QN';
 
 /* ---- neighborhood / CD search ---- */
 (function(){
-  var IDX=null, sel=null, selLayer=null, hi=-1;
+  var IDX=null, selLayer=null, hi=-1;
   var $=function(i){return document.getElementById(i);};
-  var input=$('rentsearch'), list=$('rentsearch-list'), res=$('rentsearch-result'), clr=$('rentsearch-clear');
+  var input=$('rentsearch'), list=$('rentsearch-list'), res=$('rentsearch-result'),
+      clr=$('rentsearch-clear'), selNb=$('rentsearch-nb'), selCd=$('rentsearch-cd');
   var BEDS=[['studio','Studio'],['1br','1 BR'],['2br','2 BR'],['3br','3+ BR'],['all','All']];
 
   fetch('data/rent-search-index.json').then(function(r){return r.json();}).then(function(j){
     IDX=j.filter(function(e){ return PREFIX==='' || e.cd.indexOf(PREFIX)===0; });
+    var nbs=IDX.filter(function(e){return e.t==='nb';})
+               .sort(function(a,b){return a.q.localeCompare(b.q);});
+    nbs.forEach(function(e,i){
+      var o=document.createElement('option');
+      o.value=e.q; o.textContent = PREFIX==='' ? e.q+' ('+e.b+')' : e.q;
+      selNb.appendChild(o);
+    });
+    var seen={}, cds=[];
+    IDX.filter(function(e){return e.t==='cd' && /Community District/.test(e.q);})
+       .forEach(function(e){ if(!seen[e.cd]){seen[e.cd]=1; cds.push(e);} });
+    cds.sort(function(a,b){
+      if(a.b!==b.b) return a.b.localeCompare(b.b);
+      return (+a.cd.slice(4))-(+b.cd.slice(4));
+    });
+    cds.forEach(function(e){
+      var o=document.createElement('option');
+      o.value=e.cd; o.textContent = PREFIX==='' ? e.q : (e.b+' CD '+e.cd.slice(4));
+      selCd.appendChild(o);
+    });
   }).catch(function(){});
 
   function money(v){ return (v==null||v==='')?'n/a':'$'+Number(v).toLocaleString('en-US'); }
@@ -191,7 +226,7 @@ var PREFIX='QN';
   }
 
   function show(entry){
-    sel=entry; list.style.display='none'; hi=-1;
+    list.style.display='none'; hi=-1;
     var lyr=featureFor(entry.cd);
     if(!lyr){ res.style.display='none'; return; }
     var p=lyr.feature.properties;
@@ -205,13 +240,11 @@ var PREFIX='QN';
     var cells=BEDS.map(function(b){
       return '<div class="rsr-cell"><div class="l">'+b[1]+'</div><div class="v">'+money(p['rent_'+b[0]])+'</div></div>';
     }).join('');
-    var boroRank=p['boro_rank_all'], cityRank=p['city_rank_all'];
-    var rank='';
+    var boroRank=p['boro_rank_all'], cityRank=p['city_rank_all'], rank='';
     if(boroRank) rank+='#'+boroRank+' in '+entry.b;
     if(cityRank) rank+=(rank?' &nbsp;|&nbsp; ':'')+'#'+cityRank+' in NYC';
     var title = entry.t==='nb' ? entry.q : entry.b+' CD '+entry.cd.slice(4);
     var sub   = entry.t==='nb' ? ('in '+entry.b+' Community District '+entry.cd.slice(4)) : entry.cd;
-
     res.innerHTML='<div class="rsr-card"><div class="rsr-head"><div class="t">'+title+'</div><div class="s">'+sub+'</div></div>'+
       '<div class="rsr-grid">'+cells+'</div>'+
       '<div class="rsr-foot"><span class="rsr-rank">'+(rank||'&nbsp;')+'</span>'+
@@ -228,15 +261,20 @@ var PREFIX='QN';
     }).join('');
     list.style.display='block';
     Array.prototype.forEach.call(list.children,function(el){
-      el.addEventListener('mousedown',function(ev){ ev.preventDefault(); show(items[+el.getAttribute('data-i')]); input.value=items[+el.getAttribute('data-i')].q; clr.style.display='block'; });
+      el.addEventListener('mousedown',function(ev){
+        ev.preventDefault();
+        var e=items[+el.getAttribute('data-i')];
+        input.value=e.q; clr.style.display='block';
+        if(e.t==='nb'){ selNb.value=e.q; selCd.value=''; } else { selCd.value=e.cd; selNb.value=''; }
+        show(e);
+      });
     });
     list._items=items;
   }
 
   function search(q){
     if(!IDX||!q||q.length<2){ list.style.display='none'; return; }
-    var s=q.toLowerCase();
-    var starts=[],contains=[];
+    var s=q.toLowerCase(), starts=[], contains=[];
     IDX.forEach(function(e){
       var t=e.q.toLowerCase();
       if(t.indexOf(s)===0) starts.push(e);
@@ -250,14 +288,26 @@ var PREFIX='QN';
     var items=list._items||[];
     if(ev.key==='ArrowDown'){ hi=Math.min(hi+1,items.length-1); render(items); ev.preventDefault(); }
     else if(ev.key==='ArrowUp'){ hi=Math.max(hi-1,0); render(items); ev.preventDefault(); }
-    else if(ev.key==='Enter'){ if(items.length){ var pick=items[hi>=0?hi:0]; input.value=pick.q; clr.style.display='block'; show(pick);} ev.preventDefault(); }
+    else if(ev.key==='Enter'){ if(items.length){ var pk=items[hi>=0?hi:0]; input.value=pk.q; clr.style.display='block';
+        if(pk.t==='nb'){selNb.value=pk.q;selCd.value='';}else{selCd.value=pk.cd;selNb.value='';} show(pk);} ev.preventDefault(); }
     else if(ev.key==='Escape'){ list.style.display='none'; }
   });
   input.addEventListener('blur',function(){ setTimeout(function(){ list.style.display='none'; },150); });
   clr.addEventListener('click',function(){
     input.value=''; this.style.display='none'; list.style.display='none'; res.style.display='none';
+    selNb.value=''; selCd.value='';
     if(selLayer){ try{layer.resetStyle(selLayer);}catch(e){} selLayer=null; }
     input.focus();
+  });
+  selNb.addEventListener('change',function(){
+    if(!this.value||!IDX) return;
+    var e=IDX.filter(function(x){return x.t==='nb' && x.q===this.value;}.bind(this))[0];
+    if(e){ selCd.value=''; input.value=e.q; clr.style.display='block'; show(e); }
+  });
+  selCd.addEventListener('change',function(){
+    if(!this.value||!IDX) return;
+    var e=IDX.filter(function(x){return x.cd===this.value && x.t==='cd';}.bind(this))[0];
+    if(e){ selNb.value=''; input.value=''; clr.style.display='none'; show(e); }
   });
 })();
 </script>
