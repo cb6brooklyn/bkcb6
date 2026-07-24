@@ -468,149 +468,16 @@ body{display:flex;flex-direction:column}
 })();
 </script>
 
-<!-- RENT EXPLORER -->
-<section id="rent-explorer" style="max-width:1080px;margin:22px auto 4px;padding:0 4px">
-  <div style="font-family:'DM Mono',monospace;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;color:#f47920;font-weight:800;margin-bottom:4px">Rent Explorer</div>
-  <div style="font-family:'DM Sans',sans-serif;font-size:1.15rem;font-weight:900;color:#132D65;margin-bottom:4px">What does it cost to live here, and what did it used to cost?</div>
-  <div style="font-size:.76rem;color:#555;line-height:1.45;margin-bottom:12px">Pick any neighborhood, community district, borough, or the city as a whole. Every month back to January 2010.</div>
-
-  <div style="background:#fff;border:1px solid #e5e2db;border-radius:10px;overflow:hidden">
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:14px 16px;background:#f8f7f4;border-bottom:1px solid #e5e2db">
-      <label style="display:block">
-        <span style="display:block;font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700;margin-bottom:4px">Level</span>
-        <select id="rx-level" style="width:100%;padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:.8rem;border:2px solid #132D65;border-radius:8px;background:#fff;color:#132D65;font-weight:600">
-          <option value="neighborhood">Neighborhood</option>
-          <option value="cd">Community District</option>
-          <option value="borough">Borough</option>
-          <option value="city">Citywide</option>
-        </select>
-      </label>
-      <label style="display:block">
-        <span style="display:block;font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700;margin-bottom:4px">Area</span>
-        <select id="rx-area" style="width:100%;padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:.8rem;border:2px solid #132D65;border-radius:8px;background:#fff;color:#132D65;font-weight:600"></select>
-      </label>
-      <label style="display:block">
-        <span style="display:block;font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700;margin-bottom:4px">Unit type</span>
-        <select id="rx-bed" style="width:100%;padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:.8rem;border:2px solid #132D65;border-radius:8px;background:#fff;color:#132D65;font-weight:600">
-          <option value="all">All units</option>
-          <option value="studio">Studio</option>
-          <option value="br1">1 bedroom</option>
-          <option value="br2">2 bedroom</option>
-          <option value="br3">3+ bedroom</option>
-        </select>
-      </label>
-      <label style="display:block">
-        <span style="display:block;font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700;margin-bottom:4px">Compare with</span>
-        <select id="rx-cmp" style="width:100%;padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:.8rem;border:2px solid #132D65;border-radius:8px;background:#fff;color:#132D65;font-weight:600">
-          <option value="x:NYC">New York City</option>
-          <option value="">Nothing</option>
-        </select>
-      </label>
-    </div>
-
-    <div id="rx-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding:14px 16px"></div>
-
-    <div style="padding:0 10px 6px"><canvas id="rx-chart" height="210"></canvas></div>
-
-    <div style="padding:12px 16px;background:#f8f7f4;border-top:1px solid #e5e2db">
-      <div style="font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700;margin-bottom:6px">Look back at any month</div>
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <input id="rx-slider" type="range" min="0" max="197" value="197" style="flex:1;min-width:180px;accent-color:#f47920">
-        <div id="rx-readout" style="font-family:'DM Mono',monospace;font-size:.82rem;font-weight:700;color:#132D65;white-space:nowrap">&mdash;</div>
-      </div>
-    </div>
-  </div>
-  <div style="font-size:.64rem;color:#9ca3af;font-family:'DM Mono',monospace;margin-top:8px">Source: StreetEasy median asking rent and rental inventory. Blank stretches mean StreetEasy published no figure for that area and month.</div>
-</section>
-<script>
-(function(){
-  var D=null, chart=null;
-  var $=function(id){return document.getElementById(id);};
-  var money=function(n){return n==null?'n/a':'$'+n.toLocaleString('en-US');};
-  var BEDLBL={all:'All units',studio:'Studio',br1:'1 bedroom',br2:'2 bedroom',br3:'3+ bedroom'};
-
-  function unpack(p,len){ var out=new Array(len).fill(null); if(!p) return out;
-    for(var i=0;i<p[1].length;i++) out[p[0]+i]=p[1][i]; return out; }
-  function seriesOf(area,key){ return unpack(area && area.s ? area.s[key] : null, D.months.length); }
-  function byId(id){ for(var i=0;i<D.areas.length;i++) if(D.areas[i].id===id) return D.areas[i]; return null; }
-
-  function fillAreas(){
-    var lvl=$('rx-level').value, sel=$('rx-area'), prev=sel.value;
-    var list=D.areas.filter(function(a){return a.t===lvl;});
-    list.sort(function(a,b){ return (a.p===b.p) ? a.n.localeCompare(b.n) : String(a.p).localeCompare(String(b.p)); });
-    sel.innerHTML=list.map(function(a){
-      var lab = (lvl==='neighborhood'||lvl==='cd') && a.p ? a.n+' ('+a.p+')' : a.n;
-      return '<option value="'+a.id+'">'+lab+'</option>';
-    }).join('');
-    if(list.some(function(a){return a.id===prev;})) sel.value=prev;
-    else { var cb6=list.filter(function(a){return a.id==='c:BKCB6'||a.n==='Park Slope';})[0]; if(cb6) sel.value=cb6.id; }
-  }
-
-  function render(){
-    var a=byId($('rx-area').value); if(!a) return;
-    var bed=$('rx-bed').value, cmpId=$('rx-cmp').value;
-    var rent=seriesOf(a,bed), inv=seriesOf(a,'inv');
-    var cmp=cmpId?seriesOf(byId(cmpId),bed):null;
-    var M=D.months, last=M.length-1;
-    function latest(arr){ for(var i=arr.length-1;i>=0;i--) if(arr[i]!=null) return {v:arr[i],i:i}; return {v:null,i:null}; }
-    var L=latest(rent), first=null;
-    for(var i=0;i<rent.length;i++){ if(rent[i]!=null){first={v:rent[i],i:i};break;} }
-    var chg = (L.v!=null&&first) ? Math.round((L.v-first.v)/first.v*100) : null;
-    var LI=latest(inv);
-
-    function card(l,v,s){return '<div style="background:#fff;border:2px solid #132D65;border-bottom:3px solid #FD890E;border-radius:10px;padding:12px 14px">'+
-      '<div style="font-size:.54rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;margin-bottom:3px">'+l+'</div>'+
-      '<div style="font-size:1.3rem;font-weight:900;line-height:1;color:#132D65;font-family:\'DM Mono\',monospace">'+v+'</div>'+
-      (s?'<div style="font-size:.58rem;color:#9ca3af;margin-top:3px;font-family:\'DM Mono\',monospace">'+s+'</div>':'')+'</div>';}
-    $('rx-cards').innerHTML =
-      card(BEDLBL[bed]+' today', money(L.v), L.i!=null?M[L.i]:'') +
-      card('Since '+(first?M[first.i]:'2010'), chg==null?'n/a':((chg>=0?'+':'')+chg+'%'), first?money(first.v):'') +
-      card('Listings', LI.v==null?'n/a':LI.v.toLocaleString('en-US'), LI.i!=null?M[LI.i]:'') +
-      card('Area', a.n, a.p||'');
-
-    var ds=[{label:a.n,data:rent,borderColor:'#f47920',borderWidth:2.2,tension:.25,spanGaps:true,pointRadius:0}];
-    if(cmp) ds.push({label:byId(cmpId).n,data:cmp,borderColor:'#9ca3af',borderWidth:1.5,borderDash:[4,3],tension:.25,spanGaps:true,pointRadius:0});
-    if(chart) chart.destroy();
-    chart=new Chart($('rx-chart'),{type:'line',data:{labels:M,datasets:ds},options:{
-      responsive:true,maintainAspectRatio:true,interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:!!cmp,labels:{boxWidth:10,font:{size:10,family:'DM Mono'},color:'#132D65'}},
-        tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+money(c.parsed.y);}}}},
-      scales:{x:{ticks:{maxTicksLimit:10,font:{size:9,family:'DM Mono'},color:'#9ca3af',
-          callback:function(v){var s=M[v]||'';return s.slice(5)==='01'?s.slice(0,4):'';}},grid:{display:false}},
-        y:{ticks:{font:{size:9,family:'DM Mono'},color:'#9ca3af',callback:function(v){return '$'+(v/1000).toFixed(1)+'k';}},grid:{color:'#f0ede8'}}}}});
-    readout();
-  }
-
-  function readout(){
-    var a=byId($('rx-area').value); if(!a||!D) return;
-    var bed=$('rx-bed').value, i=+$('rx-slider').value;
-    var r=seriesOf(a,bed)[i], inv=seriesOf(a,'inv')[i];
-    $('rx-readout').textContent = D.months[i]+' · '+money(r)+(inv!=null?' · '+inv.toLocaleString('en-US')+' listings':'');
-  }
-
-  function boot(){
-    $('rx-slider').max=D.months.length-1; $('rx-slider').value=D.months.length-1;
-    var cmp=$('rx-cmp');
-    D.areas.filter(function(a){return a.t==='borough';}).forEach(function(a){
-      var o=document.createElement('option'); o.value=a.id; o.textContent=a.n; cmp.appendChild(o);});
-    fillAreas(); render();
-    $('rx-level').addEventListener('change',function(){fillAreas();render();});
-    ['rx-area','rx-bed','rx-cmp'].forEach(function(id){$(id).addEventListener('change',render);});
-    $('rx-slider').addEventListener('input',readout);
-  }
-
-  var loaded=false;
-  function load(){ if(loaded) return; loaded=true;
-    fetch('data/rent-explorer.json').then(function(r){return r.json();}).then(function(j){D=j;boot();})
-      .catch(function(){ $('rx-cards').innerHTML='<div style="padding:10px 14px;background:#fff3cd;border:1px solid #ffe69c;border-radius:8px;font-size:.78rem;color:#664d03">Explorer data could not load.</div>'; });
-  }
-  var el=$('rent-explorer');
-  if('IntersectionObserver' in window){
-    var io=new IntersectionObserver(function(en){ if(en[0].isIntersecting){io.disconnect();load();} },{rootMargin:'300px'});
-    io.observe(el);
-  } else load();
-})();
-</script>
+<!-- LINK TO FULL RENT EXPLORER -->
+<div style="max-width:1080px;margin:14px auto 4px;padding:0 4px">
+  <a href="/rentpastpresent" style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:#fff;border:2px solid #132D65;border-bottom:3px solid #f47920;border-radius:10px;text-decoration:none">
+    <span style="font-size:1.5rem;line-height:1">&#128200;</span>
+    <span style="flex:1">
+      <span style="display:block;font-family:'DM Sans',sans-serif;font-size:.92rem;font-weight:800;color:#132D65">Rent: Past &amp; Present &rarr;</span>
+      <span style="display:block;font-size:.74rem;color:#555;line-height:1.45;margin-top:2px">Compare rent and listings for any neighborhood, community district, or borough in the city, every month back to 2010.</span>
+    </span>
+  </a>
+</div>
 
 <section id="land-use-profile-search" style="background:#fff;border-bottom:3px solid #f47920;padding:14px 18px;box-shadow:0 2px 10px rgba(13,27,75,.08);position:relative;z-index:500">
   <div style="max-width:1080px;margin:0 auto">
