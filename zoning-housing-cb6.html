@@ -392,6 +392,82 @@ body{display:flex;flex-direction:column}
 })();
 </script>
 
+<!-- RENT & INVENTORY TRENDS -->
+<section id="rent-trends" style="max-width:1080px;margin:22px auto 4px;padding:0 4px">
+  <div style="font-family:'DM Mono',monospace;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;color:#f47920;font-weight:800;margin-bottom:4px">Pricing &amp; Inventory</div>
+  <div style="font-family:'DM Sans',sans-serif;font-size:1.15rem;font-weight:900;color:#132D65;margin-bottom:4px">CB6 vs Brooklyn vs NYC, 2010 to today</div>
+  <div style="font-size:.76rem;color:#555;line-height:1.45;margin-bottom:12px">Median asking rent and the number of rental listings on the market each month. CB6 combines Park Slope, Carroll Gardens, Cobble Hill, Gowanus, and Red Hook.</div>
+
+  <div id="rt-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px"></div>
+
+  <div style="background:#fff;border:1px solid #e5e2db;border-radius:10px;overflow:hidden;margin-bottom:12px">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:9px 14px;background:#f8f7f4;border-bottom:1px solid #e5e2db;border-left:3px solid #f47920">
+      <span style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700">Median asking rent</span>
+      <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="font-size:.62rem;font-family:'DM Mono',monospace;color:#132D65"><span style="display:inline-block;width:10px;height:3px;background:#f47920;vertical-align:middle;margin-right:4px"></span>CB6</span>
+        <span style="font-size:.62rem;font-family:'DM Mono',monospace;color:#132D65"><span style="display:inline-block;width:10px;height:3px;background:#132D65;vertical-align:middle;margin-right:4px"></span>Brooklyn</span>
+        <span style="font-size:.62rem;font-family:'DM Mono',monospace;color:#132D65"><span style="display:inline-block;width:10px;height:3px;background:#9ca3af;vertical-align:middle;margin-right:4px"></span>NYC</span>
+      </span>
+    </div>
+    <div style="padding:10px 6px 4px"><canvas id="rt-rent" height="200"></canvas></div>
+  </div>
+
+  <div style="background:#fff;border:1px solid #e5e2db;border-radius:10px;overflow:hidden">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:9px 14px;background:#f8f7f4;border-bottom:1px solid #e5e2db;border-left:3px solid #f47920">
+      <span style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700">Rental listings on the market</span>
+      <span style="font-size:.58rem;font-family:'DM Mono',monospace;color:#9ca3af">log scale</span>
+    </div>
+    <div style="padding:10px 6px 4px"><canvas id="rt-inv" height="200"></canvas></div>
+  </div>
+  <div style="font-size:.64rem;color:#9ca3af;font-family:'DM Mono',monospace;margin-top:8px">Source: StreetEasy. CB6 rent is the median of its neighborhood medians; CB6 inventory is the sum of its neighborhood listing counts.</div>
+</section>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function(){
+  function money(n){return '$'+(n||0).toLocaleString('en-US');}
+  function num(n){return (n||0).toLocaleString('en-US');}
+  function card(label,val,sub){
+    return '<div style="background:#fff;border:2px solid #132D65;border-bottom:3px solid #FD890E;border-radius:10px;padding:12px 14px">'+
+      '<div style="font-size:.56rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;margin-bottom:3px">'+label+'</div>'+
+      '<div style="font-size:1.35rem;font-weight:900;line-height:1;color:#132D65;font-family:\'DM Mono\',monospace">'+val+'</div>'+
+      (sub?'<div style="font-size:.6rem;color:#9ca3af;margin-top:3px;font-family:\'DM Mono\',monospace">'+sub+'</div>':'')+'</div>';
+  }
+  function pct(now,then){ if(!now||!then) return ''; var p=Math.round((now-then)/then*100); return (p>=0?'+':'')+p+'% vs 2010'; }
+
+  fetch('data/cb6-rent-trends.json?v='+Date.now()).then(function(r){return r.json();}).then(function(d){
+    var M=d.rent.months, last=M.length-1;
+    var lbl=M.map(function(m){return m;});
+    document.getElementById('rt-cards').innerHTML=
+      card('CB6 median rent', money(d.rent.cb6[last]), pct(d.rent.cb6[last], d.rent.cb6[0]))+
+      card('Brooklyn median rent', money(d.rent.brooklyn[last]), pct(d.rent.brooklyn[last], d.rent.brooklyn[0]))+
+      card('CB6 listings', num(d.inventory.cb6[last]), M[last])+
+      card('vs NYC median', money(d.rent.nyc[last]), 'citywide');
+
+    var common={responsive:true,maintainAspectRatio:true,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},tooltip:{callbacks:{}}},
+      elements:{point:{radius:0,hitRadius:8}},
+      scales:{x:{ticks:{maxTicksLimit:10,font:{size:9,family:'DM Mono'},color:'#9ca3af',callback:function(v){var s=lbl[v]||'';return s.slice(0,4)==='2010'||s.slice(5)==='01'?s.slice(0,4):'';}},grid:{display:false}}}};
+
+    function mk(id,key,fmt,logscale){
+      var y=Object.assign({ticks:{font:{size:9,family:'DM Mono'},color:'#9ca3af',callback:fmt},grid:{color:'#f0ede8'}}, logscale?{type:'logarithmic'}:{});
+      var o=JSON.parse(JSON.stringify(common)); o.scales.y=y;
+      o.plugins={legend:{display:false},tooltip:{mode:'index',intersect:false,callbacks:{
+        title:function(it){return lbl[it[0].dataIndex];},
+        label:function(c){return c.dataset.label+': '+(key==='rent'?money(c.parsed.y):num(c.parsed.y));}}}};
+      new Chart(document.getElementById(id),{type:'line',data:{labels:lbl,datasets:[
+        {label:'CB6',data:d[key].cb6,borderColor:'#f47920',backgroundColor:'transparent',borderWidth:2.2,tension:.25,spanGaps:true},
+        {label:'Brooklyn',data:d[key].brooklyn,borderColor:'#132D65',backgroundColor:'transparent',borderWidth:1.8,tension:.25,spanGaps:true},
+        {label:'NYC',data:d[key].nyc,borderColor:'#9ca3af',backgroundColor:'transparent',borderWidth:1.5,borderDash:[4,3],tension:.25,spanGaps:true}
+      ]},options:o});
+    }
+    mk('rt-rent','rent',function(v){return '$'+(v/1000).toFixed(1)+'k';},false);
+    mk('rt-inv','inventory',function(v){return v>=1000?(v/1000)+'k':v;},true);
+  }).catch(function(e){
+    document.getElementById('rt-cards').innerHTML='<div style="padding:10px 14px;background:#fff3cd;border:1px solid #ffe69c;border-radius:8px;font-size:.78rem;color:#664d03">Trend data could not load.</div>';
+  });
+})();
+</script>
+
 <section id="land-use-profile-search" style="background:#fff;border-bottom:3px solid #f47920;padding:14px 18px;box-shadow:0 2px 10px rgba(13,27,75,.08);position:relative;z-index:500">
   <div style="max-width:1080px;margin:0 auto">
     <div style="font-family:'DM Mono',monospace;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;color:#f47920;font-weight:800;margin-bottom:4px">Land-use lot and property profile search</div>
