@@ -229,6 +229,18 @@ var PREFIX='BX';
       o.value=e.cd; o.textContent = PREFIX==='' ? e.q : (e.b+' CD '+e.cd.slice(4));
       selCd.appendChild(o);
     });
+    // borough + citywide options (from rollup)
+    var BN={MN:'Manhattan',BX:'Bronx',QN:'Queens',BK:'Brooklyn',SI:'Staten Island'};
+    function addBig(val,txt){ var o=document.createElement('option'); o.value=val; o.textContent=txt; o.className='rx-big'; selCd.appendChild(o); }
+    if(PREFIX===''){
+      var sepd=document.createElement('option'); sepd.disabled=true; sepd.textContent='\u2500\u2500 Boroughs \u2500\u2500'; selCd.appendChild(sepd);
+      ['Manhattan','Brooklyn','Queens','Bronx','Staten Island'].forEach(function(b){ addBig('b:'+b, b); });
+      addBig('x:NYC','New York City (all)');
+    } else {
+      var sepd2=document.createElement('option'); sepd2.disabled=true; sepd2.textContent='\u2500\u2500\u2500\u2500'; selCd.appendChild(sepd2);
+      addBig('b:'+BN[PREFIX], BN[PREFIX]+' (whole borough)');
+      addBig('x:NYC','New York City (all)');
+    }
   }).catch(function(){});
 
   function featureFor(cd){
@@ -310,6 +322,43 @@ var PREFIX='BX';
     render();
   }
 
+  function showBig(id){
+    if(!ROLL || !ROLL[id]){
+      if(!ROLL){ fetch('data/rent-ranges-rollup.json').then(function(r){return r.json();}).then(function(j){ROLL=j;showBig(id);}); return; }
+      return;
+    }
+    clearPin();
+    if(selLayer){ try{layer.resetStyle(selLayer);}catch(e){} selLayer=null; }
+    var P=ROLL[id];
+    var isCity = id==='x:NYC';
+    var bn = isCity ? 'New York City' : id.slice(2);
+    // fit map: city -> all districts; borough -> that borough's districts
+    if(layer){
+      var grp=[];
+      layer.eachLayer(function(l){
+        var cd=l.feature && l.feature.properties.cb_code;
+        if(!cd) return;
+        if(isCity){ grp.push(l); }
+        else { var pfx={Manhattan:'MN',Bronx:'BX',Queens:'QN',Brooklyn:'BK','Staten Island':'SI'}[bn]; if(cd.indexOf(pfx)===0) grp.push(l); }
+      });
+      if(grp.length){
+        try{ var b=grp[0].getBounds(); grp.forEach(function(l){b.extend(l.getBounds());}); map.fitBounds(b,{padding:[24,24]}); }catch(e){}
+      }
+    }
+    var cells=BEDS.map(function(b){
+      return '<div class="rsr-cell"><div class="l">'+b[1]+'</div><div class="v">'+money(P['rent_'+b[0]])+'</div></div>';
+    }).join('');
+    var sign = P['rent_all']!=null ? '<div class="rsr-signing"><span class="sl">Due at signing</span><span class="sv">'+money(P['rent_all']*2)+' <span class="sb">1st mo + 1mo deposit</span></span></div>' : '';
+    res.innerHTML='<div class="rsr-card"><div class="rsr-head"><div><div class="t">'+bn+'</div><div class="s">'+(isCity?'Citywide median':'Borough median')+'</div></div>'+
+      '<button class="rsr-clear" id="rsr-clear">Clear</button></div>'+
+      '<div class="rsr-grid">'+cells+'</div>'+ sign +
+      rangeBlock(P, null)+
+      '<div class="rsr-foot"><span class="rsr-rank">&nbsp;</span>'+
+      '<a class="rsr-link" target="_top" href="/rentpastpresent">Full history since 2010 &rarr;</a></div></div>';
+    res.style.display='block';
+    var cb=$('rsr-clear'); if(cb) cb.addEventListener('click',reset);
+  }
+
   function reset(){
     selNb.value=''; selCd.value=''; res.style.display='none'; clearPin();
     if(selLayer){ try{layer.resetStyle(selLayer);}catch(e){} selLayer=null; }
@@ -323,9 +372,11 @@ var PREFIX='BX';
     if(e) show(e);
   });
   selCd.addEventListener('change',function(){
-    if(!this.value||!IDX){ return; }
+    if(!this.value){ return; }
     selNb.value='';
     var v=this.value;
+    if(v.indexOf('b:')===0 || v.indexOf('x:')===0){ showBig(v); return; }
+    if(!IDX) return;
     var e=IDX.filter(function(x){return x.cd===v && x.t==='cd';})[0];
     if(e) show(e);
   });
