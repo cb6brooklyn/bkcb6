@@ -84,7 +84,18 @@ canvas{max-width:100%}
 
     <div id="rx-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding:14px 16px"></div>
 
-    <div style="padding:0 10px 6px"><canvas id="rx-chart" height="210"></canvas></div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:4px 16px 0">
+      <label style="display:flex;align-items:center;gap:7px">
+        <span style="font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700">Show range</span>
+        <select id="rx-range" style="padding:6px 9px;font-family:'DM Sans',sans-serif;font-size:.76rem;border:2px solid #132D65;border-radius:7px;color:#132D65;font-weight:600;background:#fff">
+          <option value="none">Off</option>
+          <option value="unit">By unit type (studio to 3+BR)</option>
+          <option value="sub">Across sub-areas</option>
+        </select>
+      </label>
+      <button id="rx-play" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#f47920;border:none;border-radius:7px;color:#fff;font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:700;cursor:pointer">&#9654; Play timeline</button>
+    </div>
+    <div style="padding:2px 10px 6px"><canvas id="rx-chart" height="210"></canvas></div>
 
     <div style="padding:12px 16px;background:#f8f7f4;border-top:1px solid #e5e2db">
       <div style="font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700;margin-bottom:6px">Look back at any month</div>
@@ -98,7 +109,7 @@ canvas{max-width:100%}
 </section>
 <script>
 (function(){
-  var D=null, chart=null;
+  var D=null, SUB=null, chart=null, playTimer=null, playPos=null;
   var $=function(id){return document.getElementById(id);};
   var money=function(n){return n==null?'n/a':'$'+n.toLocaleString('en-US');};
   var BEDLBL={all:'All units',studio:'Studio',br1:'1 bedroom',br2:'2 bedroom',br3:'3+ bedroom'};
@@ -142,13 +153,42 @@ canvas{max-width:100%}
       card('Listings', LI.v==null?'n/a':LI.v.toLocaleString('en-US'), LI.i!=null?M[LI.i]:'') +
       card('Area', a.n, a.p||'');
 
-    var ds=[{label:a.n,data:rent,borderColor:'#f47920',borderWidth:2.2,tension:.25,spanGaps:true,pointRadius:0}];
+    var rangeMode=$('rx-range').value;
+    var ds=[];
+    // range band
+    var loArr=null,hiArr=null,bandLabel='';
+    if(rangeMode==='unit'){
+      var st=seriesOf(a,'studio'), b3=seriesOf(a,'br3'), b1=seriesOf(a,'br1'), b2=seriesOf(a,'br2');
+      loArr=[];hiArr=[];
+      for(var i=0;i<M.length;i++){
+        var vs=[st[i],b1[i],b2[i],b3[i]].filter(function(x){return x!=null;});
+        loArr.push(vs.length?Math.min.apply(null,vs):null);
+        hiArr.push(vs.length?Math.max.apply(null,vs):null);
+      }
+      bandLabel='Unit-type range';
+    } else if(rangeMode==='sub' && SUB && SUB.sub[a.id]){
+      loArr=unpack(SUB.sub[a.id].lo,M.length);
+      hiArr=unpack(SUB.sub[a.id].hi,M.length);
+      bandLabel='Sub-area range';
+    }
+    if(loArr){
+      ds.push({label:bandLabel+' (high)',data:hiArr,borderColor:'rgba(244,121,32,.35)',backgroundColor:'rgba(244,121,32,.13)',borderWidth:1,tension:.25,spanGaps:true,pointRadius:0,fill:'+1'});
+      ds.push({label:bandLabel+' (low)',data:loArr,borderColor:'rgba(244,121,32,.35)',backgroundColor:'rgba(244,121,32,.13)',borderWidth:1,tension:.25,spanGaps:true,pointRadius:0,fill:false});
+    }
+    ds.push({label:a.n,data:rent,borderColor:'#f47920',borderWidth:2.4,tension:.25,spanGaps:true,pointRadius:0});
     if(cmp) ds.push({label:byId(cmpId).n,data:cmp,borderColor:'#9ca3af',borderWidth:1.5,borderDash:[4,3],tension:.25,spanGaps:true,pointRadius:0});
+    // play marker (single point at playPos)
+    if(playPos!=null){
+      var mk=new Array(M.length).fill(null); mk[playPos]=rent[playPos];
+      ds.push({label:'__marker',data:mk,borderColor:'#132D65',backgroundColor:'#132D65',pointRadius:5,pointHoverRadius:5,showLine:false});
+    }
     if(chart) chart.destroy();
     chart=new Chart($('rx-chart'),{type:'line',data:{labels:M,datasets:ds},options:{
-      responsive:true,maintainAspectRatio:true,interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:!!cmp,labels:{boxWidth:10,font:{size:10,family:'DM Mono'},color:'#132D65'}},
-        tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+money(c.parsed.y);}}}},
+      responsive:true,maintainAspectRatio:true,interaction:{mode:'index',intersect:false},animation:false,
+      plugins:{legend:{display:!!cmp,labels:{boxWidth:10,font:{size:10,family:'DM Mono'},color:'#132D65',
+          filter:function(it){return it.text.indexOf('__')!==0 && it.text.indexOf('range (')<0;}}},
+        tooltip:{filter:function(it){return it.dataset.label.indexOf('__')!==0;},
+          callbacks:{label:function(c){var l=c.dataset.label;if(l.indexOf('range')>-1){l=l.replace(' (high)','').replace(' (low)','')+(c.dataset.fill?' high':' low');}return l+': '+money(c.parsed.y);}}}},
       scales:{x:{ticks:{maxTicksLimit:10,font:{size:9,family:'DM Mono'},color:'#9ca3af',
           callback:function(v){var s=M[v]||'';return s.slice(5)==='01'?s.slice(0,4):'';}},grid:{display:false}},
         y:{ticks:{font:{size:9,family:'DM Mono'},color:'#9ca3af',callback:function(v){return '$'+(v/1000).toFixed(1)+'k';}},grid:{color:'#f0ede8'}}}}});
@@ -170,7 +210,37 @@ canvas{max-width:100%}
     fillAreas(); render();
     $('rx-level').addEventListener('change',function(){fillAreas();render();});
     ['rx-area','rx-bed','rx-cmp'].forEach(function(id){$(id).addEventListener('change',render);});
-    $('rx-slider').addEventListener('input',readout);
+    $('rx-slider').addEventListener('input',function(){ stopPlay(); readout(); });
+    $('rx-range').addEventListener('change',function(){
+      if(this.value==='sub' && !SUB){
+        this.disabled=true;
+        fetch('../data/rent-subranges.json').then(function(r){return r.json();}).then(function(j){SUB=j;$('rx-range').disabled=false;render();})
+          .catch(function(){$('rx-range').disabled=false;$('rx-range').value='none';render();});
+      } else render();
+    });
+    $('rx-play').addEventListener('click',togglePlay);
+  }
+
+  function stopPlay(){ if(playTimer){clearInterval(playTimer);playTimer=null;} playPos=null; $('rx-play').innerHTML='\u25B6 Play timeline'; }
+  function togglePlay(){
+    if(playTimer){ stopPlay(); render(); return; }
+    var a=byId($('rx-area').value); if(!a) return;
+    var rent=seriesOf(a,$('rx-bed').value);
+    var start=0; while(start<rent.length && rent[start]==null) start++;
+    playPos=start; $('rx-play').innerHTML='\u23F8 Pause';
+    $('rx-slider').value=playPos; readout(); render();
+    playTimer=setInterval(function(){
+      playPos++;
+      if(playPos>=D.months.length){ stopPlay(); render(); return; }
+      $('rx-slider').value=playPos; readout();
+      if(chart){
+        var ds=chart.data.datasets, mi=-1;
+        for(var k=0;k<ds.length;k++) if(ds[k].label==='__marker') mi=k;
+        var mk=new Array(D.months.length).fill(null); mk[playPos]=rent[playPos];
+        if(mi>=0){ ds[mi].data=mk; chart.update('none'); }
+        else render();
+      }
+    },90);
   }
 
   var loaded=false;
