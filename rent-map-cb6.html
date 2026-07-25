@@ -62,6 +62,10 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
 .rsr-foot{padding:9px 13px;background:#f8f7f4;display:flex;gap:8px;align-items:center}
 .rsr-link{margin-left:auto;font-size:.7rem;font-weight:700;color:#f47920;text-decoration:none;white-space:nowrap}
 .rsr-link:hover{text-decoration:underline}
+.nb-label{background:transparent!important;border:none!important;box-shadow:none!important;text-align:center;pointer-events:none;font-family:'DM Sans',sans-serif}
+.nb-label .nl-n{font-size:.68rem;font-weight:800;color:#0d1b4b;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff}
+.nb-label .nl-r{font-size:.64rem;font-weight:700;color:#0d1b4b;font-family:'DM Mono',monospace;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff}
+.nb-label:before{display:none!important}
 </style>
 </head>
 <body>
@@ -69,13 +73,14 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
   <h1>Brooklyn <span>CB6</span> &middot; Rent by Neighborhood</h1>
   <div class="controls" id="bed-controls">
     <button class="rent-btn" data-bed="studio">Studio</button>
-    <button class="rent-btn" data-bed="1br">1BR</button>
+    <button class="rent-btn active" data-bed="1br">1BR</button>
     <button class="rent-btn" data-bed="2br">2BR</button>
     <button class="rent-btn" data-bed="3br">3BR+</button>
-    <button class="rent-btn active" data-bed="all">Overall</button>
+    
   </div>
   <a class="back-link" href="/zoning-housing-cb6.html">&larr; Zoning &amp; Housing</a>
 </div>
+<div id="legend" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:7px 16px;background:#0d1b4b;border-top:1px solid rgba(255,255,255,.08)"></div>
 <div id="map"></div>
 <div class="panel">
   <div id="result"></div>
@@ -86,9 +91,9 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
 
 <script>
 (function(){
-  var BEDS=[['studio','Studio'],['1br','1 BR'],['2br','2 BR'],['3br','3+ BR'],['all','Overall']];
+  var BEDS=[['studio','Studio'],['1br','1 BR'],['2br','2 BR'],['3br','3+ BR']];
   var COLORS=['#1B5E8A','#4A90A4','#82C341','#E8A800','#D45F00','#67000D'];
-  var bed='all', DATA=null, layer=null, selName=null, chips={};
+  var bed='1br', DATA=null, layer=null, selName=null, chips={};
   var $=function(i){return document.getElementById(i);};
   var money=function(v){return (v==null)?'n/a':'$'+Number(v).toLocaleString('en-US');};
 
@@ -104,6 +109,19 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
       var idx=s.indexOf(v); var t=Math.min(Math.floor(idx/s.length*5),4); return COLORS[t+1]; };
   }
   var colorFor=null;
+  function rebuildColors(){ colorFor=tiers(DATA.features.map(function(f){return f.properties['rent_'+bed];}).filter(function(v){return v!=null;})); }
+  function labelFor(p){ var v=p['rent_'+bed]; return '<span class="nl-n">'+p.nb+'</span><br><span class="nl-r">'+(p.no_data?'no data':money(v))+'</span>'; }
+  function relabelAll(){ if(!layer) return; layer.eachLayer(function(l){ var tt=l.getTooltip(); if(tt) l.setTooltipContent(labelFor(l.feature.properties)); }); }
+  function buildLegend(){
+    var vals=DATA.features.map(function(f){return f.properties['rent_'+bed];}).filter(function(v){return v!=null;}).sort(function(a,b){return a-b;});
+    if(!vals.length){ var el0=$('legend'); if(el0) el0.innerHTML=''; return; }
+    var lo=vals[0], hi=vals[vals.length-1];
+    var lbl=({studio:'Studio',br1:'1 BR','1br':'1 BR',br2:'2 BR','2br':'2 BR',br3:'3+ BR','3br':'3+ BR'})[bed]||bed;
+    var swatches='';
+    for(var i=1;i<COLORS.length;i++){ swatches+='<span style="display:inline-block;width:16px;height:11px;background:'+COLORS[i]+'"></span>'; }
+    var el=$('legend'); if(el) el.innerHTML='<span style="font-family:DM Mono,monospace;font-size:.6rem;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.06em">'+lbl+' rent</span> '+
+      '<span style="font-family:DM Mono,monospace;font-size:.66rem;color:#fff">'+money(lo)+'</span>'+swatches+'<span style="font-family:DM Mono,monospace;font-size:.66rem;color:#fff">'+money(hi)+'</span>';
+  }
 
   function styleFor(f){
     var v=f.properties['rent_'+bed];
@@ -133,7 +151,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
     var cells=BEDS.map(function(b){
       return '<div class="rsr-cell"><div class="l">'+b[1]+'</div><div class="v">'+money(p['rent_'+b[0]])+'</div></div>';
     }).join('');
-    var sign = p.rent_all!=null ? '<div class="rsr-signing"><span class="sl">Due at signing</span><span class="sv">'+money(p.rent_all*2)+' <span class="sb">1st mo + 1mo deposit</span></span></div>' : '';
+    var bedRent=p['rent_'+bed]; var bedLbl=({studio:'Studio','1br':'1 BR','2br':'2 BR','3br':'3+ BR'})[bed]; var sign = bedRent!=null ? '<div class="rsr-signing"><span class="sl">'+bedLbl+' at signing</span><span class="sv">'+money(bedRent*2)+' <span class="sb">1st mo + 1mo deposit</span></span></div>' : '';
     var range = (p.range_lo!=null) ? '<div class="rsr-range"><span class="rl">By unit type</span><span class="rv">'+money(p.range_lo)+' <span class="rb">'+(p.range_lo_bed||'')+'</span> &ndash; '+money(p.range_hi)+' <span class="rb">'+(p.range_hi_bed||'')+'</span></span></div>' : '';
     $('result').innerHTML='<div class="rsr-card"><div class="rsr-head"><div><div class="t">'+p.nb+'</div><div class="s">Brooklyn CB6 &middot; neighborhood median</div></div></div>'+
       '<div class="rsr-grid">'+cells+'</div>'+ sign + range +
@@ -141,7 +159,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
   }
 
   function buildChips(){
-    var feats=DATA.features.slice().sort(function(a,b){ if(a.properties.no_data)return 1; if(b.properties.no_data)return -1; return (b.properties.rent_all||0)-(a.properties.rent_all||0);});
+    var feats=DATA.features.slice().sort(function(a,b){ if(a.properties.no_data)return 1; if(b.properties.no_data)return -1; return (b.properties['rent_'+bed]||0)-(a.properties['rent_'+bed]||0);});
     $('chips').innerHTML='';
     feats.forEach(function(f){
       var p=f.properties, b=document.createElement('button');
@@ -159,11 +177,12 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
 
   fetch('data/neighborhood-rents.geojson').then(function(r){return r.json();}).then(function(j){
     DATA={type:'FeatureCollection',features:j.features.filter(function(f){return f.properties.cd==='BKCB6';})};
-    colorFor=tiers(DATA.features.map(function(f){return f.properties.rent_all;}).filter(function(v){return v!=null;}));
+    rebuildColors();
     layer=L.geoJSON(DATA,{style:styleFor,onEachFeature:function(f,l){
       l.on('click',function(){ selectNbhd(f.properties.nb); });
-      l.bindTooltip(f.properties.nb,{sticky:true});
+      l.bindTooltip(labelFor(f.properties),{permanent:true,direction:'center',className:'nb-label',opacity:1});
     }}).addTo(map);
+    buildLegend();
     try{ map.fitBounds(layer.getBounds(),{padding:[24,24]}); }catch(e){}
     buildChips();
     $('result').innerHTML='<div class="result-hint">Tap any neighborhood on the map (or open the list below) to see its rents, price range, and move-in cost.</div>';
@@ -181,7 +200,10 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
     var btn=e.target.closest('.rent-btn'); if(!btn) return;
     bed=btn.getAttribute('data-bed');
     Array.prototype.forEach.call(this.children,function(c){c.classList.toggle('active',c===btn);});
+    rebuildColors();
     if(layer) layer.setStyle(styleFor);
+    relabelAll();
+    buildLegend();
     refreshChips();
     if(selName) selectNbhd(selName);
   });
