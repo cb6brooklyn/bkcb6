@@ -111,7 +111,7 @@ tbody tr:hover{background:#fff8f2}
   <div class="h2">Every CB6 neighborhood</div>
   <div class="sub">Median asking rent by unit type, and the move-in cost (first month plus one-month deposit).</div>
   <div class="panel"><div style="overflow-x:auto"><table id="nbTable">
-    <thead><tr><th>Neighborhood</th><th>Studio</th><th>1 BR</th><th>2 BR</th><th>3+ BR</th><th>Overall</th><th>Listings</th><th>At signing</th></tr></thead>
+    <thead><tr><th>Neighborhood</th><th>Studio</th><th>1 BR</th><th>2 BR</th><th>3+ BR</th><th>Listings</th><th>At signing</th></tr></thead>
     <tbody></tbody>
   </table></div></div>
 
@@ -135,12 +135,12 @@ tbody tr:hover{background:#fff8f2}
 (function(){
   var money=function(v){return v==null?'n/a':'$'+Number(v).toLocaleString('en-US');};
   var PAGE='cb6';
-  var BEDTABS=[['all','Overall'],['studio','Studio'],['br1','1 BR'],['br2','2 BR'],['br3','3+ BR']];
+  var BEDTABS=[['studio','Studio'],['br1','1 BR'],['br2','2 BR'],['br3','3+ BR']];
   (function(){
     var bar=document.getElementById('bedTabs');
     BEDTABS.forEach(function(b){
       var btn=document.createElement('button');
-      btn.className='bedtab'+(b[0]==='all'?' active':''); btn.textContent=b[1]; btn.setAttribute('data-bed',b[0]);
+      btn.className='bedtab'+(b[0]==='br1'?' active':''); btn.textContent=b[1]; btn.setAttribute('data-bed',b[0]);
       btn.addEventListener('click',function(){
         window.curBed=b[0];
         Array.prototype.forEach.call(bar.children,function(c){c.classList.toggle('active',c===btn);});
@@ -152,8 +152,8 @@ tbody tr:hover{background:#fff8f2}
 
   // trends + per-neighborhood
   var MONTHS=null, rentChart=null, invChart=null, TRENDS=null, NBH=null, GEO=null;
-  window.curBed='all'; var curArea='__cb6';
-  var BEDS=[['studio','Studio'],['br1','1 BR'],['br2','2 BR'],['br3','3+ BR'],['all','Overall']];
+  window.curBed='br1'; var curArea='__cb6';
+  var BEDS=[['studio','Studio'],['br1','1 BR'],['br2','2 BR'],['br3','3+ BR']];
   var GJKEY={studio:'rent_studio',br1:'rent_1br',br2:'rent_2br',br3:'rent_3br',all:'rent_all'};
   function unpack(p){ if(!MONTHS) return []; var out=new Array(MONTHS.length).fill(null); if(!p) return out; for(var i=0;i<p[1].length;i++) out[p[0]+i]=p[1][i]; return out; }
   function mkOpts(fmt,log){return {responsive:true,maintainAspectRatio:true,animation:false,interaction:{mode:'index',intersect:false},
@@ -215,7 +215,14 @@ tbody tr:hover{background:#fff8f2}
       '<br><br><span style="color:#9ca3af;font-size:.72rem;font-family:DM Mono,monospace">All figures computed live from CB6 StreetEasy median asking rent and rental inventory. Correlation uses Pearson\'s r on year-over-year percentage changes.</span>';
   }
 
-  window.applyBed=function(){ if(window.renderGlance) renderGlance(); if(window.renderTable) renderTable(); if(TRENDS) redrawChart(); };
+  window.renderPanelSummaries=function(){
+    var lbl=({studio:'Studio',br1:'1 BR',br2:'2 BR',br3:'3+ BR'})[window.curBed];
+    Array.prototype.forEach.call(document.querySelectorAll('#nbPanels .rt'),function(el){
+      var v=el.getAttribute('data-'+window.curBed);
+      el.innerHTML=(v?money(+v):'n/a')+' <span style="font-weight:400;color:#9ca3af;font-size:.66rem">'+lbl+'</span>';
+    });
+  };
+  window.applyBed=function(){ if(window.renderGlance) renderGlance(); if(window.renderTable) renderTable(); if(window.renderPanelSummaries) renderPanelSummaries(); if(TRENDS) redrawChart(); };
 
   Promise.all([
     fetch('/data/rent-trends-all.json').then(function(r){return r.json();}),
@@ -258,7 +265,7 @@ tbody tr:hover{background:#fff8f2}
     };
     renderGlance();
     var tb=document.querySelector('#nbTable tbody');
-    var COLIDX={studio:1,br1:2,br2:3,br3:4,all:5};
+    var COLIDX={studio:1,br1:2,br2:3,br3:4};
     window.renderTable=function(){
       var hl=COLIDX[window.curBed];
       // header highlight
@@ -269,7 +276,7 @@ tbody tr:hover{background:#fff8f2}
         var asof=p.asof?' <span style="color:#9ca3af;font-weight:400">('+p.asof+')</span>':'';
         function cell(v,col){ var on=col===hl; return '<td'+(on?' style="color:#f47920;font-weight:800"':'')+'>'+money(v)+'</td>'; }
         var signVal=p[signKey];
-        return '<tr><td>'+p.nb+asof+'</td>'+cell(p.rent_studio,1)+cell(p.rent_1br,2)+cell(p.rent_2br,3)+cell(p.rent_3br,4)+cell(p.rent_all,5)+
+        return '<tr><td>'+p.nb+asof+'</td>'+cell(p.rent_studio,1)+cell(p.rent_1br,2)+cell(p.rent_2br,3)+cell(p.rent_3br,4)+
           '<td>'+(function(){var iv=p[INVKEY[window.curBed]];return iv!=null?Number(iv).toLocaleString('en-US'):'n/a';})()+'</td>'+
           '<td>'+(signVal!=null?money(signVal*2):'n/a')+'</td></tr>';
       }).join('');
@@ -280,11 +287,11 @@ tbody tr:hover{background:#fff8f2}
     var wrap=document.getElementById('nbPanels');
     wrap.innerHTML=feats.map(function(p,i){
       var range=(p.range_lo!=null)?money(p.range_lo)+' ('+(p.range_lo_bed||'')+') to '+money(p.range_hi)+' ('+(p.range_hi_bed||'')+')':'n/a';
-      var cells=[['Studio',p.rent_studio],['1 BR',p.rent_1br],['2 BR',p.rent_2br],['3+ BR',p.rent_3br],['Overall',p.rent_all]].map(function(c){
+      var cells=[['Studio',p.rent_studio],['1 BR',p.rent_1br],['2 BR',p.rent_2br],['3+ BR',p.rent_3br]].map(function(c){
         return '<div class="acc-cell"><div class="l">'+c[0]+'</div><div class="v">'+money(c[1])+'</div></div>';
       }).join('');
       return '<div class="acc" data-nb="'+p.nb+'"><button class="acc-h"><span class="nm">'+p.nb+'</span>'+
-        '<span class="rt">'+money(p.rent_all)+'</span><span class="ar">&#9654;</span></button>'+
+        '<span class="rt" data-studio="'+(p.rent_studio||'')+'" data-br1="'+(p.rent_1br||'')+'" data-br2="'+(p.rent_2br||'')+'" data-br3="'+(p.rent_3br||'')+'"></span><span class="ar">&#9654;</span></button>'+
         '<div class="acc-b">'+
           '<div class="acc-grid">'+cells+'</div>'+
           '<div class="acc-meta"><span>Range: <b>'+range+'</b></span>'+
@@ -294,6 +301,7 @@ tbody tr:hover{background:#fff8f2}
         '</div></div>';
     }).join('');
 
+    renderPanelSummaries();
     // accordion behavior + lazy mini chart
     var built={};
     Array.prototype.forEach.call(wrap.querySelectorAll('.acc'),function(acc,i){
