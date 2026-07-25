@@ -53,6 +53,8 @@ tbody tr:hover{background:#fff8f2}
 .cta{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#fff;border:2px solid #132D65;border-bottom:3px solid #f47920;border-radius:10px;text-decoration:none;margin-top:8px}
 .cta .t{font-family:'DM Sans',sans-serif;font-size:.92rem;font-weight:800;color:#132D65}
 .cta .d{font-size:.74rem;color:#555;line-height:1.45;margin-top:2px}
+.bedtab{padding:5px 13px;font-size:.74rem;font-weight:700;border:2px solid #132D65;border-radius:20px;background:#fff;color:#132D65;cursor:pointer;font-family:'DM Sans',sans-serif}
+.bedtab.active{background:#f47920;border-color:#f47920;color:#fff}
 .acc{background:#fff;border:1px solid #e5e2db;border-radius:10px;margin-bottom:8px;overflow:hidden}
 .acc-h{width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fff;border:none;cursor:pointer;text-align:left;font-family:'DM Sans',sans-serif}
 .acc-h:hover{background:#fff8f2}
@@ -78,6 +80,10 @@ tbody tr:hover{background:#fff8f2}
   <div id="asofBanner" style="margin-top:10px;display:inline-block;padding:6px 12px;background:rgba(244,121,32,.15);border:1px solid #f47920;border-radius:6px;font-family:'DM Mono',monospace;font-size:.68rem;color:#fff;font-weight:600">Reflecting rental listings as of &mdash;</div>
 </div>
 <div class="wrap">
+  <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px">
+    <span style="font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700;margin-right:4px">Unit type</span>
+    <div id="bedTabs" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+  </div>
 
   <div class="eyebrow">At a glance</div>
   <div class="h2">CB6 rent today</div>
@@ -123,9 +129,26 @@ tbody tr:hover{background:#fff8f2}
 (function(){
   var money=function(v){return v==null?'n/a':'$'+Number(v).toLocaleString('en-US');};
   var PAGE='cb6';
+  var BEDTABS=[['all','Overall'],['studio','Studio'],['br1','1 BR'],['br2','2 BR'],['br3','3+ BR']];
+  (function(){
+    var bar=document.getElementById('bedTabs');
+    BEDTABS.forEach(function(b){
+      var btn=document.createElement('button');
+      btn.className='bedtab'+(b[0]==='all'?' active':''); btn.textContent=b[1]; btn.setAttribute('data-bed',b[0]);
+      btn.addEventListener('click',function(){
+        window.curBed=b[0];
+        Array.prototype.forEach.call(bar.children,function(c){c.classList.toggle('active',c===btn);});
+        if(window.applyBed) window.applyBed();
+      });
+      bar.appendChild(btn);
+    });
+  })();
 
   // trends + per-neighborhood
-  var MONTHS=null, rentChart=null, invChart=null, TRENDS=null, NBH=null;
+  var MONTHS=null, rentChart=null, invChart=null, TRENDS=null, NBH=null, GEO=null;
+  window.curBed='all'; var curArea='__cb6';
+  var BEDS=[['studio','Studio'],['br1','1 BR'],['br2','2 BR'],['br3','3+ BR'],['all','Overall']];
+  var GJKEY={studio:'rent_studio',br1:'rent_1br',br2:'rent_2br',br3:'rent_3br',all:'rent_all'};
   function unpack(p){ if(!MONTHS) return []; var out=new Array(MONTHS.length).fill(null); if(!p) return out; for(var i=0;i<p[1].length;i++) out[p[0]+i]=p[1][i]; return out; }
   function mkOpts(fmt,log){return {responsive:true,maintainAspectRatio:true,animation:false,interaction:{mode:'index',intersect:false},
     plugins:{legend:{display:false},tooltip:{callbacks:{title:function(it){return MONTHS[it[0].dataIndex];},label:function(c){return c.dataset.label+': '+(log?Number(c.parsed.y).toLocaleString('en-US'):money(c.parsed.y));}}}},
@@ -134,23 +157,26 @@ tbody tr:hover{background:#fff8f2}
 
   function drawCB6(){
     var p=TRENDS.pages[PAGE], cmpColors=['#132D65','#9ca3af'];
-    function series(kind){
-      var ds=[{label:p.title,data:p[kind==='rent'?'self':'selfinv'],borderColor:'#f47920',borderWidth:2.4,tension:.25,spanGaps:true,pointRadius:0}];
-      p.cmp.forEach(function(c,i){ ds.push({label:c.label,data:c[kind],borderColor:cmpColors[i]||'#9ca3af',borderWidth:1.6,borderDash:i?[4,3]:[],tension:.25,spanGaps:true,pointRadius:0}); });
-      return ds;
-    }
+    var rentDs=[{label:p.title,data:p.self[window.curBed],borderColor:'#f47920',borderWidth:2.4,tension:.25,spanGaps:true,pointRadius:0}];
+    p.cmp.forEach(function(c,i){ rentDs.push({label:c.label,data:c.rent[window.curBed],borderColor:cmpColors[i]||'#9ca3af',borderWidth:1.6,borderDash:i?[4,3]:[],tension:.25,spanGaps:true,pointRadius:0}); });
+    var invDs=[{label:p.title,data:p.selfinv,borderColor:'#f47920',borderWidth:2.4,tension:.25,spanGaps:true,pointRadius:0}];
+    p.cmp.forEach(function(c,i){ invDs.push({label:c.label,data:c.inv,borderColor:cmpColors[i]||'#9ca3af',borderWidth:1.6,borderDash:i?[4,3]:[],tension:.25,spanGaps:true,pointRadius:0}); });
     if(rentChart) rentChart.destroy(); if(invChart) invChart.destroy();
-    rentChart=new Chart(document.getElementById('rentChart'),{type:'line',data:{labels:MONTHS,datasets:series('rent')},options:mkOpts(function(v){return '$'+(v/1000).toFixed(1)+'k';},false)});
-    invChart=new Chart(document.getElementById('invChart'),{type:'line',data:{labels:MONTHS,datasets:series('inv')},options:mkOpts(function(v){return v>=1000?(v/1000)+'k':v;},true)});
+    rentChart=new Chart(document.getElementById('rentChart'),{type:'line',data:{labels:MONTHS,datasets:rentDs},options:mkOpts(function(v){return '$'+(v/1000).toFixed(1)+'k';},false)});
+    invChart=new Chart(document.getElementById('invChart'),{type:'line',data:{labels:MONTHS,datasets:invDs},options:mkOpts(function(v){return v>=1000?(v/1000)+'k':v;},true)});
     document.getElementById('chartLegend').innerHTML='<span class="legend"><span><i style="background:#f47920"></i>CB6</span><span><i style="background:#132D65"></i>Brooklyn</span><span><i style="background:#9ca3af"></i>NYC</span></span>';
   }
   function drawNbhd(name){
     var n=NBH.nbhds[name]; if(!n) return;
+    var NBBED={studio:'studio',br1:'br1',br2:'br2',br3:'br3',all:'rent'};
+    var rentSeries=unpack(n[NBBED[window.curBed]]);
     if(rentChart) rentChart.destroy(); if(invChart) invChart.destroy();
-    rentChart=new Chart(document.getElementById('rentChart'),{type:'line',data:{labels:MONTHS,datasets:[{label:name,data:unpack(n.rent),borderColor:'#f47920',borderWidth:2.4,tension:.25,spanGaps:true,pointRadius:0}]},options:mkOpts(function(v){return '$'+(v/1000).toFixed(1)+'k';},false)});
+    rentChart=new Chart(document.getElementById('rentChart'),{type:'line',data:{labels:MONTHS,datasets:[{label:name,data:rentSeries,borderColor:'#f47920',borderWidth:2.4,tension:.25,spanGaps:true,pointRadius:0}]},options:mkOpts(function(v){return '$'+(v/1000).toFixed(1)+'k';},false)});
     invChart=new Chart(document.getElementById('invChart'),{type:'line',data:{labels:MONTHS,datasets:[{label:name,data:unpack(n.inv),borderColor:'#f47920',borderWidth:2.4,tension:.25,spanGaps:true,pointRadius:0}]},options:mkOpts(function(v){return v>=1000?(v/1000)+'k':v;},true)});
     document.getElementById('chartLegend').innerHTML='<span class="legend"><span><i style="background:#f47920"></i>'+name+'</span></span>';
   }
+  function redrawChart(){ if(curArea==='__cb6') drawCB6(); else drawNbhd(curArea); }
+  window.applyBed=function(){ if(window.renderGlance) renderGlance(); if(window.renderTable) renderTable(); if(TRENDS) redrawChart(); };
 
   Promise.all([
     fetch('/data/rent-trends-all.json').then(function(r){return r.json();}),
@@ -164,7 +190,7 @@ tbody tr:hover{background:#fff8f2}
     Array.prototype.forEach.call(document.querySelectorAll('#nbPanels .acc.open'),function(acc){ acc.querySelector('.acc-h').click(); acc.querySelector('.acc-h').click(); });
     var sel=document.getElementById('nbSelect');
     Object.keys(NBH.nbhds).forEach(function(nm){ var o=document.createElement('option'); o.value=nm; o.textContent=nm; sel.appendChild(o); });
-    sel.addEventListener('change',function(){ if(this.value==='__cb6') drawCB6(); else drawNbhd(this.value); });
+    sel.addEventListener('change',function(){ curArea=this.value; redrawChart(); });
   });
 
   // neighborhood glance cards + table
@@ -172,24 +198,42 @@ tbody tr:hover{background:#fff8f2}
     var feats=g.features.filter(function(f){return f.properties.cd==='BKCB6';})
       .map(function(f){return f.properties;})
       .sort(function(a,b){return (b.rent_all||0)-(a.rent_all||0);});
-    var withRent=feats.filter(function(p){return p.rent_all!=null;});
-    var rents=withRent.map(function(p){return p.rent_all;});
-    var lo=Math.min.apply(null,rents), hi=Math.max.apply(null,rents);
-    var loN=withRent.filter(function(p){return p.rent_all===lo;})[0];
-    var hiN=withRent.filter(function(p){return p.rent_all===hi;})[0];
-    var totalInv=withRent.reduce(function(t,p){return t+(p.inv||0);},0);
-    var med=rents.slice().sort(function(a,b){return a-b;});
-    var mid=med.length%2?med[(med.length-1)/2]:Math.round((med[med.length/2-1]+med[med.length/2])/2);
-    document.getElementById('glance').innerHTML=
-      '<div class="card"><div class="l">CB6 median</div><div class="v">'+money(mid)+'</div><div class="s">overall median</div></div>'+
-      '<div class="card"><div class="l">Least expensive</div><div class="v">'+money(lo)+'</div><div class="s">'+(loN?loN.nb:'')+'</div></div>'+
-      '<div class="card"><div class="l">Most expensive</div><div class="v">'+money(hi)+'</div><div class="s">'+(hiN?hiN.nb:'')+'</div></div>'+
-      '<div class="card"><div class="l">Listings now</div><div class="v">'+totalInv.toLocaleString('en-US')+'</div><div class="s">across CB6</div></div>'+'<div class="card navy"><div class="l">Move-in (median)</div><div class="v">'+money(mid*2)+'</div><div class="s">1st mo + 1mo deposit</div></div>';
+    var totalInv=feats.reduce(function(t,p){return t+(p.inv||0);},0);
+    window.renderGlance=function(){
+      var key=GJKEY[window.curBed], lbl=BEDS.filter(function(b){return b[0]===window.curBed;})[0][1];
+      var wr=feats.filter(function(p){return p[key]!=null;});
+      if(!wr.length){ document.getElementById('glance').innerHTML='<div class="card"><div class="l">'+lbl+'</div><div class="v">n/a</div></div>'; return; }
+      var rents=wr.map(function(p){return p[key];});
+      var lo=Math.min.apply(null,rents), hi=Math.max.apply(null,rents);
+      var loN=wr.filter(function(p){return p[key]===lo;})[0], hiN=wr.filter(function(p){return p[key]===hi;})[0];
+      var srt=rents.slice().sort(function(a,b){return a-b;});
+      var mid=srt.length%2?srt[(srt.length-1)/2]:Math.round((srt[srt.length/2-1]+srt[srt.length/2])/2);
+      document.getElementById('glance').innerHTML=
+        '<div class="card"><div class="l">CB6 median</div><div class="v">'+money(mid)+'</div><div class="s">'+lbl+'</div></div>'+
+        '<div class="card"><div class="l">Least expensive</div><div class="v">'+money(lo)+'</div><div class="s">'+(loN?loN.nb:'')+'</div></div>'+
+        '<div class="card"><div class="l">Most expensive</div><div class="v">'+money(hi)+'</div><div class="s">'+(hiN?hiN.nb:'')+'</div></div>'+
+        '<div class="card"><div class="l">Listings now</div><div class="v">'+totalInv.toLocaleString('en-US')+'</div><div class="s">across CB6</div></div>'+
+        '<div class="card navy"><div class="l">Move-in ('+lbl+')</div><div class="v">'+money(mid*2)+'</div><div class="s">1st mo + 1mo deposit</div></div>';
+    };
+    renderGlance();
     var tb=document.querySelector('#nbTable tbody');
-    tb.innerHTML=feats.map(function(p){
-      var asof=p.asof?' <span style="color:#9ca3af;font-weight:400">('+p.asof+')</span>':'';
-      return '<tr><td>'+p.nb+asof+'</td><td>'+money(p.rent_studio)+'</td><td>'+money(p.rent_1br)+'</td><td>'+money(p.rent_2br)+'</td><td>'+money(p.rent_3br)+'</td><td>'+money(p.rent_all)+'</td><td>'+(p.inv!=null?Number(p.inv).toLocaleString('en-US'):'n/a')+'</td><td>'+(p.rent_all!=null?money(p.rent_all*2):'n/a')+'</td></tr>';
-    }).join('');
+    var COLIDX={studio:1,br1:2,br2:3,br3:4,all:5};
+    window.renderTable=function(){
+      var hl=COLIDX[window.curBed];
+      // header highlight
+      var ths=document.querySelectorAll('#nbTable thead th');
+      Array.prototype.forEach.call(ths,function(th,idx){ th.style.color = (idx===hl)?'#f47920':''; });
+      var signKey=GJKEY[window.curBed];
+      tb.innerHTML=feats.map(function(p){
+        var asof=p.asof?' <span style="color:#9ca3af;font-weight:400">('+p.asof+')</span>':'';
+        function cell(v,col){ var on=col===hl; return '<td'+(on?' style="color:#f47920;font-weight:800"':'')+'>'+money(v)+'</td>'; }
+        var signVal=p[signKey];
+        return '<tr><td>'+p.nb+asof+'</td>'+cell(p.rent_studio,1)+cell(p.rent_1br,2)+cell(p.rent_2br,3)+cell(p.rent_3br,4)+cell(p.rent_all,5)+
+          '<td>'+(p.inv!=null?Number(p.inv).toLocaleString('en-US'):'n/a')+'</td>'+
+          '<td>'+(signVal!=null?money(signVal*2):'n/a')+'</td></tr>';
+      }).join('');
+    };
+    renderTable();
 
     // expandable detail panels
     var wrap=document.getElementById('nbPanels');
