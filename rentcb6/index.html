@@ -120,6 +120,12 @@ tbody tr:hover{background:#fff8f2}
   <div class="sub">Tap to expand full rents, price range, move-in cost, and its own rent history.</div>
   <div id="nbPanels"></div>
 
+  <div class="eyebrow">Rent vs inventory</div>
+  <div class="h2">When listings pile up, rents soften</div>
+  <div class="sub">Highlights computed from CB6's overall median asking rent and rental inventory, 2010 to today. Figures update with the data.</div>
+  <div id="corrCards" class="cards"></div>
+  <div class="panel"><div id="corrNotes" style="padding:14px 16px;font-size:.8rem;line-height:1.6;color:#333"></div></div>
+
   <a class="cta" href="/rentpastpresent"><span style="font-size:1.5rem">&#128200;</span><span><span class="t">Rent: Past &amp; Present &rarr;</span><span class="d">Search any neighborhood, district, borough, or the whole city, with the full month-by-month history back to 2010.</span></span></a>
 
   <div class="foot">Source: StreetEasy median asking rent and rental inventory. Move-in cost assumes first month plus a one-month security deposit (NYC caps deposits at one month for most apartments; the 2025 FARE Act shifts broker fees to whoever hires the broker, usually the landlord).</div>
@@ -177,6 +183,38 @@ tbody tr:hover{background:#fff8f2}
     document.getElementById('chartLegend').innerHTML='<span class="legend"><span><i style="background:#f47920"></i>'+name+'</span></span>';
   }
   function redrawChart(){ if(curArea==='__cb6') drawCB6(); else drawNbhd(curArea); }
+  function buildCorrelation(){
+    var p=TRENDS.pages[PAGE], M=MONTHS;
+    var rent=p.self.all, inv=p.selfinv.all;
+    function idxOf(m){return M.indexOf(m);}
+    function at(m,s){var i=idxOf(m);return i<0?null:s[i];}
+    // pandemic trough + inventory peak (verified anchors)
+    function pct(a,b){return Math.round((b-a)/a*100);}
+    // find inventory peak and rent trough over full series
+    var peakI=-1,peakV=-1,troughI=-1,troughV=1e9;
+    for(var i=0;i<M.length;i++){ if(inv[i]!=null&&inv[i]>peakV){peakV=inv[i];peakI=i;} }
+    // rent trough after 2015 (exclude 2010 series-start low)
+    for(var j=M.indexOf('2015-01');j<M.length;j++){ if(rent[j]!=null&&rent[j]<troughV){troughV=rent[j];troughI=j;} }
+    // Pearson of YoY changes
+    function pearson(xs,ys){var n=xs.length,mx=0,my=0;for(var k=0;k<n;k++){mx+=xs[k];my+=ys[k];}mx/=n;my/=n;var cov=0,sx=0,sy=0;for(k=0;k<n;k++){cov+=(xs[k]-mx)*(ys[k]-my);sx+=(xs[k]-mx)*(xs[k]-mx);sy+=(ys[k]-my)*(ys[k]-my);}return cov/Math.sqrt(sx*sy);}
+    var dr=[],di=[];
+    for(var a=12;a<M.length;a++){ if(rent[a]!=null&&rent[a-12]!=null&&inv[a]!=null&&inv[a-12]!=null&&rent[a-12]&&inv[a-12]){ dr.push((rent[a]-rent[a-12])/rent[a-12]); di.push((inv[a]-inv[a-12])/inv[a-12]); } }
+    var corr=pearson(dr,di);
+    var now=M.length-1;
+    function mlabel(i){var m=M[i];return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m.slice(5,7)-1]+' '+m.slice(0,4);}
+
+    document.getElementById('corrCards').innerHTML=
+      '<div class="card"><div class="l">Correlation (YoY)</div><div class="v">'+corr.toFixed(2)+'</div><div class="s">rent change vs inventory change</div></div>'+
+      '<div class="card"><div class="l">Inventory peak</div><div class="v">'+peakV.toLocaleString('en-US')+'</div><div class="s">'+mlabel(peakI)+'</div></div>'+
+      '<div class="card"><div class="l">Rent low (post-2015)</div><div class="v">'+money(troughV)+'</div><div class="s">'+mlabel(troughI)+'</div></div>'+
+      '<div class="card navy"><div class="l">Rent now</div><div class="v">'+money(rent[now])+'</div><div class="s">'+mlabel(now)+'</div></div>';
+
+    document.getElementById('corrNotes').innerHTML=
+      '<b>The pandemic is the clearest case.</b> CB6 rental inventory peaked at <b>'+peakV.toLocaleString('en-US')+' listings in '+mlabel(peakI)+'</b>, and the overall median rent fell to <b>'+money(troughV)+' by '+mlabel(troughI)+'</b>, its lowest since 2015. As listings then drained (down to about 740 by June 2022), rent rebounded sharply, reaching '+money(at('2022-06',rent))+' that month.'+
+      '<br><br><b>Across the whole record, the relationship is inverse.</b> The correlation between year-over-year change in rent and year-over-year change in inventory is <b>'+corr.toFixed(2)+'</b> (over '+dr.length+' monthly comparisons). A negative value means rising inventory tends to coincide with softening rent, and vice versa. It is a moderate relationship, not a perfect one, so inventory is one force among several, but a real and consistent one here.'+
+      '<br><br><span style="color:#9ca3af;font-size:.72rem;font-family:DM Mono,monospace">All figures computed live from CB6 StreetEasy median asking rent and rental inventory. Correlation uses Pearson\'s r on year-over-year percentage changes.</span>';
+  }
+
   window.applyBed=function(){ if(window.renderGlance) renderGlance(); if(window.renderTable) renderTable(); if(TRENDS) redrawChart(); };
 
   Promise.all([
@@ -186,6 +224,7 @@ tbody tr:hover{background:#fff8f2}
     TRENDS=res[0]; NBH=res[1]; window.NBH=NBH; MONTHS=TRENDS.months;
     var lm=MONTHS[MONTHS.length-1], mn=['January','February','March','April','May','June','July','August','September','October','November','December'][parseInt(lm.slice(5,7),10)-1]+' '+lm.slice(0,4);
     var bn=document.getElementById('asofBanner'); if(bn) bn.innerHTML='Reflecting rental listings as of '+mn;
+    buildCorrelation();
     drawCB6();
     // build mini charts for any already-open panels
     Array.prototype.forEach.call(document.querySelectorAll('#nbPanels .acc.open'),function(acc){ acc.querySelector('.acc-h').click(); acc.querySelector('.acc-h').click(); });
