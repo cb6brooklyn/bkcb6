@@ -101,15 +101,24 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
     attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
 
-  function tiers(vals){
+  // distinct color ramp, cheapest -> priciest, one clear color per rank
+  var RAMP=['#2166AC','#4393C3','#92C5DE','#F4A582','#D6604D','#B2182B'];
+  function makeColor(vals){
     var s=vals.slice().sort(function(a,b){return a-b;});
-    return function(v){ if(v==null) return '#ccc';
-      var q=0; for(var i=0;i<s.length;i++){ if(v>=s[i]) q=Math.min(Math.floor(i/s.length*5),4); }
-      // rank-based: position in sorted list
-      var idx=s.indexOf(v); var t=Math.min(Math.floor(idx/s.length*5),4); return COLORS[t+1]; };
+    return function(v){
+      if(v==null) return '#cccccc';
+      // rank position 0..1 across the sorted distinct values
+      var uniq=s.filter(function(x,i){return s.indexOf(x)===i;});
+      var r=uniq.indexOf(v); if(r<0){ // nearest
+        r=0; for(var i=0;i<uniq.length;i++){ if(v>=uniq[i]) r=i; }
+      }
+      var frac = uniq.length>1 ? r/(uniq.length-1) : 0;
+      var ci = Math.round(frac*(RAMP.length-1));
+      return RAMP[ci];
+    };
   }
   var colorFor=null;
-  function rebuildColors(){ colorFor=tiers(DATA.features.map(function(f){return f.properties['rent_'+bed];}).filter(function(v){return v!=null;})); }
+  function rebuildColors(){ colorFor=makeColor(DATA.features.map(function(f){return f.properties['rent_'+bed];}).filter(function(v){return v!=null;})); }
   function labelFor(p){ var v=p['rent_'+bed]; return '<span class="nl-n">'+p.nb+'</span><br><span class="nl-r">'+(p.no_data?'no data':money(v))+'</span>'; }
   function relabelAll(){ if(!layer) return; layer.eachLayer(function(l){ var tt=l.getTooltip(); if(tt) l.setTooltipContent(labelFor(l.feature.properties)); }); }
   function buildLegend(){
@@ -118,7 +127,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
     var lo=vals[0], hi=vals[vals.length-1];
     var lbl=({studio:'Studio',br1:'1 BR','1br':'1 BR',br2:'2 BR','2br':'2 BR',br3:'3+ BR','3br':'3+ BR'})[bed]||bed;
     var swatches='';
-    for(var i=1;i<COLORS.length;i++){ swatches+='<span style="display:inline-block;width:16px;height:11px;background:'+COLORS[i]+'"></span>'; }
+    for(var i=0;i<RAMP.length;i++){ swatches+='<span style="display:inline-block;width:16px;height:11px;background:'+RAMP[i]+'"></span>'; }
     var el=$('legend'); if(el) el.innerHTML='<span style="font-family:DM Mono,monospace;font-size:.6rem;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.06em">'+lbl+' rent</span> '+
       '<span style="font-family:DM Mono,monospace;font-size:.66rem;color:#fff">'+money(lo)+'</span>'+swatches+'<span style="font-family:DM Mono,monospace;font-size:.66rem;color:#fff">'+money(hi)+'</span>';
   }
@@ -126,7 +135,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
   function styleFor(f){
     var v=f.properties['rent_'+bed];
     if(f.properties.no_data) return {color:'#9ca3af',weight:1.5,fillColor:'#d9d9d9',fillOpacity:.5,dashArray:'4,3'};
-    return {color:'#0d1b4b',weight:1.5,fillColor:colorFor(v),fillOpacity:.72};
+    return {color:'#ffffff',weight:2,fillColor:colorFor(v),fillOpacity:.85};
   }
 
   function selectNbhd(name){
