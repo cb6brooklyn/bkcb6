@@ -53,6 +53,21 @@ tbody tr:hover{background:#fff8f2}
 .cta{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#fff;border:2px solid #132D65;border-bottom:3px solid #f47920;border-radius:10px;text-decoration:none;margin-top:8px}
 .cta .t{font-family:'DM Sans',sans-serif;font-size:.92rem;font-weight:800;color:#132D65}
 .cta .d{font-size:.74rem;color:#555;line-height:1.45;margin-top:2px}
+.acc{background:#fff;border:1px solid #e5e2db;border-radius:10px;margin-bottom:8px;overflow:hidden}
+.acc-h{width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fff;border:none;cursor:pointer;text-align:left;font-family:'DM Sans',sans-serif}
+.acc-h:hover{background:#fff8f2}
+.acc-h .nm{font-size:.9rem;font-weight:800;color:#132D65}
+.acc-h .rt{margin-left:auto;font-family:'DM Mono',monospace;font-size:.82rem;font-weight:700;color:#f47920}
+.acc-h .ar{font-family:'DM Mono',monospace;color:#9ca3af;transition:transform .15s}
+.acc.open .acc-h .ar{transform:rotate(90deg)}
+.acc-b{display:none;padding:0 14px 14px;border-top:1px solid #f0ede8}
+.acc.open .acc-b{display:block}
+.acc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:1px;background:#e5e2db;border-radius:8px;overflow:hidden;margin:12px 0}
+.acc-cell{background:#fff;padding:8px 9px}
+.acc-cell .l{font-size:.52rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#6b6760}
+.acc-cell .v{font-size:.86rem;font-weight:800;color:#132D65;font-family:'DM Mono',monospace;margin-top:2px}
+.acc-meta{display:flex;flex-wrap:wrap;gap:14px;font-size:.72rem;color:#555;margin-bottom:8px}
+.acc-meta b{color:#132D65;font-family:'DM Mono',monospace}
 </style>
 </head>
 <body>
@@ -77,8 +92,7 @@ tbody tr:hover{background:#fff8f2}
   <div class="h2">CB6 vs Brooklyn vs NYC, 2010 to today</div>
   <div class="sub">Median asking rent and rental listings on the market each month.</div>
   <div class="panel">
-    <div class="panel-h"><span class="t">Median asking rent</span>
-      <span class="legend"><span><i style="background:#f47920"></i>CB6</span><span><i style="background:#132D65"></i>Brooklyn</span><span><i style="background:#9ca3af"></i>NYC</span></span></div>
+    <div class="panel-h"><span class="t">Median asking rent</span><select id="nbSelect" style="margin-left:auto;padding:6px 9px;font-family:'DM Sans',sans-serif;font-size:.74rem;border:2px solid #132D65;border-radius:7px;color:#132D65;font-weight:600;background:#fff"><option value="__cb6">All of CB6 (vs Brooklyn &amp; NYC)</option></select></div><div class="panel-h" id="chartLegend"><span class="legend"><span><i style="background:#f47920"></i>CB6</span><span><i style="background:#132D65"></i>Brooklyn</span><span><i style="background:#9ca3af"></i>NYC</span></span></div>
     <div class="chart-wrap"><canvas id="rentChart" height="200"></canvas></div>
   </div>
   <div class="panel">
@@ -94,6 +108,11 @@ tbody tr:hover{background:#fff8f2}
     <tbody></tbody>
   </table></div></div>
 
+  <div class="eyebrow">Neighborhood detail</div>
+  <div class="h2">Open any neighborhood</div>
+  <div class="sub">Tap to expand full rents, price range, move-in cost, and its own rent history.</div>
+  <div id="nbPanels"></div>
+
   <a class="cta" href="/rentpastpresent"><span style="font-size:1.5rem">&#128200;</span><span><span class="t">Rent: Past &amp; Present &rarr;</span><span class="d">Search any neighborhood, district, borough, or the whole city, with the full month-by-month history back to 2010.</span></span></a>
 
   <div class="foot">Source: StreetEasy median asking rent and rental inventory. Move-in cost assumes first month plus a one-month security deposit (NYC caps deposits at one month for most apartments; the 2025 FARE Act shifts broker fees to whoever hires the broker, usually the landlord).</div>
@@ -104,21 +123,45 @@ tbody tr:hover{background:#fff8f2}
   var money=function(v){return v==null?'n/a':'$'+Number(v).toLocaleString('en-US');};
   var PAGE='cb6';
 
-  // trends
-  fetch('/data/rent-trends-all.json').then(function(r){return r.json();}).then(function(D){
-    var M=D.months, p=D.pages[PAGE];
-    var mkOpts=function(fmt,log){return {responsive:true,maintainAspectRatio:true,animation:false,interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:false},tooltip:{callbacks:{title:function(it){return M[it[0].dataIndex];},label:function(c){return c.dataset.label+': '+(log?Number(c.parsed.y).toLocaleString('en-US'):money(c.parsed.y));}}}},
-      scales:{x:{ticks:{maxTicksLimit:10,font:{size:9,family:'DM Mono'},color:'#9ca3af',callback:function(v){var s=M[v]||'';return s.slice(5)==='01'?s.slice(0,4):'';}},grid:{display:false}},
-        y:Object.assign({ticks:{font:{size:9,family:'DM Mono'},color:'#9ca3af',callback:fmt},grid:{color:'#f0ede8'}}, log?{type:'logarithmic'}:{})}};};
-    var cmpColors=['#132D65','#9ca3af'];
+  // trends + per-neighborhood
+  var MONTHS=null, rentChart=null, invChart=null, TRENDS=null, NBH=null;
+  function unpack(p){ if(!MONTHS) return []; var out=new Array(MONTHS.length).fill(null); if(!p) return out; for(var i=0;i<p[1].length;i++) out[p[0]+i]=p[1][i]; return out; }
+  function mkOpts(fmt,log){return {responsive:true,maintainAspectRatio:true,animation:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:false},tooltip:{callbacks:{title:function(it){return MONTHS[it[0].dataIndex];},label:function(c){return c.dataset.label+': '+(log?Number(c.parsed.y).toLocaleString('en-US'):money(c.parsed.y));}}}},
+    scales:{x:{ticks:{maxTicksLimit:10,font:{size:9,family:'DM Mono'},color:'#9ca3af',callback:function(v){var s=MONTHS[v]||'';return s.slice(5)==='01'?s.slice(0,4):'';}},grid:{display:false}},
+      y:Object.assign({ticks:{font:{size:9,family:'DM Mono'},color:'#9ca3af',callback:fmt},grid:{color:'#f0ede8'}}, log?{type:'logarithmic'}:{})}};}
+
+  function drawCB6(){
+    var p=TRENDS.pages[PAGE], cmpColors=['#132D65','#9ca3af'];
     function series(kind){
       var ds=[{label:p.title,data:p[kind==='rent'?'self':'selfinv'],borderColor:'#f47920',borderWidth:2.4,tension:.25,spanGaps:true,pointRadius:0}];
       p.cmp.forEach(function(c,i){ ds.push({label:c.label,data:c[kind],borderColor:cmpColors[i]||'#9ca3af',borderWidth:1.6,borderDash:i?[4,3]:[],tension:.25,spanGaps:true,pointRadius:0}); });
       return ds;
     }
-    new Chart(document.getElementById('rentChart'),{type:'line',data:{labels:M,datasets:series('rent')},options:mkOpts(function(v){return '$'+(v/1000).toFixed(1)+'k';},false)});
-    new Chart(document.getElementById('invChart'),{type:'line',data:{labels:M,datasets:series('inv')},options:mkOpts(function(v){return v>=1000?(v/1000)+'k':v;},true)});
+    if(rentChart) rentChart.destroy(); if(invChart) invChart.destroy();
+    rentChart=new Chart(document.getElementById('rentChart'),{type:'line',data:{labels:MONTHS,datasets:series('rent')},options:mkOpts(function(v){return '$'+(v/1000).toFixed(1)+'k';},false)});
+    invChart=new Chart(document.getElementById('invChart'),{type:'line',data:{labels:MONTHS,datasets:series('inv')},options:mkOpts(function(v){return v>=1000?(v/1000)+'k':v;},true)});
+    document.getElementById('chartLegend').innerHTML='<span class="legend"><span><i style="background:#f47920"></i>CB6</span><span><i style="background:#132D65"></i>Brooklyn</span><span><i style="background:#9ca3af"></i>NYC</span></span>';
+  }
+  function drawNbhd(name){
+    var n=NBH.nbhds[name]; if(!n) return;
+    if(rentChart) rentChart.destroy(); if(invChart) invChart.destroy();
+    rentChart=new Chart(document.getElementById('rentChart'),{type:'line',data:{labels:MONTHS,datasets:[{label:name,data:unpack(n.rent),borderColor:'#f47920',borderWidth:2.4,tension:.25,spanGaps:true,pointRadius:0}]},options:mkOpts(function(v){return '$'+(v/1000).toFixed(1)+'k';},false)});
+    invChart=new Chart(document.getElementById('invChart'),{type:'line',data:{labels:MONTHS,datasets:[{label:name,data:unpack(n.inv),borderColor:'#f47920',borderWidth:2.4,tension:.25,spanGaps:true,pointRadius:0}]},options:mkOpts(function(v){return v>=1000?(v/1000)+'k':v;},true)});
+    document.getElementById('chartLegend').innerHTML='<span class="legend"><span><i style="background:#f47920"></i>'+name+'</span></span>';
+  }
+
+  Promise.all([
+    fetch('/data/rent-trends-all.json').then(function(r){return r.json();}),
+    fetch('/data/cb6-nbhd-history.json').then(function(r){return r.json();})
+  ]).then(function(res){
+    TRENDS=res[0]; NBH=res[1]; window.NBH=NBH; MONTHS=TRENDS.months;
+    drawCB6();
+    // build mini charts for any already-open panels
+    Array.prototype.forEach.call(document.querySelectorAll('#nbPanels .acc.open'),function(acc){ acc.querySelector('.acc-h').click(); acc.querySelector('.acc-h').click(); });
+    var sel=document.getElementById('nbSelect');
+    Object.keys(NBH.nbhds).forEach(function(nm){ var o=document.createElement('option'); o.value=nm; o.textContent=nm; sel.appendChild(o); });
+    sel.addEventListener('change',function(){ if(this.value==='__cb6') drawCB6(); else drawNbhd(this.value); });
   });
 
   // neighborhood glance cards + table
@@ -144,6 +187,46 @@ tbody tr:hover{background:#fff8f2}
       var asof=p.asof?' <span style="color:#9ca3af;font-weight:400">('+p.asof+')</span>':'';
       return '<tr><td>'+p.nb+asof+'</td><td>'+money(p.rent_studio)+'</td><td>'+money(p.rent_1br)+'</td><td>'+money(p.rent_2br)+'</td><td>'+money(p.rent_3br)+'</td><td>'+money(p.rent_all)+'</td><td>'+(p.inv!=null?Number(p.inv).toLocaleString('en-US'):'n/a')+'</td><td>'+(p.rent_all!=null?money(p.rent_all*2):'n/a')+'</td></tr>';
     }).join('');
+
+    // expandable detail panels
+    var wrap=document.getElementById('nbPanels');
+    wrap.innerHTML=feats.map(function(p,i){
+      var range=(p.range_lo!=null)?money(p.range_lo)+' ('+(p.range_lo_bed||'')+') to '+money(p.range_hi)+' ('+(p.range_hi_bed||'')+')':'n/a';
+      var cells=[['Studio',p.rent_studio],['1 BR',p.rent_1br],['2 BR',p.rent_2br],['3+ BR',p.rent_3br],['All',p.rent_all]].map(function(c){
+        return '<div class="acc-cell"><div class="l">'+c[0]+'</div><div class="v">'+money(c[1])+'</div></div>';
+      }).join('');
+      return '<div class="acc" data-nb="'+p.nb+'"><button class="acc-h"><span class="nm">'+p.nb+'</span>'+
+        '<span class="rt">'+money(p.rent_all)+'</span><span class="ar">&#9654;</span></button>'+
+        '<div class="acc-b">'+
+          '<div class="acc-grid">'+cells+'</div>'+
+          '<div class="acc-meta"><span>Range: <b>'+range+'</b></span>'+
+            '<span>Move-in: <b>'+(p.rent_all!=null?money(p.rent_all*2):'n/a')+'</b></span>'+
+            '<span>Listings: <b>'+(p.inv!=null?Number(p.inv).toLocaleString('en-US'):'n/a')+'</b></span></div>'+
+          '<canvas id="mini-'+i+'" height="90"></canvas>'+
+        '</div></div>';
+    }).join('');
+
+    // accordion behavior + lazy mini chart
+    var built={};
+    Array.prototype.forEach.call(wrap.querySelectorAll('.acc'),function(acc,i){
+      var head=acc.querySelector('.acc-h');
+      head.addEventListener('click',function(){
+        var isOpen=acc.classList.contains('open');
+        acc.classList.toggle('open');
+        if(!isOpen && !built[i] && window.NBH && MONTHS){
+          var name=acc.getAttribute('data-nb');
+          var n=NBH.nbhds[name];
+          if(n){
+            built[i]=true;
+            new Chart(document.getElementById('mini-'+i),{type:'line',
+              data:{labels:MONTHS,datasets:[{label:name,data:unpack(n.rent),borderColor:'#f47920',borderWidth:2,tension:.25,spanGaps:true,pointRadius:0}]},
+              options:{responsive:true,maintainAspectRatio:true,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:function(it){return MONTHS[it[0].dataIndex];},label:function(c){return money(c.parsed.y);}}}},
+                scales:{x:{ticks:{maxTicksLimit:8,font:{size:8,family:'DM Mono'},color:'#bbb',callback:function(v){var t=MONTHS[v]||'';return t.slice(5)==='01'&&t.slice(2,4)%5==0?t.slice(0,4):'';}},grid:{display:false}},
+                  y:{ticks:{font:{size:8,family:'DM Mono'},color:'#bbb',callback:function(v){return '$'+(v/1000).toFixed(0)+'k';}},grid:{color:'#f5f3ef'}}}}});
+          }
+        }
+      });
+    });
   });
 })();
 </script>
