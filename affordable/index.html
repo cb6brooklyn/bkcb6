@@ -73,6 +73,11 @@ select:focus,input:focus{outline:none;border-color:#f47920}
 .sumcell .sv{font-size:1.15rem;font-weight:900;font-family:'DM Mono',monospace;color:#132D65;margin-top:3px;line-height:1}
 .sumcell.lead .sv{color:#fff;font-size:1.5rem}
 .sumcell .ss{font-size:.58rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.55);margin-top:3px}
+.lot-match{font-size:.58rem;font-family:'DM Mono',monospace;background:#2e6b30;color:#fff;padding:2px 7px;border-radius:4px;font-weight:700}
+.lot-match.none{background:#e9e7e2;color:#6b6760}
+.tag.ami.hit{background:#dff0df;color:#1e5a20;font-weight:700;box-shadow:inset 0 0 0 1px #82C341}
+.tag.ami.miss{background:#f4f2ee;color:#a8a49c}
+.sumcell.lead.match{background:#2e6b30}
 .lot{padding:13px 15px;border-bottom:1px solid #f0ede8}
 .lot:last-child{border-bottom:none}
 .lot.cb6{background:#fffaf5;border-left:3px solid #f47920}
@@ -120,6 +125,14 @@ select:focus,input:focus{outline:none;border-color:#f47920}
 
   <div class="disc"><b>Only two things decide eligibility: headcount and total counted income.</b> Who earns it does not matter. Two adults earning $30,000 each and one adult earning $60,000 with a baby are the same household to HPD: 2 people, $60,000. Both qualify from the same AMI band. But that same $60,000 with only one person in the household qualifies from a higher band, because the limits rise with household size.<br><br>Everyone who will live in the unit counts toward headcount, including infants, children, and dependents with no income. Income counted is generally the gross (pre-tax) income of household members 18 and over.<br><br>AMI is set each year by the federal government (HUD) for the whole New York metro area, so it can be higher than the actual median in many neighborhoods. Figures here are the NYC HPD 2025 chart. A household usually must fall <b>between</b> a unit's minimum and maximum income, so earning too little can also make you ineligible for a given unit.</div>
 
+  <div class="eyebrow">Open lotteries</div>
+  <div class="h2">Affordable housing lotteries on Housing Connect</div>
+  <div class="sub" id="lotSub">Advertised lotteries recorded by HPD. Apply on Housing Connect, which is always the authoritative list.</div>
+  <div class="panel">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;padding:12px 14px;border-bottom:1px solid #e5e2db;background:#f8f7f4" id="lotFilters"></div>
+    <div id="lotList"></div>
+  </div>
+
   <div class="eyebrow">How to apply</div>
   <div class="h2">Applying through NYC Housing Connect</div>
   <div class="sub">Housing Connect is the city's official portal for affordable housing lotteries, run by HPD and HDC. It is free to apply.</div>
@@ -140,14 +153,6 @@ select:focus,input:focus{outline:none;border-color:#f47920}
   <div class="sub">New York State's Homes and Community Renewal (DHCR) oversees rent-regulated and Mitchell-Lama housing.</div>
   <div class="panel"><div class="tool"><div class="placeholder" id="dhcrHolder">DHCR listings will appear here once the data is added. For now, you can search Mitchell-Lama and other DHCR-supervised housing directly on the state's site.</div>
   <a class="cta" style="margin-top:12px" href="https://hcr.ny.gov/find-affordable-housing" target="_blank" rel="noopener"><span style="font-size:1.5rem">&#127970;</span><span><span class="t">NYS HCR / DHCR affordable housing &rarr;</span><span class="d">Search state-supervised affordable and Mitchell-Lama housing.</span></span></a></div></div>
-
-  <div class="eyebrow">Open lotteries</div>
-  <div class="h2">Affordable housing lotteries on Housing Connect</div>
-  <div class="sub" id="lotSub">Advertised lotteries recorded by HPD. Apply on Housing Connect, which is always the authoritative list.</div>
-  <div class="panel">
-    <div style="display:flex;flex-wrap:wrap;gap:6px;padding:12px 14px;border-bottom:1px solid #e5e2db;background:#f8f7f4" id="lotFilters"></div>
-    <div id="lotList"></div>
-  </div>
 
   <div class="foot">AMI figures: NYC HPD 2025 Area Median Income chart (HUD FY2025, New York HMFA). This page is an educational guide from Brooklyn CB6 and is not affiliated with HPD, HDC, or DHCR, and does not determine eligibility. Always apply and confirm through the official portals above.</div>
 </div>
@@ -216,7 +221,7 @@ select:focus,input:focus{outline:none;border-color:#f47920}
     var inc=parseInc(document.getElementById('inc').value);
     var row=DATA.ami[hh];
     var res=document.getElementById('result'), bands=document.getElementById('bands');
-    if(inc==null){ res.innerHTML=''; bands.innerHTML=''; buildMatrix(); return; }
+    if(inc==null){ res.innerHTML=''; bands.innerHTML=''; window.__HH=null; if(window.__lotRefresh) window.__lotRefresh(); buildMatrix(); return; }
     // highest band whose limit >= income (you qualify at or below limit)
     var qualBands=[];
     for(var i=0;i<DATA.bands.length;i++){ if(inc<=row[i]) qualBands.push(DATA.bands[i]); }
@@ -258,13 +263,15 @@ select:focus,input:focus{outline:none;border-color:#f47920}
     var dleft=daysTo(r.end);
     var isCB6=(r.borough==='Brooklyn' && r.cd_num===6);
     var mix=Object.keys(r.unit_mix||{}).map(function(k){return '<span class="tag">'+k+': '+r.unit_mix[k]+'</span>';}).join('');
-    var ami=(r.ami||[]).map(function(a){return '<span class="tag ami">'+a.band+': '+a.units+'</span>';}).join('');
+    var mu=matchedUnits(r);
+    var ami=(r.ami||[]).map(function(a){var ok=catMatches(a.band);return '<span class="tag ami'+(window.__HH?(ok?' hit':' miss'):'')+'">'+a.band+': '+a.units+'</span>';}).join('');
     var addr=(r.addresses&&r.addresses.length)?r.addresses.join(' &middot; '):'';
     var dtxt = (dleft===0 ? 'closes today' : 'closes in '+dleft+' day'+(dleft===1?'':'s'));
     var dcol = '#2e6b30';
     return '<div class="lot'+(isCB6?' cb6':'')+'">'+
       '<div class="lot-h"><span class="lot-n">'+r.name+'</span>'+
         (isCB6?'<span class="lot-cb">CB6</span>':'')+
+        (mu!==null?('<span class="lot-match'+(mu>0?'':' none')+'">'+(mu>0?mu+' unit'+(mu===1?'':'s')+' under your income cap':'over the income cap')+'</span>'):'')+
         '<span class="lot-d" style="color:'+dcol+'">'+dtxt+'</span></div>'+
       '<div class="lot-meta">'+(addr?addr+' &middot; ':'')+r.borough+(r.cd_num?' CD'+r.cd_num:'')+' &middot; '+r.units+' units'+
         (r.cb_pref?' &middot; '+r.cb_pref+'% set aside for district residents':'')+'</div>'+
@@ -272,9 +279,28 @@ select:focus,input:focus{outline:none;border-color:#f47920}
   }
 
   var BEDORDER=['Studio','1BR','2BR','3BR','4BR+'];
+  // HPD income categories -> the AMI ceiling that defines each
+  var CATCEIL={'Extremely low':30,'Very low':50,'Low':80,'Moderate':120,'Middle':165};
+  var matchOnly=false;
+  function limitAt(pct){
+    var H=window.__HH; if(!H) return null;
+    var i=H.bands.indexOf(pct);
+    return i<0?null:H.limits[i];
+  }
+  function catMatches(band){
+    var H=window.__HH; if(!H) return false;
+    var ceil=CATCEIL[band]; if(!ceil) return false;
+    var lim=limitAt(ceil);
+    return lim!=null && H.income<=lim;
+  }
+  function matchedUnits(r){
+    if(!window.__HH) return null;
+    return (r.ami||[]).reduce(function(t,a){ return t + (catMatches(a.band)?a.units:0); },0);
+  }
   function draw(){
     var list=document.getElementById('lotList');
     var rows=ALL.filter(function(r){ return (filt==='All' || r.borough===filt) && r.is_open; });
+    if(matchOnly && window.__HH) rows=rows.filter(function(r){ return matchedUnits(r)>0; });
     var totUnits=0, mix={};
     rows.forEach(function(r){
       totUnits+=r.units||0;
@@ -283,7 +309,10 @@ select:focus,input:focus{outline:none;border-color:#f47920}
     var cells=BEDORDER.filter(function(k){return mix[k];}).map(function(k){
       return '<div class="sumcell"><div class="sk">'+k+'</div><div class="sv">'+mix[k].toLocaleString('en-US')+'</div></div>';
     }).join('');
+    var mTot=null;
+    if(window.__HH){ mTot=rows.reduce(function(t,r){ return t+(matchedUnits(r)||0); },0); }
     var summary='<div class="lotsum">'+
+      (mTot!==null?('<div class="sumcell lead match"><div class="sk">Under your income cap</div><div class="sv">'+mTot.toLocaleString('en-US')+'</div><div class="ss">of '+totUnits.toLocaleString('en-US')+' open units</div></div>'):'')+
       '<div class="sumcell lead"><div class="sk">Units available now</div><div class="sv">'+totUnits.toLocaleString('en-US')+'</div>'+
       '<div class="ss">across '+rows.length+' open '+(rows.length===1?'lottery':'lotteries')+'</div></div>'+
       cells+'</div>';
@@ -294,6 +323,7 @@ select:focus,input:focus{outline:none;border-color:#f47920}
     list.innerHTML=summary+rows.map(card).join('');
   }
 
+  window.__lotRefresh=function(){ if(ALL.length) draw(); };
   fetch('/data/housing-lotteries.json').then(function(r){return r.json();}).then(function(d){
     ALL=d.lotteries;
     var boros=['All'].concat(['Brooklyn','Manhattan','Bronx','Queens','Staten Island'].filter(function(b){
@@ -305,6 +335,11 @@ select:focus,input:focus{outline:none;border-color:#f47920}
       el.addEventListener('click',function(){ filt=b; Array.prototype.forEach.call(fw.children,function(c){c.classList.toggle('on',c===el);}); draw(); });
       fw.appendChild(el);
     });
+    var mo=document.createElement('label');
+    mo.style.cssText='margin-left:auto;display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;color:#132D65;cursor:pointer';
+    mo.innerHTML='<input type="checkbox" id="matchOnly" style="width:15px;height:15px;accent-color:#f47920;cursor:pointer"> Only ones I fit';
+    fw.appendChild(mo);
+    mo.querySelector('input').addEventListener('change',function(){ matchOnly=this.checked; draw(); });
     var nOpen=ALL.filter(function(r){return r.is_open;}).length;
     document.getElementById('lotSub').innerHTML='Open lotteries in HPD records as of '+d.generated+'. Deadlines are sometimes extended on Housing Connect after HPD publishes, so more may be open there. Apply on <a href="https://housingconnect.nyc.gov" target="_blank" rel="noopener" style="color:#f47920;font-weight:700">Housing Connect</a>, which is the authoritative list.';
     draw();
