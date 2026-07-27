@@ -121,6 +121,20 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .mc-ico{font-size:1.05rem;line-height:1;margin-right:2px}
 .rpt-me{background:#fff8f2}
 .rpt-tbl td.rpt-up{color:#c0392b}.rpt-tbl td.rpt-down{color:#2e6b30}.rpt-tbl td.rpt-flat{color:#9ca3af}
+
+.rpt-pick{width:100%;padding:10px 14px;background:#fff;border-bottom:1px solid #e5e2db}
+.rp-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px}
+.rp-row input{flex:1;min-width:140px;padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:.78rem;border:2px solid #132D65;border-radius:7px;color:#132D65}
+.rp-clear{padding:8px 12px;background:#fff;border:2px solid #132D65;border-radius:7px;color:#132D65;font-family:'DM Sans',sans-serif;font-size:.74rem;font-weight:700;cursor:pointer}
+.rp-chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.rp-chip{display:inline-flex;align-items:center;gap:6px;background:#f47920;color:#fff;border-radius:20px;padding:3px 9px;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700}
+.rp-chip b{cursor:pointer;font-weight:700}
+.rp-list{max-height:190px;overflow-y:auto;border:1px solid #e5e2db;border-radius:8px}
+.rp-item{display:flex;align-items:center;gap:8px;padding:7px 11px;border-bottom:1px solid #f4f2ee;font-size:.78rem;color:#132D65;cursor:pointer}
+.rp-item:last-child{border-bottom:none}
+.rp-item:hover{background:#fff8f2}
+.rp-item input{width:15px;height:15px;accent-color:#f47920}
+.rp-item .rp-sub{margin-left:auto;font-family:'DM Mono',monospace;font-size:.64rem;color:#9ca3af}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -191,10 +205,27 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
     <label id="rptMoWrap"><span>Month</span><select id="rptMo"></select></label>
     <label><span>Compare with</span><select id="rptCmpKind"><option value="none">Nothing</option><option value="prev">Previous period</option><option value="yearago">Same period, year earlier</option><option value="pick">Another period</option></select></label>
     <label id="rptCmpWrap" style="display:none"><span>That period</span><span style="display:flex;gap:5px"><select id="rptCmpYr"></select><select id="rptCmpMo"></select></span></label>
-    <label><span>Areas</span><select id="rptScope"><option value="self">This area only</option><option value="parts">Every part of it</option></select></label>
+    <label><span>Areas</span><select id="rptScope">
+      <option value="self">This area only</option>
+      <option value="parts">Every part of it</option>
+      <option value="choose">Choose any to compare&hellip;</option>
+    </select></label>
     <button class="rpt-go" id="rptGo">Generate report</button>
     <button class="rpt-pdf" id="rptPdf" style="display:none">&#11015; Save as PDF</button>
     <span class="rpt-note" id="rptNote"></span>
+  </div>
+  <div class="rpt-pick" id="rptPick" style="display:none">
+    <div class="rp-row">
+      <label><span>Compare</span><select id="rptPickLvl">
+        <option value="neighborhood">Neighborhoods</option>
+        <option value="cd">Community districts</option>
+        <option value="borough">Boroughs</option>
+      </select></label>
+      <input id="rptPickSearch" type="text" placeholder="Filter by name&hellip;">
+      <button type="button" id="rptPickClear" class="rp-clear">Clear</button>
+    </div>
+    <div class="rp-chips" id="rptChips"></div>
+    <div class="rp-list" id="rptPickList"></div>
   </div>
   <div id="rptOut"><div class="rpt-empty">Pick a month and tap <b>Generate report</b>.</div></div>
 
@@ -556,6 +587,41 @@ function bkcb6CopyEmbed(type){
   function unpack(p,n){ var o=new Array(n).fill(null); if(!p) return o; for(var i=0;i<p[1].length;i++) o[p[0]+i]=p[1][i]; return o; }
   function byId(id){ for(var i=0;i<D.areas.length;i++) if(D.areas[i].id===id) return D.areas[i]; return null; }
   function ser(a,k){ return unpack(a && a.s ? a.s[k] : null, D.months.length); }
+
+  // ---- free-form area picker: any districts, neighborhoods or boroughs ----
+  var PICKED=[];
+  function pickList(){
+    var lvl=$('rptPickLvl').value, q=($('rptPickSearch').value||'').toLowerCase();
+    var list=D.areas.filter(function(a){return a.t===lvl;});
+    list.sort(function(a,b){ return (a.p===b.p)?a.n.localeCompare(b.n):String(a.p).localeCompare(String(b.p)); });
+    if(q) list=list.filter(function(a){return a.n.toLowerCase().indexOf(q)>-1;});
+    $('rptPickList').innerHTML=list.slice(0,400).map(function(a){
+      var on=PICKED.indexOf(a.id)>-1;
+      return '<label class="rp-item"><input type="checkbox" data-id="'+a.id+'"'+(on?' checked':'')+'>'+
+             '<span>'+a.n+'</span><span class="rp-sub">'+(a.p||'')+'</span></label>';
+    }).join('') || '<div style="padding:12px;font-size:.76rem;color:#777">No matches.</div>';
+    $('rptPickList').querySelectorAll('input').forEach(function(cb){
+      cb.addEventListener('change',function(){
+        var id=this.getAttribute('data-id');
+        if(this.checked){ if(PICKED.indexOf(id)<0) PICKED.push(id); }
+        else PICKED=PICKED.filter(function(x){return x!==id;});
+        drawChips();
+      });
+    });
+  }
+  function drawChips(){
+    $('rptChips').innerHTML=PICKED.map(function(id){
+      var a=byId(id); if(!a) return '';
+      return '<span class="rp-chip">'+a.n+' <b data-id="'+id+'">&times;</b></span>';
+    }).join('');
+    $('rptChips').querySelectorAll('b').forEach(function(x){
+      x.addEventListener('click',function(){
+        PICKED=PICKED.filter(function(i){return i!==this.getAttribute('data-id');}.bind(this));
+        drawChips(); pickList();
+      });
+    });
+  }
+
   function pct(n,t){ return (n==null||t==null||!t)?null:Math.round((n-t)/t*1000)/10; }
 
   // value for an area+bed over a period: one month, or the mean of a year's published months
@@ -601,6 +667,9 @@ function bkcb6CopyEmbed(type){
     $('rptMoWrap').style.display = $('rptKind').value==='year' ? 'none' : '';
     $('rptCmpWrap').style.display = $('rptCmpKind').value==='pick' ? '' : 'none';
     $('rptCmpMo').style.display = $('rptKind').value==='year' ? 'none' : '';
+    var showPick = $('rptScope').value==='choose';
+    $('rptPick').style.display = showPick ? '' : 'none';
+    if(showPick && D) pickList();
   }
 
   function build(){
@@ -612,7 +681,11 @@ function bkcb6CopyEmbed(type){
     if(cmpMode==='pick') cmp = kind==='month' ? {kind:'month',ym:$('rptCmpYr').value+'-'+$('rptCmpMo').value} : {kind:'year',y:$('rptCmpYr').value};
     else if(cmpMode!=='none') cmp=shiftPer(per,cmpMode);
 
-    var rows = $('rptScope').value==='parts' ? parts() : [byId(AREA_ID)];
+    var sc=$('rptScope').value;
+    var rows = sc==='parts' ? parts()
+             : sc==='choose' ? PICKED.map(byId).filter(Boolean)
+             : [byId(AREA_ID)];
+    if(sc==='choose' && !rows.length) rows=[byId(AREA_ID)];
     rows=rows.filter(Boolean);
     if(!rows.length){ $('rptOut').innerHTML='<div class="rpt-empty">No areas to report.</div>'; return; }
 
@@ -639,7 +712,7 @@ function bkcb6CopyEmbed(type){
       '<div class="rpt-title">'+AREA_NAME+' rent report</div>'+
       '<div class="rpt-when">'+perLabel(per)+(cmp?' &nbsp;vs&nbsp; '+perLabel(cmp):'')+'</div>'+
       '<div class="rpt-grid">'+cells+'</div>'+
-      '<div class="rpt-h3">'+($('rptScope').value==='parts'?'Every part of '+AREA_NAME:'Summary')+'</div>'+
+      '<div class="rpt-h3">'+(sc==='parts'?'Every part of '+AREA_NAME:(sc==='choose'?'Comparison':'Summary'))+'</div>'+
       '<div style="overflow-x:auto"><table class="rpt-tbl">'+head+body+'</table></div>'+
       '<div class="rpt-h3">1-bedroom trend</div><canvas id="rptCh" height="130"></canvas>'+
       '<div class="rpt-src">Source: StreetEasy median asking rent and rental inventory. A whole-year figure is the mean of that year\u2019s published months. Blank figures mean StreetEasy published none. Generated '+new Date().toLocaleDateString('en-US')+' &middot; bkcb6.app</div></div>';
@@ -662,7 +735,10 @@ function bkcb6CopyEmbed(type){
       D=j; $('rptNote').textContent=''; fillDates(); syncControls(); cb();
     }).catch(function(){ $('rptNote').textContent='Data could not load.'; });
   }
-  ['rptKind','rptCmpKind'].forEach(function(id){ $(id).addEventListener('change',syncControls); });
+  ['rptKind','rptCmpKind','rptScope'].forEach(function(id){ $(id).addEventListener('change',syncControls); });
+  $('rptPickLvl').addEventListener('change',function(){ if(D) pickList(); });
+  $('rptPickSearch').addEventListener('input',function(){ if(D) pickList(); });
+  $('rptPickClear').addEventListener('click',function(){ PICKED=[]; drawChips(); pickList(); });
   $('rptGo').addEventListener('click',function(){ load(build); });
   $('rptPdf').addEventListener('click',function(){
     document.querySelectorAll('#rptOut canvas').forEach(function(c){
