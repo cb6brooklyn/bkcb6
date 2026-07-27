@@ -65,11 +65,15 @@ select:focus,input:focus{outline:none;border-color:#f47920}
 #matrix td.out{color:#c9c6c0}
 .lotf{padding:5px 12px;font-size:.72rem;font-weight:700;border:2px solid #132D65;border-radius:20px;background:#fff;color:#132D65;cursor:pointer;font-family:'DM Sans',sans-serif}
 .lotf.on{background:#f47920;border-color:#f47920;color:#fff}
-.grp{padding:9px 15px;background:#132D65;color:#fff;font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
-.grp.past-grp{background:#e9e7e2;color:#6b6760}
-.grp-note{font-family:'DM Sans',sans-serif;font-size:.68rem;text-transform:none;letter-spacing:0;font-weight:400;color:#6b6760;margin-top:4px;line-height:1.45}
+.lotsum{display:flex;flex-wrap:wrap;gap:1px;background:#e5e2db;border-bottom:1px solid #e5e2db}
+.sumcell{background:#fff;padding:11px 14px;flex:1;min-width:88px}
+.sumcell.lead{background:#132D65;min-width:150px}
+.sumcell .sk{font-size:.52rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em;color:#6b6760;font-weight:700}
+.sumcell.lead .sk{color:rgba(255,255,255,.6)}
+.sumcell .sv{font-size:1.15rem;font-weight:900;font-family:'DM Mono',monospace;color:#132D65;margin-top:3px;line-height:1}
+.sumcell.lead .sv{color:#fff;font-size:1.5rem}
+.sumcell .ss{font-size:.58rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.55);margin-top:3px}
 .lot{padding:13px 15px;border-bottom:1px solid #f0ede8}
-.lot.past{opacity:.62}
 .lot:last-child{border-bottom:none}
 .lot.cb6{background:#fffaf5;border-left:3px solid #f47920}
 .lot-h{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
@@ -256,11 +260,9 @@ select:focus,input:focus{outline:none;border-color:#f47920}
     var mix=Object.keys(r.unit_mix||{}).map(function(k){return '<span class="tag">'+k+': '+r.unit_mix[k]+'</span>';}).join('');
     var ami=(r.ami||[]).map(function(a){return '<span class="tag ami">'+a.band+': '+a.units+'</span>';}).join('');
     var addr=(r.addresses&&r.addresses.length)?r.addresses.join(' &middot; '):'';
-    var dtxt = r.is_open
-      ? (dleft===0 ? 'closes today' : 'closes in '+dleft+' day'+(dleft===1?'':'s'))
-      : 'deadline passed '+r.end;
-    var dcol = r.is_open ? '#2e6b30' : '#9ca3af';
-    return '<div class="lot'+(isCB6?' cb6':'')+(r.is_open?'':' past')+'">'+
+    var dtxt = (dleft===0 ? 'closes today' : 'closes in '+dleft+' day'+(dleft===1?'':'s'));
+    var dcol = '#2e6b30';
+    return '<div class="lot'+(isCB6?' cb6':'')+'">'+
       '<div class="lot-h"><span class="lot-n">'+r.name+'</span>'+
         (isCB6?'<span class="lot-cb">CB6</span>':'')+
         '<span class="lot-d" style="color:'+dcol+'">'+dtxt+'</span></div>'+
@@ -269,21 +271,27 @@ select:focus,input:focus{outline:none;border-color:#f47920}
       '<div class="lot-tags">'+mix+ami+'</div></div>';
   }
 
+  var BEDORDER=['Studio','1BR','2BR','3BR','4BR+'];
   function draw(){
     var list=document.getElementById('lotList');
-    var rows=ALL.filter(function(r){ return filt==='All' || r.borough===filt; });
-    var open=rows.filter(function(r){return r.is_open;});
-    var past=rows.filter(function(r){return !r.is_open;});
-    var html='';
-    html+='<div class="grp">Open now &mdash; '+open.length+'</div>';
-    html+= open.length ? open.map(card).join('')
-      : '<div style="padding:14px 15px;font-size:.8rem;color:#555">No lotteries in HPD\'s records have an open deadline for this filter. Housing Connect often lists more, because deadlines get extended after HPD publishes. Check there.</div>';
-    if(past.length){
-      html+='<div class="grp past-grp">Deadline passed in HPD records &mdash; '+past.length+
-            '<div class="grp-note">Some of these may still be accepting applications if the deadline was extended. Verify on Housing Connect before assuming they are closed.</div></div>';
-      html+=past.map(card).join('');
+    var rows=ALL.filter(function(r){ return (filt==='All' || r.borough===filt) && r.is_open; });
+    var totUnits=0, mix={};
+    rows.forEach(function(r){
+      totUnits+=r.units||0;
+      Object.keys(r.unit_mix||{}).forEach(function(k){ mix[k]=(mix[k]||0)+r.unit_mix[k]; });
+    });
+    var cells=BEDORDER.filter(function(k){return mix[k];}).map(function(k){
+      return '<div class="sumcell"><div class="sk">'+k+'</div><div class="sv">'+mix[k].toLocaleString('en-US')+'</div></div>';
+    }).join('');
+    var summary='<div class="lotsum">'+
+      '<div class="sumcell lead"><div class="sk">Units available now</div><div class="sv">'+totUnits.toLocaleString('en-US')+'</div>'+
+      '<div class="ss">across '+rows.length+' open '+(rows.length===1?'lottery':'lotteries')+'</div></div>'+
+      cells+'</div>';
+    if(!rows.length){
+      list.innerHTML=summary+'<div style="padding:14px 15px;font-size:.8rem;color:#555;line-height:1.5">No open lotteries in HPD\'s records for this filter. Housing Connect often lists more, because deadlines are extended there after HPD publishes. Check Housing Connect directly.</div>';
+      return;
     }
-    list.innerHTML=html;
+    list.innerHTML=summary+rows.map(card).join('');
   }
 
   fetch('/data/housing-lotteries.json').then(function(r){return r.json();}).then(function(d){
@@ -298,7 +306,7 @@ select:focus,input:focus{outline:none;border-color:#f47920}
       fw.appendChild(el);
     });
     var nOpen=ALL.filter(function(r){return r.is_open;}).length;
-    document.getElementById('lotSub').innerHTML='<b>'+nOpen+' with an open deadline</b> out of '+ALL.length+' advertised lotteries in HPD records as of '+d.generated+'. '+d.note+' Apply on <a href="https://housingconnect.nyc.gov" target="_blank" rel="noopener" style="color:#f47920;font-weight:700">Housing Connect</a>, which is the authoritative list.';
+    document.getElementById('lotSub').innerHTML='Open lotteries in HPD records as of '+d.generated+'. Deadlines are sometimes extended on Housing Connect after HPD publishes, so more may be open there. Apply on <a href="https://housingconnect.nyc.gov" target="_blank" rel="noopener" style="color:#f47920;font-weight:700">Housing Connect</a>, which is the authoritative list.';
     draw();
   }).catch(function(){
     document.getElementById('lotList').innerHTML='<div style="padding:16px;font-size:.8rem;color:#777">Lottery data could not load. See housingconnect.nyc.gov for current lotteries.</div>';
