@@ -156,6 +156,8 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .rp-item:hover{background:#fff8f2}
 .rp-item input{width:15px;height:15px;accent-color:#f47920}
 .rp-item .rp-sub{margin-left:auto;font-family:'DM Mono',monospace;font-size:.64rem;color:#9ca3af}
+#rankBody{padding:10px 12px 14px;background:#fff}
+#rankCanvas{width:100%!important}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -274,7 +276,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
     </select>
   </div>
   <div class="rank-now"><span class="rn-month" id="rankBigMonth">&mdash;</span><span class="rn-what">Median asking rent for a <b id="rankWhat2">1 bedroom</b>, ranked high to low</span></div>
-  <div id="rankBody"></div>
+  <div id="rankBody"><canvas id="rankCanvas"></canvas></div>
 </div>
 </div>
 <a class="afford-cta" href="/lessexpensive" target="_top"><span class="ac-icon">&#127968;</span><span class="ac-txt"><span class="ac-kicker">Affordable &amp; income-restricted housing</span><span class="ac-t">Could you qualify for a cheaper apartment?</span><span class="ac-d">Enter your household size and income to see which of the open lotteries you may be eligible for.</span></span><span class="ac-arrow">&rarr;</span></a>
@@ -646,33 +648,65 @@ function bkcb6CopyEmbed(type){
     var mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     return mn[parseInt(m.slice(5,7),10)-1]+' '+m.slice(0,4);
   }
+  var bar=null;
   function draw(){
-    var el=document.getElementById('rankBody'); if(!el) return;
-    if(!H){ el.innerHTML='<div class="rank-none">Loading history&hellip;</div>'; return; }
+    var host=document.getElementById('rankBody'); if(!host) return;
+    if(!H){ host.innerHTML='<div class="rank-none">Loading history&hellip;</div>'; return; }
     if(idx===null) idx=H.months.length-1;
     document.getElementById('rankMonth').textContent=label(H.months[idx]);
-    var bigM=document.getElementById('rankBigMonth'); if(bigM) bigM.textContent=label(H.months[idx]);
-    var BEDNAME={studio:'Studio',br1:'1 bedroom',br2:'2 bedroom',br3:'3+ bedroom',all:'All units'};
+    var BEDNAME={studio:'Studio',br1:'1 bedroom',br2:'2 bedroom',br3:'3+ bedroom'};
     var wEl=document.getElementById('rankWhat'); if(wEl) wEl.textContent=BEDNAME[bedKey()]||'';
     var w2=document.getElementById('rankWhat2'); if(w2) w2.textContent=(BEDNAME[bedKey()]||'').toLowerCase();
-    var key=bedKey();
-    var src = mode==='cd' ? H.cds : H.nbs;
+    var bigM=document.getElementById('rankBigMonth'); if(bigM) bigM.textContent=label(H.months[idx]);
+
+    var key=bedKey(), src = mode==='cd' ? H.cds : H.nbs;
     var rows=[];
     src.forEach(function(a){
       var v=unpack(a.s[key], idx);
-      if(v!=null) rows.push({name:(mode==='cd'?'Brooklyn '+a.name:a.name), v:v, cd:(mode==='cd'?a.num:a.cd)});
+      if(v!=null) rows.push({name:(mode==='cd'?'CB'+a.name.slice(2):a.name), v:v, cd:(mode==='cd'?a.num:a.cd)});
     });
-    if(!rows.length){ el.innerHTML='<div class="rank-none">No data published for this unit type in '+label(H.months[idx])+'.</div>'; return; }
+    if(!rows.length){
+      if(bar){bar.destroy();bar=null;}
+      host.innerHTML='<div class="rank-none">No data published for this unit type in '+label(H.months[idx])+'.</div>';
+      return;
+    }
     rows.sort(function(a,b){return b.v-a.v;});
-    var max=rows[0].v;
-    el.innerHTML=rows.map(function(r,i){
-      return '<div class="rank-row'+(r.cd===6?' cb6':'')+'">'+
-        '<span class="rank-n">'+(i+1)+'</span>'+
-        '<span class="rank-lab"><span class="rank-name">'+r.name+'</span>'+
-          '<span class="rank-track"><i class="rank-fill" style="width:'+Math.round(r.v/max*100)+'%"></i></span></span>'+
-        '<span class="rank-val">'+money(r.v)+'</span></div>';
-    }).join('');
+    if(!document.getElementById('rankCanvas')) host.innerHTML='<canvas id="rankCanvas"></canvas>';
+    var cv=document.getElementById('rankCanvas');
+    cv.height = Math.max(160, rows.length*(mode==='cd'?26:19));
+
+    var labels=rows.map(function(r){return r.name;});
+    var vals=rows.map(function(r){return r.v;});
+    var cols=rows.map(function(r){return r.cd===6?'#f47920':'#132D65';});
+
+    if(bar){
+      bar.data.labels=labels;
+      bar.data.datasets[0].data=vals;
+      bar.data.datasets[0].backgroundColor=cols;
+      bar.update('none');
+      return;
+    }
+    bar=new Chart(cv,{type:'bar',
+      data:{labels:labels,datasets:[{data:vals,backgroundColor:cols,borderRadius:3,barPercentage:.86,categoryPercentage:.92}]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,animation:{duration:260},
+        layout:{padding:{right:54}},
+        plugins:{legend:{display:false},
+          tooltip:{callbacks:{label:function(c){return '$'+Number(c.parsed.x).toLocaleString('en-US');}}}},
+        scales:{
+          x:{beginAtZero:true,ticks:{font:{size:9,family:'DM Mono'},color:'#9ca3af',
+              callback:function(v){return '$'+(v/1000).toFixed(1)+'k';}},grid:{color:'#f2f0ec'}},
+          y:{ticks:{font:{size:mode==='cd'?11:9,family:'DM Sans',weight:'700'},color:'#132D65',autoSkip:false},grid:{display:false}}}},
+      plugins:[{id:'valLabels',afterDatasetsDraw:function(c){
+        var ctx=c.ctx; ctx.save();
+        ctx.font='700 10px DM Mono, monospace'; ctx.fillStyle='#132D65'; ctx.textBaseline='middle';
+        c.getDatasetMeta(0).data.forEach(function(el,i){
+          var v=c.data.datasets[0].data[i];
+          if(v!=null) ctx.fillText('$'+Number(v).toLocaleString('en-US'), el.x+6, el.y);
+        });
+        ctx.restore();
+      }}]});
   }
+
   function stop(){ if(timer){clearInterval(timer);timer=null;} var b=document.getElementById('rankPlay'); if(b) b.innerHTML='\u25B6'; }
   function play(){
     if(timer){ stop(); return; }
