@@ -31,11 +31,9 @@ select:focus,input:focus{outline:none;border-color:#f47920}
 .presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
 .preset{padding:6px 12px;font-size:.72rem;font-weight:700;border:2px solid #132D65;border-radius:20px;background:#fff;color:#132D65;cursor:pointer;font-family:'DM Sans',sans-serif}
 .preset:hover{background:#fff8f2;border-color:#f47920}
-.prow{display:grid;grid-template-columns:1fr 130px 40px;gap:8px;align-items:end;margin-bottom:8px}
-.prow .sub-lbl{font-size:.52rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;font-weight:700;margin-bottom:4px;display:block}
-.prow select,.prow input{padding:8px 10px;font-size:.8rem}
-.rmP{padding:8px 0;border:none;background:none;color:#c9c6c0;font-weight:400;cursor:pointer;font-size:1.05rem;line-height:1}
-.rmP:hover,.rmP:focus{color:#6b6760}
+.incgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:4px}
+.incgrid label span.lbl2{display:block;font-size:.52rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;font-weight:700;margin-bottom:4px}
+.incgrid input{padding:8px 10px;font-size:.8rem}
 .tot{color:#fff}
 .tot .k{font-size:.52rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6)}
 .tot .v{font-size:1.15rem;font-weight:900;font-family:'DM Mono',monospace;margin-top:2px}
@@ -82,9 +80,13 @@ select:focus,input:focus{outline:none;border-color:#f47920}
   <div class="sub">Affordable units are set at a percentage of Area Median Income (AMI). Enter a household size and income to see which AMI bands you fall within. This is a guide, not a determination: each lottery sets its own minimum and maximum.</div>
 
   <div class="panel"><div class="tool">
-    <div style="font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700;margin-bottom:8px">Add everyone who will live in the unit</div>
-    <div id="people"></div>
-    <button id="addPerson" type="button" style="margin-top:8px;padding:8px 14px;font-size:.76rem;font-weight:700;border:2px solid #132D65;border-radius:8px;background:#fff;color:#132D65;cursor:pointer;font-family:'DM Sans',sans-serif">+ Add person</button>
+    <div class="tool-row">
+      <label><span class="lbl">Adults (18 and over)</span>
+        <select id="nAdults"></select></label>
+      <label><span class="lbl">Household members under 18</span>
+        <select id="nMinors"></select></label>
+    </div>
+    <div id="incomes"></div>
     <div id="totals" style="margin-top:14px;padding:12px 14px;background:#132D65;border-radius:9px;display:flex;flex-wrap:wrap;gap:18px"></div>
     <input id="hh" type="hidden"><input id="inc" type="hidden">
     <div id="result"></div>
@@ -134,47 +136,36 @@ select:focus,input:focus{outline:none;border-color:#f47920}
   function parseInc(v){ var n=parseInt(String(v).replace(/[^0-9]/g,''),10); return isNaN(n)?null:n; }
 
 
-  // ---- household builder: any mix of people and incomes ----
-  var PEOPLE=[{adult:true,income:''}];
+  // ---- household: adult count + each adult's income, plus under-18 count ----
+  var INCOMES=[''];
   function fmtNum(v){ var n=String(v).replace(/[^0-9]/g,''); return n?Number(n).toLocaleString('en-US'):''; }
-  function personIncome(p){ var n=parseInt(String(p.income).replace(/[^0-9]/g,''),10); return isNaN(n)?0:n; }
-  function headcount(){ return PEOPLE.length; }
-  function totalIncome(){ return PEOPLE.reduce(function(t,p){ return t + (p.adult?personIncome(p):0); },0); }
+  function toNum(v){ var n=parseInt(String(v).replace(/[^0-9]/g,''),10); return isNaN(n)?0:n; }
 
-  function drawPeople(){
-    var wrap=document.getElementById('people');
-    wrap.innerHTML=PEOPLE.map(function(p,i){
-      return '<div class="prow">'+
-        '<div><span class="sub-lbl">Person '+(i+1)+'</span>'+
-          '<select data-i="'+i+'" class="pAge">'+
-            '<option value="1"'+(p.adult?' selected':'')+'>Adult (18+)</option>'+
-            '<option value="0"'+(!p.adult?' selected':'')+'>Under 18</option>'+
-          '</select></div>'+
-        '<div><span class="sub-lbl">Annual income</span>'+
-          '<input data-i="'+i+'" class="pInc" type="text" inputmode="numeric" placeholder="0" value="'+(p.income||'')+'"'+(p.adult?'':' disabled')+'></div>'+
-        '<div>'+(PEOPLE.length>1?'<button type="button" class="rmP" data-i="'+i+'">&times;</button>':'<span></span>')+'</div>'+
-      '</div>';
-    }).join('');
-    Array.prototype.forEach.call(wrap.querySelectorAll('.pAge'),function(el){
-      el.addEventListener('change',function(){ var i=+this.getAttribute('data-i'); PEOPLE[i].adult=(this.value==='1'); if(!PEOPLE[i].adult) PEOPLE[i].income=''; drawPeople(); sync(); });
-    });
-    Array.prototype.forEach.call(wrap.querySelectorAll('.pInc'),function(el){
-      el.addEventListener('input',function(){ var i=+this.getAttribute('data-i'); var c=this.selectionStart; this.value=fmtNum(this.value); PEOPLE[i].income=this.value; sync(); });
-    });
-    Array.prototype.forEach.call(wrap.querySelectorAll('.rmP'),function(el){
-      el.addEventListener('click',function(){ PEOPLE.splice(+this.getAttribute('data-i'),1); drawPeople(); sync(); });
+  function drawIncomes(){
+    var n=parseInt(document.getElementById('nAdults').value,10);
+    while(INCOMES.length<n) INCOMES.push('');
+    INCOMES.length=n;
+    var wrap=document.getElementById('incomes');
+    wrap.innerHTML='<div class="incgrid">'+INCOMES.map(function(v,i){
+      return '<label><span class="lbl2">'+(n===1?'Annual income (gross)':'Adult '+(i+1)+' annual income')+'</span>'+
+        '<input class="aInc" data-i="'+i+'" type="text" inputmode="numeric" placeholder="0" value="'+(v||'')+'"></label>';
+    }).join('')+'</div>';
+    Array.prototype.forEach.call(wrap.querySelectorAll('.aInc'),function(el){
+      el.addEventListener('input',function(){ this.value=fmtNum(this.value); INCOMES[+this.getAttribute('data-i')]=this.value; sync(); });
     });
   }
 
   function sync(){
-    var n=headcount(), inc=totalIncome();
-    var capped=Math.min(n,8);
-    document.getElementById('hh').value=String(capped);
+    var a=parseInt(document.getElementById('nAdults').value,10);
+    var m=parseInt(document.getElementById('nMinors').value,10);
+    var total=a+m;
+    var inc=INCOMES.reduce(function(t,v){ return t+toNum(v); },0);
+    document.getElementById('hh').value=String(Math.min(total,8));
     document.getElementById('inc').value=String(inc);
     document.getElementById('totals').innerHTML=
-      '<div class="tot"><div class="k">Household size</div><div class="v">'+n+'</div></div>'+
+      '<div class="tot"><div class="k">Household size</div><div class="v">'+total+'</div></div>'+
       '<div class="tot"><div class="k">Counted income</div><div class="v">'+money(inc)+'</div></div>'+
-      (n>8?'<div class="tot" style="flex:1;min-width:180px"><div class="k">Note</div><div style="font-size:.7rem;color:rgba(255,255,255,.8);margin-top:3px;line-height:1.4">HPD\'s published chart tops out at 8; limits above that are set per program.</div></div>':'');
+      (total>8?'<div class="tot" style="flex:1;min-width:180px"><div class="k">Note</div><div style="font-size:.7rem;color:rgba(255,255,255,.8);margin-top:3px;line-height:1.4">HPD\'s published chart tops out at 8 people; larger households are set per program.</div></div>':'');
     render();
   }
 
@@ -222,8 +213,13 @@ select:focus,input:focus{outline:none;border-color:#f47920}
 
   fetch('/data/nyc-ami-2025.json').then(function(r){return r.json();}).then(function(j){
     DATA=j;
-    document.getElementById('addPerson').addEventListener('click',function(){ PEOPLE.push({adult:true,income:''}); drawPeople(); sync(); });
-    drawPeople(); sync();
+    var na=document.getElementById('nAdults'), nm=document.getElementById('nMinors');
+    for(var i=1;i<=8;i++){ var o=document.createElement('option'); o.value=i; o.textContent=i; na.appendChild(o); }
+    for(var k=0;k<=8;k++){ var o2=document.createElement('option'); o2.value=k; o2.textContent=k; nm.appendChild(o2); }
+    na.value='1'; nm.value='0';
+    na.addEventListener('change',function(){ drawIncomes(); sync(); });
+    nm.addEventListener('change',sync);
+    drawIncomes(); sync();
     buildMatrix();
   });
 })();
