@@ -63,6 +63,11 @@ select:focus,input:focus{outline:none;border-color:#f47920}
 #matrix tr.on td{background:#eef7ee}
 #matrix td.in{color:#2e7d32;font-weight:700}
 #matrix td.out{color:#c9c6c0}
+.gobtn{width:100%;margin-top:14px;padding:13px 16px;background:#f47920;border:none;border-radius:9px;color:#fff;font-family:'DM Sans',sans-serif;font-size:.92rem;font-weight:800;cursor:pointer}
+.gobtn:hover{background:#d9660f}
+.qm-empty{margin-top:12px;padding:14px;background:#f8f7f4;border:1px dashed #cbcbcb;border-radius:9px;font-size:.8rem;color:#6b6760;line-height:1.5}
+.qm-top.zero{background:#6b6760}
+.qm-top.zero .qm-n{color:rgba(255,255,255,.85)}
 .more{margin-top:12px;border:1px solid #e5e2db;border-radius:9px;background:#fff}
 .more>summary{cursor:pointer;padding:10px 13px;font-size:.74rem;font-weight:700;color:#132D65;font-family:'DM Sans',sans-serif;list-style:none}
 .more>summary::-webkit-details-marker{display:none}
@@ -137,6 +142,7 @@ select:focus,input:focus{outline:none;border-color:#f47920}
         <select id="nMinors"></select></label>
     </div>
     <div id="incomes"></div>
+    <button id="goBtn" type="button" class="gobtn">Show what I may be eligible for</button>
     <input id="hh" type="hidden"><input id="inc" type="hidden">
     <div id="quickMatch"></div>
     <details class="more"><summary>Household total and AMI band detail</summary>
@@ -225,7 +231,8 @@ select:focus,input:focus{outline:none;border-color:#f47920}
     var total=a+m;
     var inc=INCOMES.reduce(function(t,v){ return t+toNum(v); },0);
     document.getElementById('hh').value=String(Math.min(total,8));
-    document.getElementById('inc').value=String(inc);
+    var anyTyped=INCOMES.some(function(v){ return String(v).replace(/[^0-9]/g,'').length>0; });
+    document.getElementById('inc').value = anyTyped ? String(inc) : '';
     document.getElementById('totals').innerHTML=
       '<div class="tot"><div class="k">Household size</div><div class="v">'+total+'</div></div>'+
       '<div class="tot"><div class="k">Counted income</div><div class="v">'+money(inc)+'</div></div>'+
@@ -288,6 +295,12 @@ select:focus,input:focus{outline:none;border-color:#f47920}
     na.addEventListener('change',function(){ drawIncomes(); sync(); });
     nm.addEventListener('change',sync);
     drawIncomes(); sync();
+    var go=document.getElementById('goBtn');
+    if(go) go.addEventListener('click',function(){
+      sync();
+      var el=document.getElementById('quickMatch');
+      if(el && el.scrollIntoView) el.scrollIntoView({behavior:'smooth',block:'center'});
+    });
     buildMatrix();
   });
 })();
@@ -392,7 +405,11 @@ select:focus,input:focus{outline:none;border-color:#f47920}
   function quickMatch(){
     var el=document.getElementById('quickMatch'); if(!el) return;
     var H=window.__HH;
-    if(!H || !ALL.length){ el.innerHTML=''; return; }
+    if(!ALL.length){ el.innerHTML=''; return; }
+    if(!H){
+      el.innerHTML='<div class="qm-empty">Enter your household income above, then press <b>Show what I may be eligible for</b>.</div>';
+      return;
+    }
     var tot=0, nlot=0, beds={};
     ALL.forEach(function(r){
       if(!r.is_open) return;
@@ -407,8 +424,8 @@ select:focus,input:focus{outline:none;border-color:#f47920}
     var bedTxt=Object.keys(OCC).filter(function(b){return beds[b];})
       .map(function(b){return '<span class="qm-bed">'+b+' <b>'+beds[b]+'</b></span>';}).join('');
     el.innerHTML='<div class="qm">'+
-      '<div class="qm-top"><span class="qm-n">'+tot.toLocaleString('en-US')+'</span>'+
-        '<span class="qm-l">unit'+(tot===1?'':'s')+' you may be eligible for, across '+nlot+' open lotter'+(nlot===1?'y':'ies')+'</span></div>'+
+      '<div class="qm-top'+(tot?'':' zero')+'"><span class="qm-n">'+tot.toLocaleString('en-US')+'</span>'+
+        '<span class="qm-l">'+(tot?('unit'+(tot===1?'':'s')+' you may be eligible for, across '+nlot+' open lotter'+(nlot===1?'y':'ies')):'units match this household and income in the 16 open lotteries')+'</span></div>'+
       (bedTxt?'<div class="qm-beds">'+bedTxt+'</div>':'')+
       '<div class="qm-occ">A household of '+H.size+' can apply for: <b>'+(fits.join(', ')||'none of the current unit sizes')+'</b>. '+
         'Unit size is a permitted range, not a requirement, so a household of '+H.size+' is not obliged to take the largest size it qualifies for.</div>'+
