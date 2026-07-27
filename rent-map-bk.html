@@ -73,18 +73,23 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .map-caption .mc-boro{font-family:'DM Sans',sans-serif;font-size:1.15rem;font-weight:900;color:#fff;line-height:1}
 .map-caption .mc-sub{font-family:'DM Mono',monospace;font-size:.66rem;color:rgba(255,255,255,.65)}
 .rank-wrap{background:#fff;border-top:1px solid #e5e2db}
-.rank-tabs{display:flex;gap:6px;padding:11px 14px 8px;background:#f8f7f4;border-bottom:1px solid #e5e2db}
+.rank-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 14px 8px;background:#f8f7f4;border-bottom:1px solid #e5e2db}
+.rank-tabs{display:flex;gap:6px}
 .rank-tab{padding:6px 13px;font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:700;border:2px solid #132D65;border-radius:20px;background:#fff;color:#132D65;cursor:pointer}
 .rank-tab.active{background:#f47920;border-color:#f47920;color:#fff}
-.rank-row{display:flex;align-items:baseline;gap:10px;padding:7px 14px;border-bottom:1px solid #f4f2ee;font-size:.8rem}
-.rank-row:last-child{border-bottom:none}
+.rank-when{margin-left:auto;font-family:'DM Mono',monospace;font-size:.8rem;font-weight:700;color:#132D65}
+.rank-time{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#f8f7f4;border-bottom:1px solid #e5e2db}
+#rankPlay{width:34px;height:30px;border:2px solid #132D65;border-radius:7px;background:#fff;color:#132D65;font-size:.8rem;cursor:pointer;flex-shrink:0}
+#rankSlider{flex:1;accent-color:#f47920}
+.rank-row{display:grid;grid-template-columns:22px 1fr 74px;align-items:center;gap:9px;padding:5px 14px;font-size:.78rem;transition:background .15s}
 .rank-row.cb6{background:#fff8f2}
-.rank-n{font-family:'DM Mono',monospace;font-size:.68rem;color:#9ca3af;width:24px;flex-shrink:0}
-.rank-name{color:#132D65;font-weight:700;flex:1;min-width:0}
-.rank-name .rn-sub{font-weight:400;color:#9ca3af;font-size:.68rem;font-family:'DM Mono',monospace}
-.rank-val{font-family:'DM Mono',monospace;font-weight:800;color:#132D65;white-space:nowrap}
-.rank-bar{height:3px;background:#eee;border-radius:2px;overflow:hidden;margin-top:3px}
-.rank-bar i{display:block;height:100%;background:#f47920}
+.rank-n{font-family:'DM Mono',monospace;font-size:.66rem;color:#9ca3af;text-align:right}
+.rank-lab{min-width:0}
+.rank-name{color:#132D65;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;font-size:.76rem}
+.rank-track{height:12px;background:#f0ede8;border-radius:3px;overflow:hidden;margin-top:3px}
+.rank-fill{display:block;height:100%;background:#132D65;border-radius:3px;transition:width .25s}
+.rank-row.cb6 .rank-fill{background:#f47920}
+.rank-val{font-family:'DM Mono',monospace;font-weight:800;color:#132D65;text-align:right;font-size:.76rem}
 .rank-none{padding:14px;font-size:.78rem;color:#777}
 </style>
 
@@ -150,11 +155,19 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 <div class="map-caption"><span class="mc-boro">Brooklyn</span><span class="mc-sub">Median asking rent by community district</span></div>
 
 <div class="rank-wrap">
-  <div class="rank-tabs">
-    <button class="rank-tab active" data-mode="cd">Community districts</button>
-    <button class="rank-tab" data-mode="nb">Neighborhoods</button>
+  <div class="rank-head">
+    <div class="rank-tabs">
+      <button class="rank-tab active" data-mode="cd">Community districts</button>
+      <button class="rank-tab" data-mode="nb">Neighborhoods</button>
+    </div>
+    <div class="rank-when"><span id="rankMonth">&mdash;</span></div>
+  </div>
+  <div class="rank-time">
+    <button id="rankPlay" type="button">&#9654;</button>
+    <input id="rankSlider" type="range" min="0" max="197" value="197">
   </div>
   <div id="rankBody"></div>
+</div>
 </div>
 <a class="afford-cta" href="/lessexpensive" target="_top"><span class="ac-icon">&#127968;</span><span class="ac-txt"><span class="ac-kicker">Affordable &amp; income-restricted housing</span><span class="ac-t">Could you qualify for a cheaper apartment?</span><span class="ac-d">Enter your household size and income to see which of the open lotteries you may be eligible for.</span></span><span class="ac-arrow">&rarr;</span></a>
 <div class="source">Source: StreetEasy median asking rent, as of June 1, 2026 &nbsp;|&nbsp; bkcb6.app</div>
@@ -495,57 +508,127 @@ function bkcb6CopyEmbed(type){
   });
 }
 
-// Brooklyn rankings: community districts and neighborhoods
+// Brooklyn rankings: bar chart, scrub through time
 (function(){
-  var CDS=null, NBS=null, mode='cd';
-  var CB6NAMES={6:'CB6'};
+  var H=null, mode='cd', idx=null, timer=null;
+  var BEDMAP={'Studio':'studio','1BR':'br1','2BR':'br2','3BR+':'br3','All Units':'all'};
   function money(v){ return v==null?'n/a':'$'+Number(v).toLocaleString('en-US'); }
   function bedKey(){
-    var b=(typeof currentBed!=='undefined'&&currentBed)?currentBed:
-          (document.querySelector('.rent-btn.active')?document.querySelector('.rent-btn.active').textContent.trim():'1BR');
-    return ({'Studio':'rent_studio','1BR':'rent_1br','2BR':'rent_2br','3BR+':'rent_3br','All Units':'rent_all'})[b]||'rent_1br';
+    var b=document.querySelector('.rent-btn.active');
+    return BEDMAP[b?b.textContent.trim():'1BR']||'br1';
+  }
+  function unpack(p,i){
+    if(!p) return null;
+    var k=i-p[0];
+    return (k>=0 && k<p[1].length) ? p[1][k] : null;
+  }
+  function label(m){
+    var mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return mn[parseInt(m.slice(5,7),10)-1]+' '+m.slice(0,4);
   }
   function draw(){
     var el=document.getElementById('rankBody'); if(!el) return;
+    if(!H){ el.innerHTML='<div class="rank-none">Loading history&hellip;</div>'; return; }
+    if(idx===null) idx=H.months.length-1;
+    document.getElementById('rankMonth').textContent=label(H.months[idx]);
     var key=bedKey();
-    var rows;
-    if(mode==='cd'){
-      if(!CDS) return el.innerHTML='<div class="rank-none">Loading&hellip;</div>';
-      rows=CDS.filter(function(r){return r[key]!=null;})
-        .map(function(r){return {name:'Brooklyn CD'+(+r.cb_code.slice(4)), sub:r.neighborhoods||'', v:r[key], cd:+r.cb_code.slice(4)};});
-    } else {
-      if(!NBS) return el.innerHTML='<div class="rank-none">Loading&hellip;</div>';
-      rows=NBS.filter(function(r){return r[key]!=null;})
-        .map(function(r){var n=r.cd?parseInt(String(r.cd).slice(4),10):null;
-          return {name:r.nb, sub:(n?'CD'+n:''), v:r[key], cd:n};});
-    }
+    var src = mode==='cd' ? H.cds : H.nbs;
+    var rows=[];
+    src.forEach(function(a){
+      var v=unpack(a.s[key], idx);
+      if(v!=null) rows.push({name:(mode==='cd'?'Brooklyn '+a.name:a.name), v:v, cd:(mode==='cd'?a.num:a.cd)});
+    });
+    if(!rows.length){ el.innerHTML='<div class="rank-none">No data published for this unit type in '+label(H.months[idx])+'.</div>'; return; }
     rows.sort(function(a,b){return b.v-a.v;});
-    if(!rows.length) return el.innerHTML='<div class="rank-none">No data for this unit type.</div>';
     var max=rows[0].v;
     el.innerHTML=rows.map(function(r,i){
       return '<div class="rank-row'+(r.cd===6?' cb6':'')+'">'+
         '<span class="rank-n">'+(i+1)+'</span>'+
-        '<span class="rank-name">'+r.name+(r.sub?' <span class="rn-sub">'+r.sub+'</span>':'')+
-          '<span class="rank-bar"><i style="width:'+Math.round(r.v/max*100)+'%"></i></span></span>'+
+        '<span class="rank-lab"><span class="rank-name">'+r.name+'</span>'+
+          '<span class="rank-track"><i class="rank-fill" style="width:'+Math.round(r.v/max*100)+'%"></i></span></span>'+
         '<span class="rank-val">'+money(r.v)+'</span></div>';
     }).join('');
   }
-  fetch('data/citywide-rents.geojson').then(function(r){return r.json();}).then(function(j){
-    CDS=j.features.map(function(f){return f.properties;}).filter(function(p){return p.cb_code.indexOf('BK')===0;});
-    draw();
-  });
-  fetch('data/neighborhood-rents.geojson').then(function(r){return r.json();}).then(function(j){
-    NBS=j.features.map(function(f){return f.properties;}).filter(function(p){return p.boro==='BK';});
-  });
-  document.querySelectorAll('.rank-tab').forEach(function(b){
-    b.addEventListener('click',function(){
-      mode=this.getAttribute('data-mode');
-      document.querySelectorAll('.rank-tab').forEach(function(x){x.classList.toggle('active',x===b);});
+  function stop(){ if(timer){clearInterval(timer);timer=null;} var b=document.getElementById('rankPlay'); if(b) b.innerHTML='\u25B6'; }
+  function play(){
+    if(timer){ stop(); return; }
+    if(!H) return;
+    var b=document.getElementById('rankPlay'); b.innerHTML='\u23F8';
+    if(idx>=H.months.length-1) idx=0;
+    timer=setInterval(function(){
+      idx++;
+      if(idx>=H.months.length){ idx=H.months.length-1; stop(); draw(); return; }
+      document.getElementById('rankSlider').value=idx;
       draw();
+    },110);
+  }
+  function boot(){
+    var sl=document.getElementById('rankSlider');
+    sl.max=H.months.length-1; sl.value=H.months.length-1; idx=H.months.length-1;
+    sl.addEventListener('input',function(){ stop(); idx=+this.value; draw(); });
+    document.getElementById('rankPlay').addEventListener('click',play);
+    document.querySelectorAll('.rank-tab').forEach(function(b){
+      b.addEventListener('click',function(){
+        mode=this.getAttribute('data-mode');
+        document.querySelectorAll('.rank-tab').forEach(function(x){x.classList.toggle('active',x===b);});
+        draw();
+      });
     });
-  });
-  document.querySelectorAll('.rent-btn').forEach(function(b){ b.addEventListener('click',function(){ setTimeout(draw,50); }); });
+    document.querySelectorAll('.rent-btn').forEach(function(b){ b.addEventListener('click',function(){ setTimeout(draw,40); }); });
+    draw();
+  }
+  fetch('data/bk-rank-history.json').then(function(r){return r.json();}).then(function(j){ H=j; boot(); })
+    .catch(function(){ document.getElementById('rankBody').innerHTML='<div class="rank-none">Ranking history could not load.</div>'; });
 })();
+</script>
+
+<button aria-label="Share or embed this page" class="embed-fab" onclick="document.getElementById('bkcb6EmbedModal').classList.add('open')">
+  &lt;/&gt; Share / Embed
+</button>
+<div class="embed-modal-bg" id="bkcb6EmbedModal" onclick="if(event.target===this)this.classList.remove('open')">
+<div class="embed-modal">
+<h3>Share or Embed This Page</h3>
+<p>Copy the direct link to share, or use the embed code to display this page on your own site.</p>
+<div class="embed-tabs">
+<button class="embed-tab active" onclick="bkcb6SwitchEmbedTab(this,'link')">&#128279; Link</button>
+<button class="embed-tab" onclick="bkcb6SwitchEmbedTab(this,'iframe')">&lt;/&gt; Embed</button>
+</div>
+<div id="bkcb6EmbedLinkPanel">
+<div class="embed-url-row">
+<div class="embed-url-box" id="bkcb6EmbedUrlBox"></div>
+<button class="embed-copy-btn" onclick="bkcb6CopyEmbed('link')">Copy</button>
+</div>
+</div>
+<div id="bkcb6EmbedIframePanel" style="display:none">
+<div class="embed-code-box" id="bkcb6EmbedCodeBox"></div>
+<button class="embed-copy-btn" onclick="bkcb6CopyEmbed('iframe')" style="width:100%;margin-bottom:10px">Copy Embed Code</button>
+</div>
+<button class="embed-close" onclick="document.getElementById('bkcb6EmbedModal').classList.remove('open')">Close</button>
+</div>
+</div>
+<script>
+(function(){
+  var url = window.location.href.split('?')[0].split('#')[0];
+  url = url.replace('cb6brooklyn.github.io/bkcb6','bkcb6.app');
+  var iframe = '<iframe src="' + url + '" width="100%" height="600" style="border:none;border-radius:8px" loading="lazy" title="CB6 &amp; Beyond \u2014 ' + document.title + '"></iframe>';
+  document.getElementById('bkcb6EmbedUrlBox').textContent = url;
+  document.getElementById('bkcb6EmbedCodeBox').textContent = iframe;
+})();
+function bkcb6SwitchEmbedTab(btn,panel){
+  document.querySelectorAll('.embed-tab').forEach(function(t){t.classList.remove('active')});
+  btn.classList.add('active');
+  document.getElementById('bkcb6EmbedLinkPanel').style.display=panel==='link'?'':'none';
+  document.getElementById('bkcb6EmbedIframePanel').style.display=panel==='iframe'?'':'none';
+}
+function bkcb6CopyEmbed(type){
+  var text=type==='link'?document.getElementById('bkcb6EmbedUrlBox').textContent:document.getElementById('bkcb6EmbedCodeBox').textContent;
+  navigator.clipboard.writeText(text).then(function(){
+    var btn=type==='link'?document.querySelector('#bkcb6EmbedLinkPanel .embed-copy-btn'):document.querySelector('#bkcb6EmbedIframePanel .embed-copy-btn');
+    var orig=btn.textContent;btn.textContent='Copied!';btn.style.background='#2d6a4f';
+    setTimeout(function(){btn.textContent=orig;btn.style.background='';},1800);
+  });
+}
+
 </script>
 </body>
 </html>
