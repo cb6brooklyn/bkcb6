@@ -132,6 +132,9 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .rpt-hd{font-family:'DM Sans',sans-serif;font-size:.86rem;font-weight:800;color:#132D65}
 .sec-ico{font-size:1rem;line-height:1;margin-right:2px}
 .mc-ico{font-size:1.05rem;line-height:1;margin-right:2px}
+.rank-beds{display:flex;gap:5px;flex-wrap:wrap;padding:9px 14px;background:#f8f7f4;border-bottom:1px solid #e5e2db}
+.rank-bed{padding:5px 12px;font-family:'DM Sans',sans-serif;font-size:.73rem;font-weight:700;border:2px solid #132D65;border-radius:20px;background:#fff;color:#132D65;cursor:pointer}
+.rank-bed.active{background:#f47920;border-color:#f47920;color:#fff}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -211,6 +214,12 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
       <button class="rank-tab" data-mode="nb">Neighborhoods</button>
     </div>
     <div class="rank-when"><span id="rankWhat">1 bedroom</span> &middot; <span id="rankMonth">&mdash;</span></div>
+  </div>
+  <div class="rank-beds" id="rankBeds">
+    <button class="rank-bed" data-bed="studio">Studio</button>
+    <button class="rank-bed active" data-bed="1br">1BR</button>
+    <button class="rank-bed" data-bed="2br">2BR</button>
+    <button class="rank-bed" data-bed="3br">3BR+</button>
   </div>
   <div class="rank-time">
     <button id="rankPlay" type="button">&#9654;</button>
@@ -571,9 +580,14 @@ function bkcb6CopyEmbed(type){
   var H=null, mode='cd', idx=null, timer=null;
   var BEDMAP={'Studio':'studio','1BR':'br1','2BR':'br2','3BR+':'br3'};
   function money(v){ return v==null?'n/a':'$'+Number(v).toLocaleString('en-US'); }
-  function bedKey(){
-    var b=document.querySelector('.rent-btn.active');
-    return BEDMAP[b?b.textContent.trim():'1BR']||'br1';
+  var BEDCODE={studio:'studio','1br':'br1','2br':'br2','3br':'br3'};
+  var curBed='1br';
+  function bedKey(){ return BEDCODE[curBed]||'br1'; }
+  function syncMap(code){
+    var want={studio:'Studio','1br':'1BR','2br':'2BR','3br':'3BR+'}[code];
+    document.querySelectorAll('.rent-btn').forEach(function(b){
+      if(b.textContent.trim()===want && !b.classList.contains('active')) b.click();
+    });
   }
   function unpack(p,i){
     if(!p) return null;
@@ -635,7 +649,24 @@ function bkcb6CopyEmbed(type){
         draw();
       });
     });
-    document.querySelectorAll('.rent-btn').forEach(function(b){ b.addEventListener('click',function(){ setTimeout(draw,40); }); });
+    document.querySelectorAll('.rank-bed').forEach(function(b){
+      b.addEventListener('click',function(){
+        curBed=this.getAttribute('data-bed');
+        document.querySelectorAll('.rank-bed').forEach(function(x){x.classList.toggle('active',x===b);});
+        syncMap(curBed);
+        draw();
+      });
+    });
+    // if the map's own toggle is used, mirror it here
+    document.querySelectorAll('.rent-btn').forEach(function(b){
+      b.addEventListener('click',function(){
+        var code={'Studio':'studio','1BR':'1br','2BR':'2br','3BR+':'3br'}[this.textContent.trim()];
+        if(code){ curBed=code;
+          document.querySelectorAll('.rank-bed').forEach(function(x){x.classList.toggle('active',x.getAttribute('data-bed')===code);});
+        }
+        setTimeout(draw,40);
+      });
+    });
     draw();
   }
   fetch('data/bk-rank-history.json').then(function(r){return r.json();}).then(function(j){ H=j; boot(); })
