@@ -74,6 +74,12 @@ select:focus,input:focus{outline:none;border-color:#f47920}
 .sumcell .sv{font-size:1.15rem;font-weight:900;font-family:'DM Mono',monospace;color:#132D65;margin-top:3px;line-height:1}
 .sumcell.lead .sv{color:#fff;font-size:1.5rem}
 .sumcell .ss{font-size:.58rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.55);margin-top:3px}
+.matchrows{margin-top:8px;border-top:1px solid #eee;padding-top:7px}
+.mrow{display:flex;gap:8px;align-items:baseline;font-size:.72rem;padding:3px 0;font-family:'DM Mono',monospace}
+.mrow .mb{font-weight:700;color:#132D65;min-width:52px}
+.mrow .ma{color:#6b6760;font-size:.66rem}
+.mrow .mr{color:#2e6b30;font-weight:700;margin-left:auto}
+.mrow .mc{color:#9ca3af;font-size:.66rem;min-width:56px;text-align:right}
 .lot-match{font-size:.58rem;font-family:'DM Mono',monospace;background:#2e6b30;color:#fff;padding:2px 7px;border-radius:4px;font-weight:700}
 .lot-match.none{background:#e9e7e2;color:#6b6760}
 .tag.ami.hit{background:#dff0df;color:#1e5a20;font-weight:700;box-shadow:inset 0 0 0 1px #82C341}
@@ -283,8 +289,8 @@ select:focus,input:focus{outline:none;border-color:#f47920}
         (mu!==null?('<span class="lot-match'+(mu>0?'':' none')+'">'+(mu>0?mu+' unit'+(mu===1?'':'s')+' under your income cap':'over the income cap')+'</span>'):'')+
         '<span class="lot-d" style="color:'+dcol+'">'+dtxt+'</span></div>'+
       '<div class="lot-meta">'+(addr?addr+' &middot; ':'')+nb+r.borough+(r.cd_num?' CD'+r.cd_num:'')+' &middot; '+r.units+' units'+
-        (r.cb_pref?' &middot; '+r.cb_pref+'% set aside for district residents':'')+'</div>'+
-      '<div class="lot-tags">'+mix+ami+'</div></div>';
+        (r.cb_pref?' &middot; '+r.cb_pref+'% set aside for district residents':'')+(r.cb_pref_text?' &middot; preference: '+r.cb_pref_text:'')+(r.income_min?'<br><span style="color:#6b6760">Eligible income '+money(r.income_min)+' &ndash; '+money(r.income_max)+' &middot; household '+r.hh_min+'&ndash;'+r.hh_max+'</span>':'')+'</div>'+
+      '<div class="lot-tags">'+mix+ami+'</div>'+matchDetail(r)+'</div>';
   }
 
   var BEDORDER=['Studio','1BR','2BR','3BR','4BR+'];
@@ -303,9 +309,27 @@ select:focus,input:focus{outline:none;border-color:#f47920}
     return lim!=null && H.income<=lim;
   }
   function matchedUnits(r){
-    if(!window.__HH) return null;
+    var H=window.__HH; if(!H) return null;
+    if(r.detail && r.detail.length){          // exact: income must fall between min and max for this household size
+      var hh=String(H.size);
+      return r.detail.reduce(function(t,u){
+        var mx=u.max && u.max[hh];
+        if(mx==null) return t;                 // this unit size not offered to this household size
+        return t + ((H.income>=u.min && H.income<=mx) ? u.count : 0);
+      },0);
+    }
     if(!r.ami || !r.ami.length) return null;   // income bands not recorded yet
     return r.ami.reduce(function(t,a){ return t + (catMatches(a.band)?a.units:0); },0);
+  }
+  function matchDetail(r){
+    var H=window.__HH; if(!H || !r.detail) return '';
+    var hh=String(H.size);
+    var hits=r.detail.filter(function(u){ var mx=u.max&&u.max[hh]; return mx!=null && H.income>=u.min && H.income<=mx; });
+    if(!hits.length) return '';
+    return '<div class="matchrows">'+hits.map(function(u){
+      return '<div class="mrow"><span class="mb">'+u.bed+'</span><span class="ma">'+u.ami+'% AMI</span>'+
+             '<span class="mr">$'+u.rent.toLocaleString('en-US')+'/mo</span><span class="mc">'+u.count+' unit'+(u.count===1?'':'s')+'</span></div>';
+    }).join('')+'</div>';
   }
   function draw(){
     var list=document.getElementById('lotList');
