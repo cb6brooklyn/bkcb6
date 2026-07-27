@@ -272,6 +272,7 @@ select:focus,input:focus{outline:none;border-color:#f47920}
     var isCB6=(r.borough==='Brooklyn' && r.cd_num===6);
     var mix=Object.keys(r.unit_mix||{}).map(function(k){return '<span class="tag">'+k+': '+r.unit_mix[k]+'</span>';}).join('');
     var mu=matchedUnits(r);
+    var nb=r.neighborhood?(r.neighborhood+' &middot; '):'';
     var ami=(r.ami||[]).map(function(a){var ok=catMatches(a.band);return '<span class="tag ami'+(window.__HH?(ok?' hit':' miss'):'')+'">'+a.band+': '+a.units+'</span>';}).join('');
     var addr=(r.addresses&&r.addresses.length)?r.addresses.join(' &middot; '):'';
     var dtxt = (dleft===0 ? 'closes today' : 'closes in '+dleft+' day'+(dleft===1?'':'s'));
@@ -281,7 +282,7 @@ select:focus,input:focus{outline:none;border-color:#f47920}
         (isCB6?'<span class="lot-cb">CB6</span>':'')+
         (mu!==null?('<span class="lot-match'+(mu>0?'':' none')+'">'+(mu>0?mu+' unit'+(mu===1?'':'s')+' under your income cap':'over the income cap')+'</span>'):'')+
         '<span class="lot-d" style="color:'+dcol+'">'+dtxt+'</span></div>'+
-      '<div class="lot-meta">'+(addr?addr+' &middot; ':'')+r.borough+(r.cd_num?' CD'+r.cd_num:'')+' &middot; '+r.units+' units'+
+      '<div class="lot-meta">'+(addr?addr+' &middot; ':'')+nb+r.borough+(r.cd_num?' CD'+r.cd_num:'')+' &middot; '+r.units+' units'+
         (r.cb_pref?' &middot; '+r.cb_pref+'% set aside for district residents':'')+'</div>'+
       '<div class="lot-tags">'+mix+ami+'</div></div>';
   }
@@ -303,7 +304,8 @@ select:focus,input:focus{outline:none;border-color:#f47920}
   }
   function matchedUnits(r){
     if(!window.__HH) return null;
-    return (r.ami||[]).reduce(function(t,a){ return t + (catMatches(a.band)?a.units:0); },0);
+    if(!r.ami || !r.ami.length) return null;   // income bands not recorded yet
+    return r.ami.reduce(function(t,a){ return t + (catMatches(a.band)?a.units:0); },0);
   }
   function draw(){
     var list=document.getElementById('lotList');
@@ -314,6 +316,7 @@ select:focus,input:focus{outline:none;border-color:#f47920}
       totUnits+=r.units||0;
       Object.keys(r.unit_mix||{}).forEach(function(k){ mix[k]=(mix[k]||0)+r.unit_mix[k]; });
     });
+    var haveMix=Object.keys(mix).length>0;
     var cells=BEDORDER.filter(function(k){return mix[k];}).map(function(k){
       return '<div class="sumcell"><div class="sk">'+k+'</div><div class="sv">'+mix[k].toLocaleString('en-US')+'</div></div>';
     }).join('');
@@ -323,7 +326,8 @@ select:focus,input:focus{outline:none;border-color:#f47920}
       (mTot!==null?('<div class="sumcell lead match"><div class="sk">Under your income cap</div><div class="sv">'+mTot.toLocaleString('en-US')+'</div><div class="ss">of '+totUnits.toLocaleString('en-US')+' open units</div></div>'):'')+
       '<div class="sumcell lead"><div class="sk">Units available now</div><div class="sv">'+totUnits.toLocaleString('en-US')+'</div>'+
       '<div class="ss">across '+rows.length+' open '+(rows.length===1?'lottery':'lotteries')+'</div></div>'+
-      cells+'</div>';
+      cells+'</div>'+
+      (haveMix?'':'<div style="padding:10px 15px;font-size:.72rem;color:#6b6760;background:#fff8f2;border-bottom:1px solid #e5e2db;line-height:1.5">Bedroom mix and income bands are not filled in for these yet. Open a lottery on Housing Connect for its unit breakdown.</div>');
     if(!rows.length){
       list.innerHTML=summary+'<div style="padding:14px 15px;font-size:.8rem;color:#555;line-height:1.5">No open lotteries in HPD\'s records for this filter. Housing Connect often lists more, because deadlines are extended there after HPD publishes. Check Housing Connect directly.</div>';
       return;
@@ -349,7 +353,8 @@ select:focus,input:focus{outline:none;border-color:#f47920}
     fw.appendChild(mo);
     mo.querySelector('input').addEventListener('change',function(){ matchOnly=this.checked; draw(); });
     var nOpen=ALL.filter(function(r){return r.is_open;}).length;
-    document.getElementById('lotSub').innerHTML='Open lotteries as of '+d.generated+'. Newly advertised lotteries can take a few days to appear in HPD\'s published data, so check Housing Connect for the very latest. Apply on <a href="https://housingconnect.nyc.gov" target="_blank" rel="noopener" style="color:#f47920;font-weight:700">Housing Connect</a>, which is the authoritative list.';
+    var tot=d.total_on_housing_connect||nOpen;
+    document.getElementById('lotSub').innerHTML='Showing <b>'+nOpen+' of '+tot+'</b> open rental lotteries listed on Housing Connect as of '+d.updated+'. This list is maintained by hand because the city\'s open-data feed does not carry current lotteries. For the complete, live list, go to <a href="https://housingconnect.nyc.gov" target="_blank" rel="noopener" style="color:#f47920;font-weight:700">Housing Connect</a>, which is the authoritative list.';
     draw();
   }).catch(function(){
     document.getElementById('lotList').innerHTML='<div style="padding:16px;font-size:.8rem;color:#777">Lottery data could not load. See housingconnect.nyc.gov for current lotteries.</div>';
