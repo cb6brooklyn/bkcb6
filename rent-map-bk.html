@@ -72,6 +72,20 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
 .map-caption{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:11px 16px;background:#0d1b4b;border-top:3px solid #f47920}
 .map-caption .mc-boro{font-family:'DM Sans',sans-serif;font-size:1.15rem;font-weight:900;color:#fff;line-height:1}
 .map-caption .mc-sub{font-family:'DM Mono',monospace;font-size:.66rem;color:rgba(255,255,255,.65)}
+.rank-wrap{background:#fff;border-top:1px solid #e5e2db}
+.rank-tabs{display:flex;gap:6px;padding:11px 14px 8px;background:#f8f7f4;border-bottom:1px solid #e5e2db}
+.rank-tab{padding:6px 13px;font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:700;border:2px solid #132D65;border-radius:20px;background:#fff;color:#132D65;cursor:pointer}
+.rank-tab.active{background:#f47920;border-color:#f47920;color:#fff}
+.rank-row{display:flex;align-items:baseline;gap:10px;padding:7px 14px;border-bottom:1px solid #f4f2ee;font-size:.8rem}
+.rank-row:last-child{border-bottom:none}
+.rank-row.cb6{background:#fff8f2}
+.rank-n{font-family:'DM Mono',monospace;font-size:.68rem;color:#9ca3af;width:24px;flex-shrink:0}
+.rank-name{color:#132D65;font-weight:700;flex:1;min-width:0}
+.rank-name .rn-sub{font-weight:400;color:#9ca3af;font-size:.68rem;font-family:'DM Mono',monospace}
+.rank-val{font-family:'DM Mono',monospace;font-weight:800;color:#132D65;white-space:nowrap}
+.rank-bar{height:3px;background:#eee;border-radius:2px;overflow:hidden;margin-top:3px}
+.rank-bar i{display:block;height:100%;background:#f47920}
+.rank-none{padding:14px;font-size:.78rem;color:#777}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -135,6 +149,13 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;height:100vh
 <div id="map"></div>
 <div class="map-caption"><span class="mc-boro">Brooklyn</span><span class="mc-sub">Median asking rent by community district</span></div>
 
+<div class="rank-wrap">
+  <div class="rank-tabs">
+    <button class="rank-tab active" data-mode="cd">Community districts</button>
+    <button class="rank-tab" data-mode="nb">Neighborhoods</button>
+  </div>
+  <div id="rankBody"></div>
+</div>
 <a class="afford-cta" href="/lessexpensive" target="_top"><span class="ac-icon">&#127968;</span><span class="ac-txt"><span class="ac-kicker">Affordable &amp; income-restricted housing</span><span class="ac-t">Could you qualify for a cheaper apartment?</span><span class="ac-d">Enter your household size and income to see which of the open lotteries you may be eligible for.</span></span><span class="ac-arrow">&rarr;</span></a>
 <div class="source">Source: StreetEasy median asking rent, as of June 1, 2026 &nbsp;|&nbsp; bkcb6.app</div>
 
@@ -473,6 +494,58 @@ function bkcb6CopyEmbed(type){
     setTimeout(function(){btn.textContent=orig;btn.style.background='';},1800);
   });
 }
+
+// Brooklyn rankings: community districts and neighborhoods
+(function(){
+  var CDS=null, NBS=null, mode='cd';
+  var CB6NAMES={6:'CB6'};
+  function money(v){ return v==null?'n/a':'$'+Number(v).toLocaleString('en-US'); }
+  function bedKey(){
+    var b=(typeof currentBed!=='undefined'&&currentBed)?currentBed:
+          (document.querySelector('.rent-btn.active')?document.querySelector('.rent-btn.active').textContent.trim():'1BR');
+    return ({'Studio':'rent_studio','1BR':'rent_1br','2BR':'rent_2br','3BR+':'rent_3br','All Units':'rent_all'})[b]||'rent_1br';
+  }
+  function draw(){
+    var el=document.getElementById('rankBody'); if(!el) return;
+    var key=bedKey();
+    var rows;
+    if(mode==='cd'){
+      if(!CDS) return el.innerHTML='<div class="rank-none">Loading&hellip;</div>';
+      rows=CDS.filter(function(r){return r[key]!=null;})
+        .map(function(r){return {name:'Brooklyn CD'+(+r.cb_code.slice(4)), sub:r.neighborhoods||'', v:r[key], cd:+r.cb_code.slice(4)};});
+    } else {
+      if(!NBS) return el.innerHTML='<div class="rank-none">Loading&hellip;</div>';
+      rows=NBS.filter(function(r){return r[key]!=null;})
+        .map(function(r){var n=r.cd?parseInt(String(r.cd).slice(4),10):null;
+          return {name:r.nb, sub:(n?'CD'+n:''), v:r[key], cd:n};});
+    }
+    rows.sort(function(a,b){return b.v-a.v;});
+    if(!rows.length) return el.innerHTML='<div class="rank-none">No data for this unit type.</div>';
+    var max=rows[0].v;
+    el.innerHTML=rows.map(function(r,i){
+      return '<div class="rank-row'+(r.cd===6?' cb6':'')+'">'+
+        '<span class="rank-n">'+(i+1)+'</span>'+
+        '<span class="rank-name">'+r.name+(r.sub?' <span class="rn-sub">'+r.sub+'</span>':'')+
+          '<span class="rank-bar"><i style="width:'+Math.round(r.v/max*100)+'%"></i></span></span>'+
+        '<span class="rank-val">'+money(r.v)+'</span></div>';
+    }).join('');
+  }
+  fetch('data/citywide-rents.geojson').then(function(r){return r.json();}).then(function(j){
+    CDS=j.features.map(function(f){return f.properties;}).filter(function(p){return p.cb_code.indexOf('BK')===0;});
+    draw();
+  });
+  fetch('data/neighborhood-rents.geojson').then(function(r){return r.json();}).then(function(j){
+    NBS=j.features.map(function(f){return f.properties;}).filter(function(p){return p.boro==='BK';});
+  });
+  document.querySelectorAll('.rank-tab').forEach(function(b){
+    b.addEventListener('click',function(){
+      mode=this.getAttribute('data-mode');
+      document.querySelectorAll('.rank-tab').forEach(function(x){x.classList.toggle('active',x===b);});
+      draw();
+    });
+  });
+  document.querySelectorAll('.rent-btn').forEach(function(b){ b.addEventListener('click',function(){ setTimeout(draw,50); }); });
+})();
 </script>
 </body>
 </html>
