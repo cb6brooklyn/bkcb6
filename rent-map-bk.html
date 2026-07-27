@@ -157,7 +157,26 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .rp-item input{width:15px;height:15px;accent-color:#f47920}
 .rp-item .rp-sub{margin-left:auto;font-family:'DM Mono',monospace;font-size:.64rem;color:#9ca3af}
 #rankBody{padding:10px 12px 14px;background:#fff}
-#rankCanvas{width:100%!important}
+
+#rankBody{padding:6px 0 14px;background:#fff}
+.bars{padding:0}
+.barrow{padding:9px 14px 11px;border-bottom:1px solid #f4f2ee}
+.barrow:last-child{border-bottom:none}
+.barrow.is-cb6{background:#fff8f2}
+.barhead{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+.barrank{font-family:'DM Mono',monospace;font-size:.78rem;color:#9ca3af;min-width:20px}
+.barname{font-family:'DM Sans',sans-serif;font-size:1rem;font-weight:800;color:#132D65;flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.barval{font-family:'DM Mono',monospace;font-size:1.05rem;font-weight:800;color:#132D65;white-space:nowrap}
+.barrow.is-cb6 .barname,.barrow.is-cb6 .barval{color:#b34700}
+.bartrack{height:20px;background:#eef0f4;border-radius:4px;overflow:hidden}
+.barfill{display:block;height:100%;background:#132D65;border-radius:4px;transition:width .28s ease}
+.barrow.is-cb6 .barfill{background:#f47920}
+@media(min-width:620px){
+  .barname{font-size:1.05rem}
+  .barval{font-size:1.1rem}
+  .bartrack{height:22px}
+}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -277,7 +296,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
     </select>
   </div>
   <div class="rank-now"><span class="rn-month" id="rankBigMonth">&mdash;</span><span class="rn-what">Median asking rent for a <b id="rankWhat2">1 bedroom</b>, ranked high to low</span></div>
-  <div id="rankBody"><canvas id="rankCanvas"></canvas></div>
+  <div id="rankBody"></div>
 </div>
 </div>
 </div>
@@ -663,48 +682,20 @@ function bkcb6CopyEmbed(type){
     var rows=[];
     src.forEach(function(a){
       var v=unpack(a.s[key], idx);
-      if(v!=null) rows.push({name:(mode==='cd'?'CB'+a.name.slice(2):a.name), v:v, cd:(mode==='cd'?a.num:a.cd)});
+      if(v!=null) rows.push({name:(mode==='cd'?'Brooklyn CB'+a.name.slice(2):a.name), v:v, cd:(mode==='cd'?a.num:a.cd)});
     });
-    if(!rows.length){
-      if(bar){bar.destroy();bar=null;}
-      host.innerHTML='<div class="rank-none">No data published for this unit type in '+label(H.months[idx])+'.</div>';
-      return;
-    }
+    if(!rows.length){ host.innerHTML='<div class="rank-none">No data published for this unit type in '+label(H.months[idx])+'.</div>'; return; }
     rows.sort(function(a,b){return b.v-a.v;});
-    if(!document.getElementById('rankCanvas')) host.innerHTML='<canvas id="rankCanvas"></canvas>';
-    var cv=document.getElementById('rankCanvas');
-    cv.height = Math.max(200, rows.length*(mode==='cd'?34:26));
-
-    var labels=rows.map(function(r){return r.name;});
-    var vals=rows.map(function(r){return r.v;});
-    var cols=rows.map(function(r){return r.cd===6?'#f47920':'#132D65';});
-
-    if(bar){
-      bar.data.labels=labels;
-      bar.data.datasets[0].data=vals;
-      bar.data.datasets[0].backgroundColor=cols;
-      bar.update('none');
-      return;
-    }
-    bar=new Chart(cv,{type:'bar',
-      data:{labels:labels,datasets:[{data:vals,backgroundColor:cols,borderRadius:3,barPercentage:.86,categoryPercentage:.92}]},
-      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,animation:{duration:260},
-        layout:{padding:{right:74}},
-        plugins:{legend:{display:false},
-          tooltip:{callbacks:{label:function(c){return '$'+Number(c.parsed.x).toLocaleString('en-US');}}}},
-        scales:{
-          x:{beginAtZero:true,ticks:{font:{size:11,family:'DM Mono'},color:'#6b6760',
-              callback:function(v){return '$'+(v/1000).toFixed(1)+'k';}},grid:{color:'#f2f0ec'}},
-          y:{ticks:{font:{size:mode==='cd'?14:12,family:'DM Sans',weight:'700'},color:'#132D65',autoSkip:false},grid:{display:false}}}},
-      plugins:[{id:'valLabels',afterDatasetsDraw:function(c){
-        var ctx=c.ctx; ctx.save();
-        ctx.font='700 13px DM Mono, monospace'; ctx.fillStyle='#132D65'; ctx.textBaseline='middle';
-        c.getDatasetMeta(0).data.forEach(function(el,i){
-          var v=c.data.datasets[0].data[i];
-          if(v!=null) ctx.fillText('$'+Number(v).toLocaleString('en-US'), el.x+8, el.y);
-        });
-        ctx.restore();
-      }}]});
+    var max=rows[0].v;
+    host.innerHTML='<div class="bars">'+rows.map(function(r,i){
+      var w=Math.max(4, Math.round(r.v/max*100));
+      return '<div class="barrow'+(r.cd===6?' is-cb6':'')+'">'+
+        '<div class="barhead"><span class="barrank">'+(i+1)+'</span>'+
+          '<span class="barname">'+r.name+'</span>'+
+          '<span class="barval">$'+Number(r.v).toLocaleString('en-US')+'</span></div>'+
+        '<div class="bartrack"><span class="barfill" style="width:'+w+'%"></span></div>'+
+      '</div>';
+    }).join('')+'</div>';
   }
 
   function stop(){ if(timer){clearInterval(timer);timer=null;} var b=document.getElementById('rankPlay'); if(b) b.innerHTML='\u25B6'; }
