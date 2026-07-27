@@ -31,6 +31,14 @@ select:focus,input:focus{outline:none;border-color:#f47920}
 .presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
 .preset{padding:6px 12px;font-size:.72rem;font-weight:700;border:2px solid #132D65;border-radius:20px;background:#fff;color:#132D65;cursor:pointer;font-family:'DM Sans',sans-serif}
 .preset:hover{background:#fff8f2;border-color:#f47920}
+.prow{display:grid;grid-template-columns:1fr 130px 40px;gap:8px;align-items:end;margin-bottom:8px}
+.prow .sub-lbl{font-size:.52rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;font-weight:700;margin-bottom:4px;display:block}
+.prow select,.prow input{padding:8px 10px;font-size:.8rem}
+.rmP{padding:8px 0;border:2px solid #e5e2db;border-radius:8px;background:#fff;color:#c0392b;font-weight:700;cursor:pointer;font-size:.9rem;line-height:1}
+.rmP:hover{border-color:#c0392b}
+.tot{color:#fff}
+.tot .k{font-size:.52rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6)}
+.tot .v{font-size:1.15rem;font-weight:900;font-family:'DM Mono',monospace;margin-top:2px}
 .result-band{padding:14px 16px;border-radius:10px;margin-top:6px}
 .result-band.ok{background:#eef7ee;border:1px solid #82C341}
 .result-band.warn{background:#fff3cd;border:1px solid #ffe69c}
@@ -74,12 +82,11 @@ select:focus,input:focus{outline:none;border-color:#f47920}
   <div class="sub">Affordable units are set at a percentage of Area Median Income (AMI). Enter a household size and income to see which AMI bands you fall within. This is a guide, not a determination: each lottery sets its own minimum and maximum.</div>
 
   <div class="panel"><div class="tool">
-    <div class="tool-row">
-      <label><span class="lbl">Household size (everyone who will live there)</span>
-        <select id="hh"></select></label>
-      <label><span class="lbl">Total annual household income (gross)</span>
-        <input id="inc" type="text" inputmode="numeric" placeholder="$ e.g. 60,000"></label>
-    </div>
+    <div style="font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700;margin-bottom:8px">Add everyone who will live in the unit</div>
+    <div id="people"></div>
+    <button id="addPerson" type="button" style="margin-top:8px;padding:8px 14px;font-size:.76rem;font-weight:700;border:2px solid #132D65;border-radius:8px;background:#fff;color:#132D65;cursor:pointer;font-family:'DM Sans',sans-serif">+ Add person</button>
+    <div id="totals" style="margin-top:14px;padding:12px 14px;background:#132D65;border-radius:9px;display:flex;flex-wrap:wrap;gap:18px"></div>
+    <input id="hh" type="hidden"><input id="inc" type="hidden">
     <div id="result"></div>
     <div id="bands"></div>
     <div style="margin-top:18px">
@@ -88,7 +95,7 @@ select:focus,input:focus{outline:none;border-color:#f47920}
     </div>
   </div></div>
 
-  <div class="disc"><b>Household size is a headcount, not a relationship test.</b> It is everyone who will live in the unit: spouse, partner, children, other dependents, roommates, anyone. Relationship does not change eligibility; the count does. Income means the combined gross (pre-tax) income of everyone in the household over 18.<br><br>AMI is set each year by the federal government (HUD) for the whole New York metro area, so it can be higher than the actual median in many neighborhoods. Figures here are the NYC HPD 2025 chart. A household usually must fall <b>between</b> a unit's minimum and maximum income, so earning too little can also make you ineligible for a given unit.</div>
+  <div class="disc"><b>Only two things decide eligibility: headcount and total counted income.</b> Who earns it does not matter. Two adults earning $30,000 each and one adult earning $60,000 with a baby are the same household to HPD: 2 people, $60,000. Both qualify from the same AMI band. But that same $60,000 with only one person in the household qualifies from a higher band, because the limits rise with household size.<br><br>Everyone who will live in the unit counts toward headcount, including infants, children, and dependents with no income. Income counted is generally the gross (pre-tax) income of household members 18 and over.<br><br>AMI is set each year by the federal government (HUD) for the whole New York metro area, so it can be higher than the actual median in many neighborhoods. Figures here are the NYC HPD 2025 chart. A household usually must fall <b>between</b> a unit's minimum and maximum income, so earning too little can also make you ineligible for a given unit.</div>
 
   <div class="eyebrow">How to apply</div>
   <div class="h2">Applying through NYC Housing Connect</div>
@@ -125,6 +132,51 @@ select:focus,input:focus{outline:none;border-color:#f47920}
   var DATA=null;
 
   function parseInc(v){ var n=parseInt(String(v).replace(/[^0-9]/g,''),10); return isNaN(n)?null:n; }
+
+
+  // ---- household builder: any mix of people and incomes ----
+  var PEOPLE=[{adult:true,income:''},{adult:false,income:''}];
+  function fmtNum(v){ var n=String(v).replace(/[^0-9]/g,''); return n?Number(n).toLocaleString('en-US'):''; }
+  function personIncome(p){ var n=parseInt(String(p.income).replace(/[^0-9]/g,''),10); return isNaN(n)?0:n; }
+  function headcount(){ return PEOPLE.length; }
+  function totalIncome(){ return PEOPLE.reduce(function(t,p){ return t + (p.adult?personIncome(p):0); },0); }
+
+  function drawPeople(){
+    var wrap=document.getElementById('people');
+    wrap.innerHTML=PEOPLE.map(function(p,i){
+      return '<div class="prow">'+
+        '<div><span class="sub-lbl">Person '+(i+1)+'</span>'+
+          '<select data-i="'+i+'" class="pAge">'+
+            '<option value="1"'+(p.adult?' selected':'')+'>Adult (18+)</option>'+
+            '<option value="0"'+(!p.adult?' selected':'')+'>Under 18</option>'+
+          '</select></div>'+
+        '<div><span class="sub-lbl">Annual income</span>'+
+          '<input data-i="'+i+'" class="pInc" type="text" inputmode="numeric" placeholder="0" value="'+(p.income||'')+'"'+(p.adult?'':' disabled')+'></div>'+
+        '<div>'+(PEOPLE.length>1?'<button type="button" class="rmP" data-i="'+i+'">&times;</button>':'<span></span>')+'</div>'+
+      '</div>';
+    }).join('');
+    Array.prototype.forEach.call(wrap.querySelectorAll('.pAge'),function(el){
+      el.addEventListener('change',function(){ var i=+this.getAttribute('data-i'); PEOPLE[i].adult=(this.value==='1'); if(!PEOPLE[i].adult) PEOPLE[i].income=''; drawPeople(); sync(); });
+    });
+    Array.prototype.forEach.call(wrap.querySelectorAll('.pInc'),function(el){
+      el.addEventListener('input',function(){ var i=+this.getAttribute('data-i'); var c=this.selectionStart; this.value=fmtNum(this.value); PEOPLE[i].income=this.value; sync(); });
+    });
+    Array.prototype.forEach.call(wrap.querySelectorAll('.rmP'),function(el){
+      el.addEventListener('click',function(){ PEOPLE.splice(+this.getAttribute('data-i'),1); drawPeople(); sync(); });
+    });
+  }
+
+  function sync(){
+    var n=headcount(), inc=totalIncome();
+    var capped=Math.min(n,8);
+    document.getElementById('hh').value=String(capped);
+    document.getElementById('inc').value=String(inc);
+    document.getElementById('totals').innerHTML=
+      '<div class="tot"><div class="k">Household size</div><div class="v">'+n+'</div></div>'+
+      '<div class="tot"><div class="k">Counted income</div><div class="v">'+money(inc)+'</div></div>'+
+      (n>8?'<div class="tot" style="flex:1;min-width:180px"><div class="k">Note</div><div style="font-size:.7rem;color:rgba(255,255,255,.8);margin-top:3px;line-height:1.4">HPD\'s published chart tops out at 8; limits above that are set per program.</div></div>':'');
+    render();
+  }
 
   function buildMatrix(){
     var m=document.getElementById('matrix'); if(!m||!DATA) return;
@@ -170,11 +222,8 @@ select:focus,input:focus{outline:none;border-color:#f47920}
 
   fetch('/data/nyc-ami-2025.json').then(function(r){return r.json();}).then(function(j){
     DATA=j;
-    var hh=document.getElementById('hh');
-    Object.keys(j.ami).forEach(function(n){ var o=document.createElement('option'); o.value=n; o.textContent=n+(n==='1'?' person':' people'); hh.appendChild(o); });
-    hh.value='3';
-    document.getElementById('hh').addEventListener('change',render);
-    document.getElementById('inc').addEventListener('input',render);
+    document.getElementById('addPerson').addEventListener('click',function(){ PEOPLE.push({adult:true,income:''}); drawPeople(); sync(); });
+    drawPeople(); sync();
     buildMatrix();
   });
 })();
