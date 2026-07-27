@@ -135,6 +135,13 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .rank-beds{display:flex;gap:5px;flex-wrap:wrap;padding:9px 14px;background:#f8f7f4;border-bottom:1px solid #e5e2db}
 .rank-bed{padding:5px 12px;font-family:'DM Sans',sans-serif;font-size:.73rem;font-weight:700;border:2px solid #132D65;border-radius:20px;background:#fff;color:#132D65;cursor:pointer}
 .rank-bed.active{background:#f47920;border-color:#f47920;color:#fff}
+.rank-now{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:10px 14px;background:#132D65}
+.rank-now .rn-month{font-family:'DM Mono',monospace;font-size:1.25rem;font-weight:700;color:#fff;letter-spacing:.02em}
+.rank-now .rn-what{font-family:'DM Sans',sans-serif;font-size:.72rem;color:rgba(255,255,255,.75)}
+.rank-now .rn-what b{color:#f47920}
+#rankSpeed{padding:5px 8px;font-family:'DM Sans',sans-serif;font-size:.72rem;border:2px solid #132D65;border-radius:7px;color:#132D65;font-weight:700;background:#fff}
+.rpt-me{background:#fff8f2}
+.rpt-tbl td.rpt-up{color:#c0392b}.rpt-tbl td.rpt-down{color:#2e6b30}.rpt-tbl td.rpt-flat{color:#9ca3af}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -199,8 +206,13 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 <div class="map-caption"><span class="mc-ico">&#128506;</span><span class="mc-boro">Brooklyn</span><span class="mc-sub">Median asking rent by community district</span></div>
 <div class="rpt-wrap">
   <div class="rpt-bar">
-    <div class="rpt-title-row"><span class="rpt-ico">&#128202;</span><span class="rpt-hd">Rent report &mdash; pick any month back to 2010</span></div><label><span>Report month</span><select id="rptMo"></select></label>
+    <div class="rpt-title-row"><span class="rpt-ico">&#128202;</span><span class="rpt-hd">Rent report</span></div>
+    <label><span>Period</span><select id="rptKind"><option value="month">A month</option><option value="year">A whole year</option></select></label>
     <label><span>Year</span><select id="rptYr"></select></label>
+    <label id="rptMoWrap"><span>Month</span><select id="rptMo"></select></label>
+    <label><span>Compare with</span><select id="rptCmpKind"><option value="none">Nothing</option><option value="prev">Previous period</option><option value="yearago">Same period, year earlier</option><option value="pick">Another period</option></select></label>
+    <label id="rptCmpWrap" style="display:none"><span>That period</span><span style="display:flex;gap:5px"><select id="rptCmpYr"></select><select id="rptCmpMo"></select></span></label>
+    <label><span>Areas</span><select id="rptScope"><option value="self">This area only</option><option value="parts">Every part of it</option></select></label>
     <button class="rpt-go" id="rptGo">Generate report</button>
     <button class="rpt-pdf" id="rptPdf" style="display:none">&#11015; Save as PDF</button>
     <span class="rpt-note" id="rptNote"></span>
@@ -224,8 +236,13 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
   <div class="rank-time">
     <button id="rankPlay" type="button">&#9654;</button>
     <input id="rankSlider" type="range" min="0" max="197" value="197">
+    <select id="rankSpeed" title="Animation speed">
+      <option value="600">Slow</option>
+      <option value="320" selected>Normal</option>
+      <option value="140">Fast</option>
+    </select>
   </div>
-  <div class="rank-legend">Median asking rent for a <b id="rankWhat2">1 bedroom</b>, ranked high to low</div>
+  <div class="rank-now"><span class="rn-month" id="rankBigMonth">&mdash;</span><span class="rn-what">Median asking rent for a <b id="rankWhat2">1 bedroom</b>, ranked high to low</span></div>
   <div id="rankBody"></div>
 </div>
 </div>
@@ -603,6 +620,7 @@ function bkcb6CopyEmbed(type){
     if(!H){ el.innerHTML='<div class="rank-none">Loading history&hellip;</div>'; return; }
     if(idx===null) idx=H.months.length-1;
     document.getElementById('rankMonth').textContent=label(H.months[idx]);
+    var bigM=document.getElementById('rankBigMonth'); if(bigM) bigM.textContent=label(H.months[idx]);
     var BEDNAME={studio:'Studio',br1:'1 bedroom',br2:'2 bedroom',br3:'3+ bedroom',all:'All units'};
     var wEl=document.getElementById('rankWhat'); if(wEl) wEl.textContent=BEDNAME[bedKey()]||'';
     var w2=document.getElementById('rankWhat2'); if(w2) w2.textContent=(BEDNAME[bedKey()]||'').toLowerCase();
@@ -630,12 +648,13 @@ function bkcb6CopyEmbed(type){
     if(!H) return;
     var b=document.getElementById('rankPlay'); b.innerHTML='\u23F8';
     if(idx>=H.months.length-1) idx=0;
+    var spd=parseInt((document.getElementById('rankSpeed')||{}).value||320,10);
     timer=setInterval(function(){
       idx++;
       if(idx>=H.months.length){ idx=H.months.length-1; stop(); draw(); return; }
       document.getElementById('rankSlider').value=idx;
       draw();
-    },110);
+    },spd);
   }
   function boot(){
     var sl=document.getElementById('rankSlider');
@@ -722,49 +741,109 @@ function bkcb6CopyEmbed(type){
 }
 
 
-// inline rent report for this map's area
+
+// inline rent report: any month or year, optional comparison, single area or all its parts
 (function(){
-  var AREA_ID="b:Brooklyn", AREA_NAME="Brooklyn";
+  var AREA_ID="b:Brooklyn", AREA_NAME="Brooklyn", AREA_LVL="borough";
   var D=null, ch=null;
   var BEDS=[['studio','Studio'],['br1','1 Bedroom'],['br2','2 Bedroom'],['br3','3+ Bedroom']];
   var MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
   var $=function(i){return document.getElementById(i);};
-  function money(v){ return v==null?'n/a':'$'+Number(v).toLocaleString('en-US'); }
+  function money(v){ return v==null?'n/a':'$'+Number(Math.round(v)).toLocaleString('en-US'); }
   function unpack(p,n){ var o=new Array(n).fill(null); if(!p) return o; for(var i=0;i<p[1].length;i++) o[p[0]+i]=p[1][i]; return o; }
-  function area(){ for(var i=0;i<D.areas.length;i++) if(D.areas[i].id===AREA_ID) return D.areas[i]; return null; }
+  function byId(id){ for(var i=0;i<D.areas.length;i++) if(D.areas[i].id===id) return D.areas[i]; return null; }
   function ser(a,k){ return unpack(a && a.s ? a.s[k] : null, D.months.length); }
   function pct(n,t){ return (n==null||t==null||!t)?null:Math.round((n-t)/t*1000)/10; }
-  function dl(n,t){ var p=pct(n,t); if(p===null) return '<div class="d rpt-flat">no year-earlier figure</div>';
-    return '<div class="d '+(p>0?'rpt-up':(p<0?'rpt-down':'rpt-flat'))+'">'+(p>0?'+':'')+p+'% vs year earlier</div>'; }
+
+  // value for an area+bed over a period: one month, or the mean of a year's published months
+  function valueAt(a,bed,per){
+    var s=ser(a,bed);
+    if(per.kind==='month'){ var i=D.months.indexOf(per.ym); return i<0?null:s[i]; }
+    var vals=[];
+    for(var i=0;i<D.months.length;i++) if(D.months[i].slice(0,4)===per.y && s[i]!=null) vals.push(s[i]);
+    if(!vals.length) return null;
+    return vals.reduce(function(x,y){return x+y;},0)/vals.length;
+  }
+  function perLabel(p){ return p.kind==='month' ? (MON[+p.ym.slice(5,7)-1]+' '+p.ym.slice(0,4)) : (p.y+' average'); }
+  function shiftPer(p,mode){
+    if(mode==='prev'){
+      if(p.kind==='year') return {kind:'year',y:String(+p.y-1)};
+      var i=D.months.indexOf(p.ym); return i<1?null:{kind:'month',ym:D.months[i-1]};
+    }
+    if(mode==='yearago'){
+      if(p.kind==='year') return {kind:'year',y:String(+p.y-1)};
+      var i=D.months.indexOf(p.ym); return i<12?null:{kind:'month',ym:D.months[i-12]};
+    }
+    return null;
+  }
+  function parts(){
+    var a=byId(AREA_ID);
+    if(AREA_LVL==='city') return D.areas.filter(function(x){return x.t==='borough';});
+    if(AREA_LVL==='borough') return D.areas.filter(function(x){return x.t==='cd' && x.p===a.n;});
+    if(AREA_LVL==='cd') return D.areas.filter(function(x){return x.t==='neighborhood' && x.p===a.p;});
+    return [];
+  }
 
   function fillDates(){
     var yrs={}; D.months.forEach(function(m){yrs[m.slice(0,4)]=1;});
-    $('rptYr').innerHTML=Object.keys(yrs).sort().reverse().map(function(y){return '<option>'+y+'</option>';}).join('');
-    $('rptMo').innerHTML=MON.map(function(m,i){return '<option value="'+String(i+1).padStart(2,'0')+'">'+m+'</option>';}).join('');
+    var yopts=Object.keys(yrs).sort().reverse().map(function(y){return '<option>'+y+'</option>';}).join('');
+    var mopts=MON.map(function(m,i){return '<option value="'+String(i+1).padStart(2,'0')+'">'+m+'</option>';}).join('');
+    $('rptYr').innerHTML=yopts; $('rptMo').innerHTML=mopts;
+    $('rptCmpYr').innerHTML=yopts; $('rptCmpMo').innerHTML=mopts;
     var last=D.months[D.months.length-1];
     $('rptYr').value=last.slice(0,4); $('rptMo').value=last.slice(5,7);
+    $('rptCmpYr').value=String(+last.slice(0,4)-1); $('rptCmpMo').value=last.slice(5,7);
+  }
+  function syncControls(){
+    $('rptMoWrap').style.display = $('rptKind').value==='year' ? 'none' : '';
+    $('rptCmpWrap').style.display = $('rptCmpKind').value==='pick' ? '' : 'none';
+    $('rptCmpMo').style.display = $('rptKind').value==='year' ? 'none' : '';
   }
 
   function build(){
-    var a=area(); if(!a){ $('rptOut').innerHTML='<div class="rpt-empty">No data for this area.</div>'; return; }
-    var ym=$('rptYr').value+'-'+$('rptMo').value, i=D.months.indexOf(ym);
-    if(i<0){ $('rptOut').innerHTML='<div class="rpt-empty">No data published for '+ym+'.</div>'; $('rptPdf').style.display='none'; return; }
-    var prev=i-1, yr=i-12;
-    var cells=BEDS.map(function(b){ var s=ser(a,b[0]);
-      return '<div class="rpt-cell"><div class="k">'+b[1]+'</div><div class="v">'+money(s[i])+'</div>'+dl(s[i], yr>=0?s[yr]:null)+'</div>'; }).join('');
-    var inv=ser(a,'inv');
-    cells+='<div class="rpt-cell"><div class="k">Listings</div><div class="v">'+(inv[i]==null?'n/a':Number(inv[i]).toLocaleString('en-US'))+'</div>'+dl(inv[i], yr>=0?inv[yr]:null)+'</div>';
-    var rows=BEDS.map(function(b){ var s=ser(a,b[0]); var p=pct(s[i], yr>=0?s[yr]:null);
-      return '<tr><td>'+b[1]+'</td><td>'+money(s[i])+'</td><td>'+money(prev>=0?s[prev]:null)+'</td><td>'+money(yr>=0?s[yr]:null)+'</td><td>'+(p===null?'n/a':((p>0?'+':'')+p+'%'))+'</td></tr>'; }).join('');
+    var kind=$('rptKind').value;
+    var per = kind==='month' ? {kind:'month',ym:$('rptYr').value+'-'+$('rptMo').value} : {kind:'year',y:$('rptYr').value};
+    if(per.kind==='month' && D.months.indexOf(per.ym)<0){
+      $('rptOut').innerHTML='<div class="rpt-empty">No data published for that month.</div>'; $('rptPdf').style.display='none'; return; }
+    var cmpMode=$('rptCmpKind').value, cmp=null;
+    if(cmpMode==='pick') cmp = kind==='month' ? {kind:'month',ym:$('rptCmpYr').value+'-'+$('rptCmpMo').value} : {kind:'year',y:$('rptCmpYr').value};
+    else if(cmpMode!=='none') cmp=shiftPer(per,cmpMode);
+
+    var rows = $('rptScope').value==='parts' ? parts() : [byId(AREA_ID)];
+    rows=rows.filter(Boolean);
+    if(!rows.length){ $('rptOut').innerHTML='<div class="rpt-empty">No areas to report.</div>'; return; }
+
+    var head='<tr><th>Area</th>'+BEDS.map(function(b){return '<th>'+b[1]+'</th>';}).join('')+'<th>Listings</th>'+
+             (cmp?'<th>1BR change</th>':'')+'</tr>';
+    var body=rows.map(function(a){
+      var tds=BEDS.map(function(b){ return '<td>'+money(valueAt(a,b[0],per))+'</td>'; }).join('');
+      var inv=valueAt(a,'inv',per);
+      var chg='';
+      if(cmp){ var p=pct(valueAt(a,'br1',per), valueAt(a,'br1',cmp));
+        chg='<td class="'+(p>0?'rpt-up':(p<0?'rpt-down':'rpt-flat'))+'">'+(p===null?'n/a':((p>0?'+':'')+p+'%'))+'</td>'; }
+      var me=(a.id===AREA_ID)?' class="rpt-me"':'';
+      return '<tr'+me+'><td>'+a.n+'</td>'+tds+'<td>'+(inv==null?'n/a':Number(Math.round(inv)).toLocaleString('en-US'))+'</td>'+chg+'</tr>';
+    }).join('');
+
+    var self=byId(AREA_ID);
+    var cells=BEDS.map(function(b){
+      var v=valueAt(self,b[0],per), c=cmp?valueAt(self,b[0],cmp):null, p=pct(v,c);
+      return '<div class="rpt-cell"><div class="k">'+b[1]+'</div><div class="v">'+money(v)+'</div>'+
+        (cmp?('<div class="d '+(p>0?'rpt-up':(p<0?'rpt-down':'rpt-flat'))+'">'+(p===null?'no comparison':((p>0?'+':'')+p+'% vs '+perLabel(cmp)))+'</div>'):'')+'</div>';
+    }).join('');
+
     $('rptOut').innerHTML='<div class="rpt-card">'+
       '<div class="rpt-title">'+AREA_NAME+' rent report</div>'+
-      '<div class="rpt-when">'+MON[+$('rptMo').value-1]+' '+$('rptYr').value+'</div>'+
+      '<div class="rpt-when">'+perLabel(per)+(cmp?' &nbsp;vs&nbsp; '+perLabel(cmp):'')+'</div>'+
       '<div class="rpt-grid">'+cells+'</div>'+
-      '<div class="rpt-h3">Compared</div>'+
-      '<table class="rpt-tbl"><tr><th>Unit</th><th>This month</th><th>Prior month</th><th>Year earlier</th><th>Change</th></tr>'+rows+'</table>'+
-      '<div class="rpt-h3">1-bedroom trend to this month</div><canvas id="rptCh" height="130"></canvas>'+
-      '<div class="rpt-src">Source: StreetEasy median asking rent and rental inventory. Blank figures mean StreetEasy published none for that month. Generated '+new Date().toLocaleDateString('en-US')+' &middot; bkcb6.app</div></div>';
-    var s1=ser(a,'br1').slice(0,i+1), lab=D.months.slice(0,i+1);
+      '<div class="rpt-h3">'+($('rptScope').value==='parts'?'Every part of '+AREA_NAME:'Summary')+'</div>'+
+      '<div style="overflow-x:auto"><table class="rpt-tbl">'+head+body+'</table></div>'+
+      '<div class="rpt-h3">1-bedroom trend</div><canvas id="rptCh" height="130"></canvas>'+
+      '<div class="rpt-src">Source: StreetEasy median asking rent and rental inventory. A whole-year figure is the mean of that year\u2019s published months. Blank figures mean StreetEasy published none. Generated '+new Date().toLocaleDateString('en-US')+' &middot; bkcb6.app</div></div>';
+
+    var endIdx = per.kind==='month' ? D.months.indexOf(per.ym) : (function(){ var last=-1;
+      for(var i=0;i<D.months.length;i++) if(D.months[i].slice(0,4)===per.y) last=i; return last<0?D.months.length-1:last; })();
+    var lab=D.months.slice(0,endIdx+1), s1=ser(self,'br1').slice(0,endIdx+1);
     if(ch) ch.destroy();
     if(window.Chart) ch=new Chart($('rptCh'),{type:'line',data:{labels:lab,datasets:[{data:s1,borderColor:'#f47920',borderWidth:2,pointRadius:0,tension:.25,spanGaps:true}]},
       options:{responsive:true,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return money(c.parsed.y);}}}},
@@ -777,9 +856,10 @@ function bkcb6CopyEmbed(type){
     if(D) return cb();
     $('rptNote').textContent='Loading history\u2026';
     fetch('/data/rent-explorer.json').then(function(r){return r.json();}).then(function(j){
-      D=j; $('rptNote').textContent=''; fillDates(); cb();
+      D=j; $('rptNote').textContent=''; fillDates(); syncControls(); cb();
     }).catch(function(){ $('rptNote').textContent='Data could not load.'; });
   }
+  ['rptKind','rptCmpKind'].forEach(function(id){ $(id).addEventListener('change',syncControls); });
   $('rptGo').addEventListener('click',function(){ load(build); });
   $('rptPdf').addEventListener('click',function(){
     document.querySelectorAll('#rptOut canvas').forEach(function(c){
@@ -791,6 +871,7 @@ function bkcb6CopyEmbed(type){
   });
   load(function(){});
 })();
+
 </script>
 </body>
 </html>
