@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:title" content="Rent Report — any month, any neighborhood">
+<meta property="og:description" content="Generate a printable rent report for any NYC neighborhood, community district, borough, or the whole city, for any month back to 2010.">
+<meta property="og:url" content="https://bkcb6.app/rentreport">
+<title>Rent Report — bkcb6.app</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700;900&display=swap');
+:root{--navy:#0d1b4b;--orange:#f47920;--off:#f8f7f4;--border:#e5e2db;--muted:#6b6760}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
+.topbar{background:var(--navy);border-bottom:3px solid var(--orange);padding:16px 20px}
+.topbar .crumb a{color:rgba(255,255,255,.6);font-size:.72rem;font-weight:600;text-decoration:none;font-family:'DM Mono',monospace}
+.topbar h1{color:#fff;font-size:1.25rem;font-weight:900;margin-top:7px}
+.topbar p{color:rgba(255,255,255,.6);font-size:.78rem;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:16px 14px 60px}
+.controls{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+label span.l{display:block;font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin-bottom:5px}
+select{padding:9px 11px;font-family:'DM Sans',sans-serif;font-size:.82rem;border:2px solid var(--navy);border-radius:8px;color:var(--navy);font-weight:600;background:#fff;min-width:120px}
+select:focus{outline:none;border-color:var(--orange)}
+.btn{padding:10px 20px;background:var(--orange);color:#fff;border:none;border-radius:7px;font-family:'DM Sans',sans-serif;font-size:.88rem;font-weight:800;cursor:pointer}
+.btn:hover{background:#d9660f}
+.btn.alt{background:var(--navy)}
+.btn.alt:hover{background:#1a2d6b}
+#out{margin-top:16px}
+.rpt{background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.rpt-h{background:var(--navy);color:#fff;padding:18px 20px}
+.rpt-h .eyebrow{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--orange);font-weight:800}
+.rpt-h h2{font-size:1.5rem;font-weight:900;margin-top:5px;line-height:1.15}
+.rpt-h .when{font-family:'DM Mono',monospace;font-size:.8rem;color:rgba(255,255,255,.75);margin-top:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:1px;background:var(--border)}
+.cell{background:#fff;padding:13px 14px}
+.cell .k{font-size:.54rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.cell .v{font-size:1.25rem;font-weight:900;font-family:'DM Mono',monospace;margin-top:3px}
+.cell .d{font-size:.62rem;font-family:'DM Mono',monospace;margin-top:3px}
+.up{color:#c0392b}.down{color:#2e6b30}.flat{color:var(--muted)}
+.sec{padding:16px 20px;border-top:1px solid var(--border)}
+.sec h3{font-size:.62rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin-bottom:10px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:7px 8px;font-size:.78rem;text-align:right;border-bottom:1px solid #f0ede8;font-family:'DM Mono',monospace}
+th{font-size:.54rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--off)}
+th:first-child,td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700}
+tr.me{background:#fff8f2}
+.note{font-size:.68rem;font-family:'DM Mono',monospace;color:#9ca3af;padding:12px 20px;border-top:1px solid var(--border);line-height:1.6}
+.empty{padding:36px 20px;text-align:center;font-family:'DM Mono',monospace;font-size:.82rem;color:var(--muted)}
+@media print{
+  body{background:#fff}
+  .topbar,.controls,.noprint{display:none!important}
+  .wrap{max-width:none;padding:0}
+  .rpt{border:none;border-radius:0}
+  .sec{page-break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="crumb"><a href="/">CB6 &amp; Beyond</a> &rsaquo; <a href="/rentcb6">Renting</a> &rsaquo; <a href="#">Rent Report</a></div>
+  <h1>Rent Report</h1>
+  <p>Median asking rent for any neighborhood, district, borough, or the whole city, for any month since 2010.</p>
+</div>
+<div class="wrap">
+  <div class="controls noprint">
+    <label><span class="l">Area type</span><select id="lvl">
+      <option value="neighborhood">Neighborhood</option>
+      <option value="cd" selected>Community district</option>
+      <option value="borough">Borough</option>
+      <option value="city">Citywide</option>
+    </select></label>
+    <label><span class="l">Area</span><select id="area"></select></label>
+    <label><span class="l">Year</span><select id="yr"></select></label>
+    <label><span class="l">Month</span><select id="mo"></select></label>
+    <button class="btn" id="go">Generate Report</button>
+    <button class="btn alt" id="pdf" style="display:none">&#11015; Save as PDF</button>
+    <span id="spin" style="display:none;font-size:.75rem;font-family:'DM Mono',monospace;color:var(--muted)">Loading data&hellip;</span>
+  </div>
+  <div id="out"><div class="empty">Pick an area and a month, then tap <strong>Generate Report</strong>.</div></div>
+</div>
+
+<script>
+(function(){
+  var D=null, chart=null;
+  var BEDS=[['studio','Studio'],['br1','1 Bedroom'],['br2','2 Bedroom'],['br3','3+ Bedroom']];
+  var MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var $=function(i){return document.getElementById(i);};
+  var money=function(v){return v==null?'n/a':'$'+Number(v).toLocaleString('en-US');};
+  function unpack(p,n){ var o=new Array(n).fill(null); if(!p) return o; for(var i=0;i<p[1].length;i++) o[p[0]+i]=p[1][i]; return o; }
+  function ser(a,k){ return unpack(a && a.s ? a.s[k] : null, D.months.length); }
+  function byId(id){ for(var i=0;i<D.areas.length;i++) if(D.areas[i].id===id) return D.areas[i]; return null; }
+
+  function fillAreas(){
+    var lvl=$('lvl').value, sel=$('area'), prev=sel.value;
+    var list=D.areas.filter(function(a){return a.t===lvl;});
+    list.sort(function(a,b){ return (a.p===b.p)?a.n.localeCompare(b.n):String(a.p).localeCompare(String(b.p)); });
+    sel.innerHTML=list.map(function(a){
+      var lab=(lvl==='neighborhood'||lvl==='cd')&&a.p?a.n+' ('+a.p+')':a.n;
+      return '<option value="'+a.id+'">'+lab+'</option>';
+    }).join('');
+    if(list.some(function(a){return a.id===prev;})) sel.value=prev;
+    else { var d=list.filter(function(a){return a.id==='c:BKCB6';})[0]; if(d) sel.value=d.id; }
+  }
+  function fillDates(){
+    var yrs={}; D.months.forEach(function(m){yrs[m.slice(0,4)]=1;});
+    $('yr').innerHTML=Object.keys(yrs).sort().reverse().map(function(y){return '<option>'+y+'</option>';}).join('');
+    $('mo').innerHTML=MON.map(function(m,i){return '<option value="'+String(i+1).padStart(2,'0')+'">'+m+'</option>';}).join('');
+    var last=D.months[D.months.length-1];
+    $('yr').value=last.slice(0,4); $('mo').value=last.slice(5,7);
+  }
+
+  function pct(now,then){
+    if(now==null||then==null||!then) return null;
+    return Math.round((now-then)/then*1000)/10;
+  }
+  function delta(now,then,lbl){
+    var p=pct(now,then);
+    if(p===null) return '<div class="d flat">no '+lbl+' figure</div>';
+    var c=p>0?'up':(p<0?'down':'flat');
+    return '<div class="d '+c+'">'+(p>0?'+':'')+p+'% '+lbl+'</div>';
+  }
+
+  function build(){
+    var a=byId($('area').value); if(!a) return;
+    var ym=$('yr').value+'-'+$('mo').value;
+    var i=D.months.indexOf(ym);
+    if(i<0){ $('out').innerHTML='<div class="empty">No data for '+ym+'.</div>'; $('pdf').style.display='none'; return; }
+    var prev=i-1, yr=i-12;
+
+    // headline cells per bedroom
+    var cells=BEDS.map(function(b){
+      var s=ser(a,b[0]), v=s[i];
+      return '<div class="cell"><div class="k">'+b[1]+'</div><div class="v">'+money(v)+'</div>'+
+        delta(v, yr>=0?s[yr]:null, 'yr')+'</div>';
+    }).join('');
+    var inv=ser(a,'inv')[i];
+    cells+='<div class="cell"><div class="k">Listings</div><div class="v">'+(inv==null?'n/a':Number(inv).toLocaleString('en-US'))+'</div>'+
+      delta(inv, yr>=0?ser(a,'inv')[yr]:null,'yr')+'</div>';
+
+    // month-over-month table
+    var rows=BEDS.map(function(b){
+      var s=ser(a,b[0]);
+      return '<tr><td>'+b[1]+'</td><td>'+money(s[i])+'</td><td>'+money(prev>=0?s[prev]:null)+'</td><td>'+money(yr>=0?s[yr]:null)+'</td>'+
+        '<td>'+(pct(s[i],yr>=0?s[yr]:null)===null?'n/a':((pct(s[i],s[yr])>0?'+':'')+pct(s[i],s[yr])+'%'))+'</td></tr>';
+    }).join('');
+
+    // peer ranking within the same level and parent
+    var peers=D.areas.filter(function(x){ return x.t===a.t && (a.t==='cd'||a.t==='neighborhood' ? x.p===a.p : true); });
+    var rank=peers.map(function(x){ return {n:x.n, id:x.id, v:ser(x,'br1')[i]}; })
+                  .filter(function(x){return x.v!=null;})
+                  .sort(function(p,q){return q.v-p.v;});
+    var myPos=rank.findIndex(function(x){return x.id===a.id;});
+    var rankRows=rank.map(function(x,k){
+      return '<tr'+(x.id===a.id?' class="me"':'')+'><td>'+(k+1)+'. '+x.n+'</td><td>'+money(x.v)+'</td></tr>';
+    }).join('');
+
+    $('out').innerHTML=
+      '<div class="rpt">'+
+        '<div class="rpt-h"><div class="eyebrow">Rent report</div>'+
+          '<h2>'+a.n+'</h2>'+
+          '<div class="when">'+MON[+$('mo').value-1]+' '+$('yr').value+(a.p&&a.p!==a.n?' &middot; '+a.p:'')+'</div></div>'+
+        '<div class="grid">'+cells+'</div>'+
+        '<div class="sec"><h3>Median asking rent, compared</h3>'+
+          '<table><tr><th>Unit</th><th>This month</th><th>Prior month</th><th>Year earlier</th><th>Change</th></tr>'+rows+'</table></div>'+
+        '<div class="sec"><h3>Trend to this month &mdash; 1 bedroom</h3><canvas id="rc" height="150"></canvas></div>'+
+        (rank.length>1?'<div class="sec"><h3>1-bedroom ranking'+(a.p&&a.t!=='borough'&&a.t!=='city'?' within '+a.p:'')+
+          (myPos>=0?' &mdash; ranked #'+(myPos+1)+' of '+rank.length:'')+'</h3>'+
+          '<table><tr><th>Area</th><th>1 BR</th></tr>'+rankRows+'</table></div>':'')+
+        '<div class="note">Source: StreetEasy median asking rent and rental inventory. Blank figures mean StreetEasy published none for that area and month. '+
+          'Community district figures are the median across its member neighborhoods. Generated '+new Date().toLocaleDateString('en-US')+' &middot; bkcb6.app</div>'+
+      '</div>';
+
+    // trend chart up to the selected month
+    var s1=ser(a,'br1').slice(0,i+1), lab=D.months.slice(0,i+1);
+    if(chart) chart.destroy();
+    chart=new Chart($('rc'),{type:'line',data:{labels:lab,datasets:[{data:s1,borderColor:'#f47920',borderWidth:2,pointRadius:0,tension:.25,spanGaps:true}]},
+      options:{responsive:true,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return money(c.parsed.y);}}}},
+        scales:{x:{ticks:{maxTicksLimit:8,font:{size:9,family:'DM Mono'},color:'#9ca3af',callback:function(v){var t=lab[v]||'';return t.slice(5)==='01'?t.slice(0,4):'';}},grid:{display:false}},
+          y:{ticks:{font:{size:9,family:'DM Mono'},color:'#9ca3af',callback:function(v){return '$'+(v/1000).toFixed(1)+'k';}},grid:{color:'#f0ede8'}}}}});
+    $('pdf').style.display='';
+  }
+
+  $('lvl').addEventListener('change',fillAreas);
+  $('go').addEventListener('click',build);
+  $('pdf').addEventListener('click',function(){
+    document.querySelectorAll('#out canvas').forEach(function(c){
+      var img=document.createElement('img'); img.src=c.toDataURL('image/png');
+      img.style.width='100%'; img.className='rpt-img';
+      c.parentNode.insertBefore(img,c); c.style.display='none';
+    });
+    window.print();
+    setTimeout(function(){
+      document.querySelectorAll('#out canvas').forEach(function(c){c.style.display='';});
+      document.querySelectorAll('.rpt-img').forEach(function(i){i.remove();});
+    },1500);
+  });
+
+  $('spin').style.display='';
+  fetch('/data/rent-explorer.json').then(function(r){return r.json();}).then(function(j){
+    D=j; $('spin').style.display='none'; fillAreas(); fillDates();
+  }).catch(function(){ $('spin').textContent='Data could not load.'; });
+})();
+</script>
+</body>
+</html>
