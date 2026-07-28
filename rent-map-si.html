@@ -186,6 +186,16 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .rp-item.on{background:#fff2e6}
 .rp-none{padding:12px;font-size:.76rem;color:#777}
 .rp-list{max-height:230px}
+
+.rpt-tbl td .cv{display:block;font-weight:800}
+.rpt-tbl td .cwas{display:block;font-size:.66rem;color:#9ca3af;margin-top:1px}
+.rpt-tbl td .cdlt{display:block;font-size:.68rem;font-weight:700;margin-top:1px}
+.rpt-tbl td .cdlt.rpt-up{color:#c0392b}.rpt-tbl td .cdlt.rpt-down{color:#2e6b30}.rpt-tbl td .cdlt.rpt-flat{color:#9ca3af}
+.rpt-key{display:flex;flex-wrap:wrap;gap:12px;padding:8px 0 10px;font-family:'DM Mono',monospace;font-size:.62rem;color:#6b6760}
+.rpt-key span{display:inline-flex;align-items:center;gap:5px}
+.rpt-key .k1:before{content:'';width:9px;height:9px;background:#132D65;border-radius:2px}
+.rpt-key .k2:before{content:'';width:9px;height:9px;background:#c9c6c0;border-radius:2px}
+.rpt-key .k3:before{content:'';width:9px;height:9px;background:#2e6b30;border-radius:2px}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -825,16 +835,29 @@ function bkcb6CopyEmbed(type){
     rows=rows.filter(Boolean);
     if(!rows.length){ $('rptOut').innerHTML='<div class="rpt-empty">No areas to report.</div>'; return; }
 
-    var head='<tr><th>Area</th>'+BEDS.map(function(b){return '<th>'+b[1]+'</th>';}).join('')+'<th>Listings</th>'+
-             (cmp?'<th>1BR change</th>':'')+'</tr>';
+    var head='<tr><th>Area</th>'+BEDS.map(function(b){return '<th>'+b[1]+'</th>';}).join('')+'<th>Listings</th></tr>';
+    function cell(a,bed){
+      var v=valueAt(a,bed,per);
+      if(!cmp) return '<td>'+money(v)+'</td>';
+      var c=valueAt(a,bed,cmp), p=pct(v,c);
+      var cls=p>0?'rpt-up':(p<0?'rpt-down':'rpt-flat');
+      return '<td><span class="cv">'+money(v)+'</span>'+
+             '<span class="cwas">'+money(c)+'</span>'+
+             '<span class="cdlt '+cls+'">'+(p===null?'&mdash;':((p>0?'+':'')+p+'%'))+'</span></td>';
+    }
     var body=rows.map(function(a){
-      var tds=BEDS.map(function(b){ return '<td>'+money(valueAt(a,b[0],per))+'</td>'; }).join('');
-      var inv=valueAt(a,'inv',per);
-      var chg='';
-      if(cmp){ var p=pct(valueAt(a,'br1',per), valueAt(a,'br1',cmp));
-        chg='<td class="'+(p>0?'rpt-up':(p<0?'rpt-down':'rpt-flat'))+'">'+(p===null?'n/a':((p>0?'+':'')+p+'%'))+'</td>'; }
+      var tds=BEDS.map(function(b){ return cell(a,b[0]); }).join('');
+      var inv=valueAt(a,'inv',per), invC=cmp?valueAt(a,'inv',cmp):null;
+      var invTd;
+      if(!cmp) invTd='<td>'+(inv==null?'n/a':Number(Math.round(inv)).toLocaleString('en-US'))+'</td>';
+      else {
+        var ip=pct(inv,invC), icls=ip>0?'rpt-up':(ip<0?'rpt-down':'rpt-flat');
+        invTd='<td><span class="cv">'+(inv==null?'n/a':Number(Math.round(inv)).toLocaleString('en-US'))+'</span>'+
+              '<span class="cwas">'+(invC==null?'n/a':Number(Math.round(invC)).toLocaleString('en-US'))+'</span>'+
+              '<span class="cdlt '+icls+'">'+(ip===null?'&mdash;':((ip>0?'+':'')+ip+'%'))+'</span></td>';
+      }
       var me=(a.id===AREA_ID)?' class="rpt-me"':'';
-      return '<tr'+me+'><td>'+a.n+'</td>'+tds+'<td>'+(inv==null?'n/a':Number(Math.round(inv)).toLocaleString('en-US'))+'</td>'+chg+'</tr>';
+      return '<tr'+me+'><td>'+a.n+'</td>'+tds+invTd+'</tr>';
     }).join('');
 
     var self=byId(AREA_ID);
@@ -849,6 +872,9 @@ function bkcb6CopyEmbed(type){
       '<div class="rpt-when">'+perLabel(per)+(cmp?' &nbsp;vs&nbsp; '+perLabel(cmp):'')+'</div>'+
       '<div class="rpt-grid">'+cells+'</div>'+
       '<div class="rpt-h3">'+(sc==='parts'?'Every part of '+AREA_NAME:(sc==='choose'?'Comparison':'Summary'))+'</div>'+
+      (cmp?'<div class="rpt-key"><span class="k1">Top figure: '+perLabel(per)+'</span>'+
+            '<span class="k2">Below it: '+perLabel(cmp)+'</span>'+
+            '<span class="k3">Then the change</span></div>':'')+
       '<div style="overflow-x:auto"><table class="rpt-tbl">'+head+body+'</table></div>'+
       '<div class="rpt-h3">1-bedroom trend</div><canvas id="rptCh" height="130"></canvas>'+
       '<div class="rpt-src">Source: StreetEasy median asking rent and rental inventory. A whole-year figure is the mean of that year\u2019s published months. Blank figures mean StreetEasy published none. Generated '+new Date().toLocaleDateString('en-US')+' &middot; bkcb6.app</div></div>';
