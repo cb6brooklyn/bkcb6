@@ -1,0 +1,1585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:type" content="website">
+<meta property="og:title" content="BK Rents by CB">
+<meta property="og:description" content="Median asking rent across Brooklyn, by community district and neighborhood, with rankings back to 2010 and a printable report for any month or year.">
+<meta property="og:url" content="https://bkcb6.app/bkrents">
+<meta property="og:image" content="https://bkcb6.app/og-rent-map-nyc.png">
+<meta property="og:image:secure_url" content="https://bkcb6.app/og-rent-map-nyc.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="NYC median rent by community district map">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="BK Rents by CB">
+<meta name="twitter:image" content="https://bkcb6.app/og-rent-map-nyc.png">
+<title>BK Rents by CB — bkcb6.app</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:100vh;display:flex;flex-direction:column}
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700&display=swap');
+.top-bar{background:#0d1b4b;border-bottom:3px solid #f47920;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:12px;flex-wrap:wrap}
+.top-bar h1{font-size:.95rem;font-weight:700;color:#fff}
+.top-bar h1 span{color:#f47920}
+.controls{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.rent-btn{padding:5px 12px;font-size:.75rem;font-family:'DM Sans',sans-serif;font-weight:600;border:1px solid rgba(255,255,255,.3);border-radius:20px;background:transparent;color:rgba(255,255,255,.7);cursor:pointer;transition:all .15s}
+.rent-btn:hover{border-color:#fff;color:#fff}
+.rent-btn.active{background:#f47920;color:#fff;border-color:#f47920}
+.legend{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 16px;background:rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0}
+.legend-item{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;color:rgba(255,255,255,.8)}
+.legend-swatch{width:11px;height:11px;border-radius:2px;display:inline-block;flex-shrink:0}
+#map{flex:1 0 auto;min-height:60vh}
+.back-link{font-size:.72rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.5);text-decoration:none;white-space:nowrap}
+.back-link:hover{color:#f47920}
+.source{font-size:.65rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.35);padding:4px 16px;flex-shrink:0;background:#0d1b4b}
+
+.rentsearch-wrap{padding:12px 14px;background:#fff;border-bottom:1px solid #e5e2db;font-family:'DM Sans',sans-serif;position:relative;z-index:900}
+.rentsearch-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end}
+.rentsearch-col{position:relative;min-width:0}
+.rentsearch-label{display:block;font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700;margin-bottom:5px}
+#rentsearch-nb,#rentsearch-cd{width:100%;padding:9px 11px;font-family:'DM Sans',sans-serif;font-size:.8rem;border:2px solid #132D65;border-radius:8px;color:#132D65;font-weight:600;background:#fff}
+#rentsearch-nb:focus,#rentsearch-cd:focus{outline:none;border-color:#f47920}
+.nbtoggle{display:flex;align-items:center;height:38px}
+.nbtoggle label{display:flex;align-items:center;gap:7px;cursor:pointer;font-size:.74rem;font-weight:600;color:#132D65}
+.nbtoggle input{width:16px;height:16px;accent-color:#f47920;cursor:pointer}
+#rentsearch-result{margin-top:10px;display:none}
+.rsr-card{border:2px solid #132D65;border-bottom:3px solid #f47920;border-radius:10px;overflow:hidden}
+.rsr-head{background:#132D65;color:#fff;padding:10px 13px;display:flex;align-items:flex-start;gap:10px}
+.rsr-head .t{font-size:.92rem;font-weight:800;line-height:1.2}
+.rsr-head .s{font-size:.64rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.6);margin-top:2px}
+.rsr-clear{margin-left:auto;background:none;border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:6px;font-size:.62rem;padding:3px 8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:700;flex-shrink:0}
+.rsr-clear:hover{background:rgba(255,255,255,.15)}
+.rsr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:1px;background:#e5e2db}
+.rsr-cell{background:#fff;padding:9px 10px}
+.rsr-cell .l{font-size:.54rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#6b6760}
+.rsr-cell .v{font-size:.92rem;font-weight:800;color:#132D65;font-family:'DM Mono',monospace;margin-top:2px}
+.rsr-signing{padding:9px 13px;background:#132D65;color:#fff;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.rsr-signing .sl{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.6)}
+.rsr-signing .sv{font-weight:800;font-size:.95rem;font-family:'DM Mono',monospace}
+.rsr-signing .sb{font-weight:400;font-size:.6rem;color:rgba(255,255,255,.55);font-family:'DM Mono',monospace}
+.rsr-ranges{padding:8px 13px;background:#fff;border-top:1px solid #f0ede8;display:flex;flex-direction:column;gap:5px}
+.rsr-range{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:.7rem}
+.rsr-range .rl{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.06em;color:#6b6760;flex-shrink:0}
+.rsr-range .rv{font-weight:700;color:#132D65;text-align:right}
+.rsr-range .rb{font-weight:400;color:#9ca3af;font-family:'DM Mono',monospace;font-size:.62rem}
+.rsr-foot{padding:9px 13px;background:#f8f7f4;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.rsr-rank{font-size:.66rem;font-family:'DM Mono',monospace;color:#6b6760}
+.rsr-link{margin-left:auto;font-size:.7rem;font-weight:700;color:#f47920;text-decoration:none;font-family:'DM Sans',sans-serif;white-space:nowrap}
+.rsr-link:hover{text-decoration:underline}
+.rent-pin{background:none;border:none}
+.rent-pin-inner{width:26px;height:26px;border-radius:50% 50% 50% 0;background:#f47920;border:2.5px solid #fff;transform:rotate(-45deg);box-shadow:0 3px 10px rgba(0,0,0,.35)}
+
+.afford-cta{display:flex;align-items:center;gap:12px;margin:12px 14px;padding:13px 14px;background:#f47920;border-radius:10px;text-decoration:none;box-shadow:0 2px 10px rgba(0,0,0,.2)}
+.afford-cta:hover{background:#d9660f}
+.afford-cta .ac-icon{font-size:1.5rem;line-height:1;flex-shrink:0}
+.afford-cta .ac-txt{flex:1;min-width:0}
+.afford-cta .ac-kicker{display:block;font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.85);font-weight:700}
+.afford-cta .ac-t{display:block;font-family:'DM Sans',sans-serif;font-size:.92rem;font-weight:800;color:#fff;line-height:1.25;margin-top:3px}
+.afford-cta .ac-d{display:block;font-family:'DM Sans',sans-serif;font-size:.72rem;color:rgba(255,255,255,.9);line-height:1.4;margin-top:3px}
+.afford-cta .ac-arrow{font-size:1.3rem;color:#fff;flex-shrink:0;font-weight:700}
+.map-caption{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:11px 16px;background:#0d1b4b;border-top:3px solid #f47920}
+.map-caption .mc-boro{font-family:'DM Sans',sans-serif;font-size:1.15rem;font-weight:900;color:#fff;line-height:1}
+.map-caption .mc-sub{font-family:'DM Mono',monospace;font-size:.66rem;color:rgba(255,255,255,.65)}
+.rank-wrap{background:#fff;border-top:1px solid #e5e2db}
+.rank-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 14px 8px;background:#f8f7f4;border-bottom:1px solid #e5e2db}
+.rank-tabs{display:flex;gap:6px}
+.rank-tab{padding:7px 15px;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:700;border:2px solid #132D65;border-radius:20px;background:#fff;color:#132D65;cursor:pointer}
+.rank-tab.active{background:#f47920;border-color:#f47920;color:#fff}
+.rank-when{margin-left:auto;font-family:'DM Mono',monospace;font-size:.86rem;font-weight:700;color:#132D65}
+.rank-time{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#f8f7f4;border-bottom:1px solid #e5e2db}
+#rankPlay{width:34px;height:30px;border:2px solid #132D65;border-radius:7px;background:#fff;color:#132D65;font-size:.8rem;cursor:pointer;flex-shrink:0}
+#rankSlider{flex:1;accent-color:#f47920}
+.rank-legend{padding:9px 14px;background:#fff;border-bottom:1px solid #f0ede8;font-family:'DM Sans',sans-serif;font-size:.74rem;color:#555}
+.rank-legend b{color:#132D65}
+.rank-row{display:grid;grid-template-columns:22px 1fr 74px;align-items:center;gap:9px;padding:5px 14px;font-size:.78rem;transition:background .15s}
+.rank-row.cb6{background:#fff8f2}
+.rank-n{font-family:'DM Mono',monospace;font-size:.66rem;color:#9ca3af;text-align:right}
+.rank-lab{min-width:0}
+.rank-name{color:#132D65;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;font-size:.76rem}
+.rank-track{height:12px;background:#f0ede8;border-radius:3px;overflow:hidden;margin-top:3px}
+.rank-fill{display:block;height:100%;background:#132D65;border-radius:3px;transition:width .25s}
+.rank-row.cb6 .rank-fill{background:#f47920}
+.rank-val{font-family:'DM Mono',monospace;font-weight:800;color:#132D65;text-align:right;font-size:.76rem}
+.rank-none{padding:14px;font-size:.78rem;color:#777}
+
+.rpt-wrap{background:#fff;border-top:1px solid #e5e2db}
+.rpt-bar{display:flex;gap:9px;flex-wrap:wrap;align-items:flex-end;padding:12px 14px;background:#f8f7f4;border-bottom:1px solid #e5e2db}
+.rpt-bar label span{display:block;font-size:.54rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700;margin-bottom:4px}
+.rpt-bar select{padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:.78rem;border:2px solid #132D65;border-radius:7px;color:#132D65;font-weight:600;background:#fff}
+.rpt-go{padding:9px 16px;background:#f47920;color:#fff;border:none;border-radius:7px;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:800;cursor:pointer}
+.rpt-go:hover{background:#d9660f}
+.rpt-pdf{padding:9px 14px;background:#132D65;color:#fff;border:none;border-radius:7px;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:800;cursor:pointer}
+.rpt-note{font-size:.7rem;font-family:'DM Mono',monospace;color:#9ca3af;align-self:center}
+#rptOut{padding:0}
+.rpt-card{padding:16px 16px 18px}
+.rpt-title{font-family:'DM Sans',sans-serif;font-size:1.15rem;font-weight:900;color:#132D65}
+.rpt-when{font-family:'DM Mono',monospace;font-size:.72rem;color:#6b6760;margin-top:2px}
+.rpt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:1px;background:#e5e2db;border:1px solid #e5e2db;border-radius:8px;overflow:hidden;margin:12px 0}
+.rpt-cell{background:#fff;padding:10px 11px}
+.rpt-cell .k{font-size:.5rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#6b6760}
+.rpt-cell .v{font-size:1.05rem;font-weight:900;font-family:'DM Mono',monospace;color:#132D65;margin-top:2px}
+.rpt-cell .d{font-size:.58rem;font-family:'DM Mono',monospace;margin-top:2px}
+.rpt-up{color:#c0392b}.rpt-down{color:#2e6b30}.rpt-flat{color:#9ca3af}
+.rpt-tbl{width:100%;border-collapse:collapse;margin-top:6px}
+.rpt-tbl th,.rpt-tbl td{padding:6px 7px;font-size:.74rem;text-align:right;border-bottom:1px solid #f0ede8;font-family:'DM Mono',monospace;color:#132D65}
+.rpt-tbl th{font-size:.5rem;text-transform:uppercase;letter-spacing:.05em;color:#6b6760;background:#f8f7f4}
+.rpt-tbl th:first-child,.rpt-tbl td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700}
+.rpt-h3{font-size:.56rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700;margin:14px 0 4px}
+.rpt-src{font-size:.62rem;font-family:'DM Mono',monospace;color:#9ca3af;margin-top:12px;line-height:1.6}
+.rpt-empty{padding:22px 16px;text-align:center;font-family:'DM Mono',monospace;font-size:.76rem;color:#6b6760}
+@media print{
+  body{background:#fff!important;color:#000!important;display:block!important;height:auto!important}
+  .top-bar,#map,.map-caption,.afford-cta,.rank-wrap,.source,.rpt-bar,.legend,#legend,.leaflet-control-container{display:none!important}
+  .rpt-wrap{border:none}
+}
+.cd-label{background:none!important;border:none!important;box-shadow:none!important;pointer-events:none;font-family:'DM Mono',monospace;font-size:.62rem;font-weight:700;color:#0d1b4b;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap}
+.cd-label.is-cb6{color:#b34700;font-size:.7rem}
+.cd-label:before{display:none!important}
+.rpt-title-row{display:flex;align-items:center;gap:8px;width:100%;margin-bottom:4px}
+.rpt-ico{font-size:1.05rem;line-height:1}
+.rpt-hd{font-family:'DM Sans',sans-serif;font-size:.86rem;font-weight:800;color:#132D65}
+.sec-ico{font-size:1rem;line-height:1;margin-right:2px}
+.mc-ico{font-size:1.05rem;line-height:1;margin-right:2px}
+.rank-beds{display:flex;gap:5px;flex-wrap:wrap;padding:9px 14px;background:#f8f7f4;border-bottom:1px solid #e5e2db}
+.rank-bed{padding:7px 15px;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:700;border:2px solid #132D65;border-radius:20px;background:#fff;color:#132D65;cursor:pointer}
+.rank-bed.active{background:#f47920;border-color:#f47920;color:#fff}
+.rank-now{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:10px 14px;background:#132D65}
+.rank-now .rn-month{font-family:'DM Mono',monospace;font-size:1.5rem;font-weight:700;color:#fff;letter-spacing:.02em}
+.rank-now .rn-what{font-family:'DM Sans',sans-serif;font-size:.82rem;color:rgba(255,255,255,.75)}
+.rank-now .rn-what b{color:#f47920}
+#rankSpeed{padding:5px 8px;font-family:'DM Sans',sans-serif;font-size:.72rem;border:2px solid #132D65;border-radius:7px;color:#132D65;font-weight:700;background:#fff}
+.rpt-me{background:#fff8f2}
+.rpt-tbl td.rpt-up{color:#c0392b}.rpt-tbl td.rpt-down{color:#2e6b30}.rpt-tbl td.rpt-flat{color:#9ca3af}
+
+.rpt-pick{width:100%;padding:10px 14px;background:#fff;border-bottom:1px solid #e5e2db}
+.rp-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px}
+.rp-row input{flex:1;min-width:140px;padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:.78rem;border:2px solid #132D65;border-radius:7px;color:#132D65}
+.rp-clear{padding:8px 12px;background:#fff;border:2px solid #132D65;border-radius:7px;color:#132D65;font-family:'DM Sans',sans-serif;font-size:.74rem;font-weight:700;cursor:pointer}
+.rp-chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.rp-chip{display:inline-flex;align-items:center;gap:6px;background:#f47920;color:#fff;border-radius:20px;padding:3px 9px;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700}
+.rp-chip b{cursor:pointer;font-weight:700}
+.rp-list{max-height:190px;overflow-y:auto;border:1px solid #e5e2db;border-radius:8px}
+.rp-item{display:flex;align-items:center;gap:8px;padding:7px 11px;border-bottom:1px solid #f4f2ee;font-size:.78rem;color:#132D65;cursor:pointer}
+.rp-item:last-child{border-bottom:none}
+.rp-item:hover{background:#fff8f2}
+.rp-item input{width:15px;height:15px;accent-color:#f47920}
+.rp-item .rp-sub{margin-left:auto;font-family:'DM Mono',monospace;font-size:.64rem;color:#9ca3af}
+#rankBody{padding:10px 12px 14px;background:#fff}
+
+#rankBody{padding:6px 0 14px;background:#fff}
+.bars{padding:0}
+.barrow{padding:9px 14px 11px;border-bottom:1px solid #f4f2ee}
+.barrow:last-child{border-bottom:none}
+.barrow.is-cb6{background:#fff8f2}
+.barhead{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+.barrank{font-family:'DM Mono',monospace;font-size:.78rem;color:#9ca3af;min-width:20px}
+.barname{font-family:'DM Sans',sans-serif;font-size:1rem;font-weight:800;color:#132D65;flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.barval{font-family:'DM Mono',monospace;font-size:1.05rem;font-weight:800;color:#132D65;white-space:nowrap}
+.barrow.is-cb6 .barname,.barrow.is-cb6 .barval{color:#b34700}
+.bartrack{height:20px;background:#eef0f4;border-radius:4px;overflow:hidden}
+.barfill{display:block;height:100%;background:#132D65;border-radius:4px;transition:width .28s ease}
+.barrow.is-cb6 .barfill{background:#f47920}
+@media(min-width:620px){
+  .barname{font-size:1.05rem}
+  .barval{font-size:1.1rem}
+  .bartrack{height:22px}
+}
+
+.dash-wrap{background:#fff;border-bottom:1px solid #e5e2db}
+.dash-chev{color:#f47920;font-size:.8rem;font-weight:700;margin-left:8px}
+.dash-strip::-webkit-scrollbar{height:5px}
+.dash-strip::-webkit-scrollbar-thumb{background:#cfd4dd;border-radius:3px}
+.dash-head{display:flex;align-items:center;gap:9px;width:100%;padding:11px 14px;background:#0d1b4b;border:none;cursor:pointer;text-align:left}
+.dash-ico{font-size:1.05rem;line-height:1}
+.dash-t{font-family:'DM Sans',sans-serif;font-size:.95rem;font-weight:900;color:#fff}
+.dash-when{margin-left:auto;font-family:'DM Mono',monospace;font-size:.74rem;color:rgba(255,255,255,.7)}
+.dash-sub{padding:8px 14px;background:#0d1b4b;font-family:'DM Sans',sans-serif;font-size:.74rem;color:rgba(255,255,255,.7);line-height:1.4}
+.dash-strip{display:flex;gap:1px;background:#e5e2db;overflow-x:auto;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory}
+.dash-card{background:#fff;padding:11px 13px 12px;min-width:215px;flex:1 0 215px;scroll-snap-align:start}
+.dash-bed{font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.09em;color:#f47920;font-weight:800;margin-bottom:8px}
+.dash-line{display:flex;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1px solid #f4f2ee}
+.dash-line:last-child{border-bottom:none}
+.dash-k{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;min-width:56px}
+.dash-where{font-family:'DM Sans',sans-serif;font-size:.86rem;font-weight:700;color:#132D65;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dash-v{font-family:'DM Mono',monospace;font-size:.95rem;font-weight:800;color:#132D65;white-space:nowrap}
+.dash-line.hi .dash-v{color:#b3300c}
+.dash-line.lo .dash-v{color:#2e6b30}
+.dash-line.me{background:#fff8f2}
+
+.rp-group{position:sticky;top:0;background:#132D65;color:#fff;font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.09em;font-weight:700;padding:6px 11px;z-index:1}
+.rp-group span{color:rgba(255,255,255,.6);margin-left:4px}
+.rp-item.on{background:#fff2e6}
+.rp-none{padding:12px;font-size:.76rem;color:#777}
+.rp-list{max-height:230px}
+
+.rpt-tbl td .cv{display:block;font-weight:800}
+.rpt-tbl td .cwas{display:block;font-size:.66rem;color:#9ca3af;margin-top:1px}
+.rpt-tbl td .cdlt{display:block;font-size:.68rem;font-weight:700;margin-top:1px}
+.rpt-tbl td .cdlt.rpt-up{color:#c0392b}.rpt-tbl td .cdlt.rpt-down{color:#2e6b30}.rpt-tbl td .cdlt.rpt-flat{color:#9ca3af}
+.rpt-key{display:flex;flex-wrap:wrap;gap:12px;padding:8px 0 10px;font-family:'DM Mono',monospace;font-size:.62rem;color:#6b6760}
+.rpt-key span{display:inline-flex;align-items:center;gap:5px}
+.rpt-key .k1:before{content:'';width:9px;height:9px;background:#132D65;border-radius:2px}
+.rpt-key .k2:before{content:'';width:9px;height:9px;background:#c9c6c0;border-radius:2px}
+.rpt-key .k3:before{content:'';width:9px;height:9px;background:#2e6b30;border-radius:2px}
+.unitbar{position:sticky;top:0;z-index:600;display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:10px 14px;background:#0d1b4b;border-bottom:2px solid #f47920}
+.unitbar .ub-lab{font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.65);font-weight:700;margin-right:3px}
+.unitbar .rent-btn{padding:7px 15px;font-size:.84rem;font-weight:700}
+.rsr-headline{padding:11px 13px;background:#fff;border-bottom:1px solid #e5e2db}
+.rsr-headline .hv{font-family:'DM Mono',monospace;font-size:1.3rem;font-weight:800;color:#132D65}
+.rsr-headline .hm{font-size:.8rem;font-weight:700;color:#132D65}
+.rsr-headline .hb{display:block;font-size:.82rem;font-weight:700;color:#f47920;margin-top:1px}
+.rsr-cell.sel{background:#fff8f2}
+
+.timebar{position:sticky;top:44px;z-index:590;display:flex;align-items:center;gap:9px;padding:8px 14px;background:#132D65;border-bottom:1px solid rgba(255,255,255,.12)}
+#tmPlay{width:32px;height:29px;border:2px solid rgba(255,255,255,.4);border-radius:7px;background:transparent;color:#fff;font-size:.76rem;cursor:pointer;flex:none}
+#tmSlider{flex:1;accent-color:#f47920;min-width:80px}
+#tmLabel{font-family:'DM Mono',monospace;font-size:.82rem;font-weight:700;color:#fff;min-width:74px;text-align:right}
+.tm-now{padding:6px 10px;border:2px solid rgba(255,255,255,.4);border-radius:7px;background:transparent;color:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;flex:none}
+.tm-now:hover,#tmPlay:hover{border-color:#f47920;color:#f47920}
+.timebar.live #tmLabel{color:#f47920}
+.cd-label .cd-rent{display:block;font-family:'DM Mono',monospace;font-size:.6rem;font-weight:700;color:#0d1b4b;margin-top:1px}
+.tmscale{display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:0 14px;background:#132D65}
+.tmscale:empty{padding:0}
+.tmscale .ts-lab{font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.55);font-weight:700;margin-right:4px}
+.tmscale .ts-lo,.tmscale .ts-hi{font-family:'DM Mono',monospace;font-size:.62rem;color:#fff}
+.tmscale .ts-sw{display:inline-block;width:20px;height:9px}
+.tmscale:not(:empty){padding:7px 14px;border-bottom:1px solid rgba(255,255,255,.12)}
+
+.tmlead{background:#0d1b4b;border-bottom:1px solid rgba(255,255,255,.12);padding:9px 14px}
+.tmlead:empty{display:none}
+.tl-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.tl-when{font-family:'DM Mono',monospace;font-size:.95rem;font-weight:700;color:#fff}
+.tl-what{font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:700;color:#f47920}
+.tl-rows{display:flex;flex-direction:column;gap:3px}
+.tl-row{display:flex;align-items:baseline;gap:8px;font-size:.78rem}
+.tl-k{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.5);min-width:58px}
+.tl-n{color:#fff;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-v{font-family:'DM Mono',monospace;font-weight:800;color:#fff;white-space:nowrap}
+.tl-row.hi .tl-v{color:#ff9d5c}
+.tl-row.lo .tl-v{color:#8fe08f}
+.tl-row.cb6 .tl-n{color:#f47920}
+
+.mrnote{background:#fff;border-bottom:3px solid #f47920;font-family:'DM Sans',sans-serif}
+.mrnote>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:11px 15px;background:#0d1b4b}
+.mrnote>summary::-webkit-details-marker{display:none}
+.mrnote-k{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.09em;color:#f47920;font-weight:800}
+.mrnote-x{margin-left:auto;font-family:'DM Mono',monospace;font-size:.6rem;color:rgba(255,255,255,.6)}
+.mrnote[open] .mrnote-x:before{content:'hide \25B4'}
+.mrnote:not([open]) .mrnote-x:before{content:'read \25BE'}
+.mrnote-x{font-size:0}
+.mrnote-x:before{font-size:.6rem}
+.mrnote-body{padding:13px 15px 15px;max-width:74ch}
+.mrnote-body p{font-size:.83rem;line-height:1.6;color:#333;margin-bottom:9px}
+.mrnote-body p:last-child{margin-bottom:0}
+.mrnote-sig{font-weight:800;color:#0d1b4b;font-size:.85rem!important;margin-top:11px!important}
+.mrnote-role{display:block;font-family:'DM Mono',monospace;font-size:.68rem;font-weight:400;color:#6b6760;margin-top:2px;letter-spacing:.02em}
+
+.sect{background:#fff;border-bottom:1px solid #e5e2db}
+.sect>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:11px;padding:12px 15px;background:#f8f7f4;border-left:4px solid #f47920}
+.sect>summary::-webkit-details-marker{display:none}
+.sect>summary:hover{background:#fff4ea}
+.sect-ic{font-size:1.3rem;line-height:1;flex:none}
+.sect-tx{flex:1;min-width:0}
+.sect-t{display:block;font-family:'DM Sans',sans-serif;font-size:.92rem;font-weight:800;color:#132D65;line-height:1.2}
+.sect-d{display:block;font-family:'DM Sans',sans-serif;font-size:.74rem;color:#555;line-height:1.4;margin-top:2px}
+.sect-cv{font-family:'DM Mono',monospace;font-size:.62rem;color:#f47920;font-weight:700;flex:none}
+.sect[open]>summary .sect-cv:before{content:'close \25B4'}
+.sect:not([open])>summary .sect-cv:before{content:'open \25BE'}
+.sect-cv{font-size:0}
+.sect-cv:before{font-size:.62rem}
+.mrnote-body{max-height:none}
+.mrnote-sub{font-family:'DM Sans',sans-serif;font-size:.72rem;color:rgba(255,255,255,.7);margin-left:8px}
+.dash-sub2{font-family:'DM Sans',sans-serif;font-size:.72rem;color:rgba(255,255,255,.7)}
+.legend.legend-sticky{position:sticky;top:78px;z-index:585;background:#0d1b4b;border-bottom:2px solid rgba(255,255,255,.15);padding:8px 14px;gap:6px}
+.legend-sticky .legend-label{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6);font-weight:700;margin-right:2px}
+.legend-sticky .legend-item{display:inline-flex;align-items:center;gap:4px;font-family:'DM Sans',sans-serif;font-size:.66rem;color:#fff;font-weight:600}
+.legend-sticky .legend-swatch{width:14px;height:11px;border-radius:2px;display:inline-block}
+
+.boro-wrap{padding:0 0 14px}
+.boro-chips{display:flex;flex-wrap:wrap;gap:6px;padding:12px 14px;background:#f8f7f4;border-bottom:1px solid #e5e2db}
+.boro-chip{padding:7px 14px;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:700;border:2px solid #132D65;border-radius:20px;background:#fff;color:#132D65;cursor:pointer}
+.boro-chip.on{background:#f47920;border-color:#f47920;color:#fff}
+#boroMap{height:280px;width:100%;background:#eef0f4}
+.boro-now{display:flex;flex-direction:column;gap:2px;padding:11px 14px;background:#0d1b4b}
+.bn-row{display:flex;align-items:baseline;gap:9px;font-size:.8rem}
+.bn-sw{width:11px;height:11px;border-radius:3px;flex:none}
+.bn-n{color:#fff;font-weight:700;flex:1;min-width:0}
+.bn-v{font-family:'DM Mono',monospace;font-weight:800;color:#fff}
+.boro-chartwrap{padding:12px 12px 4px}
+</style>
+
+<style id="bkcb6-embed-modal-css">
+.embed-fab{position:fixed;bottom:18px;right:18px;z-index:9999;background:#f47920;color:#fff;border:none;border-radius:999px;padding:10px 18px;font-size:.82rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.18);display:flex;align-items:center;gap:6px}
+.embed-fab:hover{background:#d4631a}
+.embed-modal-bg{display:none;position:fixed;inset:0;z-index:10000;background:rgba(13,27,75,.55);align-items:center;justify-content:center;padding:16px}
+.embed-modal-bg.open{display:flex}
+.embed-modal{background:#fff;border-radius:12px;padding:22px 20px 18px;max-width:480px;width:100%;box-shadow:0 8px 32px rgba(13,27,75,.22)}
+.embed-modal h3{font-size:1rem;font-weight:700;color:#0d1b4b;margin:0 0 6px}
+.embed-modal p{font-size:.82rem;color:#6b6760;margin:0 0 14px;line-height:1.5}
+.embed-tabs{display:flex;gap:6px;margin-bottom:14px}
+.embed-tab{padding:6px 12px;border-radius:6px;font-size:.75rem;font-weight:600;cursor:pointer;border:1.5px solid #e5e2db;background:#fff;color:#6b6760;font-family:'DM Sans',sans-serif}
+.embed-tab.active{background:#0d1b4b;color:#fff;border-color:#0d1b4b}
+.embed-url-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.embed-url-box{flex:1;padding:8px 10px;border:1.5px solid #e5e2db;border-radius:6px;font-size:.78rem;font-family:'DM Mono',monospace;color:#0d1b4b;background:#f8f7f4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.embed-copy-btn{padding:8px 14px;background:#f47920;color:#fff;border:none;border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif}
+.embed-copy-btn:hover{background:#d4631a}
+.embed-code-box{background:#f8f7f4;border:1.5px solid #e5e2db;border-radius:6px;padding:12px;font-size:.72rem;font-family:'DM Mono',monospace;color:#333;line-height:1.6;word-break:break-all;margin-bottom:14px;white-space:pre-wrap}
+.embed-close{width:100%;padding:10px;background:#f8f7f4;border:1.5px solid #e5e2db;border-radius:6px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;color:#0d1b4b}
+.embed-close:hover{background:#e5e2db}
+</style>
+<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b6e9b47ba0cf416388d72db8edaf4198"}'></script><!-- End Cloudflare Web Analytics -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="top-bar">
+  <h1>BK Rents by <span>CB</span></h1>
+    <a class="back-link" href="brooklyn.html">← Back</a>
+</div>
+<details class="mrnote"><summary><span class="mrnote-k">Mike Racioppo</span><span class="mrnote-sub">why this page exists, and what is in it</span><span class="mrnote-x">hide</span></summary><div class="mrnote-body"><p>Housing and its price are often discussed, directly and indirectly. In every corner of New York City, even more so. Those discussions can be indirect, like with the countless articles pondering &ldquo;why are so many young adults living with their parents?&rdquo; I haven&rsquo;t read all of them, but the bottom line is it&rsquo;s due to housing costs.</p>
+<p>This page aims to simplify and clarify what housing costs are based on what&rsquo;s available at a given time. I used all listings from 2010 to today based on StreetEasy.com&rsquo;s listings. I broke it down from micro (cb6/ neighborhoods) to macro (borough and citywide).</p>
+<p>Rest assured, it&rsquo;s not just staring at numbers that I&rsquo;d say are too high; it&rsquo;s also got every active &ldquo;affordable housing&rdquo; lottery open across NYC. I put &ldquo;affordable&rdquo; in quotes, as that may be better described as &ldquo;less expensive housing&rdquo;, but I digress. I&rsquo;ll keep making updates, but check it out and let me know what you think.</p>
+<p class="mrnote-sig">Mike Racioppo<span class="mrnote-role">District Manager, Brooklyn Community Board 6</span></p></div></details>
+<div class="rentsearch-wrap">
+  <div class="rentsearch-row">
+    <div class="rentsearch-col">
+      <label class="rentsearch-label" for="rentsearch-nb">Neighborhood</label>
+      <select id="rentsearch-nb"><option value="">Select a neighborhood&hellip;</option></select>
+    </div>
+    <div class="rentsearch-col">
+      <label class="rentsearch-label" for="rentsearch-cd">Community district</label>
+      <select id="rentsearch-cd"><option value="">Select a district&hellip;</option></select>
+    </div>
+    <div class="rentsearch-col rentsearch-actions">
+      <label class="rentsearch-label">&nbsp;</label>
+      <div class="nbtoggle"><label><input type="checkbox" id="nb-toggle"> Neighborhood boundaries</label></div>
+    </div>
+  </div>
+  <div id="rentsearch-result"></div>
+</div>
+<div id="dashWrap" class="dash-wrap"></div>
+<div class="unitbar" id="bed-controls"><span class="ub-lab">Unit size</span>
+    <button class="rent-btn" onclick="toggle('studio',this)">Studio</button>
+    <button class="rent-btn active" onclick="toggle('1br',this)">1BR</button>
+    <button class="rent-btn" onclick="toggle('2br',this)">2BR</button>
+    <button class="rent-btn" onclick="toggle('3br',this)">3BR+</button>
+  </div>
+<div class="tmlead" id="tmLead"></div>
+<div class="tmscale" id="tmScale"></div>
+<div class="timebar" id="timebar">
+  <button id="tmPlay" type="button" title="Play through time">&#9654;</button>
+  <input id="tmSlider" type="range" min="0" max="0" value="0">
+  <span id="tmLabel">now</span>
+  <button id="tmNow" type="button" class="tm-now">Today</button>
+</div>
+<div class="legend legend-sticky">
+  <span style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.4);margin-right:4px">Rent Tier (Brooklyn)</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#67000D"></span>Most Expensive</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#D45F00"></span>Expensive</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#E8A800"></span>Mid Range</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#82C341"></span>Less Expensive</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#1B5E8A"></span>Least Expensive</span>
+</div>
+<div id="map"></div>
+<div class="map-caption"><span class="mc-ico">&#128506;</span><span class="mc-boro">Brooklyn</span><span class="mc-sub">Median asking rent by community district</span></div>
+<div class="rpt-wrap">
+<details class="sect"><summary><span class="sect-ic">&#128202;</span><span class="sect-tx"><span class="sect-t">Rent report</span><span class="sect-d">Build a report for any month or year, compare periods or areas, save it as a PDF.</span></span><span class="sect-cv"></span></summary>
+  <div class="rpt-bar">
+    <div class="rpt-title-row"><span class="rpt-ico">&#128202;</span><span class="rpt-hd">Rent report</span></div>
+    <label><span>Period</span><select id="rptKind"><option value="month">A month</option><option value="year">A whole year</option></select></label>
+    <label><span>Year</span><select id="rptYr"></select></label>
+    <label id="rptMoWrap"><span>Month</span><select id="rptMo"></select></label>
+    <label><span>Comparison</span><select id="rptCmpKind"><option value="none">None &mdash; just this period</option><option value="prev">vs the period before</option><option value="yearago">vs a year earlier</option><option value="pick">vs a period I pick</option></select></label>
+    <label id="rptCmpWrap" style="display:none"><span>Compare against</span><span style="display:flex;gap:5px"><select id="rptCmpYr"></select><select id="rptCmpMo"></select></span></label>
+    <label><span>Areas</span><select id="rptScope">
+      <option value="self">Loading&hellip;</option>
+      <option value="parts"></option>
+      <option value="choose">Pick areas to compare&hellip;</option>
+    </select></label>
+    <button class="rpt-go" id="rptGo">Generate report</button>
+    <button class="rpt-pdf" id="rptPdf" style="display:none">&#11015; Save as PDF</button>
+    <span class="rpt-note" id="rptNote"></span>
+  </div>
+  <div class="rpt-pick" id="rptPick" style="display:none">
+    <div class="rp-row">
+      <label><span>Compare</span><select id="rptPickLvl">
+        <option value="neighborhood">Neighborhoods</option>
+        <option value="cd">Community districts</option>
+        <option value="borough">Boroughs</option>
+      </select></label>
+      <label><span>Borough</span><select id="rptPickBoro"></select></label>
+    </div>
+    <div class="rp-row">
+      <input id="rptPickSearch" type="text" placeholder="Filter by name&hellip;">
+      <button type="button" id="rptPickClear" class="rp-clear">Clear</button>
+    </div>
+    <div class="rp-chips" id="rptChips"></div>
+    <div class="rp-list" id="rptPickList"></div>
+  </div>
+  <div id="rptOut"><div class="rpt-empty">Pick a month and tap <b>Generate report</b>.</div></div>
+</details>
+
+<a class="afford-cta" href="/lessexpensive" target="_top"><span class="ac-icon">&#127968;</span><span class="ac-txt"><span class="ac-kicker">Affordable &amp; income-restricted housing</span><span class="ac-t">Could you qualify for a cheaper apartment?</span><span class="ac-d">Enter your household size and income to see which of the open lotteries you may be eligible for.</span></span><span class="ac-arrow">&rarr;</span></a>
+<details class="sect" id="boroSect">
+  <summary><span class="sect-ic">&#127961;</span>
+    <span class="sect-tx"><span class="sect-t">Compare boroughs</span>
+    <span class="sect-d">Add or remove any borough to see how rents compare, and how they moved since 2010.</span></span>
+    <span class="sect-cv"></span></summary>
+  <div class="boro-wrap">
+    <div class="boro-chips" id="boroChips"></div>
+    <div id="boroMap"></div>
+    <div class="boro-now" id="boroNow"></div>
+    <div class="boro-chartwrap"><canvas id="boroChart" height="180"></canvas></div>
+  </div>
+</details>
+<details class="sect"><summary><span class="sect-ic">&#127942;</span><span class="sect-tx"><span class="sect-t">Rankings over time</span><span class="sect-d">Every area ranked by rent, with a timeline you can play back to 2010.</span></span><span class="sect-cv"></span></summary>
+<div class="rank-wrap">
+  <div class="rank-head">
+    <span class="sec-ico">&#127942;</span><div class="rank-tabs">
+      <button class="rank-tab active" data-mode="cd">Community districts</button>
+      <button class="rank-tab" data-mode="nb">Neighborhoods</button>
+    </div>
+    <div class="rank-when"><span id="rankWhat">1 bedroom</span> &middot; <span id="rankMonth">&mdash;</span></div>
+  </div>
+  <div class="rank-beds" id="rankBeds">
+    <button class="rank-bed" data-bed="studio">Studio</button>
+    <button class="rank-bed active" data-bed="1br">1BR</button>
+    <button class="rank-bed" data-bed="2br">2BR</button>
+    <button class="rank-bed" data-bed="3br">3BR+</button>
+  </div>
+  <div class="rank-time">
+    <button id="rankPlay" type="button">&#9654;</button>
+    <input id="rankSlider" type="range" min="0" max="197" value="197">
+    <select id="rankSpeed" title="Animation speed">
+      <option value="600">Slow</option>
+      <option value="320" selected>Normal</option>
+      <option value="140">Fast</option>
+    </select>
+  </div>
+  <div class="rank-now"><span class="rn-month" id="rankBigMonth">&mdash;</span><span class="rn-what">Median asking rent for a <b id="rankWhat2">1 bedroom</b>, ranked high to low</span></div>
+  <div id="rankBody"></div></details>
+
+</div>
+</div>
+</div>
+<div class="source">Source: StreetEasy median asking rent, as of June 1, 2026 &nbsp;|&nbsp; bkcb6.app</div>
+
+
+<script>
+var map = L.map('map', {scrollWheelZoom: true}).setView([40.645, -73.96], 11);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; CARTO',
+  subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+var mode = '1br';
+var layer = null;
+var data = null;
+
+fetch('/data/citywide-rents.geojson?v=b05dd51').then(function(r){return r.json();}).then(function(d){
+  d.features = d.features.filter(function(f){ return f.properties.cb_code.indexOf('BK') === 0; });
+  data = d;
+  drawLayer();
+});
+
+function getFill(props) {
+  return props['boro_fill_' + mode] || '#ccc';
+}
+
+function getTooltip(props) {
+  var ROWS=[['studio','Studio'],['1br','1 BR'],['2br','2 BR'],['3br','3+ BR']];
+  var isCB6 = props.cb_code === 'BKCB6';
+  var LONG={studio:'Studio','1br':'1 Bedroom','2br':'2 Bedroom','3br':'3+ Bedroom'};
+  /* TIME-AWARE */
+  var tActive = (typeof window.__timeActive==='function') && window.__timeActive();
+  var tIdx = tActive ? +document.getElementById('tmSlider').value : null;
+  function valOf(key,bed){
+    if(!tActive) return props[key];
+    var saveMode=mode; var v=null;
+    try { v = window.__timeValueFor(props.cb_code, bed, tIdx); } catch(e){ v=null; }
+    return v;
+  }
+  var sel = tActive ? window.__timeValueFor(props.cb_code, mode, tIdx) : props['rent_'+mode];
+  var headline = '<div style="margin-bottom:7px">'+
+    '<span style="font-size:1.15rem;font-weight:800;color:#0d1b4b;font-family:DM Mono,monospace">'+
+      (sel!=null?'$'+Number(sel).toLocaleString():'n/a')+'</span>'+
+    '<span style="font-size:.78rem;color:#0d1b4b;font-weight:700"> /month</span>'+
+    '<div style="font-size:.8rem;font-weight:700;color:#f47920;margin-top:1px">'+(LONG[mode]||'')+'</div></div>';
+  var rows = ROWS.map(function(r){
+    var v = tActive ? window.__timeValueFor(props.cb_code, r[0], tIdx) : props['rent_'+r[0]];
+    var on=(r[0]===mode);
+    return '<div style="display:flex;justify-content:space-between;gap:16px;padding:2px 0;'+
+      (on?'font-weight:800;color:#0d1b4b':'color:#555')+'">'+
+      '<span>'+r[1]+(on?' \u25C0':'')+'</span>'+
+      '<span style="font-family:DM Mono,monospace">'+(v!=null?'$'+Number(v).toLocaleString():'n/a')+'</span></div>';
+  }).join('');
+  var tt = tActive && typeof window.__timeTierOf==='function' ? window.__timeTierOf(props.cb_code) : null;
+  var boroRank = tt ? tt.rank : props['boro_rank_' + mode], cityRank = tt ? null : props['city_rank_' + mode];
+  var rankStr = '';
+  if (boroRank) rankStr += '#' + boroRank + ' in Brooklyn';
+  if (cityRank) rankStr += (rankStr ? '  |  ' : '') + '#' + cityRank + ' in NYC';
+  return '<div style="font-family:DM Sans,sans-serif;min-width:186px">' +
+    '<div style="font-weight:700;font-size:.92rem;color:#0d1b4b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:6px">' +
+    (isCB6 ? '\u2605 ' : '') + 'Brooklyn ' + props.cb_code.replace('BK','') + '</div>' +
+    headline + rows +
+    '<div style="font-size:.66rem;color:#888;margin-top:6px;border-top:1px solid #eee;padding-top:5px">' +
+      ((tt?tt.band:props['boro_band_' + mode]) || '') + (rankStr?' \u00b7 '+rankStr:'') + (tActive?' \u00b7 '+document.getElementById('tmLabel').textContent:'') + '</div>' +
+    '</div>';
+}
+
+function drawLayer() {
+  if (layer) map.removeLayer(layer);
+  layer = L.geoJSON(data, {
+    style: function(feat) {
+      if(window.styleForTime) return window.styleForTime(feat);
+      var isCB6 = feat.properties.cb_code === 'BKCB6';
+      return {fillColor: getFill(feat.properties), fillOpacity: 0.8, color: isCB6 ? '#f47920' : '#fff', weight: isCB6 ? 3 : 1};
+    },
+    onEachFeature: function(feat, lyr) {
+      lyr.bindTooltip(getTooltip(feat.properties), {sticky:true, opacity:1});
+      try{
+        var cc=feat.properties.cb_code, num=cc?cc.slice(4):'';
+        var isC=(cc==='BKCB6');
+        var _mk=L.marker(lyr.getBounds().getCenter(),{interactive:false,keyboard:false,
+          icon:L.divIcon({className:'cd-label'+(isC?' is-cb6':''),html:'CB'+num,iconSize:[64,26],iconAnchor:[32,13]})}).addTo(map);
+        window.__cdLabels=window.__cdLabels||[]; window.__cdLabels.push({mk:_mk,code:cc,num:num,cb6:isC});
+      }catch(e){}
+      lyr.on('mouseover', function(){ if(feat.properties.cb_code!=='BKCB6') lyr.setStyle({fillOpacity:.95,weight:2,color:'#333'}); });
+      lyr.on('mouseout', function(){ layer.resetStyle(lyr); });
+    }
+  }).addTo(map);
+}
+
+function toggle(m, btn) {
+  mode = m;
+  document.querySelectorAll('.rent-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  if (data) drawLayer();
+  if(window.__timeReapply) window.__timeReapply();
+}
+
+var PREFIX='BK';
+
+/* ---- neighborhood / CD selector ---- */
+(function(){
+  var IDX=null, NBGEO=null, ROLL=null, selLayer=null, pin=null, nbLayer=null;
+  fetch('/data/rent-ranges-rollup.json').then(function(r){return r.json();}).then(function(j){ROLL=j;}).catch(function(){});
+  var $=function(i){return document.getElementById(i);};
+  var res=$('rentsearch-result'), selNb=$('rentsearch-nb'), selCd=$('rentsearch-cd'), cbx=$('nb-toggle');
+  var BEDS=[['studio','Studio'],['1br','1 BR'],['2br','2 BR'],['3br','3+ BR']];
+  function money(v){ return (v==null||v==='')?'n/a':'$'+Number(v).toLocaleString('en-US'); }
+  function rangeBlock(P,entry){
+    var out='';
+    if(P.range_lo!=null && P.range_hi!=null){
+      out+='<div class="rsr-range"><span class="rl">By unit type</span>'+
+        '<span class="rv">'+money(P.range_lo)+' <span class="rb">'+(P.range_lo_bed||'')+'</span> &ndash; '+money(P.range_hi)+' <span class="rb">'+(P.range_hi_bed||'')+'</span></span></div>';
+    }
+    if(P.sub_lo!=null && P.sub_hi!=null){
+      var k=P.sub_kind||'area';
+      function nm(x){ return (typeof x==='string' && /CB\d/.test(x)) ? x.replace(/^(MN|BX|BK|QN|SI)CB/,'CD ') : x; }
+      out+='<div class="rsr-range"><span class="rl">Across '+k+'s</span>'+
+        '<span class="rv">'+money(P.sub_lo)+' <span class="rb">'+nm(P.sub_lo_name)+'</span> &ndash; '+money(P.sub_hi)+' <span class="rb">'+nm(P.sub_hi_name)+'</span></span></div>';
+    }
+    return out?('<div class="rsr-ranges">'+out+'</div>'):'';
+  }
+
+  fetch('/data/rent-search-index.json').then(function(r){return r.json();}).then(function(j){
+    IDX=j.filter(function(e){ return PREFIX==='' || e.cd.indexOf(PREFIX)===0; });
+    // group neighborhoods under their borough so the list stays navigable
+    (function(){
+      var BORDER=['Manhattan','Brooklyn','Queens','Bronx','Staten Island'];
+      var byB={};
+      IDX.filter(function(e){return e.t==='nb';}).forEach(function(e){
+        (byB[e.b]=byB[e.b]||[]).push(e);
+      });
+      var order=BORDER.filter(function(b){return byB[b];})
+        .concat(Object.keys(byB).filter(function(b){return BORDER.indexOf(b)<0;}));
+      order.forEach(function(b){
+        var list=byB[b].sort(function(x,y){return x.q.localeCompare(y.q);});
+        if(order.length>1){
+          var g=document.createElement('optgroup');
+          g.label=b+' \u2014 '+list.length;
+          list.forEach(function(e){
+            var o=document.createElement('option'); o.value=e.q; o.textContent=e.q; g.appendChild(o);
+          });
+          selNb.appendChild(g);
+        } else {
+          list.forEach(function(e){
+            var o=document.createElement('option'); o.value=e.q; o.textContent=e.q; selNb.appendChild(o);
+          });
+        }
+      });
+    })();
+    var seen={}, cds=[];
+    IDX.filter(function(e){return e.t==='cd' && /Community District/.test(e.q);})
+       .forEach(function(e){ if(!seen[e.cd]){seen[e.cd]=1; cds.push(e);} });
+    cds.sort(function(a,b){ return a.b!==b.b ? a.b.localeCompare(b.b) : (+a.cd.slice(4))-(+b.cd.slice(4)); });
+    (function(){
+      var BORDER=['Manhattan','Brooklyn','Queens','Bronx','Staten Island'];
+      var byB={};
+      cds.forEach(function(e){ (byB[e.b]=byB[e.b]||[]).push(e); });
+      var order=BORDER.filter(function(b){return byB[b];})
+        .concat(Object.keys(byB).filter(function(b){return BORDER.indexOf(b)<0;}));
+      order.forEach(function(b){
+        var list=byB[b].sort(function(x,y){return (+x.cd.slice(4))-(+y.cd.slice(4));});
+        if(order.length>1){
+          var g=document.createElement('optgroup'); g.label=b+' \u2014 '+list.length;
+          list.forEach(function(e){
+            var o=document.createElement('option'); o.value=e.cd; o.textContent='CD '+e.cd.slice(4); g.appendChild(o);
+          });
+          selCd.appendChild(g);
+        } else {
+          list.forEach(function(e){
+            var o=document.createElement('option'); o.value=e.cd; o.textContent=e.b+' CD '+e.cd.slice(4); selCd.appendChild(o);
+          });
+        }
+      });
+    })();
+    // borough + citywide options (from rollup)
+    var BN={MN:'Manhattan',BX:'Bronx',QN:'Queens',BK:'Brooklyn',SI:'Staten Island'};
+    function addBig(val,txt){ var o=document.createElement('option'); o.value=val; o.textContent=txt; o.className='rx-big'; selCd.appendChild(o); }
+    if(PREFIX===''){
+      var sepd=document.createElement('option'); sepd.disabled=true; sepd.textContent='\u2500\u2500 Boroughs \u2500\u2500'; selCd.appendChild(sepd);
+      ['Manhattan','Brooklyn','Queens','Bronx','Staten Island'].forEach(function(b){ addBig('b:'+b, b); });
+      addBig('x:NYC','New York City (all)');
+    } else {
+      var sepd2=document.createElement('option'); sepd2.disabled=true; sepd2.textContent='\u2500\u2500\u2500\u2500'; selCd.appendChild(sepd2);
+      addBig('b:'+BN[PREFIX], BN[PREFIX]+' (whole borough)');
+      addBig('x:NYC','New York City (all)');
+    }
+  }).catch(function(){});
+
+  function featureFor(cd){
+    var found=null;
+    if(!layer) return null;
+    layer.eachLayer(function(l){ if(l.feature && l.feature.properties.cb_code===cd) found=l; });
+    return found;
+  }
+  function clearPin(){ if(pin){ map.removeLayer(pin); pin=null; } }
+  function dropPin(latlng,label){
+    clearPin();
+    var icon=L.divIcon({className:'rent-pin',html:'<div class="rent-pin-inner"></div>',iconSize:[26,26],iconAnchor:[13,26]});
+    pin=L.marker(latlng,{icon:icon,zIndexOffset:1000}).addTo(map);
+    pin.bindTooltip(label,{permanent:false,direction:'top',offset:[0,-24]});
+  }
+  function nbGeomFor(name,cd){
+    if(!NBGEO) return null;
+    var hit=null;
+    NBGEO.features.forEach(function(f){
+      if(f.properties.nb===name && f.properties.cd===cd) hit=f;
+    });
+    return hit;
+  }
+
+  function show(entry){
+    var lyr=featureFor(entry.cd);
+    if(!lyr){ res.style.display='none'; return; }
+    var p=lyr.feature.properties;
+    if(selLayer && selLayer!==lyr){ try{layer.resetStyle(selLayer);}catch(e){} }
+    selLayer=lyr;
+    lyr.setStyle({weight:4,color:'#f47920',fillOpacity:.95});
+    if(lyr.bringToFront) lyr.bringToFront();
+
+    var isNb = entry.t==='nb';
+    var props = p, srcNote='District median';
+    var nbf = isNb ? nbGeomFor(entry.q, entry.cd) : null;
+    if(nbf){ props=nbf.properties; srcNote='Neighborhood median'; }
+
+    function go(){
+      var target=null;
+      if(nbf){
+        var tmp=L.geoJSON(nbf);
+        try{ target=tmp.getBounds(); }catch(e){}
+      }
+      if(!target){ try{ target=lyr.getBounds(); }catch(e){} }
+      if(target){
+        map.fitBounds(target,{padding:[26,26],maxZoom:14});
+        dropPin(target.getCenter(), entry.t==='nb'?entry.q:(entry.b+' CD '+entry.cd.slice(4)));
+      }
+    }
+    if(isNb && !NBGEO){
+      fetch('/data/neighborhood-rents.geojson').then(function(r){return r.json();}).then(function(j){
+        NBGEO=j; nbf=nbGeomFor(entry.q,entry.cd);
+        if(nbf){ props=nbf.properties; srcNote='Neighborhood median'; render(); }
+        go();
+      }).catch(go);
+    } else go();
+
+    function render(){
+      var cells=BEDS.map(function(b){
+        return '<div class="rsr-cell"><div class="l">'+b[1]+'</div><div class="v">'+money(props['rent_'+b[0]])+'</div></div>';
+      }).join('');
+      var br=p['boro_rank_all'], cr=p['city_rank_all'], rank='';
+      if(br) rank+='#'+br+' in '+entry.b;
+      if(cr) rank+=(rank?' &nbsp;|&nbsp; ':'')+'#'+cr+' in NYC';
+      var title = isNb ? entry.q : entry.b+' CD '+entry.cd.slice(4);
+      var sub   = (isNb ? 'in '+entry.b+' Community District '+entry.cd.slice(4) : entry.cd)+' &middot; '+srcNote;
+      res.innerHTML='<div class="rsr-card"><div class="rsr-head"><div><div class="t">'+title+'</div><div class="s">'+sub+'</div></div>'+
+        '<button class="rsr-clear" id="rsr-clear">Clear</button></div>'+
+        '<div class="rsr-grid">'+cells+'</div>'+
+        (function(){var bl={studio:'Studio','1br':'1 BR','2br':'2 BR','3br':'3+ BR'}[mode]||'';
+          var bv=props['rent_'+({studio:'studio','1br':'1br','2br':'2br','3br':'3br'}[mode]||'1br')];
+          return bv!=null?'<div class="rsr-signing"><span class="sl">'+bl+' due at signing</span><span class="sv">'+money(bv*2)+' <span class="sb">1st mo + 1mo deposit</span></span></div>':'';})()+
+        rangeBlock(Object.assign({}, (isNb?props:p), {sub_lo:p.sub_lo,sub_lo_name:p.sub_lo_name,sub_hi:p.sub_hi,sub_hi_name:p.sub_hi_name,sub_kind:p.sub_kind}), entry)+
+        '<div class="rsr-foot"><span class="rsr-rank">'+(rank||'&nbsp;')+'</span>'+
+        '<a class="rsr-link" target="_top" href="/rentpastpresent">Full history since 2010 &rarr;</a></div></div>';
+      res.style.display='block';
+      var cb=$('rsr-clear');
+      if(cb) cb.addEventListener('click',reset);
+    }
+    render();
+  }
+
+  function showBig(id){
+    if(!ROLL || !ROLL[id]){
+      if(!ROLL){ fetch('/data/rent-ranges-rollup.json').then(function(r){return r.json();}).then(function(j){ROLL=j;showBig(id);}); return; }
+      return;
+    }
+    clearPin();
+    if(selLayer){ try{layer.resetStyle(selLayer);}catch(e){} selLayer=null; }
+    var P=ROLL[id];
+    var isCity = id==='x:NYC';
+    var bn = isCity ? 'New York City' : id.slice(2);
+    // fit map: city -> all districts; borough -> that borough's districts
+    if(layer){
+      var grp=[];
+      layer.eachLayer(function(l){
+        var cd=l.feature && l.feature.properties.cb_code;
+        if(!cd) return;
+        if(isCity){ grp.push(l); }
+        else { var pfx={Manhattan:'MN',Bronx:'BX',Queens:'QN',Brooklyn:'BK','Staten Island':'SI'}[bn]; if(cd.indexOf(pfx)===0) grp.push(l); }
+      });
+      if(grp.length){
+        try{ var b=grp[0].getBounds(); grp.forEach(function(l){b.extend(l.getBounds());}); map.fitBounds(b,{padding:[24,24]}); }catch(e){}
+      }
+    }
+    var cells=BEDS.map(function(b){
+      return '<div class="rsr-cell"><div class="l">'+b[1]+'</div><div class="v">'+money(P['rent_'+b[0]])+'</div></div>';
+    }).join('');
+    var _bl={studio:'Studio','1br':'1 BR','2br':'2 BR','3br':'3+ BR'}[mode]||'';
+    var _bv=P['rent_'+({studio:'studio','1br':'1br','2br':'2br','3br':'3br'}[mode]||'1br')];
+    var sign = _bv!=null ? '<div class="rsr-signing"><span class="sl">'+_bl+' due at signing</span><span class="sv">'+money(_bv*2)+' <span class="sb">1st mo + 1mo deposit</span></span></div>' : '';
+    res.innerHTML='<div class="rsr-card"><div class="rsr-head"><div><div class="t">'+bn+'</div><div class="s">'+(isCity?'Citywide median':'Borough median')+'</div></div>'+
+      '<button class="rsr-clear" id="rsr-clear">Clear</button></div>'+
+      '<div class="rsr-grid">'+cells+'</div>'+ sign +
+      rangeBlock(P, null)+
+      '<div class="rsr-foot"><span class="rsr-rank">&nbsp;</span>'+
+      '<a class="rsr-link" target="_top" href="/rentpastpresent">Full history since 2010 &rarr;</a></div></div>';
+    res.style.display='block';
+    var cb=$('rsr-clear'); if(cb) cb.addEventListener('click',reset);
+  }
+
+  function reset(){
+    selNb.value=''; selCd.value=''; res.style.display='none'; clearPin();
+    if(selLayer){ try{layer.resetStyle(selLayer);}catch(e){} selLayer=null; }
+  }
+
+  selNb.addEventListener('change',function(){
+    if(!this.value||!IDX){ return; }
+    selCd.value='';
+    var v=this.value;
+    var e=IDX.filter(function(x){return x.t==='nb' && x.q===v;})[0];
+    if(e) show(e);
+  });
+  selCd.addEventListener('change',function(){
+    if(!this.value){ return; }
+    selNb.value='';
+    var v=this.value;
+    if(v.indexOf('b:')===0 || v.indexOf('x:')===0){ showBig(v); return; }
+    if(!IDX) return;
+    var e=IDX.filter(function(x){return x.cd===v && x.t==='cd';})[0];
+    if(e) show(e);
+  });
+
+  /* neighborhood boundary overlay */
+  function tip(p){
+    var rows=BEDS.map(function(b){
+      return '<div style="display:flex;justify-content:space-between;gap:14px;font-size:.72rem"><span style="color:#666">'+b[1]+'</span><span style="font-weight:700;color:#0d1b4b">'+money(p['rent_'+b[0]])+'</span></div>';
+    }).join('');
+    return '<div style="font-family:DM Sans,sans-serif;min-width:170px">'+
+      '<div style="font-weight:700;font-size:.9rem;color:#0d1b4b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:6px">'+p.nb+'</div>'+rows+
+      (p.range_lo!=null?'<div style="font-size:.66rem;color:#0d1b4b;margin-top:6px;border-top:1px solid #eee;padding-top:5px"><b>Range:</b> '+money(p.range_lo)+' ('+(p.range_lo_bed||'')+') to '+money(p.range_hi)+' ('+(p.range_hi_bed||'')+')</div>':'')+'<div style="font-size:.62rem;color:#999;margin-top:6px;border-top:1px solid #eee;padding-top:4px">Neighborhood median &middot; '+p.cd+(p.asof?' &middot; as of '+p.asof:'')+'</div></div>';
+  }
+  var nbSel=null;
+  function nbBase(){ return {color:'#0d1b4b',weight:1.2,opacity:.65,fill:true,fillOpacity:.02,fillColor:'#0d1b4b',dashArray:'3,3'}; }
+  function nbOn(){ return {color:'#f47920',weight:3,opacity:1,fill:true,fillOpacity:.18,fillColor:'#f47920',dashArray:null}; }
+  function drawNb(){
+    if(nbLayer){ map.removeLayer(nbLayer); nbLayer=null; nbSel=null; }
+    var feats=NBGEO.features.filter(function(f){ return PREFIX==='' || f.properties.cd.indexOf(PREFIX)===0; });
+    nbLayer=L.geoJSON({type:'FeatureCollection',features:feats},{
+      style:nbBase,
+      onEachFeature:function(f,l){
+        l.bindTooltip(tip(f.properties),{sticky:true,opacity:1});
+        l.on('mouseover',function(){ if(l!==nbSel){ l.setStyle({weight:2.5,opacity:1,color:'#f47920',fillOpacity:.12,fillColor:'#f47920'}); } if(l.bringToFront) l.bringToFront(); });
+        l.on('mouseout',function(){ if(l!==nbSel) l.setStyle(nbBase()); });
+        // clicking a neighborhood behaves like clicking a district
+        l.on('click',function(e){
+          if(e.originalEvent) L.DomEvent.stopPropagation(e);
+          if(nbSel && nbSel!==l) nbSel.setStyle(nbBase());
+          nbSel=l; l.setStyle(nbOn()); if(l.bringToFront) l.bringToFront();
+          var p=f.properties;
+          if(typeof showNbCard==='function') showNbCard(p, l);
+        });
+      }
+    }).addTo(map);
+  }
+  // show the same result card a dropdown pick would show
+  function showNbCard(p, lyr){
+    var res=document.getElementById('rentsearch-result'); if(!res) return;
+    var LONG={studio:'Studio','1br':'1 Bedroom','2br':'2 Bedroom','3br':'3+ Bedroom'};
+    var cells=BEDS.map(function(b){
+      var on=(b[0]===mode);
+      return '<div class="rsr-cell'+(on?' sel':'')+'"><div class="l">'+b[1]+(on?' &#9664;':'')+'</div><div class="v">'+money(p['rent_'+b[0]])+'</div></div>';
+    }).join('');
+    var v=p['rent_'+mode];
+    var head='<div class="rsr-headline"><span class="hv">'+money(v)+'</span><span class="hm"> /month</span>'+
+             '<span class="hb">'+(LONG[mode]||'')+'</span></div>';
+    var sign = v!=null ? '<div class="rsr-signing"><span class="sl">'+(LONG[mode]||'')+' due at signing</span><span class="sv">'+money(v*2)+' <span class="sb">1st mo + 1mo deposit</span></span></div>' : '';
+    var range = (p.range_lo!=null) ? '<div class="rsr-range"><span class="rl">By unit size</span><span class="rv">'+money(p.range_lo)+' <span class="rb">'+(p.range_lo_bed||'')+'</span> &ndash; '+money(p.range_hi)+' <span class="rb">'+(p.range_hi_bed||'')+'</span></span></div>' : '';
+    res.innerHTML='<div class="rsr-card"><div class="rsr-head"><div><div class="t">'+p.nb+'</div>'+
+      '<div class="s">Neighborhood &middot; '+p.cd+(p.asof?' &middot; as of '+p.asof:'')+'</div></div>'+
+      '<button class="rsr-clear" onclick="__clearNb()">Close</button></div>'+
+      head+'<div class="rsr-grid">'+cells+'</div>'+sign+range+
+      '<div class="rsr-foot"><a class="rsr-link" target="_top" href="/rentpastpresent">Full history since 2010 &rarr;</a></div></div>';
+    res.style.display='block';
+    if(res.scrollIntoView) res.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+  window.__clearNb=function(){
+    if(nbSel){ nbSel.setStyle(nbBase()); nbSel=null; }
+    var res=document.getElementById('rentsearch-result'); if(res){ res.innerHTML=''; res.style.display='none'; }
+  };
+  // bring the boundaries in automatically once you zoom past the district view
+  var NB_ZOOM=13, autoNb=false;
+  function ensureNb(cb){
+    if(NBGEO) return cb();
+    fetch('/data/neighborhood-rents.geojson').then(function(r){return r.json();}).then(function(j){ NBGEO=j; cb(); }).catch(function(){});
+  }
+  map.on('zoomend', function(){
+    var z=map.getZoom();
+    if(z>=NB_ZOOM && !nbLayer){ autoNb=true; ensureNb(function(){ if(map.getZoom()>=NB_ZOOM) drawNb(); if(cbx) cbx.checked=true; }); }
+    else if(z<NB_ZOOM && nbLayer && autoNb && cbx && !cbx.dataset.manual){
+      map.removeLayer(nbLayer); nbLayer=null; nbSel=null; autoNb=false; cbx.checked=false;
+    }
+  });
+  if(cbx) cbx.addEventListener('change',function(){
+    this.dataset.manual='1'; autoNb=false;
+    if(!this.checked){ if(nbLayer){ map.removeLayer(nbLayer); nbLayer=null; } return; }
+    if(NBGEO){ drawNb(); return; }
+    cbx.disabled=true;
+    fetch('/data/neighborhood-rents.geojson').then(function(r){return r.json();}).then(function(j){
+      NBGEO=j; cbx.disabled=false; if(cbx.checked) drawNb();
+    }).catch(function(){ cbx.disabled=false; cbx.checked=false; });
+  });
+})();
+</script>
+
+<button aria-label="Share or embed this page" class="embed-fab" onclick="document.getElementById('bkcb6EmbedModal').classList.add('open')">
+  &lt;/&gt; Share / Embed
+</button>
+<div class="embed-modal-bg" id="bkcb6EmbedModal" onclick="if(event.target===this)this.classList.remove('open')">
+<div class="embed-modal">
+<h3>Share or Embed This Page</h3>
+<p>Copy the direct link to share, or use the embed code to display this page on your own site.</p>
+<div class="embed-tabs">
+<button class="embed-tab active" onclick="bkcb6SwitchEmbedTab(this,'link')">&#128279; Link</button>
+<button class="embed-tab" onclick="bkcb6SwitchEmbedTab(this,'iframe')">&lt;/&gt; Embed</button>
+</div>
+<div id="bkcb6EmbedLinkPanel">
+<div class="embed-url-row">
+<div class="embed-url-box" id="bkcb6EmbedUrlBox"></div>
+<button class="embed-copy-btn" onclick="bkcb6CopyEmbed('link')">Copy</button>
+</div>
+</div>
+<div id="bkcb6EmbedIframePanel" style="display:none">
+<div class="embed-code-box" id="bkcb6EmbedCodeBox"></div>
+<button class="embed-copy-btn" onclick="bkcb6CopyEmbed('iframe')" style="width:100%;margin-bottom:10px">Copy Embed Code</button>
+</div>
+<button class="embed-close" onclick="document.getElementById('bkcb6EmbedModal').classList.remove('open')">Close</button>
+</div>
+</div>
+<script>
+(function(){
+  var url = window.location.href.split('?')[0].split('#')[0];
+  url = url.replace('cb6brooklyn.github.io/bkcb6','bkcb6.app');
+  var iframe = '<iframe src="' + url + '" width="100%" height="600" style="border:none;border-radius:8px" loading="lazy" title="CB6 &amp; Beyond \u2014 ' + document.title + '"></iframe>';
+  document.getElementById('bkcb6EmbedUrlBox').textContent = url;
+  document.getElementById('bkcb6EmbedCodeBox').textContent = iframe;
+})();
+function bkcb6SwitchEmbedTab(btn,panel){
+  document.querySelectorAll('.embed-tab').forEach(function(t){t.classList.remove('active')});
+  btn.classList.add('active');
+  document.getElementById('bkcb6EmbedLinkPanel').style.display=panel==='link'?'':'none';
+  document.getElementById('bkcb6EmbedIframePanel').style.display=panel==='iframe'?'':'none';
+}
+function bkcb6CopyEmbed(type){
+  var text=type==='link'?document.getElementById('bkcb6EmbedUrlBox').textContent:document.getElementById('bkcb6EmbedCodeBox').textContent;
+  navigator.clipboard.writeText(text).then(function(){
+    var btn=type==='link'?document.querySelector('#bkcb6EmbedLinkPanel .embed-copy-btn'):document.querySelector('#bkcb6EmbedIframePanel .embed-copy-btn');
+    var orig=btn.textContent;btn.textContent='Copied!';btn.style.background='#2d6a4f';
+    setTimeout(function(){btn.textContent=orig;btn.style.background='';},1800);
+  });
+}
+
+// Brooklyn rankings: bar chart, scrub through time
+(function(){
+  var H=null, mode='cd', idx=null, timer=null;
+  var BEDMAP={'Studio':'studio','1BR':'br1','2BR':'br2','3BR+':'br3'};
+  function money(v){ return v==null?'n/a':'$'+Number(v).toLocaleString('en-US'); }
+  var BEDCODE={studio:'studio','1br':'br1','2br':'br2','3br':'br3'};
+  var curBed='1br';
+  function bedKey(){ return BEDCODE[curBed]||'br1'; }
+  function syncMap(code){
+    var want={studio:'Studio','1br':'1BR','2br':'2BR','3br':'3BR+'}[code];
+    document.querySelectorAll('.rent-btn').forEach(function(b){
+      if(b.textContent.trim()===want && !b.classList.contains('active')) b.click();
+    });
+  }
+  function unpack(p,i){
+    if(!p) return null;
+    var k=i-p[0];
+    return (k>=0 && k<p[1].length) ? p[1][k] : null;
+  }
+  function label(m){
+    var mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return mn[parseInt(m.slice(5,7),10)-1]+' '+m.slice(0,4);
+  }
+  var bar=null;
+  function draw(){
+    var host=document.getElementById('rankBody'); if(!host) return;
+    if(!H){ host.innerHTML='<div class="rank-none">Loading history&hellip;</div>'; return; }
+    if(idx===null) idx=H.months.length-1;
+    document.getElementById('rankMonth').textContent=label(H.months[idx]);
+    var BEDNAME={studio:'Studio',br1:'1 bedroom',br2:'2 bedroom',br3:'3+ bedroom'};
+    var wEl=document.getElementById('rankWhat'); if(wEl) wEl.textContent=BEDNAME[bedKey()]||'';
+    var w2=document.getElementById('rankWhat2'); if(w2) w2.textContent=(BEDNAME[bedKey()]||'').toLowerCase();
+    var bigM=document.getElementById('rankBigMonth'); if(bigM) bigM.textContent=label(H.months[idx]);
+
+    var key=bedKey(), src = mode==='cd' ? H.cds : H.nbs;
+    var rows=[];
+    src.forEach(function(a){
+      var v=unpack(a.s[key], idx);
+      if(v!=null) rows.push({name:(mode==='cd'?'Brooklyn CB'+a.name.slice(2):a.name), v:v, cd:(mode==='cd'?a.num:a.cd)});
+    });
+    if(!rows.length){ host.innerHTML='<div class="rank-none">No data published for this unit type in '+label(H.months[idx])+'.</div>'; return; }
+    rows.sort(function(a,b){return b.v-a.v;});
+    var max=rows[0].v;
+    dashboard();
+    host.innerHTML='<div class="bars">'+rows.map(function(r,i){
+      var w=Math.max(4, Math.round(r.v/max*100));
+      return '<div class="barrow'+(r.cd===6?' is-cb6':'')+'">'+
+        '<div class="barhead"><span class="barrank">'+(i+1)+'</span>'+
+          '<span class="barname">'+r.name+'</span>'+
+          '<span class="barval">$'+Number(r.v).toLocaleString('en-US')+'</span></div>'+
+        '<div class="bartrack"><span class="barfill" style="width:'+w+'%"></span></div>'+
+      '</div>';
+    }).join('')+'</div>';
+  }
+
+  function dashboard(){
+    var el=document.getElementById('dashWrap'); if(!el||!H) return;
+    var i=(idx===null?H.months.length-1:idx);
+    var BEDS=[['studio','Studio'],['br1','1 bedroom'],['br2','2 bedroom'],['br3','3+ bedroom']];
+    var cards=BEDS.map(function(b){
+      var rows=[];
+      H.cds.forEach(function(a){
+        var v=unpack(a.s[b[0]], i);
+        if(v!=null) rows.push({n:'Brooklyn CB'+a.name.slice(2), v:v, cd:a.num});
+      });
+      if(!rows.length) return '<div class="dash-card"><div class="dash-bed">'+b[1]+'</div>'+
+        '<div class="dash-line"><span class="dash-where">No data published</span></div></div>';
+      rows.sort(function(x,y){return y.v-x.v;});
+      var hi=rows[0], lo=rows[rows.length-1], mid=rows[Math.floor(rows.length/2)];
+      function line(k,r,cls){
+        return '<div class="dash-line '+cls+(r.cd===6?' me':'')+'">'+
+          '<span class="dash-k">'+k+'</span>'+
+          '<span class="dash-where">'+r.n+'</span>'+
+          '<span class="dash-v">$'+Number(r.v).toLocaleString('en-US')+'</span></div>';
+      }
+      return '<div class="dash-card"><div class="dash-bed">'+b[1]+'</div>'+
+        line('Highest',hi,'hi')+line('Middle',mid,'')+line('Lowest',lo,'lo')+'</div>';
+    }).join('');
+    var wasOpen = el.getAttribute('data-open')==='1';
+    el.innerHTML='<button type="button" class="dash-head" id="dashToggle"><span class="dash-ico">&#128200;</span>'+
+      '<span class="dash-t">Brooklyn at a glance</span>'+
+      '<span class="dash-sub2">highest, middle and lowest by unit size</span>'+'<span class="dash-when" id="dashWhen">'+label(H.months[i])+'</span>'+
+      '<span class="dash-chev">'+(wasOpen?'\u25B4':'\u25BE')+'</span></button>'+
+      '<div class="dash-body"'+(wasOpen?'':' style="display:none"')+'>'+
+        '<div class="dash-sub">Median asking rent across Brooklyn\u2019s 18 community districts &middot; swipe for each unit size</div>'+
+        '<div class="dash-strip">'+cards+'</div></div>';
+    document.getElementById('dashToggle').addEventListener('click',function(){
+      var b=el.querySelector('.dash-body'), open=b.style.display!=='none';
+      b.style.display = open?'none':'';
+      el.setAttribute('data-open', open?'0':'1');
+      el.querySelector('.dash-chev').textContent = open?'\u25BE':'\u25B4';
+    });
+  }
+
+  function stop(){ if(timer){clearInterval(timer);timer=null;} var b=document.getElementById('rankPlay'); if(b) b.innerHTML='\u25B6'; }
+  function play(){
+    if(timer){ stop(); return; }
+    if(!H) return;
+    var b=document.getElementById('rankPlay'); b.innerHTML='\u23F8';
+    if(idx>=H.months.length-1) idx=0;
+    var spd=parseInt((document.getElementById('rankSpeed')||{}).value||320,10);
+    timer=setInterval(function(){
+      idx++;
+      if(idx>=H.months.length){ idx=H.months.length-1; stop(); draw(); return; }
+      document.getElementById('rankSlider').value=idx;
+      draw();
+    },spd);
+  }
+  function boot(){
+    var sl=document.getElementById('rankSlider');
+    sl.max=H.months.length-1; sl.value=H.months.length-1; idx=H.months.length-1;
+    sl.addEventListener('input',function(){ stop(); idx=+this.value; draw(); });
+    document.getElementById('rankPlay').addEventListener('click',play);
+    document.querySelectorAll('.rank-tab').forEach(function(b){
+      b.addEventListener('click',function(){
+        mode=this.getAttribute('data-mode');
+        document.querySelectorAll('.rank-tab').forEach(function(x){x.classList.toggle('active',x===b);});
+        draw();
+      });
+    });
+    document.querySelectorAll('.rank-bed').forEach(function(b){
+      b.addEventListener('click',function(){
+        curBed=this.getAttribute('data-bed');
+        document.querySelectorAll('.rank-bed').forEach(function(x){x.classList.toggle('active',x===b);});
+        syncMap(curBed);
+        draw();
+      });
+    });
+    // if the map's own toggle is used, mirror it here
+    document.querySelectorAll('.rent-btn').forEach(function(b){
+      b.addEventListener('click',function(){
+        var code={'Studio':'studio','1BR':'1br','2BR':'2br','3BR+':'3br'}[this.textContent.trim()];
+        if(code){ curBed=code;
+          document.querySelectorAll('.rank-bed').forEach(function(x){x.classList.toggle('active',x.getAttribute('data-bed')===code);});
+        }
+        setTimeout(draw,40);
+      });
+    });
+    draw();
+  }
+  fetch('/data/bk-rank-history.json').then(function(r){return r.json();}).then(function(j){ H=j; boot(); })
+    .catch(function(){ document.getElementById('rankBody').innerHTML='<div class="rank-none">Ranking history could not load.</div>'; });
+})();
+</script>
+
+<button aria-label="Share or embed this page" class="embed-fab" onclick="document.getElementById('bkcb6EmbedModal').classList.add('open')">
+  &lt;/&gt; Share / Embed
+</button>
+<div class="embed-modal-bg" id="bkcb6EmbedModal" onclick="if(event.target===this)this.classList.remove('open')">
+<div class="embed-modal">
+<h3>Share or Embed This Page</h3>
+<p>Copy the direct link to share, or use the embed code to display this page on your own site.</p>
+<div class="embed-tabs">
+<button class="embed-tab active" onclick="bkcb6SwitchEmbedTab(this,'link')">&#128279; Link</button>
+<button class="embed-tab" onclick="bkcb6SwitchEmbedTab(this,'iframe')">&lt;/&gt; Embed</button>
+</div>
+<div id="bkcb6EmbedLinkPanel">
+<div class="embed-url-row">
+<div class="embed-url-box" id="bkcb6EmbedUrlBox"></div>
+<button class="embed-copy-btn" onclick="bkcb6CopyEmbed('link')">Copy</button>
+</div>
+</div>
+<div id="bkcb6EmbedIframePanel" style="display:none">
+<div class="embed-code-box" id="bkcb6EmbedCodeBox"></div>
+<button class="embed-copy-btn" onclick="bkcb6CopyEmbed('iframe')" style="width:100%;margin-bottom:10px">Copy Embed Code</button>
+</div>
+<button class="embed-close" onclick="document.getElementById('bkcb6EmbedModal').classList.remove('open')">Close</button>
+</div>
+</div>
+<script>
+(function(){
+  var url = window.location.href.split('?')[0].split('#')[0];
+  url = url.replace('cb6brooklyn.github.io/bkcb6','bkcb6.app');
+  var iframe = '<iframe src="' + url + '" width="100%" height="600" style="border:none;border-radius:8px" loading="lazy" title="CB6 &amp; Beyond \u2014 ' + document.title + '"></iframe>';
+  document.getElementById('bkcb6EmbedUrlBox').textContent = url;
+  document.getElementById('bkcb6EmbedCodeBox').textContent = iframe;
+})();
+function bkcb6SwitchEmbedTab(btn,panel){
+  document.querySelectorAll('.embed-tab').forEach(function(t){t.classList.remove('active')});
+  btn.classList.add('active');
+  document.getElementById('bkcb6EmbedLinkPanel').style.display=panel==='link'?'':'none';
+  document.getElementById('bkcb6EmbedIframePanel').style.display=panel==='iframe'?'':'none';
+}
+function bkcb6CopyEmbed(type){
+  var text=type==='link'?document.getElementById('bkcb6EmbedUrlBox').textContent:document.getElementById('bkcb6EmbedCodeBox').textContent;
+  navigator.clipboard.writeText(text).then(function(){
+    var btn=type==='link'?document.querySelector('#bkcb6EmbedLinkPanel .embed-copy-btn'):document.querySelector('#bkcb6EmbedIframePanel .embed-copy-btn');
+    var orig=btn.textContent;btn.textContent='Copied!';btn.style.background='#2d6a4f';
+    setTimeout(function(){btn.textContent=orig;btn.style.background='';},1800);
+  });
+}
+
+
+
+// inline rent report: any month or year, optional comparison, single area or all its parts
+(function(){
+  var AREA_ID="b:Brooklyn", AREA_NAME="Brooklyn", AREA_LVL="borough";
+  var D=null, ch=null;
+  var BEDS=[['studio','Studio'],['br1','1 Bedroom'],['br2','2 Bedroom'],['br3','3+ Bedroom']];
+  var MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var $=function(i){return document.getElementById(i);};
+  function money(v){ return v==null?'n/a':'$'+Number(Math.round(v)).toLocaleString('en-US'); }
+  function unpack(p,n){ var o=new Array(n).fill(null); if(!p) return o; for(var i=0;i<p[1].length;i++) o[p[0]+i]=p[1][i]; return o; }
+  function byId(id){ for(var i=0;i<D.areas.length;i++) if(D.areas[i].id===id) return D.areas[i]; return null; }
+  function ser(a,k){ return unpack(a && a.s ? a.s[k] : null, D.months.length); }
+
+  // ---- free-form area picker: any districts, neighborhoods or boroughs ----
+  var HOME_BORO="Brooklyn";
+  var PICKED=[];
+  var BORDER=['Manhattan','Brooklyn','Queens','Bronx','Staten Island'];
+  function fillBoroFilter(){
+    var sel=$('rptPickBoro'); if(!sel || sel.options.length) return;
+    sel.innerHTML='<option value="">All boroughs</option>'+
+      BORDER.map(function(b){return '<option value="'+b+'">'+b+'</option>';}).join('');
+    if(HOME_BORO) sel.value=HOME_BORO;
+  }
+  function pickList(){
+    fillBoroFilter();
+    var lvl=$('rptPickLvl').value, q=($('rptPickSearch').value||'').toLowerCase();
+    var boro=$('rptPickBoro') ? $('rptPickBoro').value : '';
+    var list=D.areas.filter(function(a){return a.t===lvl;});
+    if(lvl!=='borough' && boro) list=list.filter(function(a){return a.p===boro;});
+    if(q) list=list.filter(function(a){return a.n.toLowerCase().indexOf(q)>-1;});
+    if(!list.length){ $('rptPickList').innerHTML='<div class="rp-none">No matches.</div>'; return; }
+    var byB={};
+    list.forEach(function(a){ (byB[a.p||'\u2014']=byB[a.p||'\u2014']||[]).push(a); });
+    var order=BORDER.filter(function(b){return byB[b];})
+      .concat(Object.keys(byB).filter(function(b){return BORDER.indexOf(b)<0;}));
+    var html='';
+    order.forEach(function(b){
+      var items=byB[b].sort(function(x,y){return x.n.localeCompare(y.n);});
+      if(lvl!=='borough') html+='<div class="rp-group">'+b+' <span>'+items.length+'</span></div>';
+      html+=items.map(function(a){
+        var on=PICKED.indexOf(a.id)>-1;
+        return '<label class="rp-item'+(on?' on':'')+'"><input type="checkbox" data-id="'+a.id+'"'+(on?' checked':'')+'>'+
+               '<span>'+a.n+'</span></label>';
+      }).join('');
+    });
+    $('rptPickList').innerHTML=html;
+    $('rptPickList').querySelectorAll('input').forEach(function(cb){
+      cb.addEventListener('change',function(){
+        var id=this.getAttribute('data-id');
+        if(this.checked){ if(PICKED.indexOf(id)<0) PICKED.push(id); }
+        else PICKED=PICKED.filter(function(x){return x!==id;});
+        this.parentNode.classList.toggle('on',this.checked);
+        drawChips();
+      });
+    });
+  }
+  function drawChips(){
+    $('rptChips').innerHTML=PICKED.map(function(id){
+      var a=byId(id); if(!a) return '';
+      return '<span class="rp-chip">'+a.n+' <b data-id="'+id+'">&times;</b></span>';
+    }).join('');
+    $('rptChips').querySelectorAll('b').forEach(function(x){
+      x.addEventListener('click',function(){
+        PICKED=PICKED.filter(function(i){return i!==this.getAttribute('data-id');}.bind(this));
+        drawChips(); pickList();
+      });
+    });
+  }
+
+  function pct(n,t){ return (n==null||t==null||!t)?null:Math.round((n-t)/t*1000)/10; }
+
+  // value for an area+bed over a period: one month, or the mean of a year's published months
+  function valueAt(a,bed,per){
+    var s=ser(a,bed);
+    if(per.kind==='month'){ var i=D.months.indexOf(per.ym); return i<0?null:s[i]; }
+    var vals=[];
+    for(var i=0;i<D.months.length;i++) if(D.months[i].slice(0,4)===per.y && s[i]!=null) vals.push(s[i]);
+    if(!vals.length) return null;
+    return vals.reduce(function(x,y){return x+y;},0)/vals.length;
+  }
+  function perLabel(p){ return p.kind==='month' ? (MON[+p.ym.slice(5,7)-1]+' '+p.ym.slice(0,4)) : (p.y+' average'); }
+  function shiftPer(p,mode){
+    if(mode==='prev'){
+      if(p.kind==='year') return {kind:'year',y:String(+p.y-1)};
+      var i=D.months.indexOf(p.ym); return i<1?null:{kind:'month',ym:D.months[i-1]};
+    }
+    if(mode==='yearago'){
+      if(p.kind==='year') return {kind:'year',y:String(+p.y-1)};
+      var i=D.months.indexOf(p.ym); return i<12?null:{kind:'month',ym:D.months[i-12]};
+    }
+    return null;
+  }
+  function parts(){
+    var a=byId(AREA_ID);
+    if(AREA_LVL==='city') return D.areas.filter(function(x){return x.t==='borough';});
+    if(AREA_LVL==='borough') return D.areas.filter(function(x){return x.t==='cd' && x.p===a.n;});
+    if(AREA_LVL==='cd') return D.areas.filter(function(x){return x.t==='neighborhood' && x.p===a.p;});
+    return [];
+  }
+
+
+  function labelScope(){
+    var sel=$('rptScope'); if(!sel||!D) return;
+    var kids=parts();
+    var kind = AREA_LVL==='city' ? 'boroughs'
+             : AREA_LVL==='borough' ? 'community districts'
+             : 'neighborhoods';
+    sel.options[0].textContent = AREA_NAME+' as a whole';
+    sel.options[1].textContent = kids.length
+      ? ('All '+kids.length+' '+kind+' in '+AREA_NAME)
+      : ('No '+kind+' to break out');
+    if(!kids.length) sel.options[1].disabled=true;
+  }
+  function fillDates(){
+    var yrs={}; D.months.forEach(function(m){yrs[m.slice(0,4)]=1;});
+    var yopts=Object.keys(yrs).sort().reverse().map(function(y){return '<option>'+y+'</option>';}).join('');
+    var mopts=MON.map(function(m,i){return '<option value="'+String(i+1).padStart(2,'0')+'">'+m+'</option>';}).join('');
+    $('rptYr').innerHTML=yopts; $('rptMo').innerHTML=mopts;
+    $('rptCmpYr').innerHTML=yopts; $('rptCmpMo').innerHTML=mopts;
+    var last=D.months[D.months.length-1];
+    $('rptYr').value=last.slice(0,4); $('rptMo').value=last.slice(5,7);
+    $('rptCmpYr').value=String(+last.slice(0,4)-1); $('rptCmpMo').value=last.slice(5,7);
+  }
+  function syncControls(){
+    $('rptMoWrap').style.display = $('rptKind').value==='year' ? 'none' : '';
+    $('rptCmpWrap').style.display = $('rptCmpKind').value==='pick' ? '' : 'none';
+    $('rptCmpMo').style.display = $('rptKind').value==='year' ? 'none' : '';
+    var showPick = $('rptScope').value==='choose';
+    $('rptPick').style.display = showPick ? '' : 'none';
+    if(showPick && D) pickList();
+  }
+
+  function build(){
+    var kind=$('rptKind').value;
+    var per = kind==='month' ? {kind:'month',ym:$('rptYr').value+'-'+$('rptMo').value} : {kind:'year',y:$('rptYr').value};
+    if(per.kind==='month' && D.months.indexOf(per.ym)<0){
+      $('rptOut').innerHTML='<div class="rpt-empty">No data published for that month.</div>'; $('rptPdf').style.display='none'; return; }
+    var cmpMode=$('rptCmpKind').value, cmp=null;
+    if(cmpMode==='pick') cmp = kind==='month' ? {kind:'month',ym:$('rptCmpYr').value+'-'+$('rptCmpMo').value} : {kind:'year',y:$('rptCmpYr').value};
+    else if(cmpMode!=='none') cmp=shiftPer(per,cmpMode);
+
+    var sc=$('rptScope').value;
+    var rows = sc==='parts' ? parts()
+             : sc==='choose' ? PICKED.map(byId).filter(Boolean)
+             : [byId(AREA_ID)];
+    if(sc==='choose' && !rows.length) rows=[byId(AREA_ID)];
+    rows=rows.filter(Boolean);
+    if(!rows.length){ $('rptOut').innerHTML='<div class="rpt-empty">No areas to report.</div>'; return; }
+
+    var head='<tr><th>Area</th>'+BEDS.map(function(b){return '<th>'+b[1]+'</th>';}).join('')+'<th>Listings</th></tr>';
+    function cell(a,bed){
+      var v=valueAt(a,bed,per);
+      if(!cmp) return '<td>'+money(v)+'</td>';
+      var c=valueAt(a,bed,cmp), p=pct(v,c);
+      var cls=p>0?'rpt-up':(p<0?'rpt-down':'rpt-flat');
+      return '<td><span class="cv">'+money(v)+'</span>'+
+             '<span class="cwas">'+money(c)+'</span>'+
+             '<span class="cdlt '+cls+'">'+(p===null?'&mdash;':((p>0?'+':'')+p+'%'))+'</span></td>';
+    }
+    var body=rows.map(function(a){
+      var tds=BEDS.map(function(b){ return cell(a,b[0]); }).join('');
+      var inv=valueAt(a,'inv',per), invC=cmp?valueAt(a,'inv',cmp):null;
+      var invTd;
+      if(!cmp) invTd='<td>'+(inv==null?'n/a':Number(Math.round(inv)).toLocaleString('en-US'))+'</td>';
+      else {
+        var ip=pct(inv,invC), icls=ip>0?'rpt-up':(ip<0?'rpt-down':'rpt-flat');
+        invTd='<td><span class="cv">'+(inv==null?'n/a':Number(Math.round(inv)).toLocaleString('en-US'))+'</span>'+
+              '<span class="cwas">'+(invC==null?'n/a':Number(Math.round(invC)).toLocaleString('en-US'))+'</span>'+
+              '<span class="cdlt '+icls+'">'+(ip===null?'&mdash;':((ip>0?'+':'')+ip+'%'))+'</span></td>';
+      }
+      var me=(a.id===AREA_ID)?' class="rpt-me"':'';
+      return '<tr'+me+'><td>'+a.n+'</td>'+tds+invTd+'</tr>';
+    }).join('');
+
+    var self=byId(AREA_ID);
+    var cells=BEDS.map(function(b){
+      var v=valueAt(self,b[0],per), c=cmp?valueAt(self,b[0],cmp):null, p=pct(v,c);
+      return '<div class="rpt-cell"><div class="k">'+b[1]+'</div><div class="v">'+money(v)+'</div>'+
+        (cmp?('<div class="d '+(p>0?'rpt-up':(p<0?'rpt-down':'rpt-flat'))+'">'+(p===null?'no comparison':((p>0?'+':'')+p+'% vs '+perLabel(cmp)))+'</div>'):'')+'</div>';
+    }).join('');
+
+    $('rptOut').innerHTML='<div class="rpt-card">'+
+      '<div class="rpt-title">'+AREA_NAME+' rent report</div>'+
+      '<div class="rpt-when">'+perLabel(per)+(cmp?' &nbsp;vs&nbsp; '+perLabel(cmp):'')+'</div>'+
+      '<div class="rpt-grid">'+cells+'</div>'+
+      '<div class="rpt-h3">'+(sc==='parts'?'Every part of '+AREA_NAME:(sc==='choose'?'Comparison':'Summary'))+'</div>'+
+      (cmp?'<div class="rpt-key"><span class="k1">Top figure: '+perLabel(per)+'</span>'+
+            '<span class="k2">Below it: '+perLabel(cmp)+'</span>'+
+            '<span class="k3">Then the change</span></div>':'')+
+      '<div style="overflow-x:auto"><table class="rpt-tbl">'+head+body+'</table></div>'+
+      '<div class="rpt-h3">1-bedroom trend</div><canvas id="rptCh" height="130"></canvas>'+
+      '<div class="rpt-src">Source: StreetEasy median asking rent and rental inventory. A whole-year figure is the mean of that year\u2019s published months. Blank figures mean StreetEasy published none. Generated '+new Date().toLocaleDateString('en-US')+' &middot; bkcb6.app</div></div>';
+
+    var endIdx = per.kind==='month' ? D.months.indexOf(per.ym) : (function(){ var last=-1;
+      for(var i=0;i<D.months.length;i++) if(D.months[i].slice(0,4)===per.y) last=i; return last<0?D.months.length-1:last; })();
+    var lab=D.months.slice(0,endIdx+1), s1=ser(self,'br1').slice(0,endIdx+1);
+    if(ch) ch.destroy();
+    if(window.Chart) ch=new Chart($('rptCh'),{type:'line',data:{labels:lab,datasets:[{data:s1,borderColor:'#f47920',borderWidth:2,pointRadius:0,tension:.25,spanGaps:true}]},
+      options:{responsive:true,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return money(c.parsed.y);}}}},
+      scales:{x:{ticks:{maxTicksLimit:8,font:{size:8,family:'DM Mono'},color:'#9ca3af',callback:function(v){var t=lab[v]||'';return t.slice(5)==='01'?t.slice(0,4):'';}},grid:{display:false}},
+        y:{ticks:{font:{size:8,family:'DM Mono'},color:'#9ca3af',callback:function(v){return '$'+(v/1000).toFixed(1)+'k';}},grid:{color:'#f0ede8'}}}}});
+    $('rptPdf').style.display='';
+  }
+
+  function load(cb){
+    if(D) return cb();
+    $('rptNote').textContent='Loading history\u2026';
+    fetch('/data/rent-explorer.json').then(function(r){return r.json();}).then(function(j){
+      D=j; $('rptNote').textContent=''; fillDates(); labelScope(); syncControls(); cb();
+    }).catch(function(){ $('rptNote').textContent='Data could not load.'; });
+  }
+  ['rptKind','rptCmpKind','rptScope'].forEach(function(id){ $(id).addEventListener('change',syncControls); });
+  $('rptPickLvl').addEventListener('change',function(){ if(D) pickList(); });
+  $('rptPickBoro').addEventListener('change',function(){ if(D) pickList(); });
+  $('rptPickSearch').addEventListener('input',function(){ if(D) pickList(); });
+  $('rptPickClear').addEventListener('click',function(){ PICKED=[]; drawChips(); pickList(); });
+  $('rptGo').addEventListener('click',function(){ load(build); });
+  $('rptPdf').addEventListener('click',function(){
+    document.querySelectorAll('#rptOut canvas').forEach(function(c){
+      var im=document.createElement('img'); im.src=c.toDataURL('image/png'); im.style.width='100%'; im.className='rpt-img';
+      c.parentNode.insertBefore(im,c); c.style.display='none'; });
+    window.print();
+    setTimeout(function(){ document.querySelectorAll('#rptOut canvas').forEach(function(c){c.style.display='';});
+      document.querySelectorAll('.rpt-img').forEach(function(i){i.remove();}); },1500);
+  });
+  load(function(){});
+})();
+
+
+/* ---- time travel: recolour the map for any month back to 2010 ---- */
+(function(){
+  var TH=null, TIDX=null, tTimer=null;
+  var TIERS=['#1B5E8A','#82C341','#E8A800','#D45F00','#67000D'];
+  var TIERNAME=['Least Expensive','Less Expensive','Mid Range','Expensive','Most Expensive'];
+  var byCode={};
+  function code(a){ return 'BK' ? ('BK'+'CB'+a.num) : a.code; }
+  function bedKeyT(){ return ({studio:'studio','1br':'br1','2br':'br2','3br':'br3'})[mode]||'br1'; }
+  function unpackAt(p,i){ if(!p) return null; var k=i-p[0]; return (k>=0&&k<p[1].length)?p[1][k]:null; }
+
+  window.__timeValue=function(cb_code,i){
+    var a=byCode[cb_code]; if(!a) return null;
+    return unpackAt(a.s[bedKeyT()], i);
+  };
+  window.__timeActive=function(){ return TIDX!==null; };
+  window.__timeValueFor=function(cb_code,bed,i){
+    var a=byCode[cb_code]; if(!a) return null;
+    var k=({studio:'studio','1br':'br1','2br':'br2','3br':'br3'})[bed]||bed;
+    return unpackAt(a.s[k], i);
+  };
+  // one fixed dollar scale for the whole period, so the map genuinely darkens as rents rise
+  var SCALE={};
+  function buildScale(){
+    ['studio','br1','br2','br3'].forEach(function(bed){
+      var all=[];
+      Object.keys(byCode).forEach(function(c){
+        var p=byCode[c].s[bed]; if(!p) return;
+        for(var k=0;k<p[1].length;k++){ var v=p[1][k]; if(v!=null) all.push(v); }
+      });
+      if(!all.length){ SCALE[bed]=null; return; }
+      all.sort(function(a,b){return a-b;});
+      // trim outliers so one freak listing doesn't flatten the ramp
+      var lo=all[Math.floor(all.length*0.02)], hi=all[Math.floor(all.length*0.98)];
+      if(hi<=lo) hi=lo+1;
+      SCALE[bed]={lo:lo,hi:hi};
+    });
+  }
+  window.__timeScale=function(){ return SCALE[bedKeyT()]||null; };
+  window.__timeTiers=function(i){
+    var sc=SCALE[bedKeyT()]; var out={};
+    if(!sc) return out;
+    var vals=[];
+    Object.keys(byCode).forEach(function(c){ var v=window.__timeValue(c,i); if(v!=null) vals.push({c:c,v:v}); });
+    var ranked=vals.slice().sort(function(x,y){return y.v-x.v;});
+    var rankOf={}; ranked.forEach(function(o,k){ rankOf[o.c]=k+1; });
+    vals.forEach(function(o){
+      var t=(o.v-sc.lo)/(sc.hi-sc.lo);
+      t=Math.max(0,Math.min(1,t));
+      var q=Math.min(Math.floor(t*5),4);
+      out[o.c]={fill:TIERS[q],band:TIERNAME[q],rank:rankOf[o.c],total:vals.length};
+    });
+    return out;
+  };
+  var TIERMAP={};
+  window.__timeTierOf=function(c){ return TIERMAP[c]||null; };
+
+  window.__timeReapply=function(){ if(TIDX!==null) apply(TIDX); };
+  function apply(i){
+    TIDX=i;
+    TIERMAP = (i===null) ? {} : window.__timeTiers(i);
+    var lab=document.getElementById('tmLabel');
+    var bar=document.getElementById('timebar');
+    if(i===null){ lab.textContent='now'; bar.classList.remove('live'); }
+    else {
+      var m=TH.months[i], mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m.slice(5,7)-1];
+      lab.textContent=mn+' '+m.slice(0,4); bar.classList.add('live');
+    }
+    if(typeof layer!=='undefined' && layer) layer.setStyle(styleForTime);
+    if(typeof window.relabelDistricts==='function') window.relabelDistricts();
+    drawLeader(i);
+    var lg=document.getElementById('tmScale');
+    if(lg){
+      var sc=window.__timeScale();
+      lg.innerHTML = (i===null||!sc) ? '' :
+        '<span class="ts-lab">Fixed scale</span><span class="ts-lo">$'+Number(sc.lo).toLocaleString()+'</span>'+
+        TIERS.map(function(c){return '<span class="ts-sw" style="background:'+c+'"></span>';}).join('')+
+        '<span class="ts-hi">$'+Number(sc.hi).toLocaleString()+'</span>';
+    }
+  }
+  window.styleForTime=function(feat){
+    var isCB6 = feat.properties.cb_code === 'BKCB6';
+    var base={fillOpacity:0.8, color: isCB6 ? '#f47920' : '#fff', weight: isCB6 ? 3 : 1};
+    if(TIDX===null){ base.fillColor=getFill(feat.properties); return base; }
+    var t=TIERMAP[feat.properties.cb_code];
+    base.fillColor = t ? t.fill : '#ddd';
+    return base;
+  };
+  function styleForTime(f){ return window.styleForTime(f); }
+
+  window.relabelDistricts=function(){
+    var L2=window.__cdLabels||[];
+    L2.forEach(function(o){
+      var html='CB'+o.num;
+      if(TIDX!==null){
+        var v=window.__timeValue(o.code,TIDX);
+        html+='<span class="cd-rent">'+(v!=null?'$'+Number(v).toLocaleString():'\u2014')+'</span>';
+      }
+      o.mk.setIcon(L.divIcon({className:'cd-label'+(o.cb6?' is-cb6':''),html:html,iconSize:[64,26],iconAnchor:[32,13]}));
+    });
+  };
+
+  function leaderName(c){
+    var a=byCode[c]; if(!a) return c;
+    return ('Brooklyn CB') ? ('Brooklyn CB'+a.num) : c;
+  }
+  function drawLeader(i){
+    var el=document.getElementById('tmLead'); if(!el) return;
+    if(i===null){ el.innerHTML=''; return; }
+    var LONG={studio:'Studio','1br':'1 Bedroom','2br':'2 Bedroom','3br':'3+ Bedroom'};
+    var vals=[];
+    Object.keys(byCode).forEach(function(c){ var v=window.__timeValue(c,i); if(v!=null) vals.push({c:c,v:v}); });
+    if(!vals.length){ el.innerHTML=''; return; }
+    vals.sort(function(a,b){return b.v-a.v;});
+    var hi=vals[0], mid=vals[Math.floor(vals.length/2)], lo=vals[vals.length-1];
+    var m=TH.months[i], mn=['January','February','March','April','May','June','July','August','September','October','November','December'][+m.slice(5,7)-1];
+    function row(k,o,cls){
+      var isCB6=(o.c==='BKCB6');
+      return '<div class="tl-row '+cls+(isCB6?' cb6':'')+'"><span class="tl-k">'+k+'</span>'+
+             '<span class="tl-n">'+leaderName(o.c)+'</span>'+
+             '<span class="tl-v">$'+Number(o.v).toLocaleString()+'</span></div>';
+    }
+    el.innerHTML='<div class="tl-head"><span class="tl-when">'+mn+' '+m.slice(0,4)+'</span>'+
+      '<span class="tl-what">'+(LONG[mode]||'')+' median asking rent</span></div>'+
+      '<div class="tl-rows">'+row('Highest',hi,'hi')+row('Middle',mid,'')+row('Lowest',lo,'lo')+'</div>';
+  }
+  function stop(){ if(tTimer){clearInterval(tTimer);tTimer=null;} var b=document.getElementById('tmPlay'); if(b) b.innerHTML='\u25B6'; }
+  function play(){
+    if(tTimer){ stop(); return; }
+    if(!TH) return;
+    document.getElementById('tmPlay').innerHTML='\u23F8';
+    var i=(TIDX===null?0:TIDX);
+    tTimer=setInterval(function(){
+      i++;
+      if(i>=TH.months.length){ stop(); apply(null); document.getElementById('tmSlider').value=TH.months.length-1; return; }
+      document.getElementById('tmSlider').value=i; apply(i);
+    },300);
+  }
+
+  fetch('/data/bk-rank-history.json').then(function(r){return r.json();}).then(function(j){
+    TH=j;
+    (j.cds||[]).forEach(function(a){ byCode[code(a)]=a; });
+    buildScale();
+    var sl=document.getElementById('tmSlider');
+    sl.max=j.months.length-1; sl.value=j.months.length-1;
+    sl.addEventListener('input',function(){ stop(); apply(+this.value); });
+    document.getElementById('tmPlay').addEventListener('click',play);
+    document.getElementById('tmNow').addEventListener('click',function(){ stop(); apply(null); sl.value=j.months.length-1; });
+  }).catch(function(){ var t=document.getElementById('timebar'); if(t) t.style.display='none'; });
+})();
+
+/* ---- borough comparison: map + rents over time ---- */
+(function(){
+  var BOROS=['Manhattan','Brooklyn','Queens','Bronx','Staten Island'];
+  var COLOR={'Manhattan':'#f47920','Brooklyn':'#132D65','Queens':'#2e8b57','Bronx':'#b3300c','Staten Island':'#7a5cc6'};
+  var HOME="Brooklyn";
+  var sel = HOME ? [HOME] : BOROS.slice();
+  var GEO=null, HIST=null, bmap=null, blayer=null, bchart=null, booted=false;
+  function bedK(){ return ({studio:'studio','1br':'br1','2br':'br2','3br':'br3'})[mode]||'br1'; }
+  function bedGeo(){ return ({studio:'rent_studio','1br':'rent_1br','2br':'rent_2br','3br':'rent_3br'})[mode]||'rent_1br'; }
+  function money(v){ return v==null?'n/a':'$'+Number(Math.round(v)).toLocaleString('en-US'); }
+  function unpackAt(p,i){ if(!p) return null; var k=i-p[0]; return (k>=0&&k<p[1].length)?p[1][k]:null; }
+
+  function chips(){
+    var el=document.getElementById('boroChips');
+    el.innerHTML=BOROS.map(function(b){
+      return '<button type="button" class="boro-chip'+(sel.indexOf(b)>-1?' on':'')+'" data-b="'+b+'">'+b+'</button>';
+    }).join('');
+    el.querySelectorAll('.boro-chip').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        var b=this.getAttribute('data-b'), k=sel.indexOf(b);
+        if(k>-1){ if(sel.length>1) sel.splice(k,1); } else sel.push(b);
+        chips(); render();
+      });
+    });
+  }
+  function render(){
+    if(!GEO||!HIST) return;
+    // map
+    if(blayer){ bmap.removeLayer(blayer); blayer=null; }
+    var feats=GEO.features.filter(function(f){ return sel.indexOf(f.properties.boro)>-1; });
+    blayer=L.geoJSON({type:'FeatureCollection',features:feats},{
+      style:function(f){ return {color:'#fff',weight:2,fillColor:COLOR[f.properties.boro],fillOpacity:.72}; },
+      onEachFeature:function(f,l){
+        var p=f.properties;
+        l.bindTooltip('<b>'+p.boro+'</b><br>'+money(p[bedGeo()])+' &middot; '+
+          ({studio:'Studio','1br':'1 Bedroom','2br':'2 Bedroom','3br':'3+ Bedroom'}[mode]||''),{sticky:true});
+      }
+    }).addTo(bmap);
+    try{ bmap.fitBounds(blayer.getBounds(),{padding:[14,14]}); }catch(e){}
+
+    // current figures
+    var last=HIST.months.length-1;
+    var rows=sel.map(function(b){
+      var a=HIST.cds.filter(function(x){return x.name===b;})[0];
+      return {b:b, v:a?unpackAt(a.s[bedK()],last):null};
+    }).sort(function(x,y){return (y.v||0)-(x.v||0);});
+    document.getElementById('boroNow').innerHTML=rows.map(function(r){
+      return '<div class="bn-row"><span class="bn-sw" style="background:'+COLOR[r.b]+'"></span>'+
+             '<span class="bn-n">'+r.b+'</span><span class="bn-v">'+money(r.v)+'</span></div>';
+    }).join('');
+
+    // over time
+    var ds=sel.map(function(b){
+      var a=HIST.cds.filter(function(x){return x.name===b;})[0];
+      var s=[]; for(var i=0;i<HIST.months.length;i++) s.push(a?unpackAt(a.s[bedK()],i):null);
+      return {label:b,data:s,borderColor:COLOR[b],borderWidth:2,pointRadius:0,tension:.25,spanGaps:true};
+    });
+    if(bchart) bchart.destroy();
+    if(window.Chart) bchart=new Chart(document.getElementById('boroChart'),{
+      type:'line',data:{labels:HIST.months,datasets:ds},
+      options:{responsive:true,animation:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{boxWidth:10,font:{size:10,family:'DM Sans'}}},
+          tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+money(c.parsed.y);}}}},
+        scales:{x:{ticks:{maxTicksLimit:8,font:{size:9,family:'DM Mono'},color:'#9ca3af',
+            callback:function(v){var t=HIST.months[v]||'';return t.slice(5)==='01'?t.slice(0,4):'';}},grid:{display:false}},
+          y:{ticks:{font:{size:9,family:'DM Mono'},color:'#9ca3af',callback:function(v){return '$'+(v/1000).toFixed(1)+'k';}},grid:{color:'#f0ede8'}}}}});
+  }
+  function boot(){
+    if(booted) return; booted=true;
+    bmap=L.map('boroMap',{scrollWheelZoom:false,attributionControl:false}).setView([40.70,-73.95],9);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:16}).addTo(bmap);
+    Promise.all([
+      fetch('/data/borough-rents.geojson').then(function(r){return r.json();}),
+      fetch('/data/boro-rank-history.json').then(function(r){return r.json();})
+    ]).then(function(a){ GEO=a[0]; HIST=a[1]; chips(); render(); setTimeout(function(){bmap.invalidateSize();},120); })
+      .catch(function(){ document.getElementById('boroNow').innerHTML='<div class="bn-row"><span class="bn-n">Data could not load.</span></div>'; });
+  }
+  var sect=document.getElementById('boroSect');
+  if(sect) sect.addEventListener('toggle',function(){ if(sect.open) boot(); });
+  document.querySelectorAll('.rent-btn').forEach(function(b){ b.addEventListener('click',function(){ setTimeout(render,40); }); });
+})();
+</script>
+</body>
+</html>
