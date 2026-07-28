@@ -218,6 +218,14 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .rsr-headline .hm{font-size:.8rem;font-weight:700;color:#132D65}
 .rsr-headline .hb{display:block;font-size:.82rem;font-weight:700;color:#f47920;margin-top:1px}
 .rsr-cell.sel{background:#fff8f2}
+
+.timebar{position:sticky;top:44px;z-index:590;display:flex;align-items:center;gap:9px;padding:8px 14px;background:#132D65;border-bottom:1px solid rgba(255,255,255,.12)}
+#tmPlay{width:32px;height:29px;border:2px solid rgba(255,255,255,.4);border-radius:7px;background:transparent;color:#fff;font-size:.76rem;cursor:pointer;flex:none}
+#tmSlider{flex:1;accent-color:#f47920;min-width:80px}
+#tmLabel{font-family:'DM Mono',monospace;font-size:.82rem;font-weight:700;color:#fff;min-width:74px;text-align:right}
+.tm-now{padding:6px 10px;border:2px solid rgba(255,255,255,.4);border-radius:7px;background:transparent;color:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;flex:none}
+.tm-now:hover,#tmPlay:hover{border-color:#f47920;color:#f47920}
+.timebar.live #tmLabel{color:#f47920}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -279,6 +287,12 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
     <button class="rent-btn" onclick="toggle('2br',this)">2BR</button>
     <button class="rent-btn" onclick="toggle('3br',this)">3BR+</button>
   </div>
+<div class="timebar" id="timebar">
+  <button id="tmPlay" type="button" title="Play through time">&#9654;</button>
+  <input id="tmSlider" type="range" min="0" max="0" value="0">
+  <span id="tmLabel">now</span>
+  <button id="tmNow" type="button" class="tm-now">Today</button>
+</div>
 <div id="map"></div>
 <div class="map-caption"><span class="mc-ico">&#128506;</span><span class="mc-boro">The Bronx</span><span class="mc-sub">Median asking rent by community district</span></div>
 <div class="rpt-wrap">
@@ -373,21 +387,31 @@ function getTooltip(props) {
   var ROWS=[['studio','Studio'],['1br','1 BR'],['2br','2 BR'],['3br','3+ BR']];
   var isCB6 = props.cb_code === 'BKCB6';
   var LONG={studio:'Studio','1br':'1 Bedroom','2br':'2 Bedroom','3br':'3+ Bedroom'};
-  var sel = props['rent_'+mode];
+  /* TIME-AWARE */
+  var tActive = (typeof window.__timeActive==='function') && window.__timeActive();
+  var tIdx = tActive ? +document.getElementById('tmSlider').value : null;
+  function valOf(key,bed){
+    if(!tActive) return props[key];
+    var saveMode=mode; var v=null;
+    try { v = window.__timeValueFor(props.cb_code, bed, tIdx); } catch(e){ v=null; }
+    return v;
+  }
+  var sel = tActive ? window.__timeValueFor(props.cb_code, mode, tIdx) : props['rent_'+mode];
   var headline = '<div style="margin-bottom:7px">'+
     '<span style="font-size:1.15rem;font-weight:800;color:#0d1b4b;font-family:DM Mono,monospace">'+
       (sel!=null?'$'+Number(sel).toLocaleString():'n/a')+'</span>'+
     '<span style="font-size:.78rem;color:#0d1b4b;font-weight:700"> /month</span>'+
     '<div style="font-size:.8rem;font-weight:700;color:#f47920;margin-top:1px">'+(LONG[mode]||'')+'</div></div>';
   var rows = ROWS.map(function(r){
-    var v=props['rent_'+r[0]];
+    var v = tActive ? window.__timeValueFor(props.cb_code, r[0], tIdx) : props['rent_'+r[0]];
     var on=(r[0]===mode);
     return '<div style="display:flex;justify-content:space-between;gap:16px;padding:2px 0;'+
       (on?'font-weight:800;color:#0d1b4b':'color:#555')+'">'+
       '<span>'+r[1]+(on?' \u25C0':'')+'</span>'+
       '<span style="font-family:DM Mono,monospace">'+(v!=null?'$'+Number(v).toLocaleString():'n/a')+'</span></div>';
   }).join('');
-  var boroRank = props['boro_rank_' + mode], cityRank = props['city_rank_' + mode];
+  var tt = tActive && typeof window.__timeTierOf==='function' ? window.__timeTierOf(props.cb_code) : null;
+  var boroRank = tt ? tt.rank : props['boro_rank_' + mode], cityRank = tt ? null : props['city_rank_' + mode];
   var rankStr = '';
   if (boroRank) rankStr += '#' + boroRank + ' in Bronx';
   if (cityRank) rankStr += (rankStr ? '  |  ' : '') + '#' + cityRank + ' in NYC';
@@ -396,7 +420,7 @@ function getTooltip(props) {
     (isCB6 ? '\u2605 ' : '') + 'Bronx ' + props.cb_code.replace('BX','') + '</div>' +
     headline + rows +
     '<div style="font-size:.66rem;color:#888;margin-top:6px;border-top:1px solid #eee;padding-top:5px">' +
-      (props['boro_band_' + mode] || '') + (rankStr?' \u00b7 '+rankStr:'') + '</div>' +
+      ((tt?tt.band:props['boro_band_' + mode]) || '') + (rankStr?' \u00b7 '+rankStr:'') + (tActive?' \u00b7 '+document.getElementById('tmLabel').textContent:'') + '</div>' +
     '</div>';
 }
 
@@ -1160,6 +1184,84 @@ function bkcb6CopyEmbed(type){
   }
   fetch('data/bx-rank-history.json').then(function(r){return r.json();}).then(function(j){ H=j; boot(); })
     .catch(function(){ document.getElementById('rankBody').innerHTML='<div class="rank-none">Ranking history could not load.</div>'; });
-})();</script>
+})();
+/* ---- time travel: recolour the map for any month back to 2010 ---- */
+(function(){
+  var TH=null, TIDX=null, tTimer=null;
+  var TIERS=['#FEE0D2','#FC9272','#EF3B2C','#A50F15','#67000D'];
+  var TIERNAME=['Least Expensive','Less Expensive','Mid Range','Expensive','Most Expensive'];
+  var byCode={};
+  function code(a){ return 'BX' ? ('BX'+'CB'+a.num) : a.code; }
+  function bedKeyT(){ return ({studio:'studio','1br':'br1','2br':'br2','3br':'br3'})[mode]||'br1'; }
+  function unpackAt(p,i){ if(!p) return null; var k=i-p[0]; return (k>=0&&k<p[1].length)?p[1][k]:null; }
+
+  window.__timeValue=function(cb_code,i){
+    var a=byCode[cb_code]; if(!a) return null;
+    return unpackAt(a.s[bedKeyT()], i);
+  };
+  window.__timeActive=function(){ return TIDX!==null; };
+  window.__timeValueFor=function(cb_code,bed,i){
+    var a=byCode[cb_code]; if(!a) return null;
+    var k=({studio:'studio','1br':'br1','2br':'br2','3br':'br3'})[bed]||bed;
+    return unpackAt(a.s[k], i);
+  };
+  window.__timeTiers=function(i){
+    var vals=[];
+    Object.keys(byCode).forEach(function(c){ var v=window.__timeValue(c,i); if(v!=null) vals.push({c:c,v:v}); });
+    vals.sort(function(x,y){return x.v-y.v;});
+    var out={};
+    vals.forEach(function(o,k){ var q=Math.min(Math.floor(k/vals.length*5),4); out[o.c]={fill:TIERS[q],band:TIERNAME[q],rank:vals.length-k,total:vals.length}; });
+    return out;
+  };
+  var TIERMAP={};
+  window.__timeTierOf=function(c){ return TIERMAP[c]||null; };
+
+  function apply(i){
+    TIDX=i;
+    TIERMAP = (i===null) ? {} : window.__timeTiers(i);
+    var lab=document.getElementById('tmLabel');
+    var bar=document.getElementById('timebar');
+    if(i===null){ lab.textContent='now'; bar.classList.remove('live'); }
+    else {
+      var m=TH.months[i], mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m.slice(5,7)-1];
+      lab.textContent=mn+' '+m.slice(0,4); bar.classList.add('live');
+    }
+    if(typeof layer!=='undefined' && layer) layer.setStyle(styleForTime);
+    if(typeof relabelDistricts==='function') relabelDistricts();
+  }
+  window.styleForTime=function(feat){
+    var isCB6 = feat.properties.cb_code === 'BKCB6';
+    var base={fillOpacity:0.8, color: isCB6 ? '#f47920' : '#fff', weight: isCB6 ? 3 : 1};
+    if(TIDX===null){ base.fillColor=getFill(feat.properties); return base; }
+    var t=TIERMAP[feat.properties.cb_code];
+    base.fillColor = t ? t.fill : '#ddd';
+    return base;
+  };
+  function styleForTime(f){ return window.styleForTime(f); }
+
+  function stop(){ if(tTimer){clearInterval(tTimer);tTimer=null;} var b=document.getElementById('tmPlay'); if(b) b.innerHTML='\u25B6'; }
+  function play(){
+    if(tTimer){ stop(); return; }
+    if(!TH) return;
+    document.getElementById('tmPlay').innerHTML='\u23F8';
+    var i=(TIDX===null?0:TIDX);
+    tTimer=setInterval(function(){
+      i++;
+      if(i>=TH.months.length){ stop(); apply(null); document.getElementById('tmSlider').value=TH.months.length-1; return; }
+      document.getElementById('tmSlider').value=i; apply(i);
+    },300);
+  }
+
+  fetch('data/bx-rank-history.json').then(function(r){return r.json();}).then(function(j){
+    TH=j;
+    (j.cds||[]).forEach(function(a){ byCode[code(a)]=a; });
+    var sl=document.getElementById('tmSlider');
+    sl.max=j.months.length-1; sl.value=j.months.length-1;
+    sl.addEventListener('input',function(){ stop(); apply(+this.value); });
+    document.getElementById('tmPlay').addEventListener('click',play);
+    document.getElementById('tmNow').addEventListener('click',function(){ stop(); apply(null); sl.value=j.months.length-1; });
+  }).catch(function(){ var t=document.getElementById('timebar'); if(t) t.style.display='none'; });
+})();
+</script>
 </body>
 </html>
