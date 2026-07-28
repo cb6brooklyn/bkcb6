@@ -236,9 +236,9 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
     <label><span>Comparison</span><select id="rptCmpKind"><option value="none">None &mdash; just this period</option><option value="prev">vs the period before</option><option value="yearago">vs a year earlier</option><option value="pick">vs a period I pick</option></select></label>
     <label id="rptCmpWrap" style="display:none"><span>Compare against</span><span style="display:flex;gap:5px"><select id="rptCmpYr"></select><select id="rptCmpMo"></select></span></label>
     <label><span>Areas</span><select id="rptScope">
-      <option value="self">This area only</option>
-      <option value="parts">Every part of it</option>
-      <option value="choose">Choose any to compare&hellip;</option>
+      <option value="self">Loading&hellip;</option>
+      <option value="parts"></option>
+      <option value="choose">Pick areas to compare&hellip;</option>
     </select></label>
     <button class="rpt-go" id="rptGo">Generate report</button>
     <button class="rpt-pdf" id="rptPdf" style="display:none">&#11015; Save as PDF</button>
@@ -519,10 +519,26 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
     var a=byId(AREA_ID);
     if(AREA_LVL==='city') return D.areas.filter(function(x){return x.t==='borough';});
     if(AREA_LVL==='borough') return D.areas.filter(function(x){return x.t==='cd' && x.p===a.n;});
-    if(AREA_LVL==='cd') return D.areas.filter(function(x){return x.t==='neighborhood' && x.p===a.p;});
+    if(AREA_LVL==='cd'){
+      var MINE=["Park Slope", "Carroll Gardens", "Cobble Hill", "Red Hook", "Gowanus", "Columbia St Waterfront District"];
+      return D.areas.filter(function(x){return x.t==='neighborhood' && MINE.indexOf(x.n)>-1;});
+    }
     return [];
   }
 
+
+  function labelScope(){
+    var sel=$('rptScope'); if(!sel||!D) return;
+    var kids=parts();
+    var kind = AREA_LVL==='city' ? 'boroughs'
+             : AREA_LVL==='borough' ? 'community districts'
+             : 'neighborhoods';
+    sel.options[0].textContent = AREA_NAME+' as a whole';
+    sel.options[1].textContent = kids.length
+      ? ('All '+kids.length+' '+kind+' in '+AREA_NAME)
+      : ('No '+kind+' to break out');
+    if(!kids.length) sel.options[1].disabled=true;
+  }
   function fillDates(){
     var yrs={}; D.months.forEach(function(m){yrs[m.slice(0,4)]=1;});
     var yopts=Object.keys(yrs).sort().reverse().map(function(y){return '<option>'+y+'</option>';}).join('');
@@ -618,7 +634,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
     if(D) return cb();
     $('rptNote').textContent='Loading history\u2026';
     fetch('/data/rent-explorer.json').then(function(r){return r.json();}).then(function(j){
-      D=j; $('rptNote').textContent=''; fillDates(); syncControls(); cb();
+      D=j; $('rptNote').textContent=''; fillDates(); labelScope(); syncControls(); cb();
     }).catch(function(){ $('rptNote').textContent='Data could not load.'; });
   }
   ['rptKind','rptCmpKind','rptScope'].forEach(function(id){ $(id).addEventListener('change',syncControls); });
