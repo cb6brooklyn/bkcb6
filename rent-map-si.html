@@ -399,22 +399,56 @@ var PREFIX='SI';
 
   fetch('data/rent-search-index.json').then(function(r){return r.json();}).then(function(j){
     IDX=j.filter(function(e){ return PREFIX==='' || e.cd.indexOf(PREFIX)===0; });
-    IDX.filter(function(e){return e.t==='nb';})
-       .sort(function(a,b){return a.q.localeCompare(b.q);})
-       .forEach(function(e){
-         var o=document.createElement('option');
-         o.value=e.q; o.textContent = PREFIX==='' ? e.q+' ('+e.b+')' : e.q;
-         selNb.appendChild(o);
-       });
+    // group neighborhoods under their borough so the list stays navigable
+    (function(){
+      var BORDER=['Manhattan','Brooklyn','Queens','Bronx','Staten Island'];
+      var byB={};
+      IDX.filter(function(e){return e.t==='nb';}).forEach(function(e){
+        (byB[e.b]=byB[e.b]||[]).push(e);
+      });
+      var order=BORDER.filter(function(b){return byB[b];})
+        .concat(Object.keys(byB).filter(function(b){return BORDER.indexOf(b)<0;}));
+      order.forEach(function(b){
+        var list=byB[b].sort(function(x,y){return x.q.localeCompare(y.q);});
+        if(order.length>1){
+          var g=document.createElement('optgroup');
+          g.label=b+' \u2014 '+list.length;
+          list.forEach(function(e){
+            var o=document.createElement('option'); o.value=e.q; o.textContent=e.q; g.appendChild(o);
+          });
+          selNb.appendChild(g);
+        } else {
+          list.forEach(function(e){
+            var o=document.createElement('option'); o.value=e.q; o.textContent=e.q; selNb.appendChild(o);
+          });
+        }
+      });
+    })();
     var seen={}, cds=[];
     IDX.filter(function(e){return e.t==='cd' && /Community District/.test(e.q);})
        .forEach(function(e){ if(!seen[e.cd]){seen[e.cd]=1; cds.push(e);} });
     cds.sort(function(a,b){ return a.b!==b.b ? a.b.localeCompare(b.b) : (+a.cd.slice(4))-(+b.cd.slice(4)); });
-    cds.forEach(function(e){
-      var o=document.createElement('option');
-      o.value=e.cd; o.textContent = PREFIX==='' ? e.q : (e.b+' CD '+e.cd.slice(4));
-      selCd.appendChild(o);
-    });
+    (function(){
+      var BORDER=['Manhattan','Brooklyn','Queens','Bronx','Staten Island'];
+      var byB={};
+      cds.forEach(function(e){ (byB[e.b]=byB[e.b]||[]).push(e); });
+      var order=BORDER.filter(function(b){return byB[b];})
+        .concat(Object.keys(byB).filter(function(b){return BORDER.indexOf(b)<0;}));
+      order.forEach(function(b){
+        var list=byB[b].sort(function(x,y){return (+x.cd.slice(4))-(+y.cd.slice(4));});
+        if(order.length>1){
+          var g=document.createElement('optgroup'); g.label=b+' \u2014 '+list.length;
+          list.forEach(function(e){
+            var o=document.createElement('option'); o.value=e.cd; o.textContent='CD '+e.cd.slice(4); g.appendChild(o);
+          });
+          selCd.appendChild(g);
+        } else {
+          list.forEach(function(e){
+            var o=document.createElement('option'); o.value=e.cd; o.textContent=e.b+' CD '+e.cd.slice(4); selCd.appendChild(o);
+          });
+        }
+      });
+    })();
     // borough + citywide options (from rollup)
     var BN={MN:'Manhattan',BX:'Bronx',QN:'Queens',BK:'Brooklyn',SI:'Staten Island'};
     function addBig(val,txt){ var o=document.createElement('option'); o.value=val; o.textContent=txt; o.className='rx-big'; selCd.appendChild(o); }
