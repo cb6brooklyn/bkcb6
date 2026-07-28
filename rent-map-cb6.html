@@ -208,23 +208,32 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .rpt-key .k1:before{content:'';width:9px;height:9px;background:#132D65;border-radius:2px}
 .rpt-key .k2:before{content:'';width:9px;height:9px;background:#c9c6c0;border-radius:2px}
 .rpt-key .k3:before{content:'';width:9px;height:9px;background:#2e6b30;border-radius:2px}
+.unitbar{position:sticky;top:0;z-index:600;display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:10px 14px;background:#0d1b4b;border-bottom:2px solid #f47920}
+.unitbar .ub-lab{font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.65);font-weight:700;margin-right:3px}
+.unitbar .rent-btn{padding:7px 15px;font-size:.84rem;font-weight:700;border:2px solid rgba(255,255,255,.35)}
+.rsr-headline{padding:11px 13px;background:#fff;border-bottom:1px solid #e5e2db}
+.rsr-headline .hv{font-family:'DM Mono',monospace;font-size:1.3rem;font-weight:800;color:#132D65}
+.rsr-headline .hm{font-size:.8rem;font-weight:700;color:#132D65}
+.rsr-headline .hb{display:block;font-size:.82rem;font-weight:700;color:#f47920;margin-top:1px}
+.rsr-cell.sel{background:#fff8f2}
+.nb-label .nl-b{font-size:.56rem;color:#6b6760;font-weight:700}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="top-bar">
   <h1>Brooklyn <span>CB6</span> &middot; Rent by Neighborhood</h1>
-  <div class="controls" id="bed-controls">
+    <a class="back-link" href="/zoning-housing-cb6.html">&larr; Zoning &amp; Housing</a>
+</div>
+<div id="legend" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:7px 16px;background:#0d1b4b;border-top:1px solid rgba(255,255,255,.08)"></div>
+<div id="dashWrap" class="dash-wrap"></div>
+<div class="unitbar" id="bed-controls"><span class="ub-lab">Unit size</span>
     <button class="rent-btn" data-bed="studio">Studio</button>
     <button class="rent-btn active" data-bed="1br">1BR</button>
     <button class="rent-btn" data-bed="2br">2BR</button>
     <button class="rent-btn" data-bed="3br">3BR+</button>
     
   </div>
-  <a class="back-link" href="/zoning-housing-cb6.html">&larr; Zoning &amp; Housing</a>
-</div>
-<div id="legend" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:7px 16px;background:#0d1b4b;border-top:1px solid rgba(255,255,255,.08)"></div>
-<div id="dashWrap" class="dash-wrap"></div>
 <div id="map"></div>
 <div class="map-caption"><span class="mc-ico">&#128506;</span><span class="mc-boro">Brooklyn Community Board 6</span><span class="mc-sub">Park Slope · Carroll Gardens · Cobble Hill · Gowanus · Red Hook · Columbia St Waterfront</span></div>
 <div class="rpt-wrap">
@@ -324,7 +333,9 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
   }
   var colorFor=null;
   function rebuildColors(){ colorFor=makeColor(DATA.features.map(function(f){return f.properties['rent_'+bed];}).filter(function(v){return v!=null;})); }
-  function labelFor(p){ var v=p['rent_'+bed]; return '<span class="nl-n">'+p.nb+'</span><br><span class="nl-r">'+(p.no_data?'no data':money(v))+'</span>'; }
+  function labelFor(p){ var v=p['rent_'+bed];
+    var sh=({studio:'studio','1br':'1BR','2br':'2BR','3br':'3BR+'})[bed]||'';
+    return '<span class="nl-n">'+p.nb+'</span><br><span class="nl-r">'+(p.no_data?'no data':(money(v)+' <span class="nl-b">'+sh+'</span>'))+'</span>'; }
   function relabelAll(){ if(!layer) return; layer.eachLayer(function(l){ var tt=l.getTooltip(); if(tt) l.setTooltipContent(labelFor(l.feature.properties)); }); }
   function buildLegend(){
     var vals=DATA.features.map(function(f){return f.properties['rent_'+bed];}).filter(function(v){return v!=null;}).sort(function(a,b){return a-b;});
@@ -363,12 +374,16 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
       return;
     }
     var cells=BEDS.map(function(b){
-      return '<div class="rsr-cell"><div class="l">'+b[1]+'</div><div class="v">'+money(p['rent_'+b[0]])+'</div></div>';
+      var on=(b[0]===bed);
+      return '<div class="rsr-cell'+(on?' sel':'')+'"><div class="l">'+b[1]+(on?' &#9664;':'')+'</div><div class="v">'+money(p['rent_'+b[0]])+'</div></div>';
     }).join('');
+    var LONG={studio:'Studio','1br':'1 Bedroom','2br':'2 Bedroom','3br':'3+ Bedroom'};
+    var headline='<div class="rsr-headline"><span class="hv">'+money(p['rent_'+bed])+'</span>'+
+      '<span class="hm"> /month</span><span class="hb">'+(LONG[bed]||'')+'</span></div>';
     var bedRent=p['rent_'+bed]; var bedLbl=({studio:'Studio','1br':'1 BR','2br':'2 BR','3br':'3+ BR'})[bed]; var sign = bedRent!=null ? '<div class="rsr-signing"><span class="sl">'+bedLbl+' at signing</span><span class="sv">'+money(bedRent*2)+' <span class="sb">1st mo + 1mo deposit</span></span></div>' : '';
     var range = (p.range_lo!=null) ? '<div class="rsr-range"><span class="rl">By unit type</span><span class="rv">'+money(p.range_lo)+' <span class="rb">'+(p.range_lo_bed||'')+'</span> &ndash; '+money(p.range_hi)+' <span class="rb">'+(p.range_hi_bed||'')+'</span></span></div>' : '';
     $('result').innerHTML='<div class="rsr-card"><div class="rsr-head"><div><div class="t">'+p.nb+'</div><div class="s">Brooklyn CB6 &middot; neighborhood median</div></div></div>'+
-      '<div class="rsr-grid">'+cells+'</div>'+ sign + range +
+      headline + '<div class="rsr-grid">'+cells+'</div>'+ sign + range +
       '<div class="rsr-foot"><a class="rsr-link" target="_top" href="/rentpastpresent">Full history since 2010 &rarr;</a></div></div>';
   }
 
