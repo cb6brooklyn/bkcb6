@@ -226,6 +226,13 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .tm-now{padding:6px 10px;border:2px solid rgba(255,255,255,.4);border-radius:7px;background:transparent;color:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;flex:none}
 .tm-now:hover,#tmPlay:hover{border-color:#f47920;color:#f47920}
 .timebar.live #tmLabel{color:#f47920}
+.cd-label .cd-rent{display:block;font-family:'DM Mono',monospace;font-size:.6rem;font-weight:700;color:#0d1b4b;margin-top:1px}
+.tmscale{display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:0 14px;background:#132D65}
+.tmscale:empty{padding:0}
+.tmscale .ts-lab{font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.55);font-weight:700;margin-right:4px}
+.tmscale .ts-lo,.tmscale .ts-hi{font-family:'DM Mono',monospace;font-size:.62rem;color:#fff}
+.tmscale .ts-sw{display:inline-block;width:20px;height:9px}
+.tmscale:not(:empty){padding:7px 14px;border-bottom:1px solid rgba(255,255,255,.12)}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -287,6 +294,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
     <button class="rent-btn" onclick="toggle('2br',this)">2BR</button>
     <button class="rent-btn" onclick="toggle('3br',this)">3BR+</button>
   </div>
+<div class="tmscale" id="tmScale"></div>
 <div class="timebar" id="timebar">
   <button id="tmPlay" type="button" title="Play through time">&#9654;</button>
   <input id="tmSlider" type="range" min="0" max="0" value="0">
@@ -435,8 +443,9 @@ function drawLayer() {
       try{
         var cc=feat.properties.cb_code, num=cc?cc.slice(4):'';
         var isC=(cc==='BKCB6');
-        L.marker(lyr.getBounds().getCenter(),{interactive:false,keyboard:false,
-          icon:L.divIcon({className:'cd-label'+(isC?' is-cb6':''),html:'CB'+num,iconSize:[46,14],iconAnchor:[23,7]})}).addTo(map);
+        var _mk=L.marker(lyr.getBounds().getCenter(),{interactive:false,keyboard:false,
+          icon:L.divIcon({className:'cd-label'+(isC?' is-cb6':''),html:'CB'+num,iconSize:[64,26],iconAnchor:[32,13]})}).addTo(map);
+        window.__cdLabels=window.__cdLabels||[]; window.__cdLabels.push({mk:_mk,code:cc,num:num,cb6:isC});
       }catch(e){}
       lyr.on('mouseover', function(){ lyr.setStyle({fillOpacity:.95,weight:2,color:'#333'}); });
       lyr.on('mouseout', function(){ layer.resetStyle(lyr); });
@@ -449,6 +458,7 @@ function toggle(m, btn) {
   document.querySelectorAll('.rent-btn').forEach(function(b){ b.classList.remove('active'); });
   btn.classList.add('active');
   if (data) drawLayer();
+  if(window.__timeReapply) window.__timeReapply();
 }
 
 var PREFIX='BX';
@@ -1205,17 +1215,43 @@ function bkcb6CopyEmbed(type){
     var k=({studio:'studio','1br':'br1','2br':'br2','3br':'br3'})[bed]||bed;
     return unpackAt(a.s[k], i);
   };
+  // one fixed dollar scale for the whole period, so the map genuinely darkens as rents rise
+  var SCALE={};
+  function buildScale(){
+    ['studio','br1','br2','br3'].forEach(function(bed){
+      var all=[];
+      Object.keys(byCode).forEach(function(c){
+        var p=byCode[c].s[bed]; if(!p) return;
+        for(var k=0;k<p[1].length;k++){ var v=p[1][k]; if(v!=null) all.push(v); }
+      });
+      if(!all.length){ SCALE[bed]=null; return; }
+      all.sort(function(a,b){return a-b;});
+      // trim outliers so one freak listing doesn't flatten the ramp
+      var lo=all[Math.floor(all.length*0.02)], hi=all[Math.floor(all.length*0.98)];
+      if(hi<=lo) hi=lo+1;
+      SCALE[bed]={lo:lo,hi:hi};
+    });
+  }
+  window.__timeScale=function(){ return SCALE[bedKeyT()]||null; };
   window.__timeTiers=function(i){
+    var sc=SCALE[bedKeyT()]; var out={};
+    if(!sc) return out;
     var vals=[];
     Object.keys(byCode).forEach(function(c){ var v=window.__timeValue(c,i); if(v!=null) vals.push({c:c,v:v}); });
-    vals.sort(function(x,y){return x.v-y.v;});
-    var out={};
-    vals.forEach(function(o,k){ var q=Math.min(Math.floor(k/vals.length*5),4); out[o.c]={fill:TIERS[q],band:TIERNAME[q],rank:vals.length-k,total:vals.length}; });
+    var ranked=vals.slice().sort(function(x,y){return y.v-x.v;});
+    var rankOf={}; ranked.forEach(function(o,k){ rankOf[o.c]=k+1; });
+    vals.forEach(function(o){
+      var t=(o.v-sc.lo)/(sc.hi-sc.lo);
+      t=Math.max(0,Math.min(1,t));
+      var q=Math.min(Math.floor(t*5),4);
+      out[o.c]={fill:TIERS[q],band:TIERNAME[q],rank:rankOf[o.c],total:vals.length};
+    });
     return out;
   };
   var TIERMAP={};
   window.__timeTierOf=function(c){ return TIERMAP[c]||null; };
 
+  window.__timeReapply=function(){ if(TIDX!==null) apply(TIDX); };
   function apply(i){
     TIDX=i;
     TIERMAP = (i===null) ? {} : window.__timeTiers(i);
@@ -1227,7 +1263,15 @@ function bkcb6CopyEmbed(type){
       lab.textContent=mn+' '+m.slice(0,4); bar.classList.add('live');
     }
     if(typeof layer!=='undefined' && layer) layer.setStyle(styleForTime);
-    if(typeof relabelDistricts==='function') relabelDistricts();
+    if(typeof window.relabelDistricts==='function') window.relabelDistricts();
+    var lg=document.getElementById('tmScale');
+    if(lg){
+      var sc=window.__timeScale();
+      lg.innerHTML = (i===null||!sc) ? '' :
+        '<span class="ts-lab">Fixed scale</span><span class="ts-lo">$'+Number(sc.lo).toLocaleString()+'</span>'+
+        TIERS.map(function(c){return '<span class="ts-sw" style="background:'+c+'"></span>';}).join('')+
+        '<span class="ts-hi">$'+Number(sc.hi).toLocaleString()+'</span>';
+    }
   }
   window.styleForTime=function(feat){
     var isCB6 = feat.properties.cb_code === 'BKCB6';
@@ -1239,6 +1283,17 @@ function bkcb6CopyEmbed(type){
   };
   function styleForTime(f){ return window.styleForTime(f); }
 
+  window.relabelDistricts=function(){
+    var L2=window.__cdLabels||[];
+    L2.forEach(function(o){
+      var html='CB'+o.num;
+      if(TIDX!==null){
+        var v=window.__timeValue(o.code,TIDX);
+        html+='<span class="cd-rent">'+(v!=null?'$'+Number(v).toLocaleString():'\u2014')+'</span>';
+      }
+      o.mk.setIcon(L.divIcon({className:'cd-label'+(o.cb6?' is-cb6':''),html:html,iconSize:[64,26],iconAnchor:[32,13]}));
+    });
+  };
   function stop(){ if(tTimer){clearInterval(tTimer);tTimer=null;} var b=document.getElementById('tmPlay'); if(b) b.innerHTML='\u25B6'; }
   function play(){
     if(tTimer){ stop(); return; }
@@ -1255,6 +1310,7 @@ function bkcb6CopyEmbed(type){
   fetch('data/bx-rank-history.json').then(function(r){return r.json();}).then(function(j){
     TH=j;
     (j.cds||[]).forEach(function(a){ byCode[code(a)]=a; });
+    buildScale();
     var sl=document.getElementById('tmSlider');
     sl.max=j.months.length-1; sl.value=j.months.length-1;
     sl.addEventListener('input',function(){ stop(); apply(+this.value); });
