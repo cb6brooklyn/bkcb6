@@ -283,6 +283,18 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .legend-sticky .legend-label{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6);font-weight:700;margin-right:2px}
 .legend-sticky .legend-item{display:inline-flex;align-items:center;gap:4px;font-family:'DM Sans',sans-serif;font-size:.66rem;color:#fff;font-weight:600}
 .legend-sticky .legend-swatch{width:14px;height:11px;border-radius:2px;display:inline-block}
+
+.boro-wrap{padding:0 0 14px}
+.boro-chips{display:flex;flex-wrap:wrap;gap:6px;padding:12px 14px;background:#f8f7f4;border-bottom:1px solid #e5e2db}
+.boro-chip{padding:7px 14px;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:700;border:2px solid #132D65;border-radius:20px;background:#fff;color:#132D65;cursor:pointer}
+.boro-chip.on{background:#f47920;border-color:#f47920;color:#fff}
+#boroMap{height:280px;width:100%;background:#eef0f4}
+.boro-now{display:flex;flex-direction:column;gap:2px;padding:11px 14px;background:#0d1b4b}
+.bn-row{display:flex;align-items:baseline;gap:9px;font-size:.8rem}
+.bn-sw{width:11px;height:11px;border-radius:3px;flex:none}
+.bn-n{color:#fff;font-weight:700;flex:1;min-width:0}
+.bn-v{font-family:'DM Mono',monospace;font-weight:800;color:#fff}
+.boro-chartwrap{padding:12px 12px 4px}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -397,6 +409,18 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 </details>
 
 <a class="afford-cta" href="/lessexpensive" target="_top"><span class="ac-icon">&#127968;</span><span class="ac-txt"><span class="ac-kicker">Affordable &amp; income-restricted housing</span><span class="ac-t">Could you qualify for a cheaper apartment?</span><span class="ac-d">Enter your household size and income to see which of the open lotteries you may be eligible for.</span></span><span class="ac-arrow">&rarr;</span></a>
+<details class="sect" id="boroSect">
+  <summary><span class="sect-ic">&#127961;</span>
+    <span class="sect-tx"><span class="sect-t">Compare boroughs</span>
+    <span class="sect-d">Add or remove any borough to see how rents compare, and how they moved since 2010.</span></span>
+    <span class="sect-cv"></span></summary>
+  <div class="boro-wrap">
+    <div class="boro-chips" id="boroChips"></div>
+    <div id="boroMap"></div>
+    <div class="boro-now" id="boroNow"></div>
+    <div class="boro-chartwrap"><canvas id="boroChart" height="180"></canvas></div>
+  </div>
+</details>
 <details class="sect"><summary><span class="sect-ic">&#127942;</span><span class="sect-tx"><span class="sect-t">Rankings over time</span><span class="sect-d">Every area ranked by rent, with a timeline you can play back to 2010.</span></span><span class="sect-cv"></span></summary>
 <div class="rank-wrap">
   <div class="rank-head">
@@ -1403,6 +1427,88 @@ function bkcb6CopyEmbed(type){
     document.getElementById('tmPlay').addEventListener('click',play);
     document.getElementById('tmNow').addEventListener('click',function(){ stop(); apply(null); sl.value=j.months.length-1; });
   }).catch(function(){ var t=document.getElementById('timebar'); if(t) t.style.display='none'; });
+})();
+
+/* ---- borough comparison: map + rents over time ---- */
+(function(){
+  var BOROS=['Manhattan','Brooklyn','Queens','Bronx','Staten Island'];
+  var COLOR={'Manhattan':'#f47920','Brooklyn':'#132D65','Queens':'#2e8b57','Bronx':'#b3300c','Staten Island':'#7a5cc6'};
+  var HOME="Queens";
+  var sel = HOME ? [HOME] : BOROS.slice();
+  var GEO=null, HIST=null, bmap=null, blayer=null, bchart=null, booted=false;
+  function bedK(){ return ({studio:'studio','1br':'br1','2br':'br2','3br':'br3'})[mode]||'br1'; }
+  function bedGeo(){ return ({studio:'rent_studio','1br':'rent_1br','2br':'rent_2br','3br':'rent_3br'})[mode]||'rent_1br'; }
+  function money(v){ return v==null?'n/a':'$'+Number(Math.round(v)).toLocaleString('en-US'); }
+  function unpackAt(p,i){ if(!p) return null; var k=i-p[0]; return (k>=0&&k<p[1].length)?p[1][k]:null; }
+
+  function chips(){
+    var el=document.getElementById('boroChips');
+    el.innerHTML=BOROS.map(function(b){
+      return '<button type="button" class="boro-chip'+(sel.indexOf(b)>-1?' on':'')+'" data-b="'+b+'">'+b+'</button>';
+    }).join('');
+    el.querySelectorAll('.boro-chip').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        var b=this.getAttribute('data-b'), k=sel.indexOf(b);
+        if(k>-1){ if(sel.length>1) sel.splice(k,1); } else sel.push(b);
+        chips(); render();
+      });
+    });
+  }
+  function render(){
+    if(!GEO||!HIST) return;
+    // map
+    if(blayer){ bmap.removeLayer(blayer); blayer=null; }
+    var feats=GEO.features.filter(function(f){ return sel.indexOf(f.properties.boro)>-1; });
+    blayer=L.geoJSON({type:'FeatureCollection',features:feats},{
+      style:function(f){ return {color:'#fff',weight:2,fillColor:COLOR[f.properties.boro],fillOpacity:.72}; },
+      onEachFeature:function(f,l){
+        var p=f.properties;
+        l.bindTooltip('<b>'+p.boro+'</b><br>'+money(p[bedGeo()])+' &middot; '+
+          ({studio:'Studio','1br':'1 Bedroom','2br':'2 Bedroom','3br':'3+ Bedroom'}[mode]||''),{sticky:true});
+      }
+    }).addTo(bmap);
+    try{ bmap.fitBounds(blayer.getBounds(),{padding:[14,14]}); }catch(e){}
+
+    // current figures
+    var last=HIST.months.length-1;
+    var rows=sel.map(function(b){
+      var a=HIST.cds.filter(function(x){return x.name===b;})[0];
+      return {b:b, v:a?unpackAt(a.s[bedK()],last):null};
+    }).sort(function(x,y){return (y.v||0)-(x.v||0);});
+    document.getElementById('boroNow').innerHTML=rows.map(function(r){
+      return '<div class="bn-row"><span class="bn-sw" style="background:'+COLOR[r.b]+'"></span>'+
+             '<span class="bn-n">'+r.b+'</span><span class="bn-v">'+money(r.v)+'</span></div>';
+    }).join('');
+
+    // over time
+    var ds=sel.map(function(b){
+      var a=HIST.cds.filter(function(x){return x.name===b;})[0];
+      var s=[]; for(var i=0;i<HIST.months.length;i++) s.push(a?unpackAt(a.s[bedK()],i):null);
+      return {label:b,data:s,borderColor:COLOR[b],borderWidth:2,pointRadius:0,tension:.25,spanGaps:true};
+    });
+    if(bchart) bchart.destroy();
+    if(window.Chart) bchart=new Chart(document.getElementById('boroChart'),{
+      type:'line',data:{labels:HIST.months,datasets:ds},
+      options:{responsive:true,animation:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{boxWidth:10,font:{size:10,family:'DM Sans'}}},
+          tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+money(c.parsed.y);}}}},
+        scales:{x:{ticks:{maxTicksLimit:8,font:{size:9,family:'DM Mono'},color:'#9ca3af',
+            callback:function(v){var t=HIST.months[v]||'';return t.slice(5)==='01'?t.slice(0,4):'';}},grid:{display:false}},
+          y:{ticks:{font:{size:9,family:'DM Mono'},color:'#9ca3af',callback:function(v){return '$'+(v/1000).toFixed(1)+'k';}},grid:{color:'#f0ede8'}}}}});
+  }
+  function boot(){
+    if(booted) return; booted=true;
+    bmap=L.map('boroMap',{scrollWheelZoom:false,attributionControl:false}).setView([40.70,-73.95],9);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:16}).addTo(bmap);
+    Promise.all([
+      fetch('data/borough-rents.geojson').then(function(r){return r.json();}),
+      fetch('data/boro-rank-history.json').then(function(r){return r.json();})
+    ]).then(function(a){ GEO=a[0]; HIST=a[1]; chips(); render(); setTimeout(function(){bmap.invalidateSize();},120); })
+      .catch(function(){ document.getElementById('boroNow').innerHTML='<div class="bn-row"><span class="bn-n">Data could not load.</span></div>'; });
+  }
+  var sect=document.getElementById('boroSect');
+  if(sect) sect.addEventListener('toggle',function(){ if(sect.open) boot(); });
+  document.querySelectorAll('.rent-btn').forEach(function(b){ b.addEventListener('click',function(){ setTimeout(render,40); }); });
 })();
 </script>
 </body>
