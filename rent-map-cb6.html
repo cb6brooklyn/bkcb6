@@ -192,6 +192,12 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
   .barval{font-size:1.1rem}
   .bartrack{height:22px}
 }
+
+.rp-group{position:sticky;top:0;background:#132D65;color:#fff;font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.09em;font-weight:700;padding:6px 11px;z-index:1}
+.rp-group span{color:rgba(255,255,255,.6);margin-left:4px}
+.rp-item.on{background:#fff2e6}
+.rp-none{padding:12px;font-size:.76rem;color:#777}
+.rp-list{max-height:230px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
@@ -235,6 +241,9 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
         <option value="cd">Community districts</option>
         <option value="borough">Boroughs</option>
       </select></label>
+      <label><span>Borough</span><select id="rptPickBoro"></select></label>
+    </div>
+    <div class="rp-row">
       <input id="rptPickSearch" type="text" placeholder="Filter by name&hellip;">
       <button type="button" id="rptPickClear" class="rp-clear">Clear</button>
     </div>
@@ -418,22 +427,44 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
   function ser(a,k){ return unpack(a && a.s ? a.s[k] : null, D.months.length); }
 
   // ---- free-form area picker: any districts, neighborhoods or boroughs ----
+  var HOME_BORO="Brooklyn";
   var PICKED=[];
+  var BORDER=['Manhattan','Brooklyn','Queens','Bronx','Staten Island'];
+  function fillBoroFilter(){
+    var sel=$('rptPickBoro'); if(!sel || sel.options.length) return;
+    sel.innerHTML='<option value="">All boroughs</option>'+
+      BORDER.map(function(b){return '<option value="'+b+'">'+b+'</option>';}).join('');
+    if(HOME_BORO) sel.value=HOME_BORO;
+  }
   function pickList(){
+    fillBoroFilter();
     var lvl=$('rptPickLvl').value, q=($('rptPickSearch').value||'').toLowerCase();
+    var boro=$('rptPickBoro') ? $('rptPickBoro').value : '';
     var list=D.areas.filter(function(a){return a.t===lvl;});
-    list.sort(function(a,b){ return (a.p===b.p)?a.n.localeCompare(b.n):String(a.p).localeCompare(String(b.p)); });
+    if(lvl!=='borough' && boro) list=list.filter(function(a){return a.p===boro;});
     if(q) list=list.filter(function(a){return a.n.toLowerCase().indexOf(q)>-1;});
-    $('rptPickList').innerHTML=list.slice(0,400).map(function(a){
-      var on=PICKED.indexOf(a.id)>-1;
-      return '<label class="rp-item"><input type="checkbox" data-id="'+a.id+'"'+(on?' checked':'')+'>'+
-             '<span>'+a.n+'</span><span class="rp-sub">'+(a.p||'')+'</span></label>';
-    }).join('') || '<div style="padding:12px;font-size:.76rem;color:#777">No matches.</div>';
+    if(!list.length){ $('rptPickList').innerHTML='<div class="rp-none">No matches.</div>'; return; }
+    var byB={};
+    list.forEach(function(a){ (byB[a.p||'\u2014']=byB[a.p||'\u2014']||[]).push(a); });
+    var order=BORDER.filter(function(b){return byB[b];})
+      .concat(Object.keys(byB).filter(function(b){return BORDER.indexOf(b)<0;}));
+    var html='';
+    order.forEach(function(b){
+      var items=byB[b].sort(function(x,y){return x.n.localeCompare(y.n);});
+      if(lvl!=='borough') html+='<div class="rp-group">'+b+' <span>'+items.length+'</span></div>';
+      html+=items.map(function(a){
+        var on=PICKED.indexOf(a.id)>-1;
+        return '<label class="rp-item'+(on?' on':'')+'"><input type="checkbox" data-id="'+a.id+'"'+(on?' checked':'')+'>'+
+               '<span>'+a.n+'</span></label>';
+      }).join('');
+    });
+    $('rptPickList').innerHTML=html;
     $('rptPickList').querySelectorAll('input').forEach(function(cb){
       cb.addEventListener('change',function(){
         var id=this.getAttribute('data-id');
         if(this.checked){ if(PICKED.indexOf(id)<0) PICKED.push(id); }
         else PICKED=PICKED.filter(function(x){return x!==id;});
+        this.parentNode.classList.toggle('on',this.checked);
         drawChips();
       });
     });
@@ -566,6 +597,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
   }
   ['rptKind','rptCmpKind','rptScope'].forEach(function(id){ $(id).addEventListener('change',syncControls); });
   $('rptPickLvl').addEventListener('change',function(){ if(D) pickList(); });
+  $('rptPickBoro').addEventListener('change',function(){ if(D) pickList(); });
   $('rptPickSearch').addEventListener('input',function(){ if(D) pickList(); });
   $('rptPickClear').addEventListener('click',function(){ PICKED=[]; drawChips(); pickList(); });
   $('rptGo').addEventListener('click',function(){ load(build); });
