@@ -212,6 +212,11 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .unitbar{position:sticky;top:0;z-index:600;display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:10px 14px;background:#0d1b4b;border-bottom:2px solid #f47920}
 .unitbar .ub-lab{font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.65);font-weight:700;margin-right:3px}
 .unitbar .rent-btn{padding:7px 15px;font-size:.84rem;font-weight:700}
+.rsr-headline{padding:11px 13px;background:#fff;border-bottom:1px solid #e5e2db}
+.rsr-headline .hv{font-family:'DM Mono',monospace;font-size:1.3rem;font-weight:800;color:#132D65}
+.rsr-headline .hm{font-size:.8rem;font-weight:700;color:#132D65}
+.rsr-headline .hb{display:block;font-size:.82rem;font-weight:700;color:#f47920;margin-top:1px}
+.rsr-cell.sel{background:#fff8f2}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -656,19 +661,69 @@ var PREFIX='';
       '<div style="font-weight:700;font-size:.9rem;color:#0d1b4b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:6px">'+p.nb+'</div>'+rows+
       (p.range_lo!=null?'<div style="font-size:.66rem;color:#0d1b4b;margin-top:6px;border-top:1px solid #eee;padding-top:5px"><b>Range:</b> '+money(p.range_lo)+' ('+(p.range_lo_bed||'')+') to '+money(p.range_hi)+' ('+(p.range_hi_bed||'')+')</div>':'')+'<div style="font-size:.62rem;color:#999;margin-top:6px;border-top:1px solid #eee;padding-top:4px">Neighborhood median &middot; '+p.cd+(p.asof?' &middot; as of '+p.asof:'')+'</div></div>';
   }
+  var nbSel=null;
+  function nbBase(){ return {color:'#0d1b4b',weight:1.2,opacity:.65,fill:true,fillOpacity:.02,fillColor:'#0d1b4b',dashArray:'3,3'}; }
+  function nbOn(){ return {color:'#f47920',weight:3,opacity:1,fill:true,fillOpacity:.18,fillColor:'#f47920',dashArray:null}; }
   function drawNb(){
-    if(nbLayer){ map.removeLayer(nbLayer); nbLayer=null; }
+    if(nbLayer){ map.removeLayer(nbLayer); nbLayer=null; nbSel=null; }
     var feats=NBGEO.features.filter(function(f){ return PREFIX==='' || f.properties.cd.indexOf(PREFIX)===0; });
     nbLayer=L.geoJSON({type:'FeatureCollection',features:feats},{
-      style:function(){ return {color:'#0d1b4b',weight:1,opacity:.6,fill:true,fillOpacity:0,dashArray:'3,3'}; },
+      style:nbBase,
       onEachFeature:function(f,l){
         l.bindTooltip(tip(f.properties),{sticky:true,opacity:1});
-        l.on('mouseover',function(){ l.setStyle({weight:2.5,opacity:1,color:'#f47920',fillOpacity:.12,fillColor:'#f47920'}); if(l.bringToFront) l.bringToFront(); });
-        l.on('mouseout',function(){ l.setStyle({weight:1,opacity:.6,color:'#0d1b4b',fillOpacity:0}); });
+        l.on('mouseover',function(){ if(l!==nbSel){ l.setStyle({weight:2.5,opacity:1,color:'#f47920',fillOpacity:.12,fillColor:'#f47920'}); } if(l.bringToFront) l.bringToFront(); });
+        l.on('mouseout',function(){ if(l!==nbSel) l.setStyle(nbBase()); });
+        // clicking a neighborhood behaves like clicking a district
+        l.on('click',function(e){
+          if(e.originalEvent) L.DomEvent.stopPropagation(e);
+          if(nbSel && nbSel!==l) nbSel.setStyle(nbBase());
+          nbSel=l; l.setStyle(nbOn()); if(l.bringToFront) l.bringToFront();
+          var p=f.properties;
+          if(typeof showNbCard==='function') showNbCard(p, l);
+        });
       }
     }).addTo(map);
   }
+  // show the same result card a dropdown pick would show
+  function showNbCard(p, lyr){
+    var res=document.getElementById('rentsearch-result'); if(!res) return;
+    var LONG={studio:'Studio','1br':'1 Bedroom','2br':'2 Bedroom','3br':'3+ Bedroom'};
+    var cells=BEDS.map(function(b){
+      var on=(b[0]===mode);
+      return '<div class="rsr-cell'+(on?' sel':'')+'"><div class="l">'+b[1]+(on?' &#9664;':'')+'</div><div class="v">'+money(p['rent_'+b[0]])+'</div></div>';
+    }).join('');
+    var v=p['rent_'+mode];
+    var head='<div class="rsr-headline"><span class="hv">'+money(v)+'</span><span class="hm"> /month</span>'+
+             '<span class="hb">'+(LONG[mode]||'')+'</span></div>';
+    var sign = v!=null ? '<div class="rsr-signing"><span class="sl">'+(LONG[mode]||'')+' due at signing</span><span class="sv">'+money(v*2)+' <span class="sb">1st mo + 1mo deposit</span></span></div>' : '';
+    var range = (p.range_lo!=null) ? '<div class="rsr-range"><span class="rl">By unit size</span><span class="rv">'+money(p.range_lo)+' <span class="rb">'+(p.range_lo_bed||'')+'</span> &ndash; '+money(p.range_hi)+' <span class="rb">'+(p.range_hi_bed||'')+'</span></span></div>' : '';
+    res.innerHTML='<div class="rsr-card"><div class="rsr-head"><div><div class="t">'+p.nb+'</div>'+
+      '<div class="s">Neighborhood &middot; '+p.cd+(p.asof?' &middot; as of '+p.asof:'')+'</div></div>'+
+      '<button class="rsr-clear" onclick="__clearNb()">Close</button></div>'+
+      head+'<div class="rsr-grid">'+cells+'</div>'+sign+range+
+      '<div class="rsr-foot"><a class="rsr-link" target="_top" href="/rentpastpresent">Full history since 2010 &rarr;</a></div></div>';
+    res.style.display='block';
+    if(res.scrollIntoView) res.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+  window.__clearNb=function(){
+    if(nbSel){ nbSel.setStyle(nbBase()); nbSel=null; }
+    var res=document.getElementById('rentsearch-result'); if(res){ res.innerHTML=''; res.style.display='none'; }
+  };
+  // bring the boundaries in automatically once you zoom past the district view
+  var NB_ZOOM=13, autoNb=false;
+  function ensureNb(cb){
+    if(NBGEO) return cb();
+    fetch('data/neighborhood-rents.geojson').then(function(r){return r.json();}).then(function(j){ NBGEO=j; cb(); }).catch(function(){});
+  }
+  map.on('zoomend', function(){
+    var z=map.getZoom();
+    if(z>=NB_ZOOM && !nbLayer){ autoNb=true; ensureNb(function(){ if(map.getZoom()>=NB_ZOOM) drawNb(); if(cbx) cbx.checked=true; }); }
+    else if(z<NB_ZOOM && nbLayer && autoNb && cbx && !cbx.dataset.manual){
+      map.removeLayer(nbLayer); nbLayer=null; nbSel=null; autoNb=false; cbx.checked=false;
+    }
+  });
   if(cbx) cbx.addEventListener('change',function(){
+    this.dataset.manual='1'; autoNb=false;
     if(!this.checked){ if(nbLayer){ map.removeLayer(nbLayer); nbLayer=null; } return; }
     if(NBGEO){ drawNb(); return; }
     cbx.disabled=true;
