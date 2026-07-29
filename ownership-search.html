@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:site_name" content="CB6 &amp; Beyond">
+<meta property="og:title" content="Property Ownership Search — CB6 &amp; Beyond">
+<meta property="og:description" content="Search who owns property across New York City. See every lot owned by a person, company, or city agency such as DCAS, with a list and map.">
+<meta property="og:image" content="https://bkcb6.app/og-ownership-search.png">
+<meta property="og:url" content="https://bkcb6.app/ownership-search.html">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://bkcb6.app/og-ownership-search.png">
+<title>Property Ownership Search — CB6 &amp; Beyond</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700;800&display=swap');
+:root{--navy:#132D65;--orange:#FD890E;--white:#fff;--off:#f8f7f4;--border:#e5e2db;--muted:#6b6760;--green:#2d6a4f}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);line-height:1.55}
+a{color:inherit}
+header{background:var(--navy);border-bottom:4px solid var(--orange)}
+.hdr{max-width:1180px;margin:0 auto;padding:18px 18px 16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{text-decoration:none;color:#fff;display:flex;flex-direction:column;gap:2px}.brand strong{font-size:1.08rem;line-height:1.1}.brand span{font-family:'DM Mono',monospace;font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.58)}
+.nav{display:flex;gap:8px;flex-wrap:wrap}.nav a{font-size:.74rem;font-weight:700;text-decoration:none;color:#fff;border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:7px 11px}.nav a:hover{border-color:var(--orange);background:rgba(255,255,255,.08)}
+main{max-width:1180px;margin:0 auto;padding:20px 18px 90px}
+.hero{background:var(--navy);border-radius:14px;padding:24px 24px 22px;margin-bottom:14px;box-shadow:0 2px 10px rgba(13,27,75,.08);position:relative;overflow:hidden}.hero:after{content:'';position:absolute;right:-70px;top:-70px;width:210px;height:210px;border-radius:999px;background:rgba(253,137,14,.18)}
+.kicker{font-family:'DM Mono',monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.58);margin-bottom:8px}.hero h2{font-size:clamp(1.45rem,3.2vw,2.3rem);line-height:1.08;color:#fff;margin-bottom:10px;max-width:780px}.hero p{font-size:.94rem;color:rgba(255,255,255,.78);max-width:760px}.hero p strong{color:#fff}
+.search-card{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 2px 10px rgba(13,27,75,.08);padding:18px;margin-bottom:14px}
+.field-label{font-family:'DM Mono',monospace;font-size:.64rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px;display:block}
+select,.owner-input{width:100%;border:2px solid var(--border);border-radius:10px;padding:11px 12px;font-family:'DM Sans',sans-serif;font-size:.92rem;color:var(--navy);outline:none;background:#fff}
+select:focus,.owner-input:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(253,137,14,.14)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.orsep{text-align:center;font-family:'DM Mono',monospace;font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin:2px 0 10px}
+.scope-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.scope-btn{flex:1;min-width:90px;border:2px solid var(--border);background:#fafafa;color:var(--navy);border-radius:10px;padding:9px;font-weight:700;font-size:.8rem;cursor:pointer}
+.scope-btn.on{border-color:var(--orange);background:#fffaf5;color:#c25f00}
+.go-btn{width:100%;border:0;border-radius:10px;background:var(--orange);color:#fff;font-weight:800;font-size:.95rem;padding:13px;cursor:pointer}
+.go-btn:hover{background:#e97800}
+.status{font-size:.78rem;font-family:'DM Mono',monospace;color:var(--muted);margin-top:10px;min-height:1.2em}
+.summary{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 2px 10px rgba(13,27,75,.08);padding:16px 18px;margin-bottom:12px}
+.summary[hidden]{display:none}
+.summary .big{font-size:1.5rem;font-weight:800;color:var(--navy)}
+.summary .who{font-size:.92rem;color:#3f3a35;margin-top:2px}
+.summary .sub{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--muted);margin-top:6px}
+#map{height:420px;border-radius:14px;border:1px solid var(--border);margin-bottom:14px;box-shadow:0 2px 10px rgba(13,27,75,.08)}
+#map[hidden]{display:none}
+.tablewrap{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 2px 10px rgba(13,27,75,.08);overflow:hidden}
+.tablewrap[hidden]{display:none}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{text-align:left;background:var(--navy);color:#fff;font-family:'DM Mono',monospace;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;padding:9px 11px;font-weight:500;white-space:nowrap}
+td{padding:9px 11px;border-bottom:1px solid #eee;vertical-align:top}
+tr:last-child td{border-bottom:0}
+tr:nth-child(even) td{background:#fbfaf8}
+td a{color:#c25f00;font-weight:700;text-decoration:none}
+.cap-note{padding:11px 14px;font-size:.75rem;font-family:'DM Mono',monospace;color:var(--muted);background:#fff8ef;border-top:1px solid #f0e2cd}
+footer{max-width:1180px;margin:0 auto;padding:18px;color:var(--muted);font-size:.76rem;font-family:'DM Mono',monospace}
+@media(max-width:700px){main{padding:14px 12px 70px}.row2{grid-template-columns:1fr}#map{height:320px}}
+</style>
+<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b6e9b47ba0cf416388d72db8edaf4198"}'></script><!-- End Cloudflare Web Analytics -->
+</head>
+<body>
+<header>
+  <div class="hdr">
+    <a class="brand" href="index.html"><strong>CB6 <span style="color:var(--orange)">&amp; Beyond</span></strong><span>New York City civic lookup</span></a>
+    <nav class="nav" aria-label="Site navigation">
+      <a href="index.html">Home</a>
+      <a href="citywide-search.html">Address Search</a>
+      <a href="beyondcb6.html">All Community Boards</a>
+      <a href="brooklyn.html">Brooklyn</a>
+    </nav>
+  </div>
+</header>
+<main>
+  <section class="hero">
+    <div class="kicker">Property Ownership Search</div>
+    <h2>See every property owned by a person, company, or city agency.</h2>
+    <p>Pick a major owner such as <strong>DCAS</strong>, or type any owner name. Results come from the city's Primary Land Use Tax Lot Output (PLUTO), shown as a list and on a map.</p>
+  </section>
+
+  <section class="search-card">
+    <label class="field-label" for="owner-select">Choose a major owner</label>
+    <select id="owner-select">
+      <option value="">— Select an owner —</option>
+      <optgroup label="City of New York agencies">
+        <option value="NYC DEPARTMENT OF CITYWIDE ADMINISTRATIVE SERVICES">DCAS — Citywide Administrative Services</option>
+        <option value="NYC DEPARTMENT OF PARKS AND RECREATION">Parks &amp; Recreation</option>
+        <option value="NYC DEPARTMENT OF EDUCATION">Department of Education</option>
+        <option value="NYC DEPARTMENT OF ENVIRONMENTAL PROTECTION">Environmental Protection (DEP)</option>
+        <option value="NYC HOUSING AUTHORITY">Housing Authority (NYCHA)</option>
+        <option value="NYC HOUSING PRESERVATION AND DEVELOPMENT">Housing Preservation &amp; Development (HPD)</option>
+        <option value="NYC DEPARTMENT OF TRANSPORTATION">Department of Transportation</option>
+        <option value="NYC DEPARTMENT OF SMALL BUSINESS SERVICES">Small Business Services</option>
+        <option value="FIRE DEPARTMENT OF NEW YORK">Fire Department (FDNY)</option>
+        <option value="NYC POLICE DEPARTMENT">Police Department (NYPD)</option>
+        <option value="NYC DEPARTMENT OF SANITATION">Department of Sanitation</option>
+        <option value="NYC DEPARTMENT OF HOMELESS SERVICES">Homeless Services</option>
+        <option value="NYC ECONOMIC DEVELOPMENT CORPORATION">Economic Development (EDC)</option>
+        <option value="CITY OF NEW YORK">City of New York (general)</option>
+      </optgroup>
+      <optgroup label="Authorities">
+        <option value="NYC TRANSIT AUTHORITY">NYC Transit Authority</option>
+        <option value="MTA - LIRR">MTA — LIRR</option>
+        <option value="PORT AUTHORITY OF NY AND NJ">Port Authority of NY &amp; NJ</option>
+        <option value="NYC SCHOOL CONSTRUCTION AUTHORITY">School Construction Authority</option>
+        <option value="DORMITORY AUTHORITY OF THE STATE OF NEW YORK">Dormitory Authority (DASNY)</option>
+      </optgroup>
+    </select>
+
+    <div class="orsep">— or —</div>
+
+    <label class="field-label" for="owner-input">Type any owner name</label>
+    <input class="owner-input" id="owner-input" type="search" placeholder="e.g. DCAS, or a company / person's name" autocomplete="off">
+    <div style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);margin:6px 0 12px">Matches owner names containing your text. Owner names in PLUTO are often abbreviated.</div>
+
+    <label class="field-label">Scope</label>
+    <div class="scope-row" id="scope-row">
+      <button class="scope-btn on" data-scope="cb6">CB6 only</button>
+      <button class="scope-btn" data-scope="bk">Brooklyn</button>
+      <button class="scope-btn" data-scope="city">Citywide</button>
+    </div>
+
+    <button class="go-btn" id="go">Search ownership</button>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="summary" id="summary" hidden>
+    <div class="big" id="sum-count"></div>
+    <div class="who" id="sum-who"></div>
+    <div class="sub" id="sum-sub"></div>
+  </section>
+
+  <div id="map" hidden></div>
+
+  <section class="tablewrap" id="tablewrap" hidden>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Address</th><th>Borough</th><th>Block</th><th>Lot</th><th>Land use</th><th>Map</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="cap-note" id="cap-note" hidden></div>
+  </section>
+</main>
+<footer>CB6 &amp; Beyond · Ownership search · Source: NYC Department of City Planning, PLUTO (data.cityofnewyork.us)</footer>
+
+<script>
+var PLUTO='https://data.cityofnewyork.us/resource/64uk-42ks.json';
+var PAGE=1000;        // API rows per request
+var PIN_CAP=1500;     // max markers plotted
+var LU={'01':'One & Two Family','02':'Multi-Family Walk-Up','03':'Multi-Family Elevator','04':'Mixed Residential & Commercial','05':'Commercial & Office','06':'Industrial & Manufacturing','07':'Transportation & Utility','08':'Public Facilities & Institutions','09':'Open Space & Recreation','10':'Parking Facilities','11':'Vacant Land'};
+var BORO={'MN':'Manhattan','BX':'Bronx','BK':'Brooklyn','QN':'Queens','SI':'Staten Island'};
+var scope='cb6', map=null, cluster=null;
+
+document.getElementById('scope-row').addEventListener('click',function(e){
+  var b=e.target.closest('.scope-btn'); if(!b)return;
+  scope=b.getAttribute('data-scope');
+  document.querySelectorAll('.scope-btn').forEach(function(x){x.classList.toggle('on',x===b);});
+});
+// selecting from the dropdown clears the free-text box, and vice versa
+document.getElementById('owner-select').addEventListener('change',function(){ if(this.value) document.getElementById('owner-input').value=''; });
+document.getElementById('owner-input').addEventListener('input',function(){ if(this.value) document.getElementById('owner-select').value=''; });
+document.getElementById('go').addEventListener('click',runSearch);
+document.getElementById('owner-input').addEventListener('keydown',function(e){ if(e.key==='Enter')runSearch(); });
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function titleCase(s){return String(s||'').toLowerCase().replace(/\b\w/g,function(c){return c.toUpperCase();});}
+
+function scopeClause(){
+  if(scope==='cb6') return "cd='306'";
+  if(scope==='bk')  return "borough='BK'";
+  return null; // citywide
+}
+function scopeLabel(){return scope==='cb6'?'Brooklyn CB6':scope==='bk'?'Brooklyn':'all five boroughs';}
+
+function buildWhere(exact,text){
+  var parts=[];
+  if(exact) parts.push("ownername='"+exact.replace(/'/g,"''")+"'");
+  else parts.push("upper(ownername) like '%"+text.toUpperCase().replace(/'/g,"''")+"%'");
+  var sc=scopeClause(); if(sc) parts.push(sc);
+  return parts.join(' AND ');
+}
+
+function runSearch(){
+  var sel=document.getElementById('owner-select').value.trim();
+  var txt=document.getElementById('owner-input').value.trim();
+  if(!sel && !txt){ setStatus('Pick an owner from the list or type an owner name.'); return; }
+  var where=buildWhere(sel, txt);
+  var label=sel?titleCase(sel):('“'+txt+'”');
+  setStatus('Searching '+scopeLabel()+'…');
+  document.getElementById('go').disabled=true;
+
+  // count first
+  fetch(PLUTO+'?$where='+encodeURIComponent(where)+'&$select=count(*)')
+    .then(function(r){return r.json();})
+    .then(function(c){
+      var total=parseInt((c[0]&&c[0].count)||'0',10);
+      if(!total){ done(label,0,[]); return; }
+      fetchAll(where, total, label);
+    })
+    .catch(function(){ setStatus('Search failed. Please try again.'); document.getElementById('go').disabled=false; });
+}
+
+function fetchAll(where, total, label){
+  var want=Math.min(total, PIN_CAP);
+  var rows=[], offset=0;
+  function next(){
+    if(offset>=want){ done(label, total, rows); return; }
+    var url=PLUTO+'?$where='+encodeURIComponent(where)
+      +'&$select=address,borough,block,lot,bbl,latitude,longitude,landuse,ownername'
+      +'&$order=borough,block,lot&$limit='+PAGE+'&$offset='+offset;
+    setStatus('Loading '+Math.min(offset+PAGE,want)+' of '+want.toLocaleString()+'…');
+    fetch(url).then(function(r){return r.json();}).then(function(batch){
+      rows=rows.concat(batch); offset+=PAGE; next();
+    }).catch(function(){ done(label, total, rows); });
+  }
+  next();
+}
+
+function done(label, total, rows){
+  document.getElementById('go').disabled=false;
+  setStatus('');
+  var sum=document.getElementById('summary');
+  sum.hidden=false;
+  if(!total){
+    document.getElementById('sum-count').textContent='No properties found';
+    document.getElementById('sum-who').textContent='for '+label+' in '+scopeLabel()+'.';
+    document.getElementById('sum-sub').textContent='Owner names in PLUTO are often abbreviated. Try a shorter or different spelling.';
+    document.getElementById('map').hidden=true;
+    document.getElementById('tablewrap').hidden=true;
+    return;
+  }
+  document.getElementById('sum-count').textContent=total.toLocaleString()+(total===1?' property':' properties');
+  document.getElementById('sum-who').textContent='owned by '+label+' in '+scopeLabel()+'.';
+  document.getElementById('sum-sub').textContent='Source: NYC PLUTO (Dept. of City Planning).';
+  renderTable(rows, total);
+  renderMap(rows);
+}
+
+function renderTable(rows, total){
+  var tb=document.getElementById('tbody'); tb.innerHTML='';
+  rows.forEach(function(r){
+    var addr=(r.address&&r.address.trim())?titleCase(r.address):'(no street address)';
+    var lu=LU[r.landuse]||'—';
+    var maplink=(r.latitude&&r.longitude)?'<a href="https://www.google.com/maps/search/?api=1&query='+r.latitude+','+r.longitude+'" target="_blank" rel="noopener">View ↗</a>':'—';
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td>'+esc(addr)+'</td><td>'+esc(BORO[r.borough]||r.borough||'')+'</td><td>'+esc(r.block||'')+'</td><td>'+esc(r.lot||'')+'</td><td>'+esc(lu)+'</td><td>'+maplink+'</td>';
+    tb.appendChild(tr);
+  });
+  document.getElementById('tablewrap').hidden=false;
+  var cap=document.getElementById('cap-note');
+  if(total>rows.length){ cap.hidden=false; cap.textContent='Showing the first '+rows.length.toLocaleString()+' of '+total.toLocaleString()+' properties. Narrow the scope to see a full list.'; }
+  else cap.hidden=true;
+}
+
+function renderMap(rows){
+  var el=document.getElementById('map'); el.hidden=false;
+  if(!map){
+    map=L.map('map',{scrollWheelZoom:false}).setView([40.68,-73.97],11);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO &copy; OpenStreetMap',subdomains:'abcd',maxZoom:19}).addTo(map);
+  }
+  if(cluster){ map.removeLayer(cluster); }
+  cluster=L.markerClusterGroup({chunkedLoading:true,maxClusterRadius:50});
+  var pts=[];
+  rows.forEach(function(r){
+    var la=parseFloat(r.latitude), ln=parseFloat(r.longitude);
+    if(isNaN(la)||isNaN(ln)||(la===0&&ln===0))return;
+    var addr=(r.address&&r.address.trim())?titleCase(r.address):'(no street address)';
+    var m=L.circleMarker([la,ln],{radius:5,color:'#c25f00',weight:1,fillColor:'#FD890E',fillOpacity:.85});
+    m.bindPopup('<strong>'+esc(addr)+'</strong><br>'+esc(BORO[r.borough]||r.borough||'')+' · Block '+esc(r.block)+' Lot '+esc(r.lot)+'<br>'+esc(LU[r.landuse]||''));
+    cluster.addLayer(m); pts.push([la,ln]);
+  });
+  map.addLayer(cluster);
+  if(pts.length){ map.fitBounds(pts,{padding:[30,30],maxZoom:16}); }
+}
+
+function setStatus(t){document.getElementById('status').textContent=t;}
+
+// deep link: ?owner=...&scope=cb6|bk|city
+(function(){
+  var q=new URLSearchParams(location.search);
+  var o=q.get('owner'); var s=q.get('scope');
+  if(s&&['cb6','bk','city'].indexOf(s)>=0){
+    scope=s;
+    document.querySelectorAll('.scope-btn').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-scope')===s);});
+  }
+  if(o){ document.getElementById('owner-input').value=o; runSearch(); }
+})();
+</script>
+</body>
+</html>
