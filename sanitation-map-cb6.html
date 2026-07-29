@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CB6 Collection Schedule Map</title>
+  <meta name="description" content="Map of DSNY refuse, recycling, organics, and bulk collection days for every block in Brooklyn Community Board 6.">
+  <link rel="canonical" href="https://bkcb6.app/sanitation-map-cb6.html">
+  <meta property="og:title" content="CB6 Collection Schedule Map">
+  <meta property="og:description" content="DSNY refuse, recycling, organics, and bulk collection days for every block in Brooklyn Community Board 6.">
+  <meta property="og:url" content="https://bkcb6.app/sanitation-map-cb6.html">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <style>
+    :root{--navy:#0d1b4b;--orange:#f47920;--border:#e5e2db;--muted:#6b7280;--bg:#f8f7f4;--off:#fcfbf9;--c1:#2f7d4f;--c2:#1d48a4;--c3:#f47920}
+    *{box-sizing:border-box} body{margin:0;font-family:'DM Sans',sans-serif;background:var(--bg);color:#1f2937}
+    .shell{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);gap:14px;padding:14px}
+    .card{background:#fff;border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 2px 10px rgba(13,27,75,.04)}
+    .head{padding:14px 16px;border-bottom:1px solid var(--border);background:#fffdfa}
+    .head h1,.head h2{margin:0 0 6px;color:var(--navy);font-size:1rem}
+    .head p{margin:0;color:var(--muted);font-size:.8rem;line-height:1.55}
+    .controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+    .controls label{display:block;margin-bottom:6px;font:.66rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .controls select{width:100%;border:1px solid var(--border);border-radius:12px;padding:10px 12px;font:500 .82rem 'DM Sans',sans-serif;background:#fff;color:#1f2937}
+    .legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--off);font-size:.72rem;color:var(--muted)}
+    .legend span{display:inline-flex;align-items:center;gap:7px}
+    .sw{width:13px;height:13px;border-radius:4px;display:inline-block;border:1px solid rgba(0,0,0,.15)}
+    #map{height:660px;width:100%}
+    .notice{padding:10px 16px;background:var(--off);border-top:1px solid var(--border);font-size:.72rem;color:var(--muted);line-height:1.6}
+    .notice a{color:var(--navy)}
+    .side-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .side-head h2{margin:0 0 6px;color:var(--navy);font-size:.98rem}
+    .side-head p{margin:0;color:var(--muted);font-size:.78rem;line-height:1.55}
+    .count{font:.68rem 'DM Mono',monospace;color:var(--orange);white-space:nowrap}
+    #list{padding:12px 14px 16px;max-height:820px;overflow:auto}
+    .item{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;cursor:pointer;transition:transform .15s ease, box-shadow .15s ease}
+    .item:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(13,27,75,.05)}
+    .item h3{margin:0 0 6px;color:var(--navy);font:700 .82rem 'DM Mono',monospace;display:flex;align-items:center;gap:8px}
+    .rows{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:.75rem}
+    .rows dt{font:.65rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:1px}
+    .rows dd{margin:0;color:#1f2937;font-weight:500}
+    .empty{padding:18px;border:1px dashed var(--border);border-radius:12px;text-align:center;color:var(--muted);font-size:.8rem}
+    .leaflet-popup-content{font-family:'DM Sans',sans-serif;margin:12px 14px}
+    .leaflet-popup-content h4{margin:0 0 8px;font:700 .85rem 'DM Mono',monospace;color:var(--navy)}
+    .leaflet-popup-content dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:0;font-size:.76rem}
+    .leaflet-popup-content dt{font:.64rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#6b7280}
+    .leaflet-popup-content dd{margin:0;font-weight:500}
+    @media (max-width:980px){.shell{grid-template-columns:1fr}#map{height:520px}#list{max-height:none}}
+  </style>
+
+<style id="bkcb6-embed-modal-css">
+.embed-fab{position:fixed;bottom:18px;right:18px;z-index:9999;background:#f47920;color:#fff;border:none;border-radius:999px;padding:10px 18px;font-size:.82rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.18);display:flex;align-items:center;gap:6px}
+.embed-fab:hover{background:#d4631a}
+.embed-modal-bg{display:none;position:fixed;inset:0;z-index:10000;background:rgba(13,27,75,.55);align-items:center;justify-content:center;padding:16px}
+.embed-modal-bg.open{display:flex}
+.embed-modal{background:#fff;border-radius:12px;padding:22px 20px 18px;max-width:480px;width:100%;box-shadow:0 8px 32px rgba(13,27,75,.22)}
+.embed-modal h3{font-size:1rem;font-weight:700;color:#0d1b4b;margin:0 0 6px}
+.embed-modal p{font-size:.82rem;color:#6b6760;margin:0 0 14px;line-height:1.5}
+.embed-tabs{display:flex;gap:6px;margin-bottom:14px}
+.embed-tab{padding:6px 12px;border-radius:6px;font-size:.75rem;font-weight:600;cursor:pointer;border:1.5px solid #e5e2db;background:#fff;color:#6b6760;font-family:'DM Sans',sans-serif}
+.embed-tab.active{background:#0d1b4b;color:#fff;border-color:#0d1b4b}
+.embed-url-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.embed-url-box{flex:1;padding:8px 10px;border:1.5px solid #e5e2db;border-radius:6px;font-size:.78rem;font-family:'DM Mono',monospace;color:#0d1b4b;background:#f8f7f4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.embed-copy-btn{padding:8px 14px;background:#f47920;color:#fff;border:none;border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif}
+.embed-copy-btn:hover{background:#d4631a}
+.embed-code-box{background:#f8f7f4;border:1.5px solid #e5e2db;border-radius:6px;padding:12px;font-size:.72rem;font-family:'DM Mono',monospace;color:#333;line-height:1.6;word-break:break-all;margin-bottom:14px;white-space:pre-wrap}
+.embed-close{width:100%;padding:10px;background:#f8f7f4;border:1.5px solid #e5e2db;border-radius:6px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;color:#0d1b4b}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="card">
+    <div class="head">
+      <h1>CB6 Collection Schedule Map</h1>
+      <p>DSNY collection days for every block in Brooklyn Community Board 6. The city divides the district into sanitation sections, and every section carries its own set of days for refuse, recycling, organics, and bulk. Click any area on the map to see its full schedule. Set out material after 6 PM the night before the collection day.</p>
+    </div>
+    <div class="controls">
+      <div>
+        <label for="matSel">Material</label>
+        <select id="matSel">
+          <option value="refuse">Refuse (trash)</option>
+          <option value="recycling">Recycling</option>
+          <option value="organics">Organics</option>
+          <option value="bulk">Bulk items</option>
+        </select>
+      </div>
+      <div>
+        <label for="daySel">Collection day</label>
+        <select id="daySel">
+          <option value="">All days</option>
+          <option value="Mon">Monday</option>
+          <option value="Tue">Tuesday</option>
+          <option value="Wed">Wednesday</option>
+          <option value="Thu">Thursday</option>
+          <option value="Fri">Friday</option>
+          <option value="Sat">Saturday</option>
+        </select>
+      </div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div id="map"></div>
+    <div class="notice">Source: NYC Department of Sanitation, DSNY Sections and Frequencies, via NYC Open Data. Section boundaries follow block faces, so a single street can be split between two schedules. Holiday suspensions and weather delays are not reflected here. Confirm at <a href="https://www.nyc.gov/assets/dsny/site/services/collection" target="_blank" rel="noopener">nyc.gov/dsny</a> or by calling 311.</div>
+  </div>
+
+  <div class="card">
+    <div class="side-head">
+      <div>
+        <h2>Sections in CB6</h2>
+        <p>Every sanitation section and schedule zone in the district, with its days for each material.</p>
+      </div>
+      <div class="count" id="count"></div>
+    </div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<button class="embed-fab" onclick="document.getElementById('bkcb6EmbedModal').classList.add('open')">Share or embed</button>
+<div class="embed-modal-bg" id="bkcb6EmbedModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="embed-modal">
+    <h3>Share or embed this map</h3>
+    <p>Copy the link, or paste the iframe code into any website.</p>
+    <div class="embed-tabs">
+      <button class="embed-tab active" onclick="bkcb6SwitchEmbedTab(this,'link')">Link</button>
+      <button class="embed-tab" onclick="bkcb6SwitchEmbedTab(this,'iframe')">Embed code</button>
+    </div>
+    <div id="bkcb6EmbedLinkPanel">
+      <div class="embed-url-row">
+        <div class="embed-url-box" id="bkcb6EmbedUrlBox"></div>
+        <button class="embed-copy-btn" onclick="bkcb6CopyEmbed('link')">Copy</button>
+      </div>
+    </div>
+    <div id="bkcb6EmbedIframePanel" style="display:none">
+      <div class="embed-code-box" id="bkcb6EmbedCodeBox"></div>
+      <button class="embed-copy-btn" onclick="bkcb6CopyEmbed('iframe')">Copy code</button>
+    </div>
+    <button class="embed-close" onclick="document.getElementById('bkcb6EmbedModal').classList.remove('open')">Close</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+(function(){
+  var DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat'];
+  var DAYNAME = {Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday'};
+  var PATTERNS = [
+    {key:'C', label:'Mon and Thu', color:'#2f7d4f'},
+    {key:'D', label:'Tue and Fri', color:'#1d48a4'},
+    {key:'E', label:'Wed and Sat', color:'#f47920'}
+  ];
+  var COLOR = {C:'#2f7d4f', D:'#1d48a4', E:'#f47920'};
+
+  var map = L.map('map', {scrollWheelZoom:true}).setView([40.6755,-73.9925], 13);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+
+  var legend = document.getElementById('legend');
+  PATTERNS.forEach(function(p){
+    var s = document.createElement('span');
+    s.innerHTML = '<i class="sw" style="background:'+p.color+'"></i>Refuse '+p.label;
+    legend.appendChild(s);
+  });
+
+  var matSel = document.getElementById('matSel');
+  var daySel = document.getElementById('daySel');
+  var listEl = document.getElementById('list');
+  var countEl = document.getElementById('count');
+  var layer = null;
+  var features = [];
+
+  function days(props, mat){
+    var v = props[mat];
+    if(!v) return [];
+    return v.split(',').map(function(x){return x.trim()}).filter(Boolean);
+  }
+  function fmt(props, mat){
+    var d = days(props, mat);
+    if(!d.length) return 'Not scheduled';
+    return d.map(function(x){return DAYNAME[x] || x}).join(', ');
+  }
+  function matches(props){
+    var day = daySel.value;
+    if(!day) return true;
+    return days(props, matSel.value).indexOf(day) !== -1;
+  }
+  function style(f){
+    var on = matches(f.properties);
+    return {
+      color:'#ffffff',
+      weight: on ? 1.4 : 0.7,
+      fillColor: COLOR[f.properties.freq] || '#94a3b8',
+      fillOpacity: on ? 0.62 : 0.07,
+      opacity: on ? 0.95 : 0.3
+    };
+  }
+  function popupHTML(p){
+    return '<h4>Section '+p.section+' &middot; zone '+p.freq+'</h4>'
+      + '<dl>'
+      + '<dt>Refuse</dt><dd>'+fmt(p,'refuse')+'</dd>'
+      + '<dt>Recycling</dt><dd>'+fmt(p,'recycling')+'</dd>'
+      + '<dt>Organics</dt><dd>'+fmt(p,'organics')+'</dd>'
+      + '<dt>Bulk</dt><dd>'+fmt(p,'bulk')+'</dd>'
+      + '</dl>';
+  }
+  function renderList(){
+    var shown = features.filter(function(f){return matches(f.properties)});
+    countEl.textContent = shown.length + ' of ' + features.length;
+    if(!shown.length){
+      listEl.innerHTML = '<div class="empty">No section in CB6 has a '+matSel.options[matSel.selectedIndex].text.toLowerCase()+' collection on '+DAYNAME[daySel.value]+'.</div>';
+      return;
+    }
+    listEl.innerHTML = shown.map(function(f,i){
+      var p = f.properties;
+      return '<div class="item" data-i="'+features.indexOf(f)+'">'
+        + '<h3><i class="sw" style="background:'+(COLOR[p.freq]||'#94a3b8')+'"></i>'+p.section+' zone '+p.freq+'</h3>'
+        + '<dl class="rows">'
+        + '<dt>Refuse</dt><dd>'+fmt(p,'refuse')+'</dd>'
+        + '<dt>Recycling</dt><dd>'+fmt(p,'recycling')+'</dd>'
+        + '<dt>Organics</dt><dd>'+fmt(p,'organics')+'</dd>'
+        + '<dt>Bulk</dt><dd>'+fmt(p,'bulk')+'</dd>'
+        + '</dl></div>';
+    }).join('');
+    Array.prototype.forEach.call(listEl.querySelectorAll('.item'), function(el){
+      el.addEventListener('click', function(){
+        var f = features[parseInt(el.getAttribute('data-i'),10)];
+        if(f && f._layer){
+          map.fitBounds(f._layer.getBounds(), {padding:[30,30]});
+          f._layer.openPopup();
+        }
+      });
+    });
+  }
+  function refresh(){
+    if(layer) layer.setStyle(style);
+    renderList();
+  }
+  matSel.addEventListener('change', refresh);
+  daySel.addEventListener('change', refresh);
+
+  fetch('cb6-boundary-line.geojson').then(function(r){return r.json()}).then(function(b){
+    L.geoJSON(b, {style:{color:'#0d1b4b',weight:2.5,fill:false,dashArray:'5,4'},interactive:false}).addTo(map);
+  }).catch(function(){});
+
+  fetch('dsny-sections-cb6.geojson').then(function(r){return r.json()}).then(function(data){
+    features = data.features.slice().sort(function(a,b){
+      var s = a.properties.section.localeCompare(b.properties.section);
+      return s !== 0 ? s : a.properties.freq.localeCompare(b.properties.freq);
+    });
+    layer = L.geoJSON({type:'FeatureCollection',features:features}, {
+      style: style,
+      onEachFeature: function(f, lyr){
+        f._layer = lyr;
+        lyr.bindPopup(popupHTML(f.properties));
+        lyr.on('mouseover', function(){ lyr.setStyle({weight:2.4,opacity:1}); });
+        lyr.on('mouseout', function(){ lyr.setStyle(style(f)); });
+      }
+    }).addTo(map);
+    map.fitBounds(layer.getBounds(), {padding:[16,16]});
+    renderList();
+  }).catch(function(){
+    listEl.innerHTML = '<div class="empty">Collection schedule data could not be loaded. Please refresh.</div>';
+  });
+})();
+</script>
+
+<script>
+(function(){
+  var url = window.location.href.split('?')[0].split('#')[0];
+  url = url.replace('cb6brooklyn.github.io/bkcb6','bkcb6.app');
+  var iframe = '<iframe src="' + url + '" width="100%" height="700" style="border:none;border-radius:8px" loading="lazy" title="CB6 and Beyond - ' + document.title + '"></iframe>';
+  document.getElementById('bkcb6EmbedUrlBox').textContent = url;
+  document.getElementById('bkcb6EmbedCodeBox').textContent = iframe;
+})();
+function bkcb6SwitchEmbedTab(btn,panel){
+  document.querySelectorAll('.embed-tab').forEach(function(t){t.classList.remove('active')});
+  btn.classList.add('active');
+  document.getElementById('bkcb6EmbedLinkPanel').style.display=panel==='link'?'':'none';
+  document.getElementById('bkcb6EmbedIframePanel').style.display=panel==='iframe'?'':'none';
+}
+function bkcb6CopyEmbed(type){
+  var text=type==='link'?document.getElementById('bkcb6EmbedUrlBox').textContent:document.getElementById('bkcb6EmbedCodeBox').textContent;
+  navigator.clipboard.writeText(text).then(function(){
+    var btn=type==='link'?document.querySelector('#bkcb6EmbedLinkPanel .embed-copy-btn'):document.querySelector('#bkcb6EmbedIframePanel .embed-copy-btn');
+    var orig=btn.textContent;btn.textContent='Copied!';btn.style.background='#2d6a4f';
+    setTimeout(function(){btn.textContent=orig;btn.style.background='';},1800);
+  });
+}
+</script>
+</body>
+</html>
