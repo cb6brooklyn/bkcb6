@@ -322,6 +322,15 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .tt-n{font-family:'DM Mono',monospace;font-size:.66rem;color:#9ca3af;font-weight:400}
 .rpt-cell .rpt-n{font-family:'DM Mono',monospace;font-size:.56rem;color:#9ca3af;font-weight:400}
 .rpt-tbl td .cinv{display:block;font-family:'DM Mono',monospace;font-size:.6rem;color:#9ca3af;margin-top:1px}
+
+.dash-card{min-width:232px;flex:1 0 232px}
+.dash-med{font-family:'DM Mono',monospace;font-size:1.5rem;font-weight:900;color:#132D65;line-height:1.05;margin-bottom:2px}
+.dash-medl{display:inline-block;font-family:'DM Sans',sans-serif;font-size:.6rem;font-weight:700;color:#9ca3af;margin-left:6px;text-transform:uppercase;letter-spacing:.06em}
+.dash-chg{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:5px}
+.dash-chg .dd{font-family:'DM Mono',monospace;font-size:.62rem;font-weight:700}
+.dash-chg .up{color:#c0392b}.dash-chg .down{color:#2e6b30}.dash-chg .flat{color:#9ca3af}
+.dash-inv2{font-family:'DM Mono',monospace;font-size:.68rem;color:#6b6760;padding-bottom:6px;border-bottom:1px solid #f0ede8;margin-bottom:5px}
+.dash-hl .dash-line{padding:3px 0;border-bottom:none}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -985,44 +994,51 @@ function bkcb6CopyEmbed(type){
     }).join('')+'</div>';
   }
 
+  function LBL(a){ return a.name; }
   function dashboard(){
     var el=document.getElementById('dashWrap'); if(!el||!H) return;
     var i=(idx===null?H.months.length-1:idx);
     var BEDS=[['studio','Studio'],['br1','1 bedroom'],['br2','2 bedroom'],['br3','3+ bedroom']];
+    var SELF=H.self||null;
+    function selfAt(key,k){ return SELF ? unpack(SELF.s[key], k) : null; }
+    function pct(now,then){ return (now==null||then==null||!then)?null:Math.round((now-then)/then*1000)/10; }
+    function dl(p,lab){
+      if(p===null) return '<span class="dd flat">'+lab+' n/a</span>';
+      var c=p>0?'up':(p<0?'down':'flat');
+      return '<span class="dd '+c+'">'+(p>0?'+':'')+p+'% '+lab+'</span>';
+    }
+    var src=(H.cds && H.cds.length)?H.cds:H.nbs;
     var cards=BEDS.map(function(b){
+      var med=selfAt(b[0],i), inv=selfAt('inv_'+b[0],i);
+      var mM=pct(med, selfAt(b[0],i-1)), mY=pct(med, selfAt(b[0],i-12));
       var rows=[];
-      H.cds.forEach(function(a){
+      src.forEach(function(a){
         var v=unpack(a.s[b[0]], i);
-        if(v!=null) rows.push({n:a.name, v:v, cd:null});
+        if(v!=null) rows.push({n:LBL(a), v:v, cd:(a.num!=null?a.num:a.cd)});
       });
-      if(!rows.length) return '<div class="dash-card"><div class="dash-bed">'+b[1]+'</div>'+
-        '<div class="dash-line"><span class="dash-where">No data published</span></div></div>';
       rows.sort(function(x,y){return y.v-x.v;});
-      var hi=rows[0], lo=rows[rows.length-1], mid=rows[Math.floor(rows.length/2)];
+      var hi=rows[0], lo=rows[rows.length-1];
       function line(k,r,cls){
+        if(!r) return '';
         return '<div class="dash-line '+cls+(r.cd===6?' me':'')+'">'+
-          '<span class="dash-k">'+k+'</span>'+
-          '<span class="dash-where">'+r.n+'</span>'+
-          '<span class="dash-v">$'+Number(r.v).toLocaleString('en-US')+'</span></div>';
+          '<span class="dash-k">'+k+'</span><span class="dash-where">'+r.n+'</span>'+
+          '<span class="dash-v">$'+Number(r.v).toLocaleString()+'</span></div>';
       }
       return '<div class="dash-card"><div class="dash-bed">'+b[1]+'</div>'+
-        line('Highest',hi,'hi')+line('Middle',mid,'')+line('Lowest',lo,'lo')+'</div>';
+        '<div class="dash-med">'+(med!=null?'$'+Number(Math.round(med)).toLocaleString():'n/a')+
+          '<span class="dash-medl">median</span></div>'+
+        '<div class="dash-chg">'+dl(mM,'vs last month')+dl(mY,'vs last year')+'</div>'+
+        (inv!=null?'<div class="dash-inv2">'+Number(inv).toLocaleString()+' listed</div>':'')+
+        (rows.length?('<div class="dash-hl">'+line('Highest',hi,'hi')+line('Lowest',lo,'lo')+'</div>'):'')+
+      '</div>';
     }).join('');
-    (function(){
-      var src=(H.cds && H.cds.length)?H.cds:H.nbs;
-      var tot=0, any=false;
-      src.forEach(function(a){ var v=unpack(a.s['inv'], i); if(v!=null){ tot+=v; any=true; } });
-      if(any) cards+='<div class="dash-card dash-inv"><div class="dash-bed">Listings</div>'+
-        '<div class="dash-line"><span class="dash-k">On market</span><span class="dash-where">all areas</span>'+
-        '<span class="dash-v">'+Number(tot).toLocaleString()+'</span></div></div>';
-    })();
     var wasOpen = el.getAttribute('data-open')==='1';
     el.innerHTML='<button type="button" class="dash-head" id="dashToggle"><span class="dash-ico">&#128200;</span>'+
-      '<span class="dash-t">Brooklyn at a glance</span>'+
-      '<span class="dash-sub2">highest, middle and lowest by unit size</span>'+'<span class="dash-when" id="dashWhen">'+label(H.months[i])+'</span>'+
+      '<span class="dash-t">The five boroughs at a glance</span>'+
+      '<span class="dash-sub2">median, change and listings by unit size</span>'+
+      '<span class="dash-when" id="dashWhen">'+label(H.months[i])+'</span>'+
       '<span class="dash-chev">'+(wasOpen?'\u25B4':'\u25BE')+'</span></button>'+
       '<div class="dash-body"'+(wasOpen?'':' style="display:none"')+'>'+
-        '<div class="dash-sub">Median asking rent across Brooklyn\u2019s 18 community districts &middot; swipe for each unit size</div>'+
         '<div class="dash-strip">'+cards+'</div></div>';
     document.getElementById('dashToggle').addEventListener('click',function(){
       var b=el.querySelector('.dash-body'), open=b.style.display!=='none';
