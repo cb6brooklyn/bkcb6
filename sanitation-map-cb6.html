@@ -21,6 +21,21 @@
     .head{padding:14px 16px;border-bottom:1px solid var(--border);background:#fffdfa}
     .head h1,.head h2{margin:0 0 6px;color:var(--navy);font-size:1rem}
     .head p{margin:0;color:var(--muted);font-size:.8rem;line-height:1.55}
+    .search{padding:14px 16px;border-bottom:1px solid var(--border);background:var(--off)}
+    .search label{display:block;margin-bottom:6px;font:.66rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .search-row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+    .search-row input{width:100%;border:1px solid var(--border);border-radius:12px;padding:11px 13px;font:500 .85rem 'DM Sans',sans-serif}
+    .search-row input:focus{outline:2px solid var(--navy);outline-offset:-1px}
+    .search-row button{border:none;border-radius:12px;padding:11px 18px;background:var(--navy);color:#fff;font:700 .8rem 'DM Sans',sans-serif;cursor:pointer}
+    .search-row button:hover{background:#16266b}
+    .ac-drop{display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(13,27,75,.12);z-index:1200;overflow:hidden;max-height:250px;overflow-y:auto}
+    .ac-drop div{padding:9px 13px;font-size:.8rem;cursor:pointer;border-bottom:1px solid #f2f0eb}
+    .ac-drop div:last-child{border-bottom:none}
+    .ac-drop div:hover{background:#f4f6fc;color:var(--navy)}
+    #result{display:none;margin-top:12px;border:1px solid var(--border);border-radius:12px;padding:13px 14px;background:#fff}
+    #result h3{margin:0 0 3px;color:var(--navy);font-size:.88rem;line-height:1.35}
+    #result .sub{font:.66rem 'DM Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+    #result.miss{border-color:#e3c9a8;background:#fdf7ee}
     .controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
     .controls label{display:block;margin-bottom:6px;font:.66rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
     .controls select{width:100%;border:1px solid var(--border);border-radius:12px;padding:10px 12px;font:500 .82rem 'DM Sans',sans-serif;background:#fff;color:#1f2937}
@@ -75,6 +90,15 @@
     <div class="head">
       <h1>CB6 Collection Schedule Map</h1>
       <p>DSNY collection days for every block in Brooklyn Community Board 6. The city divides the district into sanitation sections, and every section carries its own set of days for refuse, recycling, organics, and bulk. Click any area on the map to see its full schedule. Set out material after 6 PM the night before the collection day.</p>
+    </div>
+    <div class="search">
+      <label for="addrInput">Find your collection days by address</label>
+      <div class="search-row">
+        <input id="addrInput" type="text" placeholder="For example, 250 Baltic Street" autocomplete="off" spellcheck="false">
+        <button id="addrBtn" type="button">Search</button>
+        <div class="ac-drop" id="acDrop"></div>
+      </div>
+      <div id="result"></div>
     </div>
     <div class="controls">
       <div>
@@ -236,6 +260,120 @@
   }
   matSel.addEventListener('change', refresh);
   daySel.addEventListener('change', refresh);
+
+  function inRing(pt, ring){
+    var x = pt[0], y = pt[1], inside = false;
+    for(var i = 0, j = ring.length - 1; i < ring.length; j = i++){
+      var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+      if(((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+    }
+    return inside;
+  }
+  function inPolygon(pt, poly){
+    if(!inRing(pt, poly[0])) return false;
+    for(var k = 1; k < poly.length; k++){ if(inRing(pt, poly[k])) return false; }
+    return true;
+  }
+  function findSection(lng, lat){
+    var pt = [lng, lat];
+    for(var i = 0; i < features.length; i++){
+      var g = features[i].geometry;
+      var polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+      for(var j = 0; j < polys.length; j++){
+        if(inPolygon(pt, polys[j])) return features[i];
+      }
+    }
+    return null;
+  }
+
+  var addrInput = document.getElementById('addrInput');
+  var addrBtn = document.getElementById('addrBtn');
+  var acDrop = document.getElementById('acDrop');
+  var resultEl = document.getElementById('result');
+  var marker = null;
+  var acTimer = null;
+
+  function clean(label){ return label.replace(/, New York, NY.*$/i, ''); }
+
+  addrInput.addEventListener('input', function(){
+    var val = addrInput.value.trim();
+    clearTimeout(acTimer);
+    if(val.length < 3){ acDrop.style.display = 'none'; return; }
+    acTimer = setTimeout(function(){
+      fetch('https://geosearch.planninglabs.nyc/v2/autocomplete?text=' + encodeURIComponent(val + ' Brooklyn New York') + '&size=6')
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          acDrop.innerHTML = '';
+          (d.features || []).forEach(function(f){
+            var label = (f.properties && f.properties.label) || '';
+            if(label.toLowerCase().indexOf('brooklyn') === -1) return;
+            var item = document.createElement('div');
+            item.textContent = clean(label);
+            item.onmousedown = function(){
+              addrInput.value = clean(label);
+              acDrop.style.display = 'none';
+              lookup(f.geometry.coordinates[0], f.geometry.coordinates[1], clean(label));
+            };
+            acDrop.appendChild(item);
+          });
+          acDrop.style.display = acDrop.children.length ? 'block' : 'none';
+        })
+        .catch(function(){ acDrop.style.display = 'none'; });
+    }, 220);
+  });
+  addrInput.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); doSearch(); } });
+  addrBtn.addEventListener('click', doSearch);
+  document.addEventListener('click', function(e){ if(!e.target.closest('.search-row')) acDrop.style.display = 'none'; });
+
+  function showResult(html, miss){
+    resultEl.className = miss ? 'miss' : '';
+    resultEl.innerHTML = html;
+    resultEl.style.display = 'block';
+  }
+
+  function doSearch(){
+    var val = addrInput.value.trim();
+    if(!val) return;
+    acDrop.style.display = 'none';
+    showResult('<p class="sub" style="margin:0">Looking up address</p>', false);
+    fetch('https://geosearch.planninglabs.nyc/v2/search?size=1&text=' + encodeURIComponent(val + ' Brooklyn New York'))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var f = (d.features || [])[0];
+        if(!f){ showResult('<h3>Address not found</h3><p class="sub">Try adding the street type, for example Baltic Street.</p>', true); return; }
+        lookup(f.geometry.coordinates[0], f.geometry.coordinates[1], clean(f.properties.label || val));
+      })
+      .catch(function(){ showResult('<h3>Address lookup unavailable</h3><p class="sub">Please try again in a moment.</p>', true); });
+  }
+
+  function lookup(lng, lat, label){
+    if(!features.length){ showResult('<h3>Map is still loading</h3><p class="sub">Try the search again in a moment.</p>', true); return; }
+    var f = findSection(lng, lat);
+    if(marker){ map.removeLayer(marker); marker = null; }
+    if(!f){
+      showResult('<h3>' + label + '</h3><p class="sub">Outside Brooklyn Community Board 6</p>'
+        + '<p style="margin:0;font-size:.78rem;color:#6b7280;line-height:1.5">This map covers CB6 only. For collection days elsewhere in the city, check nyc.gov/dsny or call 311.</p>', true);
+      map.setView([lat, lng], 14);
+      return;
+    }
+    var p = f.properties;
+    showResult('<h3>' + label + '</h3>'
+      + '<p class="sub">Section ' + p.section + ', zone ' + p.freq + '</p>'
+      + '<dl class="rows">'
+      + '<dt>Refuse</dt><dd>' + fmt(p, 'refuse') + '</dd>'
+      + '<dt>Recycling</dt><dd>' + fmt(p, 'recycling') + '</dd>'
+      + '<dt>Organics</dt><dd>' + fmt(p, 'organics') + '</dd>'
+      + '<dt>Bulk</dt><dd>' + fmt(p, 'bulk') + '</dd>'
+      + '</dl>'
+      + '<p style="margin:10px 0 0;font-size:.72rem;color:#6b7280;line-height:1.5">Set material out after 6 PM the night before a collection day.</p>', false);
+    marker = L.circleMarker([lat, lng], {radius:7, color:'#0d1b4b', weight:2.5, fillColor:'#ffffff', fillOpacity:1}).addTo(map);
+    if(f._layer){
+      map.fitBounds(f._layer.getBounds(), {padding:[30,30]});
+      f._layer.openPopup();
+    } else {
+      map.setView([lat, lng], 16);
+    }
+  }
 
   fetch('cb6-boundary-line.geojson').then(function(r){return r.json()}).then(function(b){
     L.geoJSON(b, {style:{color:'#0d1b4b',weight:2.5,fill:false,dashArray:'5,4'},interactive:false}).addTo(map);
