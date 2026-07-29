@@ -36,6 +36,14 @@ select,.owner-input{width:100%;border:2px solid var(--border);border-radius:10px
 select:focus,.owner-input:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(253,137,14,.14)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
 .orsep{text-align:center;font-family:'DM Mono',monospace;font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin:2px 0 10px}
+.ac-wrap{position:relative}
+.ac-list{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:50;background:#fff;border:1.5px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(13,27,75,.14);list-style:none;margin:0;padding:4px;max-height:280px;overflow-y:auto}
+.ac-list[hidden]{display:none}
+.ac-item{padding:9px 10px;border-radius:7px;cursor:pointer;display:flex;align-items:baseline;gap:8px}
+.ac-item:hover,.ac-item.active{background:#fffaf5}
+.ac-item .ac-acro{font-family:'DM Mono',monospace;font-weight:700;font-size:.8rem;color:#c25f00;flex-shrink:0;min-width:52px}
+.ac-item .ac-full{font-size:.82rem;color:#3f3a35}
+.ac-item .ac-count{margin-left:auto;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);flex-shrink:0}
 .scope-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
 .scope-btn{flex:1;min-width:90px;border:2px solid var(--border);background:#fafafa;color:var(--navy);border-radius:10px;padding:9px;font-weight:700;font-size:.8rem;cursor:pointer}
 .scope-btn.on{border-color:var(--orange);background:#fffaf5;color:#c25f00}
@@ -113,9 +121,12 @@ footer{max-width:1180px;margin:0 auto;padding:18px;color:var(--muted);font-size:
 
     <div class="orsep">— or —</div>
 
-    <label class="field-label" for="owner-input">Type any owner name</label>
-    <input class="owner-input" id="owner-input" type="search" placeholder="e.g. DCAS, or a company / person's name" autocomplete="off">
-    <div style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);margin:6px 0 12px">Matches owner names containing your text. Owner names in PLUTO are often abbreviated.</div>
+    <label class="field-label" for="owner-input">Type any owner name or acronym</label>
+    <div class="ac-wrap">
+      <input class="owner-input" id="owner-input" type="search" placeholder="e.g. DCAS, or a company / person's name" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ac-list">
+      <ul class="ac-list" id="ac-list" role="listbox" hidden></ul>
+    </div>
+    <div style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);margin:6px 0 12px">Type an acronym like <strong>DCAS</strong> and pick a suggestion, or enter any owner name. Names in PLUTO are often abbreviated.</div>
 
     <label class="field-label">Scope</label>
     <div class="scope-row" id="scope-row">
@@ -176,6 +187,35 @@ var ALIAS={
   'POLICE DEPARTMENT':'NYC POLICE DEPARTMENT'
 };
 function resolveAlias(t){var k=t.trim().toUpperCase();return ALIAS[k]||null;}
+
+// Suggestion catalog: acronym, full owner name, citywide lot count (from PLUTO)
+var SUGGEST=[
+  {acro:'DCAS', full:'NYC DEPARTMENT OF CITYWIDE ADMINISTRATIVE SERVICES', n:1949},
+  {acro:'Parks', full:'NYC DEPARTMENT OF PARKS AND RECREATION', n:5010},
+  {acro:'DOE', full:'NYC DEPARTMENT OF EDUCATION', n:1135},
+  {acro:'DEP', full:'NYC DEPARTMENT OF ENVIRONMENTAL PROTECTION', n:1015},
+  {acro:'NYCHA', full:'NYC HOUSING AUTHORITY', n:826},
+  {acro:'HPD', full:'NYC HOUSING PRESERVATION AND DEVELOPMENT', n:811},
+  {acro:'DOT', full:'NYC DEPARTMENT OF TRANSPORTATION', n:673},
+  {acro:'SBS', full:'NYC DEPARTMENT OF SMALL BUSINESS SERVICES', n:490},
+  {acro:'FDNY', full:'FIRE DEPARTMENT OF NEW YORK', n:263},
+  {acro:'NYPD', full:'NYC POLICE DEPARTMENT', n:221},
+  {acro:'DSNY', full:'NYC DEPARTMENT OF SANITATION', n:114},
+  {acro:'SCA', full:'NYC SCHOOL CONSTRUCTION AUTHORITY', n:102},
+  {acro:'DHS', full:'NYC DEPARTMENT OF HOMELESS SERVICES', n:90},
+  {acro:'EDC', full:'NYC ECONOMIC DEVELOPMENT CORPORATION', n:68},
+  {acro:'City of NY', full:'CITY OF NEW YORK', n:582},
+  {acro:'NYC Transit', full:'NYC TRANSIT AUTHORITY', n:637},
+  {acro:'MTA LIRR', full:'MTA - LIRR', n:487},
+  {acro:'Port Authority', full:'PORT AUTHORITY OF NY AND NJ', n:168},
+  {acro:'DASNY', full:'DORMITORY AUTHORITY OF THE STATE OF NEW YORK', n:93}
+];
+function matchSuggest(q){
+  q=q.trim().toUpperCase(); if(!q) return [];
+  return SUGGEST.filter(function(s){
+    return s.acro.toUpperCase().indexOf(q)>=0 || s.full.indexOf(q)>=0;
+  }).slice(0,8);
+}
 var scope='cb6', map=null, cluster=null;
 
 document.getElementById('scope-row').addEventListener('click',function(e){
@@ -184,10 +224,52 @@ document.getElementById('scope-row').addEventListener('click',function(e){
   document.querySelectorAll('.scope-btn').forEach(function(x){x.classList.toggle('on',x===b);});
 });
 // selecting from the dropdown clears the free-text box, and vice versa
-document.getElementById('owner-select').addEventListener('change',function(){ if(this.value) document.getElementById('owner-input').value=''; });
-document.getElementById('owner-input').addEventListener('input',function(){ if(this.value) document.getElementById('owner-select').value=''; });
+document.getElementById('owner-select').addEventListener('change',function(){ if(this.value){ document.getElementById('owner-input').value=''; hideAC(); } });
 document.getElementById('go').addEventListener('click',runSearch);
-document.getElementById('owner-input').addEventListener('keydown',function(e){ if(e.key==='Enter')runSearch(); });
+
+var acInput=document.getElementById('owner-input');
+var acList=document.getElementById('ac-list');
+var acItems=[], acActive=-1, acExactFull=null;
+
+function hideAC(){ acList.hidden=true; acList.innerHTML=''; acItems=[]; acActive=-1; acInput.setAttribute('aria-expanded','false'); }
+function renderAC(q){
+  var m=matchSuggest(q);
+  acItems=m; acActive=-1;
+  if(!m.length){ hideAC(); return; }
+  acList.innerHTML=m.map(function(s,i){
+    return '<li class="ac-item" role="option" data-i="'+i+'"><span class="ac-acro">'+s.acro+'</span><span class="ac-full">'+titleCase(s.full)+'</span><span class="ac-count">'+s.n.toLocaleString()+' lots</span></li>';
+  }).join('');
+  acList.hidden=false; acInput.setAttribute('aria-expanded','true');
+}
+function chooseAC(i){
+  var s=acItems[i]; if(!s) return;
+  acInput.value=s.acro;      // show the friendly acronym
+  acExactFull=s.full;        // remember exact owner name for the search
+  document.getElementById('owner-select').value='';
+  hideAC();
+}
+acInput.addEventListener('input',function(){
+  acExactFull=null;                              // typing invalidates a prior pick
+  if(this.value) document.getElementById('owner-select').value='';
+  renderAC(this.value);
+});
+acInput.addEventListener('keydown',function(e){
+  if(!acList.hidden && acItems.length){
+    if(e.key==='ArrowDown'){ e.preventDefault(); acActive=(acActive+1)%acItems.length; paintActive(); return; }
+    if(e.key==='ArrowUp'){ e.preventDefault(); acActive=(acActive-1+acItems.length)%acItems.length; paintActive(); return; }
+    if(e.key==='Enter'&&acActive>=0){ e.preventDefault(); chooseAC(acActive); return; }
+    if(e.key==='Escape'){ hideAC(); return; }
+  }
+  if(e.key==='Enter') runSearch();
+});
+function paintActive(){
+  Array.prototype.forEach.call(acList.children,function(li,i){ li.classList.toggle('active',i===acActive); });
+}
+acList.addEventListener('mousedown',function(e){    // mousedown beats input blur
+  var li=e.target.closest('.ac-item'); if(!li) return;
+  e.preventDefault(); chooseAC(parseInt(li.getAttribute('data-i'),10));
+});
+document.addEventListener('click',function(e){ if(!e.target.closest('.ac-wrap')) hideAC(); });
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function titleCase(s){return String(s||'').toLowerCase().replace(/\b\w/g,function(c){return c.toUpperCase();});}
@@ -212,11 +294,13 @@ function runSearch(){
   var txt=document.getElementById('owner-input').value.trim();
   if(!sel && !txt){ setStatus('Pick an owner from the list or type an owner name.'); return; }
   var exact=sel, freetext=txt, label;
+  if(!exact && acExactFull){ exact=acExactFull; }   // user picked a suggestion
   if(!exact){
     var alias=resolveAlias(txt);
-    if(alias){ exact=alias; freetext=''; label=titleCase(alias); }
-    else { label='“'+txt+'”'; }
-  } else { label=titleCase(exact); }
+    if(alias){ exact=alias; }
+  }
+  if(exact){ freetext=''; label=titleCase(exact); }
+  else { label='“'+txt+'”'; }
   var where=buildWhere(exact, freetext);
   setStatus('Searching '+scopeLabel()+'…');
   document.getElementById('go').disabled=true;
