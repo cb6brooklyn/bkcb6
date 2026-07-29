@@ -320,6 +320,8 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .rsr-inv .iv{font-family:'DM Mono',monospace;font-size:.95rem;font-weight:800;color:#132D65}
 .dash-card.dash-inv{background:#fff8f2}
 .tt-n{font-family:'DM Mono',monospace;font-size:.66rem;color:#9ca3af;font-weight:400}
+.rpt-cell .rpt-n{font-family:'DM Mono',monospace;font-size:.56rem;color:#9ca3af;font-weight:400}
+.rpt-tbl td .cinv{display:block;font-family:'DM Mono',monospace;font-size:.6rem;color:#9ca3af;margin-top:1px}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -1209,6 +1211,30 @@ function bkcb6CopyEmbed(type){
     if(!vals.length) return null;
     return vals.reduce(function(x,y){return x+y;},0)/vals.length;
   }
+
+  // per-bedroom listing counts, so every rent has its supply beside it
+  var RINV=null;
+  function invKey(a){
+    if(a.t==='neighborhood') return ['nb',a.n];
+    if(a.t==='cd')           return ['cd',a.n];
+    if(a.t==='borough')      return ['boro',a.n];
+    return ['city','NYC'];
+  }
+  function invAt(a,bed,per){
+    if(!RINV) return null;
+    var k=invKey(a), rec=RINV[k[0]] && RINV[k[0]][k[1]];
+    if(!rec) return null;
+    var b=({studio:'studio',br1:'br1',br2:'br2',br3:'br3'})[bed];
+    var p=rec[b]; if(!p) return null;
+    function at(i){ var q=i-p[0]; return (q>=0&&q<p[1].length)?p[1][q]:null; }
+    if(per.kind==='month'){ var i=RINV.months.indexOf(per.ym); return i<0?null:at(i); }
+    var vals=[];
+    for(var i=0;i<RINV.months.length;i++){
+      if(RINV.months[i].slice(0,4)===per.y){ var v=at(i); if(v!=null) vals.push(v); }
+    }
+    if(!vals.length) return null;
+    return Math.round(vals.reduce(function(x,y){return x+y;},0)/vals.length);
+  }
   function perLabel(p){ return p.kind==='month' ? (MON[+p.ym.slice(5,7)-1]+' '+p.ym.slice(0,4)) : (p.y+' average'); }
   function shiftPer(p,mode){
     if(mode==='prev'){
@@ -1281,10 +1307,12 @@ function bkcb6CopyEmbed(type){
     var head='<tr><th>Area</th>'+BEDS.map(function(b){return '<th>'+b[1]+'</th>';}).join('')+'<th>Listings</th></tr>';
     function cell(a,bed){
       var v=valueAt(a,bed,per);
-      if(!cmp) return '<td>'+money(v)+'</td>';
+      var nI=invAt(a,bed,per);
+      var nTag = nI!=null ? '<span class="cinv">'+Number(nI).toLocaleString()+' listed</span>' : '';
+      if(!cmp) return '<td><span class="cv">'+money(v)+'</span>'+nTag+'</td>';
       var c=valueAt(a,bed,cmp), p=pct(v,c);
       var cls=p>0?'rpt-up':(p<0?'rpt-down':'rpt-flat');
-      return '<td><span class="cv">'+money(v)+'</span>'+
+      return '<td><span class="cv">'+money(v)+'</span>'+nTag+
              '<span class="cwas">'+money(c)+'</span>'+
              '<span class="cdlt '+cls+'">'+(p===null?'&mdash;':((p>0?'+':'')+p+'%'))+'</span></td>';
     }
@@ -1306,7 +1334,8 @@ function bkcb6CopyEmbed(type){
     var self=byId(AREA_ID);
     var cells=BEDS.map(function(b){
       var v=valueAt(self,b[0],per), c=cmp?valueAt(self,b[0],cmp):null, p=pct(v,c);
-      return '<div class="rpt-cell"><div class="k">'+b[1]+'</div><div class="v">'+money(v)+'</div>'+
+      var nInv=invAt(self,b[0],per);
+      return '<div class="rpt-cell"><div class="k">'+b[1]+(nInv!=null?' <span class="rpt-n">('+Number(nInv).toLocaleString()+')</span>':'')+'</div><div class="v">'+money(v)+'</div>'+
         (cmp?('<div class="d '+(p>0?'rpt-up':(p<0?'rpt-down':'rpt-flat'))+'">'+(p===null?'no comparison':((p>0?'+':'')+p+'% vs '+perLabel(cmp)))+'</div>'):'')+'</div>';
     }).join('');
 
@@ -1337,7 +1366,9 @@ function bkcb6CopyEmbed(type){
     if(D) return cb();
     $('rptNote').textContent='Loading history\u2026';
     fetch('/data/rent-explorer.json').then(function(r){return r.json();}).then(function(j){
-      D=j; $('rptNote').textContent=''; fillDates(); labelScope(); syncControls(); cb();
+      D=j; $('rptNote').textContent=''; fillDates(); labelScope(); syncControls();
+      fetch('/data/inventory-by-bed.json').then(function(r){return r.json();})
+        .then(function(iv){ RINV=iv; }).catch(function(){}).then(function(){ cb(); });
     }).catch(function(){ $('rptNote').textContent='Data could not load.'; });
   }
   ['rptKind','rptCmpKind','rptScope'].forEach(function(id){ $(id).addEventListener('change',syncControls); });
