@@ -313,6 +313,12 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .bn-n{color:#fff;font-weight:700;flex:1;min-width:0}
 .bn-v{font-family:'DM Mono',monospace;font-weight:800;color:#fff}
 .boro-chartwrap{padding:12px 12px 4px}
+.tt-inv{display:flex;justify-content:space-between;gap:16px;margin-top:6px;padding-top:5px;border-top:1px solid #eee;font-size:.72rem;color:#555}
+.tt-inv span:last-child{font-family:'DM Mono',monospace;font-weight:700;color:#0d1b4b}
+.rsr-inv{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 13px;background:#f8f7f4;border-bottom:1px solid #e5e2db}
+.rsr-inv .il{font-family:'DM Sans',sans-serif;font-size:.76rem;color:#555}
+.rsr-inv .iv{font-family:'DM Mono',monospace;font-size:.95rem;font-weight:800;color:#132D65}
+.dash-card.dash-inv{background:#fff8f2}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -503,6 +509,12 @@ function getTooltip(props) {
       '<span>'+r[1]+(on?' \u25C0':'')+'</span>'+
       '<span style="font-family:DM Mono,monospace">'+(v!=null?'$'+Number(v).toLocaleString():'n/a')+'</span></div>';
   }).join('');
+  // inventory lives in the history series, which covers every area (the geojson only has a few)
+  var invIdx = tActive ? tIdx : (window.__timeLastIdx ? window.__timeLastIdx() : null);
+  var invNow = (invIdx!=null && window.__timeValueFor) ? window.__timeValueFor(props.boro,'inv',invIdx) : null;
+  if(invNow==null && props.inv!=null) invNow=props.inv;
+  var invLine = (invNow!=null)
+    ? '<div class="tt-inv"><span>Listings on the market</span><span>'+Number(invNow).toLocaleString()+'</span></div>' : '';
   var tt = tActive && typeof window.__timeTierOf==='function' ? window.__timeTierOf(props.boro) : null;
   var bk2=({studio:'studio','1br':'br1','2br':'br2','3br':'br3'}[mode]||'br1');
   var boroRank = tt ? tt.rank : props['rank_'+bk2], cityRank = null;
@@ -512,7 +524,7 @@ function getTooltip(props) {
   return '<div style="font-family:DM Sans,sans-serif;min-width:186px">' +
     '<div style="font-weight:700;font-size:.92rem;color:#0d1b4b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:6px">' +
     props.boro + '</div>' +
-    headline + rows +
+    headline + rows + invLine +
     '<div style="font-size:.66rem;color:#888;margin-top:6px;border-top:1px solid #eee;padding-top:5px">' +
       ((tt?tt.band:props['band_'+bk2]) || '') + (rankStr?' \u00b7 '+rankStr:'') + (tActive?' \u00b7 '+document.getElementById('tmLabel').textContent:'') + '</div>' +
     '</div>';
@@ -828,11 +840,12 @@ var PREFIX='';
     var head='<div class="rsr-headline"><span class="hv">'+money(v)+'</span><span class="hm"> /month</span>'+
              '<span class="hb">'+(LONG[mode]||'')+'</span></div>';
     var sign = v!=null ? '<div class="rsr-signing"><span class="sl">'+(LONG[mode]||'')+' due at signing</span><span class="sv">'+money(v*2)+' <span class="sb">1st mo + 1mo deposit</span></span></div>' : '';
+    var invRow = (p.inv!=null) ? '<div class="rsr-inv"><span class="il">Listings on the market</span><span class="iv">'+Number(p.inv).toLocaleString()+'</span></div>' : '';
     var range = (p.range_lo!=null) ? '<div class="rsr-range"><span class="rl">By unit size</span><span class="rv">'+money(p.range_lo)+' <span class="rb">'+(p.range_lo_bed||'')+'</span> &ndash; '+money(p.range_hi)+' <span class="rb">'+(p.range_hi_bed||'')+'</span></span></div>' : '';
     res.innerHTML='<div class="rsr-card"><div class="rsr-head"><div><div class="t">'+p.nb+'</div>'+
       '<div class="s">Neighborhood &middot; '+p.cd+(p.asof?' &middot; as of '+p.asof:'')+'</div></div>'+
       '<button class="rsr-clear" onclick="__clearNb()">Close</button></div>'+
-      head+'<div class="rsr-grid">'+cells+'</div>'+sign+range+
+      head+'<div class="rsr-grid">'+cells+'</div>'+invRow+sign+range+
       '<div class="rsr-foot"><a class="rsr-link" target="_top" href="/rentpastpresent">Full history since 2010 &rarr;</a></div></div>';
     res.style.display='block';
     if(res.scrollIntoView) res.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -991,6 +1004,14 @@ function bkcb6CopyEmbed(type){
       return '<div class="dash-card"><div class="dash-bed">'+b[1]+'</div>'+
         line('Highest',hi,'hi')+line('Middle',mid,'')+line('Lowest',lo,'lo')+'</div>';
     }).join('');
+    (function(){
+      var src=(H.cds && H.cds.length)?H.cds:H.nbs;
+      var tot=0, any=false;
+      src.forEach(function(a){ var v=unpack(a.s['inv'], i); if(v!=null){ tot+=v; any=true; } });
+      if(any) cards+='<div class="dash-card dash-inv"><div class="dash-bed">Listings</div>'+
+        '<div class="dash-line"><span class="dash-k">On market</span><span class="dash-where">all areas</span>'+
+        '<span class="dash-v">'+Number(tot).toLocaleString()+'</span></div></div>';
+    })();
     var wasOpen = el.getAttribute('data-open')==='1';
     el.innerHTML='<button type="button" class="dash-head" id="dashToggle"><span class="dash-ico">&#128200;</span>'+
       '<span class="dash-t">Brooklyn at a glance</span>'+
@@ -1350,9 +1371,10 @@ function bkcb6CopyEmbed(type){
     return unpackAt(a.s[bedKeyT()], i);
   };
   window.__timeActive=function(){ return TIDX!==null; };
+  window.__timeLastIdx=function(){ return TH ? TH.months.length-1 : null; };
   window.__timeValueFor=function(cb_code,bed,i){
     var a=byCode[cb_code]; if(!a) return null;
-    var k=({studio:'studio','1br':'br1','2br':'br2','3br':'br3'})[bed]||bed;
+    var k=({studio:'studio','1br':'br1','2br':'br2','3br':'br3',inv:'inv'})[bed]||bed;
     return unpackAt(a.s[k], i);
   };
   // one fixed dollar scale for the whole period, so the map genuinely darkens as rents rise
