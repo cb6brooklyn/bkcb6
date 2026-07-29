@@ -300,6 +300,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .rsr-inv .il{font-family:'DM Sans',sans-serif;font-size:.76rem;color:#555}
 .rsr-inv .iv{font-family:'DM Mono',monospace;font-size:.95rem;font-weight:800;color:#132D65}
 .dash-card.dash-inv{background:#fff8f2}
+.tt-n{font-family:'DM Mono',monospace;font-size:.66rem;color:#9ca3af;font-weight:400}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -499,10 +500,11 @@ function getTooltip(props) {
     '<div style="font-size:.8rem;font-weight:700;color:#f47920;margin-top:1px">'+(LONG[mode]||'')+'</div></div>';
   var rows = ROWS.map(function(r){
     var v = tActive ? window.__timeValueFor(props.cb_code, r[0], tIdx) : props['rent_'+r[0]];
+    var nInv = window.__invAt ? window.__invAt(props.cb_code, ({studio:'studio','1br':'br1','2br':'br2','3br':'br3'})[r[0]], tActive?tIdx:null) : null;
     var on=(r[0]===mode);
     return '<div style="display:flex;justify-content:space-between;gap:16px;padding:2px 0;'+
       (on?'font-weight:800;color:#0d1b4b':'color:#555')+'">'+
-      '<span>'+r[1]+(on?' \u25C0':'')+'</span>'+
+      '<span>'+r[1]+(nInv!=null?' <span class="tt-n">('+Number(nInv).toLocaleString()+')</span>':'')+(on?' \u25C0':'')+'</span>'+
       '<span style="font-family:DM Mono,monospace">'+(v!=null?'$'+Number(v).toLocaleString():'n/a')+'</span></div>';
   }).join('');
   // inventory lives in the history series, which covers every area (the geojson only has a few)
@@ -1536,6 +1538,23 @@ function bkcb6CopyEmbed(type){
   var sect=document.getElementById('boroSect');
   if(sect) sect.addEventListener('toggle',function(){ if(sect.open) boot(); });
   document.querySelectorAll('.rent-btn').forEach(function(b){ b.addEventListener('click',function(){ setTimeout(render,40); }); });
+})();
+
+/* per-bedroom listing counts */
+(function(){
+  var INV=null, IDXLAST=null;
+  window.__invReady=false;
+  fetch('/data/inventory-by-bed.json').then(function(r){return r.json();}).then(function(j){
+    INV=j; IDXLAST=j.months.length-1; window.__invReady=true;
+    if(typeof layer!=='undefined' && layer) layer.eachLayer(function(l){ if(l.getTooltip) l.setTooltipContent(getTooltip(l.feature.properties)); });
+  }).catch(function(){});
+  window.__invAt=function(key,bed,i){
+    if(!INV) return null;
+    var rec=INV['cd'][key]; if(!rec) return null;
+    var p=rec[bed]; if(!p) return null;
+    var idx=(i==null?IDXLAST:i), k=idx-p[0];
+    return (k>=0&&k<p[1].length)?p[1][k]:null;
+  };
 })();
 </script>
 </body>
