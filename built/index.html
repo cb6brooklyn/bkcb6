@@ -209,7 +209,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
       '<div class="kpi"><div class="k">Counted units</div><div class="v">'+n(tot)+'</div><div class="d">'+yrs[0]+' to '+yrs[yrs.length-1]+'</div></div>'+
       '<div class="kpi"><div class="k">Buildings</div><div class="v">'+n(D.buildings)+'</div><div class="d">across all five boroughs</div></div>'+
       '<div class="kpi"><div class="k">New construction</div><div class="v">'+Math.round(D.by_type['New Construction']/tot*100)+'%</div><div class="d">'+n(D.by_type['New Construction'])+' units; the rest is preservation</div></div>'+
-      '<div class="kpi"><div class="k">Deeply affordable</div><div class="v">'+Math.round(deep/tot*100)+'%</div><div class="d">'+n(deep)+' units at extremely low or very low income</div></div>'+
+      '<div class="kpi"><div class="k">Lowest two bands</div><div class="v">'+Math.round(deep/tot*100)+'%</div><div class="d">'+n(deep)+' units for households up to $72,900</div></div>'+
       '<div class="kpi"><div class="k">Family sized</div><div class="v">'+Math.round(fam/tot*100)+'%</div><div class="d">'+n(fam)+' units with 3 or more bedrooms</div></div>'+
       '<div class="kpi"><div class="k">Brooklyn CB6</div><div class="v">'+n(D.by_cd['BK-06']||0)+'</div><div class="d">units in the district</div></div>';
 
@@ -220,8 +220,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
     $('nType').textContent='Preservation is '+Math.round(D.by_type['Preservation']/tot*100)+'% of the total. Those units were already occupied and already affordable; the commitment renews their affordability rather than adding a home that did not exist.';
 
     var incs=['Extremely low','Very low','Low','Moderate','Middle','Other'];
-    bar('cInc',incs,incs.map(function(i){return D.by_income[i];}),incs.map(function(i){return INCC[i];}),false,false);
-    $('nInc').textContent='Low income is the largest single band at '+n(D.by_income['Low'])+' units. Extremely low and very low together are '+n(deep)+', or '+Math.round(deep/tot*100)+'% of everything counted.';
+    var incLab=function(i){ return (window.__incRange && window.__incRange(i)) || i; };
+    bar('cInc',incs.map(incLab),incs.map(function(i){return D.by_income[i];}),incs.map(function(i){return INCC[i];}),false,false);
+    $('nInc').textContent='The largest single band is '+n(D.by_income['Low'])+' units. The two lowest bands together are '+n(deep)+' units, or '+Math.round(deep/tot*100)+'% of everything counted.';
 
     var beds=['Studio','1 BR','2 BR','3 BR','4 BR','5 BR','6+ BR','Unknown'];
     bar('cBed',beds,beds.map(function(b){return D.by_bed[b]||0;}),beds.map(function(b){return (b==='3 BR'||b==='4 BR'||b==='5 BR'||b==='6+ BR')?OR:NAVY;}),false,false);
@@ -236,7 +237,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
     $('nCD').textContent='Brooklyn CB6 ranks '+rank+' of '+cds.length+' districts with '+n(D.by_cd['BK-06']||0)+' units. The leading district, '+cds[0]+', has '+n(D.by_cd[cds[0]])+'.';
 
     stackedBar('cMix',yrs,incs.map(function(i){
-      return {label:i,data:yrs.map(function(y){return (D.by_year_income[y]||{})[i]||0;}),backgroundColor:INCC[i]};
+      return {label:incLab(i),data:yrs.map(function(y){return (D.by_year_income[y]||{})[i]||0;}),backgroundColor:INCC[i]};
     }));
 
     $('src').textContent=D.source+'. Counted units are the affordable units HPD counts toward its housing plans; totals by income band and bedroom may differ slightly from counted units because a building can report both. bkcb6.app';
@@ -256,14 +257,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
   var $=function(i){return document.getElementById(i);};
   var n=function(v){return Number(Math.round(v)).toLocaleString('en-US');};
 
+  window.__incRange=function(b){ return (CTX && CTX.bands[b]) ? CTX.bands[b].range : b; };
   function drawCtx(){
     var el=$('incCtx'); if(!el||!CTX) return;
     el.innerHTML='<div class="incctx">'+INCS.filter(function(b){return CTX.bands[b] && CTX.bands[b].pct;}).map(function(b){
       var c=CTX.bands[b];
-      return '<div class="ic"><div class="icn"><span class="icsw" style="background:'+INCC[b]+'"></span>'+b+'</div>'+
-        '<div class="icp">up to '+c.pct+'% of Area Median Income</div>'+
-        '<div class="icd">1 person up to $'+n(c.one)+'<br>3 people up to $'+n(c.three)+'</div></div>';
-    }).join('')+'</div><div class="note">'+CTX.note+' A household qualifies for a band if its income falls at or below that ceiling for its size.</div>';
+      return '<div class="ic"><div class="icn"><span class="icsw" style="background:'+INCC[b]+'"></span>'+c.range+'</div>'+
+        '<div class="icp">'+c.pct+'% of Area Median Income</div>'+
+        '<div class="icd">1 person: up to $'+n(c.one_hi)+'<br>4 people: up to $'+n(c.four_hi)+'</div></div>';
+    }).join('')+'</div><div class="note">'+CTX.note+'</div>';
   }
 
   function periods(kind,yr,mo){
@@ -347,7 +349,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
       '<div class="rcell"><div class="k">Preservation</div><div class="v">'+n(ty['Preservation']||0)+'</div>'+
       (cmp?dl(ty['Preservation']||0,tyC['Preservation']||0,'vs '+cmp.label):'')+'</div>'+
       INCS.filter(function(i){return inc[i]>0 || (incC&&incC[i]>0);}).map(function(i){
-        return '<div class="rcell"><div class="k">'+i+'</div><div class="v">'+n(inc[i])+'</div>'+
+        return '<div class="rcell"><div class="k">'+((CTX&&CTX.bands[i])?CTX.bands[i].range:i)+'</div><div class="v">'+n(inc[i])+'</div>'+
           (cmp?dl(inc[i],incC[i],'vs '+cmp.label):'')+'</div>';
       }).join('');
 
