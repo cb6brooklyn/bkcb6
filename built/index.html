@@ -137,6 +137,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
     <div class="body"><div class="chartbox tall"><canvas id="cCD"></canvas></div>
     <div class="note" id="nCD"></div></div></details>
 
+  <details class="sect"><summary><span style="font-size:1.3rem">&#127963;</span>
+    <span class="sect-t">Every council district<small>All 51 council districts ranked. Council members hold the deciding vote on most land use actions in their district.</small></span>
+    <span class="sect-cv"></span></summary>
+    <div class="body"><div class="chartbox tall"><canvas id="cCCD"></canvas></div>
+    <div class="note" id="nCCD"></div></div></details>
+
   <details class="sect"><summary><span style="font-size:1.3rem">&#128200;</span>
     <span class="sect-t">Affordability mix over time<small>Whether what got built each year served lower or higher incomes.</small></span>
     <span class="sect-cv"></span></summary>
@@ -156,12 +162,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
           <option value="prev">vs the period before</option>
           <option value="yearago">vs a year earlier</option>
         </select></label>
-        <label><span>Districts</span><select id="hScope">
-          <option value="all">All 59 districts</option>
+        <label><span>Lens</span><select id="hScope">
+          <option value="all">All 59 community districts</option>
+          <option value="ccd">All 51 council districts</option>
           <option value="boro">Group by borough</option>
-          <option value="one">One district&hellip;</option>
+          <option value="one">One community district&hellip;</option>
+          <option value="oneccd">One council district&hellip;</option>
         </select></label>
         <label id="hOneWrap" style="display:none"><span>Which</span><select id="hOne"></select></label>
+        <label id="hOneCWrap" style="display:none"><span>Which</span><select id="hOneC"></select></label>
         <button class="rgo" id="hGo">Generate report</button>
         <button class="rpdf" id="hPdf" style="display:none">&#11015; Save as PDF</button>
       </div>
@@ -236,6 +245,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
     var rank=cds.indexOf('BK-06')+1;
     $('nCD').textContent='Brooklyn CB6 ranks '+rank+' of '+cds.length+' districts with '+n(D.by_cd['BK-06']||0)+' units. The leading district, '+cds[0]+', has '+n(D.by_cd[cds[0]])+'.';
 
+    fetch('/data/hpd-detail.json').then(function(r){return r.json();}).then(function(DD){
+      if(!DD.ccds) return;
+      var ccs=DD.ccds.slice().sort(function(a,b){return DD.ccd_total[b].units-DD.ccd_total[a].units;});
+      bar('cCCD',ccs.map(function(c){return 'CD '+c;}),ccs.map(function(c){return DD.ccd_total[c].units;}),
+          ccs.map(function(c){return NAVY;}),true,false);
+      var top=ccs[0];
+      $('nCCD').textContent='Council District '+top+' in '+DD.ccd_boro[top]+' leads with '+n(DD.ccd_total[top].units)+
+        ' units. The lowest, Council District '+ccs[ccs.length-1]+', has '+n(DD.ccd_total[ccs[ccs.length-1]].units)+'. '+
+        'Totals here count units by completion date and exclude those with none recorded.';
+    }).catch(function(){});
+
     stackedBar('cMix',yrs,incs.map(function(i){
       return {label:incLab(i),data:yrs.map(function(y){return (D.by_year_income[y]||{})[i]||0;}),backgroundColor:INCC[i]};
     }));
@@ -293,6 +313,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
     return {kind:'month',ym:String(y)+'-'+mm,label:MON[+mm-1]+' '+y};
   }
 
+  function ccdUnitsFor(cc,p){
+    var mm=DET.ccd_month[cc]||{}, t=0;
+    Object.keys(mm).forEach(function(m){ if(inPer(m,p)) t+=mm[m]; });
+    return t;
+  }
   function unitsFor(cd,p){
     var mm=DET.cd_month[cd]||{}, t=0;
     Object.keys(mm).forEach(function(m){ if(inPer(m,p)) t+=mm[m]; });
@@ -331,6 +356,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
     $('hMoWrap').style.display = $('hKind').value==='month' ? '' : 'none';
     $('hYr').parentNode.style.display = $('hKind').value==='all' ? 'none' : '';
     $('hOneWrap').style.display = $('hScope').value==='one' ? '' : 'none';
+    var oc=$('hOneCWrap'); if(oc) oc.style.display = $('hScope').value==='oneccd' ? '' : 'none';
   }
 
   function build(){
@@ -361,6 +387,22 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
       var pp=cmp?pct(u,uC):null;
       rows='<tr class="me"><td>'+cd+' &middot; '+(DET.boro_of_cd[cd]||'')+'</td><td>'+n(u)+'</td>'+
         (cmp?('<td>'+n(uC)+'</td><td class="'+(pp>0?'up':(pp<0?'down':'flat'))+'">'+(pp===null?'&mdash;':((pp>0?'+':'')+pp+'%'))+'</td>'):'')+'</tr>';
+    } else if(scope==='ccd'){
+      head='<tr><th>Council district</th><th>Borough</th><th>Units</th>'+(cmp?'<th>'+cmp.label+'</th><th>Change</th>':'')+'</tr>';
+      rows=DET.ccds.map(function(cc){
+        return {cc:cc,u:ccdUnitsFor(cc,p),uC:cmp?ccdUnitsFor(cc,cmp):null};
+      }).sort(function(a,b){return b.u-a.u;}).map(function(o){
+        var pp=cmp?pct(o.u,o.uC):null;
+        return '<tr><td>Council District '+o.cc+'</td><td>'+(DET.ccd_boro[o.cc]||'')+'</td><td>'+n(o.u)+'</td>'+
+          (cmp?('<td>'+n(o.uC)+'</td><td class="'+(pp>0?'up':(pp<0?'down':'flat'))+'">'+(pp===null?'&mdash;':((pp>0?'+':'')+pp+'%'))+'</td>'):'')+'</tr>';
+      }).join('');
+    } else if(scope==='oneccd'){
+      var cc=$('hOneC').value;
+      head='<tr><th>Council district</th><th>Units</th>'+(cmp?'<th>'+cmp.label+'</th><th>Change</th>':'')+'</tr>';
+      var u2=ccdUnitsFor(cc,p), uC2=cmp?ccdUnitsFor(cc,cmp):null;
+      var p2=cmp?pct(u2,uC2):null;
+      rows='<tr class="me"><td>Council District '+cc+' &middot; '+(DET.ccd_boro[cc]||'')+'</td><td>'+n(u2)+'</td>'+
+        (cmp?('<td>'+n(uC2)+'</td><td class="'+(p2>0?'up':(p2<0?'down':'flat'))+'">'+(p2===null?'&mdash;':((p2>0?'+':'')+p2+'%'))+'</td>'):'')+'</tr>';
     } else if(scope==='boro'){
       var byB={};
       DET.cds.forEach(function(cd){
@@ -405,6 +447,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
     var yrs=[]; DET.months.forEach(function(m){ var y=m.slice(0,4); if(yrs.indexOf(y)<0) yrs.push(y); });
     $('hYr').innerHTML=yrs.slice().reverse().map(function(y){return '<option>'+y+'</option>';}).join('');
     $('hMo').innerHTML=MON.map(function(m,i){return '<option value="'+String(i+1).padStart(2,'0')+'">'+m+'</option>';}).join('');
+    if(DET.ccds) $('hOneC').innerHTML=DET.ccds.map(function(c){return '<option value="'+c+'">Council District '+c+' &middot; '+(DET.ccd_boro[c]||'')+'</option>';}).join('');
     $('hOne').innerHTML=DET.cds.map(function(c){return '<option value="'+c+'"'+(c==='BK-06'?' selected':'')+'>'+c+' &middot; '+(DET.boro_of_cd[c]||'')+'</option>';}).join('');
     sync();
   }).catch(function(){});
