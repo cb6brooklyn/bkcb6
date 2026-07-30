@@ -401,6 +401,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
   <span class="lb-lab">Lens</span>
   <button type="button" class="lens-btn active" data-lens="cb">Community boards</button>
   <button type="button" class="lens-btn" data-lens="cc">Council districts</button>
+  <button type="button" class="lens-btn" data-lens="nb">Neighborhoods</button>
   <span class="lb-note" id="lensNote"></span>
 </div>
 <div id="map"></div>
@@ -1767,10 +1768,18 @@ function bkcb6CopyEmbed(type){
         drawCC();
         if(CC_HOME){ var mine=CCGEO.features.filter(function(f){return ccMine(f.properties.cc);}).length;
           note.textContent=mine+' council districts in '+CC_HOME+' \u00b7 January 2023 onward'; } }).catch(function(){ note.textContent='Council data could not load.'; });
+    } else if(v==='nb'){
+      note.textContent='';
+      if(ccLayer){ map.removeLayer(ccLayer); ccLayer=null; }
+      ccLabels.forEach(function(m){ map.removeLayer(m); }); ccLabels=[];
+      if(typeof layer!=='undefined' && layer) map.removeLayer(layer);
+      if(window.__cdLabels) window.__cdLabels.forEach(function(o){ map.removeLayer(o.mk); });
+      if(window.__nbLensOn) window.__nbLensOn(note);
     } else {
       note.textContent='';
       if(ccLayer){ map.removeLayer(ccLayer); ccLayer=null; }
       ccLabels.forEach(function(m){ map.removeLayer(m); }); ccLabels=[];
+      if(window.__nbLensOff) window.__nbLensOff();
       if(typeof layer!=='undefined' && layer) layer.addTo(map);
       if(window.__cdLabels) window.__cdLabels.forEach(function(o){ o.mk.addTo(map); });
     }
@@ -1779,12 +1788,108 @@ function bkcb6CopyEmbed(type){
     b.addEventListener('click',function(){ setLens(this.getAttribute('data-lens')); });
   });
   document.querySelectorAll('.rent-btn').forEach(function(b){
-    b.addEventListener('click',function(){ if(lens==='cc') setTimeout(drawCC,50); });
+    b.addEventListener('click',function(){ if(lens==='cc') setTimeout(drawCC,50); if(lens==='nb'&&window.__nbLensDraw) setTimeout(window.__nbLensDraw,50); });
   });
   var sl=document.getElementById('tmSlider');
-  if(sl) sl.addEventListener('input',function(){ if(lens==='cc') drawCC(); });
+  if(sl) sl.addEventListener('input',function(){ if(lens==='cc') drawCC(); if(lens==='nb'&&window.__nbLensDraw) window.__nbLensDraw(); });
   var tn=document.getElementById('tmNow');
   if(tn) tn.addEventListener('click',function(){ if(lens==='cc') setTimeout(drawCC,20); });
+})();
+
+/* ---- neighborhood lens ---- */
+(function(){
+  var NGEO=null, nbLens=null, nbLensLabels=[], NBH=null;
+  var TIERS=['#1B5E8A','#82C341','#E8A800','#D45F00','#67000D'];
+  var TIERNAME=['Least Expensive','Less Expensive','Mid Range','Expensive','Most Expensive'];
+  var PFX='QN';
+  function bedG(){ return ({studio:'rent_studio','1br':'rent_1br','2br':'rent_2br','3br':'rent_3br'})[mode]||'rent_1br'; }
+  function bedH(){ return ({studio:'studio','1br':'br1','2br':'br2','3br':'br3'})[mode]||'br1'; }
+  function money(v){ return v==null?'n/a':'$'+Number(v).toLocaleString('en-US'); }
+  function mine(f){ return !PFX || (f.properties.cd||'').indexOf(PFX)===0; }
+
+  function histIdx(){
+    if(!NBH) return null;
+    if(window.__timeActive && window.__timeActive() && window.__timeMonth){
+      var m=window.__timeMonth(); var k=m?NBH.months.indexOf(m):-1;
+      return k>=0?k:null;
+    }
+    return NBH.months.length-1;
+  }
+  function hAt(name,bed,i){
+    if(!NBH) return null;
+    var a=(NBH.nbs||[]).filter(function(x){return x.name===name;})[0];
+    if(!a||!a.s[bed]) return null;
+    var p=a.s[bed], k=i-p[0];
+    return (k>=0&&k<p[1].length)?p[1][k]:null;
+  }
+  function valOf(f,bed){
+    var i=histIdx();
+    var live = window.__timeActive && window.__timeActive();
+    if(live && i!=null){ var v=hAt(f.properties.nb, ({studio:'studio','1br':'br1','2br':'br2','3br':'br3'})[bed], i); if(v!=null) return v; }
+    return f.properties[({studio:'rent_studio','1br':'rent_1br','2br':'rent_2br','3br':'rent_3br'})[bed]];
+  }
+  function tiers(feats){
+    var vals=[];
+    feats.forEach(function(f){ var v=valOf(f,mode); if(v!=null) vals.push({n:f.properties.nb,v:v}); });
+    vals.sort(function(a,b){return a.v-b.v;});
+    var out={};
+    vals.forEach(function(o,k){ var q=Math.min(Math.floor(k/vals.length*5),4);
+      out[o.n]={fill:TIERS[q],band:TIERNAME[q],rank:vals.length-k,total:vals.length}; });
+    return out;
+  }
+  function tip(f,T){
+    var ROWS=[['studio','Studio'],['1br','1 BR'],['2br','2 BR'],['3br','3+ BR']];
+    var LONG={studio:'Studio','1br':'1 Bedroom','2br':'2 Bedroom','3br':'3+ Bedroom'};
+    var p=f.properties, i=histIdx();
+    var sel=valOf(f,mode), t=T[p.nb];
+    var rows=ROWS.map(function(r){
+      var v=valOf(f,r[0]);
+      var nI=window.__invNbAt?window.__invNbAt(p.nb,({studio:'studio','1br':'br1','2br':'br2','3br':'br3'})[r[0]]):null;
+      var on=(r[0]===mode);
+      return '<div style="display:flex;justify-content:space-between;gap:16px;padding:2px 0;'+
+        (on?'font-weight:800;color:#0d1b4b':'color:#555')+'"><span>'+r[1]+
+        (nI!=null?' <span style="font-family:DM Mono,monospace;font-size:.66rem;color:#9ca3af">('+Number(nI).toLocaleString()+')</span>':'')+
+        (on?' \u25C0':'')+'</span><span style="font-family:DM Mono,monospace">'+money(v)+'</span></div>';
+    }).join('');
+    return '<div style="font-family:DM Sans,sans-serif;min-width:196px">'+
+      '<div style="font-weight:700;font-size:.92rem;color:#0d1b4b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:6px">'+p.nb+'</div>'+
+      '<div style="margin-bottom:7px"><span style="font-size:1.15rem;font-weight:800;color:#0d1b4b;font-family:DM Mono,monospace">'+money(sel)+'</span>'+
+      '<span style="font-size:.78rem;color:#0d1b4b;font-weight:700"> /month</span>'+
+      '<div style="font-size:.8rem;font-weight:700;color:#f47920;margin-top:1px">'+(LONG[mode]||'')+'</div></div>'+rows+
+      '<div style="font-size:.66rem;color:#888;margin-top:6px;border-top:1px solid #eee;padding-top:5px">'+
+      (t?t.band+' \u00b7 #'+t.rank+' of '+t.total+' neighborhoods':'')+' \u00b7 '+(p.cd||'')+'</div></div>';
+  }
+  function draw(){
+    if(!NGEO) return;
+    var feats=NGEO.features.filter(mine);
+    var T=tiers(feats);
+    if(nbLens){ map.removeLayer(nbLens); nbLens=null; }
+    nbLensLabels.forEach(function(m){ map.removeLayer(m); }); nbLensLabels=[];
+    nbLens=L.geoJSON({type:'FeatureCollection',features:feats},{
+      style:function(f){ var t=T[f.properties.nb];
+        return {color:'#fff',weight:1.2,fillColor:t?t.fill:'#ddd',fillOpacity:t?0.82:0.25}; },
+      onEachFeature:function(f,l){
+        l.bindTooltip(tip(f,T),{sticky:true,opacity:1});
+        l.on('mouseover',function(){ l.setStyle({weight:2.5,color:'#333'}); if(l.bringToFront) l.bringToFront(); });
+        l.on('mouseout',function(){ nbLens.resetStyle(l); });
+      }
+    }).addTo(map);
+  }
+  window.__nbLensDraw=draw;
+  window.__nbLensOn=function(note){
+    Promise.all([
+      NGEO?Promise.resolve(NGEO):fetch('/data/neighborhood-rents.geojson').then(function(r){return r.json();}),
+      NBH?Promise.resolve(NBH):fetch('/data/qn-rank-history.json').then(function(r){return r.json();}).catch(function(){return null;})
+    ]).then(function(a){
+      NGEO=a[0]; NBH=a[1];
+      draw();
+      if(note){ var c=NGEO.features.filter(mine).length; note.textContent=c+' neighborhoods'+(PFX?'':' citywide'); }
+    }).catch(function(){ if(note) note.textContent='Neighborhood data could not load.'; });
+  };
+  window.__nbLensOff=function(){
+    if(nbLens){ map.removeLayer(nbLens); nbLens=null; }
+    nbLensLabels.forEach(function(m){ map.removeLayer(m); }); nbLensLabels=[];
+  };
 })();
 </script>
 </body>
