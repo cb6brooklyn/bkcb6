@@ -278,6 +278,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .dash-chg .up{color:#c0392b}.dash-chg .down{color:#2e6b30}.dash-chg .flat{color:#9ca3af}
 .dash-inv2{font-family:'DM Mono',monospace;font-size:.68rem;color:#6b6760;padding-bottom:6px;border-bottom:1px solid #f0ede8;margin-bottom:5px}
 .dash-hl .dash-line{padding:3px 0;border-bottom:none}
+.rpt-cc{margin-top:10px;padding:9px 11px;background:#fff8f2;border:1px solid #f47920;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.74rem;color:#7a4a12;line-height:1.5}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
@@ -325,6 +326,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
       <label><span>Compare</span><select id="rptPickLvl">
         <option value="neighborhood">Neighborhoods</option>
         <option value="cd">Community districts</option>
+        <option value="ccd">Council districts</option>
         <option value="borough">Boroughs</option>
       </select></label>
       <label><span>Borough</span><select id="rptPickBoro"></select></label>
@@ -532,7 +534,13 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
   var $=function(i){return document.getElementById(i);};
   function money(v){ return v==null?'n/a':'$'+Number(Math.round(v)).toLocaleString('en-US'); }
   function unpack(p,n){ var o=new Array(n).fill(null); if(!p) return o; for(var i=0;i<p[1].length;i++) o[p[0]+i]=p[1][i]; return o; }
-  function byId(id){ for(var i=0;i<D.areas.length;i++) if(D.areas[i].id===id) return D.areas[i]; return null; }
+  function byId(id){
+    if(id && id.indexOf('k:')===0){
+      var c=ccAreas(); for(var j=0;j<c.length;j++) if(c[j].id===id) return c[j];
+      return null;
+    }
+    for(var i=0;i<D.areas.length;i++) if(D.areas[i].id===id) return D.areas[i]; return null;
+  }
   function ser(a,k){ return unpack(a && a.s ? a.s[k] : null, D.months.length); }
 
   // ---- free-form area picker: any districts, neighborhoods or boroughs ----
@@ -549,7 +557,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
     fillBoroFilter();
     var lvl=$('rptPickLvl').value, q=($('rptPickSearch').value||'').toLowerCase();
     var boro=$('rptPickBoro') ? $('rptPickBoro').value : '';
-    var list=D.areas.filter(function(a){return a.t===lvl;});
+    var list=(lvl==='ccd') ? ccAreas() : D.areas.filter(function(a){return a.t===lvl;});
     if(lvl!=='borough' && boro) list=list.filter(function(a){return a.p===boro;});
     if(q) list=list.filter(function(a){return a.n.toLowerCase().indexOf(q)>-1;});
     if(!list.length){ $('rptPickList').innerHTML='<div class="rp-none">No matches.</div>'; return; }
@@ -595,6 +603,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 
   // value for an area+bed over a period: one month, or the mean of a year's published months
   function valueAt(a,bed,per){
+    if(a.__cc) return ccValueAt(a.__cc,bed,per);
     var s=ser(a,bed);
     if(per.kind==='month'){ var i=D.months.indexOf(per.ym); return i<0?null:s[i]; }
     var vals=[];
@@ -604,7 +613,36 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
   }
 
   // per-bedroom listing counts, so every rent has its supply beside it
-  var RINV=null;
+  var RINV=null, CCRENT=null;
+  var CC_START='2023-01';
+  function ccAreas(){
+    if(!CCRENT) return [];
+    return Object.keys(CCRENT.cds).sort(function(a,b){return +a-+b;}).map(function(d){
+      return {id:'k:'+d, t:'ccd', n:'Council District '+d, p:'Council', __cc:d};
+    });
+  }
+  function ccValueAt(d,bed,per){
+    if(!CCRENT) return null;
+    var rec=CCRENT.cds[d]; if(!rec) return null;
+    var arr=rec[bed]; if(!arr) return null;
+    if(per.kind==='month'){ var i=CCRENT.months.indexOf(per.ym); return i<0?null:arr[i]; }
+    var vals=[];
+    for(var i=0;i<CCRENT.months.length;i++)
+      if(CCRENT.months[i].slice(0,4)===per.y && arr[i]!=null) vals.push(arr[i]);
+    if(!vals.length) return null;
+    return Math.round(vals.reduce(function(x,y){return x+y;},0)/vals.length);
+  }
+  function ccInvAt(d,bed,per){
+    if(!CCRENT) return null;
+    var rec=CCRENT.cds[d]; if(!rec) return null;
+    var arr=rec['inv_'+bed]; if(!arr) return null;
+    if(per.kind==='month'){ var i=CCRENT.months.indexOf(per.ym); return i<0?null:arr[i]; }
+    var vals=[];
+    for(var i=0;i<CCRENT.months.length;i++)
+      if(CCRENT.months[i].slice(0,4)===per.y && arr[i]!=null) vals.push(arr[i]);
+    if(!vals.length) return null;
+    return Math.round(vals.reduce(function(x,y){return x+y;},0)/vals.length);
+  }
   function invKey(a){
     if(a.t==='neighborhood') return ['nb',a.n];
     if(a.t==='cd')           return ['cd',a.n];
@@ -612,6 +650,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
     return ['city','NYC'];
   }
   function invAt(a,bed,per){
+    if(a.__cc) return ccInvAt(a.__cc,bed,per);
     if(!RINV) return null;
     var k=invKey(a), rec=RINV[k[0]] && RINV[k[0]][k[1]];
     if(!rec) return null;
@@ -743,7 +782,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
             '<span class="k3">Then the change</span></div>':'')+
       '<div style="overflow-x:auto"><table class="rpt-tbl">'+head+body+'</table></div>'+
       '<div class="rpt-h3">1-bedroom trend</div><canvas id="rptCh" height="130"></canvas>'+
-      '<div class="rpt-src">Source: StreetEasy median asking rent and rental inventory. Figures in parentheses are the number of listings of that size. A whole-year figure is the mean of that year\u2019s published months. Blank figures mean StreetEasy published none; it publishes Staten Island only at borough level, so its community districts have no listing counts. Generated '+new Date().toLocaleDateString('en-US')+' &middot; bkcb6.app</div></div>';
+      (rows.some(function(x){return x.__cc;})?'<div class="rpt-cc">Council district figures start January 2023, when the current boundaries took effect, and are the median across the StreetEasy neighborhoods inside each district. Earlier periods show no council figures.</div>':'')+'<div class="rpt-src">Source: StreetEasy median asking rent and rental inventory. Figures in parentheses are the number of listings of that size. A whole-year figure is the mean of that year\u2019s published months. Blank figures mean StreetEasy published none; it publishes Staten Island only at borough level, so its community districts have no listing counts. Generated '+new Date().toLocaleDateString('en-US')+' &middot; bkcb6.app</div></div>';
 
     var endIdx = per.kind==='month' ? D.months.indexOf(per.ym) : (function(){ var last=-1;
       for(var i=0;i<D.months.length;i++) if(D.months[i].slice(0,4)===per.y) last=i; return last<0?D.months.length-1:last; })();
@@ -761,8 +800,10 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
     $('rptNote').textContent='Loading history\u2026';
     fetch('/data/rent-explorer.json').then(function(r){return r.json();}).then(function(j){
       D=j; $('rptNote').textContent=''; fillDates(); labelScope(); syncControls();
-      fetch('/data/inventory-by-bed.json').then(function(r){return r.json();})
-        .then(function(iv){ RINV=iv; }).catch(function(){}).then(function(){ cb(); });
+      Promise.all([
+        fetch('/data/inventory-by-bed.json').then(function(r){return r.json();}).catch(function(){return null;}),
+        fetch('/data/cc-rents.json').then(function(r){return r.json();}).catch(function(){return null;})
+      ]).then(function(x){ RINV=x[0]; CCRENT=x[1]; cb(); });
     }).catch(function(){ $('rptNote').textContent='Data could not load.'; });
   }
   ['rptKind','rptCmpKind','rptScope'].forEach(function(id){ $(id).addEventListener('change',syncControls); });
