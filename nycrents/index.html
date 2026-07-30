@@ -1847,7 +1847,7 @@ function bkcb6CopyEmbed(type){
   }
   function tiers(feats){
     var vals=[];
-    feats.forEach(function(f){ var v=valOf(f,mode); if(v!=null) vals.push({n:f.properties.nb,v:v}); });
+    feats.forEach(function(f){ if(f.properties.nodata) return; var v=valOf(f,mode); if(v!=null) vals.push({n:f.properties.nb,v:v}); });
     vals.sort(function(a,b){return a.v-b.v;});
     var out={};
     vals.forEach(function(o,k){ var q=Math.min(Math.floor(k/vals.length*5),4);
@@ -1855,6 +1855,12 @@ function bkcb6CopyEmbed(type){
     return out;
   }
   function tip(f,T){
+    if(f.properties.nodata){
+      return '<div style="font-family:DM Sans,sans-serif;min-width:180px">'+
+        '<div style="font-weight:700;font-size:.9rem;color:#0d1b4b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:6px">'+f.properties.nb+'</div>'+
+        '<div style="font-size:.8rem;color:#555;line-height:1.5">StreetEasy publishes no rent figures for Staten Island neighborhoods, so there is nothing to show here yet.</div>'+
+        '<div style="font-size:.68rem;color:#9ca3af;margin-top:6px">Boundary shown for reference</div></div>';
+    }
     var ROWS=[['studio','Studio'],['1br','1 BR'],['2br','2 BR'],['3br','3+ BR']];
     var LONG={studio:'Studio','1br':'1 Bedroom','2br':'2 Bedroom','3br':'3+ Bedroom'};
     var p=f.properties, i=histIdx();
@@ -1884,6 +1890,7 @@ function bkcb6CopyEmbed(type){
     nbLensLabels.forEach(function(m){ map.removeLayer(m); }); nbLensLabels=[];
     nbLens=L.geoJSON({type:'FeatureCollection',features:feats},{
       style:function(f){ var t=T[f.properties.nb];
+        if(f.properties.nodata) return {color:'#fff',weight:1,fillColor:'#c9ccd4',fillOpacity:.45,dashArray:'3,3'};
         return {color:'#fff',weight:1.2,fillColor:t?t.fill:'#ddd',fillOpacity:t?0.82:0.25}; },
       onEachFeature:function(f,l){
         l.bindTooltip(tip(f,T),{sticky:true,opacity:1});
@@ -1900,7 +1907,10 @@ function bkcb6CopyEmbed(type){
   window.__nbLensDraw=draw;
   window.__nbLensOn=function(note){
     Promise.all([
-      NGEO?Promise.resolve(NGEO):fetch('/data/neighborhood-rents.geojson').then(function(r){return r.json();}),
+      NGEO?Promise.resolve(NGEO):Promise.all([
+        fetch('/data/neighborhood-rents.geojson').then(function(r){return r.json();}),
+        fetch('/data/si-neighborhoods.geojson').then(function(r){return r.json();}).catch(function(){return {features:[]};})
+      ]).then(function(z){ return {type:'FeatureCollection',features:z[0].features.concat(z[1].features)}; }),
       NBH?Promise.resolve(NBH):fetch('/data/bk-rank-history.json').then(function(r){return r.json();}).catch(function(){return null;})
     ]).then(function(a){
       NGEO=a[0]; NBH=a[1];
