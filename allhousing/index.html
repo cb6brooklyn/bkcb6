@@ -126,6 +126,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
 .bdbar i{display:block;height:100%;border-radius:3px}
 .bdv{font-family:'DM Mono',monospace;font-weight:800;color:#132D65;min-width:64px;text-align:right}
 .bdv.neg{color:#c0392b}
+
+.rhead{border-bottom:3px solid var(--orange);padding-bottom:9px;margin-bottom:12px}
+.rctx{background:#f8f7f4;border-left:4px solid var(--orange);border-radius:0 8px 8px 0;padding:11px 13px;font-size:.82rem;line-height:1.65;color:#333;margin-bottom:14px}
+.rsec{margin-bottom:16px}
+.rsh{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid var(--border)}
+.rcb{position:relative;height:230px}
+.rsec:nth-of-type(3) .rcb{height:400px}
+.rfoot{font-family:'DM Mono',monospace;font-size:.64rem;color:#9ca3af;line-height:1.7;border-top:1px solid var(--border);padding-top:10px}
+@media print{ .rcb{height:auto} .rsec{page-break-inside:avoid} }
 </style>
 </head>
 <body>
@@ -585,6 +594,369 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
     if(p===null) return '<div class="d flat">no '+lab+'</div>';
     return '<div class="d '+(p>0?'up':(p<0?'down':'flat'))+'">'+(p>0?'+':'')+p+'% '+lab+'</div>';
   }
+  var rptCharts=[];
+  function killCharts(){ rptCharts.forEach(function(c){ try{c.destroy();}catch(e){} }); rptCharts=[]; }
+  function build(){
+    var kind=$('hbKind').value, yr=$('hbYr').value, lens=$('hbLens').value;
+    var cmpOn=$('hbCmp').value==='prev' && kind==='year';
+    var pyr=String(+yr-1);
+    var label = kind==='all' ? 'All years, 2010 to 2024' : yr;
+    var lensWord = lens==='cb'?'community districts':(lens==='cc'?'council districts':'neighborhoods');
+    var rows=[], head='';
+
+    if(lens==='cb'){
+      head='<tr><th>District</th><th>Borough</th><th>Units</th>'+(cmpOn?'<th>'+pyr+'</th><th>Change</th>':'')+'</tr>';
+      rows=Object.keys(CD.cd).map(function(k){
+        var v=CD.cd[k];
+        return {k:k,boro:v.boro,now:(kind==='all'?v.total:(v.comp[yr]||0)),then:(cmpOn?(v.comp[pyr]||0):null),
+                perm:v.permitted,filed:v.filed};
+      });
+    } else {
+      var src=(lens==='cc')?JOBS.cc:JOBS.nb;
+      head='<tr><th>'+(lens==='cc'?'Council district':'Neighborhood')+'</th><th>Units</th><th>Income regulated</th><th>Share</th></tr>';
+      rows=Object.keys(src).map(function(k){
+        var v=src[k];
+        return {k:(lens==='cc'?('Council District '+k):(v.name||k)),boro:v.boro||'',now:v.units,aff:v.aff};
+      });
+    }
+    rows.sort(function(a,b){return b.now-a.now;});
+    var tot=rows.reduce(function(t,r){return t+r.now;},0);
+    var totThen=cmpOn?rows.reduce(function(t,r){return t+(r.then||0);},0):null;
+    var pipe=(lens==='cb')?rows.reduce(function(t,r){return t+(r.perm||0)+(r.filed||0);},0):null;
+    var aff=(lens!=='cb')?rows.reduce(function(t,r){return t+(r.aff||0);},0):null;
+
+    // headline figures
+    var cells='<div class="rcell"><div class="k">Units completed</div><div class="v">'+n(tot)+'</div>'+
+      (cmpOn?dl(tot,totThen,'vs '+pyr):'<div class="d flat">'+label.toLowerCase()+'</div>')+'</div>';
+    if(pipe!=null) cells+='<div class="rcell"><div class="k">Still to come</div><div class="v">'+n(pipe)+'</div><div class="d flat">permitted or filed</div></div>';
+    if(aff!=null) cells+='<div class="rcell"><div class="k">Income regulated</div><div class="v">'+n(aff)+'</div><div class="d flat">'+(tot?(aff/tot*100).toFixed(1):'0')+'% of the total</div></div>';
+    cells+='<div class="rcell"><div class="k">Areas covered</div><div class="v">'+rows.length+'</div><div class="d flat">'+lensWord+'</div></div>';
+    var top=rows[0];
+    if(top) cells+='<div class="rcell"><div class="k">Most units</div><div class="v" style="font-size:.92rem">'+top.k+'</div><div class="d flat">'+n(top.now)+' units</div></div>';
+
+    // narrative context
+    var ctx='';
+    if(kind==='all'){
+      ctx='Across '+label.toLowerCase()+', '+n(tot)+' net housing units were completed across '+rows.length+' '+lensWord+'. ';
+    } else {
+      ctx='In '+yr+', '+n(tot)+' net units were completed. ';
+      if(cmpOn && totThen) ctx+='That is '+(tot>=totThen?'up':'down')+' '+Math.abs(pct(tot,totThen))+'% on '+pyr+', when '+n(totThen)+' were finished. ';
+    }
+    if(top) ctx+=top.k+' led with '+n(top.now)+' units, '+(tot?(top.now/tot*100).toFixed(1):'0')+'% of the citywide total. ';
+    if(pipe!=null) ctx+='A further '+n(pipe)+' units are permitted or filed but not yet built. ';
+    if(aff!=null) ctx+=n(aff)+' of the completed units are income regulated, '+(tot?(aff/tot*100).toFixed(1):'0')+'%. ';
+    ctx+='These are net figures: units lost to demolition are subtracted, so an area can post a negative total.';
+
+    var bd = window.__bdBlock ? window.__bdBlock(lens, kind==='year'?yr:null) : '';
+    var span = lens==='cb' ? '2010 to 2024' : '2010 to 2022';
+
+    var body=rows.map(function(r){
+      var me=(r.k==='BK-06'||r.k==='Council District 39')?' class="me"':'';
+      if(lens==='cb'){
+        var p=cmpOn?pct(r.now,r.then):null;
+        return '<tr'+me+'><td>'+r.k+'</td><td>'+r.boro+'</td><td>'+n(r.now)+'</td>'+
+          (cmpOn?('<td>'+n(r.then)+'</td><td class="'+(p>0?'up':(p<0?'down':'flat'))+'">'+(p===null?'&mdash;':((p>0?'+':'')+p+'%'))+'</td>'):'')+'</tr>';
+      }
+      return '<tr'+me+'><td>'+r.k+'</td><td>'+n(r.now)+'</td><td>'+n(r.aff||0)+'</td><td>'+(r.now?((r.aff||0)/r.now*100).toFixed(1):'0')+'%</td></tr>';
+    }).join('');
+
+    killCharts();
+    $('hbOut').innerHTML=
+      '<div class="rhead"><div class="rtitle">Housing completed</div>'+
+        '<div class="rwhen">'+label+(cmpOn?'  vs  '+pyr:'')+' &middot; '+lensWord+'</div></div>'+
+      '<div class="rgrid">'+cells+'</div>'+
+      '<div class="rctx">'+ctx+'</div>'+
+      '<div class="rsec"><div class="rsh">Completed each year</div><div class="rcb"><canvas id="rcTrend"></canvas></div></div>'+
+      (bd?'<div class="rsec"><div class="rsh">What kind of housing</div>'+bd+'</div>':'')+
+      '<div class="rsec"><div class="rsh">Top 15 '+lensWord+'</div><div class="rcb"><canvas id="rcTop"></canvas></div></div>'+
+      '<div class="rsec"><div class="rsh">Every '+lensWord.replace(/s$/,'')+'</div>'+
+        '<div style="overflow-x:auto"><table class="rtbl">'+head+body+'</table></div></div>'+
+      '<div class="rfoot">Net units, so demolitions are subtracted. '+
+      (lens==='cb'?'Community district figures come from the DCP housing database by district and cover '+span+'.'
+                  :'Council district and neighborhood figures come from the job level records and cover '+span+', which is why they total less than the district view.')+
+      ' Colour bands and rankings are relative to the areas shown.</div>';
+
+    // trend, with the selected year picked out
+    if(window.Chart && $('rcTrend')){
+      var yrs=CD.years.map(String);
+      var yv=yrs.map(function(y){ return Object.keys(CD.cd).reduce(function(t,k){return t+CD.cd[k].comp[y];},0); });
+      rptCharts.push(new Chart($('rcTrend'),{type:'bar',
+        data:{labels:yrs,datasets:[{data:yv,backgroundColor:yrs.map(function(y){return (kind==='year'&&y===yr)?'#f47920':'#132D65';}),borderRadius:3}]},
+        options:{responsive:true,maintainAspectRatio:false,animation:false,
+          plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return n(c.parsed.y)+' units';}}}},
+          scales:{x:{ticks:{font:{size:9,family:'DM Mono'},color:'#6b6760'},grid:{display:false}},
+                  y:{ticks:{font:{size:9,family:'DM Mono'},color:'#6b6760'},grid:{color:'#f0ede8'}}}}}));
+    }
+    // top 15
+    if(window.Chart && $('rcTop')){
+      var t15=rows.slice(0,15);
+      rptCharts.push(new Chart($('rcTop'),{type:'bar',
+        data:{labels:t15.map(function(r){return r.k;}),
+              datasets:[{data:t15.map(function(r){return r.now;}),
+                backgroundColor:t15.map(function(r){return (r.k==='BK-06'||r.k==='Council District 39')?'#f47920':'#132D65';}),borderRadius:3}]},
+        options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,animation:false,
+          plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return n(c.parsed.x)+' units';}}}},
+          scales:{x:{ticks:{font:{size:9,family:'DM Mono'},color:'#6b6760'},grid:{color:'#f2f0ec'}},
+                  y:{ticks:{font:{size:10,family:'DM Sans'},color:'#132D65',autoSkip:false},grid:{display:false}}}}}));
+    }
+    $('hbPdf').style.display='';
+  }
+  Promise.all([
+    fetch('/data/housing-db-cd.json').then(function(r){return r.json();}),
+    fetch('/data/citywide-rents.geojson').then(function(r){return r.json();})
+  ]).then(function(a){
+    D=a[0]; GEO=a[1];
+    document.getElementById('ySlider').max=D.years.length-1;
+    document.getElementById('ySlider').value=D.years.length-1;
+    year=null;
+    document.getElementById('lensNote').textContent=Object.keys(D.cd).length+' community districts';
+    document.getElementById('src').textContent=D.source+'. '+D.note+
+      ' Council district and neighborhood lenses need the equivalent DCP files for those geographies, which are not in this dataset.';
+    draw();
+  }).catch(function(){ document.getElementById('lensNote').textContent='Data could not load.'; });
+
+  document.querySelectorAll('.lens-btn[disabled]').forEach(function(b){
+    b.title='Needs the DCP housing database published for that geography';
+  });
+})();
+
+/* ---- rankings and charts ---- */
+(function(){
+  var NAVY='#132D65', OR='#f47920', GREEN='#2e6b30', BLUE='#4A90A4';
+  var made={}, DD=null;
+  var n=function(v){return Number(v).toLocaleString('en-US');};
+  var $=function(i){return document.getElementById(i);};
+  function chart(id,cfg){ if(made[id]||!$(id)) return; made[id]=new Chart($(id),cfg); }
+  function baseOpts(horiz,stacked,unitWord){
+    return {indexAxis:horiz?'y':'x',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:!!stacked,labels:{boxWidth:10,font:{size:10}}},
+        tooltip:{callbacks:{label:function(c){return (c.dataset.label?c.dataset.label+': ':'')+n(horiz?c.parsed.x:c.parsed.y)+' '+(unitWord||'units');}}}},
+      scales:{x:{stacked:!!stacked,ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760',autoSkip:!horiz},grid:{display:horiz,color:'#f2f0ec'}},
+              y:{stacked:!!stacked,ticks:{font:{size:10,family:horiz?'DM Sans':'DM Mono'},color:'#6b6760',autoSkip:false},grid:{display:!horiz,color:'#f0ede8'},beginAtZero:true}}};
+  }
+
+  function build(D){
+    DD=D;
+    var cds=D.cd, keys=Object.keys(cds);
+    var sum=function(fn){ return keys.reduce(function(t,k){return t+fn(cds[k]);},0); };
+    var comp=sum(function(v){return v.total;});
+    var filed=sum(function(v){return v.filed;}), appr=sum(function(v){return v.approved;}),
+        perm=sum(function(v){return v.permitted;}), cen=sum(function(v){return v.cen2020;});
+    var pipeline=filed+appr+perm;
+
+    $('kpis').innerHTML=
+      '<div class="kpi"><div class="k">Completed</div><div class="v">'+n(comp)+'</div><div class="d">net units, 2010 to 2024</div></div>'+
+      '<div class="kpi"><div class="k">Still to come</div><div class="v">'+n(pipeline)+'</div><div class="d">filed, approved or permitted, not yet built</div></div>'+
+      '<div class="kpi"><div class="k">Permitted</div><div class="v">'+n(perm)+'</div><div class="d">the furthest along in the pipeline</div></div>'+
+      '<div class="kpi"><div class="k">Existing stock</div><div class="v">'+n(cen)+'</div><div class="d">all units at the 2020 census</div></div>'+
+      '<div class="kpi"><div class="k">Growth since 2010</div><div class="v">'+(comp/cen*100).toFixed(1)+'%</div><div class="d">completions against the 2020 count</div></div>'+
+      '<div class="kpi"><div class="k">Brooklyn CB6</div><div class="v">'+n(cds['BK-06'].total)+'</div><div class="d">completed; '+n(cds['BK-06'].permitted)+' permitted</div></div>';
+
+    // completed each year
+    var yr=D.years.map(String);
+    var yv=D.years.map(function(y){ return keys.reduce(function(t,k){return t+cds[k].comp[String(y)];},0); });
+    chart('cYear',{type:'bar',data:{labels:yr,datasets:[{data:yv,backgroundColor:NAVY,borderRadius:3}]},options:baseOpts(false,false)});
+    var mx=Math.max.apply(null,yv), mn=Math.min.apply(null,yv);
+    $('nYear').textContent='The strongest year was '+yr[yv.indexOf(mx)]+' with '+n(mx)+' net units, the weakest '+yr[yv.indexOf(mn)]+' with '+n(mn)+'. These are net figures, so demolitions are subtracted.';
+
+    // built vs pipeline
+    chart('cPipe',{type:'bar',data:{labels:['Completed 2010\u20132024','Permitted','Approved','Filed'],
+      datasets:[{data:[comp,perm,appr,filed],backgroundColor:[NAVY,OR,'#E8A800',BLUE],borderRadius:3}]},options:baseOpts(false,false)});
+    $('nPipe').textContent='For every 10 units finished since 2010, roughly '+(pipeline/comp*10).toFixed(1)+' more are somewhere in the pipeline. Permitted is the furthest along; filed is the least certain, and '+n(sum(function(v){return v.withdrawn;}))+' units have been withdrawn and '+n(sum(function(v){return v.inactive;}))+' are inactive.';
+
+    // by borough
+    var boros=['Brooklyn','Manhattan','Queens','Bronx','Staten Island'];
+    var bC=boros.map(function(b){ return keys.filter(function(k){return cds[k].boro===b;}).reduce(function(t,k){return t+cds[k].total;},0); });
+    var bP=boros.map(function(b){ return keys.filter(function(k){return cds[k].boro===b;}).reduce(function(t,k){return t+cds[k].filed+cds[k].approved+cds[k].permitted;},0); });
+    chart('cBoro',{type:'bar',data:{labels:boros,datasets:[
+      {label:'Completed',data:bC,backgroundColor:NAVY,borderRadius:3},
+      {label:'Still to come',data:bP,backgroundColor:OR,borderRadius:3}]},options:baseOpts(false,false)});
+
+    // ranked, completed
+    var rc=keys.slice().sort(function(a,b){return cds[b].total-cds[a].total;});
+    chart('cRankC',{type:'bar',data:{labels:rc,datasets:[{data:rc.map(function(k){return cds[k].total;}),
+      backgroundColor:rc.map(function(k){return k==='BK-06'?OR:NAVY;}),borderRadius:3}]},options:baseOpts(true,false)});
+    $('nRankC').textContent=rc[0]+' leads with '+n(cds[rc[0]].total)+' units. Brooklyn CB6 ranks '+(rc.indexOf('BK-06')+1)+' of '+rc.length+' with '+n(cds['BK-06'].total)+'.';
+
+    // ranked, pipeline
+    var rp=keys.slice().sort(function(a,b){return (cds[b].filed+cds[b].approved+cds[b].permitted)-(cds[a].filed+cds[a].approved+cds[a].permitted);});
+    chart('cRankP',{type:'bar',data:{labels:rp,datasets:[
+      {label:'Permitted',data:rp.map(function(k){return cds[k].permitted;}),backgroundColor:OR},
+      {label:'Approved',data:rp.map(function(k){return cds[k].approved;}),backgroundColor:'#E8A800'},
+      {label:'Filed',data:rp.map(function(k){return cds[k].filed;}),backgroundColor:BLUE}]},options:baseOpts(true,true)});
+    var pk=function(k){return cds[k].filed+cds[k].approved+cds[k].permitted;};
+    $('nRankP').textContent=rp[0]+' has the largest pipeline at '+n(pk(rp[0]))+' units. Brooklyn CB6 ranks '+(rp.indexOf('BK-06')+1)+' of '+rp.length+' with '+n(pk('BK-06'))+', of which '+n(cds['BK-06'].permitted)+' are already permitted.';
+
+    // growth share
+    var rs=keys.filter(function(k){return cds[k].cen2020>500;})
+               .sort(function(a,b){return (cds[b].total/cds[b].cen2020)-(cds[a].total/cds[a].cen2020);});
+    chart('cShare',{type:'bar',data:{labels:rs,datasets:[{data:rs.map(function(k){return +(cds[k].total/cds[k].cen2020*100).toFixed(1);}),
+      backgroundColor:rs.map(function(k){return k==='BK-06'?OR:GREEN;}),borderRadius:3}]},
+      options:(function(){var o=baseOpts(true,false,'%');o.plugins.tooltip.callbacks.label=function(c){return c.parsed.x+'% of its 2020 stock';};return o;})()});
+    $('nShare').textContent=rs[0]+' grew most relative to its size, adding the equivalent of '+(cds[rs[0]].total/cds[rs[0]].cen2020*100).toFixed(1)+'% of its 2020 housing stock. Brooklyn CB6 added '+(cds['BK-06'].total/cds['BK-06'].cen2020*100).toFixed(1)+'%. Districts with very little housing are excluded.';
+  }
+
+  fetch('/data/housing-db-cd.json').then(function(r){return r.json();}).then(build).catch(function(){
+    var k=$('kpis'); if(k) k.innerHTML='<div class="kpi"><div class="k">Error</div><div class="v">&mdash;</div><div class="d">Data could not load.</div></div>';
+  });
+  document.querySelectorAll('details.sect').forEach(function(d){
+    d.addEventListener('toggle',function(){ if(d.open) window.dispatchEvent(new Event('resize')); });
+  });
+})();
+
+/* ---- council district and neighborhood lenses, from the job level data ---- */
+(function(){
+  var JOBS=null, GEOS={}, jlayer=null, jlabels=[], jlens='cb';
+  var TIERS=['#1B5E8A','#82C341','#E8A800','#D45F00','#67000D'];
+  var TIERNAME=['Fewest','Below average','Middle','Above average','Most'];
+  var n=function(v){return Number(v).toLocaleString('en-US');};
+  var CFG={
+    cc:{file:'/data/council-districts.geojson', key:function(p){return p.cc;},
+        label:function(p){return 'CD '+p.cc;}, bucket:'cc', word:'council districts'},
+    nb:{file:'/data/city-neighborhoods.geojson', key:function(p){return p.nb;},
+        label:function(p){return p.nb;}, bucket:'nb', word:'neighborhoods'}
+  };
+  function tiers(vals){
+    var s=vals.slice().sort(function(a,b){return a-b;});
+    return function(v){ if(v==null) return null;
+      var i=s.indexOf(v), q=Math.min(Math.floor(i/s.length*5),4);
+      return {fill:TIERS[q],band:TIERNAME[q]}; };
+  }
+  function clear(){
+    if(jlayer){ map.removeLayer(jlayer); jlayer=null; }
+    jlabels.forEach(function(m){map.removeLayer(m);}); jlabels=[];
+  }
+  function drawJ(which){
+    var cfg=CFG[which], g=GEOS[which], data=JOBS[cfg.bucket];
+    if(!g||!data) return;
+    clear();
+    var vals=[];
+    g.features.forEach(function(f){ var d=data[cfg.key(f.properties)]; if(d) vals.push(d.units); });
+    var T=tiers(vals);
+    jlayer=L.geoJSON(g,{
+      style:function(f){ var d=data[cfg.key(f.properties)], t=d?T(d.units):null;
+        return {color:'#fff',weight:1.2,fillColor:t?t.fill:'#e3e5ea',fillOpacity:t?0.85:0.3}; },
+      onEachFeature:function(f,l){
+        var k=cfg.key(f.properties), d=data[k], t=d?T(d.units):null;
+        var nm=(d&&d.name)||cfg.label(f.properties);
+        l.bindTooltip('<div style="font-family:DM Sans,sans-serif;min-width:200px">'+
+          '<div style="font-weight:700;font-size:.9rem;color:#0d1b4b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:6px">'+nm+'</div>'+
+          (d?('<div style="margin-bottom:6px"><span style="font-size:1.2rem;font-weight:800;font-family:DM Mono,monospace;color:#0d1b4b">'+n(d.units)+'</span>'+
+              '<span style="font-size:.74rem;font-weight:700;color:#0d1b4b"> units completed</span>'+
+              '<div style="font-size:.66rem;color:#9ca3af;margin-top:1px;font-family:DM Mono,monospace">2010 to 2022</div></div>'+
+              '<div style="display:flex;justify-content:space-between;gap:12px;color:#555;font-size:.76rem"><span>Income regulated</span>'+
+              '<span style="font-family:DM Mono,monospace;font-weight:700">'+n(d.aff)+'</span></div>'+
+              '<div style="display:flex;justify-content:space-between;gap:12px;color:#555;font-size:.76rem"><span>Share affordable</span>'+
+              '<span style="font-family:DM Mono,monospace;font-weight:700">'+(d.units?(d.aff/d.units*100).toFixed(1):'0')+'%</span></div>'+
+              '<div style="font-size:.66rem;color:#888;margin-top:6px;border-top:1px solid #eee;padding-top:5px">'+(t?t.band:'')+'</div>')
+             :'<div style="font-size:.78rem;color:#777">No completions recorded</div>')+'</div>',{sticky:true,opacity:1});
+        l.on('mouseover',function(){ l.setStyle({weight:2.5,color:'#333'}); if(l.bringToFront) l.bringToFront(); });
+        l.on('mouseout',function(){ jlayer.resetStyle(l); });
+        try{
+          var mk=L.marker(l.getBounds().getCenter(),{interactive:false,keyboard:false,
+            icon:L.divIcon({className:'cd-label',html:(which==='cc'?('CD '+k):(nm||'')),iconSize:[110,16],iconAnchor:[55,8]})}).addTo(map);
+          jlabels.push(mk);
+        }catch(e){}
+      }
+    }).addTo(map);
+    document.getElementById('lensNote').textContent=Object.keys(data).length+' '+cfg.word+' \u00b7 2010 to 2022';
+    var sr=document.getElementById('src');
+    if(sr) sr.textContent=(which==='nb' && JOBS.nb_note) ? (JOBS.source+'. '+JOBS.nb_note) : (JOBS.source+'. '+JOBS.note);
+    document.getElementById('capS').textContent='Housing units completed, by '+cfg.word.replace(/s$/,'');
+    var md=document.getElementById('mapDate');
+    md.innerHTML='<span class="m">2010\u20132022</span><span class="w">units completed</span>';
+    md.classList.remove('past');
+  }
+  window.__jobLens=function(which){
+    jlens=which;
+    if(which==='cb'){ clear(); if(window.__cbRedraw) window.__cbRedraw(); return; }
+    document.getElementById('timebar').style.display='none';
+    Promise.all([
+      JOBS?Promise.resolve(JOBS):fetch('/data/housing-jobs.json').then(function(r){return r.json();}),
+      GEOS[which]?Promise.resolve(GEOS[which]):fetch(CFG[which].file).then(function(r){return r.json();})
+    ]).then(function(a){ JOBS=a[0]; GEOS[which]=a[1]; drawJ(which); })
+      .catch(function(){ document.getElementById('lensNote').textContent='Layer could not load.'; });
+  };
+  document.querySelectorAll('.lens-btn').forEach(function(b){
+    b.addEventListener('click',function(){
+      var v=this.getAttribute('data-lens');
+      document.querySelectorAll('.lens-btn').forEach(function(x){x.classList.toggle('active',x===b);});
+      document.getElementById('timebar').style.display = (v==='cb') ? '' : 'none';
+      window.__jobLens(v);
+    });
+  });
+})();
+
+/* ---- all housing against income regulated ---- */
+(function(){
+  var n=function(v){return Number(v).toLocaleString('en-US');};
+  fetch('/data/housing-jobs.json').then(function(r){return r.json();}).then(function(J){
+    var yrs=J.years;
+    var tot=yrs.map(function(y){return J.byYear[y]||0;});
+    var aff=yrs.map(function(y){return J.byYearAff[y]||0;});
+    var mkt=yrs.map(function(y,i){return tot[i]-aff[i];});
+    if(!window.Chart||!document.getElementById('cAff')) return;
+    new Chart(document.getElementById('cAff'),{type:'bar',
+      data:{labels:yrs,datasets:[
+        {label:'Income regulated',data:aff,backgroundColor:'#f47920'},
+        {label:'Everything else',data:mkt,backgroundColor:'#132D65'}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{boxWidth:10,font:{size:10}}},
+          tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+n(c.parsed.y)+' units';}}}},
+        scales:{x:{stacked:true,ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760'},grid:{display:false}},
+                y:{stacked:true,ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760'},grid:{color:'#f0ede8'},beginAtZero:true}}}});
+    var T=tot.reduce(function(a,b){return a+b;},0), A=aff.reduce(function(a,b){return a+b;},0);
+    var last=yrs[yrs.length-1];
+    document.getElementById('nAff').textContent='Across '+yrs[0]+' to '+last+', '+n(A)+' of '+n(T)+
+      ' completed units were income regulated, or '+(A/T*100).toFixed(1)+'%. In '+yrs[0]+' it was '+
+      ((J.byYearAff[yrs[0]]||0)/(J.byYear[yrs[0]]||1)*100).toFixed(1)+'%; in '+last+' it was '+
+      ((J.byYearAff[last]||0)/(J.byYear[last]||1)*100).toFixed(1)+'%. '+J.note;
+  }).catch(function(){});
+})();
+
+/* ---- every kind of build ---- */
+(function(){
+  var n=function(v){return Number(v).toLocaleString('en-US');};
+  var C={'New Building':'#132D65','Alteration':'#4A90A4','Demolition':'#c0392b'};
+  fetch('/data/housing-types.json').then(function(r){return r.json();}).then(function(T){
+    var yrs=Object.keys(T.byYearType).sort();
+    if(!window.Chart||!document.getElementById('cTypes')) return;
+    new Chart(document.getElementById('cTypes'),{type:'bar',
+      data:{labels:yrs,datasets:T.types.map(function(t){
+        return {label:t,data:yrs.map(function(y){return T.byYearType[y][t];}),backgroundColor:C[t]};})},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{boxWidth:10,font:{size:10}}},
+          tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+n(c.parsed.y)+' units';}}}},
+        scales:{x:{stacked:true,ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760'},grid:{display:false}},
+                y:{stacked:true,ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760'},grid:{color:'#f0ede8'}}}}});
+    var tot={}; T.types.forEach(function(t){ tot[t]=yrs.reduce(function(a,y){return a+T.byYearType[y][t];},0); });
+    var net=T.types.reduce(function(a,t){return a+tot[t];},0);
+    document.getElementById('tSum').innerHTML=
+      T.types.map(function(t){
+        return '<div class="ts'+(tot[t]<0?' neg':'')+'"><div class="k">'+t+'</div><div class="v">'+n(tot[t])+'</div>'+
+               '<div class="d">'+n(T.jobsByType[t]||0)+' jobs of this kind</div></div>';
+      }).join('')+
+      '<div class="ts"><div class="k">Net</div><div class="v">'+n(net)+'</div><div class="d">what the rest of this page counts</div></div>';
+    document.getElementById('nTypes').textContent=
+      'New buildings account for '+n(tot['New Building'])+' units. Alterations added '+n(tot['Alteration'])+
+      ' by converting or enlarging existing buildings. Demolitions removed '+n(Math.abs(tot['Demolition']))+
+      '. There are more alteration jobs than new building jobs ('+n(T.jobsByType['Alteration'])+' against '+
+      n(T.jobsByType['New Building'])+'), but each one adds far fewer units.';
+  }).catch(function(){});
+})();
+
+/* ---- housing report ---- */
+(function(){
+  var CD=null, JOBS=null, TYPES=null;
+  var n=function(v){return Number(Math.round(v)).toLocaleString('en-US');};
+  var $=function(i){return document.getElementById(i);};
+  function sync(){ $('hbYrWrap').style.display = $('hbKind').value==='year' ? '' : 'none'; }
+  function pct(a,b){ return b?Math.round((a-b)/b*1000)/10:null; }
+  function dl(a,b,lab){
+    var p=pct(a,b);
+    if(p===null) return '<div class="d flat">no '+lab+'</div>';
+    return '<div class="d '+(p>0?'up':(p<0?'down':'flat'))+'">'+(p>0?'+':'')+p+'% '+lab+'</div>';
+  }
   function build(){
     var kind=$('hbKind').value, yr=$('hbYr').value, lens=$('hbLens').value;
     var cmpOn=$('hbCmp').value==='prev' && kind==='year';
@@ -658,7 +1030,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
   }).catch(function(){});
   ['hbKind'].forEach(function(id){ var e=$(id); if(e) e.addEventListener('change',sync); });
   var g=$('hbGo'); if(g) g.addEventListener('click',build);
-  var p=$('hbPdf'); if(p) p.addEventListener('click',function(){ window.print(); });
+  var p=$('hbPdf'); if(p) p.addEventListener('click',function(){
+    document.querySelectorAll('#hbOut canvas').forEach(function(c){
+      var im=document.createElement('img'); im.src=c.toDataURL('image/png');
+      im.style.width='100%'; im.className='rpt-img';
+      c.parentNode.insertBefore(im,c); c.style.display='none';
+    });
+    window.print();
+    setTimeout(function(){
+      document.querySelectorAll('#hbOut canvas').forEach(function(c){c.style.display='';});
+      document.querySelectorAll('.rpt-img').forEach(function(i){i.remove();});
+    },1500);
+  });
 })();
 
 /* ---- breakdowns in the report ---- */
