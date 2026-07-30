@@ -325,6 +325,14 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .rpt-cc{margin-top:10px;padding:9px 11px;background:#fff8f2;border:1px solid #f47920;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.74rem;color:#7a4a12;line-height:1.5}
 .nbl-label{background:none!important;border:none!important;box-shadow:none!important;pointer-events:none;font-family:'DM Sans',sans-serif;font-size:.63rem;font-weight:800;color:#0d1b4b;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;text-align:center;line-height:1.15;white-space:normal}
 .nbl-label:before{display:none!important}
+.maphold{position:relative;flex:1 0 auto;display:flex;flex-direction:column;min-height:60vh}
+.maphold #map{flex:1 0 auto;min-height:60vh}
+.mapdate{position:absolute;top:10px;right:10px;z-index:640;background:#0d1b4b;color:#fff;border:2px solid #f47920;border-radius:9px;padding:7px 13px;pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.mapdate .md-m{display:block;font-family:'DM Mono',monospace;font-size:1.15rem;font-weight:700;line-height:1.05;letter-spacing:.02em}
+.mapdate .md-w{display:block;font-family:'DM Sans',sans-serif;font-size:.6rem;color:rgba(255,255,255,.7);margin-top:2px;text-transform:uppercase;letter-spacing:.07em}
+.mapdate.past{background:#f47920;border-color:#fff}
+.mapdate.past .md-w{color:rgba(255,255,255,.85)}
+@media(max-width:520px){.mapdate{top:8px;right:8px;padding:6px 10px}.mapdate .md-m{font-size:1rem}}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -406,7 +414,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
   <button type="button" class="lens-btn" data-lens="nb">Neighborhoods</button>
   <span class="lb-note" id="lensNote"></span>
 </div>
-<div id="map"></div>
+<div class="maphold"><div id="map"></div><div class="mapdate" id="mapDate"></div></div>
 <div class="map-caption"><span class="mc-ico">&#128506;</span><span class="mc-boro">The Bronx</span><span class="mc-sub">Median asking rent by community district</span></div>
 <div class="rpt-wrap">
 <details class="sect"><summary><span class="sect-ic">&#128202;</span><span class="sect-tx"><span class="sect-t">Rent report</span><span class="sect-d">Build a report for any month or year, compare periods or areas, save it as a PDF.</span></span><span class="sect-cv"></span></summary>
@@ -1432,6 +1440,7 @@ function bkcb6CopyEmbed(type){
   window.__timeActive=function(){ return TIDX!==null; };
   window.__timeLastIdx=function(){ return TH ? TH.months.length-1 : null; };
   window.__timeMonth=function(){ return (TH && TIDX!==null) ? TH.months[TIDX] : null; };
+  window.__timeLastMonth=function(){ return TH ? TH.months[TH.months.length-1] : null; };
   window.__timeValueFor=function(cb_code,bed,i){
     var a=byCode[cb_code]; if(!a) return null;
     var k=({studio:'studio','1br':'br1','2br':'br2','3br':'br3',inv:'inv'})[bed]||bed;
@@ -1486,6 +1495,7 @@ function bkcb6CopyEmbed(type){
     }
     if(typeof layer!=='undefined' && layer) layer.setStyle(styleForTime);
     if(typeof window.relabelDistricts==='function') window.relabelDistricts();
+    if(window.__paintMapDate) window.__paintMapDate();
     drawLeader(i);
     var lg=document.getElementById('tmScale');
     if(lg){
@@ -1897,6 +1907,33 @@ function bkcb6CopyEmbed(type){
     if(nbLens){ map.removeLayer(nbLens); nbLens=null; }
     nbLensLabels.forEach(function(m){ map.removeLayer(m); }); nbLensLabels=[];
   };
+})();
+
+/* ---- date badge on the map ---- */
+(function(){
+  var MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  function unitWord(){
+    return ({studio:'Studio','1br':'1 bedroom','2br':'2 bedroom','3br':'3+ bedroom'})[mode]||'';
+  }
+  function paint(){
+    var el=document.getElementById('mapDate'); if(!el) return;
+    var live = window.__timeActive && window.__timeActive();
+    var m = live && window.__timeMonth ? window.__timeMonth() : null;
+    var txt, past=false;
+    if(m){ txt=MN[+m.slice(5,7)-1]+' '+m.slice(0,4); past=true; }
+    else {
+      var last = window.__timeLastMonth ? window.__timeLastMonth() : null;
+      txt = last ? (MN[+last.slice(5,7)-1]+' '+last.slice(0,4)) : '';
+    }
+    el.innerHTML='<span class="md-m">'+txt+'</span><span class="md-w">'+unitWord()+(past?' \u00b7 past':' \u00b7 latest')+'</span>';
+    el.classList.toggle('past',past);
+  }
+  window.__paintMapDate=paint;
+  document.querySelectorAll('.rent-btn').forEach(function(b){ b.addEventListener('click',function(){ setTimeout(paint,40); }); });
+  var sl=document.getElementById('tmSlider'); if(sl) sl.addEventListener('input',paint);
+  var tn=document.getElementById('tmNow'); if(tn) tn.addEventListener('click',function(){ setTimeout(paint,30); });
+  var pl=document.getElementById('tmPlay'); if(pl) pl.addEventListener('click',function(){ setTimeout(paint,60); });
+  setTimeout(paint,600);
 })();
 </script>
 </body>
