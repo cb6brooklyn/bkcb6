@@ -103,8 +103,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
 <div class="lensbar">
   <span class="lb-lab">Lens</span>
   <button type="button" class="lens-btn active" data-lens="cb">Community boards</button>
-  <button type="button" class="lens-btn" data-lens="cc" disabled>Council districts</button>
-  <button type="button" class="lens-btn" data-lens="nb" disabled>Neighborhoods</button>
+  <button type="button" class="lens-btn" data-lens="cc">Council districts</button>
+  <button type="button" class="lens-btn" data-lens="nb">Neighborhoods</button>
   <span class="lb-note" id="lensNote"></span>
 </div>
 <div class="viewbar">
@@ -139,6 +139,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
     <span class="st">By borough<small>Completed and pipeline side by side.</small></span><span class="sc"></span></summary>
     <div class="sb"><div class="cb"><canvas id="cBoro"></canvas></div></div></details>
 
+
+  <details class="sect"><summary><span class="si">&#9878;</span>
+    <span class="st">All housing against income regulated<small>How much of what gets built is affordable, year by year.</small></span><span class="sc"></span></summary>
+    <div class="sb"><div class="cb"><canvas id="cAff"></canvas></div><div class="nt" id="nAff"></div></div></details>
   <details class="sect"><summary><span class="si">&#127942;</span>
     <span class="st">Districts ranked, completed<small>All 59, most to fewest units finished since 2010. CB6 highlighted.</small></span><span class="sc"></span></summary>
     <div class="sb"><div class="cb tall"><canvas id="cRankC"></canvas></div><div class="nt" id="nRankC"></div></div></details>
@@ -227,6 +231,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
     }).addTo(map);
     paintDate();
   }
+  window.__cbRedraw=draw;
   document.getElementById('legend').innerHTML='<span class="l">Relative to the districts shown</span>'+
     TIERS.slice().reverse().map(function(c,i){
       return '<span class="i"><span class="sw" style="background:'+c+'"></span>'+TIERNAME[4-i]+'</span>';
@@ -355,6 +360,114 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
   document.querySelectorAll('details.sect').forEach(function(d){
     d.addEventListener('toggle',function(){ if(d.open) window.dispatchEvent(new Event('resize')); });
   });
+})();
+
+/* ---- council district and neighborhood lenses, from the job level data ---- */
+(function(){
+  var JOBS=null, GEOS={}, jlayer=null, jlabels=[], jlens='cb';
+  var TIERS=['#1B5E8A','#82C341','#E8A800','#D45F00','#67000D'];
+  var TIERNAME=['Fewest','Below average','Middle','Above average','Most'];
+  var n=function(v){return Number(v).toLocaleString('en-US');};
+  var CFG={
+    cc:{file:'/data/council-districts.geojson', key:function(p){return p.cc;},
+        label:function(p){return 'CD '+p.cc;}, bucket:'cc', word:'council districts'},
+    nb:{file:'/data/neighborhood-rents.geojson', key:function(p){return p.nb;},
+        label:function(p){return p.nb;}, bucket:'nb', word:'neighborhoods'}
+  };
+  function tiers(vals){
+    var s=vals.slice().sort(function(a,b){return a-b;});
+    return function(v){ if(v==null) return null;
+      var i=s.indexOf(v), q=Math.min(Math.floor(i/s.length*5),4);
+      return {fill:TIERS[q],band:TIERNAME[q]}; };
+  }
+  function clear(){
+    if(jlayer){ map.removeLayer(jlayer); jlayer=null; }
+    jlabels.forEach(function(m){map.removeLayer(m);}); jlabels=[];
+  }
+  function drawJ(which){
+    var cfg=CFG[which], g=GEOS[which], data=JOBS[cfg.bucket];
+    if(!g||!data) return;
+    clear();
+    var vals=[];
+    g.features.forEach(function(f){ var d=data[cfg.key(f.properties)]; if(d) vals.push(d.units); });
+    var T=tiers(vals);
+    jlayer=L.geoJSON(g,{
+      style:function(f){ var d=data[cfg.key(f.properties)], t=d?T(d.units):null;
+        return {color:'#fff',weight:1.2,fillColor:t?t.fill:'#e3e5ea',fillOpacity:t?0.85:0.3}; },
+      onEachFeature:function(f,l){
+        var k=cfg.key(f.properties), d=data[k], t=d?T(d.units):null;
+        var nm=(d&&d.name)||cfg.label(f.properties);
+        l.bindTooltip('<div style="font-family:DM Sans,sans-serif;min-width:200px">'+
+          '<div style="font-weight:700;font-size:.9rem;color:#0d1b4b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:6px">'+nm+'</div>'+
+          (d?('<div style="margin-bottom:6px"><span style="font-size:1.2rem;font-weight:800;font-family:DM Mono,monospace;color:#0d1b4b">'+n(d.units)+'</span>'+
+              '<span style="font-size:.74rem;font-weight:700;color:#0d1b4b"> units completed</span>'+
+              '<div style="font-size:.66rem;color:#9ca3af;margin-top:1px;font-family:DM Mono,monospace">2010 to 2022</div></div>'+
+              '<div style="display:flex;justify-content:space-between;gap:12px;color:#555;font-size:.76rem"><span>Income regulated</span>'+
+              '<span style="font-family:DM Mono,monospace;font-weight:700">'+n(d.aff)+'</span></div>'+
+              '<div style="display:flex;justify-content:space-between;gap:12px;color:#555;font-size:.76rem"><span>Share affordable</span>'+
+              '<span style="font-family:DM Mono,monospace;font-weight:700">'+(d.units?(d.aff/d.units*100).toFixed(1):'0')+'%</span></div>'+
+              '<div style="font-size:.66rem;color:#888;margin-top:6px;border-top:1px solid #eee;padding-top:5px">'+(t?t.band:'')+'</div>')
+             :'<div style="font-size:.78rem;color:#777">No completions recorded</div>')+'</div>',{sticky:true,opacity:1});
+        l.on('mouseover',function(){ l.setStyle({weight:2.5,color:'#333'}); if(l.bringToFront) l.bringToFront(); });
+        l.on('mouseout',function(){ jlayer.resetStyle(l); });
+        try{
+          var mk=L.marker(l.getBounds().getCenter(),{interactive:false,keyboard:false,
+            icon:L.divIcon({className:'cd-label',html:(which==='cc'?('CD '+k):(nm||'')),iconSize:[110,16],iconAnchor:[55,8]})}).addTo(map);
+          jlabels.push(mk);
+        }catch(e){}
+      }
+    }).addTo(map);
+    document.getElementById('lensNote').textContent=Object.keys(data).length+' '+cfg.word+' \u00b7 2010 to 2022';
+    document.getElementById('capS').textContent='Housing units completed, by '+cfg.word.replace(/s$/,'');
+    var md=document.getElementById('mapDate');
+    md.innerHTML='<span class="m">2010\u20132022</span><span class="w">units completed</span>';
+    md.classList.remove('past');
+  }
+  window.__jobLens=function(which){
+    jlens=which;
+    if(which==='cb'){ clear(); if(window.__cbRedraw) window.__cbRedraw(); return; }
+    document.getElementById('timebar').style.display='none';
+    Promise.all([
+      JOBS?Promise.resolve(JOBS):fetch('/data/housing-jobs.json').then(function(r){return r.json();}),
+      GEOS[which]?Promise.resolve(GEOS[which]):fetch(CFG[which].file).then(function(r){return r.json();})
+    ]).then(function(a){ JOBS=a[0]; GEOS[which]=a[1]; drawJ(which); })
+      .catch(function(){ document.getElementById('lensNote').textContent='Layer could not load.'; });
+  };
+  document.querySelectorAll('.lens-btn').forEach(function(b){
+    b.addEventListener('click',function(){
+      var v=this.getAttribute('data-lens');
+      document.querySelectorAll('.lens-btn').forEach(function(x){x.classList.toggle('active',x===b);});
+      document.getElementById('timebar').style.display = (v==='cb') ? '' : 'none';
+      window.__jobLens(v);
+    });
+  });
+})();
+
+/* ---- all housing against income regulated ---- */
+(function(){
+  var n=function(v){return Number(v).toLocaleString('en-US');};
+  fetch('/data/housing-jobs.json').then(function(r){return r.json();}).then(function(J){
+    var yrs=J.years;
+    var tot=yrs.map(function(y){return J.byYear[y]||0;});
+    var aff=yrs.map(function(y){return J.byYearAff[y]||0;});
+    var mkt=yrs.map(function(y,i){return tot[i]-aff[i];});
+    if(!window.Chart||!document.getElementById('cAff')) return;
+    new Chart(document.getElementById('cAff'),{type:'bar',
+      data:{labels:yrs,datasets:[
+        {label:'Income regulated',data:aff,backgroundColor:'#f47920'},
+        {label:'Everything else',data:mkt,backgroundColor:'#132D65'}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{boxWidth:10,font:{size:10}}},
+          tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+n(c.parsed.y)+' units';}}}},
+        scales:{x:{stacked:true,ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760'},grid:{display:false}},
+                y:{stacked:true,ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760'},grid:{color:'#f0ede8'},beginAtZero:true}}}});
+    var T=tot.reduce(function(a,b){return a+b;},0), A=aff.reduce(function(a,b){return a+b;},0);
+    var last=yrs[yrs.length-1];
+    document.getElementById('nAff').textContent='Across '+yrs[0]+' to '+last+', '+n(A)+' of '+n(T)+
+      ' completed units were income regulated, or '+(A/T*100).toFixed(1)+'%. In '+yrs[0]+' it was '+
+      ((J.byYearAff[yrs[0]]||0)/(J.byYear[yrs[0]]||1)*100).toFixed(1)+'%; in '+last+' it was '+
+      ((J.byYearAff[last]||0)/(J.byYear[last]||1)*100).toFixed(1)+'%. '+J.note;
+  }).catch(function(){});
 })();
 </script>
 </body>
