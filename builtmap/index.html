@@ -78,7 +78,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
 </div>
 <div class="legend" id="legend"></div>
 <div class="maphold"><div id="map"></div>
-  <div class="mapdate"><span class="m">2014&ndash;2026</span><span class="w">counted units</span></div></div>
+  <div class="mapdate"><span class="m">2014&ndash;2026</span><span class="w">affordable units</span></div></div>
 <div class="cap"><div class="t" id="capT">New York City</div><div class="s" id="capS">Affordable units financed since 2014</div></div>
 <div class="src" id="src"></div>
 
@@ -88,7 +88,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
   var TIERNAME=['Fewest','Below average','Middle','Above average','Most'];
   var map=L.map('map',{scrollWheelZoom:true,attributionControl:true}).setView([40.705,-73.95],10);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:17,attribution:'&copy; CARTO'}).addTo(map);
-  var D=null, layer=null, labels=[], lens='cb';
+  var D=null, CTX=null, layer=null, labels=[], lens='cb';
+  var INCS=['Extremely low','Very low','Low','Moderate','Middle','Other'];
+  function incLabel(b){ return (CTX && CTX.bands[b] && CTX.bands[b].range) ? CTX.bands[b].range : b; }
   var GEO={};
   var n=function(v){return Number(v).toLocaleString('en-US');};
 
@@ -110,7 +112,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
     };
   }
   function drawLegend(){
-    document.getElementById('legend').innerHTML='<span class="l">Units built</span>'+
+    document.getElementById('legend').innerHTML='<span class="l">Affordable units built</span>'+
       TIERS.slice().reverse().map(function(c,i){
         return '<span class="i"><span class="sw" style="background:'+c+'"></span>'+TIERNAME[4-i]+'</span>';
       }).join('');
@@ -133,14 +135,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
         var k=cfg.key(f.properties), d=k&&data[k];
         var t=d?T(d.units):null;
         var inc=d?d.income:{};
-        var rows=['Extremely low','Very low','Low','Moderate','Middle'].filter(function(i){return inc[i];})
-          .map(function(i){ return '<div style="display:flex;justify-content:space-between;gap:14px;padding:1px 0;color:#555"><span>'+i+'</span><span style="font-family:DM Mono,monospace">'+n(inc[i])+'</span></div>'; }).join('');
+        var rows=INCS.filter(function(i){return inc[i];})
+          .map(function(i){ return '<div style="display:flex;justify-content:space-between;gap:14px;padding:1px 0;color:#555"><span>'+incLabel(i)+'</span><span style="font-family:DM Mono,monospace">'+n(inc[i])+'</span></div>'; }).join('');
         l.bindTooltip('<div style="font-family:DM Sans,sans-serif;min-width:190px">'+
           '<div style="font-weight:700;font-size:.9rem;color:#0d1b4b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:6px">'+cfg.label(f.properties)+'</div>'+
           (d?('<div style="margin-bottom:6px"><span style="font-size:1.15rem;font-weight:800;font-family:DM Mono,monospace;color:#0d1b4b">'+n(d.units)+'</span>'+
-              '<span style="font-size:.76rem;font-weight:700;color:#0d1b4b"> units</span>'+
+              '<span style="font-size:.76rem;font-weight:700;color:#0d1b4b"> affordable units</span>'+
+              '<div style="font-size:.62rem;color:#9ca3af;margin-top:1px;text-transform:uppercase;letter-spacing:.05em;font-family:DM Mono,monospace">income regulated</div>'+
               '<div style="font-size:.7rem;color:#555;margin-top:2px">'+n(d.new)+' new construction &middot; '+n(d.pres)+' preservation</div>'+
-              '<div style="font-size:.68rem;color:#9ca3af;margin-top:1px">'+n(d.bldgs)+' buildings</div></div>'+rows+
+              '<div style="font-size:.68rem;color:#9ca3af;margin-top:1px">'+n(d.bldgs)+' buildings</div></div>'+(rows?'<div style="font-family:DM Mono,monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;margin:6px 0 3px">Household income served</div>'+rows:'')+
               '<div style="font-size:.66rem;color:#888;margin-top:6px;border-top:1px solid #eee;padding-top:5px">'+(t?t.band:'')+'</div>')
              :'<div style="font-size:.78rem;color:#777">No units recorded</div>')+'</div>',{sticky:true,opacity:1});
         l.on('mouseover',function(){ l.setStyle({weight:2.5,color:'#333'}); if(l.bringToFront) l.bringToFront(); });
@@ -154,7 +157,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
     }).addTo(map);
     var count=Object.keys(data).length;
     document.getElementById('lensNote').textContent=count+' '+cfg.name+' with units recorded';
-    document.getElementById('capS').textContent='Affordable units financed since 2014, by '+cfg.name.replace(/s$/,'');
+    document.getElementById('capS').textContent='Affordable, income regulated units financed since 2014, by '+cfg.name.replace(/s$/,'');
   }
   function setLens(v){
     lens=v;
@@ -168,8 +171,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
   });
 
   drawLegend();
-  fetch('/data/hpd-geo.json').then(function(r){return r.json();}).then(function(j){
-    D=j;
+  Promise.all([
+    fetch('/data/hpd-geo.json').then(function(r){return r.json();}),
+    fetch('/data/hpd-income-context.json').then(function(r){return r.json();}).catch(function(){return null;})
+  ]).then(function(a){
+    var j=a[0]; D=j; CTX=a[1];
     document.getElementById('src').textContent=j.source+'. Counted units are those HPD counts toward its housing plans. '+
       n(j.unplaced)+' building records could not be placed inside a neighborhood polygon and are excluded from the neighborhood lens only; '+
       'community board and council district figures come from HPD\u2019s own fields and include every record. Colour bands are relative to the areas shown.';
