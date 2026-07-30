@@ -116,6 +116,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
 .rtbl tr.me{background:#fff8f2}
 .up{color:#c0392b}.down{color:#2e6b30}.flat{color:#9ca3af}
 @media print{ .top-bar,.mrnote,.lensbar,.viewbar,.timebar,.legend,.maphold,.cap,.kpis,.rbar,details:not(#rptSect){display:none!important} #rptSect>summary{display:none!important} .wrap{padding:0} .sect{border:none} }
+.bdw{border:1px solid var(--border);border-radius:9px;overflow:hidden;margin:10px 0}
+.bdh{padding:8px 11px;background:#f8f7f4;font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;border-bottom:1px solid var(--border)}
+.bdr{display:flex;align-items:center;gap:9px;padding:6px 11px;border-bottom:1px solid #f4f2ee;font-size:.78rem}
+.bdr:last-child{border-bottom:none}
+.bdsw{width:10px;height:10px;border-radius:3px;flex:none}
+.bdn{min-width:112px;color:#132D65;font-weight:700;font-size:.76rem}
+.bdbar{flex:1;height:9px;background:#f0ede8;border-radius:3px;overflow:hidden;min-width:40px}
+.bdbar i{display:block;height:100%;border-radius:3px}
+.bdv{font-family:'DM Mono',monospace;font-weight:800;color:#132D65;min-width:64px;text-align:right}
+.bdv.neg{color:#c0392b}
 </style>
 </head>
 <body>
@@ -195,6 +205,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
         <label><span>Period</span><select id="hbKind"><option value="all">All years</option><option value="year">A single year</option></select></label>
         <label id="hbYrWrap" style="display:none"><span>Year</span><select id="hbYr"></select></label>
         <label><span>Comparison</span><select id="hbCmp"><option value="none">None &mdash; just this period</option><option value="prev">vs the year before</option></select></label>
+        <label><span>Break down by</span><select id="hbDim">
+          <option value="">Nothing</option>
+          <option value="build">Build type</option>
+          <option value="kind">Unit kind</option>
+          <option value="bldg">Building kind</option>
+          <option value="owner">Owner</option>
+          <option value="occ">Occupancy</option>
+          <option value="afford">Affordability</option>
+          <option value="ALL">Every breakdown</option>
+        </select></label>
         <label><span>Lens</span><select id="hbLens">
           <option value="cb">Community districts</option>
           <option value="cc">Council districts</option>
@@ -616,10 +636,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
     }).join('');
 
     var span = lens==='cb' ? '2010 to 2024' : '2010 to 2022';
+    var bd = window.__bdBlock ? window.__bdBlock(lens, kind==='year'?yr:null) : '';
     $('hbOut').innerHTML='<div class="rtitle">Housing completed</div>'+
       '<div class="rwhen">'+label+(cmpOn?'  vs  '+pyr:'')+' &middot; '+
         (lens==='cb'?'community districts':(lens==='cc'?'council districts':'neighborhoods'))+'</div>'+
-      '<div class="rgrid">'+cells+'</div>'+
+      '<div class="rgrid">'+cells+'</div>'+ bd +
       '<div style="overflow-x:auto"><table class="rtbl">'+head+body+'</table></div>'+
       '<div class="nt">Net units, so demolitions are subtracted. '+
       (lens==='cb'?'Community district figures come from the DCP housing database by district and run '+span+'.'
@@ -638,6 +659,60 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
   ['hbKind'].forEach(function(id){ var e=$(id); if(e) e.addEventListener('change',sync); });
   var g=$('hbGo'); if(g) g.addEventListener('click',build);
   var p=$('hbPdf'); if(p) p.addEventListener('click',function(){ window.print(); });
+})();
+
+/* ---- breakdowns in the report ---- */
+(function(){
+  var BD=null;
+  var n=function(v){return Number(Math.round(v)).toLocaleString('en-US');};
+  var $=function(i){return document.getElementById(i);};
+  var COL={'New Building':'#132D65','Alteration':'#4A90A4','Demolition':'#c0392b',
+    'Dwelling units':'#132D65','Hotel':'#E8A800','Other Class B':'#9ca3af',
+    'Elevator':'#132D65','Condo / co-op':'#4A90A4','Walk-up':'#82C341','1-2 family':'#E8A800','Mixed use':'#D45F00','Other':'#9ca3af',
+    'Private':'#132D65','Government':'#f47920','Non-profit':'#82C341',
+    '3+ units':'#132D65','Unspecified':'#9ca3af',
+    'Income regulated':'#f47920','Everything else':'#132D65'};
+
+  function totalsFor(lens,key,year){
+    // key null means citywide
+    if(year){
+      var src=BD.byYear[year];
+      return src||null;
+    }
+    if(key) return BD[lens] && BD[lens][key] ? BD[lens][key] : null;
+    // citywide across all years
+    var out={};
+    Object.keys(BD.byYear).forEach(function(y){
+      var d=BD.byYear[y];
+      Object.keys(d).forEach(function(dim){
+        out[dim]=out[dim]||{};
+        Object.keys(d[dim]).forEach(function(c){ out[dim][c]=(out[dim][c]||0)+d[dim][c]; });
+      });
+    });
+    return out;
+  }
+  window.__bdBlock=function(lens,year){
+    if(!BD) return '';
+    var pick=$('hbDim')?$('hbDim').value:'';
+    if(!pick) return '';
+    var dims = pick==='ALL' ? Object.keys(BD.dims) : [pick];
+    var data=totalsFor(lens,null,year);
+    if(!data) return '';
+    return dims.map(function(dim){
+      var d=data[dim]; if(!d) return '';
+      var rows=Object.keys(d).sort(function(a,b){return d[b]-d[a];});
+      var tot=rows.reduce(function(t,k){return t+Math.abs(d[k]);},0)||1;
+      return '<div class="bdw"><div class="bdh">'+BD.dims[dim]+'</div>'+
+        rows.map(function(k){
+          var v=d[k], w=Math.round(Math.abs(v)/tot*100);
+          return '<div class="bdr"><span class="bdsw" style="background:'+(COL[k]||'#9ca3af')+'"></span>'+
+                 '<span class="bdn">'+k+'</span>'+
+                 '<span class="bdbar"><i style="width:'+w+'%;background:'+(COL[k]||'#9ca3af')+'"></i></span>'+
+                 '<span class="bdv'+(v<0?' neg':'')+'">'+n(v)+'</span></div>';
+        }).join('')+'</div>';
+    }).join('');
+  };
+  fetch('/data/housing-breakdown.json').then(function(r){return r.json();}).then(function(j){ BD=j; }).catch(function(){});
 })();
 </script>
 </body>
