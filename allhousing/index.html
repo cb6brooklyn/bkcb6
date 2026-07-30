@@ -15,6 +15,7 @@
 <title>All Housing Built — bkcb6.app</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700;900&display=swap');
 :root{--navy:#0d1b4b;--orange:#f47920;--off:#f8f7f4;--border:#e5e2db;--muted:#6b6760}
@@ -67,6 +68,27 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
 .mrnote-body p:last-child{margin-bottom:0}
 .mrnote-sig{font-weight:800;color:#0d1b4b;font-size:.85rem!important;margin-top:11px!important}
 .mrnote-role{display:block;font-family:'DM Mono',monospace;font-size:.68rem;font-weight:400;color:#6b6760;margin-top:2px;letter-spacing:.02em}
+
+.wrap{max-width:960px;margin:0 auto;padding:14px 12px 20px;background:var(--off)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px}
+.kpi{background:#fff;padding:12px 13px}
+.kpi .k{font-family:'DM Mono',monospace;font-size:.52rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.kpi .v{font-family:'DM Mono',monospace;font-size:1.3rem;font-weight:900;margin-top:3px;line-height:1}
+.kpi .d{font-size:.64rem;color:var(--muted);margin-top:3px;line-height:1.4}
+.sect{background:#fff;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden}
+.sect>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:11px;padding:12px 14px;background:#f8f7f4;border-left:4px solid var(--orange)}
+.sect>summary::-webkit-details-marker{display:none}
+.sect>summary:hover{background:#fff4ea}
+.si{font-size:1.25rem;line-height:1;flex:none}
+.st{flex:1;min-width:0;font-size:.93rem;font-weight:800;line-height:1.25}
+.st small{display:block;font-size:.73rem;font-weight:400;color:#555;margin-top:2px;line-height:1.4}
+.sc{font-size:0;flex:none}
+.sect[open]>summary .sc:before{content:'close \25B4';font-size:.62rem;color:var(--orange);font-family:'DM Mono',monospace;font-weight:700}
+.sect:not([open])>summary .sc:before{content:'open \25BE';font-size:.62rem;color:var(--orange);font-family:'DM Mono',monospace;font-weight:700}
+.sb{padding:13px}
+.cb{position:relative;height:290px}
+.cb.tall{height:520px}
+.nt{font-size:.72rem;color:#555;line-height:1.6;margin-top:10px}
 </style>
 </head>
 <body>
@@ -101,6 +123,34 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
 <div class="maphold"><div id="map"></div>
   <div class="mapdate" id="mapDate"><span class="m">2010&ndash;2024</span><span class="w">units completed</span></div></div>
 <div class="cap"><div class="t">New York City</div><div class="s" id="capS">Housing units completed, by community district</div></div>
+
+<div class="wrap">
+  <div class="kpis" id="kpis"></div>
+
+  <details class="sect" open><summary><span class="si">&#128197;</span>
+    <span class="st">Completed each year<small>Net units finished citywide, 2010 to 2024.</small></span><span class="sc"></span></summary>
+    <div class="sb"><div class="cb"><canvas id="cYear"></canvas></div><div class="nt" id="nYear"></div></div></details>
+
+  <details class="sect"><summary><span class="si">&#128736;</span>
+    <span class="st">Built versus still to come<small>What is finished against what is filed, approved or permitted but not yet built.</small></span><span class="sc"></span></summary>
+    <div class="sb"><div class="cb"><canvas id="cPipe"></canvas></div><div class="nt" id="nPipe"></div></div></details>
+
+  <details class="sect"><summary><span class="si">&#127961;</span>
+    <span class="st">By borough<small>Completed and pipeline side by side.</small></span><span class="sc"></span></summary>
+    <div class="sb"><div class="cb"><canvas id="cBoro"></canvas></div></div></details>
+
+  <details class="sect"><summary><span class="si">&#127942;</span>
+    <span class="st">Districts ranked, completed<small>All 59, most to fewest units finished since 2010. CB6 highlighted.</small></span><span class="sc"></span></summary>
+    <div class="sb"><div class="cb tall"><canvas id="cRankC"></canvas></div><div class="nt" id="nRankC"></div></div></details>
+
+  <details class="sect"><summary><span class="si">&#128679;</span>
+    <span class="st">Districts ranked, still to come<small>Permitted but not yet built, plus filed and approved.</small></span><span class="sc"></span></summary>
+    <div class="sb"><div class="cb tall"><canvas id="cRankP"></canvas></div><div class="nt" id="nRankP"></div></div></details>
+
+  <details class="sect"><summary><span class="si">&#128202;</span>
+    <span class="st">Growth against existing stock<small>Units completed since 2010 as a share of what the 2020 census counted.</small></span><span class="sc"></span></summary>
+    <div class="sb"><div class="cb tall"><canvas id="cShare"></canvas></div><div class="nt" id="nShare"></div></div></details>
+</div>
 <div class="src" id="src"></div>
 
 <script>
@@ -220,6 +270,90 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
 
   document.querySelectorAll('.lens-btn[disabled]').forEach(function(b){
     b.title='Needs the DCP housing database published for that geography';
+  });
+})();
+
+/* ---- rankings and charts ---- */
+(function(){
+  var NAVY='#132D65', OR='#f47920', GREEN='#2e6b30', BLUE='#4A90A4';
+  var made={}, DD=null;
+  var n=function(v){return Number(v).toLocaleString('en-US');};
+  var $=function(i){return document.getElementById(i);};
+  function chart(id,cfg){ if(made[id]||!$(id)) return; made[id]=new Chart($(id),cfg); }
+  function baseOpts(horiz,stacked,unitWord){
+    return {indexAxis:horiz?'y':'x',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:!!stacked,labels:{boxWidth:10,font:{size:10}}},
+        tooltip:{callbacks:{label:function(c){return (c.dataset.label?c.dataset.label+': ':'')+n(horiz?c.parsed.x:c.parsed.y)+' '+(unitWord||'units');}}}},
+      scales:{x:{stacked:!!stacked,ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760',autoSkip:!horiz},grid:{display:horiz,color:'#f2f0ec'}},
+              y:{stacked:!!stacked,ticks:{font:{size:10,family:horiz?'DM Sans':'DM Mono'},color:'#6b6760',autoSkip:false},grid:{display:!horiz,color:'#f0ede8'},beginAtZero:true}}};
+  }
+
+  function build(D){
+    DD=D;
+    var cds=D.cd, keys=Object.keys(cds);
+    var sum=function(fn){ return keys.reduce(function(t,k){return t+fn(cds[k]);},0); };
+    var comp=sum(function(v){return v.total;});
+    var filed=sum(function(v){return v.filed;}), appr=sum(function(v){return v.approved;}),
+        perm=sum(function(v){return v.permitted;}), cen=sum(function(v){return v.cen2020;});
+    var pipeline=filed+appr+perm;
+
+    $('kpis').innerHTML=
+      '<div class="kpi"><div class="k">Completed</div><div class="v">'+n(comp)+'</div><div class="d">net units, 2010 to 2024</div></div>'+
+      '<div class="kpi"><div class="k">Still to come</div><div class="v">'+n(pipeline)+'</div><div class="d">filed, approved or permitted, not yet built</div></div>'+
+      '<div class="kpi"><div class="k">Permitted</div><div class="v">'+n(perm)+'</div><div class="d">the furthest along in the pipeline</div></div>'+
+      '<div class="kpi"><div class="k">Existing stock</div><div class="v">'+n(cen)+'</div><div class="d">all units at the 2020 census</div></div>'+
+      '<div class="kpi"><div class="k">Growth since 2010</div><div class="v">'+(comp/cen*100).toFixed(1)+'%</div><div class="d">completions against the 2020 count</div></div>'+
+      '<div class="kpi"><div class="k">Brooklyn CB6</div><div class="v">'+n(cds['BK-06'].total)+'</div><div class="d">completed; '+n(cds['BK-06'].permitted)+' permitted</div></div>';
+
+    // completed each year
+    var yr=D.years.map(String);
+    var yv=D.years.map(function(y){ return keys.reduce(function(t,k){return t+cds[k].comp[String(y)];},0); });
+    chart('cYear',{type:'bar',data:{labels:yr,datasets:[{data:yv,backgroundColor:NAVY,borderRadius:3}]},options:baseOpts(false,false)});
+    var mx=Math.max.apply(null,yv), mn=Math.min.apply(null,yv);
+    $('nYear').textContent='The strongest year was '+yr[yv.indexOf(mx)]+' with '+n(mx)+' net units, the weakest '+yr[yv.indexOf(mn)]+' with '+n(mn)+'. These are net figures, so demolitions are subtracted.';
+
+    // built vs pipeline
+    chart('cPipe',{type:'bar',data:{labels:['Completed 2010\u20132024','Permitted','Approved','Filed'],
+      datasets:[{data:[comp,perm,appr,filed],backgroundColor:[NAVY,OR,'#E8A800',BLUE],borderRadius:3}]},options:baseOpts(false,false)});
+    $('nPipe').textContent='For every 10 units finished since 2010, roughly '+(pipeline/comp*10).toFixed(1)+' more are somewhere in the pipeline. Permitted is the furthest along; filed is the least certain, and '+n(sum(function(v){return v.withdrawn;}))+' units have been withdrawn and '+n(sum(function(v){return v.inactive;}))+' are inactive.';
+
+    // by borough
+    var boros=['Brooklyn','Manhattan','Queens','Bronx','Staten Island'];
+    var bC=boros.map(function(b){ return keys.filter(function(k){return cds[k].boro===b;}).reduce(function(t,k){return t+cds[k].total;},0); });
+    var bP=boros.map(function(b){ return keys.filter(function(k){return cds[k].boro===b;}).reduce(function(t,k){return t+cds[k].filed+cds[k].approved+cds[k].permitted;},0); });
+    chart('cBoro',{type:'bar',data:{labels:boros,datasets:[
+      {label:'Completed',data:bC,backgroundColor:NAVY,borderRadius:3},
+      {label:'Still to come',data:bP,backgroundColor:OR,borderRadius:3}]},options:baseOpts(false,false)});
+
+    // ranked, completed
+    var rc=keys.slice().sort(function(a,b){return cds[b].total-cds[a].total;});
+    chart('cRankC',{type:'bar',data:{labels:rc,datasets:[{data:rc.map(function(k){return cds[k].total;}),
+      backgroundColor:rc.map(function(k){return k==='BK-06'?OR:NAVY;}),borderRadius:3}]},options:baseOpts(true,false)});
+    $('nRankC').textContent=rc[0]+' leads with '+n(cds[rc[0]].total)+' units. Brooklyn CB6 ranks '+(rc.indexOf('BK-06')+1)+' of '+rc.length+' with '+n(cds['BK-06'].total)+'.';
+
+    // ranked, pipeline
+    var rp=keys.slice().sort(function(a,b){return (cds[b].filed+cds[b].approved+cds[b].permitted)-(cds[a].filed+cds[a].approved+cds[a].permitted);});
+    chart('cRankP',{type:'bar',data:{labels:rp,datasets:[
+      {label:'Permitted',data:rp.map(function(k){return cds[k].permitted;}),backgroundColor:OR},
+      {label:'Approved',data:rp.map(function(k){return cds[k].approved;}),backgroundColor:'#E8A800'},
+      {label:'Filed',data:rp.map(function(k){return cds[k].filed;}),backgroundColor:BLUE}]},options:baseOpts(true,true)});
+    var pk=function(k){return cds[k].filed+cds[k].approved+cds[k].permitted;};
+    $('nRankP').textContent=rp[0]+' has the largest pipeline at '+n(pk(rp[0]))+' units. Brooklyn CB6 ranks '+(rp.indexOf('BK-06')+1)+' of '+rp.length+' with '+n(pk('BK-06'))+', of which '+n(cds['BK-06'].permitted)+' are already permitted.';
+
+    // growth share
+    var rs=keys.filter(function(k){return cds[k].cen2020>500;})
+               .sort(function(a,b){return (cds[b].total/cds[b].cen2020)-(cds[a].total/cds[a].cen2020);});
+    chart('cShare',{type:'bar',data:{labels:rs,datasets:[{data:rs.map(function(k){return +(cds[k].total/cds[k].cen2020*100).toFixed(1);}),
+      backgroundColor:rs.map(function(k){return k==='BK-06'?OR:GREEN;}),borderRadius:3}]},
+      options:(function(){var o=baseOpts(true,false,'%');o.plugins.tooltip.callbacks.label=function(c){return c.parsed.x+'% of its 2020 stock';};return o;})()});
+    $('nShare').textContent=rs[0]+' grew most relative to its size, adding the equivalent of '+(cds[rs[0]].total/cds[rs[0]].cen2020*100).toFixed(1)+'% of its 2020 housing stock. Brooklyn CB6 added '+(cds['BK-06'].total/cds['BK-06'].cen2020*100).toFixed(1)+'%. Districts with very little housing are excluded.';
+  }
+
+  fetch('/data/housing-db-cd.json').then(function(r){return r.json();}).then(build).catch(function(){
+    var k=$('kpis'); if(k) k.innerHTML='<div class="kpi"><div class="k">Error</div><div class="v">&mdash;</div><div class="d">Data could not load.</div></div>';
+  });
+  document.querySelectorAll('details.sect').forEach(function(d){
+    d.addEventListener('toggle',function(){ if(d.open) window.dispatchEvent(new Event('resize')); });
   });
 })();
 </script>
