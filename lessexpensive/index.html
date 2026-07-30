@@ -146,6 +146,26 @@ select:focus,input:focus{outline:none;border-color:#f47920}
 .mrnote-body p:last-child{margin-bottom:0}
 .mrnote-sig{font-weight:800;color:#0d1b4b;font-size:.85rem!important;margin-top:11px!important}
 .mrnote-role{display:block;font-family:'DM Mono',monospace;font-size:.68rem;font-weight:400;color:#6b6760;margin-top:2px;letter-spacing:.02em}
+
+.built-in{padding:0 13px 13px}
+.bi-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:1px;background:#e5e2db;border:1px solid #e5e2db;border-radius:9px;overflow:hidden;margin:10px 0}
+.bi-k{background:#fff;padding:10px 11px}
+.bi-k .k{font-family:'DM Mono',monospace;font-size:.52rem;text-transform:uppercase;letter-spacing:.07em;color:#6b6760}
+.bi-k .v{font-family:'DM Mono',monospace;font-size:1.2rem;font-weight:900;color:#132D65;margin-top:2px;line-height:1}
+.bi-k .d{font-size:.62rem;color:#6b6760;margin-top:3px;line-height:1.4}
+.bi-inc{border:1px solid #e5e2db;border-radius:9px;overflow:hidden;margin-bottom:10px}
+.bi-row{display:flex;align-items:center;gap:9px;padding:7px 11px;border-bottom:1px solid #f4f2ee;font-size:.78rem}
+.bi-row:last-child{border-bottom:none}
+.bi-sw{width:11px;height:11px;border-radius:3px;flex:none}
+.bi-n{flex:1;min-width:0;color:#132D65;font-weight:700;font-family:'DM Mono',monospace;font-size:.74rem}
+.bi-v{font-family:'DM Mono',monospace;font-weight:800;color:#132D65}
+.bi-hd{padding:8px 11px;background:#f8f7f4;font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;font-weight:700;border-bottom:1px solid #e5e2db}
+.bi-mapwrap{border:1px solid #e5e2db;border-radius:9px;overflow:hidden;margin-bottom:10px}
+#biMap{width:100%;height:340px;border:0;display:block}
+.bi-links{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.bi-links a{flex:1;min-width:180px;padding:10px 12px;background:#132D65;color:#fff;border-radius:8px;text-decoration:none;font-size:.78rem;font-weight:700}
+.bi-links a:hover{background:#f47920}
+.bi-src{font-family:'DM Mono',monospace;font-size:.62rem;color:#9ca3af;line-height:1.6}
 </style>
 </head>
 <body>
@@ -203,6 +223,20 @@ select:focus,input:focus{outline:none;border-color:#f47920}
       <div style="overflow-x:auto"><table id="matrix"></table></div>
     </div>
   </div></div>
+
+  <div class="eyebrow">What has been built</div>
+  <details class="more" id="builtSect"><summary>Affordable, income regulated units financed since 2014</summary>
+    <div class="built-in">
+      <div class="bi-kpis" id="biKpis"></div>
+      <div class="bi-inc" id="biInc"></div>
+      <div class="bi-mapwrap"><iframe id="biMap" title="Where affordable housing got built" loading="lazy"></iframe></div>
+      <div class="bi-links">
+        <a href="/built">All the charts and a production report &rarr;</a>
+        <a href="/builtmap">Open the full map &rarr;</a>
+      </div>
+      <div class="bi-src" id="biSrc"></div>
+    </div>
+  </details>
 
   <div class="eyebrow">How to apply</div>
   <div class="h2">Applying through NYC Housing Connect</div>
@@ -488,6 +522,43 @@ select:focus,input:focus{outline:none;border-color:#f47920}
     quickMatch();
   }).catch(function(){
     document.getElementById('lotList').innerHTML='<div style="padding:16px;font-size:.8rem;color:#777">Lottery data could not load. See housingconnect.nyc.gov for current lotteries.</div>';
+  });
+})();
+
+/* ---- what has been built ---- */
+(function(){
+  var INCC={'Extremely low':'#1B5E8A','Very low':'#4A90A4','Low':'#82C341','Moderate':'#E8A800','Middle':'#D45F00','Other':'#9ca3af'};
+  var INCS=['Extremely low','Very low','Low','Moderate','Middle','Other'];
+  var loaded=false;
+  var n=function(v){return Number(v).toLocaleString('en-US');};
+  var sect=document.getElementById('builtSect');
+  if(!sect) return;
+  sect.addEventListener('toggle',function(){
+    if(!sect.open || loaded) return;
+    loaded=true;
+    document.getElementById('biMap').src='/builtmap';
+    Promise.all([
+      fetch('/data/hpd-affordable.json').then(function(r){return r.json();}),
+      fetch('/data/hpd-income-context.json').then(function(r){return r.json();}).catch(function(){return null;})
+    ]).then(function(a){
+      var D=a[0], C=a[1];
+      var tot=D.total_units, nw=D.by_type['New Construction']||0, pr=D.by_type['Preservation']||0;
+      var fam=(D.by_bed['3 BR']||0)+(D.by_bed['4 BR']||0)+(D.by_bed['5 BR']||0)+(D.by_bed['6+ BR']||0);
+      document.getElementById('biKpis').innerHTML=
+        '<div class="bi-k"><div class="k">Affordable units</div><div class="v">'+n(tot)+'</div><div class="d">income regulated, 2014 to 2026</div></div>'+
+        '<div class="bi-k"><div class="k">New construction</div><div class="v">'+Math.round(nw/tot*100)+'%</div><div class="d">'+n(nw)+' units; the rest renews existing affordability</div></div>'+
+        '<div class="bi-k"><div class="k">Three or more bedrooms</div><div class="v">'+Math.round(fam/tot*100)+'%</div><div class="d">'+n(fam)+' units</div></div>'+
+        '<div class="bi-k"><div class="k">Brooklyn CB6</div><div class="v">'+n(D.by_cd['BK-06']||0)+'</div><div class="d">units in the district</div></div>';
+      function lab(b){ return (C && C.bands[b] && C.bands[b].range) ? C.bands[b].range : b; }
+      document.getElementById('biInc').innerHTML='<div class="bi-hd">Household income served</div>'+
+        INCS.filter(function(b){return D.by_income[b];}).map(function(b){
+          return '<div class="bi-row"><span class="bi-sw" style="background:'+INCC[b]+'"></span>'+
+                 '<span class="bi-n">'+lab(b)+'</span><span class="bi-v">'+n(D.by_income[b])+'</span></div>';
+        }).join('');
+      document.getElementById('biSrc').textContent=D.source+(C?'. '+C.note:'');
+    }).catch(function(){
+      document.getElementById('biKpis').innerHTML='<div class="bi-k"><div class="k">Error</div><div class="v">&mdash;</div><div class="d">Data could not load.</div></div>';
+    });
   });
 })();
 </script>
