@@ -1269,12 +1269,17 @@ function bkcb6CopyEmbed(type){
   }
 
   // per-bedroom listing counts, so every rent has its supply beside it
-  var RINV=null, CCRENT=null;
+  var RINV=null, CCRENT=null, CCB_MAP=null;
+  var CCB_HOME="Brooklyn";
   var CC_START='2023-01';
   function ccAreas(){
     if(!CCRENT) return [];
-    return Object.keys(CCRENT.cds).sort(function(a,b){return +a-+b;}).map(function(d){
-      return {id:'k:'+d, t:'ccd', n:'Council District '+d, p:'Council', __cc:d};
+    return Object.keys(CCRENT.cds).filter(function(d){
+      if(!CCB_HOME || !CCB_MAP) return true;
+      var r=CCB_MAP[d]; return !!(r && r['in'].indexOf(CCB_HOME)>-1);
+    }).sort(function(a,b){return +a-+b;}).map(function(d){
+      var r=CCB_MAP&&CCB_MAP[d];
+      return {id:'k:'+d, t:'ccd', n:'Council District '+d, p:(r?r.main:'Council'), __cc:d};
     });
   }
   function ccValueAt(d,bed,per){
@@ -1455,8 +1460,9 @@ function bkcb6CopyEmbed(type){
       D=j; $('rptNote').textContent=''; fillDates(); labelScope(); syncControls();
       Promise.all([
         fetch('/data/inventory-by-bed.json').then(function(r){return r.json();}).catch(function(){return null;}),
-        fetch('/data/cc-rents.json').then(function(r){return r.json();}).catch(function(){return null;})
-      ]).then(function(x){ RINV=x[0]; CCRENT=x[1]; cb(); });
+        fetch('/data/cc-rents.json').then(function(r){return r.json();}).catch(function(){return null;}),
+        fetch('/data/cc-borough.json').then(function(r){return r.json();}).catch(function(){return null;})
+      ]).then(function(x){ RINV=x[0]; CCRENT=x[1]; CCB_MAP=x[2]; cb(); });
     }).catch(function(){ $('rptNote').textContent='Data could not load.'; });
   }
   ['rptKind','rptCmpKind','rptScope'].forEach(function(id){ $(id).addEventListener('change',syncControls); });
@@ -1737,7 +1743,9 @@ function bkcb6CopyEmbed(type){
 
 /* ---- council district lens (2023 onward) ---- */
 (function(){
-  var CCGEO=null, CCR=null, ccLayer=null, ccLabels=[], lens='cb';
+  var CCGEO=null, CCR=null, CCBORO=null, ccLayer=null, ccLabels=[], lens='cb';
+  var CC_HOME="Brooklyn";
+  function ccMine(d){ if(!CC_HOME||!CCBORO) return true; var r=CCBORO[d]; return !!(r && r['in'].indexOf(CC_HOME)>-1); }
   var TIERS=['#1B5E8A','#82C341','#E8A800','#D45F00','#67000D'];
   var TIERNAME=['Least Expensive','Less Expensive','Mid Range','Expensive','Most Expensive'];
   function bedK(){ return ({studio:'studio','1br':'br1','2br':'br2','3br':'br3'})[mode]||'br1'; }
@@ -1756,6 +1764,7 @@ function bkcb6CopyEmbed(type){
   function ccTiers(i){
     var vals=[];
     Object.keys(CCR.cds).forEach(function(d){
+      if(!ccMine(d)) return;
       var v=CCR.cds[d][bedK()][i];
       if(v!=null) vals.push({d:d,v:v});
     });
@@ -1786,7 +1795,7 @@ function bkcb6CopyEmbed(type){
       '<div style="font-size:.8rem;font-weight:700;color:#f47920;margin-top:1px">'+(LONG[k]||'')+'</div></div>'+
       rows+
       '<div style="font-size:.66rem;color:#888;margin-top:6px;border-top:1px solid #eee;padding-top:5px">'+
-      (t?t.band+' \u00b7 #'+t.rank+' of '+t.total+' council districts':'')+' \u00b7 '+CCR.months[i]+'</div></div>';
+      (t?t.band+' \u00b7 #'+t.rank+' of '+t.total+(CC_HOME?(' in '+CC_HOME):' council districts'):'')+' \u00b7 '+CCR.months[i]+'</div></div>';
   }
   function drawCC(){
     if(!CCGEO||!CCR) return;
@@ -1794,7 +1803,8 @@ function bkcb6CopyEmbed(type){
     var T=ccTiers(i);
     if(ccLayer){ map.removeLayer(ccLayer); ccLayer=null; }
     ccLabels.forEach(function(m){ map.removeLayer(m); }); ccLabels=[];
-    ccLayer=L.geoJSON(CCGEO,{
+    var feats={type:'FeatureCollection',features:CCGEO.features.filter(function(f){return ccMine(f.properties.cc);})};
+    ccLayer=L.geoJSON(feats,{
       style:function(f){
         var t=T[f.properties.cc];
         return {color:'#fff',weight:1.4,fillColor:t?t.fill:'#ddd',fillOpacity:t?0.82:0.25};
@@ -1821,8 +1831,13 @@ function bkcb6CopyEmbed(type){
       if(window.__cdLabels) window.__cdLabels.forEach(function(o){ map.removeLayer(o.mk); });
       Promise.all([
         CCGEO?Promise.resolve(CCGEO):fetch('/data/council-districts.geojson').then(function(r){return r.json();}),
-        CCR?Promise.resolve(CCR):fetch('/data/cc-rents.json').then(function(r){return r.json();})
-      ]).then(function(a){ CCGEO=a[0]; CCR=a[1]; drawCC(); }).catch(function(){ note.textContent='Council data could not load.'; });
+        CCR?Promise.resolve(CCR):fetch('/data/cc-rents.json').then(function(r){return r.json();}),
+        CCBORO?Promise.resolve(CCBORO):fetch('/data/cc-borough.json').then(function(r){return r.json();})
+      ]).then(function(a){ CCGEO=a[0]; CCR=a[1]; CCBORO=a[2];
+        try{ ccLayer&&map.removeLayer(ccLayer); }catch(e){}
+        drawCC();
+        if(CC_HOME){ var mine=CCGEO.features.filter(function(f){return ccMine(f.properties.cc);}).length;
+          note.textContent=mine+' council districts in '+CC_HOME+' \u00b7 January 2023 onward'; } }).catch(function(){ note.textContent='Council data could not load.'; });
     } else {
       note.textContent='';
       if(ccLayer){ map.removeLayer(ccLayer); ccLayer=null; }
