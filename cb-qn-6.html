@@ -1266,6 +1266,66 @@ window.__cbqn6LandUseInit = (function(){
 .elected-tile img{display:block;width:100%;height:100%;object-fit:contain;padding:6px;box-sizing:border-box}
 @media(max-width:560px){.elected-grid{grid-template-columns:repeat(2,1fr);gap:10px}}
 </style>
+<div class="drop-section" id="sec-landuse-zoning">
+  <button class="drop-toggle" onclick="cbToggle(this)"><span>Land Use &amp; Zoning Breakdown</span><span class="drop-arr">&#9660;</span></button>
+  <div class="drop-body">
+    <div id="luz-wrap" style="font-family:'DM Sans',sans-serif">
+      <div style="font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:#6b6760;font-weight:700;margin:2px 0 8px">What the land is used for</div>
+      <div id="luz-lu"></div>
+      <div id="luz-lunote" style="font-size:.76rem;color:#555;line-height:1.6;margin:9px 0 16px"></div>
+      <div style="font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:#6b6760;font-weight:700;margin:2px 0 8px">How it is zoned</div>
+      <div id="luz-z"></div>
+      <div id="luz-znote" style="font-size:.76rem;color:#555;line-height:1.6;margin:9px 0 10px"></div>
+      <div style="overflow-x:auto"><table id="luz-ztbl" style="width:100%;border-collapse:collapse"></table></div>
+      <div style="font-family:'DM Mono',monospace;font-size:.62rem;color:#9ca3af;line-height:1.6;margin-top:11px">Source: NYC Department of City Planning PLUTO. Shares are by lot area.</div>
+    </div>
+  </div>
+</div>
+<style>
+#luz-wrap .b{display:flex;align-items:center;gap:9px;padding:5px 0;font-size:.78rem}
+#luz-wrap .sw{width:10px;height:10px;border-radius:3px;flex:none}
+#luz-wrap .nm{min-width:148px;color:#0d1b4b;font-weight:700;font-size:.75rem;line-height:1.3}
+#luz-wrap .br{flex:1;height:9px;background:#f0ede8;border-radius:3px;overflow:hidden;min-width:34px}
+#luz-wrap .br i{display:block;height:100%;border-radius:3px}
+#luz-wrap .pc{font-family:'DM Mono',monospace;font-weight:800;color:#0d1b4b;min-width:46px;text-align:right;font-size:.74rem}
+#luz-ztbl th,#luz-ztbl td{padding:6px 7px;font-size:.74rem;text-align:right;border-bottom:1px solid #f0ede8;font-family:'DM Mono',monospace}
+#luz-ztbl th{font-size:.5rem;text-transform:uppercase;letter-spacing:.05em;color:#6b6760;background:#f8f7f4}
+#luz-ztbl th:first-child,#luz-ztbl td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700}
+</style>
+<script>
+(function(){
+  var CODE="QNCB6";
+  var n=function(v){return Number(v).toLocaleString('en-US');};
+  fetch('/data/cd-landuse.json').then(function(r){return r.json();}).then(function(L){
+    var d=L.cd[CODE]; if(!d){ var el=document.getElementById('sec-landuse-zoning'); if(el) el.style.display='none'; return; }
+    function bars(rows,total,colors){
+      return rows.map(function(r){
+        var p=total?(r.v/total*100):0;
+        return '<div class="b"><span class="sw" style="background:'+(colors[r.k]||'#9ca3af')+'"></span>'+
+          '<span class="nm">'+r.label+'</span><span class="br"><i style="width:'+p.toFixed(1)+'%;background:'+(colors[r.k]||'#9ca3af')+'"></i></span>'+
+          '<span class="pc">'+p.toFixed(1)+'%</span></div>';
+      }).join('');
+    }
+    var luTot=0; Object.keys(d.lu).forEach(function(c){ luTot+=d.lu[c].area; });
+    var luRows=Object.keys(d.lu).map(function(c){return {k:c,label:L.landuse_labels[c]||c,v:d.lu[c].area,lots:d.lu[c].lots};})
+      .sort(function(a,b){return b.v-a.v;});
+    document.getElementById('luz-lu').innerHTML=bars(luRows,luTot,L.landuse_colors);
+    var res=luRows.filter(function(r){return ['01','02','03','04'].indexOf(r.k)>-1;}).reduce(function(t,r){return t+r.v;},0);
+    document.getElementById('luz-lunote').textContent='The largest single use is '+luRows[0].label.toLowerCase()+' at '+
+      (luRows[0].v/luTot*100).toFixed(1)+'% of lot area across '+n(luRows[0].lots)+' lots. Residential uses of all kinds account for '+
+      (res/luTot*100).toFixed(1)+'%.';
+    var zTot=0; Object.keys(d.zfam).forEach(function(k){ zTot+=d.zfam[k].area; });
+    var zRows=Object.keys(d.zfam).map(function(k){return {k:k,label:k,v:d.zfam[k].area};}).sort(function(a,b){return b.v-a.v;});
+    document.getElementById('luz-z').innerHTML=bars(zRows,zTot,L.zone_family_colors);
+    var zd=Object.keys(d.zone).map(function(z){return {z:z,a:d.zone[z].area,l:d.zone[z].lots};}).sort(function(a,b){return b.a-a.a;});
+    document.getElementById('luz-znote').textContent='The most common zoning district is '+zd[0].z+', covering '+
+      (zd[0].a/zTot*100).toFixed(1)+'% of zoned lot area. R is residential, C commercial, M manufacturing.';
+    document.getElementById('luz-ztbl').innerHTML='<tr><th>Zoning district</th><th>Lots</th><th>Share of area</th></tr>'+
+      zd.slice(0,15).map(function(r){return '<tr><td>'+r.z+'</td><td>'+n(r.l)+'</td><td>'+(r.a/zTot*100).toFixed(1)+'%</td></tr>';}).join('');
+  }).catch(function(){ var el=document.getElementById('sec-landuse-zoning'); if(el) el.style.display='none'; });
+})();
+</script>
+
 <div class="drop-section" id="sec-elected">
 <button class="drop-toggle" onclick="cbToggle(this)">
     🏛 Those That Rep This District

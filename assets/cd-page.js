@@ -156,10 +156,11 @@
       fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}),
       fetch('/data/housing-db-cd.json').then(function(r){return r.json();}).catch(function(){return null;}),
       fetch('/data/hpd-affordable.json').then(function(r){return r.json();}).catch(function(){return null;}),
-      fetch('/data/housing-jobs.json').then(function(r){return r.json();}).catch(function(){return null;})
+      fetch('/data/housing-jobs.json').then(function(r){return r.json();}).catch(function(){return null;}),
+      fetch('/data/cd-landuse.json').then(function(r){return r.json();}).catch(function(){return null;})
     ]).then(function(a){
       D.look=a[0][CODE]; D.nbgeo=a[1]; D.ccgeo=a[2]; D.cc=a[3]; D.inv=a[4];
-      D.cdgeo=a[5]; D.hdb=a[6]; D.hpd=a[7]; D.jobs=a[8];
+      D.cdgeo=a[5]; D.hdb=a[6]; D.hpd=a[7]; D.jobs=a[8]; D.lu=a[9];
       if(!D.look){ $('bnote').textContent='District not found.'; return; }
       header(); outline(); kpis();
       if(!D.look.se.length){
@@ -168,7 +169,7 @@
         var nb=document.querySelector('[data-lens="nb"]');
         if(nb){ nb.disabled=true; nb.title='StreetEasy publishes no neighborhood rents here'; }
       }
-      draw(); housing(); table(); districtPicker(a[0]);
+      draw(); housing(); table(); landuse(); districtPicker(a[0]);
     }).catch(function(){ $('bnote').textContent='Data could not load.'; });
   }
 
@@ -223,6 +224,53 @@
       rows.map(function(r){
         return '<tr><td>'+r.n+'</td><td>'+money(r.s)+'</td><td>'+money(r.a)+'</td><td>'+money(r.b)+'</td><td>'+money(r.c)+'</td><td>'+n(r.i)+'</td></tr>';
       }).join('');
+  }
+
+  function bars(rows,total,colors){
+    return rows.map(function(r){
+      var pct=total?(r.v/total*100):0;
+      return '<div class="lub"><span class="lusw" style="background:'+(colors[r.k]||'#9ca3af')+'"></span>'+
+        '<span class="lun">'+r.label+'</span>'+
+        '<span class="lubar"><i style="width:'+pct.toFixed(1)+'%;background:'+(colors[r.k]||'#9ca3af')+'"></i></span>'+
+        '<span class="lup">'+pct.toFixed(1)+'%</span></div>';
+    }).join('');
+  }
+  function landuse(){
+    var L=D.lu, d=L&&L.cd[CODE];
+    if(!d){ var s1=$('lusec'); if(s1) s1.style.display='none'; var s2=$('zsec'); if(s2) s2.style.display='none'; return; }
+
+    // land use by share of lot area
+    var luTot=0; Object.keys(d.lu).forEach(function(c){ luTot+=d.lu[c].area; });
+    var luRows=Object.keys(d.lu).map(function(c){
+      return {k:c,label:L.landuse_labels[c]||c,v:d.lu[c].area,lots:d.lu[c].lots,units:d.lu[c].units};
+    }).sort(function(a,b){return b.v-a.v;});
+    $('lubars').innerHTML=bars(luRows,luTot,L.landuse_colors);
+    var top=luRows[0], res=luRows.filter(function(r){return ['01','02','03','04'].indexOf(r.k)>-1;})
+      .reduce(function(t,r){return t+r.v;},0);
+    $('lunote').textContent='The largest single use is '+top.label.toLowerCase()+' at '+(top.v/luTot*100).toFixed(1)+
+      '% of built lot area, across '+n(top.lots)+' lots. Residential uses of all kinds account for '+(res/luTot*100).toFixed(1)+
+      '%. Shares are by lot area, so a few large parcels can outweigh many small ones.';
+    $('lutbl').innerHTML='<tr><th>Land use</th><th>Lots</th><th>Share of area</th><th>Homes</th></tr>'+
+      luRows.map(function(r){
+        return '<tr><td>'+r.label+'</td><td>'+n(r.lots)+'</td><td>'+(r.v/luTot*100).toFixed(1)+'%</td><td>'+n(r.units)+'</td></tr>';
+      }).join('');
+
+    // zoning by family, then the individual districts
+    var zTot=0; Object.keys(d.zfam).forEach(function(k){ zTot+=d.zfam[k].area; });
+    var zRows=Object.keys(d.zfam).map(function(k){return {k:k,label:k,v:d.zfam[k].area,lots:d.zfam[k].lots};})
+      .sort(function(a,b){return b.v-a.v;});
+    $('zbars').innerHTML=bars(zRows,zTot,L.zone_family_colors);
+    var zd=Object.keys(d.zone).map(function(z){return {z:z,a:d.zone[z].area,l:d.zone[z].lots};})
+      .sort(function(a,b){return b.a-a.a;});
+    $('ztbl').innerHTML='<tr><th>Zoning district</th><th>Lots</th><th>Share of area</th></tr>'+
+      zd.slice(0,18).map(function(r){
+        return '<tr><td>'+r.z+'</td><td>'+n(r.l)+'</td><td>'+(r.a/zTot*100).toFixed(1)+'%</td></tr>';
+      }).join('');
+    var manu=(d.zfam['Manufacturing']||{}).area||0;
+    $('znote').textContent='The most common zoning district here is '+zd[0].z+', covering '+(zd[0].a/zTot*100).toFixed(1)+
+      '% of zoned lot area across '+n(zd[0].l)+' lots'+
+      (manu?'. Manufacturing zoning covers '+(manu/zTot*100).toFixed(1)+'% of the district':'')+
+      '. R is residential, C commercial, M manufacturing; the number that follows sets how much can be built.';
   }
   function districtPicker(all){
     var keys=Object.keys(all).sort(function(a,b){
