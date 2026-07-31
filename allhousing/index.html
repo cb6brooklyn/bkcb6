@@ -135,6 +135,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
 .rsec:nth-of-type(3) .rcb{height:400px}
 .rfoot{font-family:'DM Mono',monospace;font-size:.64rem;color:#9ca3af;line-height:1.7;border-top:1px solid var(--border);padding-top:10px}
 @media print{ .rcb{height:auto} .rsec{page-break-inside:avoid} }
+.nm-label{background:none!important;border:none!important;box-shadow:none!important;pointer-events:none;font-family:'DM Sans',sans-serif;font-size:.6rem;font-weight:800;color:#0d1b4b;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;text-align:center;line-height:1.12;white-space:normal;overflow:visible}
+.nm-label:before{display:none!important}
 </style>
 </head>
 <body>
@@ -303,6 +305,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
         l.on('mouseover',function(){ l.setStyle({weight:2.5,color:'#333'}); if(l.bringToFront) l.bringToFront(); });
         l.on('mouseout',function(){ layer.resetStyle(l); });
         try{
+          if(which==='nb'){
+            var bb=l.getBounds();
+            var sizeDeg=Math.abs(bb.getEast()-bb.getWest())+Math.abs(bb.getNorth()-bb.getSouth());
+            jsizes.push(sizeDeg);
+            jpending.push({lyr:l,nm:nm,size:sizeDeg});
+            return;
+          }
           var mk=L.marker(l.getBounds().getCenter(),{interactive:false,keyboard:false,
             icon:L.divIcon({className:'cd-label',html:k,iconSize:[60,14],iconAnchor:[30,7]})}).addTo(map);
           labels.push(mk);
@@ -464,10 +473,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
     if(jlayer){ window.__map.removeLayer(jlayer); jlayer=null; }
     jlabels.forEach(function(m){window.__map.removeLayer(m);}); jlabels=[];
   }
+  var jpending=[], jsizes=[];
   function drawJ(which){
     var cfg=CFG[which], g=GEOS[which], data=JOBS[cfg.bucket];
     if(!g||!data) return;
-    clear();
+    clear(); jpending=[]; jsizes=[];
     var vals=[];
     g.features.forEach(function(f){ var d=data[cfg.key(f.properties)]; if(d) vals.push(d.units); });
     var T=tiers(vals);
@@ -491,12 +501,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
         l.on('mouseover',function(){ l.setStyle({weight:2.5,color:'#333'}); if(l.bringToFront) l.bringToFront(); });
         l.on('mouseout',function(){ jlayer.resetStyle(l); });
         try{
+          if(which==='nb'){
+            var bb=l.getBounds();
+            var sizeDeg=Math.abs(bb.getEast()-bb.getWest())+Math.abs(bb.getNorth()-bb.getSouth());
+            jsizes.push(sizeDeg);
+            jpending.push({lyr:l,nm:nm,size:sizeDeg});
+            return;
+          }
           var mk=L.marker(l.getBounds().getCenter(),{interactive:false,keyboard:false,
-            icon:L.divIcon({className:'cd-label',html:(which==='cc'?('CD '+k):(nm||'')),iconSize:[110,16],iconAnchor:[55,8]})}).addTo(window.__map);
+            icon:(which==='cc'
+              ? L.divIcon({className:'cd-label',html:'CD '+k,iconSize:[54,14],iconAnchor:[27,7]})
+              : L.divIcon({className:'nm-label',html:(nm||''),iconSize:[104,28],iconAnchor:[52,14]}))
+          }).addTo(window.__map);
           jlabels.push(mk);
         }catch(e){}
       }
     }).addTo(window.__map);
+    if(which==='nb') placeNames();
     document.getElementById('lensNote').textContent=Object.keys(data).length+' '+cfg.word+' \u00b7 2010 to 2022';
     var sr=document.getElementById('src');
     if(sr) sr.textContent=(which==='nb' && JOBS.nb_note) ? (JOBS.source+'. '+JOBS.nb_note) : (JOBS.source+'. '+JOBS.note);
@@ -505,6 +526,22 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
     md.innerHTML='<span class="m">2010\u20132022</span><span class="w">units completed</span>';
     md.classList.remove('past');
   }
+  function placeNames(){
+    jlabels.forEach(function(m){ window.__map.removeLayer(m); }); jlabels=[];
+    if(!jpending.length) return;
+    var z=window.__map.getZoom();
+    // at low zoom only the larger neighborhoods carry a name, so the map stays readable
+    var cut = z>=13 ? 0 : (z>=12 ? 0.006 : (z>=11 ? 0.012 : 0.02));
+    jpending.forEach(function(o){
+      if(o.size<cut) return;
+      try{
+        var mk=L.marker(o.lyr.getBounds().getCenter(),{interactive:false,keyboard:false,
+          icon:L.divIcon({className:'nm-label',html:o.nm,iconSize:[104,28],iconAnchor:[52,14]})}).addTo(window.__map);
+        jlabels.push(mk);
+      }catch(e){}
+    });
+  }
+  window.__map && window.__map.on('zoomend',function(){ if(jlens==='nb') placeNames(); });
   window.__jobLens=function(which){
     jlens=which;
     if(which==='cb'){ clear(); if(window.__cbRedraw) window.__cbRedraw(); return; }
