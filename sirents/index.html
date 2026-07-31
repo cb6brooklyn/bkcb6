@@ -333,6 +333,14 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .mapdate.past{background:#f47920;border-color:#fff}
 .mapdate.past .md-w{color:rgba(255,255,255,.85)}
 @media(max-width:520px){.mapdate{top:8px;right:8px;padding:6px 10px}.mapdate .md-m{font-size:1rem}}
+
+.rpt-head{border-bottom:3px solid #f47920;padding-bottom:9px;margin-bottom:12px}
+.rpt-ctx{background:#f8f7f4;border-left:4px solid #f47920;border-radius:0 8px 8px 0;padding:11px 13px;font-size:.82rem;line-height:1.65;color:#333;margin:12px 0 14px}
+.rpt-sec{margin-bottom:16px}
+.rpt-sh{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:#6b6760;font-weight:700;margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid #e5e2db}
+.rpt-cb{position:relative;height:220px}
+.rpt-cb.tall{height:340px}
+@media print{ .rpt-cb{height:auto} .rpt-sec{page-break-inside:avoid} }
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -1211,24 +1219,55 @@ function bkcb6CopyEmbed(type){
         (cmp?('<div class="d '+(p>0?'rpt-up':(p<0?'rpt-down':'rpt-flat'))+'">'+(p===null?'no comparison':((p>0?'+':'')+p+'% vs '+perLabel(cmp)))+'</div>'):'')+'</div>';
     }).join('');
 
+    // written summary
+    var selName=(rows.length===1?rows[0].n:AREA_NAME);
+    var b1=valueAt(self,'br1',per), b1c=cmp?valueAt(self,'br1',cmp):null;
+    var i1=invAt(self,'br1',per);
+    var ctx=selName+' had a median asking rent of '+money(b1)+' for a one bedroom in '+perLabel(per)+'.';
+    if(cmp && b1 && b1c){ var d=pct(b1,b1c);
+      ctx+=' That is '+(d>0?'up ':'down ')+Math.abs(d)+'% against '+perLabel(cmp)+', when it was '+money(b1c)+'.'; }
+    if(i1!=null) ctx+=' The figure comes from '+Number(i1).toLocaleString()+' one bedroom listings.';
+    if(rows.length>1){
+      var rk=rows.map(function(a){return {n:a.n,v:valueAt(a,'br1',per)};}).filter(function(o){return o.v!=null;})
+                 .sort(function(x,y){return y.v-x.v;});
+      if(rk.length>1) ctx+=' Across the '+rk.length+' areas shown, '+rk[0].n+' is highest at '+money(rk[0].v)+
+        ' and '+rk[rk.length-1].n+' lowest at '+money(rk[rk.length-1].v)+'.';
+    }
+    ctx+=' Median asking rent is what landlords list, not what tenants pay, and a thin month of listings can move it sharply.';
+
     $('rptOut').innerHTML='<div class="rpt-card">'+
-      '<div class="rpt-title">'+AREA_NAME+' rent report</div>'+
-      '<div class="rpt-when">'+perLabel(per)+(cmp?' &nbsp;vs&nbsp; '+perLabel(cmp):'')+'</div>'+
+      '<div class="rpt-head"><div class="rpt-title">'+AREA_NAME+' rent report</div>'+
+      '<div class="rpt-when">'+perLabel(per)+(cmp?' &nbsp;vs&nbsp; '+perLabel(cmp):'')+'</div></div>'+
       '<div class="rpt-grid">'+cells+'</div>'+
+      '<div class="rpt-ctx">'+ctx+'</div>'+
       '<div class="rpt-h3">'+(sc==='parts'?'Every part of '+AREA_NAME:(sc==='choose'?'Comparison':'Summary'))+'</div>'+
       (cmp?'<div class="rpt-key"><span class="k1">Top figure: '+perLabel(per)+'</span>'+
             '<span class="k2">Below it: '+perLabel(cmp)+'</span>'+
             '<span class="k3">Then the change</span></div>':'')+
-      '<div style="overflow-x:auto"><table class="rpt-tbl">'+head+body+'</table></div>'+
-      '<div class="rpt-h3">1-bedroom trend</div><canvas id="rptCh" height="130"></canvas>'+
+      (rows.length>1?'<div class="rpt-sec"><div class="rpt-sh">One bedroom, ranked</div><div class="rpt-cb tall"><canvas id="rptRank"></canvas></div></div>':'')+
+      '<div class="rpt-sec"><div class="rpt-sh">Every area</div><div style="overflow-x:auto"><table class="rpt-tbl">'+head+body+'</table></div></div>'+
+      '<div class="rpt-sec"><div class="rpt-sh">One bedroom over time</div><div class="rpt-cb"><canvas id="rptCh"></canvas></div></div>'+
       (rows.some(function(x){return x.__cc;})?'<div class="rpt-cc">Council district figures start January 2023, when the current boundaries took effect, and are the median across the StreetEasy neighborhoods inside each district. Earlier periods show no council figures.</div>':'')+'<div class="rpt-src">Source: StreetEasy median asking rent and rental inventory. Figures in parentheses are the number of listings of that size. A whole-year figure is the mean of that year\u2019s published months. Blank figures mean StreetEasy published none; it publishes Staten Island only at borough level, so its community districts have no listing counts. Generated '+new Date().toLocaleDateString('en-US')+' &middot; bkcb6.app</div></div>';
 
+    if(window.Chart && document.getElementById('rptRank')){
+      var rk2=rows.map(function(a){return {n:a.n,v:valueAt(a,'br1',per)};}).filter(function(o){return o.v!=null;})
+                  .sort(function(x,y){return y.v-x.v;}).slice(0,20);
+      try{ if(window.__rptRankChart) window.__rptRankChart.destroy(); }catch(e){}
+      window.__rptRankChart=new Chart(document.getElementById('rptRank'),{type:'bar',
+        data:{labels:rk2.map(function(o){return o.n;}),
+              datasets:[{data:rk2.map(function(o){return o.v;}),
+                backgroundColor:rk2.map(function(o){return o.n===AREA_NAME?'#f47920':'#132D65';}),borderRadius:3}]},
+        options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,animation:false,
+          plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return money(c.parsed.x);}}}},
+          scales:{x:{ticks:{font:{size:9,family:'DM Mono'},color:'#6b6760',callback:function(v){return '$'+(v/1000).toFixed(1)+'k';}},grid:{color:'#f2f0ec'}},
+                  y:{ticks:{font:{size:10,family:'DM Sans'},color:'#132D65',autoSkip:false},grid:{display:false}}}}});
+    }
     var endIdx = per.kind==='month' ? D.months.indexOf(per.ym) : (function(){ var last=-1;
       for(var i=0;i<D.months.length;i++) if(D.months[i].slice(0,4)===per.y) last=i; return last<0?D.months.length-1:last; })();
     var lab=D.months.slice(0,endIdx+1), s1=ser(self,'br1').slice(0,endIdx+1);
     if(ch) ch.destroy();
     if(window.Chart) ch=new Chart($('rptCh'),{type:'line',data:{labels:lab,datasets:[{data:s1,borderColor:'#f47920',borderWidth:2,pointRadius:0,tension:.25,spanGaps:true}]},
-      options:{responsive:true,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return money(c.parsed.y);}}}},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return money(c.parsed.y);}}}},
       scales:{x:{ticks:{maxTicksLimit:8,font:{size:8,family:'DM Mono'},color:'#9ca3af',callback:function(v){var t=lab[v]||'';return t.slice(5)==='01'?t.slice(0,4):'';}},grid:{display:false}},
         y:{ticks:{font:{size:8,family:'DM Mono'},color:'#9ca3af',callback:function(v){return '$'+(v/1000).toFixed(1)+'k';}},grid:{color:'#f0ede8'}}}}});
     $('rptPdf').style.display='';
