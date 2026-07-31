@@ -10,7 +10,8 @@
   var MONL=['January','February','March','April','May','June','July','August','September','October','November','December'];
 
   var D={};            // loaded data
-  var lens='nb';       // nb | cc
+  var lens='nb';       // nb | cc | lu | zn
+  var lotLayer=null, LOTS=null, lotsLoading=false;
   var mode='1br';      // unit size
   var map, layer=null, labels=[], boroLabel=null;
 
@@ -41,6 +42,75 @@
     var a=rec['inv_'+bed]; return a[a.length-1];
   }
 
+
+  var LU_LABEL={'01':'One and two family homes','02':'Multifamily walk-up','03':'Multifamily elevator',
+    '04':'Mixed residential and commercial','05':'Commercial and office','06':'Industrial and manufacturing',
+    '07':'Transportation and utility','08':'Public facilities and institutions','09':'Open space and recreation',
+    '10':'Parking facilities','11':'Vacant land'};
+  var LU_COLOR={'01':'#f2c94c','02':'#f2994a','03':'#eb5757','04':'#bb6bd9','05':'#2f80ed','06':'#9b51e0',
+    '07':'#6b7280','08':'#56ccf2','09':'#27ae60','10':'#a0a0a0','11':'#d9d9d9'};
+  var ZN_COLOR={'R':'#f2994a','C':'#2563eb','M':'#9b51e0','P':'#27ae60','B':'#56ccf2','?':'#9ca3af'};
+  var ZN_LABEL={'R':'Residential','C':'Commercial','M':'Manufacturing','P':'Park','B':'Special district','?':'Other'};
+  function znFam(z){
+    if(!z) return '?';
+    var c=String(z).trim().toUpperCase().charAt(0);
+    if(c==='R') return 'R'; if(c==='C') return 'C'; if(c==='M') return 'M';
+    if(String(z).toUpperCase().indexOf('PARK')===0) return 'P';
+    if(c==='B') return 'B';
+    return '?';
+  }
+  function cdNum(){ return ({MN:'1',BX:'2',BK:'3',QN:'4',SI:'5'})[CODE.slice(0,2)]+String(D.look.num).padStart(2,'0'); }
+
+  function loadLots(cb){
+    if(LOTS) return cb();
+    if(lotsLoading) return;
+    lotsLoading=true;
+    $('bnote').textContent='Loading every lot in the district\u2026';
+    var url='https://data.cityofnewyork.us/resource/64uk-42ks.json'+
+      '?$select=landuse,zonedist1,latitude,longitude&$where=cd=%27'+cdNum()+'%27%20AND%20latitude%20IS%20NOT%20NULL&$limit=50000';
+    fetch(url,{headers:{'X-App-Token':'HvFoIfzodzpRML7a1104Ca2tM'}})
+      .then(function(r){return r.json();})
+      .then(function(rows){
+        LOTS=rows.map(function(r){
+          return {y:+r.latitude,x:+r.longitude,lu:(r.landuse||'').padStart(2,'0'),z:r.zonedist1||''};
+        }).filter(function(p){return p.y&&p.x;});
+        lotsLoading=false; cb();
+      }).catch(function(){ lotsLoading=false; drawEmpty('Lot data could not load from NYC Open Data.'); });
+  }
+  function drawLots(kind){
+    loadLots(function(){
+      clearMap();
+      var counts={};
+      var grp=L.layerGroup();
+      // dense districts get smaller dots and no per-lot tooltip, so they stay responsive
+      var rad = LOTS.length>25000 ? 2 : (LOTS.length>12000 ? 2.5 : 3.5);
+      var tips = LOTS.length<=25000;
+      LOTS.forEach(function(p){
+        var key = kind==='lu' ? p.lu : znFam(p.z);
+        var col = kind==='lu' ? (LU_COLOR[p.lu]||'#9ca3af') : (ZN_COLOR[key]||'#9ca3af');
+        counts[key]=(counts[key]||0)+1;
+        var m=L.circleMarker([p.y,p.x],{radius:rad,stroke:false,fillColor:col,fillOpacity:.8,
+          renderer:window.__lotCanvas});
+        if(tips) m.bindTooltip(kind==='lu'
+          ? (LU_LABEL[p.lu]||'Unclassified')
+          : (p.z? p.z+' \u00b7 '+ZN_LABEL[znFam(p.z)] : 'No zoning recorded'),{sticky:true});
+        m.addTo(grp);
+      });
+      grp.addTo(map); layer=grp;
+      try{ if(D.cdLayer) map.fitBounds(D.cdLayer.getBounds(),{padding:[18,18]}); }catch(e){}
+      var lab = kind==='lu' ? LU_LABEL : ZN_LABEL;
+      var col = kind==='lu' ? LU_COLOR : ZN_COLOR;
+      var order=Object.keys(counts).sort(function(a,b){return counts[b]-counts[a];});
+      $('legend').innerHTML='<span class="l">'+(kind==='lu'?'Land use':'Zoning')+'</span>'+
+        order.map(function(k){
+          return '<span class="i"><span class="sw" style="background:'+(col[k]||'#9ca3af')+'"></span>'+
+                 (lab[k]||'Other')+' ('+n(counts[k])+')</span>';
+        }).join('');
+      $('bnote').textContent=n(LOTS.length)+' lots \u00b7 every tax lot in the district'+
+        (tips?'':' \u00b7 too dense for per-lot labels');
+      $('capS').textContent=(kind==='lu'?'Land use':'Zoning')+' by tax lot';
+    });
+  }
   function clearMap(){
     if(layer){ map.removeLayer(layer); layer=null; }
     labels.forEach(function(m){ map.removeLayer(m); }); labels=[];
@@ -135,10 +205,22 @@
       map.fitBounds(b,{padding:[18,18]});
     }catch(e){}
   }
-  function draw(){ if(lens==='nb') drawNb(); else drawCc(); }
+  function draw(){
+    if(lens==='lu') return drawLots('lu');
+    if(lens==='zn') return drawLots('zn');
+    restoreLegend();
+    if(lens==='nb') drawNb(); else drawCc();
+  }
+  function restoreLegend(){
+    $('legend').innerHTML='<span class="l">Rent tier within this district</span>'+
+      TIERS.slice().reverse().map(function(c,i){
+        return '<span class="i"><span class="sw" style="background:'+c+'"></span>'+TIERNAME[4-i]+'</span>';
+      }).join('');
+  }
 
   function boot(){
-    map=L.map('map',{scrollWheelZoom:true}).setView([40.68,-73.97],12);
+    map=L.map('map',{scrollWheelZoom:true,preferCanvas:true}).setView([40.68,-73.97],12);
+    window.__lotCanvas=L.canvas({padding:.4});
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:17,attribution:'&copy; CARTO'}).addTo(map);
     map.createPane('nbNames'); map.getPane('nbNames').style.zIndex=640; map.getPane('nbNames').style.pointerEvents='none';
 
@@ -292,6 +374,7 @@
     b.addEventListener('click',function(){
       mode=this.getAttribute('data-bed');
       document.querySelectorAll('[data-bed]').forEach(function(x){x.classList.toggle('on',x===b);});
+      if(lens==='lu'||lens==='zn') return;
       draw();
     });
   });
@@ -299,6 +382,8 @@
     b.addEventListener('click',function(){
       lens=this.getAttribute('data-lens');
       document.querySelectorAll('[data-lens]').forEach(function(x){x.classList.toggle('on',x===b);});
+      var rentLens=(lens==='nb'||lens==='cc');
+      document.getElementById('bedbar').style.display=rentLens?'':'none';
       draw();
     });
   });
