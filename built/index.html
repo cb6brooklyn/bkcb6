@@ -87,6 +87,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
 .rtbl th:first-child,.rtbl td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700}
 .rtbl tr.me{background:#fff8f2}
 @media print{ .topbar,.mrnote,.rbar,.kpis,details:not(#rptSect){display:none!important} #rptSect>summary{display:none!important} .wrap{padding:0} .sect{border:none} }
+
+.rhead{border-bottom:3px solid var(--orange);padding-bottom:9px;margin-bottom:12px}
+.rctx{background:#f8f7f4;border-left:4px solid var(--orange);border-radius:0 8px 8px 0;padding:11px 13px;font-size:.82rem;line-height:1.65;color:#333;margin:12px 0 14px}
+.rsec{margin-bottom:16px}
+.rsh{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid var(--border)}
+.rcb{position:relative;height:220px}
+.rcb.tall{height:360px}
+@media print{ .rcb{height:auto} .rsec{page-break-inside:avoid} }
 </style>
 </head>
 <body>
@@ -433,13 +441,54 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
       }).join('');
     }
 
-    $('hOut').innerHTML='<div class="rtitle">Affordable housing production</div>'+
-      '<div class="rwhen">'+p.label+(cmp?'  vs  '+cmp.label:'')+'</div>'+
+    // written summary
+    var incTop=INCS.filter(function(i){return inc[i];}).sort(function(a,b){return inc[b]-inc[a];})[0];
+    var lab=function(b){ return (CTX&&CTX.bands[b]&&CTX.bands[b].range)?CTX.bands[b].range:b; };
+    var ctx=n(tot)+' affordable, income regulated units were financed in '+p.label+'. ';
+    if(cmp && totC) ctx+='That is '+(tot>=totC?'up ':'down ')+Math.abs(pct(tot,totC))+'% against '+cmp.label+', when it was '+n(totC)+'. ';
+    ctx+=n(ty['New Construction']||0)+' are new construction and '+n(ty['Preservation']||0)+
+         ' renew affordability in buildings that already existed. ';
+    if(incTop) ctx+='The largest income band is '+lab(incTop)+' with '+n(inc[incTop])+' units. ';
+    var rTop=rows.slice().sort(function(a,b){return (b.u||b.now||0)-(a.u||a.now||0);})[0];
+    ctx+='Counted units are those HPD counts toward its housing plans, dated by completion, so buildings still in the pipeline are not included.';
+
+    $('hOut').innerHTML=
+      '<div class="rhead"><div class="rtitle">Affordable housing production</div>'+
+      '<div class="rwhen">'+p.label+(cmp?'  vs  '+cmp.label:'')+'</div></div>'+
       '<div class="rgrid">'+cells+'</div>'+
-      '<div style="overflow-x:auto"><table class="rtbl">'+head+rows+'</table></div>'+
+      '<div class="rctx">'+ctx+'</div>'+
+      '<div class="rsec"><div class="rsh">Financed each year</div><div class="rcb"><canvas id="hcTrend"></canvas></div></div>'+
+      '<div class="rsec"><div class="rsh">Top 15</div><div class="rcb tall"><canvas id="hcTop"></canvas></div></div>'+
+      '<div class="rsec"><div class="rsh">Every area</div><div style="overflow-x:auto"><table class="rtbl">'+head+rows+'</table></div></div>'+
       '<div class="note">Counted units are those HPD counts toward its housing plans, dated by project or building completion. '+
       n(DET.no_date_units)+' units across '+n(DET.no_date_buildings)+' buildings have no completion date recorded and are excluded from any period. '+
       DET.source+'</div>';
+    if(window.Chart){
+      try{ (window.__hCharts||[]).forEach(function(c){c.destroy();}); }catch(e){}
+      window.__hCharts=[];
+      var yrs=[]; Object.keys(DET.by_month).forEach(function(m){ var y=m.slice(0,4); if(yrs.indexOf(y)<0) yrs.push(y); });
+      yrs.sort();
+      var yv=yrs.map(function(y){ var t=0; Object.keys(DET.by_month).forEach(function(m){ if(m.slice(0,4)===y) t+=DET.by_month[m]; }); return t; });
+      if($('hcTrend')) window.__hCharts.push(new Chart($('hcTrend'),{type:'bar',
+        data:{labels:yrs,datasets:[{data:yv,backgroundColor:yrs.map(function(y){return (p.kind==='year'&&y===p.y)?'#f47920':'#132D65';}),borderRadius:3}]},
+        options:{responsive:true,maintainAspectRatio:false,animation:false,
+          plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return n(c.parsed.y)+' units';}}}},
+          scales:{x:{ticks:{font:{size:9,family:'DM Mono'},color:'#6b6760'},grid:{display:false}},
+                  y:{ticks:{font:{size:9,family:'DM Mono'},color:'#6b6760'},grid:{color:'#f0ede8'}}}}}));
+      if($('hcTop')){
+        var tr=[];
+        if(scope==='ccd'||scope==='oneccd'){ tr=DET.ccds.map(function(c){return {k:'CD '+c,v:ccdUnitsFor(c,p)};}); }
+        else { tr=DET.cds.map(function(c){return {k:c,v:unitsFor(c,p)};}); }
+        tr=tr.sort(function(a,b){return b.v-a.v;}).slice(0,15);
+        window.__hCharts.push(new Chart($('hcTop'),{type:'bar',
+          data:{labels:tr.map(function(o){return o.k;}),datasets:[{data:tr.map(function(o){return o.v;}),
+            backgroundColor:tr.map(function(o){return (o.k==='BK-06'||o.k==='CD 39')?'#f47920':'#132D65';}),borderRadius:3}]},
+          options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,animation:false,
+            plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return n(c.parsed.x)+' units';}}}},
+            scales:{x:{ticks:{font:{size:9,family:'DM Mono'},color:'#6b6760'},grid:{color:'#f2f0ec'}},
+                    y:{ticks:{font:{size:10,family:'DM Sans'},color:'#132D65',autoSkip:false},grid:{display:false}}}}}));
+      }
+    }
     $('hPdf').style.display='';
   }
 
@@ -459,7 +508,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
 
   ['hKind','hScope'].forEach(function(id){ var e=$(id); if(e) e.addEventListener('change',sync); });
   var g=$('hGo'); if(g) g.addEventListener('click',build);
-  var pd=$('hPdf'); if(pd) pd.addEventListener('click',function(){ window.print(); });
+  var pd=$('hPdf'); if(pd) pd.addEventListener('click',function(){
+    document.querySelectorAll('#hOut canvas').forEach(function(c){
+      var im=document.createElement('img'); im.src=c.toDataURL('image/png');
+      im.style.width='100%'; im.className='rpt-img';
+      c.parentNode.insertBefore(im,c); c.style.display='none';
+    });
+    window.print();
+    setTimeout(function(){
+      document.querySelectorAll('#hOut canvas').forEach(function(c){c.style.display='';});
+      document.querySelectorAll('.rpt-img').forEach(function(i){i.remove();});
+    },1500);
+  });
 })();
 </script>
 </body>
