@@ -66,16 +66,26 @@
     if(lotsLoading) return;
     lotsLoading=true;
     $('bnote').textContent='Loading every lot in the district\u2026';
+    // token as a query parameter, not a header: a custom header forces a CORS preflight
     var url='https://data.cityofnewyork.us/resource/64uk-42ks.json'+
-      '?$select=landuse,zonedist1,latitude,longitude&$where=cd=%27'+cdNum()+'%27%20AND%20latitude%20IS%20NOT%20NULL&$limit=50000';
-    fetch(url,{headers:{'X-App-Token':'HvFoIfzodzpRML7a1104Ca2tM'}})
-      .then(function(r){return r.json();})
+      '?$select=landuse,zonedist1,latitude,longitude'+
+      '&$where=' + encodeURIComponent("cd='"+cdNum()+"' AND latitude IS NOT NULL") +
+      '&$limit=50000&$$app_token=HvFoIfzodzpRML7a1104Ca2tM';
+    fetch(url)
+      .then(function(r){
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        return r.json();
+      })
       .then(function(rows){
+        if(!rows || !rows.length) throw new Error('no rows');
         LOTS=rows.map(function(r){
           return {y:+r.latitude,x:+r.longitude,lu:(r.landuse||'').padStart(2,'0'),z:r.zonedist1||''};
         }).filter(function(p){return p.y&&p.x;});
         lotsLoading=false; cb();
-      }).catch(function(){ lotsLoading=false; drawEmpty('Lot data could not load from NYC Open Data.'); });
+      }).catch(function(e){
+        lotsLoading=false;
+        drawEmpty('Lot data could not load from NYC Open Data ('+(e&&e.message?e.message:'network')+').');
+      });
   }
   function drawLots(kind){
     loadLots(function(){
