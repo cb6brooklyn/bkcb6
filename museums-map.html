@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NYC Museum Map by Community District</title>
+  <meta name="description" content="Every museum in New York City mapped and counted by borough and community district.">
+  <link rel="canonical" href="https://bkcb6.app/museums-map.html">
+  <meta property="og:title" content="NYC Museum Map by Community District">
+  <meta property="og:description" content="Every museum in New York City mapped and counted by borough and community district.">
+  <meta property="og:url" content="https://bkcb6.app/museums-map.html">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <style>
+    :root{--navy:#0d1b4b;--orange:#f47920;--border:#e5e2db;--muted:#6b7280;--bg:#f8f7f4;--off:#fcfbf9}
+    *{box-sizing:border-box} body{margin:0;font-family:'DM Sans',sans-serif;background:var(--bg);color:#1f2937}
+    .shell{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);gap:14px;padding:14px}
+    .card{background:#fff;border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 2px 10px rgba(13,27,75,.04)}
+    .head{padding:14px 16px;border-bottom:1px solid var(--border);background:#fffdfa}
+    .head h1,.head h2{margin:0 0 6px;color:var(--navy);font-size:1rem}
+    .head p{margin:0;color:var(--muted);font-size:.8rem;line-height:1.55}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border)}
+    .stat{padding:12px 10px;text-align:center;border-right:1px solid var(--border)}
+    .stat:last-child{border-right:none}
+    .stat .v{font:700 1rem 'DM Mono',monospace;color:var(--orange)}
+    .stat .l{font:.62rem 'DM Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+    .controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+    .controls label{display:block;margin-bottom:6px;font:.66rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .controls select,.controls input{width:100%;border:1px solid var(--border);border-radius:12px;padding:10px 12px;font:500 .82rem 'DM Sans',sans-serif;background:#fff;color:#1f2937}
+    .controls select:focus,.controls input:focus{outline:2px solid var(--navy);outline-offset:-1px}
+    .legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--off);font-size:.72rem;color:var(--muted)}
+    .legend span{display:inline-flex;align-items:center;gap:7px}
+    .sw{width:13px;height:13px;border-radius:4px;display:inline-block;border:1px solid rgba(0,0,0,.15)}
+    #map{height:660px;width:100%}
+    .notice{padding:10px 16px;background:var(--off);border-top:1px solid var(--border);font-size:.72rem;color:var(--muted);line-height:1.6}
+    .side-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .side-head h2{margin:0 0 6px;color:var(--navy);font-size:.98rem}
+    .side-head p{margin:0;color:var(--muted);font-size:.78rem;line-height:1.55}
+    .count{font:.68rem 'DM Mono',monospace;color:var(--orange);white-space:nowrap}
+    .tabs{display:flex;border-bottom:1px solid var(--border)}
+    .tab{flex:1;padding:10px;background:#fff;border:none;border-right:1px solid var(--border);font:600 .74rem 'DM Sans',sans-serif;color:var(--muted);cursor:pointer}
+    .tab:last-child{border-right:none}
+    .tab.on{background:var(--navy);color:#fff}
+    #list{padding:12px 14px 16px;max-height:790px;overflow:auto}
+    .item{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;cursor:pointer;transition:transform .15s ease, box-shadow .15s ease}
+    .item:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(13,27,75,.05)}
+    .item h3{margin:0 0 4px;color:var(--navy);font-size:.84rem;line-height:1.35}
+    .item p{margin:0 0 8px;color:var(--muted);font-size:.75rem;line-height:1.5}
+    .meta{display:flex;flex-wrap:wrap;gap:6px}
+    .tag{padding:4px 8px;border-radius:999px;font:.62rem 'DM Mono',monospace;background:#eef1f9;color:var(--navy)}
+    .tag.b{background:#fdefe3;color:#8a4310}
+    .tag.a{background:#f3f4f6;color:#475569}
+    .rank{display:grid;grid-template-columns:78px 1fr 34px;gap:9px;align-items:center;padding:6px 2px;border-bottom:1px solid var(--border);font-size:.76rem;cursor:pointer}
+    .rank:hover{background:#fbf9f4}
+    .rank .cbn{font:600 .72rem 'DM Mono',monospace;color:var(--navy)}
+    .rank .track{height:12px;background:#f0eee8;border-radius:3px;overflow:hidden}
+    .rank .fill{height:100%;background:var(--orange)}
+    .rank .n{text-align:right;font:700 .74rem 'DM Mono',monospace;color:var(--navy)}
+    .empty{padding:18px;border:1px dashed var(--border);border-radius:12px;text-align:center;color:var(--muted);font-size:.8rem}
+    .leaflet-popup-content{font-family:'DM Sans',sans-serif;margin:12px 14px;max-width:230px}
+    .leaflet-popup-content h4{margin:0 0 5px;font-size:.88rem;color:var(--navy);line-height:1.35}
+    .leaflet-popup-content p{margin:0 0 6px;font-size:.76rem;color:#475569;line-height:1.45}
+    .leaflet-popup-content .small{font:.66rem 'DM Mono',monospace;color:#6b7280}
+    .leaflet-popup-content a{color:var(--orange)}
+    @media (max-width:980px){.shell{grid-template-columns:1fr}.controls{grid-template-columns:1fr}#map{height:520px}#list{max-height:none}}
+  </style>
+
+<style id="bkcb6-embed-modal-css">
+.embed-fab{position:fixed;bottom:18px;right:18px;z-index:9999;background:#f47920;color:#fff;border:none;border-radius:999px;padding:10px 18px;font-size:.82rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.18);display:flex;align-items:center;gap:6px}
+.embed-fab:hover{background:#d4631a}
+.embed-modal-bg{display:none;position:fixed;inset:0;z-index:10000;background:rgba(13,27,75,.55);align-items:center;justify-content:center;padding:16px}
+.embed-modal-bg.open{display:flex}
+.embed-modal{background:#fff;border-radius:12px;padding:22px 20px 18px;max-width:480px;width:100%;box-shadow:0 8px 32px rgba(13,27,75,.22)}
+.embed-modal h3{font-size:1rem;font-weight:700;color:#0d1b4b;margin:0 0 6px}
+.embed-modal p{font-size:.82rem;color:#6b6760;margin:0 0 14px;line-height:1.5}
+.embed-tabs{display:flex;gap:6px;margin-bottom:14px}
+.embed-tab{padding:6px 12px;border-radius:6px;font-size:.75rem;font-weight:600;cursor:pointer;border:1.5px solid #e5e2db;background:#fff;color:#6b6760;font-family:'DM Sans',sans-serif}
+.embed-tab.active{background:#0d1b4b;color:#fff;border-color:#0d1b4b}
+.embed-url-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.embed-url-box{flex:1;padding:8px 10px;border:1.5px solid #e5e2db;border-radius:6px;font-size:.78rem;font-family:'DM Mono',monospace;color:#0d1b4b;background:#f8f7f4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.embed-copy-btn{padding:8px 14px;background:#f47920;color:#fff;border:none;border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif}
+.embed-copy-btn:hover{background:#d4631a}
+.embed-code-box{background:#f8f7f4;border:1.5px solid #e5e2db;border-radius:6px;padding:12px;font-size:.72rem;font-family:'DM Mono',monospace;color:#333;line-height:1.6;word-break:break-all;margin-bottom:14px;white-space:pre-wrap}
+.embed-close{width:100%;padding:10px;background:#f8f7f4;border:1.5px solid #e5e2db;border-radius:6px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;color:#0d1b4b}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="card">
+    <div class="head">
+      <h1>NYC Museum Map by Community District</h1>
+      <p>Every museum in the city, mapped and counted by borough and by community district. Districts are shaded by how many museums they hold. Select a borough or a district to filter the map and the list.</p>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="v" id="sMus">0</div><div class="l">Museums shown</div></div>
+      <div class="stat"><div class="v" id="sCb">0</div><div class="l">Districts with one</div></div>
+      <div class="stat"><div class="v" id="sTop">0</div><div class="l">Most in one district</div></div>
+    </div>
+    <div class="controls">
+      <div>
+        <label for="boroSel">Borough</label>
+        <select id="boroSel">
+          <option value="">All five boroughs</option>
+          <option value="Manhattan">Manhattan</option>
+          <option value="Bronx">Bronx</option>
+          <option value="Brooklyn">Brooklyn</option>
+          <option value="Queens">Queens</option>
+          <option value="Staten Island">Staten Island</option>
+        </select>
+      </div>
+      <div>
+        <label for="cbSel">Community district</label>
+        <select id="cbSel"><option value="">All districts</option></select>
+      </div>
+      <div>
+        <label for="qInput">Search by name</label>
+        <input id="qInput" type="text" placeholder="For example, Transit" autocomplete="off">
+      </div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div id="map"></div>
+    <div class="notice">Sources: NYC Open Data museum directory and the Department of City Planning community district boundaries. Each museum is assigned to a district by point in polygon. Six sit on piers, islands, or inside parkland that falls outside any community district; those are assigned to the nearest district and flagged as approximate in the listing. Contact details come from the city dataset and may be out of date; confirm hours and admission with the museum.</div>
+  </div>
+
+  <div class="card">
+    <div class="side-head">
+      <div>
+        <h2 id="sideTitle">Museums</h2>
+        <p id="sideSub">Browse the full list, or switch to the district ranking.</p>
+      </div>
+      <div class="count" id="count"></div>
+    </div>
+    <div class="tabs">
+      <button class="tab on" id="tabList" type="button">List</button>
+      <button class="tab" id="tabRank" type="button">By district</button>
+    </div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<button class="embed-fab" onclick="document.getElementById('bkcb6EmbedModal').classList.add('open')">Share or embed</button>
+<div class="embed-modal-bg" id="bkcb6EmbedModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="embed-modal">
+    <h3>Share or embed this map</h3>
+    <p>Copy the link, or paste the iframe code into any website.</p>
+    <div class="embed-tabs">
+      <button class="embed-tab active" onclick="bkcb6SwitchEmbedTab(this,'link')">Link</button>
+      <button class="embed-tab" onclick="bkcb6SwitchEmbedTab(this,'iframe')">Embed code</button>
+    </div>
+    <div id="bkcb6EmbedLinkPanel">
+      <div class="embed-url-row">
+        <div class="embed-url-box" id="bkcb6EmbedUrlBox"></div>
+        <button class="embed-copy-btn" onclick="bkcb6CopyEmbed('link')">Copy</button>
+      </div>
+    </div>
+    <div id="bkcb6EmbedIframePanel" style="display:none">
+      <div class="embed-code-box" id="bkcb6EmbedCodeBox"></div>
+      <button class="embed-copy-btn" onclick="bkcb6CopyEmbed('iframe')">Copy code</button>
+    </div>
+    <button class="embed-close" onclick="document.getElementById('bkcb6EmbedModal').classList.remove('open')">Close</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+(function(){
+  var BINS = [
+    {min:0,  max:0,  color:'#f2f0ea', label:'None'},
+    {min:1,  max:1,  color:'#dbe2f2', label:'1'},
+    {min:2,  max:4,  color:'#a9bde0', label:'2 to 4'},
+    {min:5,  max:9,  color:'#f7c396', label:'5 to 9'},
+    {min:10, max:1e6,color:'#f47920', label:'10 or more'}
+  ];
+  function binColor(n){
+    for(var i=0;i<BINS.length;i++){ if(n>=BINS[i].min && n<=BINS[i].max) return BINS[i].color; }
+    return '#f2f0ea';
+  }
+
+  var map = L.map('map', {scrollWheelZoom:true}).setView([40.7128,-73.96], 11);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+
+  var legend = document.getElementById('legend');
+  BINS.forEach(function(b){
+    var s = document.createElement('span');
+    s.innerHTML = '<i class="sw" style="background:'+b.color+'"></i>'+b.label;
+    legend.appendChild(s);
+  });
+
+  var boroSel = document.getElementById('boroSel');
+  var cbSel = document.getElementById('cbSel');
+  var qInput = document.getElementById('qInput');
+  var listEl = document.getElementById('list');
+  var countEl = document.getElementById('count');
+  var tabList = document.getElementById('tabList');
+  var tabRank = document.getElementById('tabRank');
+
+  var museums = [];
+  var districts = [];
+  var cdLayer = null;
+  var markerLayer = L.layerGroup().addTo(map);
+  var markerFor = {};
+  var totalsAll = {};
+  var view = 'list';
+
+  function counts(list){
+    var c = {};
+    list.forEach(function(m){ c[m.properties.cb] = (c[m.properties.cb]||0)+1; });
+    return c;
+  }
+  function shown(){
+    var b = boroSel.value, cb = cbSel.value, q = qInput.value.trim().toLowerCase();
+    return museums.filter(function(m){
+      var p = m.properties;
+      if(b && p.boro !== b) return false;
+      if(cb && p.cb !== cb) return false;
+      if(q && p.name.toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    });
+  }
+  function fillCbSelect(){
+    var b = boroSel.value, keep = cbSel.value;
+    var opts = districts.filter(function(d){ return !b || d.properties.boro === b; })
+      .map(function(d){ return d.properties.cb; })
+      .sort(function(x,y){
+        var nx = parseInt(x.replace(/\D/g,''),10), ny = parseInt(y.replace(/\D/g,''),10);
+        var px = x.replace(/[0-9]/g,''), py = y.replace(/[0-9]/g,'');
+        return px === py ? nx - ny : px.localeCompare(py);
+      });
+    cbSel.innerHTML = '<option value="">All districts</option>' + opts.map(function(c){
+      return '<option value="'+c+'">'+c+' ('+(totalsAll[c]||0)+')</option>';
+    }).join('');
+    if(opts.indexOf(keep) !== -1) cbSel.value = keep;
+  }
+  function popupHTML(p){
+    var lines = '';
+    if(p.address) lines += '<p>'+p.address+(p.city ? ', '+p.city : '')+(p.zip ? ' '+p.zip : '')+'</p>';
+    var meta = p.cb + (p.approx ? ' (nearest district)' : '');
+    lines += '<p class="small">'+meta+'</p>';
+    if(p.tel) lines += '<p class="small">'+p.tel+'</p>';
+    if(p.url) lines += '<p><a href="'+p.url+'" target="_blank" rel="noopener">Website</a></p>';
+    return '<h4>'+p.name+'</h4>'+lines;
+  }
+  function renderMarkers(list){
+    markerLayer.clearLayers();
+    markerFor = {};
+    list.forEach(function(m){
+      var c = m.geometry.coordinates;
+      var mk = L.circleMarker([c[1],c[0]], {radius:6, color:'#0d1b4b', weight:1.6, fillColor:'#f47920', fillOpacity:.92});
+      mk.bindPopup(popupHTML(m.properties));
+      mk.addTo(markerLayer);
+      markerFor[m.properties.name] = mk;
+    });
+  }
+  function renderStats(list, c){
+    var keys = Object.keys(c);
+    var top = 0;
+    keys.forEach(function(k){ if(c[k] > top) top = c[k]; });
+    document.getElementById('sMus').textContent = list.length;
+    document.getElementById('sCb').textContent = keys.length;
+    document.getElementById('sTop').textContent = top;
+  }
+  function renderList(list){
+    countEl.textContent = list.length + ' of ' + museums.length;
+    if(!list.length){ listEl.innerHTML = '<div class="empty">No museum matches these filters.</div>'; return; }
+    var sorted = list.slice().sort(function(a,b){ return a.properties.name.localeCompare(b.properties.name); });
+    listEl.innerHTML = sorted.map(function(m){
+      var p = m.properties;
+      return '<div class="item" data-name="'+p.name.replace(/"/g,'&quot;')+'">'
+        + '<h3>'+p.name+'</h3>'
+        + (p.address ? '<p>'+p.address+(p.city ? ', '+p.city : '')+'</p>' : '')
+        + '<div class="meta"><span class="tag">'+p.cb+'</span><span class="tag b">'+p.boro+'</span>'
+        + (p.approx ? '<span class="tag a">Nearest district</span>' : '') + '</div>'
+        + '</div>';
+    }).join('');
+    Array.prototype.forEach.call(listEl.querySelectorAll('.item'), function(el){
+      el.addEventListener('click', function(){
+        var mk = markerFor[el.getAttribute('data-name')];
+        if(mk){ map.setView(mk.getLatLng(), 15); mk.openPopup(); }
+      });
+    });
+  }
+  function renderRank(list, c){
+    countEl.textContent = Object.keys(c).length + ' districts';
+    var rows = Object.keys(c).map(function(k){ return [k, c[k]]; })
+      .sort(function(a,b){ return b[1] - a[1] || a[0].localeCompare(b[0]); });
+    if(!rows.length){ listEl.innerHTML = '<div class="empty">No museum matches these filters.</div>'; return; }
+    var max = rows[0][1];
+    listEl.innerHTML = rows.map(function(r){
+      return '<div class="rank" data-cb="'+r[0]+'">'
+        + '<span class="cbn">'+r[0]+'</span>'
+        + '<span class="track"><span class="fill" style="width:'+Math.round(r[1]/max*100)+'%"></span></span>'
+        + '<span class="n">'+r[1]+'</span></div>';
+    }).join('');
+    Array.prototype.forEach.call(listEl.querySelectorAll('.rank'), function(el){
+      el.addEventListener('click', function(){
+        var cb = el.getAttribute('data-cb');
+        var d = districts.filter(function(x){ return x.properties.cb === cb; })[0];
+        if(d) boroSel.value = d.properties.boro;
+        fillCbSelect();
+        cbSel.value = cb;
+        refresh();
+      });
+    });
+  }
+  function refresh(){
+    var list = shown();
+    var c = counts(list);
+    if(cdLayer) cdLayer.setStyle(cdStyle);
+    renderMarkers(list);
+    renderStats(list, c);
+    if(view === 'list') renderList(list); else renderRank(list, c);
+    var target = null;
+    if(cbSel.value){
+      cdLayer.eachLayer(function(l){ if(l.feature.properties.cb === cbSel.value) target = l; });
+    } else if(boroSel.value){
+      var b = L.latLngBounds([]);
+      cdLayer.eachLayer(function(l){ if(l.feature.properties.boro === boroSel.value) b.extend(l.getBounds()); });
+      if(b.isValid()) map.fitBounds(b, {padding:[18,18]});
+      return;
+    }
+    if(target) map.fitBounds(target.getBounds(), {padding:[28,28]});
+    else if(!boroSel.value && cdLayer) map.fitBounds(cdLayer.getBounds(), {padding:[10,10]});
+  }
+
+  var liveCounts = {};
+  function cdStyle(f){
+    var n = liveCounts[f.properties.cb] || 0;
+    var sel = cbSel.value === f.properties.cb;
+    var dim = (boroSel.value && f.properties.boro !== boroSel.value) || (cbSel.value && !sel);
+    return {
+      color: sel ? '#0d1b4b' : '#ffffff',
+      weight: sel ? 2.4 : 0.8,
+      fillColor: binColor(n),
+      fillOpacity: dim ? 0.18 : 0.72,
+      opacity: dim ? 0.35 : 0.9
+    };
+  }
+  var origRefresh = refresh;
+  refresh = function(){
+    liveCounts = counts(shown());
+    origRefresh();
+  };
+
+  boroSel.addEventListener('change', function(){ cbSel.value = ''; fillCbSelect(); refresh(); });
+  cbSel.addEventListener('change', refresh);
+  qInput.addEventListener('input', function(){
+    var list = shown();
+    liveCounts = counts(list);
+    if(cdLayer) cdLayer.setStyle(cdStyle);
+    renderMarkers(list);
+    renderStats(list, liveCounts);
+    if(view === 'list') renderList(list); else renderRank(list, liveCounts);
+  });
+  tabList.addEventListener('click', function(){
+    view = 'list'; tabList.classList.add('on'); tabRank.classList.remove('on');
+    document.getElementById('sideTitle').textContent = 'Museums';
+    document.getElementById('sideSub').textContent = 'Browse the full list, or switch to the district ranking.';
+    var list = shown(); renderList(list); countEl.textContent = list.length + ' of ' + museums.length;
+  });
+  tabRank.addEventListener('click', function(){
+    view = 'rank'; tabRank.classList.add('on'); tabList.classList.remove('on');
+    document.getElementById('sideTitle').textContent = 'Museums by district';
+    document.getElementById('sideSub').textContent = 'Districts ranked by museum count. Tap one to filter the map.';
+    var list = shown(); renderRank(list, counts(list));
+  });
+
+  Promise.all([
+    fetch('cd-boundaries-simple.geojson').then(function(r){ return r.json(); }),
+    fetch('museums-nyc.geojson').then(function(r){ return r.json(); })
+  ]).then(function(res){
+    districts = res[0].features;
+    museums = res[1].features;
+    totalsAll = counts(museums);
+    liveCounts = totalsAll;
+    cdLayer = L.geoJSON(res[0], {
+      style: cdStyle,
+      onEachFeature: function(f, lyr){
+        lyr.bindTooltip(f.properties.cb + ': ' + (totalsAll[f.properties.cb]||0), {sticky:true});
+        lyr.on('click', function(){
+          boroSel.value = f.properties.boro;
+          fillCbSelect();
+          cbSel.value = f.properties.cb;
+          refresh();
+        });
+      }
+    }).addTo(map);
+    fillCbSelect();
+    refresh();
+  }).catch(function(){
+    listEl.innerHTML = '<div class="empty">Museum data could not be loaded. Please refresh.</div>';
+  });
+})();
+</script>
+
+<script>
+(function(){
+  var url = window.location.href.split('?')[0].split('#')[0];
+  url = url.replace('cb6brooklyn.github.io/bkcb6','bkcb6.app');
+  var iframe = '<iframe src="' + url + '" width="100%" height="720" style="border:none;border-radius:8px" loading="lazy" title="CB6 and Beyond - ' + document.title + '"></iframe>';
+  document.getElementById('bkcb6EmbedUrlBox').textContent = url;
+  document.getElementById('bkcb6EmbedCodeBox').textContent = iframe;
+})();
+function bkcb6SwitchEmbedTab(btn,panel){
+  document.querySelectorAll('.embed-tab').forEach(function(t){t.classList.remove('active')});
+  btn.classList.add('active');
+  document.getElementById('bkcb6EmbedLinkPanel').style.display=panel==='link'?'':'none';
+  document.getElementById('bkcb6EmbedIframePanel').style.display=panel==='iframe'?'':'none';
+}
+function bkcb6CopyEmbed(type){
+  var text=type==='link'?document.getElementById('bkcb6EmbedUrlBox').textContent:document.getElementById('bkcb6EmbedCodeBox').textContent;
+  navigator.clipboard.writeText(text).then(function(){
+    var btn=type==='link'?document.querySelector('#bkcb6EmbedLinkPanel .embed-copy-btn'):document.querySelector('#bkcb6EmbedIframePanel .embed-copy-btn');
+    var orig=btn.textContent;btn.textContent='Copied!';btn.style.background='#2d6a4f';
+    setTimeout(function(){btn.textContent=orig;btn.style.background='';},1800);
+  });
+}
+</script>
+</body>
+</html>
