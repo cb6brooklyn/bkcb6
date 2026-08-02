@@ -249,10 +249,11 @@
       fetch('/data/housing-db-cd.json').then(function(r){return r.json();}).catch(function(){return null;}),
       fetch('/data/hpd-affordable.json').then(function(r){return r.json();}).catch(function(){return null;}),
       fetch('/data/housing-jobs.json').then(function(r){return r.json();}).catch(function(){return null;}),
-      fetch('/data/cd-landuse.json').then(function(r){return r.json();}).catch(function(){return null;})
+      fetch('/data/cd-landuse.json').then(function(r){return r.json();}).catch(function(){return null;}),
+      fetch('/data/nyc-nprc.json').then(function(r){return r.json();}).catch(function(){return null;})
     ]).then(function(a){
       D.look=a[0][CODE]; D.nbgeo=a[1]; D.ccgeo=a[2]; D.cc=a[3]; D.inv=a[4];
-      D.cdgeo=a[5]; D.hdb=a[6]; D.hpd=a[7]; D.jobs=a[8]; D.lu=a[9];
+      D.cdgeo=a[5]; D.hdb=a[6]; D.hpd=a[7]; D.jobs=a[8]; D.lu=a[9]; D.nprc=a[10];
       if(!D.look){ $('bnote').textContent='District not found.'; return; }
       header(); outline(); kpis();
       if(!D.look.se.length){
@@ -261,7 +262,7 @@
         var nb=document.querySelector('[data-lens="nb"]');
         if(nb){ nb.disabled=true; nb.title='StreetEasy publishes no neighborhood rents here'; }
       }
-      draw(); housing(); table(); landuse(); districtPicker(a[0]);
+      draw(); housing(); table(); landuse(); helpers(); districtPicker(a[0]);
     }).catch(function(){ $('bnote').textContent='Data could not load.'; });
   }
 
@@ -363,6 +364,20 @@
       '% of zoned lot area across '+n(zd[0].l)+' lots'+
       (manu?'. Manufacturing zoning covers '+(manu/zTot*100).toFixed(1)+'% of the district':'')+
       '. R is residential, C commercial, M manufacturing; the number that follows sets how much can be built.';
+  }
+  function helpers(){
+    var sec=$('nprcsec'); if(!sec) return;
+    var list=(D.nprc&&D.nprc.orgs||[]).filter(function(o){return o.cb===CODE;});
+    if(!list.length){ sec.style.display='none'; return; }
+    $('nprclist').innerHTML=list.map(function(o){
+      var q=encodeURIComponent([o.addr,o.city,'NY',o.zip].filter(Boolean).join(', '));
+      return '<div style="padding:11px 0;border-bottom:1px solid #f0ede8">'+
+        '<div style="font-size:.86rem;font-weight:800">'+o.name+'</div>'+
+        '<div style="font-size:.76rem;color:#444;margin-top:2px;line-height:1.5">'+[o.addr,o.city].filter(Boolean).join(', ')+' '+(o.zip||'')+'</div>'+
+        (o.area?'<div style="font-family:DM Mono,monospace;font-size:.68rem;color:#6b6760;margin-top:3px">Serves '+o.area+'</div>':'')+
+        '<div style="margin-top:7px"><a style="padding:6px 11px;background:#132D65;color:#fff;border-radius:7px;font-size:.72rem;font-weight:700;text-decoration:none" href="https://www.google.com/maps/dir/?api=1&destination='+q+'" target="_blank" rel="noopener">Directions</a></div></div>';
+    }).join('')+'<div style="font-family:DM Mono,monospace;font-size:.64rem;color:#9ca3af;line-height:1.6;margin-top:10px">'+
+      'State contracted nonprofits offering free housing help. <a href="/preservation" style="color:#0d1b4b">See all '+D.nprc.orgs.length+' citywide</a>.</div>';
   }
   function districtPicker(all){
     var keys=Object.keys(all).sort(function(a,b){
