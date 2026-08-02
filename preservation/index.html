@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Neighborhood Preservation Companies">
+<meta property="og:description" content="Every Neighborhood Preservation Program company in New York City, mapped. Free housing help from nonprofits contracted by the State.">
+<meta property="og:url" content="https://bkcb6.app/preservation">
+<meta property="og:image" content="https://bkcb6.app/og-lessexpensive.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://bkcb6.app/og-lessexpensive.png">
+<title>Neighborhood Preservation Companies — bkcb6.app</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="/assets/cd-page.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+.lead{padding:13px 15px;font-size:.88rem;line-height:1.62;color:#222;max-width:78ch;background:#fff;border-bottom:1px solid var(--border)}
+.lead b{color:var(--navy)}
+.filters{display:flex;gap:7px;flex-wrap:wrap;padding:10px 12px;background:#fff;border-bottom:1px solid var(--border)}
+.fb{padding:7px 13px;font-size:.78rem;font-weight:700;border:2px solid var(--navy2);border-radius:20px;background:#fff;color:var(--navy);cursor:pointer;font-family:'DM Sans',sans-serif}
+.fb.on{background:var(--orange);border-color:var(--orange);color:#fff}
+.search{padding:10px 12px;background:#fff;border-bottom:1px solid var(--border)}
+.search input{width:100%;padding:11px 12px;font-family:'DM Sans',sans-serif;font-size:.86rem;border:2px solid var(--navy2);border-radius:9px;color:var(--navy)}
+.org{padding:13px 14px;border-bottom:1px solid var(--border);background:#fff}
+.org .n{font-size:.9rem;font-weight:800;line-height:1.3}
+.org .a{font-size:.76rem;color:#444;line-height:1.5;margin-top:3px}
+.org .s{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);margin-top:4px;line-height:1.5}
+.org .acts{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.org .acts a{padding:6px 11px;background:var(--navy2);color:#fff;border-radius:7px;font-size:.72rem;font-weight:700;text-decoration:none}
+.org .acts a:hover{background:var(--orange)}
+.pill{display:inline-block;font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:4px;background:#eef0f4;color:var(--muted);font-weight:700;margin-right:5px}
+.pill.cb6{background:#fff1e5;color:var(--orange)}
+.pill.approx{background:#fdf6e3;color:#8a6d00}
+.cnt{padding:9px 14px;font-family:'DM Mono',monospace;font-size:.66rem;color:var(--muted);background:var(--off)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="crumb"><a href="/">CB6 &amp; Beyond</a> &rsaquo; <a href="/housing">Housing &amp; Rent</a> &rsaquo; <a href="/lessexpensive">Affordable housing</a></div>
+    <h1>Neighborhood <span>Preservation Companies</span></h1>
+    <div class="nbs">Free housing help, close to home, in every borough</div>
+  </div>
+
+  <div class="lead">
+    <p><b>Neighborhood Preservation Companies are nonprofits contracted by New York State</b> to provide housing services in a specific service area. They are not city agencies and they are not landlords. Most offer some combination of tenant rights counselling, help with repairs and code complaints, foreclosure and eviction prevention, help applying for affordable housing, and assistance for landlords of small buildings.</p>
+    <p style="margin-top:9px">Services are generally free. Each company serves a defined area, so the one nearest you is usually the one to call.</p>
+  </div>
+
+  <div class="search"><input id="q" type="search" placeholder="Search by name, neighborhood or service area&hellip;" autocomplete="off"></div>
+  <div class="filters" id="filters"></div>
+  <div class="cnt" id="cnt"></div>
+  <div class="maphold"><div id="map"></div></div>
+  <div class="cap"><div class="t">Preservation companies</div><div class="s" id="capS"></div></div>
+  <div id="list"></div>
+
+  <div class="nav">
+    <a href="/lessexpensive">&#127974; Affordable housing</a>
+    <a href="/built">&#128202; What got built</a>
+    <a href="/cd/">&#128205; Your district</a>
+    <a href="/housing">&#128506; Housing hub</a>
+  </div>
+  <div class="foot" id="foot"></div>
+</div>
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i);};
+  var D=null, boro='All', markers=[], map, layer;
+  var BC={'Manhattan':'#f47920','Bronx':'#c0392b','Brooklyn':'#132D65','Queens':'#2e8b57','Staten Island':'#7a5cc6'};
+  function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function addr(o){ return [o.addr,o.suite].filter(Boolean).join(', ')+', '+o.city+' NY '+o.zip; }
+
+  map=L.map('map',{scrollWheelZoom:true}).setView([40.71,-73.95],10);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:18,attribution:'&copy; CARTO'}).addTo(map);
+  layer=L.layerGroup().addTo(map);
+
+  function shown(){
+    var q=($('q').value||'').toLowerCase().trim();
+    return D.orgs.filter(function(o){
+      if(boro!=='All' && o.boro!==boro) return false;
+      if(!q) return true;
+      return (o.name+' '+o.area+' '+(o.nb||'')+' '+o.city+' '+o.zip).toLowerCase().indexOf(q)>-1;
+    });
+  }
+  function render(){
+    var rows=shown();
+    layer.clearLayers();
+    var pts=[];
+    rows.forEach(function(o){
+      if(o.lat==null) return;
+      pts.push([o.lat,o.lon]);
+      L.circleMarker([o.lat,o.lon],{radius:7,weight:2,color:'#fff',fillColor:BC[o.boro]||'#132D65',fillOpacity:.9})
+        .bindTooltip('<b>'+esc(o.name)+'</b><br>'+esc(o.area||o.city),{sticky:true})
+        .on('click',function(){
+          var el=document.getElementById('org-'+o.i);
+          if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.background='#fff8f2';
+            setTimeout(function(){el.style.background='#fff';},1600); }
+        }).addTo(layer);
+    });
+    if(pts.length){ try{ map.fitBounds(pts,{padding:[26,26]}); }catch(e){} }
+    $('cnt').textContent=rows.length+' of '+D.orgs.length+' companies'+(boro==='All'?'':' in '+boro);
+    $('capS').textContent=rows.length+' shown \u00b7 tap a dot to jump to its details';
+    $('list').innerHTML=rows.map(function(o){
+      var q=encodeURIComponent(addr(o));
+      return '<div class="org" id="org-'+o.i+'">'+
+        '<div class="n">'+(o.cb==='BKCB6'?'<span class="pill cb6">in CB6</span>':'')+
+        (o.approx?'<span class="pill approx">approx location</span>':'')+
+        (o.lat==null?'<span class="pill">no map pin</span>':'')+esc(o.name)+'</div>'+
+        '<div class="a">'+esc(addr(o))+'</div>'+
+        '<div class="s">'+[o.area?('Serves '+o.area):'',o.nb||'',o.cb?o.cb.replace(/^(\w\w)CB/,'$1 CB'):''].filter(Boolean).map(esc).join(' \u00b7 ')+'</div>'+
+        '<div class="acts"><a href="https://www.google.com/maps/dir/?api=1&destination='+q+'" target="_blank" rel="noopener">Directions</a>'+
+        '<a href="https://www.google.com/search?q='+encodeURIComponent(o.name+' '+o.city+' NY')+'" target="_blank" rel="noopener">Find contact</a></div>'+
+      '</div>';
+    }).join('')||'<div class="cnt">Nothing matches that search.</div>';
+  }
+  $('q').addEventListener('input',render);
+
+  fetch('/data/nyc-nprc.json').then(function(r){return r.json();}).then(function(j){
+    D=j; D.orgs.forEach(function(o,i){o.i=i;});
+    var boros=['All'].concat(Object.keys(BC).filter(function(b){return D.orgs.some(function(o){return o.boro===b;});}));
+    $('filters').innerHTML=boros.map(function(b){
+      var c=b==='All'?D.orgs.length:D.orgs.filter(function(o){return o.boro===b;}).length;
+      return '<button class="fb'+(b==='All'?' on':'')+'" data-b="'+b+'">'+b+' ('+c+')</button>';
+    }).join('');
+    $('filters').querySelectorAll('.fb').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        boro=this.getAttribute('data-b');
+        $('filters').querySelectorAll('.fb').forEach(function(x){x.classList.toggle('on',x===btn);});
+        render();
+      });
+    });
+    $('foot').textContent=D.source+'. '+D.note;
+    render();
+  }).catch(function(){ $('cnt').textContent='Directory could not load.'; });
+})();
+</script>
+</body>
+</html>
