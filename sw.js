@@ -1,5 +1,5 @@
 // CB6 & Beyond — Service Worker
-const CACHE_VERSION = 'cb6-v352';
+const CACHE_VERSION = 'cb6-v353';
 const CORE_ASSETS = [
   '/',
   '/index.html',
@@ -51,6 +51,21 @@ self.addEventListener('fetch', (event) => {
   // Always network-first for live override/data files (never serve stale)
   if (url.pathname === '/heat.json' || url.pathname.endsWith('/heat.json')) {
     event.respondWith(fetch(req).catch(() => caches.match(req)));
+    return;
+  }
+
+  // Data files change without the page changing, so never serve them from cache first.
+  // Fall back to the cached copy only when the network is unavailable.
+  if (url.pathname.startsWith('/data/') ||
+      url.pathname.endsWith('.json') || url.pathname.endsWith('.geojson')) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok) { const copy = res.clone(); caches.open(CACHE_VERSION).then((c) => c.put(req, copy)); }
+          return res;
+        })
+        .catch(() => caches.match(req))
+    );
     return;
   }
 
