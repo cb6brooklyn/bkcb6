@@ -215,7 +215,18 @@
       map.fitBounds(b,{padding:[18,18]});
     }catch(e){}
   }
+  var LENS_EXPL={"cb": "The 59 districts that review land use locally and are the boards this site is built around.", "nb": "The names people actually use. They follow neither official boundary.", "cc": "The 51 seats whose members hold the deciding vote on most rezonings. From January 2023.", "lu": "What every lot in the district is actually used for today.", "zn": "What the rules allow to be built, lot by lot. R residential, C commercial, M manufacturing."};
+  var LENS_LBL={nb:'Neighborhoods',cc:'Council districts',lu:'Land use',zn:'Zoning'};
+  function lensExpl(){
+    var host=document.querySelector('.bar:not(.top0)');
+    if(!host) return;
+    var b=document.getElementById('lensexpl');
+    if(!b){ b=document.createElement('div'); b.className='lensexpl'; b.id='lensexpl';
+      host.parentNode.insertBefore(b,host.nextSibling); }
+    b.innerHTML='<b>'+(LENS_LBL[lens]||'')+'</b> \u00b7 '+(LENS_EXPL[lens]||'');
+  }
   function draw(){
+    lensExpl();
     if(lens==='lu') return drawLots('lu');
     if(lens==='zn') return drawLots('zn');
     restoreLegend();
