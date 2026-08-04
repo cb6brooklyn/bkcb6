@@ -280,6 +280,15 @@
 .ostep{font-family:'DM Mono',monospace;font-size:.55rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;background:rgba(255,255,255,.22);color:#fff;padding:2px 8px;border-radius:10px;flex:none}
 .opts[open] .oc:before,.opts:not([open]) .oc:before{color:#fff}
 .ans .bd .opts{border-color:var(--orange)}
+
+.ans .hd{align-items:flex-start}
+.vwrap{flex:1;min-width:0}
+.vfor{display:block;font-size:.76rem;font-weight:700;color:#444;margin-top:3px;line-height:1.4}
+
+.ug>summary .ugt{display:block}
+.ug>summary .t{display:block}
+.ug>summary .s{display:block}
+.ug>summary .stepn2{display:block;margin:0 0 3px}
 </style>
 </head>
 <body>
@@ -522,6 +531,7 @@
 (function(){
   var $=function(i){return document.getElementById(i);};
   var MX=null, UG=null;
+  window.__zAddr=null;
   var VERB={Y:'Yes, as of right',L:'Yes, but with limits',S:'Only with a special permit',N:'No, not permitted'};
   var SYM={Y:'\u25cf',L:'\u2666',S:'\u25cb',N:'\u2013'};
   var PATHNOTE={
@@ -578,11 +588,36 @@
       '</div></details>';
   }
   function answer(){
+    var A=window.__zAddr;
     var d=$('chkD').value, gid=$('chkG').value;
     var g=MX.goals.filter(function(x){return x.id===gid;})[0];
     if(!g) return;
     var v=MX.matrix[g.ug][d];
     var note=(g.notes&&g.notes[d]) || null;
+    // a commercial overlay permits uses the base district does not, so evaluate it too
+    var viaOverlay=null;
+    if(A && A.ov){
+      var ovB=(function(z){
+        var m=String(z||'').trim().toUpperCase().match(/^([RCM])\s*(\d{1,2})/);
+        if(!m) return null;
+        var lim={R:12,C:8,M:3}[m[1]], n=parseInt(m[2],10);
+        return (n>=1&&n<=lim)?(m[1]+n):null;
+      })(A.ov);
+      if(ovB && d===(function(z){
+        var m=String(z||'').trim().toUpperCase().match(/^([RCM])\s*(\d{1,2})/);
+        if(!m) return null;
+        var lim={R:12,C:8,M:3}[m[1]], n=parseInt(m[2],10);
+        return (n>=1&&n<=lim)?(m[1]+n):null;
+      })(A.z)){
+        var ovV=MX.matrix[g.ug][ovB];
+        var rank={Y:3,L:2,S:1,N:0};
+        if(ovV && rank[ovV]>rank[v]){
+          viaOverlay={d:ovB,label:A.ov,v:ovV};
+          v=ovV;
+          note=(g.notes&&g.notes[ovB])||note;
+        }
+      }
+    }
     // fall back to the first district of the same family where a note exists
     if(!note){
       var fam=d.charAt(0);
@@ -591,10 +626,13 @@
     }
     var ugName=(UG&&UG.groups.filter(function(x){return x.n===g.ug;})[0]) || null;
     $('chkOut').innerHTML='<div class="ans a-'+v+'">'+
-      '<div class="hd"><span class="sy">'+SYM[v]+'</span><span class="verdict">'+esc(VERB[v])+'</span></div>'+
-      '<div class="bd">'+(note?'<b>In '+esc(d)+':</b> '+esc(note)+'<br><br>':'')+esc(GEN[v])+
+      '<div class="hd"><span class="sy">'+SYM[v]+'</span><span class="vwrap"><span class="verdict">'+esc(VERB[v])+'</span>'+
+        (A?'<span class="vfor">'+esc(g.q.replace(/^I want to /,'To ').replace(/ here$/,''))+' at <b>'+esc(A.a)+'</b></span>':'')+
+      '</span></div>'+
+      '<div class="bd">'+(note?'<b>'+(A?esc(A.a)+' is zoned '+esc(A.z)+(A.ov?' with a '+esc(A.ov)+' overlay':'')+'. ':'In '+esc(d)+': ')+'</b>'+esc(note)+'<br><br>':'')+esc(GEN[v])+
+        (viaOverlay?'<div style="margin-top:10px;padding:9px 11px;background:#fff8f2;border-left:3px solid #f47920;border-radius:0 6px 6px 0;font-size:.79rem;line-height:1.55"><b>The overlay is what allows this.</b> The underlying '+esc(d)+' would not permit it. The <b>'+esc(viaOverlay.label)+'</b> commercial overlay mapped on this frontage does.</div>':'')+
         '<div style="margin-top:10px;padding:9px 11px;background:#f8f7f4;border-left:3px solid #f47920;border-radius:0 6px 6px 0;font-size:.79rem;line-height:1.55">'+PATHNOTE[v]+'</div>'+optBlock(v)+'</div>'+
-      '<div class="meta">'+esc(g.q)+' falls under Use Group '+g.ug+(ugName?', '+esc(ugName.name):'')+
+      '<div class="meta">'+(A?'Answering for '+esc(A.a)+'. ':'')+esc(g.q)+' falls under Use Group '+g.ug+(ugName?', '+esc(ugName.name):'')+
       '. Special purpose districts and Article VI provisions can change this on a particular lot.</div></div>';
   }
   function matrix(){
@@ -799,6 +837,7 @@
       if(sel){
         sel.value=base;
         sel.dispatchEvent(new Event('change'));
+        window.__zAddr={a:(p.address||label),z:zone,ov:ov};
         var fa=$('fromAddr');
         if(fa){
           fa.className='fromaddr on';
