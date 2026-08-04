@@ -375,6 +375,8 @@
       '% of zoned lot area across '+n(zd[0].l)+' lots'+
       (manu?'. Manufacturing zoning covers '+(manu/zTot*100).toFixed(1)+'% of the district':'')+
       '. R is residential, C commercial, M manufacturing; the number that follows sets how much can be built.';
+    var zl=$('znote');
+    if(zl) zl.innerHTML=zl.textContent+' <a href="/zoning" style="color:#0d1b4b;border-bottom:1px solid #f47920;text-decoration:none">See what each zoning district allows &rarr;</a>';
   }
   function helpers(){
     var sec=$('nprcsec'); if(!sec) return;
