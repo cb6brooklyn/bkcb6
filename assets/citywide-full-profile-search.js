@@ -79,7 +79,7 @@
   var USE_BG={Y:'#e3f2e4',L:'#fff1e0',S:'#e8eefb',N:'#fbe6e6'};
   var USE_FG={Y:'#2e6b30',L:'#a65a00',S:'#2145a8',N:'#a82121'};
   var USE_SHOW=['live','shop','eat','office','factory','school','hotel','warehouse'];
-  var PATH_NOTE='Where the answer is yes, changing to that use is administrative: a Department of Buildings filing for a new or amended Certificate of Occupancy. It is not a rezoning, does not go to the Board of Standards and Appeals, and does not come to the community board for a vote. Only a use the zoning does not permit needs a variance or a rezoning.';
+  var PATH_NOTE='This only applies to uses that are already permitted. Where the answer above is yes, switching to that use is a Department of Buildings filing for a new or amended Certificate of Occupancy, with no rezoning, no Board of Standards and Appeals and no community board vote. Where the answer is no, there is no administrative route at any size: it takes a variance or a rezoning.';
   var LETTER_NOTE={
     R:'R does not mean only housing. Residence Districts also permit schools, houses of worship, libraries, museums, hospitals and community centers as of right.',
     C:'C does not mean no housing. Housing is permitted as of right in C1, C2, C4, C5 and C6. Only C7 and C8 exclude residences.',
