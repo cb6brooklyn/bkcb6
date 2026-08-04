@@ -63,7 +63,10 @@
     var lim={R:12,C:8,M:3}[m[1]], num=parseInt(m[2],10);
     return (num>=1&&num<=lim)?(m[1]+num):null;
   }
+  var PARKLAND='Mapped parkland. Parks has jurisdiction, and changing it takes an act of the State Legislature, not a rezoning.';
   function zUses(zone){
+    if(String(zone||'').trim().toUpperCase()==='PARK')
+      return '<div style="margin-top:6px;border-top:1px solid #eee;padding-top:5px;font-size:.72rem;color:#2e6b30;line-height:1.5">'+PARKLAND+'</div>';
     var base=zBase(zone);
     if(!base||!D.zmx) return '';
     var rows=D.zmx.goals.filter(function(g){return ZSHOW.indexOf(g.id)>-1;}).map(function(g){
