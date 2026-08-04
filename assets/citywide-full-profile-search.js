@@ -108,6 +108,24 @@
     return String(t||'').toLowerCase().replace(/\b([a-z])/g,function(m,c){return c.toUpperCase();})
       .replace(/\bNyc\b/g,'NYC').replace(/\bOf\b/g,'of').replace(/\bAnd\b/g,'and').replace(/\bThe\b/g,'the');
   }
+  var FACFIX=null;
+  (function(){try{fetch('/data/facility-corrections.json').then(function(r){return r.json();}).then(function(j){FACFIX=j;}).catch(function(){});}catch(e){}})();
+  function applyFacCorrections(bbl,rows){
+    if(!FACFIX) return rows;
+    var safe=normalizeBbl(bbl);
+    var closed=(FACFIX.closed||[]).filter(function(c){return normalizeBbl(c.bbl)===safe;});
+    var out=rows.filter(function(r){
+      return !closed.some(function(c){
+        return String(r.facname||'').trim().toUpperCase()===String(c.facname||'').trim().toUpperCase();
+      });
+    });
+    (FACFIX.add||[]).forEach(function(a){
+      if(normalizeBbl(a.bbl)===safe) out.push({facname:a.facname,factype:a.factype||'',facsubgrp:a.facsubgrp||'',
+        facdomain:a.facdomain||'',overagency:a.overagency||'',__local:true});
+    });
+    out.__removed=closed.length;
+    return out;
+  }
   async function fetchFacilities(bbl){
     var safe=normalizeBbl(bbl);
     if(!safe) return [];
@@ -115,7 +133,7 @@
       var url='https://data.cityofnewyork.us/resource/ji82-xba5.json?$select=facname,factype,facsubgrp,facgroup,facdomain,overagency,opname,capacity,captype'+
         '&$where='+encodeURIComponent("bbl='"+safe+"' OR bbl='"+safe+".0'")+'&$limit=25&$$app_token=HvFoIfzodzpRML7a1104Ca2tM';
       var rows=await fetchJsonOptional(url);
-      return Array.isArray(rows)?rows:[];
+      return applyFacCorrections(bbl,Array.isArray(rows)?rows:[]);
     }catch(e){ return []; }
   }
   function facilitiesHtml(rows){
