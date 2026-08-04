@@ -131,6 +131,26 @@
 .mc .tr b{color:#7ee08a}
 .mc .eg{font-size:.72rem;color:rgba(255,255,255,.6);margin-top:8px;line-height:1.5;border-left:2px solid var(--orange);padding-left:9px}
 .mythc{padding:12px 15px;background:#0b1740;color:rgba(255,255,255,.8);font-size:.79rem;line-height:1.6;border-top:1px solid rgba(255,255,255,.12)}
+
+.chg{background:#fff;border-top:3px solid var(--orange);border-bottom:3px solid var(--orange)}
+.chgh{padding:14px 15px;background:var(--navy)}
+.chgh .t{color:#fff;font-size:1.05rem;font-weight:900;line-height:1.28}
+.chgh .b{color:rgba(255,255,255,.8);font-size:.83rem;line-height:1.62;margin-top:7px;max-width:78ch}
+.pth{border-bottom:1px solid var(--border)}
+.pthh{display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--off)}
+.pbadge{font-size:.63rem;font-weight:800;padding:4px 9px;border-radius:12px;white-space:nowrap;flex:none}
+.pb-Y{background:#e3f2e4;color:#2e6b30}.pb-S{background:#e8eefb;color:#2145a8}.pb-N{background:#fbe6e6;color:#a82121}
+.ptht{flex:1;font-size:.86rem;font-weight:800;line-height:1.3;color:var(--navy)}
+.pthb{padding:11px 14px}
+.pthb .d{font-size:.81rem;line-height:1.62;color:#333}
+.pmeta{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px;margin-top:10px}
+.pm{background:var(--off);border-radius:7px;padding:8px 10px}
+.pm .k{font-family:'DM Mono',monospace;font-size:.51rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700}
+.pm .v{font-size:.75rem;color:#333;line-height:1.45;margin-top:2px}
+.peg{margin-top:9px;font-size:.75rem;color:#555;line-height:1.55;border-left:3px solid var(--orange);padding-left:10px}
+.chgw{padding:13px 15px;background:#f8f7f4;font-size:.83rem;line-height:1.65;color:#333;max-width:80ch}
+.chgf{padding:12px 15px;background:#fff4ea;border-top:1px solid var(--orange);font-size:.81rem;line-height:1.6;color:#7a4a12}
+.chgf b{color:var(--navy)}
 </style>
 </head>
 <body>
@@ -206,6 +226,8 @@
     <div class="ugb"><div style="overflow-x:auto"><table class="mx" id="mx"></table></div>
       <div class="nt" id="mxNote"></div></div></details>
 
+  <div id="chgSect"></div>
+
   <div class="dbar">
     <span class="bl">District type</span>
     <button class="db on" data-d="R" type="button">Residence</button>
@@ -245,6 +267,24 @@
       }).join('')+'</div>'+
       '<div class="mythc">'+esc(M.close)+'</div></div>';
   }
+
+  // changing a use: which path applies
+  function paintChanging(D){
+    var el=document.getElementById('chgSect'); if(!el||!D.changing) return;
+    var C=D.changing;
+    function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+    el.innerHTML='<div class="chg"><div class="chgh"><div class="t">'+esc(C.t)+'</div><div class="b">'+esc(C.lead)+'</div></div>'+
+      C.paths.map(function(p){
+        return '<div class="pth"><div class="pthh"><span class="pbadge pb-'+p.col+'">'+esc(p.badge)+'</span>'+
+          '<span class="ptht">'+esc(p.t)+'</span></div>'+
+          '<div class="pthb"><div class="d">'+esc(p.b)+'</div>'+
+          '<div class="pmeta"><div class="pm"><div class="k">Who decides</div><div class="v">'+esc(p.who)+'</div></div>'+
+          '<div class="pm"><div class="k">Public review</div><div class="v">'+esc(p.review)+'</div></div></div>'+
+          '<div class="peg"><b>For example:</b> '+esc(p.eg)+'</div></div></div>';
+      }).join('')+
+      '<div class="chgw">'+esc(C.why)+'</div>'+
+      '<div class="chgf"><b>Before objecting:</b> '+esc(C.flag)+'</div></div>';
+  }
   function render(){
     var d=D.districts[dt];
     $('dnote').innerHTML='<b>'+esc(d.name)+' Districts</b> &middot; '+esc(d.desc);
@@ -274,7 +314,7 @@
   });
   fetch('/data/zoning-use-groups.json').then(function(r){return r.json();}).then(function(j){
     D=j;
-    paintMyth(D);
+    paintMyth(D); paintChanging(D);
     $('key').innerHTML=['Y','L','S','N'].map(function(k){
       var s=D.symbols[k];
       return '<div class="k"><span class="sy">'+s.sym+'</span><b>'+esc(s.label)+'</b><br>'+esc(s.desc)+'</div>';
@@ -295,6 +335,11 @@
   var MX=null, UG=null;
   var VERB={Y:'Yes, as of right',L:'Yes, but with limits',S:'Only with a special permit',N:'No, not permitted'};
   var SYM={Y:'\u25cf',L:'\u2666',S:'\u25cb',N:'\u2013'};
+  var PATHNOTE={
+    Y:'<b>Getting there is administrative.</b> Switching to this use is a filing with the Department of Buildings for a new or amended Certificate of Occupancy. It is not a rezoning, it does not go to the Board of Standards and Appeals, and it does not come to the community board. There is no hearing and no vote.',
+    L:'<b>Getting there is administrative where it qualifies.</b> If the proposal fits within the size and location limits, it is a Department of Buildings filing rather than a land use review. Exceed those limits and it becomes a special permit.',
+    S:'<b>This one is reviewable.</b> A special permit means a public hearing, and the community board reviews and votes on it.',
+    N:'<b>Two options, both reviewable.</b> A use variance from the Board of Standards and Appeals, which requires proving all five statutory findings, or a zoning map change, which is a full ULURP action the community board holds a hearing on and votes on.'};
   var GEN={
     Y:'This is allowed without any discretionary approval. You still need the usual permits from the Department of Buildings, and bulk rules control how big the building can be.',
     L:'This is allowed, but not in every case. Size caps, location rules or district specific limits apply.',
@@ -317,7 +362,8 @@
     var ugName=(UG&&UG.groups.filter(function(x){return x.n===g.ug;})[0]) || null;
     $('chkOut').innerHTML='<div class="ans a-'+v+'">'+
       '<div class="hd"><span class="sy">'+SYM[v]+'</span><span class="verdict">'+esc(VERB[v])+'</span></div>'+
-      '<div class="bd">'+(note?'<b>In '+esc(d)+':</b> '+esc(note)+'<br><br>':'')+esc(GEN[v])+'</div>'+
+      '<div class="bd">'+(note?'<b>In '+esc(d)+':</b> '+esc(note)+'<br><br>':'')+esc(GEN[v])+
+        '<div style="margin-top:10px;padding:9px 11px;background:#f8f7f4;border-left:3px solid #f47920;border-radius:0 6px 6px 0;font-size:.79rem;line-height:1.55">'+PATHNOTE[v]+'</div></div>'+
       '<div class="meta">'+esc(g.q)+' falls under Use Group '+g.ug+(ugName?', '+esc(ugName.name):'')+
       '. Special purpose districts and Article VI provisions can change this on a particular lot.</div></div>';
   }
