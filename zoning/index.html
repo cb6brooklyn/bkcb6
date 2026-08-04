@@ -171,6 +171,34 @@
 .gt .lg{display:inline-block;font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.06em;background:#eef0f4;color:var(--muted);padding:2px 6px;border-radius:4px;margin-left:6px;font-weight:700}
 .gt .d{font-size:.79rem;line-height:1.6;color:#333;margin-top:3px}
 .gt .see{font-size:.78rem;color:var(--muted);margin-top:3px;font-style:italic}
+
+.addrbox{background:#fff;border-bottom:3px solid var(--orange)}
+.abh{display:flex;align-items:center;gap:11px;padding:13px 15px;background:var(--navy)}
+.abh .ic{font-size:1.4rem}
+.abh .tt{flex:1;color:#fff;font-size:1.02rem;font-weight:900;line-height:1.25}
+.abh .tt small{display:block;font-size:.75rem;font-weight:400;color:rgba(255,255,255,.72);margin-top:2px}
+.abin{display:flex;gap:8px;padding:13px 15px 10px}
+.abin input{flex:1;min-width:0;padding:12px 13px;font-family:'DM Sans',sans-serif;font-size:.92rem;border:2px solid var(--navy2);border-radius:9px;color:var(--navy)}
+.abin button{padding:12px 18px;background:var(--orange);color:#fff;border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.86rem;font-weight:800;cursor:pointer;flex:none}
+#addrSug{margin:0 15px}
+#addrSug .sg{padding:10px 12px;border:1px solid var(--border);border-top:none;background:#fff;cursor:pointer;font-size:.83rem;color:var(--navy)}
+#addrSug .sg:first-child{border-top:1px solid var(--border);border-radius:8px 8px 0 0}
+#addrSug .sg:last-child{border-radius:0 0 8px 8px}
+#addrSug .sg:hover{background:#fff4ea}
+#addrSug .sg small{display:block;color:var(--muted);font-size:.7rem;margin-top:1px}
+.zres{margin:12px 15px 15px;border:2px solid var(--orange);border-radius:11px;overflow:hidden}
+.zres .rh{padding:12px 14px;background:#fff8f2}
+.zres .ad{font-size:.95rem;font-weight:900;color:var(--navy);line-height:1.3}
+.zres .sub{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);margin-top:2px}
+.zgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border);border-top:1px solid var(--border)}
+.zg{background:#fff;padding:10px 12px}
+.zg .k{font-family:'DM Mono',monospace;font-size:.51rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700}
+.zg .v{font-size:1.02rem;font-weight:900;color:var(--navy);margin-top:2px;line-height:1.15}
+.zg .d{font-size:.68rem;color:#555;line-height:1.4;margin-top:3px}
+.zcta{padding:11px 14px;background:var(--navy);color:#fff;font-size:.82rem;line-height:1.55}
+.zcta b{color:var(--orange)}
+.zerr{margin:0 15px 14px;padding:11px 13px;background:#fbe6e6;border:1px solid #f3b4b4;border-radius:9px;font-size:.8rem;color:#a82121;line-height:1.55}
+.abnote{padding:0 15px 13px;font-family:'DM Mono',monospace;font-size:.64rem;color:#9ca3af;line-height:1.6}
 </style>
 </head>
 <body>
@@ -179,6 +207,16 @@
     <div class="crumb"><a href="/">CB6 &amp; Beyond</a> &rsaquo; <a href="/housing">Housing &amp; Rent</a> &rsaquo; <a href="/cd/">Districts</a></div>
     <h1>Zoning and Land Use <span>Explained</span></h1>
     <div class="nbs">Every zoning district, and what can actually be built there</div>
+  </div>
+
+  <div class="addrbox">
+    <div class="abh"><span class="ic">&#128269;</span><span class="tt">Look up any address in New York City<small>See how it is zoned, then find out what can be done there.</small></span></div>
+    <div class="abin">
+      <input id="addrQ" type="search" placeholder="Start typing an address, for example 250 Baltic Street" autocomplete="off" spellcheck="false">
+      <button id="addrGo" type="button">Look up</button>
+    </div>
+    <div id="addrSug"></div>
+    <div id="addrOut"></div>
   </div>
 
   <div class="tool">
@@ -511,6 +549,119 @@
       '</div></div>'+
       '<div class="take"><b>The takeaway.</b> '+esc(E.takeaway)+'</div>';
   }).catch(function(){});
+})();
+
+/* ---- address lookup, feeding the checker ---- */
+(function(){
+  var $=function(i){return document.getElementById(i);};
+  function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  var BORO={'1':'Manhattan','2':'The Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
+  var LU={'01':'One and two family homes','02':'Multifamily walk-up','03':'Multifamily elevator',
+    '04':'Mixed residential and commercial','05':'Commercial and office','06':'Industrial and manufacturing',
+    '07':'Transportation and utility','08':'Public facilities and institutions','09':'Open space and recreation',
+    '10':'Parking facilities','11':'Vacant land'};
+  var timer=null, lastPick=null;
+
+  function baseD(z){
+    if(!z) return null;
+    var m=String(z).trim().toUpperCase().match(/^([RCM])\s*(\d{1,2})/);
+    if(!m) return null;
+    var lim={R:12,C:8,M:3}[m[1]], n=parseInt(m[2],10);
+    return (n>=1&&n<=lim)?(m[1]+n):null;
+  }
+  function suggest(q){
+    if(!q||q.length<3){ $('addrSug').innerHTML=''; return; }
+    fetch('https://geosearch.planninglabs.nyc/v2/autocomplete?size=5&text='+encodeURIComponent(q))
+      .then(function(r){return r.json();}).then(function(j){
+        var f=(j&&j.features)||[];
+        if(!f.length){ $('addrSug').innerHTML=''; return; }
+        $('addrSug').innerHTML=f.map(function(x,i){
+          var p=x.properties||{};
+          return '<div class="sg" data-i="'+i+'">'+esc(p.name||p.label)+'<small>'+esc(p.borough||'')+(p.postalcode?' '+esc(p.postalcode):'')+'</small></div>';
+        }).join('');
+        $('addrSug').querySelectorAll('.sg').forEach(function(el){
+          el.addEventListener('click',function(){
+            var x=f[+this.getAttribute('data-i')];
+            $('addrQ').value=(x.properties&&(x.properties.label||x.properties.name))||'';
+            $('addrSug').innerHTML='';
+            resolve(x);
+          });
+        });
+      }).catch(function(){ $('addrSug').innerHTML=''; });
+  }
+  function bblOf(x){
+    var p=x&&x.properties||{};
+    var b=(p.addendum&&p.addendum.pad&&p.addendum.pad.bbl)||p.pad_bbl||null;
+    return b?String(b).replace(/\D/g,''):null;
+  }
+  function search(q){
+    $('addrOut').innerHTML='<div class="abnote">Looking up&hellip;</div>';
+    fetch('https://geosearch.planninglabs.nyc/v2/search?size=1&text='+encodeURIComponent(q))
+      .then(function(r){return r.json();}).then(function(j){
+        var f=(j&&j.features&&j.features[0]);
+        if(!f) throw new Error('no match');
+        resolve(f);
+      }).catch(function(){ plutoFallback(q); });
+  }
+  function resolve(feature){
+    var bbl=bblOf(feature);
+    var label=(feature.properties&&(feature.properties.label||feature.properties.name))||'';
+    if(!bbl) return plutoFallback(label||$('addrQ').value);
+    $('addrOut').innerHTML='<div class="abnote">Looking up zoning&hellip;</div>';
+    var url='https://data.cityofnewyork.us/resource/64uk-42ks.json?$select=address,borough,borocode,zonedist1,zonedist2,overlay1,overlay2,spdist1,spdist2,landuse,bldgclass,unitsres,lotarea'+
+      '&$where='+encodeURIComponent("bbl='"+bbl+"'")+'&$limit=1&$$app_token=HvFoIfzodzpRML7a1104Ca2tM';
+    fetch(url).then(function(r){return r.json();}).then(function(rows){
+      if(!rows||!rows.length) throw new Error('no pluto');
+      show(rows[0], label);
+    }).catch(function(){ fail(label); });
+  }
+  function plutoFallback(q){
+    var m=String(q||'').trim().toUpperCase().replace(/,.*$/,'');
+    var url='https://data.cityofnewyork.us/resource/64uk-42ks.json?$select=address,borough,borocode,zonedist1,zonedist2,overlay1,overlay2,spdist1,spdist2,landuse,bldgclass,unitsres,lotarea'+
+      '&$where='+encodeURIComponent("upper(address)='"+m.replace(/'/g,"")+"'")+'&$limit=1&$$app_token=HvFoIfzodzpRML7a1104Ca2tM';
+    fetch(url).then(function(r){return r.json();}).then(function(rows){
+      if(!rows||!rows.length) throw new Error('none');
+      show(rows[0], m);
+    }).catch(function(){ fail(q); });
+  }
+  function fail(q){
+    $('addrOut').innerHTML='<div class="zerr">Could not find <b>'+esc(q||'that address')+'</b>. Try including the borough, or pick from the suggestions as you type. You can also choose a district directly below.</div>';
+  }
+  function show(p,label){
+    var zone=p.zonedist1||'', ov=p.overlay1||'', sp=p.spdist1||'';
+    var base=baseD(zone);
+    var lu=LU[String(p.landuse||'').padStart(2,'0')]||'';
+    lastPick=base;
+    var cells='<div class="zg"><div class="k">Zoning district</div><div class="v">'+esc(zone||'\u2014')+'</div>'+
+      (p.zonedist2?'<div class="d">also '+esc(p.zonedist2)+'</div>':'')+'</div>';
+    if(ov) cells+='<div class="zg"><div class="k">Commercial overlay</div><div class="v">'+esc(ov)+'</div><div class="d">Permits commercial uses the base district would not.</div></div>';
+    if(sp) cells+='<div class="zg"><div class="k">Special district</div><div class="v" style="font-size:.84rem">'+esc(sp)+'</div><div class="d">Modifies the ordinary rules here.</div></div>';
+    if(lu) cells+='<div class="zg"><div class="k">Current land use</div><div class="v" style="font-size:.84rem">'+esc(lu)+'</div><div class="d">What is there now, not what is allowed.</div></div>';
+    if(p.unitsres&&+p.unitsres>0) cells+='<div class="zg"><div class="k">Homes on the lot</div><div class="v">'+Number(p.unitsres).toLocaleString()+'</div></div>';
+    $('addrOut').innerHTML='<div class="zres"><div class="rh">'+
+      '<div class="ad">'+esc(p.address||label)+'</div>'+
+      '<div class="sub">'+esc(BORO[String(p.borocode)]||p.borough||'')+'</div></div>'+
+      '<div class="zgrid">'+cells+'</div>'+
+      (base?'<div class="zcta">This lot follows <b>'+esc(base)+'</b> rules'+(ov?' with a <b>'+esc(ov)+'</b> overlay':'')+'. The answers below are now set to '+esc(base)+'.</div>':
+            '<div class="zcta">This lot is not in a standard R, C or M district, so the checker below cannot evaluate it.</div>')+
+      '</div>';
+    if(base){
+      var sel=$('chkD');
+      if(sel){
+        sel.value=base;
+        sel.dispatchEvent(new Event('change'));
+        var t=document.querySelector('.tool');
+        if(t) setTimeout(function(){ t.scrollIntoView({behavior:'smooth',block:'start'}); },260);
+      }
+    }
+  }
+  var q=$('addrQ');
+  if(q){
+    q.addEventListener('input',function(){ clearTimeout(timer); var v=this.value; timer=setTimeout(function(){suggest(v);},220); });
+    q.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); $('addrSug').innerHTML=''; search(this.value); } });
+  }
+  var go=$('addrGo');
+  if(go) go.addEventListener('click',function(){ $('addrSug').innerHTML=''; search($('addrQ').value); });
 })();
 </script>
 </body>
