@@ -560,7 +560,29 @@
     '04':'Mixed residential and commercial','05':'Commercial and office','06':'Industrial and manufacturing',
     '07':'Transportation and utility','08':'Public facilities and institutions','09':'Open space and recreation',
     '10':'Parking facilities','11':'Vacant land'};
-  var timer=null, lastPick=null;
+  var timer=null, lastPick=null, SPECIALD=null;
+  (function(){try{fetch('/data/special-districts.json').then(function(r){return r.json();}).then(function(j){SPECIALD=j;}).catch(function(){});}catch(e){}})();
+  function specialBlock(zone,sp){
+    if(!SPECIALD) return '';
+    var code=null;
+    [zone,sp].forEach(function(v){
+      if(!v) return;
+      var k=String(v).trim().toUpperCase();
+      if(SPECIALD.districts[k]) code=k;
+    });
+    if(!code) return '';
+    var D=SPECIALD.districts[code];
+    var zones=(D.zones||[]).map(function(z){
+      return '<div style=\"display:flex;gap:9px;padding:4px 0;font-size:.79rem\"><b style=\"min-width:64px;color:#f47920\">'+z[0]+'</b><span style=\"color:#333\">'+z[1]+'</span></div>';
+    }).join('');
+    return '<div style=\"padding:12px 14px;background:#fff8f2;border-top:1px solid #f0ede8\">'+
+      '<div style=\"font-size:.88rem;font-weight:900;color:#0d1b4b\">'+D.name+'</div>'+
+      '<div style=\"font-size:.8rem;line-height:1.6;color:#333;margin-top:5px\">'+D.d+'</div>'+
+      (zones?'<div style=\"margin-top:8px\">'+zones+'</div>':'')+
+      (D.note?'<div style=\"font-size:.78rem;line-height:1.55;color:#333;margin-top:7px\">'+D.note+'</div>':'')+
+      '<div style=\"font-size:.74rem;line-height:1.55;color:#6b6760;margin-top:8px\">'+SPECIALD.how+'</div>'+
+      '<div style=\"margin-top:9px\"><a href=\"https://zola.planning.nyc.gov\" target=\"_blank\" rel=\"noopener\" style=\"font-size:.76rem;font-weight:700;color:#fff;background:#132D65;padding:7px 12px;border-radius:7px;text-decoration:none\">Open ZoLa to see the zones &rarr;</a></div></div>';
+  }
 
   function baseD(z){
     if(!z) return null;
@@ -643,7 +665,7 @@
       '<div class="sub">'+esc(BORO[String(p.borocode)]||p.borough||'')+'</div></div>'+
       '<div class="zgrid">'+cells+'</div>'+
       (base?'<div class="zcta">This lot follows <b>'+esc(base)+'</b> rules'+(ov?' with a <b>'+esc(ov)+'</b> overlay':'')+'. The answers below are now set to '+esc(base)+'.</div>':
-            '<div class="zcta">This lot is not in a standard R, C or M district, so the checker below cannot evaluate it.</div>')+
+            (specialBlock(zone,sp)||'<div class="zcta">This lot is not in a standard R, C or M district, so the checker below cannot evaluate it. Check ZoLa for the controlling rules.</div>'))+
       '</div>';
     if(base){
       var sel=$('chkD');
