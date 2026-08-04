@@ -51,6 +51,32 @@
     '07':'#6b7280','08':'#56ccf2','09':'#27ae60','10':'#a0a0a0','11':'#d9d9d9'};
   var ZN_COLOR={'R':'#f2994a','C':'#2563eb','M':'#9b51e0','P':'#27ae60','B':'#56ccf2','?':'#9ca3af'};
   var ZN_LABEL={'R':'Residential','C':'Commercial','M':'Manufacturing','P':'Park','B':'Special district','?':'Other'};
+
+  var ZSYM={Y:'\u25cf',L:'\u2666',S:'\u25cb',N:'\u2013'};
+  var ZLBL={Y:'Yes',L:'Limits',S:'Permit',N:'No'};
+  var ZCOL={Y:'#2e6b30',L:'#a65a00',S:'#2145a8',N:'#a82121'};
+  var ZSHOW=['live','shop','eat','factory'];
+  function zBase(z){
+    if(!z) return null;
+    var m=String(z).trim().toUpperCase().match(/^([RCM])\s*(\d{1,2})/);
+    if(!m) return null;
+    var lim={R:12,C:8,M:3}[m[1]], num=parseInt(m[2],10);
+    return (num>=1&&num<=lim)?(m[1]+num):null;
+  }
+  function zUses(zone){
+    var base=zBase(zone);
+    if(!base||!D.zmx) return '';
+    var rows=D.zmx.goals.filter(function(g){return ZSHOW.indexOf(g.id)>-1;}).map(function(g){
+      var r=D.zmx.matrix[g.ug], v=r?r[base]:null;
+      if(!v) return '';
+      var lab=g.q.replace(/^I want to /,'').replace(/ here$/,'');
+      return '<div style="display:flex;justify-content:space-between;gap:12px;padding:1px 0;font-size:.72rem">'+
+        '<span style="color:#555">'+lab.charAt(0).toUpperCase()+lab.slice(1)+'</span>'+
+        '<span style="font-weight:800;color:'+ZCOL[v]+'">'+ZSYM[v]+' '+ZLBL[v]+'</span></div>';
+    }).join('');
+    return rows ? ('<div style="margin-top:6px;border-top:1px solid #eee;padding-top:5px">'+
+      '<div style="font-family:DM Mono,monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;margin-bottom:3px">Can be built here</div>'+rows+'</div>') : '';
+  }
   function znFam(z){
     if(!z) return '?';
     var c=String(z).trim().toUpperCase().charAt(0);
@@ -103,7 +129,7 @@
           renderer:window.__lotCanvas});
         if(tips) m.bindTooltip(kind==='lu'
           ? (LU_LABEL[p.lu]||'Unclassified')
-          : (p.z? p.z+' \u00b7 '+ZN_LABEL[znFam(p.z)] : 'No zoning recorded'),{sticky:true});
+          : (p.z? ('<b>'+p.z+'</b> \u00b7 '+ZN_LABEL[znFam(p.z)]+zUses(p.z)) : 'No zoning recorded'),{sticky:true});
         m.addTo(grp);
       });
       grp.addTo(map); layer=grp;
@@ -261,10 +287,11 @@
       fetch('/data/hpd-affordable.json').then(function(r){return r.json();}).catch(function(){return null;}),
       fetch('/data/housing-jobs.json').then(function(r){return r.json();}).catch(function(){return null;}),
       fetch('/data/cd-landuse.json').then(function(r){return r.json();}).catch(function(){return null;}),
-      fetch('/data/nyc-nprc.json').then(function(r){return r.json();}).catch(function(){return null;})
+      fetch('/data/nyc-nprc.json').then(function(r){return r.json();}).catch(function(){return null;}),
+      fetch('/data/zoning-matrix.json').then(function(r){return r.json();}).catch(function(){return null;})
     ]).then(function(a){
       D.look=a[0][CODE]; D.nbgeo=a[1]; D.ccgeo=a[2]; D.cc=a[3]; D.inv=a[4];
-      D.cdgeo=a[5]; D.hdb=a[6]; D.hpd=a[7]; D.jobs=a[8]; D.lu=a[9]; D.nprc=a[10];
+      D.cdgeo=a[5]; D.hdb=a[6]; D.hpd=a[7]; D.jobs=a[8]; D.lu=a[9]; D.nprc=a[10]; D.zmx=a[11];
       if(!D.look){ $('bnote').textContent='District not found.'; return; }
       header(); outline(); kpis();
       if(!D.look.se.length){
