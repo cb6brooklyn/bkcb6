@@ -366,6 +366,24 @@
         '<span class="lup">'+pct.toFixed(1)+'%</span></div>';
     }).join('');
   }
+  var LETTERNOTE={
+    R:'R does not mean only housing. Residence Districts also permit schools, houses of worship, libraries, museums, hospitals and community centers as of right. What they exclude is retail, storage and production.',
+    C:'C does not mean no housing. Housing is permitted as of right in C1, C2, C4, C5 and C6. Only C7 and C8 exclude residences.',
+    M:'M does not mean only factories. Offices, retail, storage and entertainment are widely permitted. The one thing Manufacturing Districts bar as of right is housing.'};
+  function letterNote(){
+    var d=D.lu&&D.lu.cd[CODE];
+    if(!d) return '';
+    var fams=Object.keys(d.zfam||{}).filter(function(k){return d.zfam[k].area>0;});
+    var letters=[];
+    if(fams.indexOf('Residential')>-1) letters.push('R');
+    if(fams.indexOf('Commercial')>-1) letters.push('C');
+    if(fams.indexOf('Manufacturing')>-1) letters.push('M');
+    if(!letters.length) return '';
+    return '<div style="margin-top:12px;padding:11px 12px;background:#0d1b4b;border-radius:9px;color:rgba(255,255,255,.85);font-size:.76rem;line-height:1.6">'+
+      '<div style="color:#f47920;font-weight:800;font-size:.8rem;margin-bottom:4px">The letter is a name, not a description</div>'+
+      letters.map(function(L){return LETTERNOTE[L];}).join(' ')+
+      ' <a href="/zoning" style="color:#fff;border-bottom:1px solid #f47920;text-decoration:none">See what each district actually allows &rarr;</a></div>';
+  }
   function landuse(){
     var L=D.lu, d=L&&L.cd[CODE];
     if(!d){ var s1=$('lusec'); if(s1) s1.style.display='none'; var s2=$('zsec'); if(s2) s2.style.display='none'; return; }
@@ -403,7 +421,7 @@
       (manu?'. Manufacturing zoning covers '+(manu/zTot*100).toFixed(1)+'% of the district':'')+
       '. R is residential, C commercial, M manufacturing; the number that follows sets how much can be built.';
     var zl=$('znote');
-    if(zl) zl.innerHTML=zl.textContent+' <a href="/zoning" style="color:#0d1b4b;border-bottom:1px solid #f47920;text-decoration:none">See what each zoning district allows &rarr;</a>';
+    if(zl) zl.innerHTML=zl.textContent+' <a href="/zoning" style="color:#0d1b4b;border-bottom:1px solid #f47920;text-decoration:none">See what each zoning district allows &rarr;</a>'+letterNote();
   }
   function helpers(){
     var sec=$('nprcsec'); if(!sec) return;
