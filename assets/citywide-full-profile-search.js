@@ -79,6 +79,10 @@
   var USE_BG={Y:'#e3f2e4',L:'#fff1e0',S:'#e8eefb',N:'#fbe6e6'};
   var USE_FG={Y:'#2e6b30',L:'#a65a00',S:'#2145a8',N:'#a82121'};
   var USE_SHOW=['live','shop','eat','office','factory','school','hotel','warehouse'];
+  var LETTER_NOTE={
+    R:'R does not mean only housing. Residence Districts also permit schools, houses of worship, libraries, museums, hospitals and community centers as of right.',
+    C:'C does not mean no housing. Housing is permitted as of right in C1, C2, C4, C5 and C6. Only C7 and C8 exclude residences.',
+    M:'M does not mean only factories. Offices, retail, storage and entertainment are widely permitted. What M bars as of right is housing.'};
   function paintUseGrid(el){
     if(!USEMATRIX||!el) return;
     var base=el.getAttribute('data-usegrid');
@@ -96,6 +100,7 @@
     }).join('');
     if(!rows){ el.style.display='none'; return; }
     el.innerHTML='<div style="font-size:.74rem;font-weight:700;color:#0d1b4b;margin-bottom:5px">What can be built here &middot; '+esc(base)+' rules</div>'+rows+
+      '<div style="font-size:.7rem;color:#0d1b4b;line-height:1.5;margin-top:8px;padding:8px 9px;background:#f8f7f4;border-left:3px solid #f47920;border-radius:0 5px 5px 0"><b>The letter is a name, not a description.</b> '+esc(LETTER_NOTE[base.charAt(0)]||'')+'</div>'+
       '<div style="font-size:.66rem;color:#9ca3af;line-height:1.5;margin-top:7px">Overlays, special purpose districts and Article VI can change this on a given lot. <a href="/zoning" style="color:#0d1b4b">Full chart and checker &rarr;</a></div>';
   }
 
