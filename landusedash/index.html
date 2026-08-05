@@ -60,6 +60,22 @@
 
 .chartwrap{position:relative;height:230px;padding:8px 12px 4px;background:#fff;border-bottom:1px solid var(--border)}
 .chartwrap.tall{height:420px}
+
+.ugblock{border-bottom:1px solid var(--border);padding:11px 14px}
+.ugh{display:flex;align-items:flex-start;gap:10px;margin-bottom:7px}
+.ugnum{font-family:'DM Mono',monospace;font-size:.8rem;font-weight:900;color:var(--orange);min-width:32px}
+.ugt2{flex:1;font-size:.84rem;font-weight:800;color:var(--navy);line-height:1.25}
+.ugt2 small{display:block;font-size:.72rem;font-weight:400;color:var(--muted);margin-top:1px}
+.ugrow{display:flex;align-items:center;gap:9px;padding:3px 0}
+.ugn2{min-width:126px;font-size:.74rem;font-weight:700;line-height:1.3}
+.ugbar{flex:1;display:flex;height:15px;border-radius:3px;overflow:hidden;background:#f0ede8;min-width:60px}
+.ugbar i{display:block;height:100%}
+.ugp{font-family:'DM Mono',monospace;font-weight:800;min-width:44px;text-align:right;font-size:.75rem;color:var(--navy)}
+.uglegend{display:flex;gap:11px;flex-wrap:wrap;padding:11px 14px;background:var(--off);border-bottom:1px solid var(--border)}
+.uglegend .i{display:inline-flex;align-items:center;gap:5px;font-size:.71rem;color:#333;font-weight:600}
+.uglegend .sw{width:12px;height:11px;border-radius:2px}
+.ugnote{padding:10px 14px;font-size:.78rem;line-height:1.6;color:#555}
+.ugnote a{color:var(--navy);border-bottom:1px solid var(--orange);text-decoration:none}
 </style>
 </head>
 <body>
@@ -78,6 +94,7 @@
     <span class="bl">Show</span>
     <button class="btn" data-view="lu" type="button">Land use</button>
     <button class="btn on" data-view="zn" type="button">Zoning</button>
+    <button class="btn" data-view="ug" type="button">Use Groups</button>
   </div>
 
   <div class="picker">
@@ -167,7 +184,7 @@
   }
   function readUrl(){
     var u=new URLSearchParams(location.search);
-    if(u.get('view')==='lu') view='lu';
+    var vv=u.get('view'); if(vv==='lu'||vv==='ug') view=vv;
     var a=u.get('a');
     if(a){
       picked=a.split(',').filter(Boolean).map(function(x){
@@ -210,6 +227,64 @@
     }).join('');
   }
 
+
+  var MX=null, UGD=null;
+  var VERD={Y:'Permitted as of right',L:'Permitted with limits',S:'Special permit',N:'Not permitted'};
+  var VCOL={Y:'#2e6b30',L:'#e08a00',S:'#2145a8',N:'#c0392b'};
+  function baseD(z){
+    var t=String(z||'').trim().toUpperCase();
+    if(t.indexOf('PARK')===0) return 'PARK';
+    var m=t.match(/^([RCM])\s*(\d{1,2})/);
+    if(!m) return null;
+    var lim={R:12,C:8,M:3}[m[1]], nn=parseInt(m[2],10);
+    return (nn>=1&&nn<=lim)?(m[1]+nn):null;
+  }
+  function ugMix(rec,ug){
+    var out={Y:0,L:0,S:0,N:0}, other=0, tot=0;
+    Object.keys(rec.zone||{}).forEach(function(z){
+      var a=rec.zone[z].area; tot+=a;
+      var b=baseD(z);
+      var v=(b&&MX.matrix[ug])?MX.matrix[ug][b]:null;
+      if(v&&out[v]!==undefined) out[v]+=a; else other+=a;
+    });
+    if(!tot) return null;
+    ['Y','L','S','N'].forEach(function(k){ out[k]=out[k]/tot*100; });
+    out.other=other/tot*100;
+    return out;
+  }
+  function renderUseGroups(){
+    if(!MX||!UGD){ $('dash').innerHTML='<div class="empty2" style="padding:14px">Use Group data could not load.</div>'; return; }
+    var groups=UGD.groups||[];
+    var out='<div class="sec2">What each Use Group can do in these areas</div>'+
+      '<div class="ugnote">Read this as: of all the zoned lot area here, how much sits in a district that allows this use. '+
+      'A high red share does not mean the use is banned everywhere, it means most of the land is zoned for something else.</div>';
+    groups.forEach(function(g){
+      var rows=picked.map(function(p,i){
+        var r=recOf(p); if(!r) return '';
+        var m=ugMix(r,g.n); if(!m) return '';
+        var seg=['Y','L','S','N'].map(function(k){
+          return m[k]>0.4?'<i style="width:'+m[k].toFixed(1)+'%;background:'+VCOL[k]+'" title="'+VERD[k]+' '+m[k].toFixed(0)+'%"></i>':'';
+        }).join('')+(m.other>0.4?'<i style="width:'+m.other.toFixed(1)+'%;background:#d9d9d9"></i>':'');
+        return '<div class="ugrow"><span class="ugn2" style="color:'+TONE[i%TONE.length]+'">'+esc(nameOf(p.lvl,p.key))+'</span>'+
+          '<span class="ugbar">'+seg+'</span>'+
+          '<span class="ugp">'+(m.Y+m.L).toFixed(0)+'%</span></div>';
+      }).join('');
+      out+='<div class="ugblock"><div class="ugh"><span class="ugnum">'+g.n+'</span>'+
+        '<span class="ugt2">'+esc(g.name)+'<small>'+esc(g.short)+'</small></span></div>'+rows+'</div>';
+    });
+    out+='<div class="uglegend">'+['Y','L','S','N'].map(function(k){
+      return '<span class="i"><span class="sw" style="background:'+VCOL[k]+'"></span>'+VERD[k]+'</span>';
+    }).join('')+'<span class="i"><span class="sw" style="background:#d9d9d9"></span>Not a standard district</span></div>'+
+    '<div class="ugnote">The figure on the right is how much of the area allows the use at all, as of right or with limits. '+
+    '<a href="/zoning">See what each Use Group covers</a>.</div>';
+    $('dash').innerHTML=out;
+    if(stackChart){stackChart.destroy();stackChart=null;}
+    if(groupChart){groupChart.destroy();groupChart=null;}
+    var sb=$('stackBox'), gb=$('groupBox');
+    if(sb) sb.style.display='none';
+    if(gb) gb.style.display='none';
+    document.querySelectorAll('.sec2').forEach(function(el,i){ if(i<2) el.style.display='none'; });
+  }
   var stackChart=null, groupChart=null;
   function drawCharts(cats){
     if(!window.Chart) return;
@@ -244,6 +319,11 @@
   }
   function render(){
     chips(); totals(); syncUrl();
+    if(view==='ug'){ chips(); totals(); syncUrl(); if(picked.length) return renderUseGroups(); }
+    var sb0=$('stackBox'), gb0=$('groupBox');
+    if(sb0) sb0.style.display='';
+    if(gb0) gb0.style.display='';
+    document.querySelectorAll('.sec2').forEach(function(el){ el.style.display=''; });
     if(!picked.length){ $('dash').innerHTML=''; if(stackChart){stackChart.destroy();stackChart=null;} if(groupChart){groupChart.destroy();groupChart=null;} return; }
     var cats=allCats();
     var sb=$('stackBox'); if(sb) sb.style.height=Math.max(140,52+picked.length*38)+'px';
@@ -316,9 +396,11 @@
 
   Promise.all([
     fetch('/data/landuse-zoning-all.json').then(function(r){return r.json();}),
-    fetch('/data/council-members.json').then(function(r){return r.json();}).catch(function(){return null;})
+    fetch('/data/council-members.json').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/zoning-matrix.json').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/zoning-use-groups.json').then(function(r){return r.json();}).catch(function(){return null;})
   ]).then(function(a){
-    D=a[0]; if(a[1]&&a[1].members) CM=a[1].members;
+    D=a[0]; if(a[1]&&a[1].members) CM=a[1].members; MX=a[2]; UGD=a[3];
     readUrl();
     document.querySelectorAll('[data-view]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-view')===view);});
     fillAreas();
