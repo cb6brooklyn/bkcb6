@@ -154,6 +154,11 @@
 .uglegend .i{display:inline-flex;align-items:center;gap:5px;font-size:.7rem;color:#333;font-weight:600}
 .uglegend .sw{width:12px;height:11px;border-radius:2px}
 .ugnote{padding:10px 14px;font-size:.77rem;line-height:1.6;color:#555}
+
+.area-lab{background:none!important;border:none!important;box-shadow:none!important;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.area-lab span{font-family:'DM Sans',sans-serif;font-weight:800;font-size:11px;color:#0d1b4b;background:rgba(255,255,255,.9);padding:2px 7px;border-radius:9px;white-space:nowrap;line-height:1.25;text-align:center;box-shadow:0 1px 2px rgba(13,27,75,.2)}
+.area-lab span .sub{display:block;font-size:9px;font-weight:600;opacity:.75}
+.area-lab.on span{box-shadow:0 1px 4px rgba(0,0,0,.3)}
 </style>
 </head>
 <body>
@@ -251,11 +256,42 @@
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'&copy; CARTO'}).addTo(map);
   map.createPane('streetLabels'); map.getPane('streetLabels').style.zIndex=645; map.getPane('streetLabels').style.pointerEvents='none';
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',{maxZoom:19,pane:'streetLabels'}).addTo(map);
+
+  map.createPane('areaNames'); map.getPane('areaNames').style.zIndex=655; map.getPane('areaNames').style.pointerEvents='none';
+  var areaLabels=[];
+  function shortLabel(lvl,key){
+    if(lvl==='cd') return key;
+    if(lvl==='cc'){ var m=CM&&CM[key]; return 'CD'+key+(m?'<br><span class="sub">'+m.name+'</span>':''); }
+    if(lvl==='nb') return key;
+    if(lvl==='boro') return key;
+    return key;
+  }
+  function drawAreaLabels(cfg){
+    areaLabels.forEach(function(m){ map.removeLayer(m); }); areaLabels=[];
+    if(!cfg||!cfg.geo||lens==='city') return;
+    var z=map.getZoom();
+    // neighborhoods are dense, so only name them once you are in close
+    if(lens==='nb' && z<13) return;
+    var b=map.getBounds();
+    L.geoJSON(cfg.geo).eachLayer(function(l){
+      var p=l.feature.properties, key=cfg.key(p);
+      if(picked.length && !showAll && pIdx(lens,key)<0) return;
+      var c;
+      try{ c=l.getBounds().getCenter(); }catch(e){ return; }
+      if(!b.contains(c)) return;
+      var idx=pIdx(lens,key);
+      var cls='area-lab'+(idx>-1?' on':'');
+      areaLabels.push(L.marker(c,{interactive:false,keyboard:false,pane:'areaNames',
+        icon:L.divIcon({className:cls,html:'<span'+(idx>-1?' style="background:'+TONE[idx%TONE.length]+';color:#fff"':'')+'>'+
+          shortLabel(lens,key)+'</span>',iconSize:[130,30],iconAnchor:[65,15]})}).addTo(map));
+    });
+  }
   map.createPane('boroNames'); map.getPane('boroNames').style.zIndex=660; map.getPane('boroNames').style.pointerEvents='none';
   var boroLabels=[];
   function drawBoroLabels(){
     boroLabels.forEach(function(m){ map.removeLayer(m); }); boroLabels=[];
     if(!GEO.boro) return;
+    if(map.getZoom()>=13 && lens!=='boro') return;
     L.geoJSON(GEO.boro).eachLayer(function(l){
       var nm=(l.feature.properties.boro||l.feature.properties.code||'');
       if(!nm) return;
@@ -485,6 +521,7 @@
       nb:{geo:GEO.nb,key:function(p){return p.nb;},data:D.nb,name:function(p){return p.nb;},sub:'Neighborhood'}
     }[lens];
     if(!cfg||!cfg.geo){ $('bnote').textContent='Boundaries could not load.'; return; }
+    window.__cfg=cfg;
     layer=L.geoJSON(cfg.geo,{
       style:function(f){
         var rec=cfg.data[cfg.key(f.properties)];
@@ -517,11 +554,13 @@
             return {color:'#1f2a44',weight:2,fillColor:'#000',fillOpacity:0};
           });
           renderCompare(); buildToggles();
+          drawAreaLabels(cfg);
           fitPicked();
         });
       }
     }).addTo(map);
     drawBoroLabels();
+    drawAreaLabels(cfg);
     drawScale();
     var count=Object.keys(cfg.data).length;
     $('bnote').textContent=count+' '+(lens==='cd'?'community districts':(lens==='cc'?'council districts':(lens==='nb'?'neighborhoods':'boroughs')));
@@ -620,6 +659,7 @@
     }).catch(function(){ realBusy=false; $('zoomnote').textContent='Boundaries could not load here'; });
   }
   map.on('moveend zoomend',loadRealZoning);
+  map.on('moveend zoomend',function(){ if(window.__cfg) drawAreaLabels(window.__cfg); drawBoroLabels(); });
 
 
 
