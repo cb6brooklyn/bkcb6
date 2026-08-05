@@ -70,6 +70,9 @@
 .pinres .w .v{color:var(--navy);font-weight:700}
 .pinres .w .v a{color:var(--navy);border-bottom:1px solid var(--orange);text-decoration:none}
 .pinres .hint{font-family:'DM Mono',monospace;font-size:.64rem;color:#9ca3af;margin-top:8px;line-height:1.5}
+
+.boro-lab{background:none!important;border:none!important;box-shadow:none!important;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.boro-lab span{font-family:'DM Sans',sans-serif;font-weight:900;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#0d1b4b;background:rgba(255,255,255,.82);padding:2px 8px;border-radius:11px;white-space:nowrap;box-shadow:0 1px 3px rgba(13,27,75,.18)}
 </style>
 </head>
 <body>
@@ -147,6 +150,21 @@
 
   map=L.map('map',{scrollWheelZoom:true,preferCanvas:true}).setView([40.70,-73.95],10);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:17,attribution:'&copy; CARTO'}).addTo(map);
+  map.createPane('boroNames'); map.getPane('boroNames').style.zIndex=650; map.getPane('boroNames').style.pointerEvents='none';
+  var boroLabels=[];
+  function drawBoroLabels(){
+    boroLabels.forEach(function(m){ map.removeLayer(m); }); boroLabels=[];
+    if(!GEO.boro) return;
+    L.geoJSON(GEO.boro).eachLayer(function(l){
+      var nm=(l.feature.properties.boro||l.feature.properties.code||'');
+      if(!nm) return;
+      try{
+        var c=l.getBounds().getCenter();
+        boroLabels.push(L.marker(c,{interactive:false,keyboard:false,pane:'boroNames',
+          icon:L.divIcon({className:'boro-lab',html:'<span>'+nm+'</span>',iconSize:[140,26],iconAnchor:[70,13]})}).addTo(map));
+      }catch(e){}
+    });
+  }
 
   function pal(){ return view==='lu' ? D.landuse_colors : D.zone_family_colors; }
   function lab(k){ return view==='lu' ? (D.landuse_labels[k]||k) : k; }
@@ -166,31 +184,23 @@
     Object.keys(b).forEach(function(k){ tot+=b[k].area; });
     return (tot && b[c]) ? b[c].area/tot*100 : 0;
   }
-  // a light to dark ramp of the category's own colour, so intensity means share
-  function ramp(base,t){
-    var m=/^#(..)(..)(..)$/.exec(base);
-    if(!m) return base;
-    var r=parseInt(m[1],16),g=parseInt(m[2],16),b=parseInt(m[3],16);
-    var f=0.88-(0.88*t);
-    r=Math.round(r+(255-r)*f); g=Math.round(g+(255-g)*f); b=Math.round(b+(255-b)*f);
-    return 'rgb('+r+','+g+','+b+')';
-  }
+  // a fixed sequential scale so every category reads with the same contrast
+  var SCALE=['#fff7e0','#fed98e','#fe9929','#d95f0e','#993404'];
   var BANDS=[0,10,25,40,60,100];
   function bandOf(p){
-    for(var i=BANDS.length-1;i>0;i--){ if(p>=BANDS[i-1]) return i-1; }
+    if(p<=0) return -1;
+    for(var i=BANDS.length-2;i>=0;i--){ if(p>=BANDS[i]) return i; }
     return 0;
   }
   function colourFor(p){
-    var base=(pal()[cat]||'#9ca3af');
-    if(p<=0) return '#eeece7';
-    return ramp(base, Math.min(p,BANDS[BANDS.length-2])/BANDS[BANDS.length-2]);
+    var b=bandOf(p);
+    return b<0 ? '#e9e7e2' : SCALE[Math.min(b,SCALE.length-1)];
   }
   function drawScale(){
-    var base=pal()[cat]||'#9ca3af';
-    var out='<span class="l">Share of lot area that is '+esc(lab(cat)).toLowerCase()+'</span>';
+    var out='<span class="l">Share of lot area that is '+esc(lab(cat)).toLowerCase()+'</span>'+
+      '<span class="st" style="background:#e9e7e2;color:#0d1b4b">none</span>';
     for(var i=0;i<BANDS.length-1;i++){
-      var mid=(BANDS[i]+BANDS[i+1])/2;
-      out+='<span class="st" style="background:'+colourFor(mid||1)+';color:'+(mid>35?'#fff':'#0d1b4b')+'">'+
+      out+='<span class="st" style="background:'+SCALE[i]+';color:'+(i>=3?'#fff':'#0d1b4b')+'">'+
         BANDS[i]+(i===BANDS.length-2?'%+':' to '+BANDS[i+1]+'%')+'</span>';
     }
     $('scale').innerHTML=out;
@@ -244,6 +254,7 @@
       var rec=D.city;
       layer=L.geoJSON(GEO.boro,{style:function(){return {color:'#fff',weight:1.5,fillColor:colourFor(share(rec,cat)),fillOpacity:.85};}}).addTo(map);
       try{ map.fitBounds(layer.getBounds(),{padding:[16,16]}); }catch(e){}
+      drawBoroLabels();
       $('bnote').textContent='All five boroughs together';
       showReadout('New York City','Citywide',rec,'city');
       return;
@@ -282,6 +293,7 @@
       }
     }).addTo(map);
     try{ map.fitBounds(layer.getBounds(),{padding:[16,16]}); }catch(e){}
+    drawBoroLabels();
     var count=Object.keys(cfg.data).length;
     var hi=vals.length?Math.max.apply(null,vals):0, lo=vals.length?Math.min.apply(null,vals):0;
     $('bnote').textContent=count+' areas \u00b7 '+lo.toFixed(0)+'% to '+hi.toFixed(0)+'%';
