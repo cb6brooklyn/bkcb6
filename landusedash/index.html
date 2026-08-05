@@ -14,6 +14,7 @@
 <meta name="twitter:image" content="https://bkcb6.app/og-zoning.png">
 <title>Compare Land Use &amp; Zoning — bkcb6.app</title>
 <link rel="stylesheet" href="/assets/cd-page.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 .intro{background:#fff;padding:13px 15px;border-bottom:1px solid var(--border);font-size:.86rem;line-height:1.62;color:#333;max-width:74ch}
 .intro b{color:var(--navy)}
@@ -56,6 +57,9 @@
 .sharebtn{padding:9px 15px;background:var(--navy2);color:#fff;border:none;border-radius:22px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer}
 .sharebtn:hover{background:var(--orange)}
 .sharemsg{font-family:'DM Mono',monospace;font-size:.68rem;color:#2e6b30;font-weight:700}
+
+.chartwrap{position:relative;height:230px;padding:8px 12px 4px;background:#fff;border-bottom:1px solid var(--border)}
+.chartwrap.tall{height:420px}
 </style>
 </head>
 <body>
@@ -105,6 +109,13 @@
   </div>
 
   <div class="totals" id="totals"></div>
+
+  <div class="sec2">The whole mix, area by area</div>
+  <div class="chartwrap" id="stackBox"><canvas id="cStack"></canvas></div>
+
+  <div class="sec2">Side by side, category by category</div>
+  <div class="chartwrap tall" id="groupBox"><canvas id="cGroup"></canvas></div>
+
   <div class="dash" id="dash"></div>
 
   <div class="nav">
@@ -198,10 +209,46 @@
         '<div class="v">'+n(r.lots)+'</div><div class="n">lots \u00b7 '+n(r.units)+' homes</div></div>';
     }).join('');
   }
+
+  var stackChart=null, groupChart=null;
+  function drawCharts(cats){
+    if(!window.Chart) return;
+    var P=pal();
+    var labels=picked.map(function(p){return nameOf(p.lvl,p.key);});
+    // full composition, one bar per area
+    var ds=cats.map(function(c){
+      return {label:lab(c),backgroundColor:P[c]||'#9ca3af',borderWidth:0,
+        data:picked.map(function(p){var r=recOf(p);return r?+share(r,c).toFixed(1):0;})};
+    });
+    if(stackChart) stackChart.destroy();
+    stackChart=new Chart($('cStack'),{type:'bar',data:{labels:labels,datasets:ds},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,animation:false,
+        plugins:{legend:{display:false},
+          tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+c.parsed.x+'%';}}}},
+        scales:{x:{stacked:true,max:100,ticks:{callback:function(v){return v+'%';},font:{size:10,family:'DM Mono'},color:'#6b6760'},grid:{color:'#f0ede8'}},
+                y:{stacked:true,ticks:{font:{size:11,family:'DM Sans'},color:'#0d1b4b'},grid:{display:false}}}}});
+    // every category, grouped by area
+    var ds2=picked.map(function(p,i){
+      var r=recOf(p);
+      return {label:nameOf(p.lvl,p.key),backgroundColor:TONE[i%TONE.length],borderWidth:0,borderRadius:2,
+        data:cats.map(function(c){return r?+share(r,c).toFixed(1):0;})};
+    });
+    if(groupChart) groupChart.destroy();
+    groupChart=new Chart($('cGroup'),{type:'bar',
+      data:{labels:cats.map(function(c){return lab(c);}),datasets:ds2},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,animation:false,
+        plugins:{legend:{position:'top',labels:{boxWidth:11,font:{size:11,family:'DM Sans'},color:'#0d1b4b'}},
+          tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+c.parsed.x+'%';}}}},
+        scales:{x:{ticks:{callback:function(v){return v+'%';},font:{size:10,family:'DM Mono'},color:'#6b6760'},grid:{color:'#f0ede8'}},
+                y:{ticks:{font:{size:10,family:'DM Sans'},color:'#0d1b4b'},grid:{display:false}}}}});
+  }
   function render(){
     chips(); totals(); syncUrl();
-    if(!picked.length){ $('dash').innerHTML=''; return; }
+    if(!picked.length){ $('dash').innerHTML=''; if(stackChart){stackChart.destroy();stackChart=null;} if(groupChart){groupChart.destroy();groupChart=null;} return; }
     var cats=allCats();
+    var sb=; if(sb) sb.style.height=Math.max(140,52+picked.length*38)+"px";
+    var gb=$('groupBox'); if(gb) gb.style.height=Math.max(280,60+cats.length*30)+'px';
+    drawCharts(cats);
     var maxByCat={};
     cats.forEach(function(c){
       maxByCat[c]=Math.max.apply(null,picked.map(function(p){var r=recOf(p);return r?share(r,c):0;}));

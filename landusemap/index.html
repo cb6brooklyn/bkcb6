@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="/assets/cd-page.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 .intro{background:#fff;padding:13px 15px;border-bottom:1px solid var(--border);font-size:.86rem;line-height:1.62;color:#333;max-width:74ch}
 .intro b{color:var(--navy)}
@@ -101,6 +102,9 @@
 .rb2{flex:1;height:12px;background:#f0ede8;border-radius:3px;overflow:hidden;min-width:36px}
 .rb2 i{display:block;height:100%;border-radius:3px}
 .rp2{font-family:'DM Mono',monospace;font-weight:800;min-width:50px;text-align:right;font-size:.74rem;color:var(--navy)}
+
+.sec2b{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;padding:13px 14px 4px;background:#fff}
+.chartwrap2{position:relative;height:150px;padding:4px 12px 10px;background:#fff;border-bottom:1px solid var(--border)}
 </style>
 </head>
 <body>
@@ -273,6 +277,23 @@
     Object.keys(b).forEach(function(k){ tot+=b[k].area; });
     return (tot&&b[c])?b[c].area/tot*100:0;
   }
+
+  var mStack=null;
+  function drawStack(cats){
+    if(!window.Chart||!$('mStack')) return;
+    var P=pal();
+    var ds=cats.map(function(c){
+      return {label:lab(c),backgroundColor:P[c]||'#9ca3af',borderWidth:0,
+        data:picked.map(function(p){var r=recOf(p);return r?+shareOf(r,c).toFixed(1):0;})};
+    });
+    if(mStack) mStack.destroy();
+    mStack=new Chart($('mStack'),{type:'bar',
+      data:{labels:picked.map(nameOf),datasets:ds},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,animation:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+c.parsed.x+'%';}}}},
+        scales:{x:{stacked:true,max:100,ticks:{callback:function(v){return v+'%';},font:{size:10,family:'DM Mono'},color:'#6b6760'},grid:{color:'#f0ede8'}},
+                y:{stacked:true,ticks:{font:{size:11,family:'DM Sans'},color:'#0d1b4b'},grid:{display:false}}}}});
+  }
   function renderCompare(){
     syncUrl();
     if(!picked.length){
@@ -309,15 +330,17 @@
         '<span class="cn2">'+esc(lab(c))+'</span>'+
         (picked.length>1?'<span class="cr2">'+spread.toFixed(1)+' pt spread</span>':'')+'</div>'+rows+'</div>';
     }).join('');
+    var chartBox='<div class="sec2b">The whole mix</div><div class="chartwrap2" style="height:'+Math.max(110,44+picked.length*34)+'px"><canvas id="mStack"></canvas></div>';
     var tot='<div class="totals2">'+picked.map(function(p,i){
       var r=recOf(p); if(!r) return '';
       return '<div class="tot2"><div class="k" style="color:'+TONE[i%TONE.length]+'">'+esc(nameOf(p))+'</div>'+
         '<div class="v">'+n(r.lots)+'</div><div class="nn">lots \u00b7 '+n(r.units)+' homes</div></div>';
     }).join('')+'</div>';
-    $('readout').innerHTML=head+tot+body+
+    $('readout').innerHTML=head+tot+chartBox+body+
       '<div style="padding:12px 15px"><a href="/landusedash?view='+view+'&a='+
       encodeURIComponent(picked.map(function(p){return p.lvl+':'+p.key;}).join(','))+
       '" style="font-size:.79rem;font-weight:700;color:#fff;background:#132D65;padding:9px 14px;border-radius:22px;text-decoration:none">Open this in the full dashboard &rarr;</a></div>';
+    drawStack(order);
     $('readout').querySelectorAll('.x').forEach(function(el){
       el.addEventListener('click',function(){ picked.splice(+this.getAttribute('data-i'),1); draw(); renderCompare(); });
     });
