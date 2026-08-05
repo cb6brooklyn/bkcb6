@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Land Use &amp; Zoning Map">
+<meta property="og:description" content="What every part of New York City is used for and how it is zoned. By community board, council district, borough or citywide.">
+<meta property="og:url" content="https://bkcb6.app/landusemap">
+<meta property="og:image" content="https://bkcb6.app/og-zoning.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://bkcb6.app/og-zoning.png">
+<title>Land Use &amp; Zoning Map — bkcb6.app</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="/assets/cd-page.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+.intro{background:#fff;padding:13px 15px;border-bottom:1px solid var(--border);font-size:.86rem;line-height:1.62;color:#333;max-width:74ch}
+.intro b{color:var(--navy)}
+.legend2{display:flex;gap:6px;flex-wrap:wrap;padding:9px 14px;background:var(--navy);border-bottom:2px solid var(--orange)}
+.legend2 .l{font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6);font-weight:700;width:100%;margin-bottom:2px}
+.legend2 .i{display:inline-flex;align-items:center;gap:5px;font-size:.66rem;color:#fff;font-weight:600}
+.legend2 .sw{width:13px;height:11px;border-radius:2px;flex:none}
+#map{height:60vh;min-height:340px;background:#eef0f4}
+.readout{background:#fff;border-top:3px solid var(--orange)}
+.rh2{padding:12px 15px;background:var(--navy)}
+.rh2 .n{color:#fff;font-size:1.02rem;font-weight:900;line-height:1.25}
+.rh2 .s{font-family:'DM Mono',monospace;font-size:.66rem;color:rgba(255,255,255,.65);margin-top:2px}
+.rb2{padding:13px 15px}
+.bar2{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:.78rem}
+.bar2 .sw{width:11px;height:11px;border-radius:3px;flex:none}
+.bar2 .nm{min-width:150px;color:var(--navy);font-weight:700;font-size:.76rem;line-height:1.3}
+.bar2 .br{flex:1;height:10px;background:#f0ede8;border-radius:3px;overflow:hidden;min-width:34px}
+.bar2 .br i{display:block;height:100%;border-radius:3px}
+.bar2 .pc{font-family:'DM Mono',monospace;font-weight:800;color:var(--navy);min-width:48px;text-align:right;font-size:.74rem}
+.rnote{font-size:.76rem;color:#555;line-height:1.6;margin-top:11px}
+.ztbl2{width:100%;border-collapse:collapse;margin-top:11px}
+.ztbl2 th,.ztbl2 td{padding:6px 8px;font-size:.75rem;text-align:right;border-bottom:1px solid #f0ede8;font-family:'DM Mono',monospace}
+.ztbl2 th{font-size:.5rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--off)}
+.ztbl2 th:first-child,.ztbl2 td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="crumb"><a href="/">CB6 &amp; Beyond</a> &rsaquo; <a href="/zoning">Zoning &amp; Land Use</a></div>
+    <h1>Land Use &amp; <span>Zoning Map</span></h1>
+    <div class="nbs">What every part of the city is used for, and how it is zoned</div>
+  </div>
+
+  <div class="intro">
+    <b>Two different questions.</b> Land use is what is on the ground today. Zoning is what the rules allow. They are often not the same, and where they differ is usually where the argument is. Each area is coloured by whichever category covers the most of its lot area. Tap any area for the full breakdown.
+  </div>
+
+  <div class="bar top0">
+    <span class="bl">Show</span>
+    <button class="btn on" data-view="lu" type="button">Land use</button>
+    <button class="btn" data-view="zn" type="button">Zoning</button>
+  </div>
+  <div class="bar">
+    <span class="bl">By</span>
+    <button class="btn on" data-lens="cd" type="button">Community boards</button>
+    <button class="btn" data-lens="cc" type="button">Council districts</button>
+    <button class="btn" data-lens="boro" type="button">Boroughs</button>
+    <button class="btn" data-lens="city" type="button">Citywide</button>
+    <span class="bnote" id="bnote">Loading&hellip;</span>
+  </div>
+  <div class="legend2" id="legend2"></div>
+  <div class="maphold"><div id="map"></div></div>
+
+  <div class="readout" id="readout"></div>
+
+  <div class="nav">
+    <a href="/zoning">&#128208; What the rules allow</a>
+    <a href="/citywide-search.html">&#128269; Look up an address</a>
+    <a href="/cd/">&#128205; Your district</a>
+    <a href="/allhousing">&#127959; What got built</a>
+  </div>
+  <div class="foot">City lot records, from NYC Open Data. Shares are by lot area, so a few large parcels can outweigh many small ones.</div>
+</div>
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i);};
+  var n=function(v){return Number(Math.round(v)).toLocaleString('en-US');};
+  function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  var D=null, GEO={}, view='lu', lens='cd', map, layer=null, labels=[];
+
+  map=L.map('map',{scrollWheelZoom:true,preferCanvas:true}).setView([40.70,-73.95],10);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:17,attribution:'&copy; CARTO'}).addTo(map);
+
+  function pal(){ return view==='lu' ? D.landuse_colors : D.zone_family_colors; }
+  function lab(k){ return view==='lu' ? (D.landuse_labels[k]||k) : k; }
+  function buckets(rec){ return view==='lu' ? rec.lu : rec.zfam; }
+  function dominant(rec){
+    var b=buckets(rec)||{}, best=null, tot=0;
+    Object.keys(b).forEach(function(k){ tot+=b[k].area; if(!best||b[k].area>b[best].area) best=k; });
+    return {k:best,pct:best&&tot?b[best].area/tot*100:0,tot:tot};
+  }
+  function rows(rec){
+    var b=buckets(rec)||{}, tot=0;
+    Object.keys(b).forEach(function(k){ tot+=b[k].area; });
+    return Object.keys(b).map(function(k){
+      return {k:k,label:lab(k),area:b[k].area,lots:b[k].lots,units:b[k].units||0,pct:tot?b[k].area/tot*100:0};
+    }).sort(function(a,b2){return b2.area-a.area;});
+  }
+  function bars(rs){
+    var P=pal();
+    return rs.map(function(r){
+      return '<div class="bar2"><span class="sw" style="background:'+(P[r.k]||'#9ca3af')+'"></span>'+
+        '<span class="nm">'+esc(r.label)+'</span>'+
+        '<span class="br"><i style="width:'+r.pct.toFixed(1)+'%;background:'+(P[r.k]||'#9ca3af')+'"></i></span>'+
+        '<span class="pc">'+r.pct.toFixed(1)+'%</span></div>';
+    }).join('');
+  }
+  function showReadout(name,sub,rec){
+    var rs=rows(rec);
+    var zd=Object.keys(rec.zone||{}).map(function(z){return {z:z,a:rec.zone[z].area,l:rec.zone[z].lots};})
+      .sort(function(a,b){return b.a-a.a;});
+    var ztot=zd.reduce(function(t,r){return t+r.a;},0);
+    var top=rs[0];
+    var note = view==='lu'
+      ? ('The largest single use is '+top.label.toLowerCase()+' at '+top.pct.toFixed(1)+'% of lot area, across '+n(top.lots)+' lots. '+
+         n(rec.lots)+' lots in total, holding '+n(rec.units)+' homes.')
+      : ('The most common zoning family is '+top.label.toLowerCase()+' at '+top.pct.toFixed(1)+'% of zoned lot area.'+
+         (zd.length?' The single most common district is '+zd[0].z+', covering '+(zd[0].a/ztot*100).toFixed(1)+'% across '+n(zd[0].l)+' lots.':''));
+    $('readout').innerHTML='<div class="rh2"><div class="n">'+esc(name)+'</div><div class="s">'+esc(sub)+'</div></div>'+
+      '<div class="rb2">'+bars(rs)+'<div class="rnote">'+esc(note)+'</div>'+
+      (view==='zn'&&zd.length?('<div style="overflow-x:auto"><table class="ztbl2"><tr><th>Zoning district</th><th>Lots</th><th>Share</th></tr>'+
+        zd.slice(0,12).map(function(r){return '<tr><td>'+esc(r.z)+'</td><td>'+n(r.l)+'</td><td>'+(r.a/ztot*100).toFixed(1)+'%</td></tr>';}).join('')+
+        '</table></div>'):'')+
+      '</div>';
+  }
+  function legend(present){
+    var P=pal();
+    var keys=Object.keys(present).sort(function(a,b){return present[b]-present[a];});
+    $('legend2').innerHTML='<span class="l">'+(view==='lu'?'Largest land use in each area':'Largest zoning family in each area')+'</span>'+
+      keys.map(function(k){
+        return '<span class="i"><span class="sw" style="background:'+(P[k]||'#9ca3af')+'"></span>'+esc(lab(k))+' ('+present[k]+')</span>';
+      }).join('');
+  }
+  function clear(){ if(layer){map.removeLayer(layer);layer=null;} labels.forEach(function(m){map.removeLayer(m);}); labels=[]; }
+
+  function drawCity(){
+    clear();
+    var f=GEO.boro;
+    var P=pal();
+    var rec=D.city, dom=dominant(rec);
+    layer=L.geoJSON(f,{style:function(){return {color:'#fff',weight:1.5,fillColor:P[dom.k]||'#9ca3af',fillOpacity:.75};}}).addTo(map);
+    try{ map.fitBounds(layer.getBounds(),{padding:[16,16]}); }catch(e){}
+    var present={}; present[dom.k]=1; legend(present);
+    $('bnote').textContent='All five boroughs together';
+    showReadout('New York City','Citywide, all five boroughs',rec);
+  }
+  function draw(){
+    if(lens==='city') return drawCity();
+    clear();
+    var cfg={
+      cd:{geo:GEO.cd,key:function(p){return p.cb_code;},data:D.cd,
+          name:function(p){return p.cb_code;},sub:'Community district'},
+      cc:{geo:GEO.cc,key:function(p){return String(p.cc);},data:D.cc,
+          name:function(p){return 'Council District '+p.cc;},sub:'Council district'},
+      boro:{geo:GEO.boro,key:function(p){return p.boro;},data:D.boro,
+          name:function(p){return p.boro;},sub:'Borough'}
+    }[lens];
+    if(!cfg||!cfg.geo){ $('bnote').textContent='Boundaries could not load.'; return; }
+    var P=pal(), present={};
+    layer=L.geoJSON(cfg.geo,{
+      style:function(f){
+        var rec=cfg.data[cfg.key(f.properties)];
+        if(!rec) return {color:'#fff',weight:1,fillColor:'#e8e6e1',fillOpacity:.3};
+        var d=dominant(rec);
+        present[d.k]=(present[d.k]||0)+1;
+        return {color:'#fff',weight:1.2,fillColor:P[d.k]||'#9ca3af',fillOpacity:.78};
+      },
+      onEachFeature:function(f,l){
+        var p=f.properties, rec=cfg.data[cfg.key(p)];
+        if(!rec){ l.bindTooltip('No data',{sticky:true}); return; }
+        var d=dominant(rec), rs=rows(rec).slice(0,4);
+        l.bindTooltip('<div style="font-family:DM Sans,sans-serif;min-width:190px">'+
+          '<div style="font-weight:800;font-size:.88rem;color:#0d1b4b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:5px">'+esc(cfg.name(p))+'</div>'+
+          rs.map(function(r){
+            return '<div style="display:flex;justify-content:space-between;gap:14px;padding:1px 0;font-size:.74rem">'+
+              '<span style="color:#555">'+esc(r.label)+'</span><span style="font-family:DM Mono,monospace;font-weight:700;color:#0d1b4b">'+r.pct.toFixed(1)+'%</span></div>';
+          }).join('')+
+          '<div style="font-size:.65rem;color:#888;margin-top:5px;border-top:1px solid #eee;padding-top:4px">Tap for the full breakdown</div></div>',{sticky:true,opacity:1});
+        l.on('mouseover',function(){ l.setStyle({weight:3,color:'#333'}); if(l.bringToFront) l.bringToFront(); });
+        l.on('mouseout',function(){ layer.resetStyle(l); });
+        l.on('click',function(){ showReadout(cfg.name(p),cfg.sub,rec); });
+      }
+    }).addTo(map);
+    try{ map.fitBounds(layer.getBounds(),{padding:[16,16]}); }catch(e){}
+    legend(present);
+    var count=Object.keys(cfg.data).length;
+    $('bnote').textContent=count+' '+(lens==='cd'?'community districts':(lens==='cc'?'council districts':'boroughs'));
+    var firstKey=lens==='cd'?'BKCB6':(lens==='cc'?'39':'Brooklyn');
+    if(cfg.data[firstKey]) showReadout(lens==='cd'?'BKCB6':(lens==='cc'?'Council District 39':'Brooklyn'),cfg.sub,cfg.data[firstKey]);
+  }
+
+  document.querySelectorAll('[data-view]').forEach(function(b){
+    b.addEventListener('click',function(){
+      view=this.getAttribute('data-view');
+      document.querySelectorAll('[data-view]').forEach(function(x){x.classList.toggle('on',x===b);});
+      draw();
+    });
+  });
+  document.querySelectorAll('[data-lens]').forEach(function(b){
+    b.addEventListener('click',function(){
+      lens=this.getAttribute('data-lens');
+      document.querySelectorAll('[data-lens]').forEach(function(x){x.classList.toggle('on',x===b);});
+      draw();
+    });
+  });
+
+  Promise.all([
+    fetch('/data/landuse-zoning-all.json').then(function(r){return r.json();}),
+    fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}),
+    fetch('/data/council-districts.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/borough-rents.geojson').then(function(r){return r.json();}).catch(function(){return null;})
+  ]).then(function(a){
+    D=a[0]; GEO.cd=a[1]; GEO.cc=a[2];
+    if(a[3]){
+      a[3].features.forEach(function(f){ f.properties.boro=f.properties.boro||f.properties.code; });
+      GEO.boro=a[3];
+    }
+    draw();
+  }).catch(function(){ $('bnote').textContent='Data could not load.'; });
+})();
+</script>
+</body>
+</html>
