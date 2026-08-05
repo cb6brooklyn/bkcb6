@@ -118,6 +118,13 @@
 .tg{padding:6px 12px;border:1.5px solid var(--border);border-radius:18px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:700;color:var(--navy);cursor:pointer;white-space:nowrap}
 .tg:hover{border-color:var(--orange)}
 .tg.on{color:#fff;border-color:transparent}
+
+.togglelist{display:block;max-height:none;overflow:visible}
+.tgroup{margin-bottom:9px}
+.tgh{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.09em;color:var(--navy);font-weight:800;margin-bottom:5px}
+.tgh span{color:var(--muted);font-weight:700}
+.tgrow{display:flex;gap:5px;flex-wrap:wrap}
+.tbl b{color:var(--navy)}
 </style>
 </head>
 <body>
@@ -157,9 +164,7 @@
   <div class="togglebar">
     <div class="tbhead">
       <span class="tbl" id="tbLabel"></span>
-      <button type="button" class="tbmini" id="selAll">All</button>
-      <button type="button" class="tbmini" id="selNone">None</button>
-      <button type="button" class="tbmini" id="tbToggle">Hide list</button>
+      <button type="button" class="tbmini" id="selAll">Show all</button>
     </div>
     <input id="tbFilter" type="search" placeholder="Filter&hellip;" autocomplete="off">
     <div class="togglelist" id="toggleList"></div>
@@ -188,13 +193,16 @@
   var $=function(i){return document.getElementById(i);};
   var n=function(v){return Number(Math.round(v)).toLocaleString('en-US');};
   function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-  var D=null, GEO={}, view='lu', lens='cd', cat='01', picked=[], map, layer=null, labels=[];
+  var D=null, GEO={}, view='lu', lens='cd', cat='01', picked=[], showAll=true, map, layer=null, labels=[];
+  var CCBORO=null, NBBORO={};
   var TONE=['#0d1b4b','#f47920','#2e6b30','#7a5cc6','#c0392b','#2145a8','#a65a00','#00838f'];
   function pIdx(lvl,key){ for(var i=0;i<picked.length;i++){ if(picked[i].lvl===lvl&&picked[i].key===key) return i; } return -1; }
   function togglePick(lvl,key,name){
+    showAll=false;
     var i=pIdx(lvl,key);
     if(i>-1) picked.splice(i,1);
     else { if(picked.length>=8) return; picked.push({lvl:lvl,key:key,name:name}); }
+    if(!picked.length) showAll=true;
   }
   function syncUrl(){
     var q='?view='+view+'&by='+lens+(picked.length?'&sel='+encodeURIComponent(picked.map(function(p){return p.lvl+':'+p.key;}).join(',')):'');
@@ -322,8 +330,8 @@
     syncUrl();
     applyMask();
     if(!picked.length){
-      $('readout').innerHTML='<div class="rh2"><div class="n">Tap any area to highlight it</div>'+
-        '<div class="s">Add as many as you like. They can be different kinds of area.</div></div>';
+      $('readout').innerHTML='<div class="rh2"><div class="n">Showing the whole city</div>'+
+        '<div class="s">Tap any area above or on the map to focus on it. Add as many as you like.</div></div>';
       return;
     }
     var P=pal();
@@ -545,21 +553,37 @@
   }
   function lensLabel(key){
     if(lens==='city') return 'New York City';
-    if(lens==='cc'){ var m=CM&&CM[key]; return 'CD'+key+(m?' '+m.name.split(' ').slice(-1)[0]:''); }
+    if(lens==='cc'){ var m=CM&&CM[key]; return key+(m?' '+m.name.split(' ').slice(-1)[0]:''); }
     return key;
+  }
+  var BORDER=['Manhattan','The Bronx','Brooklyn','Queens','Staten Island'];
+  function boroOfKey(key){
+    if(lens==='cd'){ return ({MN:'Manhattan',BX:'The Bronx',BK:'Brooklyn',QN:'Queens',SI:'Staten Island'})[String(key).slice(0,2)]||'Other'; }
+    if(lens==='cc'){ var r=CCBORO&&CCBORO[String(key)]; return r?(r.main==='Bronx'?'The Bronx':r.main):'Other'; }
+    if(lens==='nb'){ return NBBORO[key]||'Other'; }
+    if(lens==='boro'){ return key==='Bronx'?'The Bronx':key; }
+    return 'Other';
   }
   function buildToggles(){
     var keys=lensKeys();
     var q=($('tbFilter').value||'').toLowerCase().trim();
     var shown=keys.filter(function(k){ return !q || lensLabel(k).toLowerCase().indexOf(q)>-1 || String(k).toLowerCase().indexOf(q)>-1; });
-    $('tbLabel').textContent=keys.length+' '+(lens==='cd'?'community boards':(lens==='cc'?'council districts':(lens==='nb'?'neighborhoods':(lens==='boro'?'boroughs':'areas'))))+
-      ' \u00b7 '+picked.filter(function(p){return p.lvl===lens;}).length+' on';
-    $('toggleList').innerHTML=shown.map(function(k){
-      var i=pIdx(lens,k);
-      var on=i>-1;
-      return '<button type="button" class="tg'+(on?' on':'')+'" data-k="'+esc(k)+'"'+
-        (on?' style="background:'+TONE[i%TONE.length]+'"':'')+'>'+esc(lensLabel(k))+'</button>';
-    }).join('')||'<span class="empty2" style="font-family:DM Mono,monospace;font-size:.72rem;color:#9ca3af">Nothing matches</span>';
+    var onCount=picked.filter(function(p){return p.lvl===lens;}).length;
+    $('tbLabel').innerHTML=showAll
+      ? '<b>Showing all '+keys.length+'</b> \u00b7 tap any to focus on it'
+      : '<b>'+onCount+' of '+keys.length+' showing</b> \u00b7 tap to add or remove';
+    if(lens==='city'){ $('toggleList').innerHTML=''; return; }
+    var byBoro={};
+    shown.forEach(function(k){ var b=boroOfKey(k); (byBoro[b]=byBoro[b]||[]).push(k); });
+    var order=BORDER.filter(function(b){return byBoro[b];}).concat(Object.keys(byBoro).filter(function(b){return BORDER.indexOf(b)<0;}));
+    $('toggleList').innerHTML=order.map(function(b){
+      return '<div class="tgroup"><div class="tgh">'+esc(b)+' <span>'+byBoro[b].length+'</span></div>'+
+        '<div class="tgrow">'+byBoro[b].map(function(k){
+          var i=pIdx(lens,k), on=i>-1;
+          return '<button type="button" class="tg'+(on?' on':'')+'" data-k="'+esc(k)+'"'+
+            (on?' style="background:'+TONE[i%TONE.length]+'"':'')+'>'+esc(lensLabel(k))+'</button>';
+        }).join('')+'</div></div>';
+    }).join('')||'<span style="font-family:DM Mono,monospace;font-size:.72rem;color:#9ca3af">Nothing matches</span>';
     $('toggleList').querySelectorAll('.tg').forEach(function(b){
       b.addEventListener('click',function(){
         var k=this.getAttribute('data-k');
@@ -570,18 +594,8 @@
   }
   $('tbFilter').addEventListener('input',buildToggles);
   $('selAll').addEventListener('click',function(){
-    var keys=lensKeys();
-    keys.slice(0,8).forEach(function(k){ if(pIdx(lens,k)<0 && picked.length<8) picked.push({lvl:lens,key:k,name:lensLabel(k)}); });
+    picked=[]; showAll=true;
     draw(); renderCompare(); buildToggles();
-  });
-  $('selNone').addEventListener('click',function(){
-    picked=picked.filter(function(p){ return p.lvl!==lens; });
-    draw(); renderCompare(); buildToggles();
-  });
-  $('tbToggle').addEventListener('click',function(){
-    var hid=$('toggleList').classList.toggle('hidden');
-    $('tbFilter').style.display=hid?'none':'';
-    this.textContent=hid?'Show list':'Hide list';
   });
 
   /* ---- isolate: dim everything outside what is highlighted ---- */
@@ -621,6 +635,7 @@
   }
   function applyMask(){
     if(maskLayer){ map.removeLayer(maskLayer); maskLayer=null; }
+    if(showAll) return;
     var holes=[];
     picked.forEach(function(p){
       if(p.lvl==='city') return;
@@ -729,12 +744,15 @@
     fetch('/data/council-districts.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/borough-rents.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/council-members.json').then(function(r){return r.json();}).catch(function(){return null;}),
-    fetch('/data/city-neighborhoods.geojson').then(function(r){return r.json();}).catch(function(){return null;})
+    fetch('/data/city-neighborhoods.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/cc-borough.json').then(function(r){return r.json();}).catch(function(){return null;})
   ]).then(function(a){
     D=a[0]; GEO.cd=a[1]; GEO.cc=a[2];
     loadRealZoning();
     if(a[4]&&a[4].members) CM=a[4].members;
     GEO.nb=a[5];
+    CCBORO=a[6];
+    if(GEO.nb) GEO.nb.features.forEach(function(f){ NBBORO[f.properties.nb]=f.properties.boro; });
     readUrl();
     document.querySelectorAll('[data-view]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-view')===view);});
     document.querySelectorAll('[data-lens]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-lens')===lens);});
