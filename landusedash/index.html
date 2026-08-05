@@ -79,6 +79,11 @@
 .uglegend .sw{width:12px;height:11px;border-radius:2px}
 .ugnote{padding:10px 14px;font-size:.78rem;line-height:1.6;color:#555}
 .ugnote a{color:var(--navy);border-bottom:1px solid var(--orange);text-decoration:none}
+
+.addbtn{padding:11px 18px;background:var(--navy2);color:#fff;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.84rem;font-weight:800;cursor:pointer;flex:none}
+.addbtn:hover{background:var(--orange)}
+.picknote{font-family:'DM Mono',monospace;font-size:.7rem;color:#a65a00;line-height:1.5;padding:4px 0 0}
+.picknote:empty{display:none}
 </style>
 </head>
 <body>
@@ -90,7 +95,7 @@
   </div>
 
   <div class="intro">
-    <b>Add anything you want to compare.</b> A community board against a council district, one borough against another, a single district against the city as a whole. They do not have to be the same kind of area, and you can add as many as you like.
+    <b>Add anything you want to compare.</b> Pick a level, pick an area, press Add. A community board against a council district, one neighborhood against another, a single district against the city as a whole. They do not have to be the same kind of area, and you can hold up to eight at once. The buttons below are shortcuts, not the only options.
   </div>
 
   <div class="bar top0">
@@ -111,8 +116,10 @@
         <option value="city">Citywide</option>
       </select>
       <select id="areaSel"></select>
+      <button type="button" class="addbtn" id="addBtn">Add</button>
     </div>
     <div class="chips" id="chips"></div>
+    <div class="picknote" id="pickNote"></div>
     <div class="quick">
       <button type="button" class="qb" data-preset="cb6cc">BKCB6 vs Council 39</button>
       <button type="button" class="qb" data-preset="boros">All five boroughs</button>
@@ -197,17 +204,26 @@
   }
   function fillAreas(){
     var lvl=$('lvlSel').value;
-    if(lvl==='city'){ $('areaSel').innerHTML='<option value="city">New York City</option>'; return; }
+    if(lvl==='city'){
+      $('areaSel').innerHTML='<option value="city">New York City</option>';
+      return;
+    }
     var keys=Object.keys(D[lvl]||{});
     if(lvl==='cc') keys.sort(function(a,b){return (+a)-(+b);});
     else keys.sort();
-    $('areaSel').innerHTML=keys.map(function(k){
-      return '<option value="'+esc(k)+'">'+esc(nameOf(lvl,k))+'</option>';
-    }).join('');
+    // a placeholder first, so picking any real area always fires a change
+    $('areaSel').innerHTML='<option value="" selected>Choose an area\u2026</option>'+
+      keys.map(function(k){
+        return '<option value="'+esc(k)+'">'+esc(nameOf(lvl,k))+'</option>';
+      }).join('');
   }
   function addPicked(lvl,key){
-    if(picked.length>=8) return;
     if(picked.some(function(p){return p.lvl===lvl&&p.key===key;})) return;
+    if(picked.length>=8){
+      var n=$('pickNote');
+      if(n){ n.textContent='That is eight areas, the most the charts stay readable with. Remove one to add another.'; setTimeout(function(){n.textContent='';},4000); }
+      return;
+    }
     picked.push({lvl:lvl,key:key});
     render();
   }
@@ -388,7 +404,15 @@
     });
   });
   $('lvlSel').addEventListener('change',fillAreas);
-  $('areaSel').addEventListener('change',function(){ addPicked($('lvlSel').value,this.value); });
+  function addFromPicker(){
+    var lvl=$('lvlSel').value, key=$('areaSel').value;
+    if(!key) return;
+    addPicked(lvl,key);
+    // back to the placeholder so the same area, or the first one, can be added again
+    if(lvl!=='city') $('areaSel').value='';
+  }
+  $('areaSel').addEventListener('change',addFromPicker);
+  $('addBtn').addEventListener('click',addFromPicker);
   $('shareBtn').addEventListener('click',function(){
     syncUrl();
     var url=location.href;
