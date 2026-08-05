@@ -139,6 +139,21 @@
 .tbstatus .sc{display:inline-flex;align-items:center;gap:7px;padding:5px 8px 5px 11px;border-radius:18px;font-size:.74rem;font-weight:700;color:#fff}
 .tbstatus .sc .x{cursor:pointer;font-size:.95rem;line-height:1;opacity:.75;padding:0 2px}
 .tbstatus .allbtn{padding:5px 12px;border:1px solid var(--border);border-radius:18px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:var(--navy);cursor:pointer}
+
+.ugblock{border-bottom:1px solid var(--border);padding:10px 14px}
+.ugh{display:flex;align-items:flex-start;gap:9px;margin-bottom:6px}
+.ugnum{font-family:'DM Mono',monospace;font-size:.76rem;font-weight:900;color:var(--orange);min-width:30px}
+.ugt2{flex:1;font-size:.81rem;font-weight:800;color:var(--navy);line-height:1.25}
+.ugt2 small{display:block;font-size:.7rem;font-weight:400;color:var(--muted);margin-top:1px}
+.ugrow{display:flex;align-items:center;gap:8px;padding:2px 0}
+.ugn2{min-width:112px;font-size:.73rem;font-weight:700;line-height:1.3}
+.ugbar{flex:1;display:flex;height:13px;border-radius:3px;overflow:hidden;background:#f0ede8;min-width:50px}
+.ugbar i{display:block;height:100%}
+.ugp{font-family:'DM Mono',monospace;font-weight:800;min-width:42px;text-align:right;font-size:.73rem;color:var(--navy)}
+.uglegend{display:flex;gap:10px;flex-wrap:wrap;padding:10px 14px;background:var(--off);border-bottom:1px solid var(--border)}
+.uglegend .i{display:inline-flex;align-items:center;gap:5px;font-size:.7rem;color:#333;font-weight:600}
+.uglegend .sw{width:12px;height:11px;border-radius:2px}
+.ugnote{padding:10px 14px;font-size:.77rem;line-height:1.6;color:#555}
 </style>
 </head>
 <body>
@@ -164,6 +179,7 @@
     <span class="bl">Show</span>
     <button class="btn" data-view="lu" type="button">Land use</button>
     <button class="btn on" data-view="zn" type="button">Zoning</button>
+    <button class="btn" data-view="ug" type="button">Use Groups</button>
   </div>
   <div class="bar">
     <span class="bl">By</span>
@@ -224,7 +240,7 @@
   }
   function readUrl(){
     var p=new URLSearchParams(location.search);
-    if(p.get('view')==='zn'||p.get('view')==='lu') view=p.get('view');
+    var vv=p.get('view'); if(vv==='zn'||vv==='lu'||vv==='ug') view=vv;
     if(['cd','cc','boro','nb','city'].indexOf(p.get('by'))>-1) lens=p.get('by');
 
     var sel=p.get('sel');
@@ -252,6 +268,7 @@
   }
 
   function pal(){ return view==='lu' ? D.landuse_colors : D.zone_family_colors; }
+  function mapView(){ return view==='ug' ? 'zn' : view; }
   function lab(k){ return view==='lu' ? (D.landuse_labels[k]||k) : k; }
   function buckets(rec){ return view==='lu' ? rec.lu : rec.zfam; }
   function cats(){
@@ -281,10 +298,10 @@
   }
   function fmtPct(x){ return Math.round(x)+'%'; }
   function drawScale(){
-    var items = view==='zn'
+    var items = mapView()==='zn'
       ? [['#f2994a','Residential'],['#2563eb','Commercial'],['#9b51e0','Manufacturing'],['#27ae60','Parkland'],['#56ccf2','Special district']]
       : [['#f2c94c','One and two family'],['#f2994a','Multifamily walk-up'],['#eb5757','Multifamily elevator'],['#bb6bd9','Mixed use'],['#2f80ed','Commercial and office'],['#9b51e0','Industrial'],['#6b7280','Transport and utility'],['#56ccf2','Public facilities'],['#27ae60','Open space'],['#a0a0a0','Parking'],['#d9d9d9','Vacant']];
-    $('scale').innerHTML='<span class="l">Every '+(view==='zn'?'zoning district':'lot')+' in its own colour. Outlines are '+
+    $('scale').innerHTML='<span class="l">Every '+(mapView()==='zn'?'zoning district':'lot')+' in its own colour. Outlines are '+
       (lens==='cd'?'community districts':(lens==='cc'?'council districts':(lens==='nb'?'neighborhoods':'boroughs')))+'.</span>'+
       items.map(function(it){
         return '<span class="i"><span class="sw" style="background:'+it[0]+'"></span>'+it[1]+'</span>';
@@ -324,6 +341,51 @@
     return (tot&&b[c])?b[c].area/tot*100:0;
   }
 
+
+  var MX=null, UGD=null;
+  var VERD={Y:'Permitted as of right',L:'Permitted with limits',S:'Special permit',N:'Not permitted'};
+  var VCOL={Y:'#2e6b30',L:'#e08a00',S:'#2145a8',N:'#c0392b'};
+  function baseD(z){
+    var t=String(z||'').trim().toUpperCase();
+    if(t.indexOf('PARK')===0) return 'PARK';
+    var m=t.match(/^([RCM])\s*(\d{1,2})/);
+    if(!m) return null;
+    var lim={R:12,C:8,M:3}[m[1]], nn=parseInt(m[2],10);
+    return (nn>=1&&nn<=lim)?(m[1]+nn):null;
+  }
+  function ugMix(rec,ug){
+    var out={Y:0,L:0,S:0,N:0}, other=0, tot=0;
+    Object.keys(rec.zone||{}).forEach(function(z){
+      var a=rec.zone[z].area; tot+=a;
+      var b=baseD(z);
+      var v=(b&&MX.matrix[ug])?MX.matrix[ug][b]:null;
+      if(v&&out[v]!==undefined) out[v]+=a; else other+=a;
+    });
+    if(!tot) return null;
+    ['Y','L','S','N'].forEach(function(k){ out[k]=out[k]/tot*100; });
+    out.other=other/tot*100;
+    return out;
+  }
+  function ugBody(){
+    if(!MX||!UGD) return '<div class="ugnote">Use Group data could not load.</div>';
+    return '<div class="ugnote">Of all the zoned lot area here, how much sits in a district that allows this use.</div>'+
+      (UGD.groups||[]).map(function(g){
+        var rows=picked.map(function(p,i){
+          var r=recOf(p); if(!r) return '';
+          var m=ugMix(r,g.n); if(!m) return '';
+          var seg=['Y','L','S','N'].map(function(k){
+            return m[k]>0.4?'<i style="width:'+m[k].toFixed(1)+'%;background:'+VCOL[k]+'"></i>':'';
+          }).join('')+(m.other>0.4?'<i style="width:'+m.other.toFixed(1)+'%;background:#d9d9d9"></i>':'');
+          return '<div class="ugrow"><span class="ugn2" style="color:'+TONE[i%TONE.length]+'">'+esc(nameOf(p))+'</span>'+
+            '<span class="ugbar">'+seg+'</span><span class="ugp">'+(m.Y+m.L).toFixed(0)+'%</span></div>';
+        }).join('');
+        return '<div class="ugblock"><div class="ugh"><span class="ugnum">'+g.n+'</span>'+
+          '<span class="ugt2">'+esc(g.name)+'<small>'+esc(g.short)+'</small></span></div>'+rows+'</div>';
+      }).join('')+
+      '<div class="uglegend">'+['Y','L','S','N'].map(function(k){
+        return '<span class="i"><span class="sw" style="background:'+VCOL[k]+'"></span>'+VERD[k]+'</span>';
+      }).join('')+'</div>';
+  }
   var mStack=null;
   function drawStack(cats){
     if(!window.Chart||!$('mStack')) return;
@@ -383,11 +445,15 @@
       return '<div class="tot2"><div class="k" style="color:'+TONE[i%TONE.length]+'">'+esc(nameOf(p))+'</div>'+
         '<div class="v">'+n(r.lots)+'</div><div class="nn">lots \u00b7 '+n(r.units)+' homes</div></div>';
     }).join('')+'</div>';
+    if(view==='ug'){ $('readout').innerHTML=head+tot+ugBody(); attachChipHandlers(); return; }
     $('readout').innerHTML=head+tot+chartBox+body+
       '<div style="padding:12px 15px"><a href="/landusedash?view='+view+'&a='+
       encodeURIComponent(picked.map(function(p){return p.lvl+':'+p.key;}).join(','))+
       '" style="font-size:.79rem;font-weight:700;color:#fff;background:#132D65;padding:9px 14px;border-radius:22px;text-decoration:none">Open this in the full dashboard &rarr;</a></div>';
     drawStack(order);
+    attachChipHandlers();
+  }
+  function attachChipHandlers(){
     $('readout').querySelectorAll('.x').forEach(function(el){
       el.addEventListener('click',function(){ picked.splice(+this.getAttribute('data-i'),1); draw(); renderCompare(); buildToggles(); });
     });
@@ -515,12 +581,12 @@
     if(z<11){ clearReal(); $('zoomnote').textContent='Zoom in to load the boundaries'; return; }
     $('zoomnote').textContent='';
     var b=map.getBounds();
-    var key=view+'|'+z+'|'+b.getSouth().toFixed(3)+b.getWest().toFixed(3)+b.getNorth().toFixed(3)+b.getEast().toFixed(3);
+    var key=mapView()+'|'+z+'|'+b.getSouth().toFixed(3)+b.getWest().toFixed(3)+b.getNorth().toFixed(3)+b.getEast().toFixed(3);
     if(key===realKey||realBusy) return;
     realKey=key; realBusy=true;
     if(!realLayer) $('zoomnote').textContent='Loading the boundaries\u2026';
     var env={xmin:b.getWest(),ymin:b.getSouth(),xmax:b.getEast(),ymax:b.getNorth(),spatialReference:{wkid:4326}};
-    var svc = view==='zn'
+    var svc = mapView()==='zn'
       ? 'nyzd/FeatureServer/0/query?where=1%3D1&outFields=ZONEDIST'
       : 'MAPPLUTO/FeatureServer/0/query?where=1%3D1&outFields=LandUse,Address,ZoneDist1';
     var url='https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/'+svc+
@@ -533,7 +599,7 @@
       realLayer=L.geoJSON(d,{pane:'realzone',
         style:function(f){
           var p=f.properties||{};
-          if(view==='zn'){
+          if(mapView()==='zn'){
             var k=zfam(p.ZONEDIST);
             return {color:'#ffffff',weight:.5,fillColor:ZFILL[k],fillOpacity:.86};
           }
@@ -542,7 +608,7 @@
         },
         onEachFeature:function(f,l){
           var p=f.properties||{};
-          if(view==='zn'){
+          if(mapView()==='zn'){
             var k=zfam(p.ZONEDIST);
             l.bindTooltip('<b>'+esc(p.ZONEDIST||'')+'</b><br>'+ZNAME[k],{sticky:true});
           } else {
@@ -772,13 +838,15 @@
     fetch('/data/borough-rents.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/council-members.json').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/city-neighborhoods.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
-    fetch('/data/cc-borough.json').then(function(r){return r.json();}).catch(function(){return null;})
+    fetch('/data/cc-borough.json').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/zoning-matrix.json').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/zoning-use-groups.json').then(function(r){return r.json();}).catch(function(){return null;})
   ]).then(function(a){
     D=a[0]; GEO.cd=a[1]; GEO.cc=a[2];
     loadRealZoning();
     if(a[4]&&a[4].members) CM=a[4].members;
     GEO.nb=a[5];
-    CCBORO=a[6];
+    CCBORO=a[6]; MX=a[7]; UGD=a[8];
     if(GEO.nb) GEO.nb.features.forEach(function(f){ NBBORO[f.properties.nb]=f.properties.boro; });
     readUrl();
     document.querySelectorAll('[data-view]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-view')===view);});
