@@ -52,6 +52,24 @@
 .sharebtn:hover{background:var(--orange)}
 .sharemsg{font-family:'DM Mono',monospace;font-size:.68rem;color:#2e6b30;font-weight:700}
 .selected{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--orange);font-weight:700}
+
+.findbar{display:flex;gap:8px;padding:11px 14px;background:#fff;border-bottom:1px solid var(--border)}
+.findbar input{flex:1;min-width:0;padding:12px 13px;font-family:'DM Sans',sans-serif;font-size:.88rem;border:2px solid var(--navy2);border-radius:10px;color:var(--navy)}
+.findbar input:focus{outline:none;border-color:var(--orange)}
+.findbar button{padding:12px 18px;background:var(--orange);color:#fff;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.84rem;font-weight:800;cursor:pointer;flex:none}
+#findSug{margin:0 14px}
+#findSug .sg{padding:10px 12px;border:1px solid var(--border);border-top:none;background:#fff;cursor:pointer;font-size:.82rem;color:var(--navy)}
+#findSug .sg:first-child{border-top:1px solid var(--border);border-radius:8px 8px 0 0}
+#findSug .sg:last-child{border-radius:0 0 8px 8px}
+#findSug .sg:hover{background:#fff4ea}
+.pinres{margin:11px 14px 0;padding:12px 13px;background:#fff8f2;border:2px solid var(--orange);border-radius:11px}
+.pinres .ad{font-size:.9rem;font-weight:900;color:var(--navy);line-height:1.3}
+.pinres .who{display:grid;gap:5px;margin-top:8px}
+.pinres .w{display:flex;gap:9px;align-items:baseline;font-size:.79rem}
+.pinres .w .k{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;min-width:96px}
+.pinres .w .v{color:var(--navy);font-weight:700}
+.pinres .w .v a{color:var(--navy);border-bottom:1px solid var(--orange);text-decoration:none}
+.pinres .hint{font-family:'DM Mono',monospace;font-size:.64rem;color:#9ca3af;margin-top:8px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -65,6 +83,13 @@
   <div class="intro">
     <b>Two different questions.</b> Land use is what is on the ground today. Zoning is what the rules allow. They are often not the same, and where they differ is usually where the argument is. Pick a category and the map shades every area by how much of its lot area that category covers. Darker means more. No area is entirely one thing, so the number matters more than the colour. Tap any area for the full breakdown, and use the link button to share exactly what you are looking at.
   </div>
+
+  <div class="findbar">
+    <input id="findQ" type="search" placeholder="Find an address, or tap the map to drop a pin" autocomplete="off" spellcheck="false">
+    <button id="findGo" type="button">Find</button>
+  </div>
+  <div id="findSug"></div>
+  <div id="findOut"></div>
 
   <div class="bar top0">
     <span class="bl">Show</span>
@@ -225,7 +250,7 @@
     }
     var cfg={
       cd:{geo:GEO.cd,key:function(p){return p.cb_code;},data:D.cd,name:function(p){return p.cb_code;},sub:'Community district'},
-      cc:{geo:GEO.cc,key:function(p){return String(p.cc);},data:D.cc,name:function(p){return 'Council District '+p.cc;},sub:'Council district'},
+      cc:{geo:GEO.cc,key:function(p){return String(p.cc);},data:D.cc,name:function(p){var m=CM&&CM[String(p.cc)];return 'Council District '+p.cc+(m?' \u00b7 '+m.name:'');},sub:'Council district'},
       boro:{geo:GEO.boro,key:function(p){return p.boro;},data:D.boro,name:function(p){return p.boro;},sub:'Borough'}
     }[lens];
     if(!cfg||!cfg.geo){ $('bnote').textContent='Boundaries could not load.'; return; }
@@ -262,7 +287,8 @@
     $('bnote').textContent=count+' areas \u00b7 '+lo.toFixed(0)+'% to '+hi.toFixed(0)+'%';
     var want=selectedKey&&cfg.data[selectedKey]?selectedKey:(lens==='cd'?'BKCB6':(lens==='cc'?'39':'Brooklyn'));
     if(cfg.data[want]){
-      var nm = lens==='cd'?want:(lens==='cc'?'Council District '+want:want);
+      var m=CM&&CM[want];
+      var nm = lens==='cd'?want:(lens==='cc'?('Council District '+want+(m?' \u00b7 '+m.name:'')):want);
       showReadout(nm,cfg.sub,cfg.data[want],want);
     }
   }
@@ -300,13 +326,103 @@
     });
   });
 
+
+  /* ---- address search and pin drop ---- */
+  var pin=null, CM=null;
+  function boroOf(code){ return ({MN:'Manhattan',BX:'Bronx',BK:'Brooklyn',QN:'Queens',SI:'Staten Island'})[String(code).slice(0,2)]||''; }
+  function ptIn(latlng,gj,keyfn){
+    var hit=null;
+    L.geoJSON(gj,{style:function(){return{};}}).eachLayer(function(l){
+      if(hit) return;
+      try{ if(l.getBounds().contains(latlng) && leafletContains(l,latlng)) hit=keyfn(l.feature.properties); }catch(e){}
+    });
+    return hit;
+  }
+  function leafletContains(layer,latlng){
+    var polys=layer.getLatLngs();
+    function inRing(ring,p){
+      var x=p.lng,y=p.lat,inside=false;
+      for(var i=0,j=ring.length-1;i<ring.length;j=i++){
+        var xi=ring[i].lng,yi=ring[i].lat,xj=ring[j].lng,yj=ring[j].lat;
+        if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi)) inside=!inside;
+      }
+      return inside;
+    }
+    function walk(a){
+      if(!a.length) return false;
+      if(a[0] instanceof L.LatLng) return inRing(a,latlng);
+      for(var i=0;i<a.length;i++){ if(walk(a[i])) return true; }
+      return false;
+    }
+    return walk(polys);
+  }
+  function dropPin(latlng,label){
+    if(pin) map.removeLayer(pin);
+    pin=L.marker(latlng,{title:label||''}).addTo(map);
+    var cdKey=GEO.cd?ptIn(latlng,GEO.cd,function(p){return p.cb_code;}):null;
+    var ccKey=GEO.cc?ptIn(latlng,GEO.cc,function(p){return String(p.cc);}):null;
+    var member=(CM&&ccKey&&CM[ccKey])?CM[ccKey]:null;
+    var rows='';
+    if(cdKey) rows+='<div class="w"><span class="k">Community board</span><span class="v">'+esc(cdKey)+' <a href="/cd/'+esc(cdKey.toLowerCase())+'/">see the district</a></span></div>';
+    if(ccKey) rows+='<div class="w"><span class="k">Council district</span><span class="v">'+esc(ccKey)+'</span></div>';
+    if(member) rows+='<div class="w"><span class="k">Council member</span><span class="v"><a href="'+esc(member.url)+'" target="_blank" rel="noopener">'+esc(member.name)+'</a></span></div>';
+    if(cdKey) rows+='<div class="w"><span class="k">Borough</span><span class="v">'+esc(boroOf(cdKey))+'</span></div>';
+    $('findOut').innerHTML='<div class="pinres"><div class="ad">'+esc(label||'Dropped pin')+'</div>'+
+      '<div class="who">'+(rows||'<div class="w"><span class="v">Outside the mapped districts.</span></div>')+'</div>'+
+      '<div class="hint">The map below is showing that area. Tap anywhere else to move the pin.</div></div>';
+    // select whichever area the pin landed in, under the current lens
+    var want = lens==='cd'?cdKey : (lens==='cc'?ccKey : (lens==='boro'?boroOf(cdKey||''):null));
+    if(want){ selectedKey=want; draw(); }
+    map.setView(latlng, Math.max(map.getZoom(),13));
+  }
+  map.on('click',function(e){ dropPin(e.latlng,'Dropped pin'); });
+
+  var findTimer=null;
+  function findSuggest(q){
+    if(!q||q.length<3){ $('findSug').innerHTML=''; return; }
+    fetch('https://geosearch.planninglabs.nyc/v2/autocomplete?size=5&text='+encodeURIComponent(q))
+      .then(function(r){return r.json();}).then(function(j){
+        var f=(j&&j.features)||[];
+        $('findSug').innerHTML=f.map(function(x,i){
+          var p=x.properties||{};
+          return '<div class="sg" data-i="'+i+'">'+esc(p.label||p.name)+'</div>';
+        }).join('');
+        $('findSug').querySelectorAll('.sg').forEach(function(el){
+          el.addEventListener('click',function(){
+            var x=f[+this.getAttribute('data-i')];
+            var c=x.geometry.coordinates;
+            $('findQ').value=(x.properties&&(x.properties.label||x.properties.name))||'';
+            $('findSug').innerHTML='';
+            dropPin(L.latLng(c[1],c[0]), $('findQ').value);
+          });
+        });
+      }).catch(function(){ $('findSug').innerHTML=''; });
+  }
+  function findGo(q){
+    if(!q) return;
+    fetch('https://geosearch.planninglabs.nyc/v2/search?size=1&text='+encodeURIComponent(q))
+      .then(function(r){return r.json();}).then(function(j){
+        var f=j&&j.features&&j.features[0];
+        if(!f) throw new Error('none');
+        var c=f.geometry.coordinates;
+        dropPin(L.latLng(c[1],c[0]), (f.properties&&(f.properties.label||f.properties.name))||q);
+      }).catch(function(){
+        $('findOut').innerHTML='<div class="pinres" style="border-color:#c0392b;background:#fbe6e6"><div class="ad">Could not find that address</div><div class="hint">Try including the borough, or tap the map to drop a pin.</div></div>';
+      });
+  }
+  $('findQ').addEventListener('input',function(){ clearTimeout(findTimer); var v=this.value; findTimer=setTimeout(function(){findSuggest(v);},220); });
+  $('findQ').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); $('findSug').innerHTML=''; findGo(this.value); } });
+  $('findGo').addEventListener('click',function(){ $('findSug').innerHTML=''; findGo($('findQ').value); });
+
   Promise.all([
     fetch('/data/landuse-zoning-all.json').then(function(r){return r.json();}),
     fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}),
     fetch('/data/council-districts.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
-    fetch('/data/borough-rents.geojson').then(function(r){return r.json();}).catch(function(){return null;})
+    fetch('/data/borough-rents.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/council-members.json').then(function(r){return r.json();}).catch(function(){return null;})
   ]).then(function(a){
     D=a[0]; GEO.cd=a[1]; GEO.cc=a[2];
+    if(a[4]&&a[4].members) CM=a[4].members;
     readUrl();
     document.querySelectorAll('[data-view]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-view')===view);});
     document.querySelectorAll('[data-lens]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-lens')===lens);});
