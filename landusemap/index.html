@@ -98,6 +98,7 @@
     <span class="bl">Show</span>
     <button class="btn on" data-view="lu" type="button">Land use</button>
     <button class="btn" data-view="zn" type="button">Zoning</button>
+    <button class="btn on" id="parksBtn" type="button">Parks</button>
   </div>
   <div class="bar">
     <span class="bl">By</span>
@@ -147,6 +148,18 @@
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'&copy; CARTO'}).addTo(map);
   map.createPane('streetLabels'); map.getPane('streetLabels').style.zIndex=645; map.getPane('streetLabels').style.pointerEvents='none';
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',{maxZoom:19,pane:'streetLabels'}).addTo(map);
+  map.createPane('parks'); map.getPane('parks').style.zIndex=430;
+  var parksLayer=null;
+  function loadParks(){
+    fetch('/data/parks-simple.geojson').then(function(r){return r.json();}).then(function(gj){
+      parksLayer=L.geoJSON(gj,{pane:'parks',
+        style:function(){ return {color:'#1e7a41',weight:.6,fillColor:'#2f9e5a',fillOpacity:.62}; },
+        onEachFeature:function(f,l){
+          var p=f.properties||{};
+          if(p.n) l.bindTooltip('<b>'+String(p.n).replace(/[<>&]/g,'')+'</b>'+(p.a?'<br>'+p.a+' acres':'')+'<br><span style="color:#1e7a41">Public parkland</span>',{sticky:true});
+        }}).addTo(map);
+    }).catch(function(){});
+  }
   map.createPane('boroNames'); map.getPane('boroNames').style.zIndex=660; map.getPane('boroNames').style.pointerEvents='none';
   var boroLabels=[];
   function drawBoroLabels(){
@@ -314,6 +327,11 @@
       draw();
     });
   });
+  $('parksBtn').addEventListener('click',function(){
+    var on=this.classList.toggle('on');
+    if(!parksLayer) return;
+    if(on) parksLayer.addTo(map); else map.removeLayer(parksLayer);
+  });
   $('shareBtn').addEventListener('click',function(){
     syncUrl();
     var url=location.href;
@@ -432,6 +450,7 @@
     fetch('/data/council-members.json').then(function(r){return r.json();}).catch(function(){return null;})
   ]).then(function(a){
     D=a[0]; GEO.cd=a[1]; GEO.cc=a[2];
+    loadParks();
     if(a[4]&&a[4].members) CM=a[4].members;
     readUrl();
     document.querySelectorAll('[data-view]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-view')===view);});
