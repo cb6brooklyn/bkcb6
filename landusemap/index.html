@@ -296,6 +296,7 @@
   }
   function renderCompare(){
     syncUrl();
+    applyMask();
     if(!picked.length){
       $('readout').innerHTML='<div class="rh2"><div class="n">Tap any area to highlight it</div>'+
         '<div class="s">Add as many as you like. They can be different kinds of area.</div></div>';
@@ -379,7 +380,7 @@
         var d=dominant(rec);
         var idx=pIdx(lens,cfg.key(f.properties));
         if(idx>-1) return {color:TONE[idx%TONE.length],weight:4,fill:true,fillColor:TONE[idx%TONE.length],fillOpacity:.18};
-        return {color:'#5b5651',weight:1.2,fill:true,fillColor:'#000',fillOpacity:0};
+        return {color:'#1f2a44',weight:2,fill:true,fillColor:'#000',fillOpacity:0,dashArray:lens==='nb'?'4,3':null};
       },
       onEachFeature:function(f,l){
         var p=f.properties, key=cfg.key(p), rec=cfg.data[key];
@@ -401,9 +402,10 @@
           layer.setStyle(function(ff){
             var ii=pIdx(lens,cfg.key(ff.properties));
             if(ii>-1) return {color:TONE[ii%TONE.length],weight:4,fillColor:TONE[ii%TONE.length],fillOpacity:.18};
-            return {color:'#5b5651',weight:1.2,fillColor:'#000',fillOpacity:0};
+            return {color:'#1f2a44',weight:2,fillColor:'#000',fillOpacity:0};
           });
           renderCompare();
+          fitPicked();
         });
       }
     }).addTo(map);
@@ -505,6 +507,56 @@
     }).catch(function(){ realBusy=false; $('zoomnote').textContent='Boundaries could not load here'; });
   }
   map.on('moveend zoomend',loadRealZoning);
+
+
+  /* ---- isolate: dim everything outside what is highlighted ---- */
+  map.createPane('mask'); map.getPane('mask').style.zIndex=435; map.getPane('mask').style.pointerEvents='none';
+  var maskLayer=null;
+  function ringsOf(geom){
+    var out=[];
+    function ring(c){ return c.map(function(pt){ return [pt[1],pt[0]]; }); }
+    if(!geom) return out;
+    if(geom.type==='Polygon') geom.coordinates.forEach(function(r,i){ if(i===0) out.push(ring(r)); });
+    else if(geom.type==='MultiPolygon') geom.coordinates.forEach(function(poly){ if(poly[0]) out.push(ring(poly[0])); });
+    return out;
+  }
+  function geoFor(lvl,key){
+    var g={cd:GEO.cd,cc:GEO.cc,nb:GEO.nb,boro:GEO.boro}[lvl];
+    if(!g) return null;
+    var kf={cd:'cb_code',cc:'cc',nb:'nb',boro:'boro'}[lvl];
+    for(var i=0;i<g.features.length;i++){
+      if(String(g.features[i].properties[kf])===String(key)) return g.features[i].geometry;
+    }
+    return null;
+  }
+
+  function fitPicked(){
+    if(!picked.length) return;
+    var b=null;
+    picked.forEach(function(p){
+      if(p.lvl==='city') return;
+      var g=geoFor(p.lvl,p.key);
+      if(!g) return;
+      try{
+        var lyr=L.geoJSON({type:'Feature',geometry:g});
+        b = b ? b.extend(lyr.getBounds()) : lyr.getBounds();
+      }catch(e){}
+    });
+    if(b){ try{ map.fitBounds(b,{padding:[30,30],maxZoom:15}); }catch(e){} }
+  }
+  function applyMask(){
+    if(maskLayer){ map.removeLayer(maskLayer); maskLayer=null; }
+    var holes=[];
+    picked.forEach(function(p){
+      if(p.lvl==='city') return;
+      var g=geoFor(p.lvl,p.key);
+      if(g) holes=holes.concat(ringsOf(g));
+    });
+    if(!holes.length) return;
+    var world=[[85,-190],[85,190],[-85,190],[-85,-190]];
+    maskLayer=L.polygon([world].concat(holes),{pane:'mask',stroke:false,
+      fillColor:'#f8f7f4',fillOpacity:.82,interactive:false}).addTo(map);
+  }
 
   /* ---- address search and pin drop ---- */
   var pin=null, CM=null;
