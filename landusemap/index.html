@@ -109,6 +109,7 @@
     <span class="bl">By</span>
     <button class="btn on" data-lens="cd" type="button">Community boards</button>
     <button class="btn" data-lens="cc" type="button">Council districts</button>
+    <button class="btn" data-lens="nb" type="button">Neighborhoods</button>
     <button class="btn" data-lens="boro" type="button">Boroughs</button>
     <button class="btn" data-lens="city" type="button">Citywide</button>
     <span class="bnote" id="bnote">Loading&hellip;</span>
@@ -145,7 +146,7 @@
   function readUrl(){
     var p=new URLSearchParams(location.search);
     if(p.get('view')==='zn'||p.get('view')==='lu') view=p.get('view');
-    if(['cd','cc','boro','city'].indexOf(p.get('by'))>-1) lens=p.get('by');
+    if(['cd','cc','boro','nb','city'].indexOf(p.get('by'))>-1) lens=p.get('by');
 
     if(p.get('area')) selectedKey=p.get('area');
   }
@@ -204,7 +205,7 @@
       ? [['#f2994a','Residential'],['#2563eb','Commercial'],['#9b51e0','Manufacturing'],['#27ae60','Parkland'],['#56ccf2','Special district']]
       : [['#f2c94c','One and two family'],['#f2994a','Multifamily walk-up'],['#eb5757','Multifamily elevator'],['#bb6bd9','Mixed use'],['#2f80ed','Commercial and office'],['#9b51e0','Industrial'],['#6b7280','Transport and utility'],['#56ccf2','Public facilities'],['#27ae60','Open space'],['#a0a0a0','Parking'],['#d9d9d9','Vacant']];
     $('scale').innerHTML='<span class="l">Every '+(view==='zn'?'zoning district':'lot')+' in its own colour. Outlines are '+
-      (lens==='cd'?'community districts':(lens==='cc'?'council districts':'boroughs'))+'.</span>'+
+      (lens==='cd'?'community districts':(lens==='cc'?'council districts':(lens==='nb'?'neighborhoods':'boroughs')))+'.</span>'+
       items.map(function(it){
         return '<span class="i"><span class="sw" style="background:'+it[0]+'"></span>'+it[1]+'</span>';
       }).join('');
@@ -270,7 +271,8 @@
     var cfg={
       cd:{geo:GEO.cd,key:function(p){return p.cb_code;},data:D.cd,name:function(p){return p.cb_code;},sub:'Community district'},
       cc:{geo:GEO.cc,key:function(p){return String(p.cc);},data:D.cc,name:function(p){var m=CM&&CM[String(p.cc)];return 'Council District '+p.cc+(m?' \u00b7 '+m.name:'');},sub:'Council district'},
-      boro:{geo:GEO.boro,key:function(p){return p.boro;},data:D.boro,name:function(p){return p.boro;},sub:'Borough'}
+      boro:{geo:GEO.boro,key:function(p){return p.boro;},data:D.boro,name:function(p){return p.boro;},sub:'Borough'},
+      nb:{geo:GEO.nb,key:function(p){return p.nb;},data:D.nb,name:function(p){return p.nb;},sub:'Neighborhood'}
     }[lens];
     if(!cfg||!cfg.geo){ $('bnote').textContent='Boundaries could not load.'; return; }
     layer=L.geoJSON(cfg.geo,{
@@ -301,8 +303,8 @@
     drawBoroLabels();
     drawScale();
     var count=Object.keys(cfg.data).length;
-    $('bnote').textContent=count+' '+(lens==='cd'?'community districts':(lens==='cc'?'council districts':'boroughs'));
-    var want=selectedKey&&cfg.data[selectedKey]?selectedKey:(lens==='cd'?'BKCB6':(lens==='cc'?'39':'Brooklyn'));
+    $('bnote').textContent=count+' '+(lens==='cd'?'community districts':(lens==='cc'?'council districts':(lens==='nb'?'neighborhoods':'boroughs')));
+    var want=selectedKey&&cfg.data[selectedKey]?selectedKey:(lens==='cd'?'BKCB6':(lens==='cc'?'39':(lens==='nb'?'Park Slope':'Brooklyn')));
     if(cfg.data[want]){
       var m=CM&&CM[want];
       var nm = lens==='cd'?want:(lens==='cc'?('Council District '+want+(m?' \u00b7 '+m.name:'')):want);
@@ -432,8 +434,10 @@
     pin=L.marker(latlng,{title:label||''}).addTo(map);
     var cdKey=GEO.cd?ptIn(latlng,GEO.cd,function(p){return p.cb_code;}):null;
     var ccKey=GEO.cc?ptIn(latlng,GEO.cc,function(p){return String(p.cc);}):null;
+    var nbKey=GEO.nb?ptIn(latlng,GEO.nb,function(p){return p.nb;}):null;
     var member=(CM&&ccKey&&CM[ccKey])?CM[ccKey]:null;
     var rows='';
+    if(nbKey) rows+='<div class="w"><span class="k">Neighborhood</span><span class="v">'+esc(nbKey)+'</span></div>';
     if(cdKey) rows+='<div class="w"><span class="k">Community board</span><span class="v">'+esc(cdKey)+' <a href="/cd/'+esc(cdKey.toLowerCase())+'/">see the district</a></span></div>';
     if(ccKey) rows+='<div class="w"><span class="k">Council district</span><span class="v">'+esc(ccKey)+'</span></div>';
     if(member) rows+='<div class="w"><span class="k">Council member</span><span class="v"><a href="'+esc(member.url)+'" target="_blank" rel="noopener">'+esc(member.name)+'</a></span></div>';
@@ -442,7 +446,7 @@
       '<div class="who">'+(rows||'<div class="w"><span class="v">Outside the mapped districts.</span></div>')+'</div>'+
       '<div class="hint">The map below is showing that area. Tap anywhere else to move the pin.</div></div>';
     // select whichever area the pin landed in, under the current lens
-    var want = lens==='cd'?cdKey : (lens==='cc'?ccKey : (lens==='boro'?boroOf(cdKey||''):null));
+    var want = lens==='cd'?cdKey : (lens==='cc'?ccKey : (lens==='nb'?nbKey : (lens==='boro'?boroOf(cdKey||''):null)));
     if(want){ selectedKey=want; draw(); }
     map.setView(latlng, Math.max(map.getZoom(),15));
 
@@ -491,11 +495,13 @@
     fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}),
     fetch('/data/council-districts.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/borough-rents.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
-    fetch('/data/council-members.json').then(function(r){return r.json();}).catch(function(){return null;})
+    fetch('/data/council-members.json').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/city-neighborhoods.geojson').then(function(r){return r.json();}).catch(function(){return null;})
   ]).then(function(a){
     D=a[0]; GEO.cd=a[1]; GEO.cc=a[2];
     loadRealZoning();
     if(a[4]&&a[4].members) CM=a[4].members;
+    GEO.nb=a[5];
     readUrl();
     document.querySelectorAll('[data-view]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-view')===view);});
     document.querySelectorAll('[data-lens]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-lens')===lens);});
