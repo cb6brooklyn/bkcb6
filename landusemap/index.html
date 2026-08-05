@@ -100,11 +100,6 @@
     <button class="btn" data-view="zn" type="button">Zoning</button>
   </div>
   <div class="bar">
-    <span class="bl">Colour by</span>
-    <select id="catSel" class="catsel"></select>
-    <span class="bnote" id="catnote"></span>
-  </div>
-  <div class="bar">
     <span class="bl">By</span>
     <button class="btn on" data-lens="cd" type="button">Community boards</button>
     <button class="btn" data-lens="cc" type="button">Council districts</button>
@@ -137,20 +132,22 @@
   function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   var D=null, GEO={}, view='lu', lens='cd', cat='01', selectedKey=null, map, layer=null, labels=[];
   function syncUrl(){
-    var q='?view='+view+'&by='+lens+'&cat='+encodeURIComponent(cat)+(selectedKey?'&area='+encodeURIComponent(selectedKey):'');
+    var q='?view='+view+'&by='+lens+(selectedKey?'&area='+encodeURIComponent(selectedKey):'');
     try{ history.replaceState(null,'',location.pathname+q); }catch(e){}
   }
   function readUrl(){
     var p=new URLSearchParams(location.search);
     if(p.get('view')==='zn'||p.get('view')==='lu') view=p.get('view');
     if(['cd','cc','boro','city'].indexOf(p.get('by'))>-1) lens=p.get('by');
-    if(p.get('cat')) cat=p.get('cat');
+
     if(p.get('area')) selectedKey=p.get('area');
   }
 
   map=L.map('map',{scrollWheelZoom:true,preferCanvas:true}).setView([40.70,-73.95],10);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:17,attribution:'&copy; CARTO'}).addTo(map);
-  map.createPane('boroNames'); map.getPane('boroNames').style.zIndex=650; map.getPane('boroNames').style.pointerEvents='none';
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'&copy; CARTO'}).addTo(map);
+  map.createPane('streetLabels'); map.getPane('streetLabels').style.zIndex=645; map.getPane('streetLabels').style.pointerEvents='none';
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',{maxZoom:19,pane:'streetLabels'}).addTo(map);
+  map.createPane('boroNames'); map.getPane('boroNames').style.zIndex=660; map.getPane('boroNames').style.pointerEvents='none';
   var boroLabels=[];
   function drawBoroLabels(){
     boroLabels.forEach(function(m){ map.removeLayer(m); }); boroLabels=[];
@@ -184,26 +181,24 @@
     Object.keys(b).forEach(function(k){ tot+=b[k].area; });
     return (tot && b[c]) ? b[c].area/tot*100 : 0;
   }
-  // a fixed sequential scale so every category reads with the same contrast
-  var SCALE=['#fff7e0','#fed98e','#fe9929','#d95f0e','#993404'];
-  var BANDS=[0,10,25,40,60,100];
-  function bandOf(p){
-    if(p<=0) return -1;
-    for(var i=BANDS.length-2;i>=0;i--){ if(p>=BANDS[i]) return i; }
-    return 0;
+  function dominant(rec){
+    var b=buckets(rec)||{}, best=null, tot=0;
+    Object.keys(b).forEach(function(k){ tot+=b[k].area; if(!best||b[k].area>b[best].area) best=k; });
+    return {k:best,pct:(best&&tot)?b[best].area/tot*100:0};
   }
-  function colourFor(p){
-    var b=bandOf(p);
-    return b<0 ? '#e9e7e2' : SCALE[Math.min(b,SCALE.length-1)];
+  function share(rec,c){
+    var b=buckets(rec)||{}, tot=0;
+    Object.keys(b).forEach(function(k){ tot+=b[k].area; });
+    return (tot&&b[c]) ? b[c].area/tot*100 : 0;
   }
-  function drawScale(){
-    var out='<span class="l">Share of lot area that is '+esc(lab(cat)).toLowerCase()+'</span>'+
-      '<span class="st" style="background:#e9e7e2;color:#0d1b4b">none</span>';
-    for(var i=0;i<BANDS.length-1;i++){
-      out+='<span class="st" style="background:'+SCALE[i]+';color:'+(i>=3?'#fff':'#0d1b4b')+'">'+
-        BANDS[i]+(i===BANDS.length-2?'%+':' to '+BANDS[i+1]+'%')+'</span>';
-    }
-    $('scale').innerHTML=out;
+  function fmtPct(x){ return Math.round(x)+'%'; }
+  function drawScale(present){
+    var P=pal();
+    var keys=Object.keys(present||{}).sort(function(a,b){return present[b]-present[a];});
+    $('scale').innerHTML='<span class="l">Coloured by the largest '+(view==='lu'?'land use':'zoning family')+' in each area. Tap for the full mix.</span>'+
+      keys.map(function(k){
+        return '<span class="i"><span class="sw" style="background:'+(P[k]||'#9ca3af')+'"></span>'+esc(lab(k))+' ('+present[k]+')</span>';
+      }).join('');
   }
   function rows(rec){
     var b=buckets(rec)||{}, tot=0;
@@ -215,7 +210,7 @@
   function bars(rs){
     var P=pal();
     return rs.map(function(r){
-      var on=(r.k===cat);
+      var on=false;
       return '<div class="bar2"'+(on?' style="background:#fff8f2;border-radius:6px;padding-left:5px;padding-right:5px"':'')+'>'+
         '<span class="sw" style="background:'+(P[r.k]||'#9ca3af')+'"></span>'+
         '<span class="nm"'+(on?' style="color:#f47920"':'')+'>'+esc(r.label)+'</span>'+
@@ -248,11 +243,18 @@
   function clear(){ if(layer){map.removeLayer(layer);layer=null;} labels.forEach(function(m){map.removeLayer(m);}); labels=[]; }
 
   function draw(){
-    drawScale();
     clear();
     if(lens==='city'){
       var rec=D.city;
-      layer=L.geoJSON(GEO.boro,{style:function(){return {color:'#fff',weight:1.5,fillColor:colourFor(share(rec,cat)),fillOpacity:.85};}}).addTo(map);
+
+      var pres={};
+      layer=L.geoJSON(GEO.boro,{style:function(f){
+        var br=D.boro[f.properties.boro];
+        var d=br?dominant(br):{k:null};
+        if(d.k) pres[d.k]=(pres[d.k]||0)+1;
+        return {color:'#7a7570',weight:1.5,fillColor:(pal()[d.k]||'#9ca3af'),fillOpacity:.42};
+      }}).addTo(map);
+      drawScale(pres);
       try{ map.fitBounds(layer.getBounds(),{padding:[16,16]}); }catch(e){}
       drawBoroLabels();
       $('bnote').textContent='All five boroughs together';
@@ -265,38 +267,38 @@
       boro:{geo:GEO.boro,key:function(p){return p.boro;},data:D.boro,name:function(p){return p.boro;},sub:'Borough'}
     }[lens];
     if(!cfg||!cfg.geo){ $('bnote').textContent='Boundaries could not load.'; return; }
-    var vals=[];
+    var present={};
     layer=L.geoJSON(cfg.geo,{
       style:function(f){
         var rec=cfg.data[cfg.key(f.properties)];
-        if(!rec) return {color:'#fff',weight:1,fillColor:'#eeece7',fillOpacity:.4};
-        var p=share(rec,cat); vals.push(p);
+        if(!rec) return {color:'#b8b3ad',weight:1,fillColor:'#eeece7',fillOpacity:.25};
+        var d=dominant(rec);
+        present[d.k]=(present[d.k]||0)+1;
         var isSel=(selectedKey===cfg.key(f.properties));
-        return {color:isSel?'#0d1b4b':'#fff',weight:isSel?3:1.2,fillColor:colourFor(p),fillOpacity:.85};
+        return {color:isSel?'#0d1b4b':'#7a7570',weight:isSel?3:1,fillColor:(pal()[d.k]||'#9ca3af'),fillOpacity:isSel?.5:.42};
       },
       onEachFeature:function(f,l){
         var p=f.properties, key=cfg.key(p), rec=cfg.data[key];
         if(!rec){ l.bindTooltip('No data',{sticky:true}); return; }
-        var pc=share(rec,cat), rs=rows(rec).slice(0,3);
+        var d=dominant(rec), rs=rows(rec).slice(0,4);
         l.bindTooltip('<div style="font-family:DM Sans,sans-serif;min-width:190px">'+
           '<div style="font-weight:800;font-size:.88rem;color:#0d1b4b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:5px">'+esc(cfg.name(p))+'</div>'+
-          '<div style="font-size:.95rem;font-weight:800;color:#0d1b4b;font-family:DM Mono,monospace">'+pc.toFixed(1)+'%</div>'+
-          '<div style="font-size:.72rem;color:#f47920;font-weight:700;margin-bottom:5px">'+esc(lab(cat))+'</div>'+
+          '<div style="font-size:.72rem;color:#f47920;font-weight:700;margin-bottom:5px">Largest: '+esc(lab(d.k))+' at '+d.pct.toFixed(0)+'%</div>'+
           rs.map(function(r){
             return '<div style="display:flex;justify-content:space-between;gap:14px;padding:1px 0;font-size:.72rem">'+
               '<span style="color:#555">'+esc(r.label)+'</span><span style="font-family:DM Mono,monospace;color:#0d1b4b">'+r.pct.toFixed(1)+'%</span></div>';
           }).join('')+
           '<div style="font-size:.65rem;color:#888;margin-top:5px;border-top:1px solid #eee;padding-top:4px">Tap for everything</div></div>',{sticky:true,opacity:1});
-        l.on('mouseover',function(){ l.setStyle({weight:3,color:'#333'}); if(l.bringToFront) l.bringToFront(); });
+        l.on('mouseover',function(){ l.setStyle({weight:3,color:'#0d1b4b',fillOpacity:.6}); if(l.bringToFront) l.bringToFront(); });
         l.on('mouseout',function(){ layer.resetStyle(l); });
         l.on('click',function(){ showReadout(cfg.name(p),cfg.sub,rec,key); layer.resetStyle(); l.setStyle({color:'#0d1b4b',weight:3}); });
       }
     }).addTo(map);
     try{ map.fitBounds(layer.getBounds(),{padding:[16,16]}); }catch(e){}
     drawBoroLabels();
+    drawScale(present);
     var count=Object.keys(cfg.data).length;
-    var hi=vals.length?Math.max.apply(null,vals):0, lo=vals.length?Math.min.apply(null,vals):0;
-    $('bnote').textContent=count+' areas \u00b7 '+lo.toFixed(0)+'% to '+hi.toFixed(0)+'%';
+    $('bnote').textContent=count+' '+(lens==='cd'?'community districts':(lens==='cc'?'council districts':'boroughs'));
     var want=selectedKey&&cfg.data[selectedKey]?selectedKey:(lens==='cd'?'BKCB6':(lens==='cc'?'39':'Brooklyn'));
     if(cfg.data[want]){
       var m=CM&&CM[want];
@@ -305,20 +307,11 @@
     }
   }
 
-  function buildCats(){
-    var list=cats();
-    if(list.indexOf(cat)<0) cat=list[0];
-    $('catSel').innerHTML=list.map(function(c){
-      return '<option value="'+esc(c)+'"'+(c===cat?' selected':'')+'>'+esc(lab(c))+'</option>';
-    }).join('');
-    $('catnote').textContent='Darker means a bigger share of that area';
-  }
-  $('catSel').addEventListener('change',function(){ cat=this.value; draw(); });
   document.querySelectorAll('[data-view]').forEach(function(b){
     b.addEventListener('click',function(){
       view=this.getAttribute('data-view');
       document.querySelectorAll('[data-view]').forEach(function(x){x.classList.toggle('on',x===b);});
-      cat=null; buildCats(); draw();
+      draw();
     });
   });
   $('shareBtn').addEventListener('click',function(){
@@ -368,6 +361,10 @@
     }
     return walk(polys);
   }
+  function fadeForPin(on){
+    if(!layer) return;
+    try{ layer.setStyle(function(){ return {fillOpacity:on?0.16:0.42}; }); }catch(e){}
+  }
   function dropPin(latlng,label){
     if(pin) map.removeLayer(pin);
     pin=L.marker(latlng,{title:label||''}).addTo(map);
@@ -384,8 +381,9 @@
       '<div class="hint">The map below is showing that area. Tap anywhere else to move the pin.</div></div>';
     // select whichever area the pin landed in, under the current lens
     var want = lens==='cd'?cdKey : (lens==='cc'?ccKey : (lens==='boro'?boroOf(cdKey||''):null));
-    if(want){ selectedKey=want; draw(); }
-    map.setView(latlng, Math.max(map.getZoom(),13));
+    if(want){ selectedKey=want; draw(); fadeForPin(true); }
+    map.setView(latlng, Math.max(map.getZoom(),15));
+    fadeForPin(true);
   }
   map.on('click',function(e){ dropPin(e.latlng,'Dropped pin'); });
 
@@ -442,7 +440,6 @@
       a[3].features.forEach(function(f){ f.properties.boro=f.properties.boro||f.properties.code; });
       GEO.boro=a[3];
     }
-    buildCats();
     draw();
   }).catch(function(){ $('bnote').textContent='Data could not load.'; });
 })();
