@@ -87,7 +87,7 @@
   </div>
 
   <div class="intro">
-    <b>Two different questions.</b> Land use is what is on the ground today. Zoning is what the rules allow. They are often not the same, and where they differ is usually where the argument is. Pick a category and the map shades every area by how much of its lot area that category covers. Darker means more. No area is entirely one thing, so the number matters more than the colour. Tap any area for the full breakdown, and use the link button to share exactly what you are looking at.
+    <b>Two different questions.</b> Land use is what is on the ground today. Zoning is what the rules allow. They are often not the same, and where they differ is usually where the argument is. The map draws every zoning district and every lot in its own colour, straight from the city records. Outlines show community boards, council districts or boroughs on top. Tap any outline for its full mix, search an address or tap the map to drop a pin, and use the link button to share exactly what you are looking at.
   </div>
 
   <div class="findbar">
@@ -146,7 +146,7 @@
     if(p.get('area')) selectedKey=p.get('area');
   }
 
-  map=L.map('map',{scrollWheelZoom:true,preferCanvas:true}).setView([40.70,-73.95],10);
+  map=L.map('map',{scrollWheelZoom:true,preferCanvas:true}).setView([40.685,-73.99],12);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'&copy; CARTO'}).addTo(map);
   map.createPane('streetLabels'); map.getPane('streetLabels').style.zIndex=645; map.getPane('streetLabels').style.pointerEvents='none';
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',{maxZoom:19,pane:'streetLabels'}).addTo(map);
@@ -207,12 +207,14 @@
     return (tot&&b[c]) ? b[c].area/tot*100 : 0;
   }
   function fmtPct(x){ return Math.round(x)+'%'; }
-  function drawScale(present){
-    var P=pal();
-    var keys=Object.keys(present||{}).sort(function(a,b){return present[b]-present[a];});
-    $('scale').innerHTML='<span class="l">Coloured by the largest '+(view==='lu'?'land use':'zoning family')+' in each area. Tap for the full mix.</span>'+
-      keys.map(function(k){
-        return '<span class="i"><span class="sw" style="background:'+(P[k]||'#9ca3af')+'"></span>'+esc(lab(k))+' ('+present[k]+')</span>';
+  function drawScale(){
+    var items = view==='zn'
+      ? [['#f2994a','Residential'],['#2563eb','Commercial'],['#9b51e0','Manufacturing'],['#27ae60','Parkland'],['#56ccf2','Special district']]
+      : [['#f2c94c','One and two family'],['#f2994a','Multifamily walk-up'],['#eb5757','Multifamily elevator'],['#bb6bd9','Mixed use'],['#2f80ed','Commercial and office'],['#9b51e0','Industrial'],['#6b7280','Transport and utility'],['#56ccf2','Public facilities'],['#27ae60','Open space'],['#a0a0a0','Parking'],['#d9d9d9','Vacant']];
+    $('scale').innerHTML='<span class="l">Every '+(view==='zn'?'zoning district':'lot')+' in its own colour. Outlines are '+
+      (lens==='cd'?'community districts':(lens==='cc'?'council districts':'boroughs'))+'.</span>'+
+      items.map(function(it){
+        return '<span class="i"><span class="sw" style="background:'+it[0]+'"></span>'+it[1]+'</span>';
       }).join('');
   }
   function rows(rec){
@@ -262,15 +264,12 @@
     if(lens==='city'){
       var rec=D.city;
 
-      var pres={};
       layer=L.geoJSON(GEO.boro,{style:function(f){
         var br=D.boro[f.properties.boro];
         var d=br?dominant(br):{k:null};
-        if(d.k) pres[d.k]=(pres[d.k]||0)+1;
-        return {color:'#5b5651',weight:1.5,fillColor:(pal()[d.k]||'#9ca3af'),fillOpacity:map.getZoom()>=12?0:0.42};
+        return {color:'#5b5651',weight:1.5,fill:true,fillColor:'#000',fillOpacity:0};
       }}).addTo(map);
-      drawScale(pres);
-      try{ map.fitBounds(layer.getBounds(),{padding:[16,16]}); }catch(e){}
+      drawScale();
       drawBoroLabels();
       $('bnote').textContent='All five boroughs together';
       showReadout('New York City','Citywide',rec,'city');
@@ -282,15 +281,13 @@
       boro:{geo:GEO.boro,key:function(p){return p.boro;},data:D.boro,name:function(p){return p.boro;},sub:'Borough'}
     }[lens];
     if(!cfg||!cfg.geo){ $('bnote').textContent='Boundaries could not load.'; return; }
-    var present={};
     layer=L.geoJSON(cfg.geo,{
       style:function(f){
         var rec=cfg.data[cfg.key(f.properties)];
         if(!rec) return {color:'#b8b3ad',weight:1,fillColor:'#eeece7',fillOpacity:.25};
         var d=dominant(rec);
-        present[d.k]=(present[d.k]||0)+1;
         var isSel=(selectedKey===cfg.key(f.properties));
-        return {color:isSel?'#0d1b4b':'#5b5651',weight:isSel?3.5:1.4,fill:true,fillColor:(pal()[d.k]||'#9ca3af'),fillOpacity:map.getZoom()>=12?0:0.42};
+        return {color:isSel?'#0d1b4b':'#5b5651',weight:isSel?3.5:1.2,fill:true,fillColor:'#000',fillOpacity:0};
       },
       onEachFeature:function(f,l){
         var p=f.properties, key=cfg.key(p), rec=cfg.data[key];
@@ -304,14 +301,13 @@
               '<span style="color:#555">'+esc(r.label)+'</span><span style="font-family:DM Mono,monospace;color:#0d1b4b">'+r.pct.toFixed(1)+'%</span></div>';
           }).join('')+
           '<div style="font-size:.65rem;color:#888;margin-top:5px;border-top:1px solid #eee;padding-top:4px">Tap for everything</div></div>',{sticky:true,opacity:1});
-        l.on('mouseover',function(){ l.setStyle({weight:3,color:'#0d1b4b',fillOpacity:.6}); if(l.bringToFront) l.bringToFront(); });
+        l.on('mouseover',function(){ l.setStyle({weight:3,color:'#0d1b4b'}); if(l.bringToFront) l.bringToFront(); });
         l.on('mouseout',function(){ layer.resetStyle(l); });
         l.on('click',function(){ showReadout(cfg.name(p),cfg.sub,rec,key); layer.resetStyle(); l.setStyle({color:'#0d1b4b',weight:3}); });
       }
     }).addTo(map);
-    try{ map.fitBounds(layer.getBounds(),{padding:[16,16]}); }catch(e){}
     drawBoroLabels();
-    drawScale(present);
+    drawScale();
     var count=Object.keys(cfg.data).length;
     $('bnote').textContent=count+' '+(lens==='cd'?'community districts':(lens==='cc'?'council districts':'boroughs'));
     var want=selectedKey&&cfg.data[selectedKey]?selectedKey:(lens==='cd'?'BKCB6':(lens==='cc'?'39':'Brooklyn'));
@@ -326,7 +322,7 @@
     b.addEventListener('click',function(){
       view=this.getAttribute('data-view');
       document.querySelectorAll('[data-view]').forEach(function(x){x.classList.toggle('on',x===b);});
-      draw();
+      realKey=''; clearReal(); draw(); loadRealZoning();
     });
   });
   $('shareBtn').addEventListener('click',function(){
@@ -367,7 +363,7 @@
   function clearReal(){ if(realLayer){ map.removeLayer(realLayer); realLayer=null; } }
   function loadRealZoning(){
     var z=map.getZoom();
-    if(z<12){ clearReal(); $('zoomnote').textContent='Zoom in to see the actual zoning boundaries'; return; }
+    if(z<11){ clearReal(); $('zoomnote').textContent='Zoom in to load the boundaries'; return; }
     $('zoomnote').textContent='';
     var b=map.getBounds();
     var key=view+'|'+z+'|'+b.getSouth().toFixed(3)+b.getWest().toFixed(3)+b.getNorth().toFixed(3)+b.getEast().toFixed(3);
@@ -408,7 +404,6 @@
     }).catch(function(){ realBusy=false; $('zoomnote').textContent='Boundaries could not load here'; });
   }
   map.on('moveend zoomend',loadRealZoning);
-  map.on('zoomend',function(){ if(layer){ try{ layer.setStyle(function(f){ return {fillOpacity:map.getZoom()>=12?0:0.42}; }); }catch(e){} } });
 
   /* ---- address search and pin drop ---- */
   var pin=null, CM=null;
@@ -439,10 +434,6 @@
     }
     return walk(polys);
   }
-  function fadeForPin(on){
-    if(!layer) return;
-    try{ layer.setStyle(function(){ return {fillOpacity:on?0.16:0.42}; }); }catch(e){}
-  }
   function dropPin(latlng,label){
     if(pin) map.removeLayer(pin);
     pin=L.marker(latlng,{title:label||''}).addTo(map);
@@ -459,9 +450,9 @@
       '<div class="hint">The map below is showing that area. Tap anywhere else to move the pin.</div></div>';
     // select whichever area the pin landed in, under the current lens
     var want = lens==='cd'?cdKey : (lens==='cc'?ccKey : (lens==='boro'?boroOf(cdKey||''):null));
-    if(want){ selectedKey=want; draw(); fadeForPin(true); }
+    if(want){ selectedKey=want; draw(); }
     map.setView(latlng, Math.max(map.getZoom(),15));
-    fadeForPin(true);
+
   }
   map.on('click',function(e){ dropPin(e.latlng,'Dropped pin'); });
 
