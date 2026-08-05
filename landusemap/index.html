@@ -105,6 +105,19 @@
 
 .sec2b{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;padding:13px 14px 4px;background:#fff}
 .chartwrap2{position:relative;height:150px;padding:4px 12px 10px;background:#fff;border-bottom:1px solid var(--border)}
+
+.togglebar{background:#fff;border-bottom:1px solid var(--border);padding:10px 12px}
+.tbhead{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.tbl{flex:1;font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.tbmini{padding:5px 11px;border:1px solid var(--border);border-radius:16px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.71rem;font-weight:700;color:var(--navy);cursor:pointer}
+.tbmini:hover{background:#fff4ea;border-color:var(--orange)}
+#tbFilter{width:100%;padding:9px 11px;font-family:'DM Sans',sans-serif;font-size:.82rem;border:2px solid var(--border);border-radius:9px;color:var(--navy);margin-bottom:8px}
+#tbFilter:focus{outline:none;border-color:var(--navy2)}
+.togglelist{display:flex;gap:6px;flex-wrap:wrap;max-height:132px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.togglelist.hidden{display:none}
+.tg{padding:6px 12px;border:1.5px solid var(--border);border-radius:18px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:700;color:var(--navy);cursor:pointer;white-space:nowrap}
+.tg:hover{border-color:var(--orange)}
+.tg.on{color:#fff;border-color:transparent}
 </style>
 </head>
 <body>
@@ -141,6 +154,17 @@
     <span class="bnote" id="bnote">Loading&hellip;</span>
   </div>
   <div class="scale" id="scale"></div>
+  <div class="togglebar">
+    <div class="tbhead">
+      <span class="tbl" id="tbLabel"></span>
+      <button type="button" class="tbmini" id="selAll">All</button>
+      <button type="button" class="tbmini" id="selNone">None</button>
+      <button type="button" class="tbmini" id="tbToggle">Hide list</button>
+    </div>
+    <input id="tbFilter" type="search" placeholder="Filter&hellip;" autocomplete="off">
+    <div class="togglelist" id="toggleList"></div>
+  </div>
+
   <div class="maphold"><div id="map"></div><div class="zoomnote" id="zoomnote"></div></div>
 
   <div class="sharebar">
@@ -343,10 +367,10 @@
       '" style="font-size:.79rem;font-weight:700;color:#fff;background:#132D65;padding:9px 14px;border-radius:22px;text-decoration:none">Open this in the full dashboard &rarr;</a></div>';
     drawStack(order);
     $('readout').querySelectorAll('.x').forEach(function(el){
-      el.addEventListener('click',function(){ picked.splice(+this.getAttribute('data-i'),1); draw(); renderCompare(); });
+      el.addEventListener('click',function(){ picked.splice(+this.getAttribute('data-i'),1); draw(); renderCompare(); buildToggles(); });
     });
     var cs=$('clearSel');
-    if(cs) cs.addEventListener('click',function(){ picked=[]; draw(); renderCompare(); });
+    if(cs) cs.addEventListener('click',function(){ picked=[]; draw(); renderCompare(); buildToggles(); });
   }
   function clear(){ if(layer){map.removeLayer(layer);layer=null;} labels.forEach(function(m){map.removeLayer(m);}); labels=[]; }
 
@@ -404,7 +428,7 @@
             if(ii>-1) return {color:TONE[ii%TONE.length],weight:4,fillColor:TONE[ii%TONE.length],fillOpacity:.18};
             return {color:'#1f2a44',weight:2,fillColor:'#000',fillOpacity:0};
           });
-          renderCompare();
+          renderCompare(); buildToggles();
           fitPicked();
         });
       }
@@ -440,7 +464,8 @@
     b.addEventListener('click',function(){
       lens=this.getAttribute('data-lens');
       document.querySelectorAll('[data-lens]').forEach(function(x){x.classList.toggle('on',x===b);});
-      draw();
+      $('tbFilter').value='';
+      draw(); buildToggles(); renderCompare();
     });
   });
 
@@ -508,6 +533,56 @@
   }
   map.on('moveend zoomend',loadRealZoning);
 
+
+
+  /* ---- one toggle per area in the current lens ---- */
+  function lensKeys(){
+    if(lens==='city') return ['city'];
+    var d=D[lens]||{};
+    var k=Object.keys(d);
+    if(lens==='cc') k.sort(function(a,b){return (+a)-(+b);}); else k.sort();
+    return k;
+  }
+  function lensLabel(key){
+    if(lens==='city') return 'New York City';
+    if(lens==='cc'){ var m=CM&&CM[key]; return 'CD'+key+(m?' '+m.name.split(' ').slice(-1)[0]:''); }
+    return key;
+  }
+  function buildToggles(){
+    var keys=lensKeys();
+    var q=($('tbFilter').value||'').toLowerCase().trim();
+    var shown=keys.filter(function(k){ return !q || lensLabel(k).toLowerCase().indexOf(q)>-1 || String(k).toLowerCase().indexOf(q)>-1; });
+    $('tbLabel').textContent=keys.length+' '+(lens==='cd'?'community boards':(lens==='cc'?'council districts':(lens==='nb'?'neighborhoods':(lens==='boro'?'boroughs':'areas'))))+
+      ' \u00b7 '+picked.filter(function(p){return p.lvl===lens;}).length+' on';
+    $('toggleList').innerHTML=shown.map(function(k){
+      var i=pIdx(lens,k);
+      var on=i>-1;
+      return '<button type="button" class="tg'+(on?' on':'')+'" data-k="'+esc(k)+'"'+
+        (on?' style="background:'+TONE[i%TONE.length]+'"':'')+'>'+esc(lensLabel(k))+'</button>';
+    }).join('')||'<span class="empty2" style="font-family:DM Mono,monospace;font-size:.72rem;color:#9ca3af">Nothing matches</span>';
+    $('toggleList').querySelectorAll('.tg').forEach(function(b){
+      b.addEventListener('click',function(){
+        var k=this.getAttribute('data-k');
+        togglePick(lens,k,lensLabel(k));
+        draw(); renderCompare(); buildToggles();
+      });
+    });
+  }
+  $('tbFilter').addEventListener('input',buildToggles);
+  $('selAll').addEventListener('click',function(){
+    var keys=lensKeys();
+    keys.slice(0,8).forEach(function(k){ if(pIdx(lens,k)<0 && picked.length<8) picked.push({lvl:lens,key:k,name:lensLabel(k)}); });
+    draw(); renderCompare(); buildToggles();
+  });
+  $('selNone').addEventListener('click',function(){
+    picked=picked.filter(function(p){ return p.lvl!==lens; });
+    draw(); renderCompare(); buildToggles();
+  });
+  $('tbToggle').addEventListener('click',function(){
+    var hid=$('toggleList').classList.toggle('hidden');
+    $('tbFilter').style.display=hid?'none':'';
+    this.textContent=hid?'Show list':'Hide list';
+  });
 
   /* ---- isolate: dim everything outside what is highlighted ---- */
   map.createPane('mask'); map.getPane('mask').style.zIndex=435; map.getPane('mask').style.pointerEvents='none';
@@ -667,7 +742,7 @@
       a[3].features.forEach(function(f){ f.properties.boro=f.properties.boro||f.properties.code; });
       GEO.boro=a[3];
     }
-    draw();
+    draw(); buildToggles(); renderCompare();
   }).catch(function(){ $('bnote').textContent='Data could not load.'; });
 })();
 </script>
