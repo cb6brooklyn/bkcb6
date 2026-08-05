@@ -125,6 +125,20 @@
 .tgh span{color:var(--muted);font-weight:700}
 .tgrow{display:flex;gap:5px;flex-wrap:wrap}
 .tbl b{color:var(--navy)}
+
+.togglebar{background:#fff;border-bottom:1px solid var(--border);padding:0}
+.togglebar>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:11px 14px}
+.togglebar>summary::-webkit-details-marker{display:none}
+.togglebar>summary:hover{background:#fff4ea}
+.tbcv{font-size:0;margin-left:auto;flex:none}
+.togglebar[open] .tbcv:before{content:'close \25B4';font-size:.62rem;color:var(--orange);font-family:'DM Mono',monospace;font-weight:700}
+.togglebar:not([open]) .tbcv:before{content:'pick areas \25BE';font-size:.62rem;color:var(--orange);font-family:'DM Mono',monospace;font-weight:700}
+.tbbody{padding:0 12px 12px}
+.tbstatus{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:0}
+.tbstatus:not(:empty){padding:9px 14px;background:var(--off);border-bottom:1px solid var(--border)}
+.tbstatus .sc{display:inline-flex;align-items:center;gap:7px;padding:5px 8px 5px 11px;border-radius:18px;font-size:.74rem;font-weight:700;color:#fff}
+.tbstatus .sc .x{cursor:pointer;font-size:.95rem;line-height:1;opacity:.75;padding:0 2px}
+.tbstatus .allbtn{padding:5px 12px;border:1px solid var(--border);border-radius:18px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:var(--navy);cursor:pointer}
 </style>
 </head>
 <body>
@@ -161,14 +175,14 @@
     <span class="bnote" id="bnote">Loading&hellip;</span>
   </div>
   <div class="scale" id="scale"></div>
-  <div class="togglebar">
-    <div class="tbhead">
-      <span class="tbl" id="tbLabel"></span>
-      <button type="button" class="tbmini" id="selAll">Show all</button>
+  <details class="togglebar" id="tbBox">
+    <summary class="tbhead"><span class="tbl" id="tbLabel"></span><span class="tbcv"></span></summary>
+    <div class="tbbody">
+      <input id="tbFilter" type="search" placeholder="Filter&hellip;" autocomplete="off">
+      <div class="togglelist" id="toggleList"></div>
     </div>
-    <input id="tbFilter" type="search" placeholder="Filter&hellip;" autocomplete="off">
-    <div class="togglelist" id="toggleList"></div>
-  </div>
+  </details>
+  <div class="tbstatus" id="tbStatus"></div>
 
   <div class="maphold"><div id="map"></div><div class="zoomnote" id="zoomnote"></div></div>
 
@@ -591,12 +605,25 @@
         draw(); renderCompare(); buildToggles();
       });
     });
+    buildStatus();
+  }
+  function buildStatus(){
+    var mine=picked.filter(function(p){return p.lvl===lens;});
+    if(showAll||!mine.length){ $('tbStatus').innerHTML=''; return; }
+    $('tbStatus').innerHTML=mine.map(function(p){
+      var i=pIdx(p.lvl,p.key);
+      return '<span class="sc" style="background:'+TONE[i%TONE.length]+'">'+esc(p.name||p.key)+'<span class="x" data-k="'+esc(p.key)+'">&times;</span></span>';
+    }).join('')+'<button type="button" class="allbtn" id="selAll">Show all</button>';
+    $('tbStatus').querySelectorAll('.x').forEach(function(el){
+      el.addEventListener('click',function(){
+        togglePick(lens,this.getAttribute('data-k'));
+        draw(); renderCompare(); buildToggles();
+      });
+    });
+    var sa=$('selAll');
+    if(sa) sa.addEventListener('click',function(){ picked=[]; showAll=true; draw(); renderCompare(); buildToggles(); });
   }
   $('tbFilter').addEventListener('input',buildToggles);
-  $('selAll').addEventListener('click',function(){
-    picked=[]; showAll=true;
-    draw(); renderCompare(); buildToggles();
-  });
 
   /* ---- isolate: dim everything outside what is highlighted ---- */
   map.createPane('mask'); map.getPane('mask').style.zIndex=435; map.getPane('mask').style.pointerEvents='none';
