@@ -40,6 +40,18 @@
 .ztbl2 th,.ztbl2 td{padding:6px 8px;font-size:.75rem;text-align:right;border-bottom:1px solid #f0ede8;font-family:'DM Mono',monospace}
 .ztbl2 th{font-size:.5rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--off)}
 .ztbl2 th:first-child,.ztbl2 td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700}
+
+.catsel{padding:7px 11px;font-family:'DM Sans',sans-serif;font-size:.79rem;font-weight:700;border:2px solid rgba(255,255,255,.32);border-radius:20px;background:var(--navy2);color:#fff;cursor:pointer;max-width:230px}
+.scale{display:flex;align-items:center;gap:0;padding:9px 14px;background:var(--navy);border-bottom:2px solid var(--orange);flex-wrap:wrap}
+.scale .l{font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6);font-weight:700;width:100%;margin-bottom:5px}
+.scale .st{flex:1;min-width:44px;text-align:center;padding:5px 3px;font-family:'DM Mono',monospace;font-size:.6rem;font-weight:700;color:#fff}
+.scale .st:first-of-type{border-radius:5px 0 0 5px}
+.scale .st:last-of-type{border-radius:0 5px 5px 0}
+.sharebar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--off);border-bottom:1px solid var(--border)}
+.sharebtn{padding:9px 15px;background:var(--navy2);color:#fff;border:none;border-radius:22px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer}
+.sharebtn:hover{background:var(--orange)}
+.sharemsg{font-family:'DM Mono',monospace;font-size:.68rem;color:#2e6b30;font-weight:700}
+.selected{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--orange);font-weight:700}
 </style>
 </head>
 <body>
@@ -51,13 +63,18 @@
   </div>
 
   <div class="intro">
-    <b>Two different questions.</b> Land use is what is on the ground today. Zoning is what the rules allow. They are often not the same, and where they differ is usually where the argument is. Each area is coloured by whichever category covers the most of its lot area. Tap any area for the full breakdown.
+    <b>Two different questions.</b> Land use is what is on the ground today. Zoning is what the rules allow. They are often not the same, and where they differ is usually where the argument is. Pick a category and the map shades every area by how much of its lot area that category covers. Darker means more. No area is entirely one thing, so the number matters more than the colour. Tap any area for the full breakdown, and use the link button to share exactly what you are looking at.
   </div>
 
   <div class="bar top0">
     <span class="bl">Show</span>
     <button class="btn on" data-view="lu" type="button">Land use</button>
     <button class="btn" data-view="zn" type="button">Zoning</button>
+  </div>
+  <div class="bar">
+    <span class="bl">Colour by</span>
+    <select id="catSel" class="catsel"></select>
+    <span class="bnote" id="catnote"></span>
   </div>
   <div class="bar">
     <span class="bl">By</span>
@@ -67,8 +84,13 @@
     <button class="btn" data-lens="city" type="button">Citywide</button>
     <span class="bnote" id="bnote">Loading&hellip;</span>
   </div>
-  <div class="legend2" id="legend2"></div>
+  <div class="scale" id="scale"></div>
   <div class="maphold"><div id="map"></div></div>
+
+  <div class="sharebar">
+    <button type="button" class="sharebtn" id="shareBtn">Copy link to this view</button>
+    <span class="sharemsg" id="shareMsg"></span>
+  </div>
 
   <div class="readout" id="readout"></div>
 
@@ -85,7 +107,18 @@
   var $=function(i){return document.getElementById(i);};
   var n=function(v){return Number(Math.round(v)).toLocaleString('en-US');};
   function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-  var D=null, GEO={}, view='lu', lens='cd', map, layer=null, labels=[];
+  var D=null, GEO={}, view='lu', lens='cd', cat='01', selectedKey=null, map, layer=null, labels=[];
+  function syncUrl(){
+    var q='?view='+view+'&by='+lens+'&cat='+encodeURIComponent(cat)+(selectedKey?'&area='+encodeURIComponent(selectedKey):'');
+    try{ history.replaceState(null,'',location.pathname+q); }catch(e){}
+  }
+  function readUrl(){
+    var p=new URLSearchParams(location.search);
+    if(p.get('view')==='zn'||p.get('view')==='lu') view=p.get('view');
+    if(['cd','cc','boro','city'].indexOf(p.get('by'))>-1) lens=p.get('by');
+    if(p.get('cat')) cat=p.get('cat');
+    if(p.get('area')) selectedKey=p.get('area');
+  }
 
   map=L.map('map',{scrollWheelZoom:true,preferCanvas:true}).setView([40.70,-73.95],10);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:17,attribution:'&copy; CARTO'}).addTo(map);
@@ -93,10 +126,49 @@
   function pal(){ return view==='lu' ? D.landuse_colors : D.zone_family_colors; }
   function lab(k){ return view==='lu' ? (D.landuse_labels[k]||k) : k; }
   function buckets(rec){ return view==='lu' ? rec.lu : rec.zfam; }
-  function dominant(rec){
-    var b=buckets(rec)||{}, best=null, tot=0;
-    Object.keys(b).forEach(function(k){ tot+=b[k].area; if(!best||b[k].area>b[best].area) best=k; });
-    return {k:best,pct:best&&tot?b[best].area/tot*100:0,tot:tot};
+  function cats(){
+    var set={};
+    ['cd','cc','boro'].forEach(function(g){
+      Object.keys(D[g]||{}).forEach(function(k){
+        var b=buckets(D[g][k])||{};
+        Object.keys(b).forEach(function(c){ set[c]=(set[c]||0)+b[c].area; });
+      });
+    });
+    return Object.keys(set).sort(function(a,b){return set[b]-set[a];});
+  }
+  function share(rec,c){
+    var b=buckets(rec)||{}, tot=0;
+    Object.keys(b).forEach(function(k){ tot+=b[k].area; });
+    return (tot && b[c]) ? b[c].area/tot*100 : 0;
+  }
+  // a light to dark ramp of the category's own colour, so intensity means share
+  function ramp(base,t){
+    var m=/^#(..)(..)(..)$/.exec(base);
+    if(!m) return base;
+    var r=parseInt(m[1],16),g=parseInt(m[2],16),b=parseInt(m[3],16);
+    var f=0.88-(0.88*t);
+    r=Math.round(r+(255-r)*f); g=Math.round(g+(255-g)*f); b=Math.round(b+(255-b)*f);
+    return 'rgb('+r+','+g+','+b+')';
+  }
+  var BANDS=[0,10,25,40,60,100];
+  function bandOf(p){
+    for(var i=BANDS.length-1;i>0;i--){ if(p>=BANDS[i-1]) return i-1; }
+    return 0;
+  }
+  function colourFor(p){
+    var base=(pal()[cat]||'#9ca3af');
+    if(p<=0) return '#eeece7';
+    return ramp(base, Math.min(p,BANDS[BANDS.length-2])/BANDS[BANDS.length-2]);
+  }
+  function drawScale(){
+    var base=pal()[cat]||'#9ca3af';
+    var out='<span class="l">Share of lot area that is '+esc(lab(cat)).toLowerCase()+'</span>';
+    for(var i=0;i<BANDS.length-1;i++){
+      var mid=(BANDS[i]+BANDS[i+1])/2;
+      out+='<span class="st" style="background:'+colourFor(mid||1)+';color:'+(mid>35?'#fff':'#0d1b4b')+'">'+
+        BANDS[i]+(i===BANDS.length-2?'%+':' to '+BANDS[i+1]+'%')+'</span>';
+    }
+    $('scale').innerHTML=out;
   }
   function rows(rec){
     var b=buckets(rec)||{}, tot=0;
@@ -108,106 +180,121 @@
   function bars(rs){
     var P=pal();
     return rs.map(function(r){
-      return '<div class="bar2"><span class="sw" style="background:'+(P[r.k]||'#9ca3af')+'"></span>'+
-        '<span class="nm">'+esc(r.label)+'</span>'+
+      var on=(r.k===cat);
+      return '<div class="bar2"'+(on?' style="background:#fff8f2;border-radius:6px;padding-left:5px;padding-right:5px"':'')+'>'+
+        '<span class="sw" style="background:'+(P[r.k]||'#9ca3af')+'"></span>'+
+        '<span class="nm"'+(on?' style="color:#f47920"':'')+'>'+esc(r.label)+'</span>'+
         '<span class="br"><i style="width:'+r.pct.toFixed(1)+'%;background:'+(P[r.k]||'#9ca3af')+'"></i></span>'+
         '<span class="pc">'+r.pct.toFixed(1)+'%</span></div>';
     }).join('');
   }
-  function showReadout(name,sub,rec){
+  function showReadout(name,sub,rec,key){
+    selectedKey=key||null;
     var rs=rows(rec);
     var zd=Object.keys(rec.zone||{}).map(function(z){return {z:z,a:rec.zone[z].area,l:rec.zone[z].lots};})
       .sort(function(a,b){return b.a-a.a;});
     var ztot=zd.reduce(function(t,r){return t+r.a;},0);
-    var top=rs[0];
+    var top=rs[0], sel=rs.filter(function(r){return r.k===cat;})[0];
     var note = view==='lu'
-      ? ('The largest single use is '+top.label.toLowerCase()+' at '+top.pct.toFixed(1)+'% of lot area, across '+n(top.lots)+' lots. '+
+      ? ((sel?esc(lab(cat))+' covers '+sel.pct.toFixed(1)+'% of lot area here. ':'')+
+         'The largest single use is '+top.label.toLowerCase()+' at '+top.pct.toFixed(1)+'%, across '+n(top.lots)+' lots. '+
          n(rec.lots)+' lots in total, holding '+n(rec.units)+' homes.')
-      : ('The most common zoning family is '+top.label.toLowerCase()+' at '+top.pct.toFixed(1)+'% of zoned lot area.'+
-         (zd.length?' The single most common district is '+zd[0].z+', covering '+(zd[0].a/ztot*100).toFixed(1)+'% across '+n(zd[0].l)+' lots.':''));
+      : ((sel?esc(lab(cat))+' zoning covers '+sel.pct.toFixed(1)+'% of zoned lot area here. ':'')+
+         'The largest family is '+top.label.toLowerCase()+' at '+top.pct.toFixed(1)+'%.'+
+         (zd.length?' The most common single district is '+zd[0].z+', at '+(zd[0].a/ztot*100).toFixed(1)+'%.':''));
     $('readout').innerHTML='<div class="rh2"><div class="n">'+esc(name)+'</div><div class="s">'+esc(sub)+'</div></div>'+
-      '<div class="rb2">'+bars(rs)+'<div class="rnote">'+esc(note)+'</div>'+
+      '<div class="rb2">'+bars(rs)+'<div class="rnote">'+note+'</div>'+
       (view==='zn'&&zd.length?('<div style="overflow-x:auto"><table class="ztbl2"><tr><th>Zoning district</th><th>Lots</th><th>Share</th></tr>'+
         zd.slice(0,12).map(function(r){return '<tr><td>'+esc(r.z)+'</td><td>'+n(r.l)+'</td><td>'+(r.a/ztot*100).toFixed(1)+'%</td></tr>';}).join('')+
         '</table></div>'):'')+
       '</div>';
-  }
-  function legend(present){
-    var P=pal();
-    var keys=Object.keys(present).sort(function(a,b){return present[b]-present[a];});
-    $('legend2').innerHTML='<span class="l">'+(view==='lu'?'Largest land use in each area':'Largest zoning family in each area')+'</span>'+
-      keys.map(function(k){
-        return '<span class="i"><span class="sw" style="background:'+(P[k]||'#9ca3af')+'"></span>'+esc(lab(k))+' ('+present[k]+')</span>';
-      }).join('');
+    syncUrl();
   }
   function clear(){ if(layer){map.removeLayer(layer);layer=null;} labels.forEach(function(m){map.removeLayer(m);}); labels=[]; }
 
-  function drawCity(){
-    clear();
-    var f=GEO.boro;
-    var P=pal();
-    var rec=D.city, dom=dominant(rec);
-    layer=L.geoJSON(f,{style:function(){return {color:'#fff',weight:1.5,fillColor:P[dom.k]||'#9ca3af',fillOpacity:.75};}}).addTo(map);
-    try{ map.fitBounds(layer.getBounds(),{padding:[16,16]}); }catch(e){}
-    var present={}; present[dom.k]=1; legend(present);
-    $('bnote').textContent='All five boroughs together';
-    showReadout('New York City','Citywide, all five boroughs',rec);
-  }
   function draw(){
-    if(lens==='city') return drawCity();
+    drawScale();
     clear();
+    if(lens==='city'){
+      var rec=D.city;
+      layer=L.geoJSON(GEO.boro,{style:function(){return {color:'#fff',weight:1.5,fillColor:colourFor(share(rec,cat)),fillOpacity:.85};}}).addTo(map);
+      try{ map.fitBounds(layer.getBounds(),{padding:[16,16]}); }catch(e){}
+      $('bnote').textContent='All five boroughs together';
+      showReadout('New York City','Citywide',rec,'city');
+      return;
+    }
     var cfg={
-      cd:{geo:GEO.cd,key:function(p){return p.cb_code;},data:D.cd,
-          name:function(p){return p.cb_code;},sub:'Community district'},
-      cc:{geo:GEO.cc,key:function(p){return String(p.cc);},data:D.cc,
-          name:function(p){return 'Council District '+p.cc;},sub:'Council district'},
-      boro:{geo:GEO.boro,key:function(p){return p.boro;},data:D.boro,
-          name:function(p){return p.boro;},sub:'Borough'}
+      cd:{geo:GEO.cd,key:function(p){return p.cb_code;},data:D.cd,name:function(p){return p.cb_code;},sub:'Community district'},
+      cc:{geo:GEO.cc,key:function(p){return String(p.cc);},data:D.cc,name:function(p){return 'Council District '+p.cc;},sub:'Council district'},
+      boro:{geo:GEO.boro,key:function(p){return p.boro;},data:D.boro,name:function(p){return p.boro;},sub:'Borough'}
     }[lens];
     if(!cfg||!cfg.geo){ $('bnote').textContent='Boundaries could not load.'; return; }
-    var P=pal(), present={};
+    var vals=[];
     layer=L.geoJSON(cfg.geo,{
       style:function(f){
         var rec=cfg.data[cfg.key(f.properties)];
-        if(!rec) return {color:'#fff',weight:1,fillColor:'#e8e6e1',fillOpacity:.3};
-        var d=dominant(rec);
-        present[d.k]=(present[d.k]||0)+1;
-        return {color:'#fff',weight:1.2,fillColor:P[d.k]||'#9ca3af',fillOpacity:.78};
+        if(!rec) return {color:'#fff',weight:1,fillColor:'#eeece7',fillOpacity:.4};
+        var p=share(rec,cat); vals.push(p);
+        var isSel=(selectedKey===cfg.key(f.properties));
+        return {color:isSel?'#0d1b4b':'#fff',weight:isSel?3:1.2,fillColor:colourFor(p),fillOpacity:.85};
       },
       onEachFeature:function(f,l){
-        var p=f.properties, rec=cfg.data[cfg.key(p)];
+        var p=f.properties, key=cfg.key(p), rec=cfg.data[key];
         if(!rec){ l.bindTooltip('No data',{sticky:true}); return; }
-        var d=dominant(rec), rs=rows(rec).slice(0,4);
+        var pc=share(rec,cat), rs=rows(rec).slice(0,3);
         l.bindTooltip('<div style="font-family:DM Sans,sans-serif;min-width:190px">'+
           '<div style="font-weight:800;font-size:.88rem;color:#0d1b4b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:5px">'+esc(cfg.name(p))+'</div>'+
+          '<div style="font-size:.95rem;font-weight:800;color:#0d1b4b;font-family:DM Mono,monospace">'+pc.toFixed(1)+'%</div>'+
+          '<div style="font-size:.72rem;color:#f47920;font-weight:700;margin-bottom:5px">'+esc(lab(cat))+'</div>'+
           rs.map(function(r){
-            return '<div style="display:flex;justify-content:space-between;gap:14px;padding:1px 0;font-size:.74rem">'+
-              '<span style="color:#555">'+esc(r.label)+'</span><span style="font-family:DM Mono,monospace;font-weight:700;color:#0d1b4b">'+r.pct.toFixed(1)+'%</span></div>';
+            return '<div style="display:flex;justify-content:space-between;gap:14px;padding:1px 0;font-size:.72rem">'+
+              '<span style="color:#555">'+esc(r.label)+'</span><span style="font-family:DM Mono,monospace;color:#0d1b4b">'+r.pct.toFixed(1)+'%</span></div>';
           }).join('')+
-          '<div style="font-size:.65rem;color:#888;margin-top:5px;border-top:1px solid #eee;padding-top:4px">Tap for the full breakdown</div></div>',{sticky:true,opacity:1});
+          '<div style="font-size:.65rem;color:#888;margin-top:5px;border-top:1px solid #eee;padding-top:4px">Tap for everything</div></div>',{sticky:true,opacity:1});
         l.on('mouseover',function(){ l.setStyle({weight:3,color:'#333'}); if(l.bringToFront) l.bringToFront(); });
         l.on('mouseout',function(){ layer.resetStyle(l); });
-        l.on('click',function(){ showReadout(cfg.name(p),cfg.sub,rec); });
+        l.on('click',function(){ showReadout(cfg.name(p),cfg.sub,rec,key); layer.resetStyle(); l.setStyle({color:'#0d1b4b',weight:3}); });
       }
     }).addTo(map);
     try{ map.fitBounds(layer.getBounds(),{padding:[16,16]}); }catch(e){}
-    legend(present);
     var count=Object.keys(cfg.data).length;
-    $('bnote').textContent=count+' '+(lens==='cd'?'community districts':(lens==='cc'?'council districts':'boroughs'));
-    var firstKey=lens==='cd'?'BKCB6':(lens==='cc'?'39':'Brooklyn');
-    if(cfg.data[firstKey]) showReadout(lens==='cd'?'BKCB6':(lens==='cc'?'Council District 39':'Brooklyn'),cfg.sub,cfg.data[firstKey]);
+    var hi=vals.length?Math.max.apply(null,vals):0, lo=vals.length?Math.min.apply(null,vals):0;
+    $('bnote').textContent=count+' areas \u00b7 '+lo.toFixed(0)+'% to '+hi.toFixed(0)+'%';
+    var want=selectedKey&&cfg.data[selectedKey]?selectedKey:(lens==='cd'?'BKCB6':(lens==='cc'?'39':'Brooklyn'));
+    if(cfg.data[want]){
+      var nm = lens==='cd'?want:(lens==='cc'?'Council District '+want:want);
+      showReadout(nm,cfg.sub,cfg.data[want],want);
+    }
   }
 
+  function buildCats(){
+    var list=cats();
+    if(list.indexOf(cat)<0) cat=list[0];
+    $('catSel').innerHTML=list.map(function(c){
+      return '<option value="'+esc(c)+'"'+(c===cat?' selected':'')+'>'+esc(lab(c))+'</option>';
+    }).join('');
+    $('catnote').textContent='Darker means a bigger share of that area';
+  }
+  $('catSel').addEventListener('change',function(){ cat=this.value; draw(); });
   document.querySelectorAll('[data-view]').forEach(function(b){
     b.addEventListener('click',function(){
       view=this.getAttribute('data-view');
       document.querySelectorAll('[data-view]').forEach(function(x){x.classList.toggle('on',x===b);});
-      draw();
+      cat=null; buildCats(); draw();
     });
+  });
+  $('shareBtn').addEventListener('click',function(){
+    syncUrl();
+    var url=location.href;
+    function done(){ $('shareMsg').textContent='Link copied'; setTimeout(function(){$('shareMsg').textContent='';},2200); }
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(done).catch(function(){ $('shareMsg').textContent=url; });
+    } else { $('shareMsg').textContent=url; }
   });
   document.querySelectorAll('[data-lens]').forEach(function(b){
     b.addEventListener('click',function(){
       lens=this.getAttribute('data-lens');
+      selectedKey=null;
       document.querySelectorAll('[data-lens]').forEach(function(x){x.classList.toggle('on',x===b);});
       draw();
     });
@@ -220,10 +307,14 @@
     fetch('/data/borough-rents.geojson').then(function(r){return r.json();}).catch(function(){return null;})
   ]).then(function(a){
     D=a[0]; GEO.cd=a[1]; GEO.cc=a[2];
+    readUrl();
+    document.querySelectorAll('[data-view]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-view')===view);});
+    document.querySelectorAll('[data-lens]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-lens')===lens);});
     if(a[3]){
       a[3].features.forEach(function(f){ f.properties.boro=f.properties.boro||f.properties.code; });
       GEO.boro=a[3];
     }
+    buildCats();
     draw();
   }).catch(function(){ $('bnote').textContent='Data could not load.'; });
 })();
