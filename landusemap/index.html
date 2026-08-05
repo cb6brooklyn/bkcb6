@@ -73,6 +73,9 @@
 
 .boro-lab{background:none!important;border:none!important;box-shadow:none!important;pointer-events:none;display:flex;align-items:center;justify-content:center}
 .boro-lab span{font-family:'DM Sans',sans-serif;font-weight:900;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#0d1b4b;background:rgba(255,255,255,.82);padding:2px 8px;border-radius:11px;white-space:nowrap;box-shadow:0 1px 3px rgba(13,27,75,.18)}
+
+.zoomnote{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;z-index:640;background:var(--navy);color:#fff;padding:7px 14px;border-radius:20px;font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:700;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.zoomnote:empty{display:none}
 </style>
 </head>
 <body>
@@ -98,7 +101,6 @@
     <span class="bl">Show</span>
     <button class="btn on" data-view="lu" type="button">Land use</button>
     <button class="btn" data-view="zn" type="button">Zoning</button>
-    <button class="btn on" id="parksBtn" type="button">Parks</button>
   </div>
   <div class="bar">
     <span class="bl">By</span>
@@ -109,7 +111,7 @@
     <span class="bnote" id="bnote">Loading&hellip;</span>
   </div>
   <div class="scale" id="scale"></div>
-  <div class="maphold"><div id="map"></div></div>
+  <div class="maphold"><div id="map"></div><div class="zoomnote" id="zoomnote"></div></div>
 
   <div class="sharebar">
     <button type="button" class="sharebtn" id="shareBtn">Copy link to this view</button>
@@ -265,7 +267,7 @@
         var br=D.boro[f.properties.boro];
         var d=br?dominant(br):{k:null};
         if(d.k) pres[d.k]=(pres[d.k]||0)+1;
-        return {color:'#7a7570',weight:1.5,fillColor:(pal()[d.k]||'#9ca3af'),fillOpacity:.42};
+        return {color:'#5b5651',weight:1.5,fillColor:(pal()[d.k]||'#9ca3af'),fillOpacity:map.getZoom()>=12?0:0.42};
       }}).addTo(map);
       drawScale(pres);
       try{ map.fitBounds(layer.getBounds(),{padding:[16,16]}); }catch(e){}
@@ -288,7 +290,7 @@
         var d=dominant(rec);
         present[d.k]=(present[d.k]||0)+1;
         var isSel=(selectedKey===cfg.key(f.properties));
-        return {color:isSel?'#0d1b4b':'#7a7570',weight:isSel?3:1,fillColor:(pal()[d.k]||'#9ca3af'),fillOpacity:isSel?.5:.42};
+        return {color:isSel?'#0d1b4b':'#5b5651',weight:isSel?3.5:1.4,fill:true,fillColor:(pal()[d.k]||'#9ca3af'),fillOpacity:map.getZoom()>=12?0:0.42};
       },
       onEachFeature:function(f,l){
         var p=f.properties, key=cfg.key(p), rec=cfg.data[key];
@@ -327,11 +329,6 @@
       draw();
     });
   });
-  $('parksBtn').addEventListener('click',function(){
-    var on=this.classList.toggle('on');
-    if(!parksLayer) return;
-    if(on) parksLayer.addTo(map); else map.removeLayer(parksLayer);
-  });
   $('shareBtn').addEventListener('click',function(){
     syncUrl();
     var url=location.href;
@@ -349,6 +346,69 @@
     });
   });
 
+
+
+  /* ---- the actual zoning and land use polygons, loaded for whatever is on screen ---- */
+  map.createPane('realzone'); map.getPane('realzone').style.zIndex=420;
+  var realLayer=null, realBusy=false, realKey='';
+  var ZFILL={R:'#f2994a',C:'#2563eb',M:'#9b51e0',P:'#27ae60',B:'#56ccf2','?':'#9ca3af'};
+  var ZNAME={R:'Residential',C:'Commercial',M:'Manufacturing',P:'Parkland',B:'Special district','?':'Other'};
+  function zfam(z){
+    if(!z) return '?';
+    var t=String(z).trim().toUpperCase();
+    if(t.indexOf('PARK')===0) return 'P';
+    var c=t.charAt(0);
+    if(c==='R'||c==='C'||c==='M') return c;
+    if(c==='B') return 'B';
+    return '?';
+  }
+  var LUFILL={'01':'#f2c94c','02':'#f2994a','03':'#eb5757','04':'#bb6bd9','05':'#2f80ed','06':'#9b51e0',
+    '07':'#6b7280','08':'#56ccf2','09':'#27ae60','10':'#a0a0a0','11':'#d9d9d9'};
+  function clearReal(){ if(realLayer){ map.removeLayer(realLayer); realLayer=null; } }
+  function loadRealZoning(){
+    var z=map.getZoom();
+    if(z<12){ clearReal(); $('zoomnote').textContent='Zoom in to see the actual zoning boundaries'; return; }
+    $('zoomnote').textContent='';
+    var b=map.getBounds();
+    var key=view+'|'+z+'|'+b.getSouth().toFixed(3)+b.getWest().toFixed(3)+b.getNorth().toFixed(3)+b.getEast().toFixed(3);
+    if(key===realKey||realBusy) return;
+    realKey=key; realBusy=true;
+    var env={xmin:b.getWest(),ymin:b.getSouth(),xmax:b.getEast(),ymax:b.getNorth(),spatialReference:{wkid:4326}};
+    var svc = view==='zn'
+      ? 'nyzd/FeatureServer/0/query?where=1%3D1&outFields=ZONEDIST'
+      : 'MAPPLUTO/FeatureServer/0/query?where=1%3D1&outFields=LandUse,Address,ZoneDist1';
+    var url='https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/'+svc+
+      '&returnGeometry=true&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(env))+
+      '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&f=geojson&resultRecordCount='+(view==='zn'?1200:3000);
+    fetch(url).then(function(r){return r.json();}).then(function(d){
+      realBusy=false;
+      if(!d||!d.features||!d.features.length){ clearReal(); return; }
+      clearReal();
+      realLayer=L.geoJSON(d,{pane:'realzone',
+        style:function(f){
+          var p=f.properties||{};
+          if(view==='zn'){
+            var k=zfam(p.ZONEDIST);
+            return {color:'#fff',weight:.35,fillColor:ZFILL[k],fillOpacity:.72};
+          }
+          var lu=String(p.LandUse||'').padStart(2,'0');
+          return {color:'#fff',weight:.2,fillColor:LUFILL[lu]||'#e5e2db',fillOpacity:.72};
+        },
+        onEachFeature:function(f,l){
+          var p=f.properties||{};
+          if(view==='zn'){
+            var k=zfam(p.ZONEDIST);
+            l.bindTooltip('<b>'+esc(p.ZONEDIST||'')+'</b><br>'+ZNAME[k],{sticky:true});
+          } else {
+            var lu=String(p.LandUse||'').padStart(2,'0');
+            l.bindTooltip('<b>'+esc(p.Address||'')+'</b><br>'+esc(D.landuse_labels[lu]||'Unclassified')+
+              (p.ZoneDist1?'<br>Zoned '+esc(p.ZoneDist1):''),{sticky:true});
+          }
+        }}).addTo(map);
+    }).catch(function(){ realBusy=false; $('zoomnote').textContent='Boundaries could not load here'; });
+  }
+  map.on('moveend zoomend',loadRealZoning);
+  map.on('zoomend',function(){ if(layer){ try{ layer.setStyle(function(f){ return {fillOpacity:map.getZoom()>=12?0:0.42}; }); }catch(e){} } });
 
   /* ---- address search and pin drop ---- */
   var pin=null, CM=null;
@@ -451,6 +511,7 @@
   ]).then(function(a){
     D=a[0]; GEO.cd=a[1]; GEO.cc=a[2];
     loadParks();
+    setTimeout(loadRealZoning,400);
     if(a[4]&&a[4].members) CM=a[4].members;
     readUrl();
     document.querySelectorAll('[data-view]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-view')===view);});
