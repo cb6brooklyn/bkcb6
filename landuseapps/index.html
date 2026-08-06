@@ -24,6 +24,8 @@
 .kp .k{font-family:'DM Mono',monospace;font-size:.5rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700}
 .kp .v{font-family:'DM Mono',monospace;font-size:1.15rem;font-weight:900;color:var(--navy);margin-top:2px}
 .kp .d{font-size:.66rem;color:var(--muted);margin-top:1px;line-height:1.35}
+.kp.wide{flex:1 1 100%;background:#fbfaf8}
+.kp.wide .v{color:var(--orange)}
 .ctrl{background:#fff;padding:11px 12px;border-bottom:1px solid var(--border)}
 .ctrl input[type=search]{width:100%;padding:11px 12px;font-family:'DM Sans',sans-serif;font-size:.86rem;border:2px solid var(--navy2);border-radius:10px;color:var(--navy);margin-bottom:9px}
 .frow{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:7px}
@@ -493,6 +495,20 @@
       }}).addTo(map);
     $('mapnote').innerHTML='Shaded by how many of the <b>'+n(rows.length)+'</b> matching applications fall in each community district. Tap a district to filter to it.';
   }
+  function refreshKpis(){
+    var live=D.projects.filter(function(p){return LIVE[p.s];}).length;
+    var ulurp=D.projects.filter(function(p){return p.u;}).length;
+    var mih=D.projects.filter(function(p){return p.mih;}).length;
+    var eraLabel=(D.label||'in this view');
+    $('kpis').innerHTML=
+      '<div class="kp wide"><div class="k">Showing</div><div class="v">'+n(D.projects.length)+'</div>'+
+        '<div class="d">'+esc(eraLabel)+'</div></div>'+
+      '<div class="kp"><div class="k">Still moving</div><div class="v">'+n(live)+'</div><div class="d">active or on hold</div></div>'+
+      '<div class="kp"><div class="k">Finished</div><div class="v">'+n(D.projects.length-live)+'</div><div class="d">approved, withdrawn or terminated</div></div>'+
+      '<div class="kp"><div class="k">Of these, ULURP</div><div class="v">'+n(ulurp)+'</div><div class="d">went to full public review</div></div>'+
+      '<div class="kp"><div class="k">Of these, with MIH</div><div class="v">'+n(mih)+'</div><div class="d">mandatory affordable housing</div></div>'+
+      '<div class="kp"><div class="k">On record all time</div><div class="v">'+n(D.total_all_time)+'</div><div class="d">back to 1970, pick a period above</div></div>';
+  }
   function render(){
     shown=60;
     var rows=D.projects.filter(matches);
@@ -520,7 +536,7 @@
   function loadEra(key){
     if(key==='recent'){
       fetch('/data/zap-recent.json').then(function(r){return r.json();}).then(function(j){
-        D=j; $('eraNote').textContent=''; render();
+        D=j; $('eraNote').textContent=''; refreshKpis(); render();
       });
       return;
     }
@@ -530,9 +546,9 @@
     $('eraNote').textContent='Loading '+e.label+'\u2026';
     fetch(e.file).then(function(r){return r.json();}).then(function(j){
       cache[key]=j.projects;
-      D={projects:j.projects,total_all_time:IDX.total,note:IDX.note,source:IDX.source,generated:IDX.generated};
-      $('eraNote').textContent=e.label+' \u00b7 '+n(j.projects.length)+' applications';
-      render();
+      D={projects:j.projects,total_all_time:IDX.total,note:IDX.note,source:IDX.source,generated:IDX.generated,label:e.label};
+      $('eraNote').textContent='';
+      refreshKpis(); render();
     }).catch(function(){ $('eraNote').textContent='That period could not load.'; });
   }
   $('eraSel').addEventListener('change',function(){ st='all'; 
@@ -572,13 +588,7 @@
     var ulurp=D.projects.filter(function(p){return p.u;}).length;
     var mih=D.projects.filter(function(p){return p.mih;}).length;
     var maps=D.projects.filter(function(p){return /\bZM\b/.test(p.a||'');}).length;
-    $('kpis').innerHTML=
-      '<div class="kp"><div class="k">Active or on hold</div><div class="v">'+n(live)+'</div><div class="d">moving right now</div></div>'+
-      '<div class="kp"><div class="k">Since 2015</div><div class="v">'+n(D.projects.length-live)+'</div><div class="d">filed and resolved</div></div>'+
-      '<div class="kp"><div class="k">ULURP</div><div class="v">'+n(ulurp)+'</div><div class="d">full public review</div></div>'+
-      '<div class="kp"><div class="k">Map changes</div><div class="v">'+n(maps)+'</div><div class="d">rezone a district</div></div>'+
-      '<div class="kp"><div class="k">With MIH</div><div class="v">'+n(mih)+'</div><div class="d">mandatory affordable housing</div></div>'+
-      '<div class="kp"><div class="k">All time</div><div class="v">'+n(D.total_all_time)+'</div><div class="d">applications on record</div></div>';
+    refreshKpis();
     var boros=['Manhattan','Bronx','Brooklyn','Queens','Staten Island'];
     $('boroSel').innerHTML='<option value="">Any borough</option>'+boros.map(function(b){return '<option>'+b+'</option>';}).join('');
     var cbs=Object.keys((C&&C.cb)||{}).sort();
