@@ -138,6 +138,11 @@
 .proj.focused{background:#fff8f2;box-shadow:inset 4px 0 0 var(--orange)}
 
 .cover{margin-top:9px;padding:9px 11px;background:#fff8f2;border-left:3px solid var(--orange);border-radius:0 8px 8px 0;font-size:.78rem;line-height:1.55;color:#5a4632}
+
+.boroLbl{background:none;border:none}
+.boroLbl span{display:block;text-align:center;font-family:'DM Mono',monospace;font-size:.64rem;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:#4a4640;text-shadow:0 0 4px #fff,0 0 8px #fff,0 0 3px #fff;pointer-events:none;white-space:nowrap}
+#cbSel optgroup{font-family:'DM Mono',monospace;font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+#cbSel option{font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:700;color:var(--navy)}
 </style>
 </head>
 <body>
@@ -214,7 +219,7 @@
   var $=function(i){return document.getElementById(i);};
   var n=function(v){return Number(v||0).toLocaleString('en-US');};
   function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-  var D=null, C=null, GEO=null, CM=null, IDX=null, map, layer=null, shown=60;
+  var D=null, C=null, GEO=null, CM=null, IDX=null, map, layer=null, shown=60, boroLabels=[];
   var cache={};
   var st='Active', ty={ulurp:false,mih:false}, boro='', cbsel='', openId='';
   function stillOpen(p){ return p.s==='Active' || p.s==='On-Hold'; }
@@ -581,6 +586,14 @@
       if(hi===null) return lo+' or more';
       return lo===hi ? String(lo) : (lo+' to '+hi);
     }
+    if(boroLabels.length){ boroLabels.forEach(function(m){ map.removeLayer(m); }); boroLabels=[]; }
+    var BOROPT={Manhattan:[40.7808,-73.9665],Bronx:[40.8560,-73.8790],Brooklyn:[40.6480,-73.9500],
+                Queens:[40.7180,-73.8100],'Staten Island':[40.5720,-74.1450]};
+    Object.keys(BOROPT).forEach(function(b){
+      var m=L.marker(BOROPT[b],{interactive:false,keyboard:false,icon:L.divIcon({
+        className:'boroLbl',html:'<span>'+b+'</span>',iconSize:[110,18],iconAnchor:[55,9]})});
+      m.addTo(map); boroLabels.push(m);
+    });
     layer=L.geoJSON(GEO,{
       style:function(f){
         var v=tally[f.properties.cb_code]||0;
@@ -730,8 +743,22 @@
     refreshKpis();
     var boros=['Manhattan','Bronx','Brooklyn','Queens','Staten Island'];
     $('boroSel').innerHTML='<option value="">Any borough</option>'+boros.map(function(b){return '<option>'+b+'</option>';}).join('');
-    var cbs=Object.keys((C&&C.cb)||{}).sort();
-    $('cbSel').innerHTML='<option value="">Any community board</option>'+cbs.map(function(k){return '<option>'+k+'</option>';}).join('');
+    var BORO_OF={MN:'Manhattan',BX:'Bronx',BK:'Brooklyn',QN:'Queens',SI:'Staten Island'};
+    var cbs=Object.keys((C&&C.cb)||{});
+    var grouped={};
+    cbs.forEach(function(k){
+      var b=BORO_OF[k.slice(0,2)]||'Other';
+      (grouped[b]=grouped[b]||[]).push(k);
+    });
+    $('cbSel').innerHTML='<option value="">Any community board</option>'+
+      ['Manhattan','Bronx','Brooklyn','Queens','Staten Island','Other'].filter(function(b){return grouped[b];}).map(function(b){
+        var list=grouped[b].sort(function(x,y){
+          return (parseInt(x.replace(/\D/g,''),10)||0)-(parseInt(y.replace(/\D/g,''),10)||0);
+        });
+        return '<optgroup label="'+esc(b)+'">'+list.map(function(k){
+          return '<option value="'+esc(k)+'">'+esc(k)+'</option>';
+        }).join('')+'</optgroup>';
+      }).join('');
     if(boro) $('boroSel').value=boro;
     if(cbsel) $('cbSel').value=cbsel;
     if(urlEra && urlEra!=='recent'){ loadEra(urlEra); return; }
