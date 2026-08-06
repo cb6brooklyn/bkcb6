@@ -142,7 +142,8 @@
     <input id="q" type="search" placeholder="Search a project, an applicant or a ULURP number&hellip;" autocomplete="off">
     <div class="frow">
       <span class="flab">Status</span>
-      <button type="button" class="fb2 on" data-st="live">Active &amp; on hold</button>
+      <button type="button" class="fb2 on" data-st="Active">Active</button>
+      <button type="button" class="fb2" data-st="On-Hold">On hold</button>
       <button type="button" class="fb2" data-st="all">All</button>
       <button type="button" class="fb2" data-st="Complete">Complete</button>
       <button type="button" class="fb2" data-st="withdrawn">Withdrawn or terminated</button>
@@ -196,8 +197,8 @@
   function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   var D=null, C=null, GEO=null, CM=null, IDX=null, map, layer=null, shown=60;
   var cache={};
-  var st='live', ty={ulurp:false,mih:false}, boro='', cbsel='';
-  var LIVE={'Active':1,'On-Hold':1};
+  var st='Active', ty={ulurp:false,mih:false}, boro='', cbsel='';
+  function stillOpen(p){ return p.s==='Active' || p.s==='On-Hold'; }
 
   map=L.map('map',{scrollWheelZoom:true}).setView([40.70,-73.95],10);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:17,attribution:'&copy; CARTO'}).addTo(map);
@@ -353,7 +354,7 @@
         '<span class="vout '+cls(out)+'">'+esc(out)+'</span></div>';
     }).join('');
     var pending='';
-    if(/Active|On-Hold/i.test(p.s||'')){
+    if(stillOpen(p)){
       var seen=ms.map(function(m){return (m.n||'').toLowerCase();}).join(' ');
       var LEFT=[['Community board','community board review'],['Borough President','borough president review'],
                 ['City Planning Commission','city planning commission vote'],['City Council','city council review']];
@@ -417,7 +418,7 @@
   function ulurpBar(p){
     var at=stageOf(p);
     if(at===null) return '';
-    var done=(p.s!=='Active'&&p.s!=='On-Hold');
+    var done=!stillOpen(p);
     var live=!done;
     var segs=STEPS.map(function(st,i){
       var cls = i<at ? 'past' : (i===at ? 'now' : 'ahead');
@@ -430,7 +431,8 @@
            (done?'':' <span class="udesc">'+esc(STEPS[at].d)+'</span>')+'</div></div>';
   }
   function matches(p){
-    if(st==='live' && !LIVE[p.s]) return false;
+    if(st==='Active' && p.s!=='Active') return false;
+    if(st==='On-Hold' && p.s!=='On-Hold') return false;
     if(st==='Complete' && p.s!=='Complete') return false;
     if(st==='withdrawn' && !/Withdraw|Terminat|Record Closed/.test(p.s||'')) return false;
     if(ty.ulurp && !p.u) return false;
@@ -496,14 +498,17 @@
     $('mapnote').innerHTML='Shaded by how many of the <b>'+n(rows.length)+'</b> matching applications fall in each community district. Tap a district to filter to it.';
   }
   function refreshKpis(){
-    var live=D.projects.filter(function(p){return LIVE[p.s];}).length;
+    var active=D.projects.filter(function(p){return p.s==='Active';}).length;
+    var held=D.projects.filter(function(p){return p.s==='On-Hold';}).length;
+    var live=active+held;
     var ulurp=D.projects.filter(function(p){return p.u;}).length;
     var mih=D.projects.filter(function(p){return p.mih;}).length;
     var eraLabel=(D.label||'in this view');
     $('kpis').innerHTML=
       '<div class="kp wide"><div class="k">Showing</div><div class="v">'+n(D.projects.length)+'</div>'+
         '<div class="d">'+esc(eraLabel)+'</div></div>'+
-      '<div class="kp"><div class="k">Still moving</div><div class="v">'+n(live)+'</div><div class="d">active or on hold</div></div>'+
+      '<div class="kp"><div class="k">Active</div><div class="v">'+n(active)+'</div><div class="d">moving through review</div></div>'+
+      '<div class="kp"><div class="k">On hold</div><div class="v">'+n(held)+'</div><div class="d">paused, the clock is stopped</div></div>'+
       '<div class="kp"><div class="k">Finished</div><div class="v">'+n(D.projects.length-live)+'</div><div class="d">approved, withdrawn or terminated</div></div>'+
       '<div class="kp"><div class="k">Of these, ULURP</div><div class="v">'+n(ulurp)+'</div><div class="d">went to full public review</div></div>'+
       '<div class="kp"><div class="k">Of these, with MIH</div><div class="v">'+n(mih)+'</div><div class="d">mandatory affordable housing</div></div>'+
@@ -525,7 +530,7 @@
 
   function buildEras(){
     if(!IDX){ $('eraSel').style.display='none'; return; }
-    var opts='<option value="recent">2020 to now, plus every active project</option>';
+    var opts='<option value="recent">2020 to now, plus anything still open</option>';
     IDX.eras.forEach(function(e){
       if(e.key==='2025'||e.key==='2020') return;   // already inside the default
       opts+='<option value="'+e.key+'">'+esc(e.label)+' ('+n(e.n)+')</option>';
@@ -584,7 +589,9 @@
   ]).then(function(a){
     D=a[0]; IDX=a[1]; DEFS=a[2]; if(a[3]&&a[3].projects) VOTES=a[3].projects; if(a[4]&&a[4].records) CB6REC=a[4].records; C=a[5]; GEO=a[6]; if(a[7]&&a[7].members) CM=a[7].members;
     buildEras();
-    var live=D.projects.filter(function(p){return LIVE[p.s];}).length;
+    var active=D.projects.filter(function(p){return p.s==='Active';}).length;
+    var held=D.projects.filter(function(p){return p.s==='On-Hold';}).length;
+    var live=active+held;
     var ulurp=D.projects.filter(function(p){return p.u;}).length;
     var mih=D.projects.filter(function(p){return p.mih;}).length;
     var maps=D.projects.filter(function(p){return /\bZM\b/.test(p.a||'');}).length;
