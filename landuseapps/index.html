@@ -371,7 +371,7 @@
     {k:3,n:'Borough President',d:'30 days to issue a recommendation.'},
     {k:4,n:'City Planning Commission',d:'60 days. Public hearing. Approves, modifies or disapproves.'},
     {k:5,n:'City Council',d:'50 days. May approve, modify or disapprove. Then 5 days for the Mayor.'},
-    {k:6,n:'Approved and in effect',d:'The review is over and the action has taken effect.'}
+    {k:6,n:'Decision',d:'The review is over and the change either takes effect or does not.'}
   ];
   function stageOf(p){
     var m=(p.m||'');
@@ -388,13 +388,30 @@
     return 0;
   }
 
+  function actionKind(p){
+    var a=(p.a||'');
+    if(/\bZM\b/.test(a)) return 'map';
+    if(/\bZR\b/.test(a)) return 'text';
+    if(/\bZS\b/.test(a)) return 'permit';
+    if(/\bZC\b/.test(a)) return 'cert';
+    if(/\bZA\b/.test(a)) return 'auth';
+    return '';
+  }
+  function approvedWord(p){
+    var k=actionKind(p);
+    if(k==='map')    return 'Approved. The zoning map was changed.';
+    if(k==='text')   return 'Approved. The zoning text was changed.';
+    if(k==='permit') return 'Approved. The special permit was granted.';
+    if(k==='auth')   return 'Approved. The authorization was granted.';
+    if(k==='cert')   return 'Approved. The certification was granted.';
+    return 'Approved and in effect.';
+  }
   // what actually became of it, in plain words
   function finalWord(p){
     var st=(p.s||'');
     if(/Withdrawn/i.test(st)) return 'Withdrawn by the applicant';
     if(/Terminated/i.test(st)) return 'Terminated before a decision';
     if(/Record Closed/i.test(st)) return 'Record closed';
-    // prefer the recorded outcome over a guess
     var rec=VOTES && VOTES[p.i];
     if(rec && rec.m && rec.m.length){
       function pick(re){
@@ -402,31 +419,25 @@
         return h.sort(function(a,b){return (a.d||'')<(b.d||'')?1:-1;})[0];
       }
       var mayor=pick(/mayoral review/i);
-      if(mayor){
-        if(/no veto/i.test(mayor.o)) return 'Approved, and the Mayor did not veto it';
-        if(/veto/i.test(mayor.o)) return 'Vetoed by the Mayor';
-      }
+      if(mayor && /veto/i.test(mayor.o) && !/no veto/i.test(mayor.o)) return 'Vetoed by the Mayor';
       var cc=pick(/city council review/i);
       if(cc){
-        if(/adopted with modifications/i.test(cc.o)) return 'Adopted by the City Council with changes';
-        if(/adopted/i.test(cc.o)) return 'Adopted by the City Council';
         if(/disapprov/i.test(cc.o)) return 'Disapproved by the City Council';
-        if(/failed to act/i.test(cc.o)) return 'Approved because the Council did not act in time';
-        if(/did not assume jurisdiction/i.test(cc.o)) return 'Approved, the Council let the CPC decision stand';
+        if(/adopted|failed to act|did not assume jurisdiction/i.test(cc.o)){
+          if(/Complete/i.test(st)) return approvedWord(p);
+          return 'Adopted by the City Council';
+        }
       }
       var cpc=pick(/city planning commission (vote|review)$/i);
-      if(cpc){
-        if(/approval with modification/i.test(cpc.o)) return 'Approved by the City Planning Commission with changes';
-        if(/approval/i.test(cpc.o)) return 'Approved by the City Planning Commission';
-        if(/disapprov/i.test(cpc.o)) return 'Disapproved by the City Planning Commission';
-      }
+      if(cpc && /disapprov/i.test(cpc.o)) return 'Disapproved by the City Planning Commission';
+      if(cpc && /approval/i.test(cpc.o) && /Complete/i.test(st)) return approvedWord(p);
+      if(cpc && /approval/i.test(cpc.o)) return 'Approved by the City Planning Commission';
     }
-    if(/Complete/i.test(st)) return 'Approved and in effect';
+    if(/Complete/i.test(st)) return approvedWord(p);
     if(/On-Hold/i.test(st)) return 'On hold, no decision yet';
     if(/Active/i.test(st)) return 'Still under review, no decision yet';
     return 'Status not recorded';
   }
-
   function ulurpBar(p){
     var at=stageOf(p);
     if(at===null) return '';
