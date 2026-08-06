@@ -122,6 +122,12 @@
 
 .chartlink{padding:10px 14px;background:var(--off);border-bottom:1px solid var(--border)}
 .chartlink a{font-size:.8rem;font-weight:700;color:var(--navy);text-decoration:none;border-bottom:2px solid var(--orange);padding-bottom:1px}
+
+.mn-t{line-height:1.5}
+.mn-k{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.18)}
+.mn-kl{font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.6);font-weight:700;width:100%}
+.lg{display:inline-flex;align-items:center;gap:5px;font-family:'DM Mono',monospace;font-size:.68rem;color:#fff;font-weight:700}
+.lg i{width:15px;height:15px;border-radius:4px;display:inline-block;border:1px solid rgba(255,255,255,.35)}
 </style>
 </head>
 <body>
@@ -499,11 +505,18 @@
     rows.forEach(function(p){ if(p.cb) tally[p.cb]=(tally[p.cb]||0)+1; });
     var vals=Object.keys(tally).map(function(k){return tally[k];});
     var mx=vals.length?Math.max.apply(null,vals):0;
+    var BANDS=[{c:'#fed98e'},{c:'#fe9929'},{c:'#993404'}];
+    // where each band starts, in real application counts
+    var b1=1, b2=Math.max(2,Math.floor(mx*0.33)+1), b3=Math.max(b2+1,Math.floor(mx*0.66)+1);
     function shade(v){
       if(!v) return '#eeece7';
-      var t=Math.min(1,v/(mx||1));
-      var band=t>0.66?'#993404':(t>0.33?'#fe9929':'#fed98e');
-      return band;
+      if(v>=b3) return BANDS[2].c;
+      if(v>=b2) return BANDS[1].c;
+      return BANDS[0].c;
+    }
+    function bandLabel(lo,hi){
+      if(hi===null) return lo+' or more';
+      return lo===hi ? String(lo) : (lo+' to '+hi);
     }
     layer=L.geoJSON(GEO,{
       style:function(f){
@@ -518,7 +531,17 @@
           (tot?('<span style="color:#888">'+n(tot.all)+' ever \u00b7 '+n(tot.ulurp)+' ULURP</span>'):''),{sticky:true});
         l.on('click',function(){ cbsel=(cbsel===code)?'':code; $('cbSel').value=cbsel; render(); });
       }}).addTo(map);
-    $('mapnote').innerHTML='Shaded by how many of the <b>'+n(rows.length)+'</b> matching applications fall in each community district. Tap a district to filter to it.';
+    var districtsWith=Object.keys(tally).length;
+    var legend = mx>0
+      ? '<span class="lg"><i style="background:'+BANDS[2].c+'"></i>'+esc(bandLabel(b3,null))+'</span>'+
+        (b3>b2?'<span class="lg"><i style="background:'+BANDS[1].c+'"></i>'+esc(bandLabel(b2,b3-1))+'</span>':'')+
+        (b2>b1?'<span class="lg"><i style="background:'+BANDS[0].c+'"></i>'+esc(bandLabel(b1,b2-1))+'</span>':'')+
+        '<span class="lg"><i style="background:#eeece7"></i>none</span>'
+      : '';
+    $('mapnote').innerHTML=
+      '<div class="mn-t">Each community district is shaded by how many of the <b>'+n(rows.length)+
+      '</b> matching applications fall inside it. Tap a district to filter to it.</div>'+
+      (legend?'<div class="mn-k"><span class="mn-kl">Applications per district</span>'+legend+'</div>':'');
   }
   function refreshKpis(){
     var active=D.projects.filter(function(p){return p.s==='Active';}).length;
