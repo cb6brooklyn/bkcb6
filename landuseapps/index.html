@@ -50,6 +50,9 @@
 .proj a.zap:hover{background:var(--orange)}
 .more{display:block;width:calc(100% - 24px);margin:12px;padding:12px;background:#fff;border:2px solid var(--navy2);border-radius:24px;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:800;color:var(--navy);cursor:pointer}
 .more:hover{background:#fff4ea;border-color:var(--orange)}
+
+.eranote{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);line-height:1.5}
+#eraSel{max-width:100%}
 </style>
 </head>
 <body>
@@ -81,6 +84,11 @@
       <button type="button" class="fb2" data-ty="mih">Mandatory Inclusionary Housing</button>
     </div>
     <div class="frow">
+      <span class="flab">When</span>
+      <select id="eraSel"></select>
+      <span class="eranote" id="eraNote"></span>
+    </div>
+    <div class="frow">
       <span class="flab">Where</span>
       <select id="boroSel"></select>
       <select id="cbSel"></select>
@@ -106,7 +114,8 @@
   var $=function(i){return document.getElementById(i);};
   var n=function(v){return Number(v||0).toLocaleString('en-US');};
   function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-  var D=null, C=null, GEO=null, CM=null, map, layer=null, shown=60;
+  var D=null, C=null, GEO=null, CM=null, IDX=null, map, layer=null, shown=60;
+  var cache={};
   var st='live', ty={ulurp:false,mih:false}, boro='', cbsel='';
   var LIVE={'Active':1,'On-Hold':1};
 
@@ -180,8 +189,7 @@
     shown=60;
     var rows=D.projects.filter(matches);
     paintMap(rows);
-    $('count').textContent=n(rows.length)+' of '+n(D.projects.length)+' shown'+
-      (st==='all'?'':'')+' \u00b7 '+n(D.total_all_time)+' filed all time';
+    $('count').textContent=n(rows.length)+' of '+n(D.projects.length)+' loaded \u00b7 '+n(D.total_all_time)+' on record since 1970';
     draw(rows);
   }
   function draw(rows){
@@ -190,6 +198,38 @@
     $('more').style.display=rows.length>shown?'':'none';
     $('more').onclick=function(){ shown+=60; draw(rows); };
   }
+
+  function buildEras(){
+    if(!IDX){ $('eraSel').style.display='none'; return; }
+    var opts='<option value="recent">2020 to now, plus every active project</option>';
+    IDX.eras.forEach(function(e){
+      if(e.key==='2025'||e.key==='2020') return;   // already inside the default
+      opts+='<option value="'+e.key+'">'+esc(e.label)+' ('+n(e.n)+')</option>';
+    });
+    $('eraSel').innerHTML=opts;
+    $('eraNote').textContent='';
+  }
+  function loadEra(key){
+    if(key==='recent'){
+      fetch('/data/zap-recent.json').then(function(r){return r.json();}).then(function(j){
+        D=j; $('eraNote').textContent=''; render();
+      });
+      return;
+    }
+    var e=(IDX.eras||[]).filter(function(x){return x.key===key;})[0];
+    if(!e) return;
+    if(cache[key]){ D={projects:cache[key],total_all_time:IDX.total,note:IDX.note,source:IDX.source,generated:IDX.generated}; render(); return; }
+    $('eraNote').textContent='Loading '+e.label+'\u2026';
+    fetch(e.file).then(function(r){return r.json();}).then(function(j){
+      cache[key]=j.projects;
+      D={projects:j.projects,total_all_time:IDX.total,note:IDX.note,source:IDX.source,generated:IDX.generated};
+      $('eraNote').textContent=e.label+' \u00b7 '+n(j.projects.length)+' applications';
+      render();
+    }).catch(function(){ $('eraNote').textContent='That period could not load.'; });
+  }
+  $('eraSel').addEventListener('change',function(){ st='all'; 
+    document.querySelectorAll('[data-st]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-st')==='all');});
+    loadEra(this.value); });
   document.querySelectorAll('[data-st]').forEach(function(b){
     b.addEventListener('click',function(){
       st=this.getAttribute('data-st');
@@ -210,11 +250,13 @@
 
   Promise.all([
     fetch('/data/zap-recent.json').then(function(r){return r.json();}),
+    fetch('/data/zap-index.json').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/zap-counts.json').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}),
     fetch('/data/council-members.json').then(function(r){return r.json();}).catch(function(){return null;})
   ]).then(function(a){
-    D=a[0]; C=a[1]; GEO=a[2]; if(a[3]&&a[3].members) CM=a[3].members;
+    D=a[0]; IDX=a[1]; C=a[2]; GEO=a[3]; if(a[4]&&a[4].members) CM=a[4].members;
+    buildEras();
     var live=D.projects.filter(function(p){return LIVE[p.s];}).length;
     var ulurp=D.projects.filter(function(p){return p.u;}).length;
     var mih=D.projects.filter(function(p){return p.mih;}).length;
