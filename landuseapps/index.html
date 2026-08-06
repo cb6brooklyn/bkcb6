@@ -116,6 +116,16 @@
 .sk .v{font-family:'DM Mono',monospace;font-size:1.45rem;font-weight:900;color:var(--orange);line-height:1}
 .sk .k{font-size:.73rem;color:#444;line-height:1.45;margin-top:3px}
 .sublab{font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:11px 0 6px}
+
+.votes{margin-top:8px;padding:10px 12px;background:#fbfaf8;border:1px solid var(--border);border-radius:9px}
+.votes-lab{font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin-bottom:6px}
+.vrow{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:3px 0}
+.vstage{min-width:158px;font-size:.76rem;font-weight:700;color:var(--navy)}
+.vout{font-family:'DM Mono',monospace;font-size:.72rem;font-weight:800;padding:2px 8px;border-radius:5px}
+.vout.ok{background:#e3f2e4;color:#2e6b30}
+.vout.no{background:#fdE2e0;color:#a52a21}
+.vout.mid{background:#eef0f4;color:#5b5651}
+.vdate{font-family:'DM Mono',monospace;font-size:.62rem;color:#9ca3af}
 </style>
 </head>
 <body>
@@ -313,6 +323,46 @@
     if(b){ showDef(b.getAttribute('data-z')); }
   });
 
+
+  var VOTES=null;
+  function outcomeRows(p){
+    if(!VOTES) return '';
+    var rec=VOTES[p.i];
+    if(!rec || !rec.m || !rec.m.length) return '';
+    var STAGES=[
+      ['Certified',           function(n){return /reviewed at city planning|certified/i.test(n);}],
+      ['Community board',     function(n){return /community board review/i.test(n);}],
+      ['Borough President',   function(n){return /borough president review/i.test(n);}],
+      ['Borough Board',       function(n){return /borough board review/i.test(n);}],
+      ['City Planning Commission', function(n){return /city planning commission (vote|review)$/i.test(n);}],
+      ['City Council',        function(n){return /city council review/i.test(n);}],
+      ['Mayor',               function(n){return /mayoral review/i.test(n);}],
+      ['Appeal',              function(n){return /appeals board/i.test(n);}]
+    ];
+    var rows=[];
+    STAGES.forEach(function(st){
+      var hits=rec.m.filter(function(m){return st[1](m.n||'');});
+      if(!hits.length) return;
+      var withO=hits.filter(function(m){return m.o;});
+      var pick=(withO.length?withO:hits).sort(function(a,b){return (a.d||'')<(b.d||'')?1:-1;})[0];
+      if(!pick.o && st[0]!=='Certified') return;
+      rows.push({stage:st[0],o:pick.o||'Certified',d:pick.d});
+    });
+    if(!rows.length) return '';
+    function cls(o){
+      o=(o||'').toLowerCase();
+      if(/approv|favorable|adopt|no appeal|certified|send letter|no veto|no objection|deemed approved/.test(o) && !/disapprov|unfavorable/.test(o)) return 'ok';
+      if(/disapprov|unfavorable|denial|denied|veto|non-complying|terminates/.test(o)) return 'no';
+      return 'mid';
+    }
+    return '<div class="votes"><div class="votes-lab">How the review has gone</div>'+
+      rows.map(function(r){
+        return '<div class="vrow"><span class="vstage">'+esc(r.stage)+'</span>'+
+          '<span class="vout '+cls(r.o)+'">'+esc(r.o)+'</span>'+
+          (r.d?'<span class="vdate">'+esc(r.d)+'</span>':'')+'</div>';
+      }).join('')+'</div>';
+  }
+
   /* ---- where a project sits in ULURP ---- */
   var STEPS=[
     {k:0,n:'Before certification',d:'Application drafted, filed and reviewed by City Planning. No clock yet.'},
@@ -432,6 +482,7 @@
         (p.un?'<span class="tagx">'+esc(p.un)+'</span>':'')+'</div>'+
       zoneChange(p)+
       ulurpBar(p)+
+      outcomeRows(p)+
       (p.br?'<div class="br2x">'+esc(p.br)+(p.br.length>=240?'\u2026':'')+'</div>':'')+
       '<div class="foot2">'+esc(where)+
         (p.fd?'<br>Filed '+esc(p.fd):'')+
@@ -535,11 +586,12 @@
     fetch('/data/zap-recent.json').then(function(r){return r.json();}),
     fetch('/data/zap-index.json').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/zoning-district-defs.json').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/zap-votes.json').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/zap-counts.json').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}),
     fetch('/data/council-members.json').then(function(r){return r.json();}).catch(function(){return null;})
   ]).then(function(a){
-    D=a[0]; IDX=a[1]; DEFS=a[2]; C=a[3]; GEO=a[4]; if(a[5]&&a[5].members) CM=a[5].members;
+    D=a[0]; IDX=a[1]; DEFS=a[2]; if(a[3]&&a[3].projects) VOTES=a[3].projects; C=a[4]; GEO=a[5]; if(a[6]&&a[6].members) CM=a[6].members;
     buildEras();
     var live=D.projects.filter(function(p){return LIVE[p.s];}).length;
     var ulurp=D.projects.filter(function(p){return p.u;}).length;
