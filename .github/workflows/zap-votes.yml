@@ -1,0 +1,57 @@
+name: zap-votes
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch milestone outcomes for every listed project
+        run: |
+          python3 - <<'PYEOF'
+          import json, urllib.request, time, os, sys
+          ids=json.load(open('data/zap-api/fetch-list.json'))['ids']
+          out={}
+          # resume if a previous partial run committed results
+          if os.path.exists('data/zap-votes.json'):
+              try: out=json.load(open('data/zap-votes.json'))['projects']
+              except Exception: out={}
+          todo=[i for i in ids if i not in out]
+          print('total %d, already have %d, fetching %d'%(len(ids),len(out),len(todo)))
+          KEEP=('review','vote','certified','referred','adopted','approval','appeal','mayor')
+          fails=0
+          for k,pid in enumerate(todo):
+              url='https://zap-api-production.herokuapp.com/projects/'+pid
+              try:
+                  with urllib.request.urlopen(url,timeout=45) as f:
+                      d=json.loads(f.read())
+                  ms=[]
+                  for inc in d.get('included',[]):
+                      if inc.get('type')!='milestones': continue
+                      a=inc.get('attributes',{})
+                      nm=(a.get('display-name') or a.get('dcp-name') or '')
+                      oc=a.get('outcome')
+                      dt=(a.get('display-date') or a.get('dcp-actualenddate') or a.get('dcp-plannedcompletiondate') or '')
+                      if oc or any(t in nm.lower() for t in KEEP):
+                          ms.append({'n':nm,'d':(dt or '')[:10],'o':oc})
+                  out[pid]={'m':ms}
+              except Exception as e:
+                  fails+=1
+                  out[pid]={'err':str(e)[:60]}
+              if (k+1)%50==0:
+                  print('  %d done, %d failed'%(k+1,fails)); sys.stdout.flush()
+                  json.dump({'projects':out},open('data/zap-votes.json','w'),separators=(',',':'))
+              time.sleep(1.4)
+          json.dump({'generated':time.strftime('%Y-%m-%d'),
+                     'source':'NYC DCP Zoning Application Portal, milestone outcomes',
+                     'projects':out},open('data/zap-votes.json','w'),separators=(',',':'))
+          print('finished: %d projects, %d failures'%(len(out),fails))
+          PYEOF
+      - name: Commit
+        run: |
+          git config user.name "Mike Racioppo"
+          git config user.email "mracioppo@cb.nyc.gov"
+          git add data/zap-votes.json && git commit -m "Harvest ULURP milestone outcomes 2021 to now" || echo skip
+          git push
