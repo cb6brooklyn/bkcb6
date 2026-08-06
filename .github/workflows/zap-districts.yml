@@ -3,55 +3,43 @@ on: workflow_dispatch
 permissions:
   contents: write
 jobs:
-  fetch:
+  harvest:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch community districts for projects missing them
+      - name: Fetch the validated community districts
         run: |
           python3 - <<'PYEOF'
-          import json, urllib.request, time, os, sys, glob
-          allp=[]
-          for f in sorted(glob.glob('data/zap/zap-*.json')):
-              allp.extend(json.load(open(f))['projects'])
-          ids=sorted({p['i'] for p in allp if not p.get('cb') and p.get('i')})
+          import json, urllib.request, time, os, sys
+          ids=json.load(open('data/zap-api/district-list.json'))['ids']
           out={}
           if os.path.exists('data/zap-districts.json'):
               try: out=json.load(open('data/zap-districts.json'))['projects']
               except Exception: out={}
           todo=[i for i in ids if i not in out]
-          print('missing a district: %d, already fetched %d, fetching %d'%(len(ids),len(out),len(todo)))
+          print('total %d, have %d, fetching %d'%(len(ids),len(out),len(todo)))
+          fails=0
           for k,pid in enumerate(todo):
               try:
                   with urllib.request.urlopen('https://zap-api-production.herokuapp.com/projects/'+pid,timeout=45) as f:
                       d=json.loads(f.read())
-                  a=d.get('data',{}).get('attributes',{}) or {}
-                  cds=[]
-                  for key in ('community-districts','dcp-communitydistricts','community-district'):
-                      v=a.get(key)
-                      if isinstance(v,list): cds.extend([str(x) for x in v])
-                      elif isinstance(v,str) and v: cds.append(v)
-                  for inc in d.get('included',[]):
-                      if inc.get('type') in ('community-boards','communityDistricts','community-districts'):
-                          ia=inc.get('attributes',{}) or {}
-                          for key in ('dcp-name','name','dcp-communitydistrictnumber'):
-                              if ia.get(key): cds.append(str(ia[key]))
-                  out[pid]={'cds':sorted(set(cds))} if cds else {'cds':[]}
+                  a=d['data']['attributes']
+                  out[pid]={'cds':a.get('dcp-validatedcommunitydistricts') or '',
+                            'b':a.get('dcp-borough') or ''}
               except Exception as e:
-                  out[pid]={'err':str(e)[:50]}
+                  fails+=1; out[pid]={'err':str(e)[:50]}
               if (k+1)%50==0:
-                  print('  %d done'%(k+1)); sys.stdout.flush()
+                  print('  %d done, %d failed'%(k+1,fails)); sys.stdout.flush()
                   json.dump({'projects':out},open('data/zap-districts.json','w'),separators=(',',':'))
-              time.sleep(1.2)
+              time.sleep(1.3)
           json.dump({'generated':time.strftime('%Y-%m-%d'),'projects':out},
                     open('data/zap-districts.json','w'),separators=(',',':'))
-          got=sum(1 for v in out.values() if v.get('cds'))
-          print('finished: %d records, %d with districts'%(len(out),got))
+          print('finished: %d, %d failures'%(len(out),fails))
           PYEOF
       - name: Commit
         run: |
           git config user.name "Mike Racioppo"
           git config user.email "mracioppo@cb.nyc.gov"
-          git add data/zap-districts.json && git commit -m "Community districts for multi district projects" || echo skip
+          git add data/zap-districts.json && git commit -m "Harvest validated community districts" || echo skip
           git push
