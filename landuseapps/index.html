@@ -110,6 +110,13 @@
 .zd-sfx b{color:var(--orange)}
 .zd-num{font-size:.75rem;line-height:1.55;color:rgba(255,255,255,.7);margin-top:8px;max-width:70ch}
 .zd-more{display:inline-block;margin-top:10px;font-size:.77rem;font-weight:700;color:#fff;background:var(--navy2);padding:8px 13px;border-radius:18px;text-decoration:none}
+
+.sumkpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:9px;overflow:hidden;margin:4px 0 12px}
+.sk{background:#fff;padding:10px 12px}
+.sk .v{font-family:'DM Mono',monospace;font-size:1.45rem;font-weight:900;color:var(--orange);line-height:1}
+.sk .k{font-size:.73rem;color:#444;line-height:1.45;margin-top:3px}
+.sublab{font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:11px 0 6px}
+.sn{min-width:186px}
 </style>
 </head>
 <body>
@@ -155,7 +162,7 @@
   <div class="mapnote" id="mapnote"></div>
   <div class="maphold"><div id="map"></div></div>
   <div class="ulurpkey">
-    <b>The bar on each ULURP application shows where it is.</b>
+    <b>Every ULURP application carries a bar showing where it is in the process.</b>
     <span class="k1"><i class="past"></i>passed</span>
     <span class="k1"><i class="now"></i>where it is now</span>
     <span class="k1"><i class="ahead"></i>still ahead</span>
@@ -344,20 +351,56 @@
            '<div class="ustage'+(done?' done':'')+'">'+esc(label)+
            (done?'':' <span class="udesc">'+esc(STEPS[at].d)+'</span>')+'</div></div>';
   }
+  function changeOf(p){
+    if(!p.br) return null;
+    var m=FROMTO.exec(p.br);
+    if(!m) return null;
+    var fa=famsOf(m[1]), fb=famsOf(m[2]);
+    if(!fa.length||!fb.length) return null;
+    var za=(String(m[1]).match(new RegExp(ZRE,'i'))||[''])[0];
+    var zb=(String(m[2]).match(new RegExp(ZRE,'i'))||[''])[0];
+    return {from:fa.slice().sort().join(' + '), to:fb.slice().sort().join(' + '),
+            fromB:baseOf(za), toB:baseOf(zb), addsRes:(fb.indexOf('residential')>-1&&fa.indexOf('residential')<0),
+            keepsMan:(fa.indexOf('manufacturing')>-1&&fb.indexOf('manufacturing')>-1),
+            dropsMan:(fa.indexOf('manufacturing')>-1&&fb.indexOf('manufacturing')<0)};
+  }
+  function titleCase(x){ return x.replace(/\b\w/g,function(c){return c.toUpperCase();}); }
   function stageSummary(rows){
-    var live=rows.filter(function(p){return (p.s==='Active'||p.s==='On-Hold')&&p.u;});
-    if(!live.length){ $('stages').innerHTML=''; return; }
-    var c={};
-    live.forEach(function(p){ var a=stageOf(p); if(a!==null&&a<6) c[a]=(c[a]||0)+1; });
-    var mx=Math.max.apply(null,Object.keys(c).map(function(k){return c[k];}).concat([1]));
-    $('stages').innerHTML='<div class="sumhead">Where the '+n(live.length)+' live ULURP applications sit right now</div>'+
-      '<div class="sumrows">'+STEPS.slice(0,6).map(function(st,i){
-        var v=c[i]||0;
-        return '<div class="sumrow"><span class="sn">'+esc(st.n)+'</span>'+
-          '<span class="sb"><i style="width:'+(v/mx*100).toFixed(1)+'%"></i></span>'+
-          '<span class="sv">'+n(v)+'</span></div>';
-      }).join('')+'</div>'+
-      '<div class="sumnote">The clock only runs once City Planning certifies. Most of what is in the pipeline has not got there yet.</div>';
+    var withChange=[];
+    rows.forEach(function(p){ var c=changeOf(p); if(c) withChange.push({p:p,c:c}); });
+    if(!withChange.length){ $('stages').innerHTML=''; return; }
+    // what kind of change, in plain terms
+    var kinds={}, pairs={}, addsRes=0, keepsMan=0, dropsMan=0;
+    withChange.forEach(function(x){
+      var k=titleCase(x.c.from)+' \u2192 '+titleCase(x.c.to);
+      kinds[k]=(kinds[k]||0)+1;
+      if(x.c.fromB&&x.c.toB){ var pk=x.c.fromB+' \u2192 '+x.c.toB; pairs[pk]=(pairs[pk]||0)+1; }
+      if(x.c.addsRes) addsRes++;
+      if(x.c.keepsMan) keepsMan++;
+      if(x.c.dropsMan) dropsMan++;
+    });
+    function bars(obj,limit){
+      var ks=Object.keys(obj).sort(function(a,b){return obj[b]-obj[a];}).slice(0,limit);
+      var mx=Math.max.apply(null,ks.map(function(k){return obj[k];}).concat([1]));
+      return ks.map(function(k){
+        return '<div class="sumrow"><span class="sn">'+esc(k)+'</span>'+
+          '<span class="sb"><i style="width:'+Math.max(4,obj[k]/mx*100).toFixed(1)+'%"></i></span>'+
+          '<span class="sv">'+n(obj[k])+'</span></div>';
+      }).join('');
+    }
+    $('stages').innerHTML=
+      '<div class="sumhead">What these '+n(withChange.length)+' rezonings would do</div>'+
+      '<div class="sumkpi">'+
+        '<div class="sk"><div class="v">'+n(addsRes)+'</div><div class="k">allow housing where it is not permitted today</div></div>'+
+        '<div class="sk"><div class="v">'+n(keepsMan)+'</div><div class="k">pair housing with manufacturing on the same lots</div></div>'+
+        '<div class="sk"><div class="v">'+n(dropsMan)+'</div><div class="k">remove a manufacturing designation</div></div>'+
+      '</div>'+
+      '<div class="sublab">By what the district becomes</div>'+
+      '<div class="sumrows">'+bars(kinds,8)+'</div>'+
+      '<div class="sublab">The most common swaps</div>'+
+      '<div class="sumrows">'+bars(pairs,8)+'</div>'+
+      '<div class="sumnote">Read from the application briefs, which state the change directly. '+
+      n(rows.length-withChange.length)+' of the '+n(rows.length)+' shown are not map amendments, so they change no district.</div>';
   }
   function matches(p){
     if(st==='live' && !LIVE[p.s]) return false;
