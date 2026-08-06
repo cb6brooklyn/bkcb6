@@ -3,35 +3,55 @@ on: workflow_dispatch
 permissions:
   contents: write
 jobs:
-  probe:
+  fetch:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-      - name: Look for district fields on a multi district project
+      - name: Fetch community districts for projects missing them
         run: |
-          mkdir -p data/zap-api
-          curl -s --max-time 40 "https://zap-api-production.herokuapp.com/projects/2018K0382" -o /tmp/g.json || true
           python3 - <<'PYEOF'
-          import json
-          d=json.load(open('/tmp/g.json'))
-          a=d['data']['attributes']
-          keys=[k for k in a if any(t in k for t in ('district','community','council','borough','cb'))]
-          out={'attribute_keys_matching':keys}
-          for k in keys: out[k]=a[k]
-          inc={}
-          for i in d.get('included',[]):
-              inc[i.get('type')]=inc.get(i.get('type'),0)+1
-          out['included_types']=inc
-          # dump a sample of any district-like included record
-          for i in d.get('included',[]):
-              if 'district' in (i.get('type') or ''):
-                  out['sample_'+i['type']]=i.get('attributes'); break
-          open('data/zap-api/districts-probe.json','w').write(json.dumps(out,indent=1))
-          print(json.dumps(out,indent=1)[:1500])
+          import json, urllib.request, time, os, sys, glob
+          allp=[]
+          for f in sorted(glob.glob('data/zap/zap-*.json')):
+              allp.extend(json.load(open(f))['projects'])
+          ids=sorted({p['i'] for p in allp if not p.get('cb') and p.get('i')})
+          out={}
+          if os.path.exists('data/zap-districts.json'):
+              try: out=json.load(open('data/zap-districts.json'))['projects']
+              except Exception: out={}
+          todo=[i for i in ids if i not in out]
+          print('missing a district: %d, already fetched %d, fetching %d'%(len(ids),len(out),len(todo)))
+          for k,pid in enumerate(todo):
+              try:
+                  with urllib.request.urlopen('https://zap-api-production.herokuapp.com/projects/'+pid,timeout=45) as f:
+                      d=json.loads(f.read())
+                  a=d.get('data',{}).get('attributes',{}) or {}
+                  cds=[]
+                  for key in ('community-districts','dcp-communitydistricts','community-district'):
+                      v=a.get(key)
+                      if isinstance(v,list): cds.extend([str(x) for x in v])
+                      elif isinstance(v,str) and v: cds.append(v)
+                  for inc in d.get('included',[]):
+                      if inc.get('type') in ('community-boards','communityDistricts','community-districts'):
+                          ia=inc.get('attributes',{}) or {}
+                          for key in ('dcp-name','name','dcp-communitydistrictnumber'):
+                              if ia.get(key): cds.append(str(ia[key]))
+                  out[pid]={'cds':sorted(set(cds))} if cds else {'cds':[]}
+              except Exception as e:
+                  out[pid]={'err':str(e)[:50]}
+              if (k+1)%50==0:
+                  print('  %d done'%(k+1)); sys.stdout.flush()
+                  json.dump({'projects':out},open('data/zap-districts.json','w'),separators=(',',':'))
+              time.sleep(1.2)
+          json.dump({'generated':time.strftime('%Y-%m-%d'),'projects':out},
+                    open('data/zap-districts.json','w'),separators=(',',':'))
+          got=sum(1 for v in out.values() if v.get('cds'))
+          print('finished: %d records, %d with districts'%(len(out),got))
           PYEOF
       - name: Commit
         run: |
           git config user.name "Mike Racioppo"
           git config user.email "mracioppo@cb.nyc.gov"
-          git add data/zap-api/ && git commit -m "district probe" || echo skip
+          git add data/zap-districts.json && git commit -m "Community districts for multi district projects" || echo skip
           git push
