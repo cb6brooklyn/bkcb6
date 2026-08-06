@@ -80,6 +80,13 @@
 .ulurpkey .k1 i{width:16px;height:7px;border-radius:2px;display:inline-block}
 .ulurpkey i.past{background:#2e6b30}.ulurpkey i.now{background:var(--orange)}.ulurpkey i.ahead{background:#e8e6e1}
 .ulurpkey a{color:var(--navy);border-bottom:1px solid var(--orange);text-decoration:none}
+
+.zchg{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:9px 11px;background:#f8f7f4;border-left:3px solid var(--orange);border-radius:0 8px 8px 0}
+.zc-from,.zc-to{font-family:'DM Mono',monospace;font-size:.8rem;font-weight:800;padding:3px 9px;border-radius:6px}
+.zc-from{background:#eef0f4;color:#5b5651}
+.zc-to{background:var(--orange);color:#fff}
+.zc-ar{color:var(--orange);font-weight:900}
+.zc-why{flex-basis:100%;font-size:.75rem;line-height:1.5;color:#444;margin-top:2px}
 </style>
 </head>
 <body>
@@ -158,6 +165,64 @@
   map=L.map('map',{scrollWheelZoom:true}).setView([40.70,-73.95],10);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:17,attribution:'&copy; CARTO'}).addTo(map);
 
+
+
+  /* ---- what the application would change the zoning to ---- */
+  var ZRE='[RCM]\\d{1,2}[A-Z]?(?:-\\d+[A-Z]?)?';
+  var FROMTO=new RegExp('from\\s+(?:an?\\s+)?((?:'+ZRE+')(?:\\s*/\\s*'+ZRE+')*)\\s+(?:districts?\\s+)?to\\s+((?:'+ZRE+')(?:\\s*(?:/|,|and)\\s*'+ZRE+')*)','i');
+  var FAMNAME={R:'residential',C:'commercial',M:'manufacturing'};
+  function fam(z){
+    var c=String(z).trim().toUpperCase().charAt(0);
+    return FAMNAME[c]||null;
+  }
+  function famsOf(str){
+    var out=[];
+    (String(str).match(new RegExp(ZRE,'gi'))||[]).forEach(function(z){
+      var f=fam(z); if(f&&out.indexOf(f)<0) out.push(f);
+    });
+    return out;
+  }
+  function densityOf(z){
+    var m=String(z).toUpperCase().match(/^[RCM](\d{1,2})/);
+    return m?parseInt(m[1],10):null;
+  }
+  function plainChange(a,b){
+    var fa=famsOf(a), fb=famsOf(b);
+    if(!fa.length||!fb.length) return '';
+    var addedRes = fb.indexOf('residential')>-1 && fa.indexOf('residential')<0;
+    var lostMan  = fa.indexOf('manufacturing')>-1 && fb.indexOf('manufacturing')<0;
+    var keptMan  = fa.indexOf('manufacturing')>-1 && fb.indexOf('manufacturing')>-1;
+    var bits=[];
+    if(addedRes && lostMan) bits.push('Would allow housing where the rules currently do not, and remove the manufacturing designation.');
+    else if(addedRes && keptMan) bits.push('Would pair housing with the existing manufacturing rules, so both would be permitted on the same lots.');
+    else if(addedRes) bits.push('Would allow housing where the rules currently do not.');
+    else if(lostMan) bits.push('Would remove the manufacturing designation.');
+    // the number means density in R and C districts. in M districts it means
+    // how heavy the permitted industry is, so do not read it as density.
+    var za=(String(a).match(new RegExp(ZRE,'i'))||[''])[0];
+    var zb=(String(b).match(new RegExp(ZRE,'i'))||[''])[0];
+    var da=densityOf(za), db=densityOf(zb);
+    var sameFam = fa.length===1 && fb.length===1 && fa[0]===fb[0];
+    if(sameFam && da!=null && db!=null && fa[0]!=='manufacturing'){
+      if(db>da) bits.push('The higher number means more can be built.');
+      else if(db<da) bits.push('The lower number means less can be built.');
+    }
+    if(fb.indexOf('commercial')>-1 && fa.indexOf('commercial')<0) bits.push('Adds commercial use.');
+    return bits.join(' ');
+  }
+  function zoneChange(p){
+    if(!p.br) return '';
+    var m=FROMTO.exec(p.br);
+    if(!m) return '';
+    var from=m[1].trim(), to=m[2].trim().replace(/\s+and\s+/gi,' and ');
+    var why=plainChange(from,to);
+    return '<div class="zchg">'+
+      '<span class="zc-from">'+esc(from)+'</span>'+
+      '<span class="zc-ar">&rarr;</span>'+
+      '<span class="zc-to">'+esc(to)+'</span>'+
+      (why?'<span class="zc-why">'+esc(why)+'</span>':'')+
+      '</div>';
+  }
 
   /* ---- where a project sits in ULURP ---- */
   var STEPS=[
@@ -240,6 +305,7 @@
         (p.u?'<span class="tagx ulurp">ULURP</span>':'')+
         (p.mih?'<span class="tagx mih">MIH</span>':'')+
         (p.un?'<span class="tagx">'+esc(p.un)+'</span>':'')+'</div>'+
+      zoneChange(p)+
       ulurpBar(p)+
       (p.br?'<div class="br2x">'+esc(p.br)+(p.br.length>=240?'\u2026':'')+'</div>':'')+
       '<div class="foot2">'+esc(where)+
