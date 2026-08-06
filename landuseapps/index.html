@@ -567,6 +567,30 @@
         '<button type="button" class="lnk" data-share="'+esc(p.i)+'">Copy link</button>'+
       '</div></div>';
   }
+  var boroPtCache=null;
+  function boroCentres(){
+    if(boroPtCache) return boroPtCache;
+    var acc={};
+    (GEO&&GEO.features||[]).forEach(function(f){
+      var b=f.properties&&f.properties.Borough;
+      if(!b||!f.geometry) return;
+      var rings=[];
+      if(f.geometry.type==='Polygon') rings=f.geometry.coordinates;
+      else if(f.geometry.type==='MultiPolygon') f.geometry.coordinates.forEach(function(p){rings=rings.concat(p);});
+      rings.forEach(function(r){
+        r.forEach(function(pt){
+          var a=acc[b]=acc[b]||{x:0,y:0,n:0};
+          a.x+=pt[0]; a.y+=pt[1]; a.n++;
+        });
+      });
+    });
+    boroPtCache={};
+    Object.keys(acc).forEach(function(b){
+      var a=acc[b];
+      if(a.n) boroPtCache[b]=[a.y/a.n, a.x/a.n];
+    });
+    return boroPtCache;
+  }
   function paintMap(rows){
     if(layer) map.removeLayer(layer);
     var tally={};
@@ -587,8 +611,7 @@
       return lo===hi ? String(lo) : (lo+' to '+hi);
     }
     if(boroLabels.length){ boroLabels.forEach(function(m){ map.removeLayer(m); }); boroLabels=[]; }
-    var BOROPT={Manhattan:[40.7808,-73.9665],Bronx:[40.8560,-73.8790],Brooklyn:[40.6480,-73.9500],
-                Queens:[40.7180,-73.8100],'Staten Island':[40.5720,-74.1450]};
+    var BOROPT=boroCentres();
     Object.keys(BOROPT).forEach(function(b){
       var m=L.marker(BOROPT[b],{interactive:false,keyboard:false,icon:L.divIcon({
         className:'boroLbl',html:'<span>'+b+'</span>',iconSize:[110,18],iconAnchor:[55,9]})});
