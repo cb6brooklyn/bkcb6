@@ -120,7 +120,7 @@
 .votes{margin-top:8px;padding:10px 12px;background:#fbfaf8;border:1px solid var(--border);border-radius:9px}
 .votes-lab{font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin-bottom:6px}
 .vrow{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:3px 0}
-.vstage{min-width:158px;font-size:.76rem;font-weight:700;color:var(--navy)}
+.vstage{min-width:150px;flex:1;font-size:.76rem;font-weight:700;color:var(--navy)}
 .vout{font-family:'DM Mono',monospace;font-size:.72rem;font-weight:800;padding:2px 8px;border-radius:5px}
 .vout.ok{background:#e3f2e4;color:#2e6b30}
 .vout.no{background:#fdE2e0;color:#a52a21}
@@ -128,6 +128,10 @@
 .vout.wait{background:transparent;color:#b6b1aa;border:1px dashed #d8d4cd;font-weight:700}
 .vrow.pend .vstage{color:#a8a39c;font-weight:600}
 .vdate{font-family:'DM Mono',monospace;font-size:.62rem;color:#9ca3af}
+
+.vwhen{font-family:'DM Mono',monospace;font-size:.62rem;color:#9ca3af;min-width:74px}
+.vsrc{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.06em;background:var(--navy);color:#fff;padding:2px 6px;border-radius:4px}
+.vnote{font-size:.72rem;line-height:1.5;color:#6b6760;margin-top:7px;padding-top:7px;border-top:1px solid var(--border)}
 </style>
 </head>
 <body>
@@ -326,80 +330,51 @@
   });
 
 
-  var VOTES=null;
+  var VOTES=null, CB6REC=null;
   function outcomeRows(p){
     if(!VOTES) return '';
     var rec=VOTES[p.i];
     if(!rec || !rec.m || !rec.m.length) return '';
-    var STAGES=[
-      ['Certified by City Planning', function(n){return /reviewed at city planning|certified/i.test(n);}, true],
-      ['Community board',     function(n){return /community board review/i.test(n);}, true],
-      ['Borough President',   function(n){return /borough president review/i.test(n);}, true],
-      ['Borough Board',       function(n){return /borough board review/i.test(n);}, false],
-      ['City Planning Commission', function(n){return /city planning commission (vote|review)$/i.test(n);}, true],
-      ['City Council',        function(n){return /city council review/i.test(n);}, true],
-      ['Mayor',               function(n){return /mayoral review/i.test(n);}, false],
-      ['Appeal',              function(n){return /appeals board/i.test(n);}, false]
-    ];
-    var rows=[], reached=false;
-    STAGES.forEach(function(st){
-      var hits=rec.m.filter(function(m){return st[1](m.n||'');});
-      var withO=hits.filter(function(m){return m.o;});
-      if(withO.length){
-        var pick=withO.sort(function(a,b){return (a.d||'')<(b.d||'')?1:-1;})[0];
-        rows.push({stage:st[0],o:pick.o,d:pick.d,pending:false});
-        reached=true;
-      } else if(st[2]){
-        // a required step with nothing recorded yet
-        rows.push({stage:st[0],o:null,d:null,pending:true});
-      }
-    });
-    if(!reached) return '';
-    // trim trailing pending steps only after the process has actually ended
-    if(!/Active|On-Hold/i.test(p.s||'')){
-      while(rows.length && rows[rows.length-1].pending) rows.pop();
-    }
+    var ms=rec.m.filter(function(m){return m.o;})
+                .sort(function(a,b){return (a.d||'')<(b.d||'')?-1:1;});
+    if(!ms.length) return '';
+    var override = (CB6REC && p.cb==='BKCB6') ? CB6REC[p.i] : null;
     function cls(o){
       o=(o||'').toLowerCase();
       if(/approv|favorable|adopt|no appeal|certified|send letter|no veto|no objection|deemed approved/.test(o) && !/disapprov|unfavorable/.test(o)) return 'ok';
       if(/disapprov|unfavorable|denial|denied|veto|non-complying|terminates/.test(o)) return 'no';
       return 'mid';
     }
-    return '<div class="votes"><div class="votes-lab">How the review has gone</div>'+
-      rows.map(function(r){
-        if(r.pending) return '<div class="vrow pend"><span class="vstage">'+esc(r.stage)+'</span>'+
-          '<span class="vout wait">not yet</span></div>';
-        return '<div class="vrow"><span class="vstage">'+esc(r.stage)+'</span>'+
-          '<span class="vout '+cls(r.o)+'">'+esc(r.o)+'</span>'+
-          (r.d?'<span class="vdate">'+esc(r.d)+'</span>':'')+'</div>';
-      }).join('')+'</div>';
+    function label(n){
+      n=String(n||'');
+      n=n.replace(/^Application Reviewed at City Planning Commission Review Session$/i,'Certified by City Planning');
+      n=n.replace(/^Request for Appeals Board Review$/i,'Appeals Board');
+      n=n.replace(/^City Planning Commission Review of City Council Modification.*$/i,'City Planning Commission, on the Council\u2019s changes');
+      n=n.replace(/^Review Session - /i,'Review session, ');
+      return n;
+    }
+    var rows=ms.map(function(m){
+      var out=m.o, tag='';
+      if(override && /community board review/i.test(m.n||'')){
+        out=override.outcome; tag='<span class="vsrc">CB6 record</span>';
+      }
+      return '<div class="vrow"><span class="vwhen">'+esc((m.d||'').slice(0,10))+'</span>'+
+        '<span class="vstage">'+esc(label(m.n))+'</span>'+
+        '<span class="vout '+cls(out)+'">'+esc(out)+'</span>'+tag+'</div>';
+    }).join('');
+    var pending='';
+    if(/Active|On-Hold/i.test(p.s||'')){
+      var seen=ms.map(function(m){return (m.n||'').toLowerCase();}).join(' ');
+      var LEFT=[['Community board','community board review'],['Borough President','borough president review'],
+                ['City Planning Commission','city planning commission vote'],['City Council','city council review']];
+      var left=LEFT.filter(function(x){return seen.indexOf(x[1])<0;});
+      if(left.length) pending='<div class="vrow pend"><span class="vwhen"></span><span class="vstage">Still ahead: '+
+        esc(left.map(function(x){return x[0];}).join(', '))+'</span></div>';
+    }
+    return '<div class="votes"><div class="votes-lab">Every step of the review, in order</div>'+rows+pending+
+      (override?'<div class="vnote">The city\u2019s record logs a procedural note for the board vote. The recommendation shown is Brooklyn Community Board 6\u2019s own.</div>':'')+
+      '</div>';
   }
-
-  /* ---- where a project sits in ULURP ---- */
-  var STEPS=[
-    {k:0,n:'Before certification',d:'Application drafted, filed and reviewed by City Planning. No clock yet.'},
-    {k:1,n:'Certified',d:'City Planning certifies the application. The clock starts here.'},
-    {k:2,n:'Community board',d:'60 days. Public hearing and a vote. Advisory, and it goes on the record.'},
-    {k:3,n:'Borough President',d:'30 days to issue a recommendation.'},
-    {k:4,n:'City Planning Commission',d:'60 days. Public hearing. Approves, modifies or disapproves.'},
-    {k:5,n:'City Council',d:'50 days. May approve, modify or disapprove. Then 5 days for the Mayor.'},
-    {k:6,n:'Decision',d:'The review is over and the change either takes effect or does not.'}
-  ];
-  function stageOf(p){
-    var m=(p.m||'');
-    var tail=m.indexOf(' - ')>-1 ? m.split(' - ').slice(1).join(' - ') : m;
-    tail=tail.replace(/^[A-Z]{2}-/,'').trim().toLowerCase();
-    if(!p.u) return null;                       // not a ULURP action
-    if(/completed|final letter/.test(tail)) return 6;
-    if(/city council/.test(tail)) return 5;
-    if(/pre-hearing|post hearing|future votes|headquarters|finalize actions|review session/.test(tail)) return 4;
-    if(/borough president/.test(tail)) return 3;
-    if(/community board/.test(tail)) return 2;
-    if(/review filed|prepare filed|project readiness|draft land use|fee payment/.test(tail)) return 0;
-    if(p.ct) return 1;
-    return 0;
-  }
-
   function actionKind(p){
     var a=(p.a||'');
     if(/\bZM\b/.test(a)) return 'map';
@@ -651,11 +626,12 @@
     fetch('/data/zap-index.json').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/zoning-district-defs.json').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/zap-votes.json').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/cb6-ulurp-record.json').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/zap-counts.json').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}),
     fetch('/data/council-members.json').then(function(r){return r.json();}).catch(function(){return null;})
   ]).then(function(a){
-    D=a[0]; IDX=a[1]; DEFS=a[2]; if(a[3]&&a[3].projects) VOTES=a[3].projects; C=a[4]; GEO=a[5]; if(a[6]&&a[6].members) CM=a[6].members;
+    D=a[0]; IDX=a[1]; DEFS=a[2]; if(a[3]&&a[3].projects) VOTES=a[3].projects; if(a[4]&&a[4].records) CB6REC=a[4].records; C=a[5]; GEO=a[6]; if(a[7]&&a[7].members) CM=a[7].members;
     buildEras();
     var live=D.projects.filter(function(p){return LIVE[p.s];}).length;
     var ulurp=D.projects.filter(function(p){return p.u;}).length;
