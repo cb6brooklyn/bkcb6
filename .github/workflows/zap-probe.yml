@@ -1,0 +1,28 @@
+name: zap-probe
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe the ZAP API
+        run: |
+          mkdir -p data/zap-api
+          echo '{}' > data/zap-api/probe.json
+          for u in \
+            "https://zap-api.planning.nyc.gov/api/projects?page=1" \
+            "https://zap-api.planning.nyc.gov/projects.json" \
+            "https://zap-api.planning.nyc.gov/api/project/2019K0184" \
+            "https://zap-api.planning.nyc.gov/api/projects/2019K0184" ; do
+            echo "== $u" >> data/zap-api/probe.txt
+            curl -s -o /tmp/r -w "%{http_code} %{content_type}\n" --max-time 30 "$u" >> data/zap-api/probe.txt 2>&1 || true
+            head -c 1200 /tmp/r >> data/zap-api/probe.txt || true
+            echo "" >> data/zap-api/probe.txt
+          done
+      - name: Commit the probe result
+        run: |
+          git config user.name "Mike Racioppo"
+          git config user.email "mracioppo@cb.nyc.gov"
+          git add data/zap-api/
+          git commit -m "ZAP API probe" || echo "nothing to commit"
+          git push
