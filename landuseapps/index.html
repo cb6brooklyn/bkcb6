@@ -128,6 +128,14 @@
 .mn-kl{font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.6);font-weight:700;width:100%}
 .lg{display:inline-flex;align-items:center;gap:5px;font-family:'DM Mono',monospace;font-size:.68rem;color:#fff;font-weight:700}
 .lg i{width:15px;height:15px;border-radius:4px;display:inline-block;border:1px solid rgba(255,255,255,.35)}
+
+.pacts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:7px}
+.lnk{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:6px 12px;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:var(--navy);cursor:pointer}
+.lnk:hover{border-color:var(--orange);color:var(--orange)}
+.lnk.big{padding:8px 14px;font-size:.76rem;border-color:var(--navy2)}
+.sharebar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:#fff;border-bottom:1px solid var(--border)}
+.sb-t{flex:1;min-width:150px;font-size:.76rem;color:#555;line-height:1.45}
+.proj.focused{background:#fff8f2;box-shadow:inset 4px 0 0 var(--orange)}
 </style>
 </head>
 <body>
@@ -183,6 +191,8 @@
   </div>
   <div class="zdef" id="zdef"></div>
   <div class="chartlink"><a href="/rezonings">See what these rezonings do, charted &rarr;</a></div>
+  <div class="sharebar"><span class="sb-t" id="sbText"></span>
+    <button type="button" class="lnk big" id="shareView">Copy link to this view</button></div>
   <div class="count" id="count"></div>
   <div id="list"></div>
   <button type="button" class="more" id="more" style="display:none">Show more</button>
@@ -203,7 +213,7 @@
   function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   var D=null, C=null, GEO=null, CM=null, IDX=null, map, layer=null, shown=60;
   var cache={};
-  var st='Active', ty={ulurp:false,mih:false}, boro='', cbsel='';
+  var st='Active', ty={ulurp:false,mih:false}, boro='', cbsel='', openId='';
   function stillOpen(p){ return p.s==='Active' || p.s==='On-Hold'; }
 
   map=L.map('map',{scrollWheelZoom:true}).setView([40.70,-73.95],10);
@@ -463,7 +473,51 @@
            '<div class="ustage'+(concluded?' done':'')+'">'+esc(label)+
            (concluded?'':' <span class="udesc">'+esc(STEPS[at].d)+'</span>')+'</div></div>';
   }
+
+  /* ---- the address bar always describes what you are looking at ---- */
+  function writeUrl(){
+    var q=[];
+    if(st!=='Active') q.push('status='+encodeURIComponent(st));
+    if(ty.ulurp) q.push('ulurp=1');
+    if(ty.mih) q.push('mih=1');
+    if(boro) q.push('boro='+encodeURIComponent(boro));
+    if(cbsel) q.push('cb='+encodeURIComponent(cbsel));
+    var era=$('eraSel')?$('eraSel').value:'recent';
+    if(era&&era!=='recent') q.push('era='+encodeURIComponent(era));
+    var qv=($('q').value||'').trim();
+    if(qv) q.push('q='+encodeURIComponent(qv));
+    if(openId) q.push('id='+encodeURIComponent(openId));
+    var url=location.pathname+(q.length?'?'+q.join('&'):'');
+    history.replaceState(null,'',url);
+  }
+  function readUrl(){
+    var p=new URLSearchParams(location.search);
+    if(p.get('status')) st=p.get('status');
+    ty.ulurp=p.get('ulurp')==='1';
+    ty.mih=p.get('mih')==='1';
+    boro=p.get('boro')||'';
+    cbsel=p.get('cb')||'';
+    openId=p.get('id')||'';
+    var qv=p.get('q'); if(qv) $('q').value=qv;
+    document.querySelectorAll('[data-st]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-st')===st);});
+    document.querySelectorAll('[data-ty]').forEach(function(x){x.classList.toggle('on',!!ty[x.getAttribute('data-ty')]);});
+    return p.get('era')||'';
+  }
+  function shareUrl(extra){
+    var base=location.origin+location.pathname;
+    var p=new URLSearchParams(location.search);
+    if(extra){ Object.keys(extra).forEach(function(k){ p.set(k,extra[k]); }); }
+    var qs=p.toString();
+    return base+(qs?'?'+qs:'');
+  }
+  function copyLink(url,btn){
+    function done(){ var t=btn.textContent; btn.textContent='Link copied'; setTimeout(function(){btn.textContent=t;},1600); }
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(done).catch(function(){ window.prompt('Copy this link',url); });
+    } else { window.prompt('Copy this link',url); }
+  }
   function matches(p){
+    if(openId && p.i===openId) return true;
     if(st==='Active' && p.s!=='Active') return false;
     if(st==='On-Hold' && p.s!=='On-Hold') return false;
     if(st==='Complete' && p.s!=='Complete') return false;
@@ -487,7 +541,7 @@
   }
   function card(p){
     var where=[p.cb, p.cc?('Council '+p.cc+((CM&&CM[p.cc])?' \u00b7 '+CM[p.cc].name:'')):'', p.b].filter(Boolean).join(' \u00b7 ');
-    return '<div class="proj"><div class="pt">'+esc(p.n||p.i)+'</div>'+
+    return '<div class="proj" data-pid="'+esc(p.i)+'"><div class="pt">'+esc(p.n||p.i)+'</div>'+
       '<div class="meta">'+statusTag(p)+
         (p.u?'<span class="tagx ulurp">ULURP</span>':'')+
         (p.mih?'<span class="tagx mih">MIH</span>':'')+
@@ -500,8 +554,10 @@
         (p.fd?'<br>Filed '+esc(p.fd):'')+
         (p.m?' \u00b7 now at: '+esc(p.m):'')+
         (p.ap?'<br>Applicant: '+esc(p.ap)+(p.at?' ('+esc(p.at)+')':''):'')+'</div>'+
-      '<a class="zap" href="https://zap.planning.nyc.gov/projects/'+encodeURIComponent(p.i)+'" target="_blank" rel="noopener">See it on ZAP &rarr;</a>'+
-      '</div>';
+      '<div class="pacts">'+
+        '<a class="zap" href="https://zap.planning.nyc.gov/projects/'+encodeURIComponent(p.i)+'" target="_blank" rel="noopener">See it on ZAP &rarr;</a>'+
+        '<button type="button" class="lnk" data-share="'+esc(p.i)+'">Copy link</button>'+
+      '</div></div>';
   }
   function paintMap(rows){
     if(layer) map.removeLayer(layer);
@@ -533,7 +589,7 @@
         var tot=(C&&C.cb[code])?C.cb[code]:null;
         l.bindTooltip('<b>'+code+'</b><br>'+n(v)+' matching<br>'+
           (tot?('<span style="color:#888">'+n(tot.all)+' ever \u00b7 '+n(tot.ulurp)+' ULURP</span>'):''),{sticky:true});
-        l.on('click',function(){ cbsel=(cbsel===code)?'':code; $('cbSel').value=cbsel; render(); });
+        l.on('click',function(){ cbsel=(cbsel===code)?'':code; $('cbSel').value=cbsel; writeUrl(); render(); });
       }}).addTo(map);
     var districtsWith=Object.keys(tally).length;
     var legend = mx>0
@@ -569,13 +625,28 @@
     var rows=D.projects.filter(matches);
     paintMap(rows);
     $('count').textContent=n(rows.length)+' of '+n(D.projects.length)+' loaded \u00b7 '+n(D.total_all_time)+' on record since 1970';
+    var bits=[];
+    if(st!=='all') bits.push(st==='withdrawn'?'withdrawn or terminated':st.toLowerCase());
+    if(ty.ulurp) bits.push('ULURP only');
+    if(ty.mih) bits.push('with MIH');
+    if(cbsel) bits.push('in '+cbsel); else if(boro) bits.push('in '+boro);
+    var qv=($('q').value||'').trim(); if(qv) bits.push('matching \u201c'+qv+'\u201d');
+    $('sbText').textContent = bits.length ? ('Showing '+bits.join(', ')) : 'Showing everything in this period';
     draw(rows);
   }
   function draw(rows){
+    if(openId){
+      var i=rows.findIndex(function(p){return p.i===openId;});
+      if(i>-1 && i>=shown) shown=i+1;
+    }
     $('list').innerHTML=rows.slice(0,shown).map(card).join('')||
       '<div class="count" style="background:#fff">Nothing matches those filters.</div>';
     $('more').style.display=rows.length>shown?'':'none';
     $('more').onclick=function(){ shown+=60; draw(rows); };
+    if(openId){
+      var el=$('list').querySelector('[data-pid="'+CSS.escape(openId)+'"]');
+      if(el){ el.classList.add('focused'); el.scrollIntoView({block:'center'}); }
+    }
   }
 
   function buildEras(){
@@ -613,19 +684,25 @@
     b.addEventListener('click',function(){
       st=this.getAttribute('data-st');
       document.querySelectorAll('[data-st]').forEach(function(x){x.classList.toggle('on',x===b);});
-      render();
+      writeUrl(); render();
     });
   });
   document.querySelectorAll('[data-ty]').forEach(function(b){
     b.addEventListener('click',function(){
       var k=this.getAttribute('data-ty');
       ty[k]=!ty[k]; this.classList.toggle('on',ty[k]);
-      render();
+      writeUrl(); render();
     });
   });
-  $('q').addEventListener('input',render);
-  $('boroSel').addEventListener('change',function(){ boro=this.value; cbsel=''; $('cbSel').value=''; render(); });
-  $('cbSel').addEventListener('change',function(){ cbsel=this.value; render(); });
+  $('q').addEventListener('input',function(){ writeUrl(); render(); });
+  $('shareView').addEventListener('click',function(){ writeUrl(); copyLink(shareUrl(),this); });
+  document.addEventListener('click',function(e){
+    var b=e.target.closest&&e.target.closest('[data-share]');
+    if(!b) return;
+    copyLink(location.origin+location.pathname+'?id='+encodeURIComponent(b.getAttribute('data-share')),b);
+  });
+  $('boroSel').addEventListener('change',function(){ boro=this.value; cbsel=''; $('cbSel').value=''; writeUrl(); render(); });
+  $('cbSel').addEventListener('change',function(){ cbsel=this.value; writeUrl(); render(); });
 
   Promise.all([
     fetch('/data/zap-recent.json').then(function(r){return r.json();}),
@@ -639,6 +716,8 @@
   ]).then(function(a){
     D=a[0]; IDX=a[1]; DEFS=a[2]; if(a[3]&&a[3].projects) VOTES=a[3].projects; if(a[4]&&a[4].records) CB6REC=a[4].records; C=a[5]; GEO=a[6]; if(a[7]&&a[7].members) CM=a[7].members;
     buildEras();
+    var urlEra=readUrl();
+    if(urlEra && $('eraSel')){ $('eraSel').value=urlEra; }
     var active=D.projects.filter(function(p){return p.s==='Active';}).length;
     var held=D.projects.filter(function(p){return p.s==='On-Hold';}).length;
     var live=active+held;
@@ -650,6 +729,9 @@
     $('boroSel').innerHTML='<option value="">Any borough</option>'+boros.map(function(b){return '<option>'+b+'</option>';}).join('');
     var cbs=Object.keys((C&&C.cb)||{}).sort();
     $('cbSel').innerHTML='<option value="">Any community board</option>'+cbs.map(function(k){return '<option>'+k+'</option>';}).join('');
+    if(boro) $('boroSel').value=boro;
+    if(cbsel) $('cbSel').value=cbsel;
+    if(urlEra && urlEra!=='recent'){ loadEra(urlEra); return; }
     $('foot').innerHTML=esc(D.note)+'<br>Source: '+esc(D.source)+' &middot; data current to '+esc(D.generated)+
       '<br>Applications marked borough wide are not tied to a single district and do not appear on the map.';
     render();

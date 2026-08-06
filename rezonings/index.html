@@ -58,7 +58,7 @@
 .kp.cmp{flex:1 1 150px;min-width:150px;padding-left:11px}
 .kp.cmp .k{font-size:.68rem;color:var(--navy);font-weight:800;text-transform:none;letter-spacing:0}
 
-.proj2{display:block;padding:11px 12px;border-bottom:1px solid #f2efea;text-decoration:none}
+.proj2{display:block;padding:11px 12px;text-decoration:none}
 .proj2:hover{background:#fbfaf8}
 .p2top{display:flex;align-items:center;gap:5px;margin-bottom:5px}
 .pz{font-family:'DM Mono',monospace;font-size:.7rem;font-weight:800;color:#fff;padding:2px 7px;border-radius:5px}
@@ -73,6 +73,14 @@
 
 .cmphint{font-family:'DM Mono',monospace;font-size:.66rem;color:var(--muted)}
 #pickRow[data-hint]::after{content:attr(data-hint);font-family:'DM Mono',monospace;font-size:.66rem;color:var(--orange);font-weight:700;margin-left:4px}
+
+.sharebar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:#fff;border-bottom:1px solid var(--border)}
+.sb-t{flex:1;min-width:150px;font-size:.76rem;color:#555;line-height:1.45}
+.lnk{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:6px 12px;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:var(--navy);cursor:pointer}
+.lnk:hover{border-color:var(--orange);color:var(--orange)}
+.lnk.big{padding:8px 14px;font-size:.76rem;border-color:var(--navy2)}
+.lnk.sm{margin:0 12px 11px;font-size:.68rem;padding:5px 10px}
+.proj2w{border-bottom:1px solid #f2efea}
 </style>
 </head>
 <body>
@@ -125,6 +133,8 @@
     </div>
   </div>
 
+  <div class="sharebar"><span class="sb-t" id="sbText"></span>
+    <button type="button" class="lnk big" id="shareView">Copy link to this comparison</button></div>
   <div class="kpis2" id="kpis"></div>
   <div class="famkey" id="famkey"></div>
   <div id="charts"></div>
@@ -182,6 +192,31 @@
     });
   }
 
+
+  function writeUrl(){
+    var q=[];
+    if(picked.length) q.push('areas='+encodeURIComponent(picked.map(function(p){return p.lvl+':'+p.key;}).join(',')));
+    if(compare) q.push('compare=1');
+    if(yFrom) q.push('from='+yFrom);
+    if(yTo) q.push('to='+yTo);
+    Object.keys(only).forEach(function(k){ if(only[k]) q.push(k+'=1'); });
+    history.replaceState(null,'',location.pathname+(q.length?'?'+q.join('&'):''));
+  }
+  function readUrl(){
+    var p=new URLSearchParams(location.search);
+    var a=p.get('areas');
+    if(a) picked=a.split(',').map(function(x){var b=x.split(':');return {lvl:b[0],key:b.slice(1).join(':')};}).filter(function(x){return x.lvl&&x.key;});
+    compare=p.get('compare')==='1' && picked.length>1;
+    ['mih','live','addsRes','dropsMan'].forEach(function(k){ if(p.get(k)==='1') only[k]=true; });
+    document.querySelectorAll('[data-only]').forEach(function(x){x.classList.toggle('on',!!only[x.getAttribute('data-only')]);});
+    return {from:parseInt(p.get('from'),10)||null,to:parseInt(p.get('to'),10)||null};
+  }
+  function copyLink(url,btn){
+    function done(){ var t=btn.textContent; btn.textContent='Link copied'; setTimeout(function(){btn.textContent=t;},1600); }
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(done).catch(function(){ window.prompt('Copy this link',url); });
+    } else { window.prompt('Copy this link',url); }
+  }
   function rows(){
     return (D.changes||[]).filter(function(r){
       if(picked.length && !picked.some(function(p){return r[p.lvl]===p.key;})) return false;
@@ -268,17 +303,22 @@
             '<span class="parr">\u2192</span>'+
             '<span class="pz" style="background:'+famColor(r.fb)+'">'+esc(r.bb)+'</span>'
           : '';
-        return '<a class="proj2" href="https://zap.planning.nyc.gov/projects/'+encodeURIComponent(r.i)+'" target="_blank" rel="noopener">'+
+        return '<div class="proj2w"><a class="proj2" href="https://zap.planning.nyc.gov/projects/'+encodeURIComponent(r.i)+'" target="_blank" rel="noopener">'+
           '<div class="p2top">'+chip+'<span class="p2yr">'+esc((r.w||'').slice(0,7))+'</span></div>'+
           '<div class="p2n">'+esc(r.n||r.i)+'</div>'+
           '<div class="p2m">'+esc(where)+
             (r.mih?' <span class="p2t">MIH</span>':'')+
             (r.s==='Active'||r.s==='On-Hold'?' <span class="p2t live">'+esc(r.s)+'</span>':'')+
-          '</div></a>';
+          '</div></a><button type="button" class="lnk sm" data-app="'+esc(r.i)+'">Copy link</button></div>';
       }).join('')||'<div class="empty3">Nothing matches those filters.</div>';
       $('moreBtn').style.display=sorted.length>listShown?'':'none';
     }
     listShown=40; paint();
+    $('projlist').querySelectorAll('[data-app]').forEach(function(b){
+      b.addEventListener('click',function(){
+        copyLink(location.origin+'/landuseapps/?id='+encodeURIComponent(this.getAttribute('data-app')),this);
+      });
+    });
     $('moreBtn').onclick=function(){ listShown+=40; paint(); };
   }
   function render(){
@@ -392,6 +432,9 @@
     var cck=sortedKeys(ccT,20);
     var ccv=cck.map(function(k){return ccT[k];}); bar('cCC',cck,ccv,ramp(ccv),true);
 
+    $('sbText').textContent = picked.length
+      ? (compare?'Comparing ':'Showing ')+picked.map(labelOf).join(', ')+', '+yFrom+' to '+yTo
+      : 'Showing everywhere, '+yFrom+' to '+yTo;
     drawList(R);
     // the matrix
     var froms={},tos={};
@@ -436,7 +479,7 @@
     if(picked.length>=8) return;
     picked.push({lvl:lvl,key:key});
     $('areaSel').value='';
-    drawChips(); render();
+    drawChips(); writeUrl(); render();
   }
   function labelOf(p){
     if(p.lvl==='cc') return 'Council '+p.key+((CM&&CM[p.key])?' \u00b7 '+CM[p.key].name:'');
@@ -454,7 +497,7 @@
       return '<span class="chip" style="background:'+SERIES[i%SERIES.length]+'">'+esc(labelOf(p))+
              '<button type="button" data-rm="'+i+'">\u00d7</button></span>';
     }).join('')+(picked.length?'<button type="button" class="clr" id="clrBtn">Clear</button>':'');
-    var c=$('clrBtn'); if(c) c.addEventListener('click',function(){ picked=[]; compare=false; $('cmpBtn').classList.remove('on'); drawChips(); render(); });
+    var c=$('clrBtn'); if(c) c.addEventListener('click',function(){ picked=[]; compare=false; $('cmpBtn').classList.remove('on'); drawChips(); writeUrl(); render(); });
     $('chips').querySelectorAll('[data-rm]').forEach(function(b){
       b.addEventListener('click',function(){ picked.splice(+this.getAttribute('data-rm'),1); if(picked.length<2) compare=false; drawChips(); render(); });
     });
@@ -466,24 +509,24 @@
     if(picked.length<2){ this.classList.remove('on'); compare=false; render(); return; }
     compare=!compare; this.classList.toggle('on',compare);
     this.textContent = compare?'Side by side':'Show them side by side';
-    drawChips(); render();
+    drawChips(); writeUrl(); render();
   });
   document.querySelectorAll('[data-era]').forEach(function(b){
     b.addEventListener('click',function(){
       era=this.getAttribute('data-era');
       document.querySelectorAll('[data-era]').forEach(function(x){x.classList.toggle('on',x===b);});
-      applyEra(); render();
+      applyEra(); writeUrl(); render();
     });
   });
   document.querySelectorAll('[data-only]').forEach(function(b){
     b.addEventListener('click',function(){
       var k=this.getAttribute('data-only');
       only[k]=!only[k]; this.classList.toggle('on',only[k]);
-      render();
+      writeUrl(); render();
     });
   });
-  $('fromSel').addEventListener('change',function(){ yFrom=parseInt(this.value,10); document.querySelectorAll('[data-era]').forEach(function(x){x.classList.remove('on');}); render(); });
-  $('toSel').addEventListener('change',function(){ yTo=parseInt(this.value,10); document.querySelectorAll('[data-era]').forEach(function(x){x.classList.remove('on');}); render(); });
+  $('fromSel').addEventListener('change',function(){ yFrom=parseInt(this.value,10); document.querySelectorAll('[data-era]').forEach(function(x){x.classList.remove('on');}); writeUrl(); render(); });
+  $('toSel').addEventListener('change',function(){ yTo=parseInt(this.value,10); document.querySelectorAll('[data-era]').forEach(function(x){x.classList.remove('on');}); writeUrl(); render(); });
 
   Promise.all([
     fetch('/data/zap-changes.json').then(function(r){return r.json();}),
@@ -495,7 +538,14 @@
     ys.sort(function(x,y){return x-y;});
     var opts=ys.map(function(y){return '<option value="'+y+'">'+y+'</option>';}).join('');
     $('fromSel').innerHTML=opts; $('toSel').innerHTML=opts;
-    applyEra(); fillAreas(); render();
+    var u=readUrl();
+    applyEra();
+    if(u.from) yFrom=u.from; if(u.to) yTo=u.to;
+    if(u.from||u.to){ document.querySelectorAll('[data-era]').forEach(function(x){x.classList.remove('on');}); }
+    $('fromSel').value=String(yFrom); $('toSel').value=String(yTo);
+    if(compare){ $('cmpBtn').classList.add('on'); $('cmpBtn').textContent='Side by side'; }
+    fillAreas(); drawChips(); render();
+    $('shareView').addEventListener('click',function(){ writeUrl(); copyLink(location.href,this); });
     var ex=D.excluded||{};
     var exList=Object.keys(ex).sort(function(a,b){return ex[b]-ex[a];})
       .map(function(k){ return '<li>'+n(ex[k])+' '+esc(k)+'</li>'; }).join('');
