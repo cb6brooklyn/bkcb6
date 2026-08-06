@@ -7,24 +7,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Probe the ZAP API
+      - name: Find the portal's real API
         run: |
           mkdir -p data/zap-api
-          echo '{}' > data/zap-api/probe.json
+          : > data/zap-api/probe.txt
+          echo "== portal HTML, looking for api hosts" >> data/zap-api/probe.txt
+          curl -s --max-time 30 "https://zap.planning.nyc.gov/projects" -o /tmp/page || true
+          grep -oE 'https?://[a-z0-9.-]*planning[a-z0-9.-]*\.nyc\.gov[^"'\'' ]*' /tmp/page | sort -u | head -20 >> data/zap-api/probe.txt || true
+          grep -oE '"(host|apiHost|namespace)":"[^"]*"' /tmp/page | head -10 >> data/zap-api/probe.txt || true
+          echo "" >> data/zap-api/probe.txt
           for u in \
-            "https://zap-api.planning.nyc.gov/api/projects?page=1" \
-            "https://zap-api.planning.nyc.gov/projects.json" \
-            "https://zap-api.planning.nyc.gov/api/project/2019K0184" \
-            "https://zap-api.planning.nyc.gov/api/projects/2019K0184" ; do
+            "https://zap.planning.nyc.gov/api/projects?page=1" \
+            "https://zap.planning.nyc.gov/projects?applied-filters=" \
+            "https://zap-api-production.herokuapp.com/projects" \
+            "https://zap.planning.nyc.gov/api/project/2019K0184" ; do
             echo "== $u" >> data/zap-api/probe.txt
             curl -s -o /tmp/r -w "%{http_code} %{content_type}\n" --max-time 30 "$u" >> data/zap-api/probe.txt 2>&1 || true
-            head -c 1200 /tmp/r >> data/zap-api/probe.txt || true
+            head -c 900 /tmp/r >> data/zap-api/probe.txt || true
             echo "" >> data/zap-api/probe.txt
           done
-      - name: Commit the probe result
+      - name: Commit
         run: |
           git config user.name "Mike Racioppo"
           git config user.email "mracioppo@cb.nyc.gov"
-          git add data/zap-api/
-          git commit -m "ZAP API probe" || echo "nothing to commit"
+          git add data/zap-api/ && git commit -m "ZAP portal probe" || echo skip
           git push
