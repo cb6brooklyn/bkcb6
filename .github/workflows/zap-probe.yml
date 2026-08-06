@@ -1,0 +1,31 @@
+name: zap-probe
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: See what district fields the API exposes
+        run: |
+          mkdir -p data/zap-api
+          curl -s --max-time 40 "https://zap-api-production.herokuapp.com/projects/2018K0382" -o /tmp/g.json || true
+          python3 - <<'PYEOF'
+          import json
+          d=json.load(open('/tmp/g.json'))
+          a=d['data']['attributes']
+          keys=[k for k in a if any(t in k for t in ('community','district','borough','council'))]
+          out={k:a[k] for k in keys}
+          inc={}
+          for i in d.get('included',[]):
+              inc.setdefault(i.get('type'),0)
+              inc[i['type']]+=1
+          open('data/zap-api/districts-probe.json','w').write(json.dumps({'attrs':out,'included_types':inc},indent=1))
+          PYEOF
+      - name: Commit
+        run: |
+          git config user.name "Mike Racioppo"
+          git config user.email "mracioppo@cb.nyc.gov"
+          git add data/zap-api/ && git commit -m "district probe" || echo skip
+          git push
