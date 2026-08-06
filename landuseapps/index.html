@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Land Use Applications">
+<meta property="og:description" content="Every land use application filed in New York City. Search, filter and map them by community board, council district and borough.">
+<meta property="og:url" content="https://bkcb6.app/landuseapps">
+<meta property="og:image" content="https://bkcb6.app/og-zoning.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://bkcb6.app/og-zoning.png">
+<title>Land Use Applications — bkcb6.app</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="/assets/cd-page.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+.intro{background:#fff;padding:13px 15px;border-bottom:1px solid var(--border);font-size:.86rem;line-height:1.62;color:#333;max-width:76ch}
+.intro b{color:var(--navy)}
+.kpis2{display:grid;grid-template-columns:repeat(auto-fit,minmax(124px,1fr));gap:1px;background:var(--border);border-bottom:1px solid var(--border)}
+.kp{background:#fff;padding:10px 12px}
+.kp .k{font-family:'DM Mono',monospace;font-size:.5rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700}
+.kp .v{font-family:'DM Mono',monospace;font-size:1.15rem;font-weight:900;color:var(--navy);margin-top:2px}
+.kp .d{font-size:.66rem;color:var(--muted);margin-top:1px;line-height:1.35}
+.ctrl{background:#fff;padding:11px 12px;border-bottom:1px solid var(--border)}
+.ctrl input[type=search]{width:100%;padding:11px 12px;font-family:'DM Sans',sans-serif;font-size:.86rem;border:2px solid var(--navy2);border-radius:10px;color:var(--navy);margin-bottom:9px}
+.frow{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:7px}
+.flab{font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.fb2{padding:6px 12px;border:1.5px solid var(--border);border-radius:18px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:700;color:var(--navy);cursor:pointer}
+.fb2.on{background:var(--orange);border-color:var(--orange);color:#fff}
+.ctrl select{padding:8px 11px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;border:2px solid var(--navy2);border-radius:9px;color:var(--navy);background:#fff;max-width:230px}
+#map{height:46vh;min-height:280px;background:#eef0f4}
+.mapnote{padding:8px 14px;background:var(--navy);color:rgba(255,255,255,.8);font-size:.73rem;line-height:1.5;border-bottom:2px solid var(--orange)}
+.mapnote b{color:var(--orange)}
+.count{padding:9px 14px;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);background:var(--off);border-bottom:1px solid var(--border)}
+.proj{padding:12px 14px;border-bottom:1px solid var(--border);background:#fff}
+.proj .pt{font-size:.88rem;font-weight:800;color:var(--navy);line-height:1.3}
+.proj .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.tagx{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:4px;font-weight:700;background:#eef0f4;color:var(--muted)}
+.tagx.active{background:#e3f2e4;color:#2e6b30}
+.tagx.hold{background:#fff1e0;color:#a65a00}
+.tagx.ulurp{background:#e8eefb;color:#2145a8}
+.tagx.mih{background:#fff1e5;color:var(--orange)}
+.tagx.done{background:#f0ede8;color:#6b6760}
+.proj .br2x{font-size:.76rem;color:#555;line-height:1.55;margin-top:5px}
+.proj .foot2{font-family:'DM Mono',monospace;font-size:.65rem;color:#9ca3af;margin-top:5px;line-height:1.5}
+.proj a.zap{display:inline-block;margin-top:7px;padding:6px 12px;background:var(--navy2);color:#fff;border-radius:16px;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;text-decoration:none}
+.proj a.zap:hover{background:var(--orange)}
+.more{display:block;width:calc(100% - 24px);margin:12px;padding:12px;background:#fff;border:2px solid var(--navy2);border-radius:24px;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:800;color:var(--navy);cursor:pointer}
+.more:hover{background:#fff4ea;border-color:var(--orange)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="crumb"><a href="/">CB6 &amp; Beyond</a> &rsaquo; <a href="/zoning">Zoning &amp; Land Use</a></div>
+    <h1>Land Use <span>Applications</span></h1>
+    <div class="nbs">Every project filed with City Planning, searchable and mapped</div>
+  </div>
+
+  <div class="intro">
+    <b>This is the pipeline.</b> Every rezoning, special permit, certification and authorization filed with the Department of City Planning, going back decades. If something is going to change on a block, it starts here, usually years before anything gets built.
+  </div>
+
+  <div class="kpis2" id="kpis"></div>
+
+  <div class="ctrl">
+    <input id="q" type="search" placeholder="Search a project, an applicant or a ULURP number&hellip;" autocomplete="off">
+    <div class="frow">
+      <span class="flab">Status</span>
+      <button type="button" class="fb2 on" data-st="live">Active &amp; on hold</button>
+      <button type="button" class="fb2" data-st="all">All</button>
+      <button type="button" class="fb2" data-st="Complete">Complete</button>
+      <button type="button" class="fb2" data-st="withdrawn">Withdrawn or terminated</button>
+    </div>
+    <div class="frow">
+      <span class="flab">Type</span>
+      <button type="button" class="fb2" data-ty="ulurp">ULURP only</button>
+      <button type="button" class="fb2" data-ty="mih">Mandatory Inclusionary Housing</button>
+    </div>
+    <div class="frow">
+      <span class="flab">Where</span>
+      <select id="boroSel"></select>
+      <select id="cbSel"></select>
+    </div>
+  </div>
+
+  <div class="mapnote" id="mapnote"></div>
+  <div class="maphold"><div id="map"></div></div>
+  <div class="count" id="count"></div>
+  <div id="list"></div>
+  <button type="button" class="more" id="more" style="display:none">Show more</button>
+
+  <div class="nav">
+    <a href="/zoning">&#128208; What the rules allow</a>
+    <a href="/landusemap">&#128506; Land use &amp; zoning map</a>
+    <a href="/landusedash">&#128202; Compare areas</a>
+    <a href="/cd/">&#128205; Your district</a>
+  </div>
+  <div class="foot" id="foot"></div>
+</div>
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i);};
+  var n=function(v){return Number(v||0).toLocaleString('en-US');};
+  function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  var D=null, C=null, GEO=null, CM=null, map, layer=null, shown=60;
+  var st='live', ty={ulurp:false,mih:false}, boro='', cbsel='';
+  var LIVE={'Active':1,'On-Hold':1};
+
+  map=L.map('map',{scrollWheelZoom:true}).setView([40.70,-73.95],10);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:17,attribution:'&copy; CARTO'}).addTo(map);
+
+  function matches(p){
+    if(st==='live' && !LIVE[p.s]) return false;
+    if(st==='Complete' && p.s!=='Complete') return false;
+    if(st==='withdrawn' && !/Withdraw|Terminat|Record Closed/.test(p.s||'')) return false;
+    if(ty.ulurp && !p.u) return false;
+    if(ty.mih && !p.mih) return false;
+    if(boro && p.b!==boro) return false;
+    if(cbsel && p.cb!==cbsel) return false;
+    var q=($('q').value||'').toLowerCase().trim();
+    if(q){
+      var hay=((p.n||'')+' '+(p.ap||'')+' '+(p.un||'')+' '+(p.i||'')+' '+(p.a||'')+' '+(p.br||'')).toLowerCase();
+      if(hay.indexOf(q)<0) return false;
+    }
+    return true;
+  }
+  function statusTag(p){
+    if(p.s==='Active') return '<span class="tagx active">active</span>';
+    if(p.s==='On-Hold') return '<span class="tagx hold">on hold</span>';
+    if(p.s==='Complete') return '<span class="tagx done">complete</span>';
+    return '<span class="tagx">'+esc((p.s||'').toLowerCase())+'</span>';
+  }
+  function card(p){
+    var where=[p.cb, p.cc?('Council '+p.cc+((CM&&CM[p.cc])?' \u00b7 '+CM[p.cc].name:'')):'', p.b].filter(Boolean).join(' \u00b7 ');
+    return '<div class="proj"><div class="pt">'+esc(p.n||p.i)+'</div>'+
+      '<div class="meta">'+statusTag(p)+
+        (p.u?'<span class="tagx ulurp">ULURP</span>':'')+
+        (p.mih?'<span class="tagx mih">MIH</span>':'')+
+        (p.un?'<span class="tagx">'+esc(p.un)+'</span>':'')+'</div>'+
+      (p.br?'<div class="br2x">'+esc(p.br)+(p.br.length>=260?'\u2026':'')+'</div>':'')+
+      '<div class="foot2">'+esc(where)+
+        (p.fd?'<br>Filed '+esc(p.fd):'')+
+        (p.m?' \u00b7 now at: '+esc(p.m):'')+
+        (p.ap?'<br>Applicant: '+esc(p.ap)+(p.at?' ('+esc(p.at)+')':''):'')+'</div>'+
+      '<a class="zap" href="https://zap.planning.nyc.gov/projects/'+encodeURIComponent(p.i)+'" target="_blank" rel="noopener">See it on ZAP &rarr;</a>'+
+      '</div>';
+  }
+  function paintMap(rows){
+    if(layer) map.removeLayer(layer);
+    var tally={};
+    rows.forEach(function(p){ if(p.cb) tally[p.cb]=(tally[p.cb]||0)+1; });
+    var vals=Object.keys(tally).map(function(k){return tally[k];});
+    var mx=vals.length?Math.max.apply(null,vals):0;
+    function shade(v){
+      if(!v) return '#eeece7';
+      var t=Math.min(1,v/(mx||1));
+      var band=t>0.66?'#993404':(t>0.33?'#fe9929':'#fed98e');
+      return band;
+    }
+    layer=L.geoJSON(GEO,{
+      style:function(f){
+        var v=tally[f.properties.cb_code]||0;
+        var sel=(cbsel===f.properties.cb_code);
+        return {color:sel?'#0d1b4b':'#8a857f',weight:sel?3:1,fillColor:shade(v),fillOpacity:v?.82:.25};
+      },
+      onEachFeature:function(f,l){
+        var code=f.properties.cb_code, v=tally[code]||0;
+        var tot=(C&&C.cb[code])?C.cb[code]:null;
+        l.bindTooltip('<b>'+code+'</b><br>'+n(v)+' matching<br>'+
+          (tot?('<span style="color:#888">'+n(tot.all)+' ever \u00b7 '+n(tot.ulurp)+' ULURP</span>'):''),{sticky:true});
+        l.on('click',function(){ cbsel=(cbsel===code)?'':code; $('cbSel').value=cbsel; render(); });
+      }}).addTo(map);
+    $('mapnote').innerHTML='Shaded by how many of the <b>'+n(rows.length)+'</b> matching applications fall in each community district. Tap a district to filter to it.';
+  }
+  function render(){
+    shown=60;
+    var rows=D.projects.filter(matches);
+    paintMap(rows);
+    $('count').textContent=n(rows.length)+' of '+n(D.projects.length)+' shown'+
+      (st==='all'?'':'')+' \u00b7 '+n(D.total_all_time)+' filed all time';
+    draw(rows);
+  }
+  function draw(rows){
+    $('list').innerHTML=rows.slice(0,shown).map(card).join('')||
+      '<div class="count" style="background:#fff">Nothing matches those filters.</div>';
+    $('more').style.display=rows.length>shown?'':'none';
+    $('more').onclick=function(){ shown+=60; draw(rows); };
+  }
+  document.querySelectorAll('[data-st]').forEach(function(b){
+    b.addEventListener('click',function(){
+      st=this.getAttribute('data-st');
+      document.querySelectorAll('[data-st]').forEach(function(x){x.classList.toggle('on',x===b);});
+      render();
+    });
+  });
+  document.querySelectorAll('[data-ty]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var k=this.getAttribute('data-ty');
+      ty[k]=!ty[k]; this.classList.toggle('on',ty[k]);
+      render();
+    });
+  });
+  $('q').addEventListener('input',render);
+  $('boroSel').addEventListener('change',function(){ boro=this.value; cbsel=''; $('cbSel').value=''; render(); });
+  $('cbSel').addEventListener('change',function(){ cbsel=this.value; render(); });
+
+  Promise.all([
+    fetch('/data/zap-recent.json').then(function(r){return r.json();}),
+    fetch('/data/zap-counts.json').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}),
+    fetch('/data/council-members.json').then(function(r){return r.json();}).catch(function(){return null;})
+  ]).then(function(a){
+    D=a[0]; C=a[1]; GEO=a[2]; if(a[3]&&a[3].members) CM=a[3].members;
+    var live=D.projects.filter(function(p){return LIVE[p.s];}).length;
+    var ulurp=D.projects.filter(function(p){return p.u;}).length;
+    var mih=D.projects.filter(function(p){return p.mih;}).length;
+    $('kpis').innerHTML=
+      '<div class="kp"><div class="k">Active or on hold</div><div class="v">'+n(live)+'</div><div class="d">moving right now</div></div>'+
+      '<div class="kp"><div class="k">Since 2015</div><div class="v">'+n(D.projects.length-live)+'</div><div class="d">filed and resolved</div></div>'+
+      '<div class="kp"><div class="k">ULURP</div><div class="v">'+n(ulurp)+'</div><div class="d">full public review</div></div>'+
+      '<div class="kp"><div class="k">With MIH</div><div class="v">'+n(mih)+'</div><div class="d">mandatory affordable housing</div></div>'+
+      '<div class="kp"><div class="k">All time</div><div class="v">'+n(D.total_all_time)+'</div><div class="d">applications on record</div></div>';
+    var boros=['Manhattan','Bronx','Brooklyn','Queens','Staten Island'];
+    $('boroSel').innerHTML='<option value="">Any borough</option>'+boros.map(function(b){return '<option>'+b+'</option>';}).join('');
+    var cbs=Object.keys((C&&C.cb)||{}).sort();
+    $('cbSel').innerHTML='<option value="">Any community board</option>'+cbs.map(function(k){return '<option>'+k+'</option>';}).join('');
+    $('foot').innerHTML=esc(D.note)+'<br>Source: '+esc(D.source)+' &middot; data current to '+esc(D.generated)+
+      '<br>Applications marked borough wide are not tied to a single district and do not appear on the map.';
+    render();
+  }).catch(function(){ $('count').textContent='Data could not load.'; });
+})();
+</script>
+</body>
+</html>
