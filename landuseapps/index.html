@@ -81,12 +81,35 @@
 .ulurpkey i.past{background:#2e6b30}.ulurpkey i.now{background:var(--orange)}.ulurpkey i.ahead{background:#e8e6e1}
 .ulurpkey a{color:var(--navy);border-bottom:1px solid var(--orange);text-decoration:none}
 
-.zchg{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:9px 11px;background:#f8f7f4;border-left:3px solid var(--orange);border-radius:0 8px 8px 0}
-.zc-from,.zc-to{font-family:'DM Mono',monospace;font-size:.8rem;font-weight:800;padding:3px 9px;border-radius:6px}
-.zc-from{background:#eef0f4;color:#5b5651}
-.zc-to{background:var(--orange);color:#fff}
-.zc-ar{color:var(--orange);font-weight:900}
-.zc-why{flex-basis:100%;font-size:.75rem;line-height:1.5;color:#444;margin-top:2px}
+
+.zchg{margin-top:9px;padding:11px 12px;background:#fff;border:1px solid var(--border);border-left:4px solid var(--orange);border-radius:0 10px 10px 0}
+.zc-lab{font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin-bottom:7px}
+.zc-run{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.zc-side{display:inline-flex;align-items:center;gap:3px;flex-wrap:wrap}
+.zc-ar{color:var(--orange);font-weight:900;font-size:1.1rem}
+.zsep{color:#9ca3af;font-family:'DM Mono',monospace;font-size:.78rem}
+.zchip{font-family:'DM Mono',monospace;font-size:.82rem;font-weight:800;padding:5px 11px;border-radius:7px;border:2px solid transparent;cursor:pointer;line-height:1.2}
+.zchip:hover{border-color:var(--navy)}
+.f-residential{background:#fdecd8;color:#a65a00}
+.f-commercial{background:#e2ebfb;color:#2145a8}
+.f-manufacturing{background:#efe4fb;color:#6b3fa0}
+.f-mx{background:#0d1b4b;color:#fff}
+.f-mih{background:var(--orange);color:#fff;margin-top:8px;font-family:'DM Sans',sans-serif;font-size:.74rem}
+.f-other{background:#eef0f4;color:#5b5651}
+.zc-side.to .zchip{box-shadow:0 1px 3px rgba(13,27,75,.18)}
+.zc-why{font-size:.78rem;line-height:1.58;color:#333;margin-top:9px}
+.zc-hint{font-family:'DM Mono',monospace;font-size:.62rem;color:#9ca3af;margin-top:7px}
+.zdef{position:sticky;top:0;z-index:700}
+.zdef:not(.on){display:none}
+.zd-in{background:var(--navy);color:#fff;padding:14px 15px;border-bottom:3px solid var(--orange);position:relative}
+.zd-x{position:absolute;top:9px;right:11px;background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;width:28px;height:28px;border-radius:8px;font-size:1.05rem;cursor:pointer;line-height:1}
+.zd-code{font-family:'DM Mono',monospace;font-size:1.25rem;font-weight:900;color:var(--orange)}
+.zd-fam{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6);font-weight:700;margin-top:2px}
+.zd-text{font-size:.85rem;line-height:1.6;margin-top:7px;max-width:70ch}
+.zd-sfx{font-size:.79rem;line-height:1.55;color:rgba(255,255,255,.85);margin-top:8px;max-width:70ch}
+.zd-sfx b{color:var(--orange)}
+.zd-num{font-size:.75rem;line-height:1.55;color:rgba(255,255,255,.7);margin-top:8px;max-width:70ch}
+.zd-more{display:inline-block;margin-top:10px;font-size:.77rem;font-weight:700;color:#fff;background:var(--navy2);padding:8px 13px;border-radius:18px;text-decoration:none}
 </style>
 </head>
 <body>
@@ -139,6 +162,7 @@
     Seven steps: before certification, certified, community board, Borough President, City Planning Commission, City Council, decided.
     <a href="/zoning">What each step means &rarr;</a>
   </div>
+  <div class="zdef" id="zdef"></div>
   <div class="stages" id="stages"></div>
   <div class="count" id="count"></div>
   <div id="list"></div>
@@ -167,14 +191,13 @@
 
 
 
+
   /* ---- what the application would change the zoning to ---- */
+  var DEFS=null;
   var ZRE='[RCM]\\d{1,2}[A-Z]?(?:-\\d+[A-Z]?)?';
-  var FROMTO=new RegExp('from\\s+(?:an?\\s+)?((?:'+ZRE+')(?:\\s*/\\s*'+ZRE+')*)\\s+(?:districts?\\s+)?to\\s+((?:'+ZRE+')(?:\\s*(?:/|,|and)\\s*'+ZRE+')*)','i');
+  var FROMTO=new RegExp('from\\s+(?:an?\\s+)?((?:'+ZRE+')(?:\\s*/\\s*'+ZRE+')*)\\s+(?:districts?\\s+)?to\\s+((?:'+ZRE+')(?:\\s*(?:/|,|and|\\(MX-\\d+\\))\\s*'+ZRE+')*(?:\\s*\\(MX-\\d+\\))?)','i');
   var FAMNAME={R:'residential',C:'commercial',M:'manufacturing'};
-  function fam(z){
-    var c=String(z).trim().toUpperCase().charAt(0);
-    return FAMNAME[c]||null;
-  }
+  function fam(z){ return FAMNAME[String(z).trim().toUpperCase().charAt(0)]||null; }
   function famsOf(str){
     var out=[];
     (String(str).match(new RegExp(ZRE,'gi'))||[]).forEach(function(z){
@@ -182,9 +205,39 @@
     });
     return out;
   }
+  function baseOf(z){
+    var m=String(z).trim().toUpperCase().match(/^([RCM]\d{1,2})/);
+    return m?m[1]:null;
+  }
+  function suffixOf(z){
+    var m=String(z).trim().toUpperCase().match(/^[RCM]\d{1,2}(?:-\d+)?([A-Z])$/);
+    return m?m[1]:null;
+  }
   function densityOf(z){
     var m=String(z).toUpperCase().match(/^[RCM](\d{1,2})/);
     return m?parseInt(m[1],10):null;
+  }
+  function defFor(code){
+    if(!DEFS) return null;
+    var b=baseOf(code); if(!b) return null;
+    var d=DEFS.base[b]; if(!d) return null;
+    var sfx=suffixOf(code);
+    return {code:code, fam:d.f, text:d.d, sfx:(sfx&&DEFS.suffix[sfx])?DEFS.suffix[sfx]:null, sfxLetter:sfx};
+  }
+  // turn a run like "M1-2A/R7A (MX-5)" into tappable chips
+  function zoneChips(str){
+    var out='', re=new RegExp('('+ZRE+')|(\\(MX-\\d+\\))|([^A-Za-z0-9]+)','g'), m;
+    while((m=re.exec(str))!==null){
+      if(m[1]){
+        var f=fam(m[1])||'other';
+        out+='<button type="button" class="zchip f-'+f+'" data-z="'+esc(m[1])+'">'+esc(m[1])+'</button>';
+      } else if(m[2]){
+        out+='<button type="button" class="zchip f-mx" data-z="MX">'+esc(m[2])+'</button>';
+      } else {
+        out+='<span class="zsep">'+esc(m[3].trim())+'</span>';
+      }
+    }
+    return out;
   }
   function plainChange(a,b){
     var fa=famsOf(a), fb=famsOf(b);
@@ -193,12 +246,10 @@
     var lostMan  = fa.indexOf('manufacturing')>-1 && fb.indexOf('manufacturing')<0;
     var keptMan  = fa.indexOf('manufacturing')>-1 && fb.indexOf('manufacturing')>-1;
     var bits=[];
-    if(addedRes && lostMan) bits.push('Would allow housing where the rules currently do not, and remove the manufacturing designation.');
-    else if(addedRes && keptMan) bits.push('Would pair housing with the existing manufacturing rules, so both would be permitted on the same lots.');
-    else if(addedRes) bits.push('Would allow housing where the rules currently do not.');
-    else if(lostMan) bits.push('Would remove the manufacturing designation.');
-    // the number means density in R and C districts. in M districts it means
-    // how heavy the permitted industry is, so do not read it as density.
+    if(addedRes && lostMan) bits.push('Housing would be allowed where the rules do not permit it today, and the manufacturing designation would come off.');
+    else if(addedRes && keptMan) bits.push('Housing would be paired with the existing manufacturing rules, so both would be permitted on the same lots.');
+    else if(addedRes) bits.push('Housing would be allowed where the rules do not permit it today.');
+    else if(lostMan) bits.push('The manufacturing designation would come off.');
     var za=(String(a).match(new RegExp(ZRE,'i'))||[''])[0];
     var zb=(String(b).match(new RegExp(ZRE,'i'))||[''])[0];
     var da=densityOf(za), db=densityOf(zb);
@@ -207,22 +258,53 @@
       if(db>da) bits.push('The higher number means more can be built.');
       else if(db<da) bits.push('The lower number means less can be built.');
     }
-    if(fb.indexOf('commercial')>-1 && fa.indexOf('commercial')<0) bits.push('Adds commercial use.');
+    if(fb.indexOf('commercial')>-1 && fa.indexOf('commercial')<0) bits.push('Commercial use would be added.');
+    if(/MX-\d+/i.test(b)) bits.push('The MX label means it becomes a paired district: residential and light industrial together.');
     return bits.join(' ');
   }
   function zoneChange(p){
     if(!p.br) return '';
     var m=FROMTO.exec(p.br);
     if(!m) return '';
-    var from=m[1].trim(), to=m[2].trim().replace(/\s+and\s+/gi,' and ');
+    var from=m[1].trim(), to=m[2].trim();
     var why=plainChange(from,to);
+    var mih=/mandatory inclusionary|MIH|Appendix F/i.test(p.br);
     return '<div class="zchg">'+
-      '<span class="zc-from">'+esc(from)+'</span>'+
-      '<span class="zc-ar">&rarr;</span>'+
-      '<span class="zc-to">'+esc(to)+'</span>'+
-      (why?'<span class="zc-why">'+esc(why)+'</span>':'')+
+      '<div class="zc-lab">This rezoning would change the zoning</div>'+
+      '<div class="zc-run"><span class="zc-side">'+zoneChips(from)+'</span>'+
+        '<span class="zc-ar">&rarr;</span>'+
+        '<span class="zc-side to">'+zoneChips(to)+'</span></div>'+
+      (why?'<div class="zc-why">'+esc(why)+'</div>':'')+
+      (mih?'<button type="button" class="zchip f-mih" data-z="MIH">+ MIH</button>':'')+
+      '<div class="zc-hint">Tap any code for what it means</div>'+
       '</div>';
   }
+  // one shared explainer panel
+  function showDef(code){
+    var box=$('zdef');
+    var d;
+    if(code==='MX'||code==='MIH'){
+      var e=DEFS&&DEFS.extra[code];
+      if(!e) return;
+      d={code:e.n,fam:'',text:e.d,sfx:null};
+    } else {
+      d=defFor(code);
+      if(!d) return;
+    }
+    box.innerHTML='<div class="zd-in"><button type="button" class="zd-x" id="zdX">&times;</button>'+
+      '<div class="zd-code">'+esc(d.code)+'</div>'+
+      (d.fam?'<div class="zd-fam">'+esc(d.fam)+' district</div>':'')+
+      '<div class="zd-text">'+esc(d.text)+'</div>'+
+      (d.sfx?'<div class="zd-sfx"><b>The '+esc(d.sfxLetter)+' suffix.</b> '+esc(d.sfx)+'</div>':'')+
+      (DEFS&&DEFS.numbers&&d.fam?'<div class="zd-num">'+esc(DEFS.numbers)+'</div>':'')+
+      '<a class="zd-more" href="/zoning">See what this district allows &rarr;</a></div>';
+    box.classList.add('on');
+    var x=$('zdX'); if(x) x.addEventListener('click',function(){ box.classList.remove('on'); box.innerHTML=''; });
+  }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest && e.target.closest('.zchip');
+    if(b){ showDef(b.getAttribute('data-z')); }
+  });
 
   /* ---- where a project sits in ULURP ---- */
   var STEPS=[
@@ -409,11 +491,12 @@
   Promise.all([
     fetch('/data/zap-recent.json').then(function(r){return r.json();}),
     fetch('/data/zap-index.json').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/zoning-district-defs.json').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/zap-counts.json').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}),
     fetch('/data/council-members.json').then(function(r){return r.json();}).catch(function(){return null;})
   ]).then(function(a){
-    D=a[0]; IDX=a[1]; C=a[2]; GEO=a[3]; if(a[4]&&a[4].members) CM=a[4].members;
+    D=a[0]; IDX=a[1]; DEFS=a[2]; C=a[3]; GEO=a[4]; if(a[5]&&a[5].members) CM=a[5].members;
     buildEras();
     var live=D.projects.filter(function(p){return LIVE[p.s];}).length;
     var ulurp=D.projects.filter(function(p){return p.u;}).length;
