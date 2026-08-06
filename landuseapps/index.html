@@ -53,6 +53,33 @@
 
 .eranote{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);line-height:1.5}
 #eraSel{max-width:100%}
+
+.ulurpbar{margin-top:8px}
+.useg-row{display:flex;gap:3px}
+.useg{flex:1;height:7px;border-radius:2px;background:#e8e6e1}
+.useg.past{background:#2e6b30}
+.useg.now{background:var(--orange);box-shadow:0 0 0 2px rgba(244,121,32,.25)}
+.useg.ahead{background:#e8e6e1}
+.ustage{font-family:'DM Mono',monospace;font-size:.64rem;color:var(--orange);font-weight:700;margin-top:4px;line-height:1.5}
+.ustage.done{color:#2e6b30}
+.udesc{display:block;font-family:'DM Sans',sans-serif;font-size:.71rem;color:#6b6760;font-weight:400;margin-top:1px}
+.stages{background:#fff;border-bottom:1px solid var(--border);padding:12px 14px}
+.stages:empty{display:none;padding:0;border:none}
+.sumhead{font-size:.84rem;font-weight:800;color:var(--navy);margin-bottom:9px;line-height:1.3}
+.sumrows{display:grid;gap:4px}
+.sumrow{display:flex;align-items:center;gap:9px}
+.sn{min-width:148px;font-size:.75rem;font-weight:700;color:var(--navy);line-height:1.3}
+.sb{flex:1;height:13px;background:#f0ede8;border-radius:3px;overflow:hidden;min-width:40px}
+.sb i{display:block;height:100%;background:var(--orange);border-radius:3px}
+.sv{font-family:'DM Mono',monospace;font-weight:800;min-width:34px;text-align:right;font-size:.75rem;color:var(--navy)}
+.sumnote{font-size:.74rem;color:#555;line-height:1.55;margin-top:9px}
+
+.ulurpkey{padding:11px 14px;background:var(--off);border-bottom:1px solid var(--border);font-size:.77rem;line-height:1.6;color:#444}
+.ulurpkey b{color:var(--navy);display:block;margin-bottom:5px}
+.ulurpkey .k1{display:inline-flex;align-items:center;gap:5px;margin-right:11px;font-family:'DM Mono',monospace;font-size:.66rem;color:var(--muted);font-weight:700}
+.ulurpkey .k1 i{width:16px;height:7px;border-radius:2px;display:inline-block}
+.ulurpkey i.past{background:#2e6b30}.ulurpkey i.now{background:var(--orange)}.ulurpkey i.ahead{background:#e8e6e1}
+.ulurpkey a{color:var(--navy);border-bottom:1px solid var(--orange);text-decoration:none}
 </style>
 </head>
 <body>
@@ -97,6 +124,15 @@
 
   <div class="mapnote" id="mapnote"></div>
   <div class="maphold"><div id="map"></div></div>
+  <div class="ulurpkey">
+    <b>The bar on each ULURP application shows where it is.</b>
+    <span class="k1"><i class="past"></i>passed</span>
+    <span class="k1"><i class="now"></i>where it is now</span>
+    <span class="k1"><i class="ahead"></i>still ahead</span>
+    Seven steps: before certification, certified, community board, Borough President, City Planning Commission, City Council, decided.
+    <a href="/zoning">What each step means &rarr;</a>
+  </div>
+  <div class="stages" id="stages"></div>
   <div class="count" id="count"></div>
   <div id="list"></div>
   <button type="button" class="more" id="more" style="display:none">Show more</button>
@@ -122,6 +158,60 @@
   map=L.map('map',{scrollWheelZoom:true}).setView([40.70,-73.95],10);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:17,attribution:'&copy; CARTO'}).addTo(map);
 
+
+  /* ---- where a project sits in ULURP ---- */
+  var STEPS=[
+    {k:0,n:'Before certification',d:'Application drafted, filed and reviewed by City Planning. No clock yet.'},
+    {k:1,n:'Certified',d:'City Planning certifies the application. The clock starts here.'},
+    {k:2,n:'Community board',d:'60 days. Public hearing and a vote. Advisory, and it goes on the record.'},
+    {k:3,n:'Borough President',d:'30 days to issue a recommendation.'},
+    {k:4,n:'City Planning Commission',d:'60 days. Public hearing. Approves, modifies or disapproves.'},
+    {k:5,n:'City Council',d:'50 days. May approve, modify or disapprove. Then 5 days for the Mayor.'},
+    {k:6,n:'Decided',d:'The action is approved, withdrawn or otherwise finished.'}
+  ];
+  function stageOf(p){
+    var m=(p.m||'');
+    var tail=m.indexOf(' - ')>-1 ? m.split(' - ').slice(1).join(' - ') : m;
+    tail=tail.replace(/^[A-Z]{2}-/,'').trim().toLowerCase();
+    if(!p.u) return null;                       // not a ULURP action
+    if(/completed|final letter/.test(tail)) return 6;
+    if(/city council/.test(tail)) return 5;
+    if(/pre-hearing|post hearing|future votes|headquarters|finalize actions|review session/.test(tail)) return 4;
+    if(/borough president/.test(tail)) return 3;
+    if(/community board/.test(tail)) return 2;
+    if(/review filed|prepare filed|project readiness|draft land use|fee payment/.test(tail)) return 0;
+    if(p.ct) return 1;
+    return 0;
+  }
+  function ulurpBar(p){
+    var at=stageOf(p);
+    if(at===null) return '';
+    var done=(p.s!=='Active'&&p.s!=='On-Hold');
+    var segs=STEPS.map(function(st,i){
+      var cls = i<at ? 'past' : (i===at ? 'now' : 'ahead');
+      if(done && i<=at) cls='past';
+      return '<span class="useg '+cls+'" title="'+esc(st.n)+'"></span>';
+    }).join('');
+    var label = done ? 'Finished' : ('Now at: '+STEPS[at].n);
+    return '<div class="ulurpbar"><div class="useg-row">'+segs+'</div>'+
+           '<div class="ustage'+(done?' done':'')+'">'+esc(label)+
+           (done?'':' <span class="udesc">'+esc(STEPS[at].d)+'</span>')+'</div></div>';
+  }
+  function stageSummary(rows){
+    var live=rows.filter(function(p){return (p.s==='Active'||p.s==='On-Hold')&&p.u;});
+    if(!live.length){ $('stages').innerHTML=''; return; }
+    var c={};
+    live.forEach(function(p){ var a=stageOf(p); if(a!==null&&a<6) c[a]=(c[a]||0)+1; });
+    var mx=Math.max.apply(null,Object.keys(c).map(function(k){return c[k];}).concat([1]));
+    $('stages').innerHTML='<div class="sumhead">Where the '+n(live.length)+' live ULURP applications sit right now</div>'+
+      '<div class="sumrows">'+STEPS.slice(0,6).map(function(st,i){
+        var v=c[i]||0;
+        return '<div class="sumrow"><span class="sn">'+esc(st.n)+'</span>'+
+          '<span class="sb"><i style="width:'+(v/mx*100).toFixed(1)+'%"></i></span>'+
+          '<span class="sv">'+n(v)+'</span></div>';
+      }).join('')+'</div>'+
+      '<div class="sumnote">The clock only runs once City Planning certifies. Most of what is in the pipeline has not got there yet.</div>';
+  }
   function matches(p){
     if(st==='live' && !LIVE[p.s]) return false;
     if(st==='Complete' && p.s!=='Complete') return false;
@@ -150,7 +240,8 @@
         (p.u?'<span class="tagx ulurp">ULURP</span>':'')+
         (p.mih?'<span class="tagx mih">MIH</span>':'')+
         (p.un?'<span class="tagx">'+esc(p.un)+'</span>':'')+'</div>'+
-      (p.br?'<div class="br2x">'+esc(p.br)+(p.br.length>=260?'\u2026':'')+'</div>':'')+
+      ulurpBar(p)+
+      (p.br?'<div class="br2x">'+esc(p.br)+(p.br.length>=240?'\u2026':'')+'</div>':'')+
       '<div class="foot2">'+esc(where)+
         (p.fd?'<br>Filed '+esc(p.fd):'')+
         (p.m?' \u00b7 now at: '+esc(p.m):'')+
@@ -189,6 +280,7 @@
     shown=60;
     var rows=D.projects.filter(matches);
     paintMap(rows);
+    stageSummary(rows);
     $('count').textContent=n(rows.length)+' of '+n(D.projects.length)+' loaded \u00b7 '+n(D.total_all_time)+' on record since 1970';
     draw(rows);
   }
