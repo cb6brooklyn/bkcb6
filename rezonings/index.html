@@ -47,6 +47,16 @@
 .cs{font-size:.75rem;color:#6b6760;line-height:1.5;margin-top:3px;margin-bottom:12px}
 .mt td.hot{background:#fdf0e2;color:#B5561E;font-weight:800}
 .kp .v{font-family:'DM Mono',monospace;font-size:1.4rem;font-weight:900;color:var(--orange);line-height:1}
+
+.addbtn{padding:8px 15px;background:var(--navy2);color:#fff;border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:800;cursor:pointer}
+.addbtn:hover{background:var(--orange)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:6px;color:#fff;padding:5px 6px 5px 11px;border-radius:16px;font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:700}
+.chip button{background:rgba(255,255,255,.25);border:none;color:#fff;width:18px;height:18px;border-radius:50%;cursor:pointer;font-size:.8rem;line-height:1;padding:0}
+.clr{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:5px 12px;font-family:'DM Sans',sans-serif;font-size:.73rem;font-weight:700;color:var(--muted);cursor:pointer}
+#cmpBtn.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.kp.cmp{flex:1 1 150px;min-width:150px;padding-left:11px}
+.kp.cmp .k{font-size:.68rem;color:var(--navy);font-weight:800;text-transform:none;letter-spacing:0}
 </style>
 </head>
 <body>
@@ -58,7 +68,7 @@
   </div>
 
   <div class="intro">
-    <b>A rezoning changes what a lot may become.</b> This charts every application whose brief states the change clearly enough to read, back to 1980. Filter by place and period and every chart follows.
+    <b>A rezoning changes what a lot may become.</b> This charts every application whose brief states the change clearly enough to read, back to 1976. Add any districts you want, at any level, mixed together, then set a period. Press <b>Show them side by side</b> and every chart splits by area.
   </div>
 
   <div class="ctrl">
@@ -71,6 +81,15 @@
         <option value="cc">Council district</option>
       </select>
       <select id="areaSel" style="display:none"></select>
+      <button type="button" class="addbtn" id="addBtn" style="display:none">Add</button>
+    </div>
+    <div class="frow" id="pickRow" style="display:none">
+      <span class="flab">Picked</span>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="frow">
+      <span class="flab">Compare</span>
+      <button type="button" class="fb2" id="cmpBtn">Show them side by side</button>
     </div>
     <div class="frow">
       <span class="flab">When</span>
@@ -106,8 +125,23 @@
   var $=function(i){return document.getElementById(i);};
   var n=function(v){return Number(v||0).toLocaleString('en-US');};
   function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-  var D=null, CM=null, charts=[], lvl='all', area='', era='20', only={}, yFrom=null, yTo=null;
+  var D=null, CM=null, charts=[], lvl='all', era='20', only={}, yFrom=null, yTo=null;
+  var picked=[], compare=false;
   var NAVY='#0d1b4b', ORANGE='#f47920';
+  var SERIES=['#0d1b4b','#f47920','#2F6FD0','#3E8E5A','#8248C4','#B5561E','#1E7A8C','#B08900'];
+  function rowsFor(p){
+    return (D.changes||[]).filter(function(r){
+      if(r[p.lvl]!==p.key) return false;
+      var y=r.w?parseInt(r.w.slice(0,4),10):null;
+      if(yFrom&&(!y||y<yFrom)) return false;
+      if(yTo&&(!y||y>yTo)) return false;
+      if(only.mih && !r.mih) return false;
+      if(only.live && !(r.s==='Active'||r.s==='On-Hold')) return false;
+      if(only.addsRes && !(r.fb.indexOf('Residential')>-1 && r.fa.indexOf('Residential')<0)) return false;
+      if(only.dropsMan && !(r.fa.indexOf('Manufacturing')>-1 && r.fb.indexOf('Manufacturing')<0)) return false;
+      return true;
+    });
+  }
   var FAMC={
     'Residential':'#F0871F',                    // the same orange as R on the map
     'Commercial':'#2F6FD0',                     // C blue
@@ -133,7 +167,7 @@
 
   function rows(){
     return (D.changes||[]).filter(function(r){
-      if(lvl!=='all' && area && r[lvl]!==area) return false;
+      if(picked.length && !picked.some(function(p){return r[p.lvl]===p.key;})) return false;
       var y=r.w?parseInt(r.w.slice(0,4),10):null;
       if(yFrom&&(!y||y<yFrom)) return false;
       if(yTo&&(!y||y>yTo)) return false;
@@ -211,6 +245,15 @@
     var keepsMan=R.filter(function(r){return r.fa.indexOf('Manufacturing')>-1&&r.fb.indexOf('Manufacturing')>-1;}).length;
     var dropsMan=R.filter(function(r){return r.fa.indexOf('Manufacturing')>-1&&r.fb.indexOf('Manufacturing')<0;}).length;
     var mih=R.filter(function(r){return r.mih;}).length;
+    if(compare && picked.length>1){
+      $('kpis').innerHTML=picked.map(function(p,i){
+        var pr=rowsFor(p);
+        return '<div class="kp cmp" style="border-left:4px solid '+SERIES[i%SERIES.length]+'">'+
+          '<div class="k">'+esc(labelOf(p))+'</div><div class="v">'+n(pr.length)+'</div>'+
+          '<div class="d">'+n(pr.filter(function(r){return r.fb.indexOf('Residential')>-1&&r.fa.indexOf('Residential')<0;}).length)+
+          ' would allow housing</div></div>';
+      }).join('');
+    } else
     $('kpis').innerHTML=
       '<div class="kp"><div class="v">'+n(R.length)+'</div><div class="k">rezonings in this view</div></div>'+
       '<div class="kp"><div class="v">'+n(addsRes)+'</div><div class="k">allow housing where it was not permitted</div></div>'+
@@ -237,32 +280,54 @@
       '<div class="csec"><div class="ch">Every swap, as a table</div><div class="cs">Rows are the district today, columns what it would become.</div>'+
       '<div class="tblwrap"><table class="mt" id="mtx"></table></div></div>';
 
-    var kinds=tally(R,function(r){return r.fa.replace(/\+/g,' + ')+' \u2192 '+r.fb.replace(/\+/g,' + ');});
-    var kk=sortedKeys(kinds,12);
-    bar('cKind',kk,kk.map(function(k){return kinds[k];}),kk.map(function(k){return famColor(k.split(' \u2192 ')[1].replace(/ \+ /g,'+'));}),true);
+    function multi(id,keyfn,limit,colorfn,horiz){
+      if(!compare || picked.length<2){
+        var t=tally(R,keyfn), ks=sortedKeys(t,limit);
+        bar(id,ks,ks.map(function(k){return t[k];}),colorfn?ks.map(colorfn):undefined,horiz);
+        return;
+      }
+      var per=picked.map(function(p){return tally(rowsFor(p),keyfn);});
+      var totals={};
+      per.forEach(function(t){ Object.keys(t).forEach(function(k){ totals[k]=(totals[k]||0)+t[k]; }); });
+      var ks=sortedKeys(totals,limit);
+      var dsets=picked.map(function(p,i){
+        return {label:labelOf(p),backgroundColor:SERIES[i%SERIES.length],borderWidth:0,
+                borderRadius:horiz?{topRight:3,bottomRight:3}:{topLeft:3,topRight:3},
+                data:ks.map(function(k){return per[i][k]||0;})};
+      });
+      bar(id,ks,dsets,null,horiz);
+    }
+    multi('cKind',function(r){return r.fa.replace(/\+/g,' + ')+' \u2192 '+r.fb.replace(/\+/g,' + ');},12,
+          function(k){return famColor(k.split(' \u2192 ')[1].replace(/ \+ /g,'+'));},true);
 
-    var pairs=tally(R,function(r){return (r.ba&&r.bb)?(r.ba+' \u2192 '+r.bb):null;});
-    var pk=sortedKeys(pairs,15);
-    bar('cPair',pk,pk.map(function(k){return pairs[k];}),pk.map(function(k){return famColor(({R:'Residential',C:'Commercial',M:'Manufacturing'})[k.split(' \u2192 ')[1][0]]);}),true);
+    multi('cPair',function(r){return (r.ba&&r.bb)?(r.ba+' \u2192 '+r.bb):null;},15,
+          function(k){return famColor(({R:'Residential',C:'Commercial',M:'Manufacturing'})[k.split(' \u2192 ')[1][0]]);},true);
 
-    var fromF=tally(R,function(r){return r.fa.replace(/\+/g,' + ');});
-    var fk=sortedKeys(fromF);
-    bar('cFrom',fk,fk.map(function(k){return fromF[k];}),fk.map(function(k){return famColor(k.replace(/ \+ /g,'+'));}),true);
+    multi('cFrom',function(r){return r.fa.replace(/\+/g,' + ');},0,function(k){return famColor(k.replace(/ \+ /g,'+'));},true);
 
     var toF=tally(R,function(r){return r.fb.replace(/\+/g,' + ');});
-    var tk=sortedKeys(toF);
-    bar('cTo',tk,tk.map(function(k){return toF[k];}),tk.map(function(k){return famColor(k.replace(/ \+ /g,'+'));}),true);
+    multi('cTo',function(r){return r.fb.replace(/\+/g,' + ');},0,function(k){return famColor(k.replace(/ \+ /g,'+'));},true);
 
     // by year, stacked by what it becomes
     var years=[];
     R.forEach(function(r){ if(r.w){ var y=r.w.slice(0,4); if(years.indexOf(y)<0) years.push(y); } });
     years.sort();
-    var famKeys=sortedKeys(toF,6);
-    var dsets=famKeys.map(function(f){
-      return {label:f,backgroundColor:famColor(f.replace(/ \+ /g,'+')),borderWidth:0,
-        data:years.map(function(y){ return R.filter(function(r){return r.w&&r.w.slice(0,4)===y&&r.fb.replace(/\+/g,' + ')===f;}).length; })};
-    });
-    bar('cYear',years,dsets,null,false,true);
+    var dsets;
+    if(compare && picked.length>1){
+      dsets=picked.map(function(p,i){
+        var pr=rowsFor(p);
+        return {label:labelOf(p),backgroundColor:SERIES[i%SERIES.length],borderWidth:0,borderRadius:{topLeft:3,topRight:3},
+                data:years.map(function(y){ return pr.filter(function(r){return r.w&&r.w.slice(0,4)===y;}).length; })};
+      });
+      bar('cYear',years,dsets,null,false,false);
+    } else {
+      var famKeys=sortedKeys(toF,6);
+      dsets=famKeys.map(function(f){
+        return {label:f,backgroundColor:famColor(f.replace(/ \+ /g,'+')),borderWidth:0,
+          data:years.map(function(y){ return R.filter(function(r){return r.w&&r.w.slice(0,4)===y&&r.fb.replace(/\+/g,' + ')===f;}).length; })};
+      });
+      bar('cYear',years,dsets,null,false,true);
+    }
 
     var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     var mon=MON.map(function(_,i){ return R.filter(function(r){return r.w&&parseInt(r.w.slice(5,7),10)===i+1;}).length; });
@@ -297,17 +362,16 @@
   }
 
   function fillAreas(){
-    if(lvl==='all'){ $('areaSel').style.display='none'; area=''; return; }
-    $('areaSel').style.display='';
+    if(lvl==='all'){ $('areaSel').style.display='none'; $('addBtn').style.display='none'; return; }
+    $('areaSel').style.display=''; $('addBtn').style.display='';
     var keys=[];
     (D.changes||[]).forEach(function(r){ var v=r[lvl]; if(v&&keys.indexOf(v)<0) keys.push(v); });
     keys.sort(function(a,b){ return lvl==='cc' ? (+a)-(+b) : (a<b?-1:1); });
-    $('areaSel').innerHTML='<option value="">All '+(lvl==='b'?'boroughs':(lvl==='cb'?'community boards':'council districts'))+'</option>'+
+    $('areaSel').innerHTML='<option value="" selected>Choose one to add\u2026</option>'+
       keys.map(function(k){
         var lab = lvl==='cc' ? ('CD'+k+((CM&&CM[k])?' \u00b7 '+CM[k].name:'')) : k;
         return '<option value="'+esc(k)+'">'+esc(lab)+'</option>';
       }).join('');
-    area='';
   }
   function applyEra(){
     var ys=[];
@@ -317,8 +381,37 @@
     else { yTo=mx; yFrom=mx-parseInt(era,10)+1; }
     $('fromSel').value=String(yFrom); $('toSel').value=String(yTo);
   }
-  $('lvlSel').addEventListener('change',function(){ lvl=this.value; fillAreas(); render(); });
-  $('areaSel').addEventListener('change',function(){ area=this.value; render(); });
+  function addPicked(){
+    var key=$('areaSel').value;
+    if(!key) return;
+    if(picked.some(function(p){return p.lvl===lvl&&p.key===key;})) { $('areaSel').value=''; return; }
+    if(picked.length>=8) return;
+    picked.push({lvl:lvl,key:key});
+    $('areaSel').value='';
+    drawChips(); render();
+  }
+  function labelOf(p){
+    if(p.lvl==='cc') return 'Council '+p.key+((CM&&CM[p.key])?' \u00b7 '+CM[p.key].name:'');
+    return p.key;
+  }
+  function drawChips(){
+    $('pickRow').style.display=picked.length?'':'none';
+    $('chips').innerHTML=picked.map(function(p,i){
+      return '<span class="chip" style="background:'+SERIES[i%SERIES.length]+'">'+esc(labelOf(p))+
+             '<button type="button" data-rm="'+i+'">\u00d7</button></span>';
+    }).join('')+(picked.length?'<button type="button" class="clr" id="clrBtn">Clear</button>':'');
+    var c=$('clrBtn'); if(c) c.addEventListener('click',function(){ picked=[]; compare=false; $('cmpBtn').classList.remove('on'); drawChips(); render(); });
+    $('chips').querySelectorAll('[data-rm]').forEach(function(b){
+      b.addEventListener('click',function(){ picked.splice(+this.getAttribute('data-rm'),1); if(picked.length<2) compare=false; drawChips(); render(); });
+    });
+  }
+  $('lvlSel').addEventListener('change',function(){ lvl=this.value; fillAreas(); });
+  $('areaSel').addEventListener('change',addPicked);
+  $('addBtn').addEventListener('click',addPicked);
+  $('cmpBtn').addEventListener('click',function(){
+    if(picked.length<2){ this.classList.remove('on'); compare=false; render(); return; }
+    compare=!compare; this.classList.toggle('on',compare); render();
+  });
   document.querySelectorAll('[data-era]').forEach(function(b){
     b.addEventListener('click',function(){
       era=this.getAttribute('data-era');
