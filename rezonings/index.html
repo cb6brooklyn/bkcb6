@@ -252,36 +252,42 @@
   var valueLabels={
     id:'valueLabels',
     afterDatasetsDraw:function(c){
-      if(c.config.options.plugins.stacked) return;
-      var ctx=c.ctx;
-      c.data.datasets.forEach(function(ds,di){
-        if(c.data.datasets.length>1) return;
-        var meta=c.getDatasetMeta(di);
+      try{
+        if(!c || !c.ctx || !c.data || !c.data.datasets) return;
+        if(c.data.datasets.length!==1) return;          // only label a single series
+        var o=c.options||{};
+        var sx=o.scales&&o.scales.x&&o.scales.x.stacked;
+        if(sx) return;
+        var horiz=(o.indexAxis==='y');
+        var ds=c.data.datasets[0];
+        var meta=c.getDatasetMeta(0);
+        if(!meta||!meta.data) return;
+        var ctx=c.ctx;
+        ctx.save();
+        ctx.font='700 10px "DM Mono", monospace';
+        ctx.fillStyle='#0d1b4b';
         meta.data.forEach(function(el,i){
-          var v=ds.data[i]; if(!v) return;
-          ctx.save();
-          ctx.font='700 10px "DM Mono", monospace';
-          ctx.fillStyle='#0d1b4b';
-          if(c.config.options.indexAxis==='y'){
-            ctx.textAlign='left'; ctx.textBaseline='middle';
-            ctx.fillText(v.toLocaleString('en-US'), el.x+6, el.y);
-          } else {
-            ctx.textAlign='center'; ctx.textBaseline='bottom';
-            ctx.fillText(v.toLocaleString('en-US'), el.x, el.y-3);
-          }
-          ctx.restore();
+          var v=ds.data[i];
+          if(v===null||v===undefined||v===0) return;
+          var t=Number(v).toLocaleString('en-US');
+          if(horiz){ ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(t, el.x+6, el.y); }
+          else { ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.fillText(t, el.x, el.y-3); }
         });
-      });
+        ctx.restore();
+      }catch(e){ /* a label is never worth losing the chart */ }
     }
   };
+  function isDatasets(d){
+    return Array.isArray(d) && d.length>0 && d[0]!==null && typeof d[0]==='object' && 'data' in d[0];
+  }
   function bar(id,labels,data,colors,horizontal,stacked){
     var el=$(id); if(!el) return;
     charts.push(new Chart(el,{type:'bar',plugins:[valueLabels],
-      data:{labels:labels,datasets:Array.isArray(data)?data:[{data:data,backgroundColor:colors||ORANGE,borderRadius:horizontal?{topRight:4,bottomRight:4}:{topLeft:4,topRight:4},borderWidth:0,barPercentage:.86,categoryPercentage:.9}]},
+      data:{labels:labels,datasets:isDatasets(data)?data:[{data:data,backgroundColor:colors||ORANGE,borderRadius:horizontal?{topRight:4,bottomRight:4}:{topLeft:4,topRight:4},borderWidth:0,barPercentage:.86,categoryPercentage:.9}]},
       options:{indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,animation:false,
         layout:{padding:{right:horizontal?34:6,top:stacked?4:16}},
-        plugins:{stacked:!!stacked,
-                 legend:{display:Array.isArray(data)&&data.length>1,position:'top',
+        plugins:{
+                 legend:{display:isDatasets(data)&&data.length>1,position:'top',
                  labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'rectRounded',font:{size:10,family:'DM Sans'},color:NAVY,padding:12}},
                  tooltip:{backgroundColor:'#0d1b4b',padding:9,titleFont:{family:'DM Sans',size:11},bodyFont:{family:'DM Mono',size:11},cornerRadius:7,displayColors:true}},
         scales:{
@@ -290,7 +296,10 @@
              grid:{display:!!horizontal||!!stacked,color:'#f2efea',drawTicks:false}},
           y:{stacked:!!stacked,beginAtZero:true,border:{display:false},
              ticks:{font:{size:11,family:horizontal?'DM Sans':'DM Mono',weight:horizontal?'700':'400'},color:horizontal?NAVY:'#6b6760',
-                    callback:function(v,i){ var l=this.getLabelForValue(v); return (typeof l==='string'&&l.length>26)?l.slice(0,25)+'\u2026':l; }},
+                    callback:function(v){
+                      try{ var l=this.getLabelForValue(v); return (typeof l==='string'&&l.length>26)?l.slice(0,25)+'\u2026':l; }
+                      catch(e){ return v; }
+                    }},
              grid:{display:!horizontal,color:'#f2efea',drawTicks:false}}}}}));
   }
   function sec(title,sub,id,cls){
