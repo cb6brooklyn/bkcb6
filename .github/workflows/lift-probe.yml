@@ -7,39 +7,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Pull the StoryMap definition and find its data layers
+      - name: Resolve the items the story references
         run: |
           mkdir -p data/lift
-          ID=afce9e93d79847608fc846878e17db8e
-          curl -sL "https://www.arcgis.com/sharing/rest/content/items/$ID/data?f=json" -o /tmp/story.json --max-time 90 || true
-          curl -sL "https://www.arcgis.com/sharing/rest/content/items/$ID?f=json" -o /tmp/item.json --max-time 60 || true
-          echo "=== item metadata ===" > data/lift/item.txt
-          head -c 900 /tmp/item.json >> data/lift/item.txt
-          wc -c /tmp/story.json > data/lift/probe.txt
-          echo "--- first 400 bytes ---" >> data/lift/probe.txt
-          head -c 400 /tmp/story.json >> data/lift/probe.txt
-          echo "" >> data/lift/probe.txt
-          echo "--- any service urls in the raw text ---" >> data/lift/probe.txt
-          grep -oE 'https://[^\"]*(FeatureServer|MapServer)[^\"]*' /tmp/story.json | sort -u | head -20 >> data/lift/probe.txt || true
-          echo "--- 32-char item ids ---" >> data/lift/probe.txt
-          grep -oE '[0-9a-f]{32}' /tmp/story.json | sort -u | head -20 >> data/lift/probe.txt || true
-          python3 - <<'PYEOF'
-          import json,re
-          try: d=json.load(open('/tmp/story.json'))
-          except Exception as e:
-              open('data/lift/probe.txt','a').write('\nparse failed: %s\n'%e); raise SystemExit
-          raw=json.dumps(d)
-          ids=sorted(set(re.findall(r'[0-9a-f]{32}',raw)))
-          urls=sorted(set(re.findall(r'https://[^"]*(?:FeatureServer|MapServer)[^"]*',raw)))
-          out=['story keys: %s'%list(d)[:12],'','item ids referenced: %d'%len(ids)]
-          out+=['  '+i for i in ids[:40]]
-          out+=['','service urls: %d'%len(urls)]
-          out+=['  '+u for u in urls[:40]]
-          open('data/lift/probe.txt','a').write('\n'.join(out))
-          PYEOF
+          : > data/lift/items.txt
+          for ID in 01800cd22b1647849dbbf4b3a086db97 08a084ba1a7d4542b6c57859179cddbb \
+                    70bd4dc0d246454d82e0784a8ab9c265 b2169f40d13b478a9f9b4cfcf3010dd6 \
+                    b42e3f8f244343a4ae54f0e511dd8df5 c3866494abf7438d907282a3dee912d7 \
+                    e6710c01704e45878df09bc1f83748ec ; do
+            echo "== $ID" >> data/lift/items.txt
+            curl -sL "https://www.arcgis.com/sharing/rest/content/items/$ID?f=json" --max-time 45 \
+              | python3 -c "import sys,json;d=json.load(sys.stdin);print('  type:',d.get('type'));print('  title:',d.get('title'));print('  url:',d.get('url'))" >> data/lift/items.txt 2>&1 || echo "  failed" >> data/lift/items.txt
+          done
+          cat data/lift/items.txt
       - name: Commit
         run: |
           git config user.name "Mike Racioppo"
           git config user.email "mracioppo@cb.nyc.gov"
-          git add data/lift/ && git commit -m "LIFT storymap probe" || echo skip
+          git add data/lift/ && git commit -m "LIFT referenced items" || echo skip
           git push
