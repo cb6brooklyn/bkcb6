@@ -607,14 +607,13 @@ h1 span{color:var(--orange)}
 
   Promise.all([
     fetch('/data/lift-sites.json').then(function(r){return r.json();}),
-    fetch('/data/built-vs-rent.json').then(function(r){return r.json();})
+    fetch('/data/built-vs-rent.json').then(function(r){return r.json();}),
+    fetch('/data/blockbyblock.json').then(function(r){return r.json();})
   ]).then(function(a){
-    var D=a[0]; SITES=D.sites||[];
+    var D=a[0], PLAN=a[2]; SITES=D.sites||[];
     (a[1].rows||[]).forEach(function(r){ BUILT[r.cd]=r; });
 
     /* ---- our reading of it ---- */
-    var medChgTxt=(function(v){v=v.slice().sort(function(x,y){return x-y;});var h=Math.floor(v.length/2);
-      return (v.length%2?v[h]:(v[h-1]+v[h])/2).toFixed(1);})((a[1].rows||[]).map(function(r){return r.chg;}));
     var byCd=homesBy('cd');
     var ranked=[]; for(var k in byCd) ranked.push([k,byCd[k]]);
     ranked.sort(function(x,y){return y[1]-x[1];});
@@ -628,7 +627,7 @@ h1 span{color:var(--orange)}
     var listYears=(D.total_units/perYear);
 
     $('liftFind').innerHTML='Over ten years the city finished '+n(cityBuilt)+' homes, about '+n(perYear)+
-      ' a year, while the rent on a one bedroom rose '+medChgTxt+' percent at the middle of the 59 districts. '+
+      ' a year across the whole city. '+
       'The '+n(D.total_units)+' homes on this list, none of them built, come to roughly '+listYears.toFixed(1)+
       ' years of that pace spread across the next ten. It is a start. It is nowhere near enough.';
     $('liftFindS').textContent='Our reading of the city site list alongside what the city has finished';
@@ -643,9 +642,9 @@ h1 span{color:var(--orange)}
       '<div class="pc"><div class="pk">What ten years of building came to</div><div class="pv">'+
         n(perYear)+' homes a year<br>across the whole city</div>'+
         '<div class="pn">Spread over 59 community districts and more than eight million people.</div></div>'+
-      '<div class="pc"><div class="pk">What rent did over the same ten years</div><div class="pv">up '+medChgTxt+
-        ' percent<br>on a one bedroom, at the middle</div>'+
-        '<div class="pn">Building at that pace did not keep rent anywhere near flat.</div></div>'+
+      '<div class="pc"><div class="pk">What the plan itself commits to</div><div class="pv">'+n(PLAN.city.homes)+
+        ' homes<br>new and affordable</div>'+
+        '<div class="pn">That is '+Math.round(100*PLAN.city.homes/cityBuilt)+' percent of everything the city finished in the last ten years, and all of it meant to be affordable.</div></div>'+
       '<div class="pc"><div class="pk">What this list would add</div><div class="pv">'+n(D.total_units)+
         ' homes<br>none of them built</div>'+
         '<div class="pn">About '+listYears.toFixed(1)+' years of the city\'s recent pace, to be spread across the next ten.</div></div>'+
@@ -704,8 +703,6 @@ h1 span{color:var(--orange)}
     drawTbl();
 
     /* ---- the per district report ---- */
-    var medChg=(function(v){v=v.slice().sort(function(x,y){return x-y;});var h=Math.floor(v.length/2);
-      return v.length%2?v[h]:(v[h-1]+v[h])/2;})((a[1].rows||[]).map(function(r){return r.chg;}));
     var rptMap=null, rptLayer=null, rptPts=null, CDG=null;
 
     function sitesIn(cd){ return SITES.filter(function(s){return s.cd===cd;})
@@ -778,15 +775,14 @@ h1 span{color:var(--orange)}
       if(multi){
         $('rptCmpWrap').style.display='';
         $('rptCmp').innerHTML='<tr><th>District</th><th>Borough</th><th>Places on the list</th>'+
-          '<th>Homes planned</th><th>Homes finished</th><th>A year</th><th>Rent change</th><th>Rezonings</th></tr>'+
+          '<th>Homes planned</th><th>Homes finished</th><th>A year</th><th>Rezonings</th></tr>'+
           rows.map(function(x){
             return '<tr'+(x.cd==='BKCB6'?' class="me"':'')+'><td>'+esc(x.cd)+'</td><td>'+esc(x.boro)+'</td>'+
               '<td>'+n(x.places)+'</td><td>'+n(x.planned)+'</td><td>'+n(x.built)+'</td>'+
-              '<td>'+n(Math.round(x.built/10))+'</td><td>'+(x.chg==null?'\u2014':((x.chg>=0?'+':'')+x.chg+'%'))+'</td>'+
-              '<td>'+n(x.rez)+'</td></tr>';
+              '<td>'+n(Math.round(x.built/10))+'</td><td>'+n(x.rez)+'</td></tr>';
           }).join('')+
           '<tr class="tot"><td>Together</td><td>'+esc(rows.length)+' districts</td><td>'+n(tPlaces)+'</td>'+
-          '<td>'+n(tPl)+'</td><td>'+n(tB)+'</td><td>'+n(Math.round(tB/10))+'</td><td></td><td>'+
+          '<td>'+n(tPl)+'</td><td>'+n(tB)+'</td><td>'+n(Math.round(tB/10))+'</td><td>'+
           n(rows.reduce(function(t,x){return t+x.rez;},0))+'</td></tr>';
       } else {
         $('rptCmpWrap').style.display='none';
@@ -803,8 +799,8 @@ h1 span{color:var(--orange)}
         if(none.length) w+='<p><b>'+esc(listWords(none.map(function(x){return x.cd;})))+'</b> '+
           (none.length===1?'has':'have')+' nothing on the list at all.</p>';
         w+='<p>Over the ten years to 2024 these districts finished <b>'+n(tB)+' homes</b> between them, '+
-          'about <b>'+n(Math.round(tB/10))+' a year</b>. Rent rose across all of them over the same years. '+
-          'Building at that rate did not hold rent down anywhere in the city, and nothing on this list changes that on its own.</p>';
+          'about <b>'+n(Math.round(tB/10))+' a year</b>. Against a citywide shortage measured in the hundreds of thousands, '+
+          'that is a fraction of what is needed, and what is on this list does not close the gap either.</p>';
       } else {
         var x=rows[0];
         if(x.places){
@@ -818,9 +814,10 @@ h1 span{color:var(--orange)}
             'It is one of '+n(without)+' community districts the list passes over entirely.</p>';
         }
         w+='<p>Separately from anything on that list, between 2015 and 2024 the district finished <b>'+
-          n(x.built)+' homes</b>, about '+n(Math.round(x.built/10))+' a year. Over the same years the rent on a one bedroom rose <b>'+
-          (x.chg>=0?'+':'')+x.chg+' percent</b>. There are <b>'+n(x.rez)+'</b> rezonings on the public record here.</p>'+
-          '<p>Building at that rate did not hold rent down anywhere in the city. Nothing on this list changes that on its own.</p>';
+          n(x.built)+' homes</b>, about '+n(Math.round(x.built/10))+' a year. There are <b>'+n(x.rez)+
+          '</b> rezonings on the public record here.</p>'+
+          '<p>Against a citywide shortage measured in the hundreds of thousands, that is a fraction of what is needed here, '+
+          'and what is on this list does not close the gap either.</p>';
       }
       $('rptWords').innerHTML=w;
 
