@@ -7,22 +7,48 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Resolve the items the story references
+      - name: Read the LIFT tracker map and pull every site
         run: |
           mkdir -p data/lift
-          : > data/lift/items.txt
-          for ID in 01800cd22b1647849dbbf4b3a086db97 08a084ba1a7d4542b6c57859179cddbb \
-                    70bd4dc0d246454d82e0784a8ab9c265 b2169f40d13b478a9f9b4cfcf3010dd6 \
-                    b42e3f8f244343a4ae54f0e511dd8df5 c3866494abf7438d907282a3dee912d7 \
-                    e6710c01704e45878df09bc1f83748ec ; do
-            echo "== $ID" >> data/lift/items.txt
-            curl -sL "https://www.arcgis.com/sharing/rest/content/items/$ID?f=json" --max-time 45 \
-              | python3 -c "import sys,json;d=json.load(sys.stdin);print('  type:',d.get('type'));print('  title:',d.get('title'));print('  url:',d.get('url'))" >> data/lift/items.txt 2>&1 || echo "  failed" >> data/lift/items.txt
-          done
-          cat data/lift/items.txt
+          curl -sL "https://www.arcgis.com/sharing/rest/content/items/70bd4dc0d246454d82e0784a8ab9c265/data?f=json" -o /tmp/wm.json --max-time 60
+          python3 - <<'PYEOF'
+          import json,urllib.request,os
+          d=json.load(open('/tmp/wm.json'))
+          layers=[]
+          for k in ('operationalLayers','tables'):
+              for l in d.get(k,[]) or []:
+                  if l.get('url'): layers.append((l.get('title'),l['url']))
+                  for sl in (l.get('layers') or []):
+                      if sl.get('url'): layers.append((sl.get('title'),sl['url']))
+          open('data/lift/layers.txt','w').write('\n'.join('%s\n   %s'%(t,u) for t,u in layers) or 'none')
+          print('layers:',len(layers))
+          best=None
+          for t,u in layers:
+              if t and 'lift' in t.lower(): best=(t,u); break
+          if not best and layers: best=layers[0]
+          if not best: raise SystemExit
+          t,u=best
+          print('pulling',t,u)
+          out=[]; off=0
+          while True:
+              q=u+'/query?where=1%3D1&outFields=*&returnGeometry=true&f=json&resultOffset=%d&resultRecordCount=1000'%off
+              try:
+                  j=json.loads(urllib.request.urlopen(q,timeout=90).read())
+              except Exception as e:
+                  print('query failed',e); break
+              fs=j.get('features') or []
+              out.extend(fs)
+              if len(fs)<1000: break
+              off+=1000
+          print('features:',len(out))
+          json.dump({'layer':t,'url':u,'features':out},open('data/lift/lift-sites-raw.json','w'))
+          if out:
+              open('data/lift/fields.txt','w').write('\n'.join(sorted(out[0]['attributes'].keys())))
+          PYEOF
+          ls -la data/lift/
       - name: Commit
         run: |
           git config user.name "Mike Racioppo"
           git config user.email "mracioppo@cb.nyc.gov"
-          git add data/lift/ && git commit -m "LIFT referenced items" || echo skip
+          git add data/lift/ && git commit -m "LIFT tracker sites" || echo skip
           git push
