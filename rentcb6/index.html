@@ -400,9 +400,24 @@ tbody tr:hover{background:#fff8f2}
          '#c0392b','#16a085','#6b7280','#8e44ad','#d35400','#2c3e50','#27ae60','#2980b9',
          '#e67e22','#9b59b6','#1abc9c','#34495e','#a0522d','#5f9ea0','#9932cc','#556b2f'];
   var BEDS=[['studio','Studio'],['br1','1 bedroom'],['br2','2 bedroom'],['br3','3+ bedroom']];
+
   function $(id){ return document.getElementById(id); }
   function unpack(p,i){ if(!p) return null; var k=i-p[0]; return (k>=0&&k<p[1].length)?p[1][k]:null; }
-  function src(){ return (level==='nb' ? (H.nbs||[]) : (H.cds||[])); }
+  var CC=null, CCB=null;   // council districts live in their own file
+  function ccList(){
+    if(!CC||!CC.cds) return [];
+    var boro=(H&&H.self&&H.self.name)||'';
+    var keys=Object.keys(CC.cds);
+    if(boro && CCB && !/New York City/i.test(boro)){
+      keys=keys.filter(function(k){ var b=CCB[k]; return b && b.main===boro; });
+    }
+    keys.sort(function(a,b){return (+a)-(+b);});
+    return keys.map(function(k){ return {name:'Council '+k, cc:k, s:null, _cc:CC.cds[k]}; });
+  }
+  function src(){
+    if(level==='cc') return ccList();
+    return (level==='nb' ? (H.nbs||[]) : (H.cds||[]));
+  }
   function nameOf(a){ return a.num!=null ? ((H.self&&H.self.name?H.self.name:'')+' CB'+a.num).trim() : a.name; }
   function controls(){
     var c=$('asControls'); if(!c) return;
@@ -410,9 +425,16 @@ tbody tr:hover{background:#fff8f2}
     c.innerHTML=
       '<span class="aslab">Unit</span>'+
       BEDS.map(function(b){return '<button type="button" class="asbed'+(bed===b[0]?' on':'')+'" data-bed="'+b[0]+'">'+b[1]+'</button>';}).join('')+
-      ((hasNb&&hasCd)?('<span class="aslab">Level</span>'+
-        '<button type="button" class="aslvl'+(level==='cd'?' on':'')+'" data-lvl="cd">Community boards</button>'+
-        '<button type="button" class="aslvl'+(level==='nb'?' on':'')+'" data-lvl="nb">Neighborhoods</button>'):'');
+      (function(){
+        var opts=[];
+        if(hasCd) opts.push(['cd','Community boards']);
+        if(ccList().length) opts.push(['cc','Council districts']);
+        if(hasNb) opts.push(['nb','Neighborhoods']);
+        if(opts.length<2) return '';
+        return '<span class="aslab">Level</span>'+opts.map(function(o){
+          return '<button type="button" class="aslvl'+(level===o[0]?' on':'')+'" data-lvl="'+o[0]+'">'+o[1]+'</button>';
+        }).join('');
+      })();
     c.querySelectorAll('[data-bed]').forEach(function(b){ b.onclick=function(){ bed=this.getAttribute('data-bed'); render(); }; });
     c.querySelectorAll('[data-lvl]').forEach(function(b){ b.onclick=function(){ level=this.getAttribute('data-lvl'); showAll=true; picked={}; render(); }; });
   }
@@ -443,7 +465,13 @@ tbody tr:hover{background:#fff8f2}
     list.forEach(function(a,i){
       var n=nameOf(a);
       if(!showAll && !picked[n]) return;
-      var data=labels.map(function(_,j){ return unpack(a.s[bed], j); });
+      var data;
+      if(a._cc){
+        var off=labels.indexOf(CC.months[0]);
+        data=labels.map(function(_,j){ var k=j-off; return (k>=0&&k<a._cc[bed].length)?a._cc[bed][k]:null; });
+      } else {
+        data=labels.map(function(_,j){ return unpack(a.s[bed], j); });
+      }
       if(!data.some(function(v){return v!=null;})) return;
       var c=P[i%P.length];
       sets.push({label:n,data:data,borderColor:c,backgroundColor:c,
@@ -469,10 +497,14 @@ tbody tr:hover{background:#fff8f2}
     var t=$('allSeriesCount');
     if(t) t.textContent=sets.length+' of '+list.length+' charted \u00b7 every month, '+labels[0]+' to '+labels[labels.length-1];
   }
-  fetch(FILE).then(function(r){return r.json();}).then(function(j){
-    H=j;
-    if(!(H.cds&&H.cds.length) && H.nbs&&H.nbs.length) level='nb';
-    render();
+  Promise.all([
+    fetch(FILE).then(function(r){return r.json();}),
+    fetch('/data/cc-rents.json').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/cc-borough.json').then(function(r){return r.json();}).catch(function(){return null;})
+  ]).then(function(a){
+    H=a[0]; CC=a[1]; CCB=a[2];
+    if(!(H.cds&&H.cds.length)){ level=(H.nbs&&H.nbs.length)?'nb':'cc'; }
+    try{ render(); }catch(err){ if(window.console&&console.log) console.log('ALLSERIES FAIL: '+(err&&err.message)); }
   })
     .catch(function(){ var e=$('allSeriesBody'); if(e) e.innerHTML='<div class="rank-none">History could not load.</div>'; });
 })();
