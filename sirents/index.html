@@ -530,6 +530,7 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
   <div class="rank-head">
     <span class="sec-ico">&#127942;</span><div class="rank-tabs">
       <button class="rank-tab active" data-mode="cd">Community districts</button>
+<button class="rank-tab" data-mode="cc">Council districts</button>
           </div>
     <div class="rank-when"><span id="rankWhat">1 bedroom</span> &middot; <span id="rankMonth">&mdash;</span></div>
   </div>
@@ -1377,6 +1378,25 @@ function bkcb6CopyEmbed(type){
     return mn[parseInt(m.slice(5,7),10)-1]+' '+m.slice(0,4);
   }
   var bar=null;
+
+  var RCC=null, RCCB=null;
+  fetch('/data/cc-rents.json').then(function(r){return r.json();}).then(function(j){ RCC=j; }).catch(function(){});
+  fetch('/data/cc-borough.json').then(function(r){return r.json();}).then(function(j){ RCCB=j; }).catch(function(){});
+  function rankCouncil(){
+    if(!RCC||!RCC.cds||!H) return [];
+    var boro=(H.self&&H.self.name)||'';
+    var keys=Object.keys(RCC.cds);
+    if(boro && RCCB && !/New York City/i.test(boro))
+      keys=keys.filter(function(k){ var b=RCCB[k]; return b && b.main===boro; });
+    keys.sort(function(a,b){return (+a)-(+b);});
+    return keys.map(function(k){ return {name:'Council '+k, _cc:RCC.cds[k]}; });
+  }
+  function ccValueAt(a,key,i){
+    if(!RCC||!a._cc||!a._cc[key]) return null;
+    var off=H.months.indexOf(RCC.months[0]);
+    var k=i-off;
+    return (k>=0 && k<a._cc[key].length) ? a._cc[key][k] : null;
+  }
   function draw(){
     var host=document.getElementById('rankBody'); if(!host) return;
     if(!H){ host.innerHTML='<div class="rank-none">Loading history&hellip;</div>'; return; }
@@ -1387,11 +1407,11 @@ function bkcb6CopyEmbed(type){
     var w2=document.getElementById('rankWhat2'); if(w2) w2.textContent=(BEDNAME[bedKey()]||'').toLowerCase();
     var bigM=document.getElementById('rankBigMonth'); if(bigM) bigM.textContent=label(H.months[idx]);
 
-    var key=bedKey(), src = mode==='cd' ? H.cds : H.nbs;
+    var key=bedKey(), src = mode==='cc' ? rankCouncil() : (mode==='cd' ? H.cds : H.nbs);
     var rows=[];
     src.forEach(function(a){
-      var v=unpack(a.s[key], idx);
-      if(v!=null) rows.push({name:(mode==='cd'?PREFIXLBL+a.name.slice(2):a.name), v:v, cd:(mode==='cd'?a.num:a.cd)});
+      var v = a._cc ? ccValueAt(a,key,idx) : unpack(a.s[key], idx);
+      if(v!=null) rows.push({name:(a._cc? a.name : (mode==='cd'?PREFIXLBL+a.name.slice(2):a.name)), v:v, cd:(a._cc? null : (mode==='cd'?a.num:a.cd))});
     });
     if(!rows.length){ host.innerHTML='<div class="rank-none">No data published for this unit type in '+label(H.months[idx])+'.</div>'; return; }
     rows.sort(function(a,b){return b.v-a.v;});
