@@ -165,14 +165,39 @@ h1 span{color:var(--orange)}
   </div>
   <div class="tblwrap"><table class="dir" id="dirTbl"></table></div>
   <div class="sec">
+  <div class="sec">
     <h2>The sites the city has picked</h2>
-    <div class="lede">The city went through the land it already owns and picked the specific places it wants to build housing. This is that list. Two of those places are in CB6.</div>
+    <div class="lede">The city went through the land it already owns and named the specific places it wants to build housing. Here is what that list actually says about CB6 and about every other part of the city.</div>
+  </div>
+
+  <div class="claim">
+    <div class="ck">What we found</div>
+    <div class="cv" id="liftFind">&nbsp;</div>
+    <div class="cs" id="liftFindS">&nbsp;</div>
   </div>
   <div class="kpis" id="liftKpis"></div>
+  <div class="pair" id="liftEvid"></div>
+
+  <div class="sec">
+    <h2>The two places in CB6</h2>
+    <div class="lede">Both sit on land the city or its agencies already control.</div>
+  </div>
   <div class="pair" id="liftCb6"></div>
-  <div class="mapctl" id="liftCtl"></div>
+
+  <div class="sec">
+    <h2>Where the rest of it goes</h2>
+    <div class="lede">Every site on the map. Switch the level and the shading and the ranking follow it.</div>
+  </div>
+  <div class="mapctl" id="liftLvl"></div>
   <div class="mapnote" id="liftNote"></div>
   <div id="liftMap"></div>
+  <div class="tblwrap"><table class="dir" id="liftRoll"></table></div>
+
+  <div class="sec">
+    <h2>Every site, in full</h2>
+    <div class="lede">All 120, sortable. Search by site, address, agency, neighborhood, council district or community district.</div>
+  </div>
+  <div class="mapctl" id="liftCtl"></div>
   <div class="dirctl">
     <input id="liftQ" type="search" placeholder="Find a site, address, agency or district&hellip;" autocomplete="off">
   </div>
@@ -361,52 +386,136 @@ h1 span{color:var(--orange)}
   var $=function(i){return document.getElementById(i);};
   var n=function(v){return Number(v||0).toLocaleString('en-US');};
   function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function ord(i){var s=['th','st','nd','rd'],v=i%100;return i+(s[(v-20)%10]||s[v]||s[0]);}
   var AGC={HPD:'#f47920',EDC:'#2F6FD0',NYCHA:'#3E8E5A',ECF:'#8248C4'};
-  var SITES=[], onlyCb6=false, lMap=null, mkLayer=null;
-  var sortKey='u', sortDir=-1;
-  var COLS=[['n','Site'],['addr','Address'],['cd','District'],['ag','Agency'],['st','Stage'],['u','Homes']];
+  var RAMP=['#fde6cf','#fbc389','#f79b45','#e8730f','#a84f06'];
+  var SITES=[], BUILT={}, onlyCb6=false, lMap=null, mkLayer=null, shLayer=null;
+  var level='cd', sortKey='u', sortDir=-1, rollKey='homes', rollDir=-1;
 
+  var LEVELS=[
+    ['cd','Community boards','cd','/data/citywide-rents.geojson','cb_code'],
+    ['cc','Council districts','cc','/data/council-districts.geojson','cc'],
+    ['nb','Neighborhoods','nb','/data/city-neighborhoods.geojson','nb'],
+    ['boro','Boroughs','boro','/data/citywide-rents.geojson','Borough'],
+    ['all','Citywide',null,null,null]
+  ];
+  var GEO={};
+  function lvl(){ return LEVELS.filter(function(x){return x[0]===level;})[0]; }
+
+  /* ---- rollups ---- */
+  function roll(key){
+    var m={};
+    SITES.forEach(function(s){
+      var k=key?s[key]:'New York City';
+      if(!k) k='Location not published';
+      if(!m[k]) m[k]={a:k,sites:0,homes:0};
+      m[k].sites++; m[k].homes+=(s.u||0);
+    });
+    var tot=SITES.reduce(function(t,s){return t+(s.u||0);},0);
+    var out=[];
+    for(var k in m){ m[k].share=tot?(100*m[k].homes/tot):0; out.push(m[k]); }
+    return out;
+  }
+  function homesBy(key){
+    var m={};
+    SITES.forEach(function(s){ var k=s[key]; if(k) m[k]=(m[k]||0)+(s.u||0); });
+    return m;
+  }
+
+  /* ---- map ---- */
+  function shade(v,q){ if(!v) return null; for(var k=0;k<q.length;k++){ if(v<q[k]) return RAMP[k]; } return RAMP[4]; }
+  function drawShade(){
+    if(!lMap) return;
+    if(shLayer){ lMap.removeLayer(shLayer); shLayer=null; }
+    var L4=lvl(); if(!L4[3]||!L4[2]) return;
+    var g=GEO[L4[3]]; if(!g) return;
+    var key=L4[2], prop=L4[4], H=homesBy(key);
+    var vals=[]; for(var k in H) vals.push(H[k]); vals.sort(function(a,b){return a-b;});
+    var q=[]; for(var i=1;i<5;i++) q.push(vals[Math.floor(vals.length*i/5)]||0);
+    shLayer=L.geoJSON(g,{style:function(f){
+        var name=f.properties[prop];
+        if(level==='cc') name='District '+name;
+        var v=H[name]||0, c=shade(v,q);
+        return {fillColor:c||'#e8e6e1',fillOpacity:c?.7:.12,color:'#fff',weight:.8};
+      },onEachFeature:function(f,l){
+        var name=f.properties[prop];
+        if(level==='cc') name='District '+name;
+        var v=H[name]||0;
+        l.bindTooltip('<b>'+esc(name)+'</b><br>'+(v?(n(v)+' homes on the list'):'nothing on the list'),{sticky:true});
+      }}).addTo(lMap);
+    if(shLayer.bringToBack) shLayer.bringToBack();
+  }
+  function drawPoints(){
+    if(!lMap) return;
+    if(mkLayer) lMap.removeLayer(mkLayer);
+    mkLayer=L.layerGroup();
+    SITES.forEach(function(s){
+      if(s.lat==null||s.lng==null) return;
+      L.circleMarker([s.lat,s.lng],{radius:Math.max(5,Math.min(22,4+Math.sqrt(s.u||0)/2.6)),
+        color:'#fff',weight:1.5,fillColor:AGC[s.ag]||'#6b6760',fillOpacity:.9})
+       .bindPopup('<div class="lift-pop"><b>'+esc(s.n)+'</b>'+esc(s.addr)+'<br>'+n(s.u)+' homes'+
+         (s.nb?(' \u00b7 '+esc(s.nb)):'')+'<br><span>'+esc(s.ag)+' \u00b7 '+esc(s.st)+
+         (s.cd?(' \u00b7 '+esc(s.cd)):'')+(s.cc?(' \u00b7 Council '+esc(s.cc.replace('District ',''))):'')+
+         '</span></div>').addTo(mkLayer);
+    });
+    mkLayer.addTo(lMap);
+  }
+  function note(){
+    var L4=lvl();
+    var r=roll(L4[2]).filter(function(x){return x.a!=='Location not published';});
+    var top=r.slice().sort(function(a,b){return b.homes-a.homes;})[0];
+    var covered=r.length;
+    var txt;
+    if(level==='all') txt='All <b>'+n(SITES.length)+'</b> sites, <b>'+n(roll(null)[0].homes)+'</b> homes. Circle size follows the number of homes.';
+    else txt='Shaded by homes on the list. <b>'+n(covered)+'</b> '+esc(L4[1].toLowerCase())+
+      ' have at least one site, led by <b>'+esc(top.a)+'</b> with '+n(top.homes)+'.';
+    $('liftNote').innerHTML=txt+'<div class="mn-k">'+Object.keys(AGC).map(function(k){
+      return '<span class="lg"><i style="background:'+AGC[k]+'"></i>'+k+'</span>';
+    }).join('')+'</div>';
+  }
+  function needGeo(cb){
+    var L4=lvl(); if(!L4[3]){ cb(); return; }
+    if(GEO[L4[3]]){ cb(); return; }
+    fetch(L4[3]).then(function(r){return r.json();}).then(function(g){ GEO[L4[3]]=g; cb(); }).catch(cb);
+  }
+
+  /* ---- rollup table ---- */
+  var RCOLS=[['a','Area'],['sites','Sites'],['homes','Homes'],['share','Share of the citywide total']];
+  function drawRoll(){
+    var rows=roll(lvl()[2]).sort(function(a,b){
+      var x=a[rollKey],y=b[rollKey];
+      if(typeof x==='string') return rollDir*x.localeCompare(y);
+      return rollDir*(x-y);
+    });
+    $('liftRoll').innerHTML='<tr>'+RCOLS.map(function(c){
+      var cls=(c[0]===rollKey)?(rollDir<0?' class="down"':' class="up"'):'';
+      return '<th data-rk="'+c[0]+'"'+cls+'>'+c[1]+'</th>';
+    }).join('')+'</tr>'+rows.map(function(r){
+      return '<tr'+(r.a==='BKCB6'?' class="me"':'')+'><td>'+esc(r.a)+'</td><td>'+n(r.sites)+
+        '</td><td>'+n(r.homes)+'</td><td>'+r.share.toFixed(1)+'%</td></tr>';
+    }).join('');
+    $('liftRoll').querySelectorAll('[data-rk]').forEach(function(th){
+      th.addEventListener('click',function(){
+        var k=this.getAttribute('data-rk');
+        if(k===rollKey) rollDir=-rollDir; else { rollKey=k; rollDir=(k==='a')?1:-1; }
+        drawRoll();
+      });
+    });
+  }
+
+  /* ---- full site table ---- */
+  var COLS=[['n','Site'],['addr','Address'],['nb','Neighborhood'],['cd','Community board'],['cc','Council'],['ag','Agency'],['st','Stage'],['u','Homes']];
   function shown(){
     var q=(($('liftQ')||{}).value||'').toLowerCase().trim();
     return SITES.filter(function(s){
       if(onlyCb6 && s.cd!=='BKCB6') return false;
       if(!q) return true;
-      return (s.n+' '+s.addr+' '+s.ag+' '+s.own+' '+s.st+' '+(s.cd||'')+' '+(s.boro||'')).toLowerCase().indexOf(q)>-1;
+      return (s.n+' '+s.addr+' '+s.ag+' '+s.own+' '+s.st+' '+(s.cd||'')+' '+(s.cc||'')+' '+(s.nb||'')+' '+(s.boro||'')).toLowerCase().indexOf(q)>-1;
     });
   }
-  function rad(u){ return Math.max(5,Math.min(22,4+Math.sqrt(u||0)/2.6)); }
-
-  function drawMap(){
-    if(!lMap) return;
-    var rows=shown();
-    if(mkLayer) lMap.removeLayer(mkLayer);
-    mkLayer=L.layerGroup();
-    var pts=[];
-    rows.forEach(function(s){
-      if(s.lat==null||s.lng==null) return;
-      pts.push([s.lat,s.lng]);
-      L.circleMarker([s.lat,s.lng],{radius:rad(s.u),color:'#fff',weight:1.5,
-        fillColor:AGC[s.ag]||'#6b6760',fillOpacity:.85})
-       .bindPopup('<div class="lift-pop"><b>'+esc(s.n)+'</b>'+esc(s.addr)+'<br>'+
-         n(s.u)+' homes'+(s.cd?(' \u00b7 '+esc(s.cd)):'')+
-         '<br><span>'+esc(s.ag)+' \u00b7 '+esc(s.st)+'</span></div>')
-       .addTo(mkLayer);
-    });
-    mkLayer.addTo(lMap);
-    if(pts.length) lMap.fitBounds(L.latLngBounds(pts).pad(.15));
-    var homes=rows.reduce(function(t,s){return t+(s.u||0);},0);
-    var unmapped=rows.filter(function(s){return s.lat==null;}).length;
-    $('liftNote').innerHTML='<b>'+n(rows.length)+'</b> '+(rows.length===1?'site':'sites')+
-      ' shown, <b>'+n(homes)+'</b> homes. Circle size follows the number of homes.'+
-      (unmapped?(' '+n(unmapped)+' '+(unmapped===1?'site has no published location and appears':'sites have no published location and appear')+' in the table only.'):'')+
-      '<div class="mn-k">'+Object.keys(AGC).map(function(k){
-        return '<span class="lg"><i style="background:'+AGC[k]+'"></i>'+k+'</span>';
-      }).join('')+'</div>';
-  }
-
   function drawTbl(){
     var rows=shown().slice().sort(function(a,b){
-      var x=a[sortKey], y=b[sortKey];
+      var x=a[sortKey],y=b[sortKey];
       if(typeof x==='string'||typeof y==='string') return sortDir*String(x==null?'':x).localeCompare(String(y==null?'':y));
       return sortDir*(((x==null)?-1:x)-((y==null)?-1:y));
     });
@@ -416,12 +525,11 @@ h1 span{color:var(--orange)}
       return '<th data-lk="'+c[0]+'"'+cls+'>'+c[1]+'</th>';
     }).join('')+'</tr>'+rows.map(function(s){
       return '<tr'+(s.cd==='BKCB6'?' class="me"':'')+'>'+
-        '<td>'+esc(s.n)+'</td>'+
-        '<td class="ad">'+esc(s.addr)+'</td>'+
-        '<td>'+(s.cd?esc(s.cd):'\u2014')+'</td>'+
-        '<td>'+esc(s.ag)+'</td>'+
-        '<td class="st">'+esc(s.st)+'</td>'+
-        '<td>'+n(s.u)+'</td></tr>';
+        '<td>'+esc(s.n)+'</td><td class="ad">'+esc(s.addr)+'</td>'+
+        '<td class="ad">'+esc(s.nb||'\u2014')+'</td>'+
+        '<td>'+esc(s.cd||'\u2014')+'</td>'+
+        '<td>'+esc(s.cc?s.cc.replace('District ',''):'\u2014')+'</td>'+
+        '<td>'+esc(s.ag)+'</td><td class="st">'+esc(s.st)+'</td><td>'+n(s.u)+'</td></tr>';
     }).join('');
     $('liftTbl').querySelectorAll('[data-lk]').forEach(function(th){
       th.addEventListener('click',function(){
@@ -431,62 +539,104 @@ h1 span{color:var(--orange)}
       });
     });
   }
-  function redraw(){ drawMap(); drawTbl(); }
 
-  fetch('/data/lift-sites.json').then(function(r){return r.json();}).then(function(D){
-    SITES=D.sites||[];
-    var cb6=SITES.filter(function(s){return s.cd==='BKCB6';});
-    var cb6h=cb6.reduce(function(t,s){return t+(s.u||0);},0);
+  function redrawLevel(){ needGeo(function(){ drawShade(); drawPoints(); note(); drawRoll(); }); }
+
+  Promise.all([
+    fetch('/data/lift-sites.json').then(function(r){return r.json();}),
+    fetch('/data/built-vs-rent.json').then(function(r){return r.json();})
+  ]).then(function(a){
+    var D=a[0]; SITES=D.sites||[];
+    (a[1].rows||[]).forEach(function(r){ BUILT[r.cd]=r; });
+
+    /* ---- our reading of it ---- */
+    var byCd=homesBy('cd');
+    var ranked=[]; for(var k in byCd) ranked.push([k,byCd[k]]);
+    ranked.sort(function(x,y){return y[1]-x[1];});
+    var cb6h=byCd['BKCB6']||0;
+    var cb6rank=0; ranked.forEach(function(r,i){ if(r[0]==='BKCB6') cb6rank=i+1; });
+    var withSite=ranked.length, without=59-withSite;
+    function med(v){ v=v.slice().sort(function(a,b){return a-b;}); var h=Math.floor(v.length/2);
+      return v.length%2?v[h]:Math.round((v[h-1]+v[h])/2); }
+    var bIn=[], bOut=[];
+    for(var c in BUILT){ (byCd[c]?bIn:bOut).push(BUILT[c].built); }
+    var byCc=homesBy('cc'), ccR=[]; for(var k2 in byCc) ccR.push([k2,byCc[k2]]);
+    ccR.sort(function(x,y){return y[1]-x[1];});
+
+    $('liftFind').innerHTML='CB6 has more homes on this list than any other community district in New York. '+
+      n(cb6h)+' of them, across two sites, '+ord(cb6rank)+' of all 59.';
+    $('liftFindS').textContent='Our reading of the city site list, not a claim the city makes';
+
     $('liftKpis').innerHTML=
+      '<div class="kp"><div class="v">'+ord(cb6rank)+'</div><div class="k">where CB6 ranks among all 59 districts for homes on the list</div></div>'+
+      '<div class="kp"><div class="v">'+n(without)+'</div><div class="k">districts the list skips entirely</div></div>'+
       '<div class="kp"><div class="v">'+n(SITES.length)+'</div><div class="k">places the city plans to build housing on</div></div>'+
-      '<div class="kp"><div class="v">'+n(D.total_units)+'</div><div class="k">homes planned across all of them</div></div>'+
-      '<div class="kp"><div class="v">'+n(cb6.length)+'</div><div class="k">of those places are in CB6</div></div>'+
-      '<div class="kp"><div class="v">'+n(cb6h)+'</div><div class="k">homes planned in CB6</div></div>';
+      '<div class="kp"><div class="v">'+n(D.total_units)+'</div><div class="k">homes planned across all of them</div></div>';
 
-    /* the two CB6 projects, named and explained */
+    $('liftEvid').innerHTML=
+      '<div class="pc"><div class="pk">The districts that made the list</div><div class="pv">'+
+        n(med(bIn))+' homes built each<br>from 2015 to 2024, at the middle</div>'+
+        '<div class="pn">These are the '+n(withSite)+' districts holding at least one site.</div></div>'+
+      '<div class="pc"><div class="pk">The districts left off it</div><div class="pv">'+
+        n(med(bOut))+' homes built each<br>over the same ten years</div>'+
+        '<div class="pn">The list goes back to the places that were already building, and passes over the '+n(without)+' that were not.</div></div>'+
+      '<div class="pc"><div class="pk">By council district</div><div class="pv">Council '+
+        esc(ccR[0][0].replace('District ',''))+'<br>'+n(ccR[0][1])+' homes, more than any of the 51</div>'+
+        '<div class="pn">That is the district holding both CB6 sites.</div></div>'+
+      '<div class="pc"><div class="pk">By borough</div><div class="pv" id="liftBoroV"></div>'+
+        '<div class="pn">Brooklyn carries the largest share of the citywide total.</div></div>';
+    var byB=homesBy('boro'), bR=[]; for(var k3 in byB) bR.push([k3,byB[k3]]);
+    bR.sort(function(x,y){return y[1]-x[1];});
+    $('liftBoroV').innerHTML=esc(bR[0][0])+'<br>'+n(bR[0][1])+' homes, '+
+      Math.round(100*bR[0][1]/D.total_units)+' percent of the city total';
+
+    /* ---- the two CB6 projects ---- */
     var PROJ=[
       {key:'24-64 KANE STREET', name:'Brooklyn Marine Terminal',
-       where:'Red Hook, on the working waterfront at the foot of Kane Street.',
-       what:'The largest site on the city list anywhere in New York. The Economic Development Corporation is leading the planning for what replaces the terminal, and housing is part of it.'},
+       where:'On the working waterfront at the edge of Red Hook, at the foot of Kane Street.',
+       what:'The largest single site on the city list anywhere in New York. The Economic Development Corporation is leading the planning for the terminal, and housing is part of what it is planning for.'},
       {key:'435 HOYT STREET', name:'Gowanus Green',
-       where:'Gowanus, on the city owned parcel off Smith Street known as Public Place.',
-       what:'Five buildings of affordable housing on land the city has held for decades. Housing Preservation and Development is running it, and the public review is already finished.'}
+       where:'In Gowanus, on the city owned parcel off Smith Street long known as Public Place.',
+       what:'Affordable housing on land the city has held for decades, approved as part of the Gowanus rezoning. Housing Preservation and Development is running it.'}
     ];
-    var STAGE={
-      'Pre-RFP':'No developer picked yet',
-      'RFP Active':'Developers are bidding now',
+    var STAGE={'Pre-RFP':'No developer picked yet','RFP Active':'Developers are bidding now',
       'Developer Selected/Pre-Public Approval':'Developer picked, public review still ahead',
-      'Pre-Public Approval':'Public review still ahead',
-      'Post Public Approval':'Public review finished'
-    };
+      'Pre-Public Approval':'Public review still ahead','Post Public Approval':'Public review finished'};
     $('liftCb6').innerHTML=PROJ.map(function(p){
-      var mine=cb6.filter(function(s){return s.addr===p.key;});
+      var mine=SITES.filter(function(s){return s.addr===p.key && s.cd==='BKCB6';});
       if(!mine.length) return '';
       var homes=mine.reduce(function(t,s){return t+(s.u||0);},0);
-      var st=mine[0].st;
       return '<div class="pc"><div class="pk">'+esc(p.where)+'</div>'+
         '<div class="pv">'+esc(p.name)+'<br>'+n(homes)+' homes'+
         (mine.length>1?(' across '+n(mine.length)+' buildings'):'')+'</div>'+
         '<div class="pn">'+esc(p.what)+'</div>'+
-        '<div class="pg">Where it stands: '+esc(STAGE[st]||st)+'</div></div>';
+        '<div class="pg">Where it stands: '+esc(STAGE[mine[0].st]||mine[0].st)+'</div></div>';
     }).join('');
-    $('liftCtl').innerHTML='<button type="button" data-cb="0" class="on">Citywide</button>'+
+
+    /* ---- controls ---- */
+    $('liftLvl').innerHTML=LEVELS.map(function(x){
+      return '<button type="button" data-lv="'+x[0]+'"'+(x[0]===level?' class="on"':'')+'>'+x[1]+'</button>';
+    }).join('');
+    $('liftLvl').addEventListener('click',function(ev){
+      var b=ev.target.closest('[data-lv]'); if(!b) return;
+      level=b.getAttribute('data-lv'); rollKey='homes'; rollDir=-1;
+      $('liftLvl').querySelectorAll('[data-lv]').forEach(function(x){x.classList.toggle('on',x===b);});
+      redrawLevel();
+    });
+    $('liftCtl').innerHTML='<button type="button" data-cb="0" class="on">All 120 sites</button>'+
       '<button type="button" data-cb="1">CB6 only</button>';
     $('liftCtl').addEventListener('click',function(ev){
       var b=ev.target.closest('[data-cb]'); if(!b) return;
       onlyCb6=(b.getAttribute('data-cb')==='1');
       $('liftCtl').querySelectorAll('[data-cb]').forEach(function(x){x.classList.toggle('on',x===b);});
-      redraw();
+      drawTbl();
     });
-    $('liftQ').addEventListener('input',redraw);
+    $('liftQ').addEventListener('input',drawTbl);
+
     lMap=L.map('liftMap',{scrollWheelZoom:true}).setView([40.70,-73.94],10);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:18,attribution:'&copy; CARTO'}).addTo(lMap);
-    fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}).then(function(g){
-      var f=(g.features||[]).filter(function(x){return x.properties.cb_code==='BKCB6';});
-      if(!f.length||!lMap) return;
-      L.geoJSON({type:'FeatureCollection',features:f},{style:{color:'#0d1b4b',weight:2.5,fill:false,dashArray:'5 4'},interactive:false}).addTo(lMap);
-    });
-    redraw();
+    redrawLevel();
+    drawTbl();
   }).catch(function(){
     $('liftKpis').innerHTML='<div class="kp"><div class="k">The site list could not load.</div></div>';
   });
