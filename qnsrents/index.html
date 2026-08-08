@@ -2097,10 +2097,11 @@ function bkcb6CopyEmbed(type){
   var P=['#0d1b4b','#f47920','#2F6FD0','#3E8E5A','#8248C4','#B5561E','#1E7A8C','#B08900',
          '#c0392b','#16a085','#6b7280','#8e44ad','#d35400','#2c3e50','#27ae60','#2980b9',
          '#e67e22','#9b59b6','#1abc9c','#34495e','#a0522d','#5f9ea0','#9932cc','#556b2f'];
-  var BEDS=[['studio','Studio'],['br1','1 bedroom'],['br2','2 bedroom'],['br3','3+ bedroom'],['inv','Listings'],['disc','Price cuts'],['dom','Days on market']];
+  var BEDS=[['studio','Studio'],['br1','1 bedroom'],['br2','2 bedroom'],['br3','3+ bedroom'],['inv','Listings'],['disc','Price cuts'],['dom','Days on market'],['idx','Rent index']];
   function $(id){ return document.getElementById(id); }
   function unpack(p,i){ if(!p) return null; var k=i-p[0]; return (k>=0&&k<p[1].length)?p[1][k]:null; }
-  var CC=null, CCB=null;   // council districts live in their own file
+  var CC=null, CCB=null, IDXD=null;
+  fetch('/data/rental-index.json').then(function(r){return r.json();}).then(function(j){ IDXD=j; }).catch(function(){});   // council districts live in their own file
   function ccList(){
     if(!CC||!CC.cds) return [];
     var boro=(H&&H.self&&H.self.name)||'';
@@ -2248,6 +2249,25 @@ function bkcb6CopyEmbed(type){
     controls(); picker();
     var el=$('allSeriesBody'); if(!el) return;
     var list=src(), labels=H.months, sets=[];
+    if(bed==='idx'){
+      if(!IDXD){ el.innerHTML='<div class="rank-none">Loading the index\u2026</div>'; return; }
+      var d=IDXD.areas['Queens'];
+      if(!d){ el.innerHTML='<div class="rank-none">No index published for this area.</div>'; return; }
+      if(!$('allSeriesCanvas')) el.innerHTML='<div class="asbox"><canvas id="allSeriesCanvas"></canvas></div>';
+      if(chart){ try{chart.destroy();}catch(e){} }
+      chart=new Chart($('allSeriesCanvas'),{type:'line',
+        data:{labels:labels,datasets:[{label:'Queens rent index',data:d,borderColor:'#f47920',backgroundColor:'#f47920',borderWidth:3,pointRadius:0,tension:.25,spanGaps:true}]},
+        options:{responsive:true,maintainAspectRatio:false,animation:false,
+          plugins:{legend:{display:false},tooltip:{backgroundColor:'#0d1b4b',padding:9,cornerRadius:7,
+            callbacks:{label:function(c){return 'Index $'+Number(c.parsed.y).toLocaleString('en-US');}}}},
+          scales:{x:{border:{display:false},grid:{display:false},ticks:{font:{size:10,family:'DM Mono'},color:'#9ca3af',maxRotation:0,autoSkip:true,
+            callback:function(v){var t=labels[v]||'';return t.slice(5)==='01'?t.slice(0,4):'';}}},
+            y:{border:{display:false},grid:{color:'#f2efea'},ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760',
+              callback:function(v){return '$'+Number(v).toLocaleString('en-US');}}}}}});
+      var ti=$('allSeriesCount');
+      if(ti) ti.textContent='StreetEasy rent index for Queens \u00b7 tracks the same apartments over time, so it is not moved by which units happen to be listed.';
+      return;
+    }
     list.forEach(function(a,i){
       var n=nameOf(a);
       if(!showAll && !picked[n]) return;

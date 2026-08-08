@@ -450,6 +450,13 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
   <div class="ascount" id="corrNote"></div>
   <div id="corrBody"></div>
 </div>
+<div class="assec">
+  <div class="ashead">Housing built against rent</div>
+  <div class="assub">Every community district: homes completed from 2015 to 2024, against how much median asking rent moved over the same ten years.</div>
+  <div class="ascount" id="bvrNote"></div>
+  <div id="bvrBody"></div>
+</div>
+
 
 
 <div class="datastamp"></div>
@@ -2112,10 +2119,11 @@ function bkcb6CopyEmbed(type){
   var P=['#0d1b4b','#f47920','#2F6FD0','#3E8E5A','#8248C4','#B5561E','#1E7A8C','#B08900',
          '#c0392b','#16a085','#6b7280','#8e44ad','#d35400','#2c3e50','#27ae60','#2980b9',
          '#e67e22','#9b59b6','#1abc9c','#34495e','#a0522d','#5f9ea0','#9932cc','#556b2f'];
-  var BEDS=[['studio','Studio'],['br1','1 bedroom'],['br2','2 bedroom'],['br3','3+ bedroom'],['inv','Listings'],['disc','Price cuts'],['dom','Days on market']];
+  var BEDS=[['studio','Studio'],['br1','1 bedroom'],['br2','2 bedroom'],['br3','3+ bedroom'],['inv','Listings'],['disc','Price cuts'],['dom','Days on market'],['idx','Rent index']];
   function $(id){ return document.getElementById(id); }
   function unpack(p,i){ if(!p) return null; var k=i-p[0]; return (k>=0&&k<p[1].length)?p[1][k]:null; }
-  var CC=null, CCB=null;   // council districts live in their own file
+  var CC=null, CCB=null, IDXD=null;
+  fetch('/data/rental-index.json').then(function(r){return r.json();}).then(function(j){ IDXD=j; }).catch(function(){});   // council districts live in their own file
   function ccList(){
     if(!CC||!CC.cds) return [];
     var boro=(H&&H.self&&H.self.name)||'';
@@ -2263,6 +2271,25 @@ function bkcb6CopyEmbed(type){
     controls(); picker();
     var el=$('allSeriesBody'); if(!el) return;
     var list=src(), labels=H.months, sets=[];
+    if(bed==='idx'){
+      if(!IDXD){ el.innerHTML='<div class="rank-none">Loading the index\u2026</div>'; return; }
+      var d=IDXD.areas['NYC'];
+      if(!d){ el.innerHTML='<div class="rank-none">No index published for this area.</div>'; return; }
+      if(!$('allSeriesCanvas')) el.innerHTML='<div class="asbox"><canvas id="allSeriesCanvas"></canvas></div>';
+      if(chart){ try{chart.destroy();}catch(e){} }
+      chart=new Chart($('allSeriesCanvas'),{type:'line',
+        data:{labels:labels,datasets:[{label:'NYC rent index',data:d,borderColor:'#f47920',backgroundColor:'#f47920',borderWidth:3,pointRadius:0,tension:.25,spanGaps:true}]},
+        options:{responsive:true,maintainAspectRatio:false,animation:false,
+          plugins:{legend:{display:false},tooltip:{backgroundColor:'#0d1b4b',padding:9,cornerRadius:7,
+            callbacks:{label:function(c){return 'Index $'+Number(c.parsed.y).toLocaleString('en-US');}}}},
+          scales:{x:{border:{display:false},grid:{display:false},ticks:{font:{size:10,family:'DM Mono'},color:'#9ca3af',maxRotation:0,autoSkip:true,
+            callback:function(v){var t=labels[v]||'';return t.slice(5)==='01'?t.slice(0,4):'';}}},
+            y:{border:{display:false},grid:{color:'#f2efea'},ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760',
+              callback:function(v){return '$'+Number(v).toLocaleString('en-US');}}}}}});
+      var ti=$('allSeriesCount');
+      if(ti) ti.textContent='StreetEasy rent index for NYC \u00b7 tracks the same apartments over time, so it is not moved by which units happen to be listed.';
+      return;
+    }
     list.forEach(function(a,i){
       var n=nameOf(a);
       if(!showAll && !picked[n]) return;
@@ -2331,5 +2358,52 @@ function bkcb6CopyEmbed(type){
 })();
 
 </script>
+
+<script>
+(function(){
+  var chart=null;
+  var BOROC={Manhattan:'#2F6FD0',Brooklyn:'#f47920',Queens:'#3E8E5A',Bronx:'#8248C4','Staten Island':'#B5561E'};
+  function corr(xs,ys){
+    var n=xs.length; if(n<3) return null;
+    var mx=xs.reduce(function(a,b){return a+b;},0)/n, my=ys.reduce(function(a,b){return a+b;},0)/n;
+    var sxy=0,sxx=0,syy=0;
+    for(var i=0;i<n;i++){var dx=xs[i]-mx,dy=ys[i]-my;sxy+=dx*dy;sxx+=dx*dx;syy+=dy*dy;}
+    if(!sxx||!syy) return null;
+    return sxy/Math.sqrt(sxx*syy);
+  }
+  fetch('/data/built-vs-rent.json').then(function(r){return r.json();}).then(function(d){
+    var el=document.getElementById('bvrBody'); if(!el) return;
+    var rows=d.rows||[];
+    if(rows.length<3){ el.innerHTML=''; return; }
+    el.innerHTML='<div class="asbox" style="height:360px"><canvas id="bvrCanvas"></canvas></div>';
+    var byBoro={};
+    rows.forEach(function(r){ (byBoro[r.boro]=byBoro[r.boro]||[]).push({x:r.built,y:r.chg,n:r.cd}); });
+    var sets=Object.keys(byBoro).map(function(b){
+      return {label:b,data:byBoro[b],backgroundColor:BOROC[b]||'#6b7280',
+              pointRadius:function(c){return /CB6$/.test((c.raw&&c.raw.n)||'')&&c.raw.n==='BKCB6'?9:6;},
+              pointHoverRadius:10,borderColor:'#fff',borderWidth:1.5};
+    });
+    chart=new Chart(document.getElementById('bvrCanvas'),{type:'scatter',data:{datasets:sets},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,
+        plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:9,boxHeight:9,usePointStyle:true,font:{size:10,family:'DM Sans'},color:'#0d1b4b',padding:9}},
+          tooltip:{backgroundColor:'#0d1b4b',padding:9,cornerRadius:7,callbacks:{label:function(c){
+            var r=c.raw; return r.n+': '+r.x.toLocaleString('en-US')+' homes, rent '+(r.y>=0?'+':'')+r.y.toFixed(1)+'%';}}}},
+        scales:{x:{title:{display:true,text:'Homes completed, 2015 to 2024',font:{size:11,family:'DM Sans'},color:'#6b6760'},
+                   border:{display:false},grid:{color:'#f2efea'},ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760',
+                     callback:function(v){return Number(v).toLocaleString('en-US');}}},
+                y:{title:{display:true,text:'Change in median asking rent',font:{size:11,family:'DM Sans'},color:'#6b6760'},
+                   border:{display:false},grid:{color:'#f2efea'},ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760',
+                     callback:function(v){return (v>=0?'+':'')+Number(v).toFixed(0)+'%';}}}}}});
+    var r=corr(rows.map(function(x){return x.built;}),rows.map(function(x){return x.chg;}));
+    var note=document.getElementById('bvrNote');
+    if(note && r!=null){
+      var strength=Math.abs(r)<0.2?'no relationship':(Math.abs(r)<0.45?'a weak relationship':'a clear relationship');
+      note.textContent=rows.length+' community districts \u00b7 correlation '+r.toFixed(2)+', '+strength+
+        '. Districts that built the most did not see rents rise any more, or any less, than districts that built almost nothing.';
+    }
+  }).catch(function(){});
+})();
+</script>
+
 </body>
 </html>
