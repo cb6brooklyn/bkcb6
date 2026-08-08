@@ -697,7 +697,12 @@ function drawLayer() {
   layer = L.geoJSON(data, {
     style: function(feat) {
       var isCB6 = feat.properties.cb_code === 'BKCB6';
-      return {fillColor: feat.properties['city_fill_' + mode] || '#ccc', fillOpacity: 0.8, color: isCB6 ? '#f47920' : '#fff', weight: isCB6 ? 3 : 1};
+      var tOn=(typeof window.__timeActive==='function') && window.__timeActive();
+        var tI=tOn?(+((document.getElementById('tmSlider')||{}).value||0)):null;
+        var c=null;
+        if(tOn && window.__timeFill) c=window.__timeFill(feat.properties.cb_code, mode, tI);
+        if(!c) c=feat.properties['city_fill_' + mode] || '#ccc';
+        return {fillColor: c, fillOpacity: 0.8, color: isCB6 ? '#f47920' : '#fff', weight: isCB6 ? 3 : 1};
     },
     onEachFeature: function(feat, lyr) {
       lyr.bindTooltip(getTooltip(feat.properties), {sticky:true, opacity:1});
@@ -1649,7 +1654,19 @@ function bkcb6CopyEmbed(type){
       SCALE[bed]={lo:lo,hi:hi};
     });
   }
-  window.__timeScale=function(){ return SCALE[bedKeyT()]||null; };
+  
+  window.__timeFill=function(cb_code,bed,i){
+    var v=window.__timeValueFor(cb_code,bed,i);
+    if(v==null) return null;
+    var k=({studio:'studio','1br':'br1','2br':'br2','3br':'br3'})[bed]||bed;
+    var sc=SCALE[k];
+    if(!sc) return null;
+    var t=(v-sc.lo)/((sc.hi-sc.lo)||1);
+    t=t<0?0:(t>1?1:t);
+    var RAMP=['#3d6e8f','#7fbf5a','#e0a92e','#d4631a','#7b1113'];
+    return RAMP[Math.min(4,Math.floor(t*5))];
+  };
+window.__timeScale=function(){ return SCALE[bedKeyT()]||null; };
   window.__timeTiers=function(i){
     var sc=SCALE[bedKeyT()]; var out={};
     if(!sc) return out;
