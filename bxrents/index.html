@@ -384,11 +384,27 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 .embed-code-box{background:#f8f7f4;border:1.5px solid #e5e2db;border-radius:6px;padding:12px;font-size:.72rem;font-family:'DM Mono',monospace;color:#333;line-height:1.6;word-break:break-all;margin-bottom:14px;white-space:pre-wrap}
 .embed-close{width:100%;padding:10px;background:#f8f7f4;border:1.5px solid #e5e2db;border-radius:6px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;color:#0d1b4b}
 .embed-close:hover{background:#e5e2db}
+
+.assec{background:#fff;border-top:1px solid var(--border,#e5e2db);border-bottom:1px solid var(--border,#e5e2db);padding:16px 14px 18px}
+.ashead{font-size:1rem;font-weight:900;color:#0d1b4b;line-height:1.25}
+.assub{font-size:.79rem;color:#6b6760;line-height:1.5;margin-top:3px}
+.ascontrols{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:11px}
+.aslab{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.09em;color:#9ca3af;font-weight:700;margin-right:2px}
+.asbed,.aslvl{border:1.5px solid #e5e2db;background:#fff;border-radius:15px;padding:5px 11px;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:#0d1b4b;cursor:pointer}
+.asbed.on,.aslvl.on{background:#f47920;border-color:#f47920;color:#fff}
+.aspick{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.aschip{border:1.5px solid #e5e2db;background:#fff;border-radius:15px;padding:5px 11px;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:#0d1b4b;cursor:pointer;border-left:5px solid var(--c)}
+.aschip.on{background:#0d1b4b;color:#fff;border-color:#0d1b4b}
+.asall{border:1.5px solid #0d1b4b;background:#fff;border-radius:15px;padding:5px 13px;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:800;color:#0d1b4b;cursor:pointer}
+.asall.on{background:#f47920;border-color:#f47920;color:#fff}
+.ascount{font-family:'DM Mono',monospace;font-size:.67rem;color:#9ca3af;margin-top:9px}
+.asbox{position:relative;height:430px;margin-top:8px}
+.rank-none{padding:14px;font-family:'DM Mono',monospace;font-size:.72rem;color:#9ca3af}
 </style>
 <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b6e9b47ba0cf416388d72db8edaf4198"}'></script><!-- End Cloudflare Web Analytics -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
-<body>
+<body data-rankfile="/data/bx-rank-history.json">
 
 <div class="top-bar">
   <h1>BX Rents by <span>CB</span></h1>
@@ -416,6 +432,15 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
   <div id="rentsearch-result"></div>
 </div>
 <div id="dashWrap" class="dash-wrap"></div>
+<div class="assec">
+  <div class="ashead">Every district, every month</div>
+  <div class="assub">The full run from 2010 to now, not just the top and bottom. Tap any to isolate it.</div>
+  <div class="ascontrols" id="asControls"></div>
+  <div class="aspick" id="allSeriesPick"></div>
+  <div class="ascount" id="allSeriesCount"></div>
+  <div id="allSeriesBody"></div>
+</div>
+
 <div class="datastamp"></div>
 <div class="unitbar" id="bed-controls"><span class="ub-lab">Unit size</span>
     <button class="rent-btn" onclick="toggle('studio',this)">Studio</button>
@@ -2026,5 +2051,93 @@ function bkcb6CopyEmbed(type){
 })();
 </script>
 <script src="/assets/datastamp.js"></script>
+<script>
+/* Every designation charted over time. Loads its own copy of the data so it
+   does not depend on anything inside the page's own closure. */
+(function(){
+  var FILE=(document.body.getAttribute('data-rankfile')||'/data/bk-rank-history.json');
+  var H=null, chart=null, bed='br1', level='cd', showAll=true, picked={};
+  var P=['#0d1b4b','#f47920','#2F6FD0','#3E8E5A','#8248C4','#B5561E','#1E7A8C','#B08900',
+         '#c0392b','#16a085','#6b7280','#8e44ad','#d35400','#2c3e50','#27ae60','#2980b9',
+         '#e67e22','#9b59b6','#1abc9c','#34495e','#a0522d','#5f9ea0','#9932cc','#556b2f'];
+  var BEDS=[['studio','Studio'],['br1','1 bedroom'],['br2','2 bedroom'],['br3','3+ bedroom']];
+  function $(id){ return document.getElementById(id); }
+  function unpack(p,i){ if(!p) return null; var k=i-p[0]; return (k>=0&&k<p[1].length)?p[1][k]:null; }
+  function src(){ return (level==='nb' ? (H.nbs||[]) : (H.cds||[])); }
+  function nameOf(a){ return a.num!=null ? ((H.self&&H.self.name?H.self.name:'')+' CB'+a.num).trim() : a.name; }
+  function controls(){
+    var c=$('asControls'); if(!c) return;
+    var hasNb=(H.nbs&&H.nbs.length), hasCd=(H.cds&&H.cds.length);
+    c.innerHTML=
+      '<span class="aslab">Unit</span>'+
+      BEDS.map(function(b){return '<button type="button" class="asbed'+(bed===b[0]?' on':'')+'" data-bed="'+b[0]+'">'+b[1]+'</button>';}).join('')+
+      ((hasNb&&hasCd)?('<span class="aslab">Level</span>'+
+        '<button type="button" class="aslvl'+(level==='cd'?' on':'')+'" data-lvl="cd">Community boards</button>'+
+        '<button type="button" class="aslvl'+(level==='nb'?' on':'')+'" data-lvl="nb">Neighborhoods</button>'):'');
+    c.querySelectorAll('[data-bed]').forEach(function(b){ b.onclick=function(){ bed=this.getAttribute('data-bed'); render(); }; });
+    c.querySelectorAll('[data-lvl]').forEach(function(b){ b.onclick=function(){ level=this.getAttribute('data-lvl'); showAll=true; picked={}; render(); }; });
+  }
+  function picker(){
+    var el=$('allSeriesPick'); if(!el) return;
+    var list=src();
+    el.innerHTML='<button type="button" class="asall'+(showAll?' on':'')+'" id="asAll">Show all</button>'+
+      list.map(function(a,i){
+        var n=nameOf(a);
+        return '<button type="button" class="aschip'+((!showAll&&picked[n])?' on':'')+'" data-as="'+n.replace(/"/g,'')+'" style="--c:'+P[i%P.length]+'">'+n+'</button>';
+      }).join('');
+    $('asAll').onclick=function(){ showAll=true; picked={}; render(); };
+    el.querySelectorAll('[data-as]').forEach(function(b){
+      b.onclick=function(){
+        var n=this.getAttribute('data-as');
+        if(showAll){ showAll=false; picked={}; }
+        picked[n]=!picked[n];
+        if(!Object.keys(picked).some(function(k){return picked[k];})) showAll=true;
+        render();
+      };
+    });
+  }
+  function render(){
+    if(!H) return;
+    controls(); picker();
+    var el=$('allSeriesBody'); if(!el) return;
+    var list=src(), labels=H.months, sets=[];
+    list.forEach(function(a,i){
+      var n=nameOf(a);
+      if(!showAll && !picked[n]) return;
+      var data=labels.map(function(_,j){ return unpack(a.s[bed], j); });
+      if(!data.some(function(v){return v!=null;})) return;
+      var c=P[i%P.length];
+      sets.push({label:n,data:data,borderColor:c,backgroundColor:c,
+        borderWidth:/CB6\b/.test(n)?3:1.4,pointRadius:0,tension:.25,spanGaps:true});
+    });
+    if(!sets.length){ el.innerHTML='<div class="rank-none">Nothing to chart for that unit size.</div>'; return; }
+    if(!$('allSeriesCanvas')) el.innerHTML='<div class="asbox"><canvas id="allSeriesCanvas"></canvas></div>';
+    if(chart){ try{chart.destroy();}catch(e){} }
+    chart=new Chart($('allSeriesCanvas'),{type:'line',data:{labels:labels,datasets:sets},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,
+        interaction:{mode:'nearest',intersect:false},
+        plugins:{legend:{display:sets.length<=24,position:'bottom',
+                  labels:{boxWidth:9,boxHeight:9,usePointStyle:true,pointStyle:'line',
+                          font:{size:10,family:'DM Sans'},color:'#0d1b4b',padding:9}},
+                 tooltip:{backgroundColor:'#0d1b4b',padding:9,cornerRadius:7,
+                  callbacks:{label:function(c){return c.dataset.label+': $'+Number(c.parsed.y).toLocaleString('en-US');}}}},
+        scales:{x:{border:{display:false},grid:{display:false},
+                   ticks:{font:{size:10,family:'DM Mono'},color:'#9ca3af',maxRotation:0,autoSkip:true,
+                     callback:function(v){var t=labels[v]||'';return t.slice(5)==='01'?t.slice(0,4):'';}}},
+                y:{border:{display:false},grid:{color:'#f2efea'},
+                   ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760',
+                     callback:function(v){return '$'+Number(v).toLocaleString('en-US');}}}}}});
+    var t=$('allSeriesCount');
+    if(t) t.textContent=sets.length+' of '+list.length+' charted \u00b7 every month, '+labels[0]+' to '+labels[labels.length-1];
+  }
+  fetch(FILE).then(function(r){return r.json();}).then(function(j){
+    H=j;
+    if(!(H.cds&&H.cds.length) && H.nbs&&H.nbs.length) level='nb';
+    render();
+  })
+    .catch(function(){ var e=$('allSeriesBody'); if(e) e.innerHTML='<div class="rank-none">History could not load.</div>'; });
+})();
+
+</script>
 </body>
 </html>
