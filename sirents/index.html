@@ -442,7 +442,12 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 </div>
 <div class="assec">
   <div class="ashead">Rent against supply</div>
-  <div class="assub">Every area this month: how many places are on the market, and what they cost.</div>
+  <div class="assub">Levels across areas mostly show which places are bigger. The change view is the one that speaks to whether more supply moves rent.</div>
+  <div class="ascontrols" id="corrCtl">
+    <span class="aslab">Compare</span>
+    <button type="button" class="asbed on" data-corr="level">Where they stand today</button>
+    <button type="button" class="asbed" data-corr="change">How they changed over a year</button>
+  </div>
   <div class="ascount" id="corrNote"></div>
   <div id="corrBody"></div>
 </div>
@@ -2168,19 +2173,26 @@ function bkcb6CopyEmbed(type){
     if(!sxx||!syy) return null;
     return sxy/Math.sqrt(sxx*syy);
   }
-  var scatter=null;
+  var scatter=null, corrMode='level';
   function drawScatter(){
     var el=$('corrBody'); if(!el||!H) return;
-    var priceKey = (bed==='inv') ? 'br1' : bed;
-    var list=src(), i=H.months.length-1, pts=[];
+    var priceKey = (bed==='inv'||bed==='disc'||bed==='dom') ? 'br1' : bed;
+    var list=src(), i=H.months.length-1, j=i-12, pts=[];
     list.forEach(function(a,k){
-      var p,q;
+      var p,q,p0,q0;
       if(a._cc){
         p=ccAt(a,priceKey,i); q=ccInvAt(a,i);
+        p0=ccAt(a,priceKey,j); q0=ccInvAt(a,j);
       } else {
         p=unpack(a.s[priceKey],i); q=unpack(a.s['inv'],i);
+        p0=unpack(a.s[priceKey],j); q0=unpack(a.s['inv'],j);
       }
-      if(p!=null && q!=null && q>0) pts.push({x:q,y:p,n:nameOf(a),c:P[k%P.length]});
+      if(corrMode==='change'){
+        if(p==null||q==null||p0==null||q0==null||p0<=0||q0<=0) return;
+        pts.push({x:((q-q0)/q0)*100, y:((p-p0)/p0)*100, n:nameOf(a), c:P[k%P.length]});
+      } else {
+        if(p!=null && q!=null && q>0) pts.push({x:q,y:p,n:nameOf(a),c:P[k%P.length]});
+      }
     });
     if(pts.length<3){ el.innerHTML='<div class="rank-none">Not enough figures this month to compare.</div>'; return; }
     var r=corr(pts.map(function(p){return p.x;}),pts.map(function(p){return p.y;}));
@@ -2192,22 +2204,39 @@ function bkcb6CopyEmbed(type){
       options:{responsive:true,maintainAspectRatio:false,animation:false,
         plugins:{legend:{display:false},
           tooltip:{backgroundColor:'#0d1b4b',padding:9,cornerRadius:7,callbacks:{label:function(c){
-            var d=c.raw; return d.n+': '+d.x.toLocaleString('en-US')+' listings, $'+d.y.toLocaleString('en-US');}}}},
-        scales:{x:{title:{display:true,text:'Listings on the market',font:{size:11,family:'DM Sans'},color:'#6b6760'},
+            var d=c.raw;
+            if(corrMode==='change') return d.n+': listings '+(d.x>=0?'+':'')+d.x.toFixed(0)+'%, rent '+(d.y>=0?'+':'')+d.y.toFixed(1)+'%';
+            return d.n+': '+d.x.toLocaleString('en-US')+' listings, $'+d.y.toLocaleString('en-US');}}}},
+        scales:{x:{title:{display:true,text:(corrMode==='change'?'Change in listings over 12 months':'Listings on the market'),font:{size:11,family:'DM Sans'},color:'#6b6760'},
                    border:{display:false},grid:{color:'#f2efea'},
                    ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760'}},
-                y:{title:{display:true,text:'Median asking rent',font:{size:11,family:'DM Sans'},color:'#6b6760'},
+                y:{title:{display:true,text:(corrMode==='change'?'Change in rent over 12 months':'Median asking rent'),font:{size:11,family:'DM Sans'},color:'#6b6760'},
                    border:{display:false},grid:{color:'#f2efea'},
                    ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760',
-                     callback:function(v){return '$'+Number(v).toLocaleString('en-US');}}}}}});
+                     callback:function(v){return corrMode==='change' ? (Number(v).toFixed(0)+'%') : ('$'+Number(v).toLocaleString('en-US'));}}}}}});
     var note=$('corrNote');
     if(note){
       var word = r==null?'':(Math.abs(r)<0.2?'almost no relationship':(Math.abs(r)<0.45?'a weak relationship':(Math.abs(r)<0.7?'a moderate relationship':'a strong relationship')));
       var dir = r==null?'':(r<0?'more listings goes with lower rent':'more listings goes with higher rent');
-      note.textContent = r==null ? '' :
-        (pts.length+' areas this month \u00b7 correlation '+r.toFixed(2)+', '+word+', where '+dir+'.');
+      if(corrMode==='change'){
+        dir = r==null?'':(r<0?'where supply grew fastest, rent rose least':'where supply grew fastest, rent also rose most');
+        note.textContent = r==null ? '' :
+          (pts.length+' areas \u00b7 the year to '+H.months[i]+' \u00b7 correlation '+r.toFixed(2)+', '+word+', '+dir+'.');
+      } else {
+        note.textContent = r==null ? '' :
+          (pts.length+' areas this month \u00b7 correlation '+r.toFixed(2)+', '+word+', where '+dir+'. Bigger areas have more listings, so this mostly reflects size.');
+      }
     }
   }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest&&e.target.closest('[data-corr]');
+    if(!b) return;
+    corrMode=b.getAttribute('data-corr');
+    var box=b.parentNode;
+    box.querySelectorAll('[data-corr]').forEach(function(x){ x.classList.toggle('on',x===b); });
+    if($('corrCanvas')) $('corrBody').innerHTML='';
+    drawScatter();
+  });
   function ccAt(a,key,i){
     if(!CC||!a._cc||!a._cc[key]) return null;
     var off=H.months.indexOf(CC.months[0]), k=i-off;
