@@ -1,0 +1,36 @@
+name: se-rents
+on:
+  schedule:
+    - cron: '0 11 5 * *'      # the 5th of each month, after StreetEasy posts
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the master report and keep what we use
+        run: |
+          set -e
+          curl -sL "https://cdn-charts.streeteasy.com/Master%20Report.zip" -o /tmp/m.zip --max-time 240
+          mkdir -p /tmp/se && cd /tmp/se && unzip -o -q /tmp/m.zip
+          for z in *.zip; do unzip -o -q "$z" || true; done
+          mkdir -p "$GITHUB_WORKSPACE/data/streeteasy"
+          for f in medianAskingRent_All medianAskingRent_Studio medianAskingRent_OneBd \
+                   medianAskingRent_TwoBd medianAskingRent_ThreePlusBd \
+                   rentalInventory_All rentalInventory_Studio rentalInventory_OneBd \
+                   rentalInventory_TwoBd rentalInventory_ThreePlusBd \
+                   discountShare_All discountShare_Studio discountShare_OneBd \
+                   discountShare_TwoBd discountShare_ThreePlusBd \
+                   rentalIndex_All daysOnMarket_All totalInventory_All; do
+            [ -f "$f.csv" ] && cp "$f.csv" "$GITHUB_WORKSPACE/data/streeteasy/" || echo "missing $f"
+          done
+          ls -la "$GITHUB_WORKSPACE/data/streeteasy/" | head -25
+      - name: Commit the raw files
+        run: |
+          git config user.name "Mike Racioppo"
+          git config user.email "mracioppo@cb.nyc.gov"
+          git add data/streeteasy/
+          git commit -m "Pull StreetEasy monthly data" || echo "nothing new"
+          git push
