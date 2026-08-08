@@ -1,0 +1,35 @@
+name: lift-probe
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull the StoryMap definition and find its data layers
+        run: |
+          mkdir -p data/lift
+          ID=afce9e93d79847608fc846878e17db8e
+          curl -sL "https://storymaps.arcgis.com/sharing/rest/content/items/$ID/data?f=json" -o /tmp/story.json --max-time 90 || true
+          wc -c /tmp/story.json > data/lift/probe.txt
+          python3 - <<'PYEOF'
+          import json,re
+          try: d=json.load(open('/tmp/story.json'))
+          except Exception as e:
+              open('data/lift/probe.txt','a').write('\nparse failed: %s\n'%e); raise SystemExit
+          raw=json.dumps(d)
+          ids=sorted(set(re.findall(r'[0-9a-f]{32}',raw)))
+          urls=sorted(set(re.findall(r'https://[^"]*(?:FeatureServer|MapServer)[^"]*',raw)))
+          out=['story keys: %s'%list(d)[:12],'','item ids referenced: %d'%len(ids)]
+          out+=['  '+i for i in ids[:40]]
+          out+=['','service urls: %d'%len(urls)]
+          out+=['  '+u for u in urls[:40]]
+          open('data/lift/probe.txt','a').write('\n'.join(out))
+          PYEOF
+      - name: Commit
+        run: |
+          git config user.name "Mike Racioppo"
+          git config user.email "mracioppo@cb.nyc.gov"
+          git add data/lift/ && git commit -m "LIFT storymap probe" || echo skip
+          git push
