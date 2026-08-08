@@ -96,6 +96,22 @@ h1 span{color:var(--orange)}
 #rptMap{height:46vh;min-height:290px;background:#eef0f4;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
 .rptpick{padding:12px 16px 4px}
 .rptpick select{width:100%;padding:10px 12px;font-family:'DM Sans',sans-serif;font-size:.85rem;font-weight:700;border:2px solid var(--navy);border-radius:10px;color:var(--navy);background:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.chip{display:inline-flex;align-items:center;gap:7px;background:var(--navy);color:#fff;border-radius:18px;padding:6px 8px 6px 12px;font-size:.76rem;font-weight:700}
+.chip button{border:0;background:rgba(255,255,255,.2);color:#fff;width:19px;height:19px;border-radius:50%;font-size:.8rem;line-height:1;cursor:pointer;font-family:'DM Sans',sans-serif}
+.chip.solo button{display:none}
+.sharerow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.sharerow button{border:1.5px solid var(--navy);background:#fff;color:var(--navy);border-radius:18px;padding:7px 14px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer}
+.sharerow button:hover{background:var(--navy);color:#fff}
+.sharerow .msg{font-family:'DM Mono',monospace;font-size:.66rem;color:var(--orange);font-weight:700}
+.cmp{width:100%;border-collapse:collapse;font-size:.78rem}
+.cmp th{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--off);padding:8px 7px;text-align:right;white-space:nowrap}
+.cmp th:first-child{text-align:left}
+.cmp td{padding:8px 7px;text-align:right;border-bottom:1px solid #f2efea;font-family:'DM Mono',monospace;white-space:nowrap}
+.cmp td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700}
+.cmp tr.me td{background:#fff1e5}
+.cmp tr.tot td{border-top:2px solid var(--navy);font-weight:900;background:#fbfaf8}
+.dhead{padding:14px 16px 0;font-size:.95rem;font-weight:900;color:var(--navy)}
 .rptwords{padding:0 16px 6px;font-size:.9rem;line-height:1.75;color:#333;max-width:74ch}
 .rptwords p{margin-bottom:10px}
 .rptwords b{color:var(--navy)}
@@ -207,14 +223,23 @@ h1 span{color:var(--orange)}
   <div class="pair" id="liftCb6"></div>
 
   <div class="sec">
-    <h2>What the list means, district by district</h2>
-    <div class="lede">Pick any of the 59 community districts, or tap it on the map, and this reads back what the city has lined up there and how it sits against what that district has already done.</div>
+    <h2 id="districts">What the list means, district by district</h2>
+    <div class="lede">Pick any of the 59 community districts, or tap them on the map, and this reads back what the city has lined up there. Add as many as you want to compare them side by side, then copy a link to send that comparison to someone.</div>
   </div>
   <div class="srcnote">
     Planned homes come from the Mayor's Office site list. Homes finished come from the NYC Department of City Planning Housing Database. Rent comes from StreetEasy. Rezonings come from the Department of City Planning Zoning Application Portal. The reading of them is ours.
   </div>
-  <div class="rptpick"><select id="rptPick"></select></div>
+  <div class="rptpick">
+    <select id="rptPick"><option value="">Add a district to compare&hellip;</option></select>
+    <div class="chips" id="rptChips"></div>
+    <div class="sharerow">
+      <button type="button" id="rptShare">Copy a link to this</button>
+      <button type="button" id="rptClear">Start over with CB6</button>
+      <span class="msg" id="rptMsg"></span>
+    </div>
+  </div>
   <div id="rptMap"></div>
+  <div class="tblwrap" id="rptCmpWrap" style="display:none"><table class="cmp" id="rptCmp"></table></div>
   <div class="kpis" id="rptKpis"></div>
   <div class="rptwords" id="rptWords"></div>
   <div id="rptSites"></div>
@@ -681,7 +706,7 @@ h1 span{color:var(--orange)}
     /* ---- the per district report ---- */
     var medChg=(function(v){v=v.slice().sort(function(x,y){return x-y;});var h=Math.floor(v.length/2);
       return v.length%2?v[h]:(v[h-1]+v[h])/2;})((a[1].rows||[]).map(function(r){return r.chg;}));
-    var rptMap=null, rptCd='BKCB6', rptLayer=null, rptPts=null, CDG=null;
+    var rptMap=null, rptLayer=null, rptPts=null, CDG=null;
 
     function sitesIn(cd){ return SITES.filter(function(s){return s.cd===cd;})
       .sort(function(x,y){return (y.u||0)-(x.u||0);}); }
@@ -709,95 +734,192 @@ h1 span{color:var(--orange)}
       return arr.slice(0,-1).join(', ')+' and '+arr[arr.length-1];
     }
 
-    function report(cd){
-      rptCd=cd;
+    var SEL=['BKCB6'];
+    function pretty(cd){ var r=BUILT[cd]||{}; return cd+(r.boro?(' \u00b7 '+r.boro):''); }
+    function selUrl(){
+      return location.origin+location.pathname+'?cd='+encodeURIComponent(SEL.join(','))+'#districts';
+    }
+    function syncUrl(){
+      try{ history.replaceState(null,'','?cd='+encodeURIComponent(SEL.join(','))+'#districts'); }catch(e){}
+    }
+    function chips(){
+      $('rptChips').innerHTML=SEL.map(function(c){
+        return '<span class="chip'+(SEL.length===1?' solo':'')+'">'+esc(c)+
+          '<button type="button" data-rm="'+esc(c)+'" aria-label="Remove '+esc(c)+'">&times;</button></span>';
+      }).join('');
+    }
+    function toggleCd(cd){
+      var i=SEL.indexOf(cd);
+      if(i>-1){ if(SEL.length===1) return; SEL.splice(i,1); }
+      else SEL.push(cd);
+      report();
+    }
+
+    function rowFor(cd){
       var r=BUILT[cd]||{}, mine=placesIn(cd);
-      var homes=mine.reduce(function(t,s){return t+(s.u||0);},0);
-      var rank=0; ranked.forEach(function(x,i){ if(x[0]===cd) rank=i+1; });
-      var cc=councilsIn(cd);
+      return {cd:cd, boro:r.boro||'', places:mine.length,
+        planned:mine.reduce(function(t,x){return t+(x.u||0);},0),
+        built:r.built||0, chg:(r.chg==null?null:r.chg), rez:r.rez||0, mine:mine, cc:councilsIn(cd)};
+    }
+
+    function report(){
+      var rows=SEL.map(rowFor);
+      var multi=rows.length>1;
+      var tPl=rows.reduce(function(t,x){return t+x.planned;},0);
+      var tB=rows.reduce(function(t,x){return t+x.built;},0);
+      var tPlaces=rows.reduce(function(t,x){return t+x.places;},0);
 
       $('rptKpis').innerHTML=
-        '<div class="kp"><div class="v">'+n(mine.length)+'</div><div class="k">place'+(mine.length===1?'':'s')+' on the city list here</div></div>'+
-        '<div class="kp"><div class="v">'+n(homes)+'</div><div class="k">homes planned there, none of them built</div></div>'+
-        '<div class="kp"><div class="v">'+n(r.built||0)+'</div><div class="k">homes actually finished here in the ten years to 2024</div></div>'+
-        '<div class="kp"><div class="v">'+((r.chg!=null)?((r.chg>=0?'+':'')+r.chg+'%'):'\u2014')+'</div><div class="k">what a one bedroom rent did over those same years</div></div>';
+        '<div class="kp"><div class="v">'+n(tPlaces)+'</div><div class="k">place'+(tPlaces===1?'':'s')+' on the city list'+(multi?(' across these '+n(rows.length)+' districts'):' here')+'</div></div>'+
+        '<div class="kp"><div class="v">'+n(tPl)+'</div><div class="k">homes planned, none of them built</div></div>'+
+        '<div class="kp"><div class="v">'+n(tB)+'</div><div class="k">homes actually finished in the ten years to 2024</div></div>'+
+        '<div class="kp"><div class="v">'+n(Math.round(tB/10))+'</div><div class="k">homes a year, which is what that comes to</div></div>';
+
+      if(multi){
+        $('rptCmpWrap').style.display='';
+        $('rptCmp').innerHTML='<tr><th>District</th><th>Borough</th><th>Places on the list</th>'+
+          '<th>Homes planned</th><th>Homes finished</th><th>A year</th><th>Rent change</th><th>Rezonings</th></tr>'+
+          rows.map(function(x){
+            return '<tr'+(x.cd==='BKCB6'?' class="me"':'')+'><td>'+esc(x.cd)+'</td><td>'+esc(x.boro)+'</td>'+
+              '<td>'+n(x.places)+'</td><td>'+n(x.planned)+'</td><td>'+n(x.built)+'</td>'+
+              '<td>'+n(Math.round(x.built/10))+'</td><td>'+(x.chg==null?'\u2014':((x.chg>=0?'+':'')+x.chg+'%'))+'</td>'+
+              '<td>'+n(x.rez)+'</td></tr>';
+          }).join('')+
+          '<tr class="tot"><td>Together</td><td>'+esc(rows.length)+' districts</td><td>'+n(tPlaces)+'</td>'+
+          '<td>'+n(tPl)+'</td><td>'+n(tB)+'</td><td>'+n(Math.round(tB/10))+'</td><td></td><td>'+
+          n(rows.reduce(function(t,x){return t+x.rez;},0))+'</td></tr>';
+      } else {
+        $('rptCmpWrap').style.display='none';
+        $('rptCmp').innerHTML='';
+      }
 
       var w='';
-      if(mine.length){
-        w+='<p><b>'+esc(cd)+'</b> in '+esc(r.boro||'')+' has <b>'+n(mine.length)+'</b> '+
-          (mine.length===1?'place':'places')+' on the city list, planned for <b>'+n(homes)+' homes</b> that do not exist yet. '+
-          'That is '+(homes/D.total_units*100).toFixed(1)+' percent of everything on the list citywide.</p>';
-        if(cc.length) w+='<p>The '+(cc.length===1?'site sits':'sites sit')+' in council district'+
-          (cc.length===1?' ':'s ')+listWords(cc)+'.</p>';
+      if(multi){
+        var names=listWords(rows.map(function(x){return x.cd;}));
+        var none=rows.filter(function(x){return !x.places;});
+        w+='<p>Together, <b>'+esc(names)+'</b> have <b>'+n(tPlaces)+'</b> place'+(tPlaces===1?'':'s')+
+          ' on the city list, planned for <b>'+n(tPl)+' homes</b> that do not exist yet, '+
+          (tPl/D.total_units*100).toFixed(1)+' percent of everything on the list citywide.</p>';
+        if(none.length) w+='<p><b>'+esc(listWords(none.map(function(x){return x.cd;})))+'</b> '+
+          (none.length===1?'has':'have')+' nothing on the list at all.</p>';
+        w+='<p>Over the ten years to 2024 these districts finished <b>'+n(tB)+' homes</b> between them, '+
+          'about <b>'+n(Math.round(tB/10))+' a year</b>. Rent rose across all of them over the same years. '+
+          'Building at that rate did not hold rent down anywhere in the city, and nothing on this list changes that on its own.</p>';
       } else {
-        w+='<p><b>'+esc(cd)+'</b> in '+esc(r.boro||'')+' has <b>nothing</b> on the city list. '+
-          'It is one of '+n(without)+' community districts the list passes over entirely.</p>';
-      }
-      if(r.built!=null){
-        w+='<p>Separately from anything on that list, between 2015 and 2024 the district actually finished <b>'+n(r.built)+' homes</b>, '+
-          'about '+n(Math.round(r.built/10))+' a year. Over the same years the rent on a one bedroom rose <b>'+
-          (r.chg>=0?'+':'')+r.chg+' percent</b>. There are <b>'+n(r.rez||0)+'</b> rezonings on the public record here.</p>'+
+        var x=rows[0];
+        if(x.places){
+          w+='<p><b>'+esc(x.cd)+'</b> in '+esc(x.boro)+' has <b>'+n(x.places)+'</b> '+
+            (x.places===1?'place':'places')+' on the city list, planned for <b>'+n(x.planned)+' homes</b> that do not exist yet. '+
+            'That is '+(x.planned/D.total_units*100).toFixed(1)+' percent of everything on the list citywide.</p>';
+          if(x.cc.length) w+='<p>The '+(x.cc.length===1?'site sits':'sites sit')+' in council district'+
+            (x.cc.length===1?' ':'s ')+listWords(x.cc)+'.</p>';
+        } else {
+          w+='<p><b>'+esc(x.cd)+'</b> in '+esc(x.boro)+' has <b>nothing</b> on the city list. '+
+            'It is one of '+n(without)+' community districts the list passes over entirely.</p>';
+        }
+        w+='<p>Separately from anything on that list, between 2015 and 2024 the district actually finished <b>'+
+          n(x.built)+' homes</b>, about '+n(Math.round(x.built/10))+' a year. Over the same years the rent on a one bedroom rose <b>'+
+          (x.chg>=0?'+':'')+x.chg+' percent</b>. There are <b>'+n(x.rez)+'</b> rezonings on the public record here.</p>'+
           '<p>Building at that rate did not hold rent down anywhere in the city. Nothing on this list changes that on its own.</p>';
       }
       $('rptWords').innerHTML=w;
 
-      $('rptSites').innerHTML=mine.map(function(s){
-        var scc=(s.ccAll||[]).map(function(c){return c.replace('District ','');});
-        return '<div class="rptsite"><div class="rn">'+esc(s.name)+'</div>'+
-          '<div class="rm">'+esc(s.addr)+(s.nb?(' \u00b7 '+esc(s.nb)):'')+
-          (scc.length?(' \u00b7 Council '+esc(listWords(scc))):'')+
-          (scc.length>1?' (the site spans both)':'')+'</div>'+
-          '<div class="rh">'+n(s.u)+' homes'+(s.rows.length>1?(' across '+n(s.rows.length)+' buildings'):'')+'</div>'+
-          '<div class="rs">'+esc(s.ag)+' is running it. '+esc(STAGE[s.st]||s.st)+'.</div></div>';
+      $('rptSites').innerHTML=rows.map(function(x){
+        if(!x.mine.length) return '';
+        return (multi?('<div class="dhead">'+esc(x.cd)+'</div>'):'')+x.mine.map(function(s){
+          var scc=(s.ccAll||[]).map(function(c){return c.replace('District ','');});
+          return '<div class="rptsite"><div class="rn">'+esc(s.name)+'</div>'+
+            '<div class="rm">'+esc(s.addr)+(s.nb?(' \u00b7 '+esc(s.nb)):'')+
+            (scc.length?(' \u00b7 Council '+esc(listWords(scc))):'')+
+            (scc.length>1?' (the site spans both)':'')+'</div>'+
+            '<div class="rh">'+n(s.u)+' homes'+(s.rows.length>1?(' across '+n(s.rows.length)+' buildings'):'')+'</div>'+
+            '<div class="rs">'+esc(s.ag)+' is running it. '+esc(STAGE[s.st]||s.st)+'.</div></div>';
+        }).join('');
       }).join('');
 
+      chips();
+      syncUrl();
       if(rptMap&&CDG) paintReport();
-      var sel=$('rptPick'); if(sel&&sel.value!==cd) sel.value=cd;
+      var sel=$('rptPick'); if(sel) sel.value='';
     }
 
     function paintReport(){
       if(rptLayer) rptMap.removeLayer(rptLayer);
       if(rptPts) rptMap.removeLayer(rptPts);
+      var H=homesBy('cd');
       rptLayer=L.geoJSON(CDG,{style:function(f){
-          var me=(f.properties.cb_code===rptCd);
-          var has=(homesBy('cd')[f.properties.cb_code]||0)>0;
+          var me=(SEL.indexOf(f.properties.cb_code)>-1);
+          var has=(H[f.properties.cb_code]||0)>0;
           return {fillColor:me?'#f47920':(has?'#c9d2e6':'#eceae5'),fillOpacity:me?.35:.55,
                   color:me?'#0d1b4b':'#fff',weight:me?3:1};
         },onEachFeature:function(f,l){
-          var c=f.properties.cb_code, h=homesBy('cd')[c]||0;
-          l.bindTooltip('<b>'+esc(c)+'</b><br>'+(h?(n(h)+' homes planned'):'nothing on the list'),{sticky:true});
-          l.on('click',function(){ report(c); });
+          var c=f.properties.cb_code, h=H[c]||0;
+          l.bindTooltip('<b>'+esc(c)+'</b><br>'+(h?(n(h)+' homes planned'):'nothing on the list')+
+            '<br>'+(SEL.indexOf(c)>-1?'tap to remove':'tap to add to the comparison'),{sticky:true});
+          l.on('click',function(){ toggleCd(c); });
         }}).addTo(rptMap);
-      var mine=placesIn(rptCd), pts=[];
       rptPts=L.layerGroup();
-      mine.forEach(function(s){
-        if(s.lat==null||s.lng==null) return;
-        pts.push([s.lat,s.lng]);
-        L.circleMarker([s.lat,s.lng],{radius:Math.max(6,Math.min(22,4+Math.sqrt(s.u||0)/2.6)),
-          color:'#fff',weight:2,fillColor:AGC[s.ag]||'#6b6760',fillOpacity:.95})
-         .bindPopup('<div class="lift-pop"><b>'+esc(s.name)+'</b>'+n(s.u)+' homes</div>').addTo(rptPts);
+      var pts=[];
+      SEL.forEach(function(cd){
+        placesIn(cd).forEach(function(s){
+          if(s.lat==null||s.lng==null) return;
+          pts.push([s.lat,s.lng]);
+          L.circleMarker([s.lat,s.lng],{radius:Math.max(6,Math.min(22,4+Math.sqrt(s.u||0)/2.6)),
+            color:'#fff',weight:2,fillColor:AGC[s.ag]||'#6b6760',fillOpacity:.95})
+           .bindPopup('<div class="lift-pop"><b>'+esc(s.name)+'</b>'+esc(cd)+'<br>'+n(s.u)+' homes</div>').addTo(rptPts);
+        });
       });
       rptPts.addTo(rptMap);
-      var target=rptLayer.getLayers().filter(function(l){
-        return l.feature&&l.feature.properties.cb_code===rptCd; })[0];
-      if(target&&target.getBounds) rptMap.fitBounds(target.getBounds().pad(.25));
+      var bnds=null;
+      rptLayer.getLayers().forEach(function(l){
+        if(!l.feature||SEL.indexOf(l.feature.properties.cb_code)<0||!l.getBounds) return;
+        bnds=bnds?bnds.extend(l.getBounds()):l.getBounds();
+      });
+      if(bnds) rptMap.fitBounds(bnds.pad(.2));
       else if(pts.length) rptMap.fitBounds(L.latLngBounds(pts).pad(.3));
     }
 
     var cds=(a[1].rows||[]).map(function(r){return r.cd;}).sort();
-    $('rptPick').innerHTML=cds.map(function(c){
+    $('rptPick').innerHTML='<option value="">Add a district to compare&hellip;</option>'+cds.map(function(c){
       var h=homesBy('cd')[c]||0;
-      return '<option value="'+esc(c)+'"'+(c==='BKCB6'?' selected':'')+'>'+esc(c)+
+      return '<option value="'+esc(c)+'">'+esc(c)+
         (h?(' \u00b7 '+n(h)+' homes planned'):' \u00b7 nothing on the list')+'</option>';
     }).join('');
-    $('rptPick').addEventListener('change',function(){ report(this.value); });
+    $('rptPick').addEventListener('change',function(){
+      var v=this.value; if(!v) return;
+      if(SEL.indexOf(v)<0) SEL.push(v);
+      report();
+    });
+    $('rptChips').addEventListener('click',function(ev){
+      var b=ev.target.closest('[data-rm]'); if(!b) return;
+      toggleCd(b.getAttribute('data-rm'));
+    });
+    function flash(t){ $('rptMsg').textContent=t; setTimeout(function(){ $('rptMsg').textContent=''; },3000); }
+    $('rptShare').addEventListener('click',function(){
+      var url=selUrl();
+      var title='The city housing site list for '+SEL.join(', ');
+      if(navigator.share){ navigator.share({title:title,url:url}).catch(function(){}); return; }
+      if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(function(){ flash('Link copied'); },
+          function(){ flash(url); });
+      } else flash(url);
+    });
+    $('rptClear').addEventListener('click',function(){ SEL=['BKCB6']; report(); });
 
     rptMap=L.map('rptMap',{scrollWheelZoom:true}).setView([40.68,-73.99],12);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:18,attribution:'&copy; CARTO'}).addTo(rptMap);
     fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}).then(function(g){
       CDG=g; GEO['/data/citywide-rents.geojson']=g; paintReport();
     });
-    report('BKCB6');
+    (function(){
+      var m=/[?&]cd=([^&#]+)/.exec(location.search);
+      if(m){
+        var want=decodeURIComponent(m[1]).split(',').map(function(x){return x.trim().toUpperCase();})
+          .filter(function(x){ return cds.indexOf(x)>-1; });
+        if(want.length) SEL=want.filter(function(v,i,arr){return arr.indexOf(v)===i;});
+      }
+    })();
+    report();
   }).catch(function(){
     $('liftKpis').innerHTML='<div class="kp"><div class="k">The site list could not load.</div></div>';
   });
