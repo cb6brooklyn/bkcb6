@@ -115,7 +115,7 @@ tbody tr:hover{background:#fff8f2}
 </style>
 </head>
 <body data-rankfile="/data/cb6-rank-history.json">
-<details class="mrnote" open><summary><span class="mrnote-k">Mike Racioppo</span><span class="mrnote-x">hide</span></summary><div class="mrnote-body"><p>Housing and its price are often discussed, directly and indirectly. In every corner of New York City, even more so. Those discussions can be indirect, like with the countless articles pondering &ldquo;why are so many young adults living with their parents?&rdquo; I haven&rsquo;t read all of them, but the bottom line is it&rsquo;s due to housing costs.</p>
+<details class="mrnote"><summary><span class="mrnote-k">Mike Racioppo</span><span class="mrnote-x">hide</span></summary><div class="mrnote-body"><p>Housing and its price are often discussed, directly and indirectly. In every corner of New York City, even more so. Those discussions can be indirect, like with the countless articles pondering &ldquo;why are so many young adults living with their parents?&rdquo; I haven&rsquo;t read all of them, but the bottom line is it&rsquo;s due to housing costs.</p>
 <p>This page aims to simplify and clarify what housing costs are based on what&rsquo;s available at a given time. I used all listings from 2010 to today based on StreetEasy.com&rsquo;s listings. I broke it down from micro (cb6/ neighborhoods) to macro (borough and citywide).</p>
 <p>Rest assured, it&rsquo;s not just staring at numbers that I&rsquo;d say are too high; it&rsquo;s also got every active &ldquo;affordable housing&rdquo; lottery open across NYC. I put &ldquo;affordable&rdquo; in quotes, as that may be better described as &ldquo;less expensive housing&rdquo;, but I digress. I&rsquo;ll keep making updates, but check it out and let me know what you think.</p>
 <p class="mrnote-sig">Mike Racioppo<span class="mrnote-role">District Manager, Brooklyn Community Board 6</span></p></div></details>
@@ -390,6 +390,13 @@ tbody tr:hover{background:#fff8f2}
   <div class="ascount" id="allSeriesCount"></div>
   <div id="allSeriesBody"></div>
 </div>
+<div class="assec">
+  <div class="ashead">Rent against supply</div>
+  <div class="assub">Every area this month: how many places are on the market, and what they cost.</div>
+  <div class="ascount" id="corrNote"></div>
+  <div id="corrBody"></div>
+</div>
+
 <script>
 /* Every designation charted over time. Loads its own copy of the data so it
    does not depend on anything inside the page's own closure. */
@@ -399,7 +406,7 @@ tbody tr:hover{background:#fff8f2}
   var P=['#0d1b4b','#f47920','#2F6FD0','#3E8E5A','#8248C4','#B5561E','#1E7A8C','#B08900',
          '#c0392b','#16a085','#6b7280','#8e44ad','#d35400','#2c3e50','#27ae60','#2980b9',
          '#e67e22','#9b59b6','#1abc9c','#34495e','#a0522d','#5f9ea0','#9932cc','#556b2f'];
-  var BEDS=[['studio','Studio'],['br1','1 bedroom'],['br2','2 bedroom'],['br3','3+ bedroom']];
+  var BEDS=[['studio','Studio'],['br1','1 bedroom'],['br2','2 bedroom'],['br3','3+ bedroom'],['inv','Listings']];
 
   function $(id){ return document.getElementById(id); }
   function unpack(p,i){ if(!p) return null; var k=i-p[0]; return (k>=0&&k<p[1].length)?p[1][k]:null; }
@@ -457,6 +464,71 @@ tbody tr:hover{background:#fff8f2}
       };
     });
   }
+
+  /* ---- does more supply track lower rent ---- */
+  function corr(xs,ys){
+    var n=xs.length; if(n<3) return null;
+    var mx=xs.reduce(function(a,b){return a+b;},0)/n, my=ys.reduce(function(a,b){return a+b;},0)/n;
+    var sxy=0,sxx=0,syy=0;
+    for(var i=0;i<n;i++){ var dx=xs[i]-mx, dy=ys[i]-my; sxy+=dx*dy; sxx+=dx*dx; syy+=dy*dy; }
+    if(!sxx||!syy) return null;
+    return sxy/Math.sqrt(sxx*syy);
+  }
+  var scatter=null;
+  function drawScatter(){
+    var el=$('corrBody'); if(!el||!H) return;
+    var priceKey = (bed==='inv') ? 'br1' : bed;
+    var list=src(), i=H.months.length-1, pts=[];
+    list.forEach(function(a,k){
+      var p,q;
+      if(a._cc){
+        p=ccAt(a,priceKey,i); q=ccInvAt(a,i);
+      } else {
+        p=unpack(a.s[priceKey],i); q=unpack(a.s['inv'],i);
+      }
+      if(p!=null && q!=null && q>0) pts.push({x:q,y:p,n:nameOf(a),c:P[k%P.length]});
+    });
+    if(pts.length<3){ el.innerHTML='<div class="rank-none">Not enough figures this month to compare.</div>'; return; }
+    var r=corr(pts.map(function(p){return p.x;}),pts.map(function(p){return p.y;}));
+    if(!$('corrCanvas')) el.innerHTML='<div class="asbox" style="height:340px"><canvas id="corrCanvas"></canvas></div>';
+    if(scatter){ try{scatter.destroy();}catch(e){} }
+    scatter=new Chart($('corrCanvas'),{type:'scatter',
+      data:{datasets:[{data:pts,pointRadius:6,pointHoverRadius:9,
+        backgroundColor:pts.map(function(p){return p.c;}),borderColor:'#fff',borderWidth:1.5}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,
+        plugins:{legend:{display:false},
+          tooltip:{backgroundColor:'#0d1b4b',padding:9,cornerRadius:7,callbacks:{label:function(c){
+            var d=c.raw; return d.n+': '+d.x.toLocaleString('en-US')+' listings, $'+d.y.toLocaleString('en-US');}}}},
+        scales:{x:{title:{display:true,text:'Listings on the market',font:{size:11,family:'DM Sans'},color:'#6b6760'},
+                   border:{display:false},grid:{color:'#f2efea'},
+                   ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760'}},
+                y:{title:{display:true,text:'Median asking rent',font:{size:11,family:'DM Sans'},color:'#6b6760'},
+                   border:{display:false},grid:{color:'#f2efea'},
+                   ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760',
+                     callback:function(v){return '$'+Number(v).toLocaleString('en-US');}}}}}});
+    var note=$('corrNote');
+    if(note){
+      var word = r==null?'':(Math.abs(r)<0.2?'almost no relationship':(Math.abs(r)<0.45?'a weak relationship':(Math.abs(r)<0.7?'a moderate relationship':'a strong relationship')));
+      var dir = r==null?'':(r<0?'more listings goes with lower rent':'more listings goes with higher rent');
+      note.textContent = r==null ? '' :
+        (pts.length+' areas this month \u00b7 correlation '+r.toFixed(2)+', '+word+', where '+dir+'.');
+    }
+  }
+  function ccAt(a,key,i){
+    if(!CC||!a._cc||!a._cc[key]) return null;
+    var off=H.months.indexOf(CC.months[0]), k=i-off;
+    return (k>=0&&k<a._cc[key].length)?a._cc[key][k]:null;
+  }
+  function ccInvAt(a,i){
+    if(!CC||!a._cc) return null;
+    var off=H.months.indexOf(CC.months[0]), k=i-off, tot=null;
+    ['inv_studio','inv_br1','inv_br2','inv_br3'].forEach(function(kk){
+      var arr=a._cc[kk]; if(!arr) return;
+      var v=(k>=0&&k<arr.length)?arr[k]:null;
+      if(v!=null) tot=(tot||0)+v;
+    });
+    return tot;
+  }
   function render(){
     if(!H) return;
     controls(); picker();
@@ -468,7 +540,16 @@ tbody tr:hover{background:#fff8f2}
       var data;
       if(a._cc){
         var off=labels.indexOf(CC.months[0]);
-        data=labels.map(function(_,j){ var k=j-off; return (k>=0&&k<a._cc[bed].length)?a._cc[bed][k]:null; });
+        var arr;
+        if(bed==='inv'){
+          arr=null;
+          ['inv_studio','inv_br1','inv_br2','inv_br3'].forEach(function(kk){
+            var v=a._cc[kk]; if(!v) return;
+            if(!arr) arr=v.slice();
+            else v.forEach(function(x,ix){ if(x!=null) arr[ix]=(arr[ix]||0)+x; });
+          });
+        } else { arr=a._cc[bed]; }
+        data=labels.map(function(_,j){ var k=j-off; return (arr&&k>=0&&k<arr.length)?arr[k]:null; });
       } else {
         data=labels.map(function(_,j){ return unpack(a.s[bed], j); });
       }
@@ -487,15 +568,16 @@ tbody tr:hover{background:#fff8f2}
                   labels:{boxWidth:9,boxHeight:9,usePointStyle:true,pointStyle:'line',
                           font:{size:10,family:'DM Sans'},color:'#0d1b4b',padding:9}},
                  tooltip:{backgroundColor:'#0d1b4b',padding:9,cornerRadius:7,
-                  callbacks:{label:function(c){return c.dataset.label+': $'+Number(c.parsed.y).toLocaleString('en-US');}}}},
+                  callbacks:{label:function(c){return c.dataset.label+': '+(bed==='inv'?'':'$')+Number(c.parsed.y).toLocaleString('en-US')+(bed==='inv'?' listings':'');}}}},
         scales:{x:{border:{display:false},grid:{display:false},
                    ticks:{font:{size:10,family:'DM Mono'},color:'#9ca3af',maxRotation:0,autoSkip:true,
                      callback:function(v){var t=labels[v]||'';return t.slice(5)==='01'?t.slice(0,4):'';}}},
                 y:{border:{display:false},grid:{color:'#f2efea'},
                    ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760',
-                     callback:function(v){return '$'+Number(v).toLocaleString('en-US');}}}}}});
+                     callback:function(v){return (bed==='inv'?'':'$')+Number(v).toLocaleString('en-US');}}}}}});
+    drawScatter();
     var t=$('allSeriesCount');
-    if(t) t.textContent=sets.length+' of '+list.length+' charted \u00b7 every month, '+labels[0]+' to '+labels[labels.length-1];
+    if(t) t.textContent=sets.length+' of '+list.length+' charted \u00b7 '+(bed==='inv'?'listings on the market':'median asking rent')+' \u00b7 every month, '+labels[0]+' to '+labels[labels.length-1];
   }
   Promise.all([
     fetch(FILE).then(function(r){return r.json();}),
