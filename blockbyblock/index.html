@@ -79,6 +79,12 @@ h1 span{color:var(--orange)}
 .dir td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700}
 .dir tr.me td{background:#fff1e5}
 .dir td.bo{font-family:'DM Sans',sans-serif;color:var(--muted);font-size:.72rem}
+#liftMap{height:52vh;min-height:320px;background:#eef0f4;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.dir td.st{font-family:'DM Sans',sans-serif;font-size:.72rem;color:#444;text-align:left}
+.dir td.ad{font-family:'DM Sans',sans-serif;font-size:.72rem;color:var(--muted);text-align:left;font-weight:400}
+.lift-pop{font-family:'DM Sans',sans-serif;font-size:.8rem;line-height:1.5;color:#0d1b4b}
+.lift-pop b{display:block;font-size:.9rem;margin-bottom:3px}
+.lift-pop span{font-family:'DM Mono',monospace;font-size:.68rem;color:#6b6760}
 </style>
 </head>
 <body>
@@ -156,6 +162,19 @@ h1 span{color:var(--orange)}
     <input id="dirQ" type="search" placeholder="Find a district or borough&hellip;" autocomplete="off">
   </div>
   <div class="tblwrap"><table class="dir" id="dirTbl"></table></div>
+  <div class="sec">
+    <h2>The sites the city has picked</h2>
+    <div class="lede">Executive Order 4 created the Land Inventory Fast Track task force to go through city controlled property and name the parcels that can hold housing. This is its tracker, every site on the list, mapped and sortable. Filter it to CB6 to see what that means here.</div>
+  </div>
+  <div class="kpis" id="liftKpis"></div>
+  <div class="mapctl" id="liftCtl"></div>
+  <div class="mapnote" id="liftNote"></div>
+  <div id="liftMap"></div>
+  <div class="dirctl">
+    <input id="liftQ" type="search" placeholder="Find a site, address, agency or district&hellip;" autocomplete="off">
+  </div>
+  <div class="tblwrap"><table class="dir" id="liftTbl"></table></div>
+
   <div class="sec">
     <h2>What the plan commits to</h2>
   </div>
@@ -332,6 +351,114 @@ h1 span{color:var(--orange)}
       'Rezonings: NYC Department of City Planning, Zoning Application Portal.<br>'+
       '<a href="/">bkcb6.app</a> &middot; Brooklyn Community Board 6';
   }).catch(function(){ $('kpis').innerHTML='<div class="kp"><div class="k">Data could not load.</div></div>'; });
+})();
+</script>
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i);};
+  var n=function(v){return Number(v||0).toLocaleString('en-US');};
+  function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  var AGC={HPD:'#f47920',EDC:'#2F6FD0',NYCHA:'#3E8E5A',ECF:'#8248C4'};
+  var SITES=[], onlyCb6=false, lMap=null, mkLayer=null;
+  var sortKey='u', sortDir=-1;
+  var COLS=[['n','Site'],['addr','Address'],['cd','District'],['ag','Agency'],['st','Stage'],['u','Homes']];
+
+  function shown(){
+    var q=(($('liftQ')||{}).value||'').toLowerCase().trim();
+    return SITES.filter(function(s){
+      if(onlyCb6 && s.cd!=='BKCB6') return false;
+      if(!q) return true;
+      return (s.n+' '+s.addr+' '+s.ag+' '+s.own+' '+s.st+' '+(s.cd||'')+' '+(s.boro||'')).toLowerCase().indexOf(q)>-1;
+    });
+  }
+  function rad(u){ return Math.max(5,Math.min(22,4+Math.sqrt(u||0)/2.6)); }
+
+  function drawMap(){
+    if(!lMap) return;
+    var rows=shown();
+    if(mkLayer) lMap.removeLayer(mkLayer);
+    mkLayer=L.layerGroup();
+    var pts=[];
+    rows.forEach(function(s){
+      if(s.lat==null||s.lng==null) return;
+      pts.push([s.lat,s.lng]);
+      L.circleMarker([s.lat,s.lng],{radius:rad(s.u),color:'#fff',weight:1.5,
+        fillColor:AGC[s.ag]||'#6b6760',fillOpacity:.85})
+       .bindPopup('<div class="lift-pop"><b>'+esc(s.n)+'</b>'+esc(s.addr)+'<br>'+
+         n(s.u)+' homes'+(s.cd?(' \u00b7 '+esc(s.cd)):'')+
+         '<br><span>'+esc(s.ag)+' \u00b7 '+esc(s.st)+'</span></div>')
+       .addTo(mkLayer);
+    });
+    mkLayer.addTo(lMap);
+    if(pts.length) lMap.fitBounds(L.latLngBounds(pts).pad(.15));
+    var homes=rows.reduce(function(t,s){return t+(s.u||0);},0);
+    var unmapped=rows.filter(function(s){return s.lat==null;}).length;
+    $('liftNote').innerHTML='<b>'+n(rows.length)+'</b> '+(rows.length===1?'site':'sites')+
+      ' shown, <b>'+n(homes)+'</b> homes. Circle size follows the number of homes.'+
+      (unmapped?(' '+n(unmapped)+' '+(unmapped===1?'site has no published location and appears':'sites have no published location and appear')+' in the table only.'):'')+
+      '<div class="mn-k">'+Object.keys(AGC).map(function(k){
+        return '<span class="lg"><i style="background:'+AGC[k]+'"></i>'+k+'</span>';
+      }).join('')+'</div>';
+  }
+
+  function drawTbl(){
+    var rows=shown().slice().sort(function(a,b){
+      var x=a[sortKey], y=b[sortKey];
+      if(typeof x==='string'||typeof y==='string') return sortDir*String(x==null?'':x).localeCompare(String(y==null?'':y));
+      return sortDir*(((x==null)?-1:x)-((y==null)?-1:y));
+    });
+    if(!rows.length){ $('liftTbl').innerHTML='<tr><td class="st">Nothing matches that.</td></tr>'; return; }
+    $('liftTbl').innerHTML='<tr>'+COLS.map(function(c){
+      var cls=(c[0]===sortKey)?(sortDir<0?' class="down"':' class="up"'):'';
+      return '<th data-lk="'+c[0]+'"'+cls+'>'+c[1]+'</th>';
+    }).join('')+'</tr>'+rows.map(function(s){
+      return '<tr'+(s.cd==='BKCB6'?' class="me"':'')+'>'+
+        '<td>'+esc(s.n)+'</td>'+
+        '<td class="ad">'+esc(s.addr)+'</td>'+
+        '<td>'+(s.cd?esc(s.cd):'\u2014')+'</td>'+
+        '<td>'+esc(s.ag)+'</td>'+
+        '<td class="st">'+esc(s.st)+'</td>'+
+        '<td>'+n(s.u)+'</td></tr>';
+    }).join('');
+    $('liftTbl').querySelectorAll('[data-lk]').forEach(function(th){
+      th.addEventListener('click',function(){
+        var k=this.getAttribute('data-lk');
+        if(k===sortKey) sortDir=-sortDir; else { sortKey=k; sortDir=(k==='u')?-1:1; }
+        drawTbl();
+      });
+    });
+  }
+  function redraw(){ drawMap(); drawTbl(); }
+
+  fetch('/data/lift-sites.json').then(function(r){return r.json();}).then(function(D){
+    SITES=D.sites||[];
+    var cb6=SITES.filter(function(s){return s.cd==='BKCB6';});
+    var cb6h=cb6.reduce(function(t,s){return t+(s.u||0);},0);
+    $('liftKpis').innerHTML=
+      '<div class="kp"><div class="v">'+n(SITES.length)+'</div><div class="k">sites on the city list</div></div>'+
+      '<div class="kp"><div class="v">'+n(D.total_units)+'</div><div class="k">homes those sites are counted for</div></div>'+
+      '<div class="kp"><div class="v">'+n(cb6.length)+'</div><div class="k">of them in CB6</div></div>'+
+      '<div class="kp"><div class="v">'+n(cb6h)+'</div><div class="k">homes on the CB6 sites</div></div>';
+    $('liftCtl').innerHTML='<button type="button" data-cb="0" class="on">Citywide</button>'+
+      '<button type="button" data-cb="1">CB6 only</button>';
+    $('liftCtl').addEventListener('click',function(ev){
+      var b=ev.target.closest('[data-cb]'); if(!b) return;
+      onlyCb6=(b.getAttribute('data-cb')==='1');
+      $('liftCtl').querySelectorAll('[data-cb]').forEach(function(x){x.classList.toggle('on',x===b);});
+      redraw();
+    });
+    $('liftQ').addEventListener('input',redraw);
+    lMap=L.map('liftMap',{scrollWheelZoom:true}).setView([40.70,-73.94],10);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:18,attribution:'&copy; CARTO'}).addTo(lMap);
+    fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}).then(function(g){
+      var f=(g.features||[]).filter(function(x){return x.properties.cb_code==='BKCB6';});
+      if(!f.length||!lMap) return;
+      L.geoJSON({type:'FeatureCollection',features:f},{style:{color:'#0d1b4b',weight:2.5,fill:false,dashArray:'5 4'},interactive:false}).addTo(lMap);
+    });
+    redraw();
+  }).catch(function(){
+    $('liftKpis').innerHTML='<div class="kp"><div class="k">The site list could not load.</div></div>';
+  });
 })();
 </script>
 </body>
