@@ -87,6 +87,17 @@ h1 span{color:var(--orange)}
 .lift-pop span{font-family:'DM Mono',monospace;font-size:.68rem;color:#6b6760}
 .pc .pn{font-size:.79rem;line-height:1.6;color:#4a4640;margin-top:6px}
 .pc .pg{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.07em;color:#a0846a;font-weight:700;margin-top:7px}
+#rptMap{height:46vh;min-height:290px;background:#eef0f4;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.rptpick{padding:12px 16px 4px}
+.rptpick select{width:100%;padding:10px 12px;font-family:'DM Sans',sans-serif;font-size:.85rem;font-weight:700;border:2px solid var(--navy);border-radius:10px;color:var(--navy);background:#fff}
+.rptwords{padding:0 16px 6px;font-size:.9rem;line-height:1.75;color:#333;max-width:74ch}
+.rptwords p{margin-bottom:10px}
+.rptwords b{color:var(--navy)}
+.rptsite{margin:10px 16px;padding:12px 13px;border:1px solid var(--border);border-left:4px solid var(--navy);border-radius:0 9px 9px 0;background:#fff}
+.rptsite .rn{font-size:.98rem;font-weight:800;color:var(--navy);line-height:1.35}
+.rptsite .rm{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);margin-top:4px;line-height:1.6}
+.rptsite .rh{font-family:'DM Mono',monospace;font-size:1.15rem;font-weight:900;color:var(--orange);margin-top:6px}
+.rptsite .rs{font-size:.78rem;color:#4a4640;margin-top:5px;line-height:1.55}
 </style>
 </head>
 <body>
@@ -183,6 +194,16 @@ h1 span{color:var(--orange)}
     <div class="lede">Both sit on land the city or its agencies already control.</div>
   </div>
   <div class="pair" id="liftCb6"></div>
+
+  <div class="sec">
+    <h2>What the list means, district by district</h2>
+    <div class="lede">Pick any of the 59 community districts, or tap it on the map, and this reads back what the city has lined up there and how it sits against what that district has already done.</div>
+  </div>
+  <div class="rptpick"><select id="rptPick"></select></div>
+  <div id="rptMap"></div>
+  <div class="kpis" id="rptKpis"></div>
+  <div class="rptwords" id="rptWords"></div>
+  <div id="rptSites"></div>
 
   <div class="sec">
     <h2>Where the rest of it goes</h2>
@@ -637,6 +658,130 @@ h1 span{color:var(--orange)}
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:18,attribution:'&copy; CARTO'}).addTo(lMap);
     redrawLevel();
     drawTbl();
+
+    /* ---- the per district report ---- */
+    var medBuilt=med((a[1].rows||[]).map(function(r){return r.built;}));
+    var medChg=(function(v){v=v.slice().sort(function(x,y){return x-y;});var h=Math.floor(v.length/2);
+      return v.length%2?v[h]:(v[h-1]+v[h])/2;})((a[1].rows||[]).map(function(r){return r.chg;}));
+    var rptMap=null, rptCd='BKCB6', rptLayer=null, rptPts=null, CDG=null;
+
+    function sitesIn(cd){ return SITES.filter(function(s){return s.cd===cd;})
+      .sort(function(x,y){return (y.u||0)-(x.u||0);}); }
+    /* the tracker lists each building separately, so one address is one place */
+    var PLACENAME={'435 HOYT STREET':'Gowanus Green'};
+    function placesIn(cd){
+      var m={}, out=[];
+      sitesIn(cd).forEach(function(s){
+        var k=s.addr||s.n;
+        if(!m[k]){ m[k]={rows:[],addr:s.addr,name:PLACENAME[k]||s.n,u:0,ag:s.ag,st:s.st,
+                          nb:s.nb,lat:s.lat,lng:s.lng,ccAll:s.ccAll||[]}; out.push(m[k]); }
+        m[k].rows.push(s); m[k].u+=(s.u||0);
+      });
+      out.sort(function(x,y){return y.u-x.u;});
+      return out;
+    }
+    function councilsIn(cd){
+      var seen=[]; sitesIn(cd).forEach(function(s){ (s.ccAll||[]).forEach(function(c){
+        if(seen.indexOf(c)<0) seen.push(c); }); });
+      return seen.map(function(c){return c.replace('District ','');});
+    }
+    function listWords(arr){
+      if(!arr.length) return '';
+      if(arr.length===1) return arr[0];
+      return arr.slice(0,-1).join(', ')+' and '+arr[arr.length-1];
+    }
+
+    function report(cd){
+      rptCd=cd;
+      var r=BUILT[cd]||{}, mine=placesIn(cd);
+      var homes=mine.reduce(function(t,s){return t+(s.u||0);},0);
+      var rank=0; ranked.forEach(function(x,i){ if(x[0]===cd) rank=i+1; });
+      var cc=councilsIn(cd);
+
+      $('rptKpis').innerHTML=
+        '<div class="kp"><div class="v">'+n(mine.length)+'</div><div class="k">place'+(mine.length===1?'':'s')+' on the city list here</div></div>'+
+        '<div class="kp"><div class="v">'+n(homes)+'</div><div class="k">homes those sites would hold</div></div>'+
+        '<div class="kp"><div class="v">'+(rank?ord(rank):'\u2014')+'</div><div class="k">'+(rank?'where that ranks among all 59 districts':'nothing on the list here')+'</div></div>'+
+        '<div class="kp"><div class="v">'+n(r.built||0)+'</div><div class="k">homes this district finished, 2015 to 2024</div></div>';
+
+      var w='';
+      if(mine.length){
+        w+='<p><b>'+esc(cd)+'</b> in '+esc(r.boro||'')+' has <b>'+n(mine.length)+'</b> '+
+          (mine.length===1?'place':'places')+' on the city list, carrying <b>'+n(homes)+' homes</b>. '+
+          'That is '+ord(rank)+' of the 59 community districts and '+
+          (homes/D.total_units*100).toFixed(1)+' percent of everything on the list citywide.</p>';
+        if(cc.length) w+='<p>The '+(cc.length===1?'site sits':'sites sit')+' in council district'+
+          (cc.length===1?' ':'s ')+listWords(cc)+'.</p>';
+      } else {
+        w+='<p><b>'+esc(cd)+'</b> in '+esc(r.boro||'')+' has <b>nothing</b> on the city list. '+
+          'It is one of '+n(without)+' community districts the list passes over entirely.</p>';
+      }
+      if(r.built!=null){
+        w+='<p>Between 2015 and 2024 the district finished <b>'+n(r.built)+' homes</b>, '+
+          (r.built===medBuilt?'the same as':(r.built>medBuilt?'more than':'fewer than'))+' the '+n(medBuilt)+' at the middle of the 59. '+
+          'Over the same years the rent on a one bedroom moved <b>'+(r.chg>=0?'+':'')+r.chg+' percent</b>, '+
+          (Math.abs(r.chg-medChg)<0.05?'right at':(r.chg>medChg?'above':'below'))+' the citywide middle of '+medChg.toFixed(1)+' percent. '+
+          'There are <b>'+n(r.rez||0)+'</b> rezonings on the public record here.</p>';
+      }
+      $('rptWords').innerHTML=w;
+
+      $('rptSites').innerHTML=mine.map(function(s){
+        var scc=(s.ccAll||[]).map(function(c){return c.replace('District ','');});
+        return '<div class="rptsite"><div class="rn">'+esc(s.name)+'</div>'+
+          '<div class="rm">'+esc(s.addr)+(s.nb?(' \u00b7 '+esc(s.nb)):'')+
+          (scc.length?(' \u00b7 Council '+esc(listWords(scc))):'')+
+          (scc.length>1?' (the site spans both)':'')+'</div>'+
+          '<div class="rh">'+n(s.u)+' homes'+(s.rows.length>1?(' across '+n(s.rows.length)+' buildings'):'')+'</div>'+
+          '<div class="rs">'+esc(s.ag)+' is running it. '+esc(STAGE[s.st]||s.st)+'.</div></div>';
+      }).join('');
+
+      if(rptMap&&CDG) paintReport();
+      var sel=$('rptPick'); if(sel&&sel.value!==cd) sel.value=cd;
+    }
+
+    function paintReport(){
+      if(rptLayer) rptMap.removeLayer(rptLayer);
+      if(rptPts) rptMap.removeLayer(rptPts);
+      rptLayer=L.geoJSON(CDG,{style:function(f){
+          var me=(f.properties.cb_code===rptCd);
+          var has=(homesBy('cd')[f.properties.cb_code]||0)>0;
+          return {fillColor:me?'#f47920':(has?'#c9d2e6':'#eceae5'),fillOpacity:me?.35:.55,
+                  color:me?'#0d1b4b':'#fff',weight:me?3:1};
+        },onEachFeature:function(f,l){
+          var c=f.properties.cb_code, h=homesBy('cd')[c]||0;
+          l.bindTooltip('<b>'+esc(c)+'</b><br>'+(h?(n(h)+' homes on the list'):'nothing on the list'),{sticky:true});
+          l.on('click',function(){ report(c); });
+        }}).addTo(rptMap);
+      var mine=placesIn(rptCd), pts=[];
+      rptPts=L.layerGroup();
+      mine.forEach(function(s){
+        if(s.lat==null||s.lng==null) return;
+        pts.push([s.lat,s.lng]);
+        L.circleMarker([s.lat,s.lng],{radius:Math.max(6,Math.min(22,4+Math.sqrt(s.u||0)/2.6)),
+          color:'#fff',weight:2,fillColor:AGC[s.ag]||'#6b6760',fillOpacity:.95})
+         .bindPopup('<div class="lift-pop"><b>'+esc(s.name)+'</b>'+n(s.u)+' homes</div>').addTo(rptPts);
+      });
+      rptPts.addTo(rptMap);
+      var target=rptLayer.getLayers().filter(function(l){
+        return l.feature&&l.feature.properties.cb_code===rptCd; })[0];
+      if(target&&target.getBounds) rptMap.fitBounds(target.getBounds().pad(.25));
+      else if(pts.length) rptMap.fitBounds(L.latLngBounds(pts).pad(.3));
+    }
+
+    var cds=(a[1].rows||[]).map(function(r){return r.cd;}).sort();
+    $('rptPick').innerHTML=cds.map(function(c){
+      var h=homesBy('cd')[c]||0;
+      return '<option value="'+esc(c)+'"'+(c==='BKCB6'?' selected':'')+'>'+esc(c)+
+        (h?(' \u00b7 '+n(h)+' homes on the list'):' \u00b7 nothing on the list')+'</option>';
+    }).join('');
+    $('rptPick').addEventListener('change',function(){ report(this.value); });
+
+    rptMap=L.map('rptMap',{scrollWheelZoom:true}).setView([40.68,-73.99],12);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:18,attribution:'&copy; CARTO'}).addTo(rptMap);
+    fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}).then(function(g){
+      CDG=g; GEO['/data/citywide-rents.geojson']=g; paintReport();
+    });
+    report('BKCB6');
   }).catch(function(){
     $('liftKpis').innerHTML='<div class="kp"><div class="k">The site list could not load.</div></div>';
   });
