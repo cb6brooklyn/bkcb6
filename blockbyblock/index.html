@@ -16,6 +16,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root{--navy:#0d1b4b;--orange:#f47920;--off:#f8f7f4;--border:#e5e2db;--muted:#6b6760}
@@ -55,6 +57,28 @@ h1 span{color:var(--orange)}
 .foot{padding:16px;font-family:'DM Mono',monospace;font-size:.66rem;color:var(--muted);line-height:1.7;border-top:1px solid var(--border)}
 .foot a{color:var(--navy)}
 @media(min-width:620px){.pair{grid-template-columns:1fr 1fr}}
+
+#bbMap{height:52vh;min-height:320px;background:#eef0f4;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.mapctl{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px}
+.mapctl button{border:1.5px solid var(--border);background:#fff;border-radius:18px;padding:6px 13px;font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:700;color:var(--navy);cursor:pointer}
+.mapctl button.on{background:var(--orange);border-color:var(--orange);color:#fff}
+.mapnote{padding:9px 16px;background:var(--navy);color:rgba(255,255,255,.85);font-size:.75rem;line-height:1.5}
+.mapnote b{color:var(--orange)}
+.mapnote .lg{display:inline-flex;align-items:center;gap:5px;margin-right:10px;font-family:'DM Mono',monospace;font-size:.66rem;color:#fff;font-weight:700}
+.mapnote .lg i{width:15px;height:15px;border-radius:4px;display:inline-block;border:1px solid rgba(255,255,255,.35)}
+.mapnote .mn-k{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.18)}
+.dirctl{padding:12px 16px 4px}
+.dirctl input{width:100%;padding:10px 12px;font-family:'DM Sans',sans-serif;font-size:.85rem;border:2px solid var(--navy);border-radius:10px;color:var(--navy)}
+.tblwrap{overflow-x:auto;padding:8px 16px 18px}
+.dir{width:100%;border-collapse:collapse;font-size:.78rem}
+.dir th{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--off);padding:8px 7px;text-align:right;cursor:pointer;white-space:nowrap;position:sticky;top:0}
+.dir th:first-child{text-align:left}
+.dir th.up::after{content:" \2191";color:var(--orange)}
+.dir th.down::after{content:" \2193";color:var(--orange)}
+.dir td{padding:7px;text-align:right;border-bottom:1px solid #f2efea;font-family:'DM Mono',monospace;white-space:nowrap}
+.dir td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700}
+.dir tr.me td{background:#fff1e5}
+.dir td.bo{font-family:'DM Sans',sans-serif;color:var(--muted);font-size:.72rem}
 </style>
 </head>
 <body>
@@ -115,6 +139,23 @@ h1 span{color:var(--orange)}
     <p>Gowanus is the reason for most of it. Of CB6's rezonings on record, the largest group converts light manufacturing to moderate density residential, which is what the 2021 neighborhood plan did along the canal.</p>
   </div>
 
+
+  <div class="sec">
+    <h2>Where the building happened</h2>
+    <div class="lede">Every community district shaded by what it did. Switch the measure and the map follows.</div>
+  </div>
+  <div class="mapctl" id="mapCtl"></div>
+  <div class="mapnote" id="mapNote"></div>
+  <div id="bbMap"></div>
+
+  <div class="sec">
+    <h2>Every district, in full</h2>
+    <div class="lede">All 59, sortable. Homes completed 2015 to 2024, how rent moved over the same period, rezonings on record, and where rent stands now.</div>
+  </div>
+  <div class="dirctl">
+    <input id="dirQ" type="search" placeholder="Find a district or borough&hellip;" autocomplete="off">
+  </div>
+  <div class="tblwrap"><table class="dir" id="dirTbl"></table></div>
   <div class="sec">
     <h2>What the plan commits to</h2>
   </div>
@@ -184,6 +225,107 @@ h1 span{color:var(--orange)}
                    border:{display:false},grid:{color:'#f2efea'},ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760',callback:function(v){return n(v);}}},
                 y:{title:{display:true,text:'Change in median asking rent',font:{size:11,family:'DM Sans'},color:'#6b6760'},
                    border:{display:false},grid:{color:'#f2efea'},ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760',callback:function(v){return (v>=0?'+':'')+v+'%';}}}}}});
+
+
+    /* ---- the map ---- */
+    var MEASURES=[
+      ['built','Homes completed','',''],
+      ['chg','Rent change','','%'],
+      ['rez','Rezonings on record','',''],
+      ['rent','1BR rent now','$','']
+    ];
+    var measure='built', mapLayer=null, GEO=null, bbMap=null;
+    var RAMP=['#fde7d0','#fbc38a','#f0871f','#c85a10','#7b3407'];
+    var rowsByCd={}; (B.rows||[]).forEach(function(r){ rowsByCd[r.cd]=r; });
+    function bands(){
+      var vals=(B.rows||[]).map(function(r){return r[measure];}).filter(function(v){return v!=null;});
+      vals.sort(function(a,b){return a-b;});
+      var q=[];
+      for(var k=1;k<5;k++) q.push(vals[Math.floor(vals.length*k/5)]);
+      return q;
+    }
+    function shade(v,q){
+      if(v==null) return '#e8e6e1';
+      for(var k=0;k<q.length;k++){ if(v<q[k]) return RAMP[k]; }
+      return RAMP[4];
+    }
+    function fmt(v){
+      var m=MEASURES.filter(function(x){return x[0]===measure;})[0];
+      if(v==null) return 'no figure';
+      return m[2]+n(Math.round(v*(measure==='chg'?10:1))/(measure==='chg'?10:1))+m[3];
+    }
+    function drawMap(){
+      if(!GEO||!bbMap) return;
+      var q=bands();
+      if(mapLayer) bbMap.removeLayer(mapLayer);
+      mapLayer=L.geoJSON(GEO,{
+        style:function(f){
+          var r=rowsByCd[f.properties.cb_code];
+          var v=r?r[measure]:null;
+          var me=(f.properties.cb_code==='BKCB6');
+          return {fillColor:shade(v,q),fillOpacity:v==null?.25:.85,color:me?'#0d1b4b':'#fff',weight:me?3:1};
+        },
+        onEachFeature:function(f,l){
+          var c=f.properties.cb_code, r=rowsByCd[c];
+          l.bindTooltip('<b>'+c+'</b><br>'+(r?(n(r.built)+' homes \u00b7 rent '+(r.chg>=0?'+':'')+r.chg+'%<br>'+r.rez+' rezonings'):'no figures'),{sticky:true});
+        }}).addTo(bbMap);
+      var lbl=MEASURES.filter(function(x){return x[0]===measure;})[0][1];
+      $('mapNote').innerHTML='Shaded by <b>'+esc(lbl.toLowerCase())+'</b>, every community district on the same scale.'+
+        '<div class="mn-k">'+RAMP.map(function(c,k){
+          var lo=(k===0)?null:q[k-1], hi=(k<4)?q[k]:null;
+          var t=(lo==null)?('under '+fmt(hi)):((hi==null)?(fmt(lo)+' and up'):(fmt(lo)+' to '+fmt(hi)));
+          return '<span class="lg"><i style="background:'+c+'"></i>'+t+'</span>';
+        }).join('')+'</div>';
+    }
+    $('mapCtl').innerHTML=MEASURES.map(function(m){
+      return '<button type="button" data-ms="'+m[0]+'"'+(m[0]===measure?' class="on"':'')+'>'+m[1]+'</button>';
+    }).join('');
+    $('mapCtl').addEventListener('click',function(ev){
+      var b=ev.target.closest('[data-ms]'); if(!b) return;
+      measure=b.getAttribute('data-ms');
+      $('mapCtl').querySelectorAll('[data-ms]').forEach(function(x){x.classList.toggle('on',x===b);});
+      drawMap();
+    });
+    bbMap=L.map('bbMap',{scrollWheelZoom:true}).setView([40.70,-73.94],10);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:17,attribution:'&copy; CARTO'}).addTo(bbMap);
+    fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}).then(function(g){ GEO=g; drawMap(); });
+
+    /* ---- the directory ---- */
+    var sortKey='built', sortDir=-1;
+    var COLS=[['cd','District'],['boro','Borough'],['built','Homes built'],['chg','Rent change'],
+              ['rez','Rezonings'],['rent','1BR now'],['inv','Listings']];
+    function drawDir(){
+      var q=($('dirQ').value||'').toLowerCase().trim();
+      var rows=(B.rows||[]).filter(function(r){
+        return !q || (r.cd+' '+r.boro).toLowerCase().indexOf(q)>-1;
+      }).sort(function(a,b){
+        var x=a[sortKey], y=b[sortKey];
+        if(typeof x==='string') return sortDir*x.localeCompare(y);
+        return sortDir*(((x==null)?-1:x)-((y==null)?-1:y));
+      });
+      $('dirTbl').innerHTML='<tr>'+COLS.map(function(c){
+        var cls=(c[0]===sortKey)?(sortDir<0?' class="down"':' class="up"'):'';
+        return '<th data-k="'+c[0]+'"'+cls+'>'+c[1]+'</th>';
+      }).join('')+'</tr>'+rows.map(function(r){
+        return '<tr'+(r.cd==='BKCB6'?' class="me"':'')+'>'+
+          '<td>'+esc(r.cd)+'</td>'+
+          '<td class="bo">'+esc(r.boro)+'</td>'+
+          '<td>'+n(r.built)+'</td>'+
+          '<td>'+(r.chg>=0?'+':'')+r.chg+'%</td>'+
+          '<td>'+n(r.rez)+'</td>'+
+          '<td>'+(r.rent!=null?'$'+n(r.rent):'\u2014')+'</td>'+
+          '<td>'+(r.inv!=null?n(r.inv):'\u2014')+'</td></tr>';
+      }).join('');
+      $('dirTbl').querySelectorAll('[data-k]').forEach(function(th){
+        th.addEventListener('click',function(){
+          var k=this.getAttribute('data-k');
+          if(k===sortKey) sortDir=-sortDir; else { sortKey=k; sortDir=(k==='cd'||k==='boro')?1:-1; }
+          drawDir();
+        });
+      });
+    }
+    $('dirQ').addEventListener('input',drawDir);
+    drawDir();
 
     $('foot').innerHTML='Plan: Block by Block, Office of the Mayor and the Deputy Mayor for Housing and Planning, May 2026.<br>'+
       'Housing completions: NYC Department of City Planning Housing Database by Community District. Rents: StreetEasy, through '+esc(e.month)+'. '+
