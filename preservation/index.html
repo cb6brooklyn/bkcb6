@@ -46,6 +46,11 @@
 .bnd{padding:8px 14px;background:#fff8f2;border-bottom:1px solid var(--border);font-size:.78rem;line-height:1.5;color:#5a4632}
 .bnd:empty{display:none}
 .bnd b{color:var(--navy)}
+
+.areaLbl{background:none;border:none}
+.areaLbl span{display:block;text-align:center;font-family:'DM Mono',monospace;font-size:.78rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#0d1b4b;text-shadow:0 0 5px #fff,0 0 9px #fff,0 0 3px #fff;pointer-events:none;white-space:nowrap}
+.orgLbl{background:none;border:none}
+.orgLbl span{display:inline-block;font-family:'DM Sans',sans-serif;font-size:.7rem;font-weight:800;color:#0d1b4b;background:rgba(255,255,255,.9);border:1.5px solid #f47920;border-radius:11px;padding:2px 8px;white-space:nowrap;pointer-events:none}
 </style>
 </head>
 <body>
@@ -97,6 +102,9 @@
 
   /* ---- district and neighborhood boundaries ---- */
   var CDG=null, NBG=null, bLayer=null, pickCd='', pickNb='';
+  var NAMED={'Fifth Avenue Committee, Inc':'Fifth Avenue Committee',
+             'Carroll Gardens Association Inc':'Carroll Gardens Association',
+             'Neighbors Helping Neighbors, Inc':'Neighbors Helping Neighbors'};
   var BORO_OF={MN:'Manhattan',BX:'Bronx',BK:'Brooklyn',QN:'Queens',SI:'Staten Island'};
   var ORDER=['Manhattan','Bronx','Brooklyn','Queens','Staten Island'];
   function normBoro(b){
@@ -133,7 +141,13 @@
     }
     $('pkClr').style.display=(pickCd||pickNb)?'':'none';
     if(!feat){ if(note) note.innerHTML=''; return; }
-    bLayer=L.geoJSON(feat,{style:{color:'#f47920',weight:3,fill:true,fillColor:'#f47920',fillOpacity:.08}}).addTo(map);
+    bLayer=L.layerGroup().addTo(map);
+    L.geoJSON(feat,{style:{color:'#f47920',weight:3,fill:true,fillColor:'#f47920',fillOpacity:.08}}).addTo(bLayer);
+    try{
+      var bb=L.geoJSON(feat).getBounds(), c=bb.getCenter();
+      L.marker(c,{interactive:false,keyboard:false,icon:L.divIcon({
+        className:'areaLbl',html:'<span>'+esc(label)+'</span>',iconSize:[180,20],iconAnchor:[90,10]})}).addTo(bLayer);
+    }catch(e){}
     try{ map.fitBounds(bLayer.getBounds(),{padding:[24,24]}); }catch(e){}
     var inside=D.orgs.filter(function(o){ return pickCd ? o.cb===pickCd : o.nb===pickNb; });
     var serving=D.orgs.filter(function(o){
@@ -185,6 +199,10 @@
     rows.forEach(function(o){
       if(o.lat==null) return;
       pts.push([o.lat,o.lon]);
+      if(NAMED[o.name]){
+          L.marker([o.lat,o.lon],{interactive:false,keyboard:false,icon:L.divIcon({
+            className:'orgLbl',html:'<span>'+esc(NAMED[o.name])+'</span>',iconSize:[190,18],iconAnchor:[-12,9]})}).addTo(layer);
+        }
       L.circleMarker([o.lat,o.lon],{radius:7,weight:2,color:'#fff',fillColor:BC[o.boro]||'#132D65',fillOpacity:.9})
         .bindTooltip('<b>'+esc(o.name)+'</b><br>'+esc(o.area||o.city),{sticky:true})
         .on('click',function(){
