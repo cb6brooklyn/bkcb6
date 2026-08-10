@@ -101,7 +101,7 @@
 
 
   /* ---- district and neighborhood boundaries ---- */
-  var CDG=null, NBG=null, bLayer=null, pickCd='', pickNb='';
+  var CDG=null, NBG=null, bLayer=null, baseLayer=null, pickCd='', pickNb='';
   var NAMED={'Fifth Avenue Committee, Inc':'Fifth Avenue Committee',
              'Carroll Gardens Association Inc':'Carroll Gardens Association',
              'Neighbors Helping Neighbors, Inc':'Neighbors Helping Neighbors'};
@@ -128,8 +128,19 @@
       }).join('')+'</optgroup>';
     }).join('');
   }
+  function drawBase(){
+    if(baseLayer){ map.removeLayer(baseLayer); baseLayer=null; }
+    var src = (pickNb && NBG) ? NBG : CDG;
+    if(!src) return;
+    baseLayer=L.geoJSON(src,{
+      interactive:false,
+      style:{color:'#0d1b4b',weight:1,opacity:.32,fill:true,fillColor:'#0d1b4b',fillOpacity:.03}
+    }).addTo(map);
+    if(baseLayer.bringToBack) baseLayer.bringToBack();
+  }
   function drawBoundary(){
     if(bLayer){ map.removeLayer(bLayer); bLayer=null; }
+    drawBase();
     var note=$('bndNote');
     var feat=null, label='';
     if(pickCd && CDG){
@@ -144,6 +155,7 @@
     bLayer=L.layerGroup().addTo(map);
     var shape=L.geoJSON(feat,{style:{color:'#f47920',weight:3,fill:true,fillColor:'#f47920',fillOpacity:.08}});
     shape.addTo(bLayer);
+    if(shape.bringToFront) shape.bringToFront();
     try{
       var bb=shape.getBounds(), c=bb.getCenter();
       L.marker(c,{interactive:false,keyboard:false,icon:L.divIcon({
@@ -171,6 +183,7 @@
       function(f){return f.properties.cb_code;}, 'Any community district');
     if(NBG) grouped($('nbSel'), NBG.features, function(f){return f.properties.nb;},
       function(f){return f.properties.boro;}, function(f){return f.properties.nb;}, 'Any neighborhood');
+    drawBase();
     $('cdSel').addEventListener('change',function(){ pickCd=this.value; if(pickCd){ pickNb=''; $('nbSel').value=''; } drawBoundary(); render(); });
     // open on CB6, unless a link asked for something else
     var qs=new URLSearchParams(location.search);
