@@ -35,6 +35,17 @@
 .pill.cb6{background:#fff1e5;color:var(--orange)}
 .pill.approx{background:#fdf6e3;color:#8a6d00}
 .cnt{padding:9px 14px;font-family:'DM Mono',monospace;font-size:.66rem;color:var(--muted);background:var(--off)}
+
+.picks{display:flex;flex-wrap:wrap;gap:9px;align-items:flex-end;padding:0 12px 10px;background:#fff;border-bottom:1px solid var(--border)}
+.pk{display:flex;flex-direction:column;gap:3px;flex:1 1 190px;min-width:170px}
+.pk span{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700}
+.pk select{padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:700;border:2px solid var(--navy2);border-radius:9px;color:var(--navy);background:#fff;max-width:100%}
+.pk select optgroup{font-family:'DM Mono',monospace;font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.pk select option{font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:700;color:var(--navy)}
+.pkclr{padding:8px 13px;border:1.5px solid var(--border);background:#fff;border-radius:18px;font-family:'DM Sans',sans-serif;font-size:.74rem;font-weight:700;color:var(--muted);cursor:pointer;align-self:flex-end}
+.bnd{padding:8px 14px;background:#fff8f2;border-bottom:1px solid var(--border);font-size:.78rem;line-height:1.5;color:#5a4632}
+.bnd:empty{display:none}
+.bnd b{color:var(--navy)}
 </style>
 </head>
 <body>
@@ -52,6 +63,12 @@
 
   <div class="search"><input id="q" type="search" placeholder="Search by name, neighborhood or service area&hellip;" autocomplete="off"></div>
   <div class="filters" id="filters"></div>
+  <div class="picks">
+    <label class="pk"><span>Community district</span><select id="cdSel"></select></label>
+    <label class="pk"><span>Neighborhood</span><select id="nbSel"></select></label>
+    <button type="button" class="pkclr" id="pkClr" style="display:none">Clear</button>
+  </div>
+  <div class="bnd" id="bndNote"></div>
   <div class="cnt" id="cnt"></div>
   <div class="maphold"><div id="map"></div></div>
   <div class="cap"><div class="t">Preservation companies</div><div class="s" id="capS"></div></div>
@@ -77,10 +94,79 @@
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:18,attribution:'&copy; CARTO'}).addTo(map);
   layer=L.layerGroup().addTo(map);
 
+
+  /* ---- district and neighborhood boundaries ---- */
+  var CDG=null, NBG=null, bLayer=null, pickCd='', pickNb='';
+  var BORO_OF={MN:'Manhattan',BX:'Bronx',BK:'Brooklyn',QN:'Queens',SI:'Staten Island'};
+  var ORDER=['Manhattan','Bronx','Brooklyn','Queens','Staten Island'];
+  function normBoro(b){
+    b=String(b||'').trim();
+    if(/^the bronx$/i.test(b)) return 'Bronx';
+    return b;
+  }
+  function grouped(sel, items, keyOf, boroOf, labelOf, placeholder){
+    var g={};
+    items.forEach(function(it){ var b=normBoro(boroOf(it))||'Other'; (g[b]=g[b]||[]).push(it); });
+    var order=ORDER.concat(['Other']).filter(function(b){return g[b];});
+    sel.innerHTML='<option value="">'+placeholder+'</option>'+order.map(function(b){
+      var list=g[b].slice().sort(function(x,y){
+        var a=labelOf(x), c=labelOf(y);
+        var na=parseInt(String(a).replace(/\D/g,''),10), nc=parseInt(String(c).replace(/\D/g,''),10);
+        if(!isNaN(na)&&!isNaN(nc)&&/CB/.test(a)) return na-nc;
+        return a.localeCompare(c);
+      });
+      return '<optgroup label="'+b+'">'+list.map(function(it){
+        return '<option value="'+esc(keyOf(it))+'">'+esc(labelOf(it))+'</option>';
+      }).join('')+'</optgroup>';
+    }).join('');
+  }
+  function drawBoundary(){
+    if(bLayer){ map.removeLayer(bLayer); bLayer=null; }
+    var note=$('bndNote');
+    var feat=null, label='';
+    if(pickCd && CDG){
+      feat=(CDG.features||[]).filter(function(f){return f.properties.cb_code===pickCd;})[0];
+      label=pickCd;
+    } else if(pickNb && NBG){
+      feat=(NBG.features||[]).filter(function(f){return f.properties.nb===pickNb;})[0];
+      label=pickNb;
+    }
+    $('pkClr').style.display=(pickCd||pickNb)?'':'none';
+    if(!feat){ if(note) note.innerHTML=''; return; }
+    bLayer=L.geoJSON(feat,{style:{color:'#f47920',weight:3,fill:true,fillColor:'#f47920',fillOpacity:.08}}).addTo(map);
+    try{ map.fitBounds(bLayer.getBounds(),{padding:[24,24]}); }catch(e){}
+    var inside=D.orgs.filter(function(o){ return pickCd ? o.cb===pickCd : o.nb===pickNb; });
+    var serving=D.orgs.filter(function(o){
+      var t=(o.area||'').toLowerCase();
+      return pickNb && t.indexOf(String(pickNb).toLowerCase())>-1;
+    });
+    var bits=[];
+    bits.push('<b>'+esc(label)+'</b> outlined on the map.');
+    bits.push(inside.length ? (inside.length+' compan'+(inside.length===1?'y is':'ies are')+' based here.') : 'No company is based inside this boundary.');
+    if(serving.length && !inside.length) bits.push(serving.length+' name it as a service area.');
+    if(note) note.innerHTML=bits.join(' ');
+  }
+  Promise.all([
+    fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/city-neighborhoods.geojson').then(function(r){return r.json();}).catch(function(){return null;})
+  ]).then(function(g){
+    CDG=g[0]; NBG=g[1];
+    if(CDG) grouped($('cdSel'), CDG.features, function(f){return f.properties.cb_code;},
+      function(f){ return f.properties.Borough || BORO_OF[String(f.properties.cb_code).slice(0,2)]; },
+      function(f){return f.properties.cb_code;}, 'Any community district');
+    if(NBG) grouped($('nbSel'), NBG.features, function(f){return f.properties.nb;},
+      function(f){return f.properties.boro;}, function(f){return f.properties.nb;}, 'Any neighborhood');
+    $('cdSel').addEventListener('change',function(){ pickCd=this.value; if(pickCd){ pickNb=''; $('nbSel').value=''; } drawBoundary(); render(); });
+    $('nbSel').addEventListener('change',function(){ pickNb=this.value; if(pickNb){ pickCd=''; $('cdSel').value=''; } drawBoundary(); render(); });
+    $('pkClr').addEventListener('click',function(){ pickCd=''; pickNb=''; $('cdSel').value=''; $('nbSel').value=''; drawBoundary(); render(); });
+  });
+
   function shown(){
     var q=($('q').value||'').toLowerCase().trim();
     return D.orgs.filter(function(o){
       if(boro!=='All' && o.boro!==boro) return false;
+      if(pickCd && o.cb!==pickCd) return false;
+      if(pickNb && o.nb!==pickNb && (o.area||'').toLowerCase().indexOf(pickNb.toLowerCase())<0) return false;
       if(!q) return true;
       return (o.name+' '+o.area+' '+(o.nb||'')+' '+o.city+' '+o.zip).toLowerCase().indexOf(q)>-1;
     });
