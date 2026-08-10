@@ -93,6 +93,8 @@ table.dir tr.me td{background:#fff1e5}
   <div class="picks">
     <label class="pk"><span>Community district</span><select id="cdSel"></select></label>
     <label class="pk"><span>Council district</span><select id="ccSel"></select></label>
+    <label class="pk"><span>State senate</span><select id="sdSel"></select></label>
+    <label class="pk"><span>State assembly</span><select id="adSel"></select></label>
     <label class="pk"><span>Neighborhood</span><select id="nbSel"></select></label>
     <button type="button" class="pkclr" id="pkClr" style="display:none">Clear</button>
   </div>
@@ -121,9 +123,9 @@ table.dir tr.me td{background:#fff1e5}
   var $=function(i){return document.getElementById(i);};
   var n=function(v){return Number(v||0).toLocaleString('en-US');};
   function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-  var D=null,CDG=null,CCG=null,NBG=null;
+  var D=null,CDG=null,CCG=null,NBG=null,SDG=null,ADG=null;
   var map,pins,bLayer=null,baseLayer=null;
-  var pickCd='',pickCc='',pickNb='';
+  var pickCd='',pickCc='',pickSd='',pickAd='',pickNb='';
   var ORDER=['Manhattan','Bronx','Brooklyn','Queens','Staten Island'];
   var BORO_OF={MN:'Manhattan',BX:'Bronx',BK:'Brooklyn',QN:'Queens',SI:'Staten Island'};
   var BC={Manhattan:'#2F6FD0',Bronx:'#8248C4',Brooklyn:'#f47920',Queens:'#3E8E5A','Staten Island':'#B5561E'};
@@ -151,6 +153,8 @@ table.dir tr.me td{background:#fff1e5}
     return D.projects.filter(function(p){
       if(pickCd && p.cd!==pickCd) return false;
       if(pickCc && String(p.cc)!==String(pickCc)) return false;
+      if(pickSd && String(p.sd)!==String(pickSd)) return false;
+      if(pickAd && String(p.ad)!==String(pickAd)) return false;
       if(pickNb && p.nb!==pickNb) return false;
       if(!q) return true;
       return (p.n+' '+(p.nb||'')+' '+(p.office||'')+' '+(p.muni||'')).toLowerCase().indexOf(q)>-1;
@@ -158,7 +162,7 @@ table.dir tr.me td{background:#fff1e5}
   }
   function drawBase(){
     if(baseLayer){ map.removeLayer(baseLayer); baseLayer=null; }
-    var src = pickNb?NBG : (pickCc?CCG : CDG);
+    var src = pickNb?NBG : (pickCc?CCG : (pickSd?SDG : (pickAd?ADG : CDG)));
     if(!src) return;
     baseLayer=L.geoJSON(src,{interactive:false,
       style:{color:'#0d1b4b',weight:1,opacity:.3,fill:true,fillColor:'#0d1b4b',fillOpacity:.03}}).addTo(map);
@@ -170,8 +174,10 @@ table.dir tr.me td{background:#fff1e5}
     var feat=null,label='';
     if(pickCd&&CDG){ feat=CDG.features.filter(function(f){return f.properties.cb_code===pickCd;})[0]; label=pickCd; }
     else if(pickCc&&CCG){ feat=CCG.features.filter(function(f){return String(f.properties.cc)===String(pickCc);})[0]; label='Council '+pickCc; }
+    else if(pickSd&&SDG){ feat=SDG.features.filter(function(f){return String(f.properties.sd)===String(pickSd);})[0]; label='Senate '+pickSd; }
+    else if(pickAd&&ADG){ feat=ADG.features.filter(function(f){return String(f.properties.ad)===String(pickAd);})[0]; label='Assembly '+pickAd; }
     else if(pickNb&&NBG){ feat=NBG.features.filter(function(f){return f.properties.nb===pickNb;})[0]; label=pickNb; }
-    $('pkClr').style.display=(pickCd||pickCc||pickNb)?'':'none';
+    $('pkClr').style.display=(pickCd||pickCc||pickSd||pickAd||pickNb)?'':'none';
     if(!feat) return;
     bLayer=L.layerGroup().addTo(map);
     var shape=L.geoJSON(feat,{style:{color:'#f47920',weight:3,fill:true,fillColor:'#f47920',fillOpacity:.07}});
@@ -197,7 +203,7 @@ table.dir tr.me td{background:#fff1e5}
         .bindTooltip('<b>'+esc(p.n)+'</b><br>'+n(p.u)+' affordable homes<br>'+esc(p.nb||p.muni||''),{sticky:true})
         .addTo(pins);
     });
-    if(pts.length && !pickCd && !pickCc && !pickNb){ try{ map.fitBounds(pts,{padding:[26,26]}); }catch(e){} }
+    if(pts.length && !pickCd && !pickCc && !pickSd && !pickAd && !pickNb){ try{ map.fitBounds(pts,{padding:[26,26]}); }catch(e){} }
     var units=rows.reduce(function(s,p){return s+(p.u||0);},0);
     $('cnt').textContent=rows.length+' of '+D.projects.length+' projects \u00b7 '+n(units)+' affordable homes';
     $('rows').innerHTML=rows.slice().sort(function(a,b){return b.u-a.u;}).map(function(p){
@@ -208,7 +214,7 @@ table.dir tr.me td{background:#fff1e5}
       if(p.supp) chips.push('<i>'+n(p.supp)+' supportive</i>');
       if(p.inv) chips.push('<i>$'+n(Math.round(p.inv))+' from the State</i>');
       if(p.sfy) chips.push('<i>'+esc(p.sfy)+'</i>');
-      var where=[p.cd,(p.cc?'Council '+p.cc:''),p.nb].filter(Boolean).join(' \u00b7 ');
+      var where=[p.cd,(p.cc?'Council '+p.cc:''),(p.sd?'Senate '+p.sd:''),(p.ad?'Assembly '+p.ad:''),p.nb].filter(Boolean).join(' \u00b7 ');
       return '<div class="row'+(p.cd==='BKCB6'?' me':'')+'"><div class="nm">'+esc(p.n)+'</div>'+
         '<div class="wh">'+esc(where)+'</div><div class="st">'+chips.join('')+'</div></div>';
     }).join('') || '<div class="cnt">No projects here.</div>';
@@ -253,9 +259,11 @@ table.dir tr.me td{background:#fff1e5}
     fetch('/data/hcr-projects.json').then(function(r){return r.json();}),
     fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
     fetch('/data/council-districts.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
-    fetch('/data/city-neighborhoods.geojson').then(function(r){return r.json();}).catch(function(){return null;})
+    fetch('/data/city-neighborhoods.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/senate-districts.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/assembly-districts.geojson').then(function(r){return r.json();}).catch(function(){return null;})
   ]).then(function(a){
-    D=a[0]; CDG=a[1]; CCG=a[2]; NBG=a[3];
+    D=a[0]; CDG=a[1]; CCG=a[2]; NBG=a[3]; SDG=a[4]; ADG=a[5];
     var units=D.projects.reduce(function(s,p){return s+(p.u||0);},0);
     var nc=D.projects.reduce(function(s,p){return s+(p.nc||0);},0);
     var pres=D.projects.reduce(function(s,p){return s+(p.pres||0);},0);
@@ -269,29 +277,40 @@ table.dir tr.me td{background:#fff1e5}
       function(f){return f.properties.Borough||boroOfCd(f.properties.cb_code);},
       function(f){return f.properties.cb_code;},'Any community district');
     if(CCG) grouped($('ccSel'),CCG.features,function(f){return f.properties.cc;},
-      function(f){
-        var m=D.projects.filter(function(p){return String(p.cc)===String(f.properties.cc);})[0];
-        return m?boroOfCd(m.cd):'Other';
-      },function(f){return 'Council '+f.properties.cc;},'Any council district');
+      function(f){return f.properties.boro;},
+      function(f){return 'Council '+f.properties.cc;},'Any council district');
+    if(SDG) grouped($('sdSel'),SDG.features,function(f){return f.properties.sd;},
+      function(f){return f.properties.boro;},
+      function(f){return 'Senate '+f.properties.sd;},'Any senate district');
+    if(ADG) grouped($('adSel'),ADG.features,function(f){return f.properties.ad;},
+      function(f){return f.properties.boro;},
+      function(f){return 'Assembly '+f.properties.ad;},'Any assembly district');
     if(NBG) grouped($('nbSel'),NBG.features,function(f){return f.properties.nb;},
       function(f){return f.properties.boro;},function(f){return f.properties.nb;},'Any neighborhood');
 
     function pickChanged(which,val){
-      pickCd=pickCc=pickNb='';
-      if(which==='cd') pickCd=val; else if(which==='cc') pickCc=val; else pickNb=val;
-      $('cdSel').value=pickCd; $('ccSel').value=pickCc; $('nbSel').value=pickNb;
+      pickCd=pickCc=pickSd=pickAd=pickNb='';
+      if(which==='cd') pickCd=val;
+      else if(which==='cc') pickCc=val;
+      else if(which==='sd') pickSd=val;
+      else if(which==='ad') pickAd=val;
+      else pickNb=val;
+      $('cdSel').value=pickCd; $('ccSel').value=pickCc;
+      $('sdSel').value=pickSd; $('adSel').value=pickAd; $('nbSel').value=pickNb;
       render(); drawBoundary();
     }
-    $('cdSel').addEventListener('change',function(){ pickChanged('cd',this.value); });
-    $('ccSel').addEventListener('change',function(){ pickChanged('cc',this.value); });
-    $('nbSel').addEventListener('change',function(){ pickChanged('nb',this.value); });
+    ['cd','cc','sd','ad','nb'].forEach(function(k){
+      $(k+'Sel').addEventListener('change',function(){ pickChanged(k,this.value); });
+    });
     $('pkClr').addEventListener('click',function(){ pickChanged('cd',''); });
     $('q').addEventListener('input',render);
 
     var qs=new URLSearchParams(location.search);
-    var wCd=qs.get('cd'),wCc=qs.get('cc'),wNb=qs.get('nb');
-    if(wNb) pickNb=wNb; else if(wCc) pickCc=wCc; else pickCd=wCd||'BKCB6';
-    $('cdSel').value=pickCd; $('ccSel').value=pickCc; $('nbSel').value=pickNb;
+    var wCd=qs.get('cd'),wCc=qs.get('cc'),wSd=qs.get('sd'),wAd=qs.get('ad'),wNb=qs.get('nb');
+    if(wNb) pickNb=wNb; else if(wCc) pickCc=wCc; else if(wSd) pickSd=wSd;
+    else if(wAd) pickAd=wAd; else pickCd=wCd||'BKCB6';
+    $('cdSel').value=pickCd; $('ccSel').value=pickCc;
+    $('sdSel').value=pickSd; $('adSel').value=pickAd; $('nbSel').value=pickNb;
 
     drawDir(); render(); drawBoundary();
     $('foot').innerHTML='Source: New York State Homes and Community Renewal, Housing Plan Data Dashboard.<br>'+
