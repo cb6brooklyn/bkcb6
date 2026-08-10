@@ -7,44 +7,47 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Resolve the dashboard data items and pull the layer
+      - name: Pull every record from hp_totals
         run: |
           mkdir -p data/hcr
-          : > data/hcr/probe.txt
-          for ID in 1051fe513a604b46ae33ccb03a201f35 8f03b0c71a20427a89d57e461db208f5; do
-            echo "== $ID" >> data/hcr/probe.txt
-            curl -sL "https://www.arcgis.com/sharing/rest/content/items/$ID?f=json" --max-time 45 \
-              | python3 -c "import sys,json;d=json.load(sys.stdin);print('  type:',d.get('type'));print('  title:',d.get('title'));print('  url:',d.get('url'))" >> data/hcr/probe.txt 2>&1 || echo "  failed" >> data/hcr/probe.txt
-          done
-          cat data/hcr/probe.txt
+          BASE="https://services8.arcgis.com/ek7Sxtay3Z4WZWvk/arcgis/rest/services/hp_totals/FeatureServer"
+          curl -sL "$BASE?f=json" -o /tmp/svc.json --max-time 60
+          head -c 1200 /tmp/svc.json > data/hcr/service.txt
           python3 - <<'PYEOF'
-          import json,urllib.request,re
-          urls=[]
-          for line in open('data/hcr/probe.txt'):
-              m=re.search(r'url:\s*(https?://\S+)',line)
-              if m: urls.append(m.group(1).strip())
-          if not urls:
-              print('no service url'); raise SystemExit
-          u=urls[0].rstrip('/')
-          try:
-              meta=json.loads(urllib.request.urlopen(u+'?f=json',timeout=60).read())
-              lyrs=[(l['id'],l.get('name')) for l in (meta.get('layers') or [])]
-              open('data/hcr/layers.txt','w').write('\n'.join('%s  %s'%(i,n) for i,n in lyrs) or 'none')
-              print('layers:',lyrs[:8])
-              if lyrs:
-                  lid=lyrs[0][0]
-                  q=u+'/%d/query?where=1%%3D1&outFields=*&returnGeometry=false&f=json&resultRecordCount=5'%lid
-                  j=json.loads(urllib.request.urlopen(q,timeout=90).read())
-                  fs=j.get('features') or []
-                  open('data/hcr/sample.json','w').write(json.dumps(j.get('fields',[]),indent=1)[:4000]+'\n\n'+json.dumps(fs[:3],indent=1)[:3000])
-                  print('sample rows:',len(fs))
-          except Exception as e:
-              open('data/hcr/layers.txt','w').write('failed: %s'%e)
-              print('failed',e)
+          import json,urllib.request
+          BASE="https://services8.arcgis.com/ek7Sxtay3Z4WZWvk/arcgis/rest/services/hp_totals/FeatureServer"
+          svc=json.load(open('/tmp/svc.json'))
+          ids=[l['id'] for l in (svc.get('layers') or [])]+[t['id'] for t in (svc.get('tables') or [])]
+          print('layer ids:',ids)
+          if not ids: ids=[0]
+          all_out={}
+          for lid in ids:
+              try:
+                  meta=json.loads(urllib.request.urlopen('%s/%d?f=json'%(BASE,lid),timeout=60).read())
+                  name=meta.get('name'); fields=[f['name'] for f in meta.get('fields',[])]
+                  rows=[]; off=0
+                  while True:
+                      q='%s/%d/query?where=1%%3D1&outFields=*&returnGeometry=false&f=json&resultOffset=%d&resultRecordCount=2000'%(BASE,lid,off)
+                      j=json.loads(urllib.request.urlopen(q,timeout=120).read())
+                      fs=j.get('features') or []
+                      rows.extend([f['attributes'] for f in fs])
+                      if len(fs)<2000: break
+                      off+=2000
+                  all_out[str(lid)]={'name':name,'fields':fields,'count':len(rows),'rows':rows}
+                  print(lid,name,len(rows),'rows')
+              except Exception as e:
+                  print(lid,'failed',e)
+          json.dump(all_out,open('data/hcr/hp-totals.json','w'))
+          with open('data/hcr/summary.txt','w') as fh:
+              for k,v in all_out.items():
+                  fh.write('layer %s: %s  %d rows\n  fields: %s\n'%(k,v['name'],v['count'],', '.join(v['fields'])))
+                  if v['rows']: fh.write('  sample: %s\n'%json.dumps(v['rows'][0])[:600])
+                  fh.write('\n')
           PYEOF
+          cat data/hcr/summary.txt
       - name: Commit
         run: |
           git config user.name "Mike Racioppo"
           git config user.email "mracioppo@cb.nyc.gov"
-          git add data/hcr/ && git commit -m "HCR dashboard layers" || echo skip
+          git add data/hcr/ && git commit -m "HCR housing plan totals" || echo skip
           git push
