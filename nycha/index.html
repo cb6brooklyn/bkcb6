@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:type" content="website">
+<meta property="og:title" content="NYCHA Across the City">
+<meta property="og:description" content="Every NYCHA public housing development on the map, by borough, with the four in CB6.">
+<meta property="og:url" content="https://bkcb6.app/nycha">
+<meta property="og:image" content="https://bkcb6.app/og-useofland.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://bkcb6.app/og-useofland.png">
+<title>NYCHA Across the City &mdash; bkcb6.app</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700;900&display=swap');
+:root{--navy:#0d1b4b;--orange:#f47920;--off:#f8f7f4;--border:#e5e2db;--muted:#6b6760}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);min-height:100vh;display:flex;flex-direction:column}
+.top-bar{background:var(--navy);border-bottom:3px solid var(--orange);padding:12px 16px}
+.crumb a{color:rgba(255,255,255,.6);font-size:.7rem;font-weight:600;text-decoration:none;font-family:'DM Mono',monospace}
+.crumb{color:rgba(255,255,255,.4);font-size:.7rem;font-family:'DM Mono',monospace}
+.top-bar h1{color:#fff;font-size:1.15rem;font-weight:900;margin-top:6px}
+.top-bar h1 span{color:var(--orange)}
+.pgintro{background:#fff;border-bottom:3px solid var(--orange)}
+.pgi-lead{padding:12px 15px;font-size:.88rem;line-height:1.6;color:#222;max-width:78ch}
+.pgi-lead b{color:var(--navy)}
+.pgi-what{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:1px;background:var(--border);border-top:1px solid var(--border)}
+.pgi-w{background:#fff;padding:9px 12px;font-size:.75rem;line-height:1.45;color:#444}
+.pgi-w b{display:block;color:var(--navy);font-size:.79rem;margin-bottom:1px}
+.lensbar{position:sticky;top:0;z-index:600;display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 14px;background:var(--navy);border-bottom:2px solid var(--orange)}
+.lb-lab{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.6);font-weight:700}
+.lens-btn{padding:6px 13px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;border:2px solid rgba(255,255,255,.35);border-radius:20px;background:transparent;color:#fff;cursor:pointer}
+.lens-btn.active{background:var(--orange);border-color:var(--orange)}
+.lb-note{font-family:'DM Sans',sans-serif;font-size:.66rem;color:rgba(255,255,255,.65);margin-left:auto}
+.legend{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 14px;background:var(--navy);border-bottom:2px solid rgba(255,255,255,.15)}
+.legend .l{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6);font-weight:700}
+.legend .i{display:inline-flex;align-items:center;gap:5px;font-size:.66rem;color:#fff;font-weight:600}
+.legend .sw{width:14px;height:11px;border-radius:2px}
+.maphold{position:relative;flex:1 0 auto;display:flex;flex-direction:column;min-height:62vh}
+#map{flex:1 0 auto;min-height:62vh;background:#eef0f4}
+.cap{padding:11px 14px;background:var(--navy);border-top:3px solid var(--orange)}
+.cap .t{font-size:1.05rem;font-weight:900;color:#fff}
+.cap .s{font-family:'DM Mono',monospace;font-size:.66rem;color:rgba(255,255,255,.65);margin-top:2px}
+.boro-label{background:none!important;border:none!important;box-shadow:none!important;pointer-events:none;width:auto!important;height:auto!important;white-space:nowrap}
+.boro-label:before{display:none!important}
+.boro-label b{display:inline-block;transform:translate(-50%,-50%);background:var(--navy);color:var(--orange);font-family:'DM Sans',sans-serif;font-weight:900;letter-spacing:.12em;text-transform:uppercase;padding:5px 11px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.28);border:1px solid rgba(244,121,32,.55)}
+.pop b{display:block;font-size:.9rem;font-weight:900;color:var(--navy);line-height:1.25}
+.pop .m{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;margin-top:4px}
+.pop .cb6{display:inline-block;margin-top:6px;background:var(--orange);color:#fff;font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.09em;font-weight:700;padding:2px 6px;border-radius:3px}
+.src{padding:12px 14px 40px;font-family:'DM Mono',monospace;font-size:.64rem;color:#9ca3af;line-height:1.7;background:var(--off)}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <div class="crumb"><a href="/">CB6 &amp; Beyond</a> &rsaquo; <a href="/useofland">The Use of Land Hub</a> &rsaquo; NYCHA</div>
+  <h1>NYCHA <span>Across the City</span></h1>
+</div>
+
+<div class="pgintro">
+  <div class="pgi-lead"><b>Every NYCHA development on the map.</b> The New York City Housing Authority is the largest public housing landlord in the country, and its land sits inside community districts that review what gets built around it. This is where it is.</div>
+  <div class="pgi-what">
+    <div class="pgi-w"><b>The map</b>Development footprints, shaded by borough.</div>
+    <div class="pgi-w"><b>The filter</b>One borough at a time, or all of them together.</div>
+    <div class="pgi-w"><b>Tap a site</b>Development name, borough and NYCHA development number.</div>
+  </div>
+</div>
+
+<div class="lensbar">
+  <span class="lb-lab">Borough</span>
+  <button type="button" class="lens-btn active" data-boro="ALL">All</button>
+  <button type="button" class="lens-btn" data-boro="BROOKLYN">Brooklyn</button>
+  <button type="button" class="lens-btn" data-boro="MANHATTAN">Manhattan</button>
+  <button type="button" class="lens-btn" data-boro="BRONX">The Bronx</button>
+  <button type="button" class="lens-btn" data-boro="QUEENS">Queens</button>
+  <button type="button" class="lens-btn" data-boro="STATEN ISLAND">Staten Island</button>
+  <button type="button" class="lens-btn" data-boro="SCATTERED">Scattered sites</button>
+  <span class="lb-note" id="lensNote">Loading&hellip;</span>
+</div>
+<div class="legend" id="legend"></div>
+
+<div class="maphold"><div id="map"></div></div>
+
+<div class="cap">
+  <div class="t" id="capT">NYCHA developments</div>
+  <div class="s" id="capS">Public housing land, citywide</div>
+</div>
+<div class="src" id="src">Source: NYCHA Public Housing Developments, NYC Open Data.</div>
+
+<script>
+var COLORS={'BROOKLYN':'#f47920','MANHATTAN':'#0d1b4b','BRONX':'#2a7f62','QUEENS':'#8c4a9e','STATEN ISLAND':'#c0392b','SCATTERED':'#6b6760'};
+var LABELS={'BROOKLYN':'Brooklyn','MANHATTAN':'Manhattan','BRONX':'The Bronx','QUEENS':'Queens','STATEN ISLAND':'Staten Island','SCATTERED':'Scattered sites'};
+var CB6=['Gowanus','Wyckoff Gardens','Red Hook East','Red Hook West'];
+var VIEW={'ALL':[[40.7,-73.94],10],'BROOKLYN':[[40.65,-73.95],11],'MANHATTAN':[[40.78,-73.96],11],
+  'BRONX':[[40.85,-73.88],11],'QUEENS':[[40.7,-73.82],11],'STATEN ISLAND':[[40.58,-74.13],12],'SCATTERED':[[40.66,-73.83],11]};
+
+var map=L.map('map',{scrollWheelZoom:true}).setView([40.7,-73.94],10);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+  attribution:'&copy; OpenStreetMap contributors &copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+
+var DATA=null,layer=null,boro='ALL';
+
+function drawLegend(){
+  var h='<span class="l">Borough</span>';
+  for(var k in LABELS){
+    h+='<span class="i"><span class="sw" style="background:'+COLORS[k]+'"></span>'+LABELS[k]+'</span>';
+  }
+  document.getElementById('legend').innerHTML=h;
+}
+
+function style(f){
+  var c=COLORS[f.properties.boro]||'#6b6760';
+  return {color:'#fff',weight:1,fillColor:c,fillOpacity:.85};
+}
+
+function draw(){
+  if(layer){ map.removeLayer(layer); layer=null; }
+  var feats=DATA.features.filter(function(f){ return boro==='ALL'||f.properties.boro===boro; });
+  layer=L.geoJSON({type:'FeatureCollection',features:feats},{
+    style:style,
+    onEachFeature:function(f,l){
+      var p=f.properties, isCb6=(p.boro==='BROOKLYN'&&CB6.indexOf(p.name)>-1);
+      l.bindPopup('<div class="pop"><b>'+p.name+'</b>'+
+        '<div class="m">'+(LABELS[p.boro]||'')+' &middot; Development no. '+p.tds+'</div>'+
+        (isCb6?'<span class="cb6">In CB6</span>':'')+'</div>');
+      l.on('mouseover',function(){ l.setStyle({weight:2.5,color:'#0d1b4b'}); if(l.bringToFront) l.bringToFront(); });
+      l.on('mouseout',function(){ layer.resetStyle(l); });
+    }
+  }).addTo(map);
+  var v=VIEW[boro]||VIEW.ALL;
+  map.setView(v[0],v[1]);
+  document.getElementById('lensNote').textContent=feats.length+' development'+(feats.length===1?'':'s')+' shown';
+  document.getElementById('capS').textContent=(boro==='ALL'?'Public housing land, citywide':'Public housing land in '+LABELS[boro]);
+}
+
+function setBoro(v){
+  boro=v;
+  var btns=document.querySelectorAll('.lens-btn');
+  for(var i=0;i<btns.length;i++){ btns[i].classList.toggle('active', btns[i].getAttribute('data-boro')===v); }
+  if(DATA) draw();
+}
+
+var btns=document.querySelectorAll('.lens-btn');
+for(var i=0;i<btns.length;i++){
+  btns[i].addEventListener('click',function(){ setBoro(this.getAttribute('data-boro')); });
+}
+
+drawLegend();
+fetch('/data/nycha-developments.geojson').then(function(r){return r.json();}).then(function(g){
+  DATA=g;
+  document.getElementById('src').textContent='Source: NYCHA Public Housing Developments, NYC Open Data. '+
+    g.features.length+' development sites. Scattered sites are records NYCHA lists without a single borough, '+
+    'because the buildings in them are spread across more than one location.';
+  draw();
+}).catch(function(){ document.getElementById('lensNote').textContent='Data could not load.'; });
+
+(function(){
+  var BORO=[{n:'Manhattan',y:40.7881,x:-73.9467},{n:'The Bronx',y:40.8560,x:-73.8664},
+    {n:'Brooklyn',y:40.6543,x:-73.9486},{n:'Queens',y:40.7178,x:-73.7775},
+    {n:'Staten Island',y:40.5722,x:-74.1558}];
+  var marks=[],paneReady=false;
+  function ensurePane(){
+    if(paneReady) return;
+    if(!map.getPane('boroNames')){
+      map.createPane('boroNames');
+      var p=map.getPane('boroNames');
+      p.style.zIndex=650; p.style.pointerEvents='none';
+    }
+    paneReady=true;
+  }
+  function place(){
+    ensurePane();
+    marks.forEach(function(k){ try{map.removeLayer(k);}catch(e){} }); marks=[];
+    var z=map.getZoom();
+    if(z>=13) return;
+    var px = z>=12 ? 14 : (z>=11 ? 13 : 12);
+    BORO.forEach(function(b){
+      marks.push(L.marker([b.y,b.x],{interactive:false,keyboard:false,pane:'boroNames',
+        icon:L.divIcon({className:'boro-label',html:'<b style="font-size:'+px+'px">'+b.n+'</b>',iconSize:null})}).addTo(map));
+    });
+  }
+  place();
+  map.on('zoomend',place);
+})();
+</script>
+</body>
+</html>
