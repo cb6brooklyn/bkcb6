@@ -7,41 +7,45 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Pull every record from hp_totals
+      - name: Read the web map and pull its layers
         run: |
           mkdir -p data/hcr
-          BASE="https://services8.arcgis.com/ek7Sxtay3Z4WZWvk/arcgis/rest/services/hp_totals/FeatureServer"
-          curl -sL "$BASE?f=json" -o /tmp/svc.json --max-time 60
-          head -c 1200 /tmp/svc.json > data/hcr/service.txt
+          curl -sL "https://www.arcgis.com/sharing/rest/content/items/1051fe513a604b46ae33ccb03a201f35/data?f=json" -o /tmp/wm.json --max-time 60
           python3 - <<'PYEOF'
           import json,urllib.request
-          BASE="https://services8.arcgis.com/ek7Sxtay3Z4WZWvk/arcgis/rest/services/hp_totals/FeatureServer"
-          svc=json.load(open('/tmp/svc.json'))
-          ids=[l['id'] for l in (svc.get('layers') or [])]+[t['id'] for t in (svc.get('tables') or [])]
-          print('layer ids:',ids)
-          if not ids: ids=[0]
-          all_out={}
-          for lid in ids:
+          d=json.load(open('/tmp/wm.json'))
+          layers=[]
+          def walk(ls):
+              for l in ls or []:
+                  if l.get('url'): layers.append((l.get('title'),l['url']))
+                  walk(l.get('layers'))
+          walk(d.get('operationalLayers')); walk(d.get('tables'))
+          open('data/hcr/weblayers.txt','w').write('\n'.join('%s\n   %s'%t for t in layers) or 'none')
+          print('layers found:',len(layers))
+          for t,u in layers: print('  ',t,u)
+          out={}
+          for title,u in layers:
+              u=u.rstrip('/')
               try:
-                  meta=json.loads(urllib.request.urlopen('%s/%d?f=json'%(BASE,lid),timeout=60).read())
-                  name=meta.get('name'); fields=[f['name'] for f in meta.get('fields',[])]
-                  rows=[]; off=0
+                  meta=json.loads(urllib.request.urlopen(u+'?f=json',timeout=60).read())
+                  flds=[f['name'] for f in meta.get('fields',[])]
+                  rows=[];off=0
                   while True:
-                      q='%s/%d/query?where=1%%3D1&outFields=*&returnGeometry=false&f=json&resultOffset=%d&resultRecordCount=2000'%(BASE,lid,off)
+                      q=u+'/query?where=1%%3D1&outFields=*&returnGeometry=true&f=json&resultOffset=%d&resultRecordCount=2000'%off
                       j=json.loads(urllib.request.urlopen(q,timeout=120).read())
                       fs=j.get('features') or []
-                      rows.extend([f['attributes'] for f in fs])
+                      rows.extend(fs)
                       if len(fs)<2000: break
                       off+=2000
-                  all_out[str(lid)]={'name':name,'fields':fields,'count':len(rows),'rows':rows}
-                  print(lid,name,len(rows),'rows')
+                  out[title or u]={'url':u,'fields':flds,'count':len(rows),'rows':rows}
+                  print('  ->',title,len(rows),'rows')
               except Exception as e:
-                  print(lid,'failed',e)
-          json.dump(all_out,open('data/hcr/hp-totals.json','w'))
+                  print('  ->',title,'failed',e)
+          json.dump(out,open('data/hcr/hp-layers.json','w'))
           with open('data/hcr/summary.txt','w') as fh:
-              for k,v in all_out.items():
-                  fh.write('layer %s: %s  %d rows\n  fields: %s\n'%(k,v['name'],v['count'],', '.join(v['fields'])))
-                  if v['rows']: fh.write('  sample: %s\n'%json.dumps(v['rows'][0])[:600])
+              for k,v in out.items():
+                  fh.write('%s  %d rows\n  fields: %s\n'%(k,v['count'],', '.join(v['fields'])))
+                  if v['rows']: fh.write('  sample: %s\n'%json.dumps(v['rows'][0].get('attributes'))[:700])
                   fh.write('\n')
           PYEOF
           cat data/hcr/summary.txt
@@ -49,5 +53,5 @@ jobs:
         run: |
           git config user.name "Mike Racioppo"
           git config user.email "mracioppo@cb.nyc.gov"
-          git add data/hcr/ && git commit -m "HCR housing plan totals" || echo skip
+          git add data/hcr/ && git commit -m "HCR housing plan layers" || echo skip
           git push
