@@ -7,27 +7,44 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Read the HCR dashboard and list its data layers
+      - name: Resolve the dashboard data items and pull the layer
         run: |
           mkdir -p data/hcr
-          ID=febd7f253aae485385174cabff9c6f31
-          curl -sL "https://nyshcr.maps.arcgis.com/sharing/rest/content/items/$ID?f=json" -o /tmp/item.json --max-time 60 || true
-          curl -sL "https://nyshcr.maps.arcgis.com/sharing/rest/content/items/$ID/data?f=json" -o /tmp/dash.json --max-time 90 || true
-          {
-            echo "=== item ==="
-            head -c 800 /tmp/item.json
-            echo ""
-            echo "=== dashboard size ==="
-            wc -c /tmp/dash.json
-            echo "=== service urls ==="
-            grep -oE 'https://[^"]*(FeatureServer|MapServer)[^"]*' /tmp/dash.json | sort -u | head -25
-            echo "=== referenced item ids ==="
-            grep -oE '[0-9a-f]{32}' /tmp/dash.json | sort -u | head -25
-          } > data/hcr/probe.txt 2>&1
+          : > data/hcr/probe.txt
+          for ID in 1051fe513a604b46ae33ccb03a201f35 8f03b0c71a20427a89d57e461db208f5; do
+            echo "== $ID" >> data/hcr/probe.txt
+            curl -sL "https://www.arcgis.com/sharing/rest/content/items/$ID?f=json" --max-time 45 \
+              | python3 -c "import sys,json;d=json.load(sys.stdin);print('  type:',d.get('type'));print('  title:',d.get('title'));print('  url:',d.get('url'))" >> data/hcr/probe.txt 2>&1 || echo "  failed" >> data/hcr/probe.txt
+          done
           cat data/hcr/probe.txt
+          python3 - <<'PYEOF'
+          import json,urllib.request,re
+          urls=[]
+          for line in open('data/hcr/probe.txt'):
+              m=re.search(r'url:\s*(https?://\S+)',line)
+              if m: urls.append(m.group(1).strip())
+          if not urls:
+              print('no service url'); raise SystemExit
+          u=urls[0].rstrip('/')
+          try:
+              meta=json.loads(urllib.request.urlopen(u+'?f=json',timeout=60).read())
+              lyrs=[(l['id'],l.get('name')) for l in (meta.get('layers') or [])]
+              open('data/hcr/layers.txt','w').write('\n'.join('%s  %s'%(i,n) for i,n in lyrs) or 'none')
+              print('layers:',lyrs[:8])
+              if lyrs:
+                  lid=lyrs[0][0]
+                  q=u+'/%d/query?where=1%%3D1&outFields=*&returnGeometry=false&f=json&resultRecordCount=5'%lid
+                  j=json.loads(urllib.request.urlopen(q,timeout=90).read())
+                  fs=j.get('features') or []
+                  open('data/hcr/sample.json','w').write(json.dumps(j.get('fields',[]),indent=1)[:4000]+'\n\n'+json.dumps(fs[:3],indent=1)[:3000])
+                  print('sample rows:',len(fs))
+          except Exception as e:
+              open('data/hcr/layers.txt','w').write('failed: %s'%e)
+              print('failed',e)
+          PYEOF
       - name: Commit
         run: |
           git config user.name "Mike Racioppo"
           git config user.email "mracioppo@cb.nyc.gov"
-          git add data/hcr/ && git commit -m "HCR dashboard probe" || echo skip
+          git add data/hcr/ && git commit -m "HCR dashboard layers" || echo skip
           git push
