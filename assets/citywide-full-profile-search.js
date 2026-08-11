@@ -326,7 +326,10 @@
   function cardModeRequested(){
     try{return new URLSearchParams(location.search).get('card')==='1';}catch(e){return false;}
   }
+  var SHARE_PAGES={'250 BALTIC STREET':'/250baltic.html'};
   function shareUrlFor(address,cardOnly){
+    var key=String(address||'').trim().toUpperCase().replace(/\s+/g,' ').replace(/,.*$/,'').replace(/\s+(BROOKLYN|NY|NEW YORK).*$/,'');
+    if(SHARE_PAGES[key]) return location.origin+SHARE_PAGES[key];
     var base=location.origin+location.pathname;
     var url=base+'?address='+encodeURIComponent(address);
     if(cardOnly) url+='&card=1';
