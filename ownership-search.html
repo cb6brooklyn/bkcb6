@@ -99,6 +99,7 @@ footer{max-width:1180px;margin:0 auto;padding:18px;color:var(--muted);font-size:
     <p>Pick a major owner such as <strong>DCAS</strong>, or type any owner name. Results come from the city's lot records, shown as a list and on a map.</p>
   </section>
 
+  <div id="popsPanel" hidden></div>
   <section class="search-card">
     <label class="field-label" for="owner-select">Choose a major owner</label>
     <select id="owner-select">
@@ -422,5 +423,62 @@ function setStatus(t){document.getElementById('status').textContent=t;}
     <a class="trbar-go" href="https://www.nyc.gov/site/hpd/services-and-information/tenants-rights-and-responsibilities.page" target="_blank" rel="noopener">Tenants&rsquo; rights &rarr;</a>
   </div>
 </div>
+
+<script>
+(function(){
+  var POPS=null;
+  fetch('/data/pops.json').then(function(r){return r.json();}).then(function(d){ POPS=d.spaces||[]; paintPops(); }).catch(function(){});
+  function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function n(v){return Number(v||0).toLocaleString('en-US');}
+  function currentOwner(){
+    var sel=document.getElementById('owner-select');
+    var inp=document.getElementById('owner-input');
+    return ((sel&&sel.value)||(inp&&inp.value)||'').trim().toUpperCase();
+  }
+  function paintPops(){
+    var box=document.getElementById('popsPanel');
+    if(!box||!POPS) return;
+    var who=currentOwner();
+    if(!who){ box.hidden=true; box.innerHTML=''; return; }
+    var mine=POPS.filter(function(s){
+      var o=String(s.own||'').toUpperCase();
+      return o===who || (who.length>5 && o.indexOf(who)>-1) || (o.length>5 && who.indexOf(o)>-1);
+    });
+    if(!mine.length){ box.hidden=true; box.innerHTML=''; return; }
+    var sf=mine.reduce(function(t,s){return t+(s.sf||0);},0);
+    box.hidden=false;
+    box.innerHTML='<div style="margin:14px 0;padding:14px;background:#0d1b4b;border:2px solid #f47920;border-radius:12px">'+
+      '<div style="font-family:\'DM Mono\',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.1em;color:#f47920;font-weight:700;margin-bottom:7px">&#127794; Public space on this owner\'s land</div>'+
+      '<div style="color:#fff;font-size:.98rem;font-weight:900;line-height:1.3">'+mine.length+' privately owned public space'+(mine.length===1?'':'s')+
+      (sf?(', '+n(sf)+' square feet'):'')+'</div>'+
+      '<div style="color:rgba(255,255,255,.78);font-size:.79rem;line-height:1.55;margin-top:6px">These are plazas and arcades the public has a permanent right to use, granted in exchange for extra floor area when the buildings went up.</div>'+
+      '<div style="margin-top:10px">'+mine.map(function(s){
+        return '<div style="padding:7px 0;border-top:1px solid rgba(255,255,255,.16)">'+
+          '<div style="color:#fff;font-size:.85rem;font-weight:800;line-height:1.3">'+esc(s.n||s.addr)+'</div>'+
+          '<div style="font-family:\'DM Mono\',monospace;font-size:.66rem;color:rgba(255,255,255,.62);margin-top:2px">'+
+          esc(s.addr)+(s.sf?(' \u00b7 '+n(s.sf)+' sq ft'):'')+(s.hrs?(' \u00b7 '+esc(s.hrs)):'')+'</div></div>';
+      }).join('')+'</div>'+
+      '<a href="/pops/?owner='+encodeURIComponent(mine[0].own)+'" style="display:inline-block;margin-top:11px;background:#f47920;color:#fff;text-decoration:none;font-size:.78rem;font-weight:800;padding:8px 13px;border-radius:18px">See them on the POPS map &rarr;</a>'+
+      '</div>';
+  }
+  ['owner-select','owner-input'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el){ el.addEventListener('change',paintPops); el.addEventListener('input',paintPops); }
+  });
+  var go=document.getElementById('go');
+  if(go) go.addEventListener('click',function(){ setTimeout(paintPops,50); });
+  try{
+    var want=new URLSearchParams(location.search).get('owner');
+    if(want){
+      var inp=document.getElementById('owner-input');
+      if(inp){ inp.value=want; }
+      var sel=document.getElementById('owner-select');
+      if(sel){ for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value.toUpperCase()===want.toUpperCase()){ sel.selectedIndex=i; break; } } }
+      setTimeout(function(){ paintPops(); if(go) go.click(); },260);
+    }
+  }catch(e){}
+})();
+</script>
+
 </body>
 </html>
