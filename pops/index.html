@@ -78,6 +78,12 @@ table.dir td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-w
 .pops-tip b{font-size:.85rem}
 
 .row .ow a{color:var(--navy);font-weight:700;text-decoration:none;border-bottom:2px solid var(--orange)}
+
+.share{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:10px 14px;background:var(--off);border-bottom:1px solid var(--border)}
+.share-k{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700}
+.share code{flex:1 1 200px;min-width:160px;font-family:'DM Mono',monospace;font-size:.72rem;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.share button{background:var(--navy);color:#fff;border:none;font-family:'DM Sans',sans-serif;font-size:.74rem;font-weight:800;padding:7px 13px;border-radius:16px;cursor:pointer}
+.share button:hover{background:var(--orange)}
 </style>
 </head>
 <body>
@@ -104,6 +110,11 @@ table.dir td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-w
   <div class="bnd" id="bndNote"></div>
   <div id="map"></div>
 
+  <div class="share">
+    <span class="share-k">Share this view</span>
+    <code id="shareLbl">bkcb6.app/pops</code>
+    <button type="button" id="shareBtn">Copy link</button>
+  </div>
   <div class="search"><input id="q" type="search" placeholder="Search by building, address, owner or type&hellip;" autocomplete="off"></div>
   <div class="cnt" id="cnt"></div>
   <div class="rows" id="rows"></div>
@@ -293,24 +304,49 @@ table.dir td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-w
       return '<option value="'+esc(o)+'">'+esc(o)+' ('+byOwner[o].length+')</option>';
     }).join('');
 
+    function stamp(){
+      try{
+        var p=new URLSearchParams();
+        if(pickCd) p.set('cd',pickCd);
+        if(pickNb) p.set('nb',pickNb);
+        if(pickOw) p.set('owner',pickOw);
+        var q=($('q').value||'').trim();
+        if(q) p.set('q',q);
+        var url=location.pathname+(p.toString()?('?'+p.toString()):'');
+        history.replaceState(null,'',url);
+        var lab=$('shareLbl');
+        if(lab) lab.textContent='bkcb6.app'+url.replace(/\/index\.html$/,'/');
+      }catch(e){}
+    }
     function pickChanged(which,val){
       pickCd=pickNb=pickOw='';
       if(which==='cd') pickCd=val; else if(which==='nb') pickNb=val; else pickOw=val;
       $('cdSel').value=pickCd; $('nbSel').value=pickNb; $('owSel').value=pickOw;
-      render(); drawBoundary();
+      render(); drawBoundary(); stamp();
     }
     ['cd','nb','ow'].forEach(function(k){
       $(k+'Sel').addEventListener('change',function(){ pickChanged(k,this.value); });
     });
     $('pkClr').addEventListener('click',function(){ pickChanged('cd',''); });
-    $('q').addEventListener('input',render);
+    $('shareBtn').addEventListener('click',function(){
+      var url=location.href;
+      var b=this;
+      function flash(t){ var p=b.textContent; b.textContent=t; setTimeout(function(){b.textContent=p;},1600); }
+      if(navigator.share){ navigator.share({title:'Privately Owned Public Spaces',url:url}).then(function(){},function(){
+        if(navigator.clipboard) navigator.clipboard.writeText(url).then(function(){flash('Copied');},function(){window.prompt('Copy this link:',url);});
+      }); }
+      else if(navigator.clipboard){ navigator.clipboard.writeText(url).then(function(){flash('Copied');},function(){window.prompt('Copy this link:',url);}); }
+      else { window.prompt('Copy this link:',url); }
+    });
+    $('q').addEventListener('input',function(){ render(); stamp(); });
 
     var qs=new URLSearchParams(location.search);
     var wCd=qs.get('cd'),wNb=qs.get('nb'),wOw=qs.get('owner');
     if(wNb) pickNb=wNb; else if(wOw) pickOw=wOw; else if(wCd) pickCd=wCd;
+    var wQ=qs.get('q'); if(wQ) $('q').value=wQ;
     $('cdSel').value=pickCd; $('nbSel').value=pickNb; $('owSel').value=pickOw;
 
-    drawDir(); render(); drawBoundary();
+    drawDir(); render(); drawBoundary(); stamp();
     $('foot').innerHTML='Source: New York City Department of City Planning, Privately Owned Public Spaces. '+
       'Owner names from PLUTO by tax lot; where the city lists no owner, the space is shown as owner not on file.<br>'+
       'Each space is placed into a community district, council district and neighborhood from its published coordinates.<br>'+
