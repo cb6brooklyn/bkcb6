@@ -126,9 +126,12 @@ footer{max-width:1180px;margin:0 auto;padding:18px;color:var(--muted);font-size:
         <option value="PORT AUTHORITY OF NY AND NJ">Port Authority of NY &amp; NJ</option>
         <option value="NYC SCHOOL CONSTRUCTION AUTHORITY">School Construction Authority</option>
         <option value="DORMITORY AUTHORITY OF THE STATE OF NEW YORK">Dormitory Authority (DASNY)</option>
-      </optgroup><optgroup label="Owners with privately owned public space"><option value="SL GREEN REALTY CORP.">SL Green Realty (3 POPS)</option><option value="CARLTON REGENCY CORP (THE)">Carlton Regency Corp (2 POPS)</option><option value="NEW YORK UNIVERSITY">New York University (2 POPS)</option><option value="METROPOLITAN TRANSPORTATION AUTHORITY">Metropolitan Transportation Authority (2 POPS)</option></optgroup>
+      </optgroup>
     </select>
 
+    <label class="field-label" for="pops-select" style="margin-top:14px">Or choose an owner of privately owned public space</label>
+    <select id="pops-select"><option value="">&mdash; Loading&hellip; &mdash;</option></select>
+    <div id="popsHint" style="font-size:.76rem;color:#6b6760;line-height:1.5;margin-top:6px">Every owner on the city&rsquo;s POPS list. Plazas and arcades the public has a permanent right to use, granted in exchange for extra floor area. <a href="/pops/" style="color:#0d1b4b">See them all on a map</a></div>
     <div class="orsep">— or —</div>
 
     <label class="field-label" for="owner-input">Type any owner name or acronym</label>
@@ -427,18 +430,20 @@ function setStatus(t){document.getElementById('status').textContent=t;}
 <script>
 (function(){
   var POPS=null;
-  fetch('/data/pops.json').then(function(r){return r.json();}).then(function(d){ POPS=d.spaces||[]; paintPops(); }).catch(function(){});
+  fetch('/data/pops.json').then(function(r){return r.json();}).then(function(d){ POPS=d.spaces||[]; fillPopsSelect(); paintPops(); }).catch(function(){});
   function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function n(v){return Number(v||0).toLocaleString('en-US');}
   function currentOwner(){
+    var ps=document.getElementById('pops-select');
+    if(ps&&ps.value) return ps.value.trim().toUpperCase();
     var sel=document.getElementById('owner-select');
     var inp=document.getElementById('owner-input');
     return ((sel&&sel.value)||(inp&&inp.value)||'').trim().toUpperCase();
   }
-  function paintPops(){
+  function paintPops(force){
     var box=document.getElementById('popsPanel');
     if(!box||!POPS) return;
-    var who=currentOwner();
+    var who=(force&&typeof force==='string')?force.toUpperCase():currentOwner();
     if(!who){ box.hidden=true; box.innerHTML=''; return; }
     var mine=POPS.filter(function(s){
       var o=String(s.own||'').toUpperCase();
@@ -460,6 +465,41 @@ function setStatus(t){document.getElementById('status').textContent=t;}
       }).join('')+'</div>'+
       '<a href="/pops/?owner='+encodeURIComponent(mine[0].own)+'" style="display:inline-block;margin-top:11px;background:#f47920;color:#fff;text-decoration:none;font-size:.78rem;font-weight:800;padding:8px 13px;border-radius:18px">See them on the POPS map &rarr;</a>'+
       '</div>';
+  }
+  function fillPopsSelect(){
+    var sel=document.getElementById('pops-select');
+    if(!sel||!POPS) return;
+    var by={};
+    POPS.forEach(function(s){ (by[s.own]=by[s.own]||[]).push(s); });
+    var names=Object.keys(by).filter(function(o){return o!=='Owner not on file';})
+      .sort(function(a,b){ var d=by[b].length-by[a].length; return d||a.localeCompare(b); });
+    function nice(o){
+      return o.replace(/\w\S*/g,function(t){return t.charAt(0)+t.slice(1).toLowerCase();})
+        .replace(/\bNyc\b/g,'NYC').replace(/\bLlc\b/g,'LLC').replace(/\bLp\b/g,'LP')
+        .replace(/\bSl\b/g,'SL').replace(/\bUsa\b/g,'USA').replace(/\bNy\b/g,'NY')
+        .replace(/\bMta\b/g,'MTA').replace(/\bIi\b/g,'II').replace(/\bIii\b/g,'III');
+    }
+    var multi=names.filter(function(o){return by[o].length>1;});
+    var single=names.filter(function(o){return by[o].length===1;});
+    function opts(list){
+      return list.map(function(o){
+        var c=by[o].length;
+        return '<option value="'+esc(o)+'">'+esc(nice(o))+(c>1?(' ('+c+' spaces)'):'')+'</option>';
+      }).join('');
+    }
+    var unknown=(POPS.filter(function(s){return s.own==='Owner not on file';})).length;
+    sel.innerHTML='<option value="">&mdash; Select a POPS owner &mdash;</option>'+
+      (multi.length?('<optgroup label="More than one space">'+opts(multi)+'</optgroup>'):'')+
+      '<optgroup label="One space each">'+opts(single)+'</optgroup>'+
+      (unknown?('<optgroup label="Not attributed"><option value="Owner not on file">Owner not on file ('+unknown+' spaces)</option></optgroup>'):'');
+    sel.addEventListener('change',function(){
+      var v=this.value; if(!v) return;
+      var os=document.getElementById('owner-select'); if(os) os.selectedIndex=0;
+      var inp=document.getElementById('owner-input');
+      if(inp && v!=='Owner not on file'){ inp.value=v; }
+      paintPops(v);
+      if(v!=='Owner not on file'){ var go=document.getElementById('go'); if(go) go.click(); }
+    });
   }
   ['owner-select','owner-input'].forEach(function(id){
     var el=document.getElementById(id);
