@@ -361,7 +361,8 @@
     box.innerHTML='<div style="font-family:\'DM Mono\',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.1em;color:#f47920;font-weight:700;margin-bottom:6px">&#127968; Suggested for the LIFT list</div>'+
       '<div style="color:#fff;font-size:.95rem;font-weight:900;line-height:1.32">The Mayor&rsquo;s LIFT list has 120 city owned sites for housing. We&rsquo;d like to add one more.</div>'+
       '<div style="color:rgba(255,255,255,.8);font-size:.8rem;line-height:1.55;margin-top:6px">Four floors above the CB6 office have been empty for a couple of years. The city owns the building and the lot is already zoned for housing.</div>'+
-      '<a href="/blockbyblock/#propose-250baltic" style="display:inline-block;margin-top:10px;background:#f47920;color:#fff;text-decoration:none;font-size:.78rem;font-weight:800;padding:8px 13px;border-radius:18px">See it on Block by Block &rarr;</a>';
+      '<a href="/blockbyblock/#propose-250baltic" style="display:inline-block;margin-top:10px;background:#f47920;color:#fff;text-decoration:none;font-size:.78rem;font-weight:800;padding:8px 13px;border-radius:18px">See it on Block by Block &rarr;</a>'+
+      '<a href="https://drive.google.com/file/d/1kRkL78JUQAD1OUJZZ5ODJ5te84RoVSav/view" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;margin-left:7px;color:#fff;text-decoration:none;font-size:.78rem;font-weight:800;padding:8px 13px;border-radius:18px;border:1.5px solid rgba(255,255,255,.4)">Read our letter &#8599;</a>';
     var first=result.firstElementChild;
     if(first && first.nextElementSibling) result.insertBefore(box, first.nextElementSibling);
     else result.appendChild(box);
