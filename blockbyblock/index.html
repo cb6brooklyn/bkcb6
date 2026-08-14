@@ -45,8 +45,19 @@ h1 span{color:var(--orange)}
 .fold[open] summary::before{content:"\2212"}
 .fold .foldnote{padding:0 16px 12px;font-family:'DM Mono',monospace;font-size:.66rem;line-height:1.7;color:var(--muted)}
 .fold[open]{background:#fff}
-.chartfig{display:block;line-height:0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
-.chartfig img{width:100%;height:auto;display:block}
+.bars{padding:2px 0 4px}
+.barrow{padding:9px 16px 11px;border-bottom:1px solid #f4f2ee}
+.barrow:last-child{border-bottom:none}
+.barrow.is-cb6{background:#fff8f2}
+.barhead{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+.barrank{font-family:'DM Mono',monospace;font-size:.78rem;color:#9ca3af;min-width:20px}
+.barname{font-family:'DM Sans',sans-serif;font-size:.95rem;font-weight:800;color:var(--navy);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.barval{font-family:'DM Mono',monospace;font-size:1rem;font-weight:800;color:var(--navy);white-space:nowrap}
+.barrow.is-cb6 .barname,.barrow.is-cb6 .barval{color:#b34700}
+.bartrack{height:20px;background:#eef0f4;border-radius:4px;overflow:hidden}
+.barfill{display:block;height:100%;background:var(--navy);border-radius:4px;transition:width .28s ease}
+.barrow.is-cb6 .barfill{background:var(--orange)}
+.barsub{margin-top:6px;font-family:'DM Mono',monospace;font-size:.63rem;line-height:1.5;color:var(--muted)}
 .chartget{padding:11px 16px 14px;font-family:'DM Mono',monospace;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
 .chartget a{color:var(--orange);text-decoration:none}
 .more{margin-top:2px}
@@ -366,12 +377,11 @@ table.dir td.nm{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700
   <div id="rptSites"></div>
 
   <details class="fold" id="foldChart">
-    <summary>The ranking as one chart, to share</summary>
-    <div class="foldnote">The fifteen largest sites and the fifteen community districts with the most homes planned on them.</div>
-    <a class="chartfig" href="/lift-ranked.png" target="_blank" rel="noopener">
-      <img src="/lift-ranked.png" width="1080" height="1220" alt="The LIFT list, ranked. 120 sites, 50,970 homes planned, none of them built. The fifteen largest sites, led by the Brooklyn Marine Terminal in CB6 with 6,000 homes. The fifteen community districts with the most homes planned, led by BKCB6 with 6,892.">
-    </a>
-    <div class="chartget"><a href="/lift-ranked.png" download>Download the chart &rarr;</a></div>
+    <summary>The ranking as a chart</summary>
+    <div class="foldnote">Homes planned, none of them built. Switch between the biggest sites and the boroughs, districts and agencies they sit in.</div>
+    <div class="mapctl" id="chartCtl"></div>
+    <div id="chartBars"></div>
+    <div class="chartget"><a href="/lift-ranked.png" download>Download this as an image to share &rarr;</a></div>
   </details>
 
   <div class="sec">
@@ -871,6 +881,55 @@ table.dir td.nm{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700
       drawTbl();
     });
     $('liftQ').addEventListener('input',drawTbl);
+
+    /* ---- the chart ---- */
+    var CHARTS=[['site','Top ten sites'],['boro','Boroughs'],['cd','Community districts'],
+      ['cc','Council districts'],['ag','Agencies']];
+    var chartView='site';
+    function chartRows(){
+      if(chartView==='site'){
+        return SITES.slice().sort(function(a,b){return (b.u||0)-(a.u||0);}).slice(0,10)
+          .map(function(s){
+            return {name:s.n, v:s.u||0, me:(s.cd==='BKCB6'),
+              sub:[s.nb, s.cd, s.ag].filter(Boolean).join(' \u00b7 ')};
+          });
+      }
+      var m={}, out=[];
+      SITES.forEach(function(s){
+        var k=s[chartView]; if(!k) return;
+        if(!m[k]){ m[k]={name:(chartView==='cc'?('Council '+k.replace('District ','')):k),v:0,sites:0,key:k}; out.push(m[k]); }
+        m[k].v+=(s.u||0); m[k].sites++;
+      });
+      out.sort(function(a,b){return b.v-a.v;});
+      if(chartView==='cd'||chartView==='cc') out=out.slice(0,10);
+      return out.map(function(r){
+        return {name:r.name, v:r.v, me:(r.key==='BKCB6'),
+          sub:n(r.sites)+(r.sites===1?' site':' sites')+' \u00b7 '+
+            (r.v/D.total_units*100).toFixed(1)+' percent of the list'};
+      });
+    }
+    function drawChart(){
+      var rows=chartRows(), max=rows.length?rows[0].v:0;
+      $('chartBars').innerHTML='<div class="bars">'+rows.map(function(r,i){
+        var w=Math.max(4,Math.round(r.v/max*100));
+        return '<div class="barrow'+(r.me?' is-cb6':'')+'">'+
+          '<div class="barhead"><span class="barrank">'+(i+1)+'</span>'+
+          '<span class="barname">'+esc(r.name)+'</span>'+
+          '<span class="barval">'+n(r.v)+'</span></div>'+
+          '<div class="bartrack"><span class="barfill" style="width:'+w+'%"></span></div>'+
+          '<div class="barsub">'+esc(r.sub)+'</div></div>';
+      }).join('')+'</div>';
+    }
+    $('chartCtl').innerHTML=CHARTS.map(function(x){
+      return '<button type="button" data-cv="'+x[0]+'"'+(x[0]===chartView?' class="on"':'')+'>'+x[1]+'</button>';
+    }).join('');
+    $('chartCtl').addEventListener('click',function(ev){
+      var b=ev.target.closest('[data-cv]'); if(!b) return;
+      chartView=b.getAttribute('data-cv');
+      $('chartCtl').querySelectorAll('[data-cv]').forEach(function(x){x.classList.toggle('on',x===b);});
+      drawChart();
+    });
+    drawChart();
 
     lMap=L.map('liftMap',{scrollWheelZoom:true}).setView([40.70,-73.94],10);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:18,attribution:'&copy; CARTO'}).addTo(lMap);
