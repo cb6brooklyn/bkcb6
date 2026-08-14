@@ -114,6 +114,9 @@ a.sqcap:hover{color:var(--orange)}
 .dir td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700}
 .dir tr.me td{background:#fff1e5}
 .dir td.bo{font-family:'DM Sans',sans-serif;color:var(--muted);font-size:.72rem}
+table.dir td.rk{text-align:left;font-family:'DM Mono',monospace;font-weight:400;color:var(--muted);font-size:.72rem;width:1%}
+table.dir tr.me td.rk{color:var(--orange);font-weight:700}
+table.dir td.nm{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700}
 #liftMap{height:44vh;min-height:280px;background:#eef0f4;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
 .dir td.st{font-family:'DM Sans',sans-serif;font-size:.72rem;color:#444;text-align:left}
 .dir td.ad{font-family:'DM Sans',sans-serif;font-size:.72rem;color:var(--muted);text-align:left;font-weight:400}
@@ -669,9 +672,15 @@ a.sqcap:hover{color:var(--orange)}
   }
 
   /* ---- rollup table ---- */
-  var RCOLS=[['a','Area'],['sites','Sites'],['homes','Homes planned'],['share','Share of the citywide total']];
+  var RCOLS=[['r','Rank'],['a','Area'],['sites','Sites'],['homes','Homes planned'],['share','Share of the citywide total']];
   function drawRoll(){
-    var rows=roll(lvl()[2]).sort(function(a,b){
+    var rows=roll(lvl()[2]);
+    var pr=0, pv=null;
+    rows.slice().sort(function(a,b){return b.homes-a.homes;}).forEach(function(x,i){
+      if(pv!==null && x.homes===pv) x.r=pr; else { x.r=i+1; pr=x.r; }
+      pv=x.homes;
+    });
+    rows=rows.sort(function(a,b){
       var x=a[rollKey],y=b[rollKey];
       if(typeof x==='string') return rollDir*x.localeCompare(y);
       return rollDir*(x-y);
@@ -680,7 +689,8 @@ a.sqcap:hover{color:var(--orange)}
       var cls=(c[0]===rollKey)?(rollDir<0?' class="down"':' class="up"'):'';
       return '<th data-rk="'+c[0]+'"'+cls+'>'+c[1]+'</th>';
     }).join('')+'</tr>'+rows.map(function(r){
-      return '<tr'+(r.a==='BKCB6'?' class="me"':'')+'><td>'+esc(r.a)+'</td><td>'+n(r.sites)+
+      return '<tr'+(r.a==='BKCB6'?' class="me"':'')+'><td class="rk">'+n(r.r)+'</td>'+
+        '<td class="nm">'+esc(r.a)+'</td><td>'+n(r.sites)+
         '</td><td>'+n(r.homes)+'</td><td>'+r.share.toFixed(1)+'%</td></tr>';
     }).join('');
     $('liftRoll').querySelectorAll('[data-rk]').forEach(function(th){
@@ -693,7 +703,16 @@ a.sqcap:hover{color:var(--orange)}
   }
 
   /* ---- full site table ---- */
-  var COLS=[['n','Site'],['addr','Address'],['nb','Neighborhood'],['cd','Community board'],['cc','Council'],['ag','Agency'],['st','Stage'],['u','Homes planned']];
+  var COLS=[['_r','Rank'],['n','Site'],['addr','Address'],['nb','Neighborhood'],['cd','Community board'],['cc','Council'],['ag','Agency'],['st','Stage'],['u','Homes planned']];
+  /* rank runs 1 to 120 by homes planned, fixed, so it does not move when the table is sorted or searched */
+  function setRanks(){
+    var pr=0, pv=null;
+    SITES.slice().sort(function(a,b){return (b.u||0)-(a.u||0);}).forEach(function(s,i){
+      var v=(s.u||0);
+      if(pv!==null && v===pv) s._r=pr; else { s._r=i+1; pr=s._r; }
+      pv=v;
+    });
+  }
   function shown(){
     var q=(($('liftQ')||{}).value||'').toLowerCase().trim();
     return SITES.filter(function(s){
@@ -714,7 +733,8 @@ a.sqcap:hover{color:var(--orange)}
       return '<th data-lk="'+c[0]+'"'+cls+'>'+c[1]+'</th>';
     }).join('')+'</tr>'+rows.map(function(s){
       return '<tr'+(s.cd==='BKCB6'?' class="me"':'')+'>'+
-        '<td>'+esc(s.n)+'</td><td class="ad">'+esc(s.addr)+'</td>'+
+        '<td class="rk">'+n(s._r)+'</td>'+
+        '<td class="nm">'+esc(s.n)+'</td><td class="ad">'+esc(s.addr)+'</td>'+
         '<td class="ad">'+esc(s.nb||'\u2014')+'</td>'+
         '<td>'+esc(s.cd||'\u2014')+'</td>'+
         '<td>'+esc(s.cc?s.cc.replace('District ',''):'\u2014')+'</td>'+
@@ -737,6 +757,7 @@ a.sqcap:hover{color:var(--orange)}
     fetch('/data/blockbyblock.json').then(function(r){return r.json();})
   ]).then(function(a){
     var D=a[0], PLAN=a[2]; SITES=D.sites||[];
+    setRanks();
     (a[1].rows||[]).forEach(function(r){ BUILT[r.cd]=r; });
 
     /* ---- our reading of it ---- */
