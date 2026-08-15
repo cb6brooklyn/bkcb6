@@ -393,6 +393,27 @@
     });
     return out;
   }
+  function liftAlias(q){
+    var t=String(q||'').trim();
+    if(!t || /\d/.test(t.split(/\s+/)[0])) return Promise.resolve(t);
+    var k=t.toUpperCase().replace(/\s+/g,' ');
+    return liftSites().then(function(sites){
+      var hit=null;
+      (sites||[]).forEach(function(s){
+        if(hit) return;
+        var n=String(s.n||'').toUpperCase().replace(/\s+/g,' ');
+        if(n===k) hit=s;
+      });
+      if(!hit) (sites||[]).forEach(function(s){
+        if(hit) return;
+        var n=String(s.n||'').toUpperCase().replace(/\s+/g,' ');
+        if(n.indexOf(k)===0 || k.indexOf(n)===0) hit=s;
+      });
+      if(!hit || !hit.addr || !/^\d/.test(hit.addr)) return t;
+      var boro=hit.boro?', '+hit.boro:'';
+      return hit.addr+boro;
+    }).catch(function(){return t;});
+  }
   function injectLiftBadge(result,address){
     if(!result || result.querySelector('.lift-badge')) return;
     var m=result.querySelector('.citywide-result-map');
@@ -492,6 +513,8 @@
       async function runFull(){
         var q=input.value.trim();
         if(!q){if(status) status.textContent='Enter an address to search.'; result.hidden=true; result.innerHTML=''; return;}
+        var qIn=q; q=await liftAlias(q);
+        if(q!==qIn && status) status.textContent='Found '+qIn+' on the LIFT list. Searching '+q+'\u2026';
         var explicit=explicitBoroughInQuery(q);
         if(boroughName && explicit && explicit!==boroughName){
           if(status) status.textContent='This '+boroughName+' page searches '+boroughName+' addresses only. Use Citywide Search for '+explicit+' addresses.';
