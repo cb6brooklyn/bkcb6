@@ -414,6 +414,33 @@
       return hit.addr+boro;
     }).catch(function(){return t;});
   }
+  var BORO_FULL={BX:'Bronx',BK:'Brooklyn',MN:'Manhattan',QN:'Queens',SI:'Staten Island'};
+  async function placeAlias(q){
+    var t=String(q||'').trim();
+    if(!t || /^\d/.test(t)) return null;
+    try{
+      var g=await fetchJson('https://geosearch.planninglabs.nyc/v2/search?size=5&text='+encodeURIComponent(t),undefined,10000);
+      var f=(g&&g.features)||[];
+      if(!f.length) return null;
+      var best=null;
+      for(var i=0;i<f.length;i++){
+        var c=f[i].geometry&&f[i].geometry.coordinates;
+        if(c&&c.length>=2){ best={lng:+c[0],lat:+c[1],label:(f[i].properties||{}).label||t,
+          hn:(f[i].properties||{}).housenumber||'', st:(f[i].properties||{}).street||'',
+          boro:(f[i].properties||{}).borough||''}; break; }
+      }
+      if(!best) return null;
+      if(best.hn && best.st) return {q:best.hn+' '+best.st+(best.boro?', '+best.boro:''), label:best.label};
+      var params=new URLSearchParams({f:'json',where:'1=1',outFields:'BBL,Address,Borough',
+        returnGeometry:'false',outSR:'4326',geometry:String(best.lng)+','+String(best.lat),
+        geometryType:'esriGeometryPoint',inSR:'4326',spatialRel:'esriSpatialRelIntersects'});
+      var d=await fetchJsonOptional('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/MAPPLUTO/FeatureServer/0/query?'+params.toString());
+      var a=d&&d.features&&d.features[0]&&d.features[0].attributes;
+      if(!a||!a.Address) return null;
+      var bn=BORO_FULL[String(a.Borough||'').toUpperCase()]||best.boro||'';
+      return {q:a.Address+(bn?', '+bn:''), label:best.label};
+    }catch(e){ return null; }
+  }
   function injectLiftBadge(result,address){
     if(!result || result.querySelector('.lift-badge')) return;
     var m=result.querySelector('.citywide-result-map');
@@ -515,6 +542,11 @@
         if(!q){if(status) status.textContent='Enter an address to search.'; result.hidden=true; result.innerHTML=''; return;}
         var qIn=q; q=await liftAlias(q);
         if(q!==qIn && status) status.textContent='Found '+qIn+' on the LIFT list. Searching '+q+'\u2026';
+        if(q===qIn && !/^\d/.test(q.trim())){
+          if(status) status.textContent='Looking up '+qIn+'\u2026';
+          var pl=await placeAlias(q);
+          if(pl && pl.q){ q=pl.q; if(status) status.textContent='Found '+qIn+' at '+q+'. Searching\u2026'; }
+        }
         var explicit=explicitBoroughInQuery(q);
         if(boroughName && explicit && explicit!==boroughName){
           if(status) status.textContent='This '+boroughName+' page searches '+boroughName+' addresses only. Use Citywide Search for '+explicit+' addresses.';
