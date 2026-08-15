@@ -353,6 +353,13 @@
   }
   var LIFT_P=null;
   var LIFT_PLACE={'435 HOYT ST':'Gowanus Green'};
+  var LIFT_DEEP={
+    '24-64 KANE ST':{
+      note:'This site does not go through the city\'s ULURP. Zoning here is set by the State: Empire State Development adopts a General Project Plan, with environmental review first and Public Authorities Control Board approval at the end. A 28 member Advisory Task Force and the Brooklyn Marine Terminal Development Corporation oversee the commitments.',
+      href:'/bmt.html',
+      label:'The full BMT page &rarr;'
+    }
+  };
   function liftSites(){
     if(LIFT_P) return LIFT_P;
     LIFT_P=fetch('/data/lift-sites.json').then(function(r){return r.json();})
@@ -484,6 +491,7 @@
       if(hits.length>1) bits.push(hits.length+' buildings');
       if(s.ag) bits.push(s.ag);
       if(s.st) bits.push(s.st);
+      var deep=LIFT_DEEP[liftNorm(s.addr)]||null;
       var box=document.createElement('div');
       box.className='lift-badge';
       box.setAttribute('style','margin:10px 0;padding:11px 13px;background:#0d1b4b;border-left:5px solid #f47920;border-radius:9px');
@@ -491,7 +499,11 @@
         '<div style="font-family:\'DM Mono\',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.1em;color:#f47920;font-weight:700;margin-bottom:5px">On the LIFT list &middot; Block by Block</div>'+
         '<div style="color:#fff;font-size:.9rem;font-weight:900;line-height:1.3">'+esc(name||'')+'</div>'+
         '<div style="color:rgba(255,255,255,.78);font-family:\'DM Mono\',monospace;font-size:.68rem;line-height:1.5;margin-top:4px">'+esc(bits.join(' \u00b7 '))+'</div>'+
-        '<a href="/blockbyblock/#foldAllSites" style="display:inline-block;margin-top:9px;background:#f47920;color:#fff;text-decoration:none;font-size:.73rem;font-weight:800;padding:6px 12px;border-radius:16px">See it on Block by Block &rarr;</a>';
+        (deep?('<div style="margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.22);color:rgba(255,255,255,.86);font-size:.79rem;line-height:1.55">'+deep.note+'</div>'):'')+
+        '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px">'+
+        (deep?('<a href="'+deep.href+'" style="background:#f47920;color:#fff;text-decoration:none;font-size:.73rem;font-weight:800;padding:6px 12px;border-radius:16px">'+deep.label+'</a>'):'')+
+        '<a href="/blockbyblock/#foldAllSites" style="background:'+(deep?'transparent':'#f47920')+';color:#fff;text-decoration:none;font-size:.73rem;font-weight:800;padding:6px 12px;border-radius:16px'+(deep?';border:1.5px solid rgba(255,255,255,.35)':'')+'">See it on Block by Block &rarr;</a>'+
+        '</div>';
       var first=result.firstElementChild;
       if(first && first.firstElementChild && first.firstElementChild.nextElementSibling)
         first.insertBefore(box, first.firstElementChild.nextElementSibling.nextElementSibling);
