@@ -408,7 +408,7 @@
   function cardModeRequested(){
     try{return new URLSearchParams(location.search).get('card')==='1';}catch(e){return false;}
   }
-  var SHARE_PAGES={'250 BALTIC STREET':'/250baltic'};
+  var SHARE_PAGES={'250 BALTIC STREET':'/250baltic','1 EAST 161 STREET':'/yankeestadium'};
   function shareUrlFor(address,cardOnly){
     var key=String(address||'').trim().toUpperCase().replace(/\s+/g,' ').replace(/,.*$/,'').replace(/\s+(BROOKLYN|NY|NEW YORK).*$/,'');
     if(SHARE_PAGES[key]) return location.origin+SHARE_PAGES[key];
