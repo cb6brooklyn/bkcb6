@@ -1216,15 +1216,13 @@
 
       // scan or type, above the footer band
       var qs=74, qy=H-botH-qs-14;
-      if(qr&&qr.data){
-        doc.addImage(qr.data,'PNG',M,qy,qs,qs);
-        sans(12,NAVY); doc.text('For more info scan the QR code', M+qs+14, qy+28);
-        sans(12,NAVY); doc.text('or go to:', M+qs+14, qy+45);
-        sans(13,ORANGE); doc.text('bkcb6.app/citywide-search.html', M+qs+14, qy+64);
-      } else {
-        sans(12,NAVY); doc.text('For more info go to:', M, qy+45);
-        sans(13,ORANGE); doc.text('bkcb6.app/citywide-search.html', M, qy+64);
-      }
+      var qx=M;
+      if(qr&&qr.data){ doc.addImage(qr.data,'PNG',M,qy,qs,qs); qx=M+qs+14; }
+      body(9.5,MUTED);
+      doc.text('This is a one page summary. The full card online carries the rest: the interactive map,', qx, qy+14);
+      doc.text('every district, ownership and building detail, what can be built here, and nearby services.', qx, qy+27);
+      sans(12,NAVY); doc.text(qr&&qr.data?'For more info scan the QR code or go to:':'For more info go to:', qx, qy+48);
+      sans(13,ORANGE); doc.text('bkcb6.app/citywide-search.html', qx, qy+67);
 
       var name=String(input).replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();
       doc.save('bkcb6-'+(name||'address-card')+'.pdf');
