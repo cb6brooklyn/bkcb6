@@ -351,6 +351,78 @@
     st.textContent='body.card-only header,body.card-only .hero,body.card-only .search-card>h3,body.card-only .search-card>p,body.card-only .search-card .search-row,body.card-only .search-card .status,body.card-only .search-card .examples,body.card-only .note-grid,body.card-only footer{display:none!important}body.card-only main{padding:14px 12px 40px!important;max-width:760px!important}body.card-only .search-card{border:0!important;box-shadow:none!important;background:transparent!important;padding:0!important;margin:0!important;min-height:0!important}body.card-only .result-wrap{margin-top:0!important}.card-only-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border,#e5e2db)}.card-only-bar a.cb-brand{text-decoration:none;color:var(--navy,#132D65);font-weight:800;font-size:.95rem;display:flex;flex-direction:column;line-height:1.1}.card-only-bar a.cb-brand span{font-family:\'DM Mono\',monospace;font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted,#6b6760);font-weight:500}.card-only-bar a.cb-search{font-size:.74rem;font-weight:700;text-decoration:none;color:#fff;background:var(--orange,#FD890E);border-radius:999px;padding:7px 13px;white-space:nowrap}';
     document.head.appendChild(st);
   }
+  var LIFT_P=null;
+  var LIFT_PLACE={'435 HOYT ST':'Gowanus Green'};
+  function liftSites(){
+    if(LIFT_P) return LIFT_P;
+    LIFT_P=fetch('/data/lift-sites.json').then(function(r){return r.json();})
+      .then(function(d){return (d&&d.sites)||[];}).catch(function(){return [];});
+    return LIFT_P;
+  }
+  function liftNorm(a){
+    return String(a||'').toUpperCase().replace(/[.,]/g,' ')
+      .replace(/\bSTREET\b/g,'ST').replace(/\bAVENUE\b/g,'AVE').replace(/\bBOULEVARD\b/g,'BLVD')
+      .replace(/\bROAD\b/g,'RD').replace(/\bPLACE\b/g,'PL').replace(/\bDRIVE\b/g,'DR')
+      .replace(/\bPARKWAY\b/g,'PKWY').replace(/\bEAST\b/g,'E').replace(/\bWEST\b/g,'W')
+      .replace(/\bNORTH\b/g,'N').replace(/\bSOUTH\b/g,'S')
+      .replace(/\s+/g,' ').trim();
+  }
+  function liftDist(a,b,c,d){
+    var R=6371000, p=Math.PI/180;
+    var x=(c-a)*p, y=(d-b)*p;
+    var h=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a*p)*Math.cos(c*p)*Math.sin(y/2)*Math.sin(y/2);
+    return 2*R*Math.asin(Math.sqrt(h));
+  }
+  function liftMatch(sites,addr,lat,lng){
+    var na=liftNorm(addr), out=[];
+    (sites||[]).forEach(function(s){
+      var ns=liftNorm(s.addr), hit=false;
+      if(na && ns && na===ns) hit=true;
+      if(!hit && na && ns){
+        var pa=/^(\d+)\s+(.+)$/.exec(na), ps=/^(\d+)(?:-(\d+))?\s+(.+)$/.exec(ns);
+        if(pa&&ps&&pa[2]===ps[3]){
+          var n=parseInt(pa[1],10), lo=parseInt(ps[1],10), hi=ps[2]?parseInt(ps[2],10):lo;
+          if(lo>hi){var t=lo; lo=hi; hi=t;}
+          if(n>=lo&&n<=hi) hit=true;
+        }
+      }
+      if(!hit && isFinite(lat) && isFinite(lng) && s.lat!=null && s.lng!=null){
+        if(liftDist(lat,lng,s.lat,s.lng)<=120) hit=true;
+      }
+      if(hit) out.push(s);
+    });
+    return out;
+  }
+  function injectLiftBadge(result,address){
+    if(!result || result.querySelector('.lift-badge')) return;
+    var m=result.querySelector('.citywide-result-map');
+    var lat=m?parseFloat(m.getAttribute('data-lat')):NaN, lng=m?parseFloat(m.getAttribute('data-lng')):NaN;
+    var addr=address||(m?m.getAttribute('data-label'):'')||'';
+    liftSites().then(function(sites){
+      var hits=liftMatch(sites,addr,lat,lng);
+      if(!hits.length || !result.isConnected || result.querySelector('.lift-badge')) return;
+      var s=hits[0], units=0;
+      hits.forEach(function(h){ units+=(h.u||0); });
+      var name=LIFT_PLACE[liftNorm(s.addr)] || (hits.length>1 ? s.n.replace(/\s+(Building|Bldg|Phase)\s+\S+$/i,'') : s.n);
+      var bits=[];
+      if(units) bits.push(units.toLocaleString()+' homes planned');
+      if(hits.length>1) bits.push(hits.length+' buildings');
+      if(s.ag) bits.push(s.ag);
+      if(s.st) bits.push(s.st);
+      var box=document.createElement('div');
+      box.className='lift-badge';
+      box.setAttribute('style','margin:10px 0;padding:11px 13px;background:#0d1b4b;border-left:5px solid #f47920;border-radius:9px');
+      box.innerHTML='<div style="font-family:\'DM Mono\',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.1em;color:#f47920;font-weight:700;margin-bottom:5px">On the LIFT list &middot; Block by Block</div>'+
+        '<div style="color:#fff;font-size:.9rem;font-weight:900;line-height:1.3">'+esc(name||'')+'</div>'+
+        '<div style="color:rgba(255,255,255,.78);font-family:\'DM Mono\',monospace;font-size:.68rem;line-height:1.5;margin-top:4px">'+esc(bits.join(' \u00b7 '))+'</div>'+
+        '<a href="/blockbyblock/#foldAllSites" style="display:inline-block;margin-top:9px;background:#f47920;color:#fff;text-decoration:none;font-size:.73rem;font-weight:800;padding:6px 12px;border-radius:16px">See it on Block by Block &rarr;</a>';
+      var first=result.firstElementChild;
+      if(first && first.firstElementChild && first.firstElementChild.nextElementSibling)
+        first.insertBefore(box, first.firstElementChild.nextElementSibling.nextElementSibling);
+      else if(first) first.insertBefore(box, first.firstElementChild);
+      else result.appendChild(box);
+    }).catch(function(){});
+  }
   function injectSiteNote(result){
     if(!result || result.querySelector('.site-note')) return;
     var txt=(result.textContent||'');
@@ -427,7 +499,7 @@
         }
         if(status) status.textContent='Searching full '+(boroughName||'citywide')+' address profile…';
         result.hidden=true; result.innerHTML='';
-        try{var profile=await build(q,{boroughName:boroughName,shortLabel:boroughName}); result.innerHTML=profile.html; result.hidden=false; initResultMap(result); bindShare(result); injectCardBar(result); injectSiteNote(result); stampUrl(q); if(status) status.textContent=profile.status || 'Search complete.';}catch(err){console.error(err); if(status) status.textContent=err&&err.message?err.message:'Address lookup failed. Please try a full NYC street address.'; result.hidden=true; result.innerHTML='';}
+        try{var profile=await build(q,{boroughName:boroughName,shortLabel:boroughName}); result.innerHTML=profile.html; result.hidden=false; initResultMap(result); bindShare(result); injectCardBar(result); injectSiteNote(result); injectLiftBadge(result,q); stampUrl(q); if(status) status.textContent=profile.status || 'Search complete.';}catch(err){console.error(err); if(status) status.textContent=err&&err.message?err.message:'Address lookup failed. Please try a full NYC street address.'; result.hidden=true; result.innerHTML='';}
       }
       input.dataset.fullProfileBound='true';
       if(button && button.dataset.fullProfileBound!=='true'){button.dataset.fullProfileBound='true'; button.addEventListener('click', function(e){e.preventDefault(); e.stopImmediatePropagation(); runFull();}, true);}
