@@ -890,46 +890,83 @@
   // Render the card itself into the PDF so the file looks like what is on screen.
   function cardPdfVisual(result,profile){
     var card=result.querySelector('[data-cardtop]')||result;
-    var hide=[];
-    Array.prototype.forEach.call(card.querySelectorAll('.citywide-share-btn,.citywide-pdf-btn'),function(b){
-      hide.push([b,b.style.display]); b.style.display='none';
+    // Compose a two column sheet off screen, then capture that. Same content as the card,
+    // laid out for a 10.5 x 13 page.
+    var stage=document.createElement('div');
+    stage.setAttribute('style','position:fixed;left:-20000px;top:0;width:1040px;background:#ffffff;'+
+      'font-family:\'DM Sans\',sans-serif;padding:0;z-index:-1');
+    var clone=card.cloneNode(true);
+    clone.style.background='#ffffff';
+    clone.style.border='none';
+    clone.style.borderRadius='0';
+    clone.style.margin='0';
+    clone.style.padding='0';
+    clone.style.columnCount='2';
+    clone.style.columnGap='18px';
+    Array.prototype.forEach.call(clone.children,function(el){
+      el.style.breakInside='avoid';
+      el.style.pageBreakInside='avoid';
+      el.style.marginBottom='10px';
     });
-    return window.html2canvas(card,{backgroundColor:'#ffffff',scale:2,useCORS:true,allowTaint:false,logging:false,
-      imageTimeout:6000,scrollX:0,scrollY:-window.scrollY}).then(function(canvas){
-      hide.forEach(function(h){ h[0].style.display=h[1]; });
-      var jsPDF=window.jspdf.jsPDF;
-      var doc=new jsPDF({unit:'pt',format:'letter'});
-      var W=612,H=792,M=30, cw=W-M*2;
-      var navy=[13,27,75], orange=[244,121,32], muted=[107,103,96];
-      var topH=46, botH=26;
-      var avail=H-topH-botH-14;
-      var input=profile&&profile.input||'';
-
-      // one page: fit the whole card, scaled down if it is taller than the page
-      var scale=Math.min(cw/canvas.width, avail/canvas.height);
-      var drawW=canvas.width*scale, drawH=canvas.height*scale;
-      var x=(W-drawW)/2;
-
-      doc.setFillColor(navy[0],navy[1],navy[2]); doc.rect(0,0,W,36,'F');
-      doc.setFillColor(orange[0],orange[1],orange[2]); doc.rect(0,36,W,3,'F');
-      doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(12);
-      doc.text('Brooklyn Community Board 6', M, 24);
-      doc.setFont('helvetica','normal'); doc.setFontSize(9);
-      doc.setTextColor(orange[0],orange[1],orange[2]);
-      doc.text('ADDRESS CARD  \u00b7  bkcb6.app', W-M, 24, {align:'right'});
-
-      doc.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',x,topH,drawW,drawH);
-
-      doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
-      doc.setTextColor(muted[0],muted[1],muted[2]);
-      doc.text('bkcb6.app/citywide-search.html  \u00b7  Built on public data from the Department of City Planning and NYC Open Data.', M, H-14);
-
-      var name=String(input).replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();
-      doc.save('bkcb6-'+(name||'address-card')+'.pdf');
-    },function(err){
-      hide.forEach(function(h){ h[0].style.display=h[1]; });
-      throw err;
+    Array.prototype.forEach.call(clone.querySelectorAll('.citywide-share-btn,.citywide-pdf-btn'),function(b){
+      var wrap=b.parentNode; if(wrap) wrap.removeChild(b);
     });
+    stage.appendChild(clone);
+    document.body.appendChild(stage);
+
+    // the cloned map is an empty div, so drop a picture of the live one in its place
+    var liveMap=card.querySelector('.citywide-result-map');
+    var cloneMap=clone.querySelector('.citywide-result-map');
+
+    function cleanup(){ if(stage.parentNode) stage.parentNode.removeChild(stage); }
+
+    return window.html2canvas(liveMap||card,{backgroundColor:'#eef2f7',scale:2,useCORS:true,logging:false,imageTimeout:6000})
+      .catch(function(){ return null; })
+      .then(function(mapCanvas){
+        if(cloneMap && mapCanvas){
+          var mi=document.createElement('img');
+          mi.src=mapCanvas.toDataURL('image/jpeg',0.9);
+          mi.style.width='100%'; mi.style.height='auto'; mi.style.display='block';
+          mi.style.borderRadius='8px'; mi.style.border='1px solid #a7f3d0';
+          cloneMap.parentNode.replaceChild(mi,cloneMap);
+        }
+        return window.html2canvas(stage,{backgroundColor:'#ffffff',scale:2,useCORS:true,logging:false,imageTimeout:8000,
+          windowWidth:1040,width:1040});
+      })
+      .then(function(canvas){
+        cleanup();
+        var jsPDF=window.jspdf.jsPDF;
+        // 10.5 x 13 inches, in points
+        var W=756, H=936;
+        var doc=new jsPDF({unit:'pt',format:[W,H]});
+        var navy=[13,27,75], orange=[244,121,32];
+        var topH=58, botH=58, M=18;
+
+        doc.setFillColor(navy[0],navy[1],navy[2]);
+        doc.rect(0,0,W,topH,'F');
+        doc.rect(0,H-botH,W,botH,'F');
+
+        doc.setFont('helvetica','bold'); doc.setFontSize(23); doc.setTextColor(255,255,255);
+        doc.text('CB6', M+6, topH/2+8);
+        var cb6w=doc.getTextWidth('CB6');
+        doc.setFontSize(13); doc.setTextColor(orange[0],orange[1],orange[2]);
+        doc.text('& BEYOND', M+12+cb6w, topH/2+7);
+        doc.setFontSize(24);
+        doc.text('bkcb6.app', W/2, topH/2+9, {align:'center'});
+
+        doc.setFontSize(30);
+        doc.text('bkcb6.app', W/2, H-botH/2+11, {align:'center'});
+
+        var avail=H-topH-botH-M;
+        var cw=W-M*2;
+        var scale=Math.min(cw/canvas.width, avail/canvas.height);
+        var dw=canvas.width*scale, dh=canvas.height*scale;
+        doc.addImage(canvas.toDataURL('image/jpeg',0.93),'JPEG',(W-dw)/2,topH+8,dw,dh);
+
+        var input=profile&&profile.input||'';
+        var name=String(input).replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();
+        doc.save('bkcb6-'+(name||'address-card')+'.pdf');
+      },function(err){ cleanup(); throw err; });
   }
   function bindPdf(result,profile){
     if(!result||!profile) return;
