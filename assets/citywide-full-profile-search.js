@@ -756,7 +756,7 @@
     });
     return pdfLoading;
   }
-  function cardPdf(profile){
+  function cardPdfText(profile){
     var jsPDF=window.jspdf.jsPDF;
     var doc=new jsPDF({unit:'pt',format:'letter'});
     var W=612, M=54, cw=W-M*2, y=0, page=1;
@@ -875,6 +875,65 @@
     var name=String(input).replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();
     doc.save('bkcb6-'+(name||'address-card')+'.pdf');
   }
+  var H2C_LIB='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  var h2cLoading=null;
+  function loadH2C(){
+    if(typeof window.html2canvas!=='undefined') return Promise.resolve();
+    if(h2cLoading) return h2cLoading;
+    h2cLoading=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src=H2C_LIB; s.onload=function(){res();}; s.onerror=function(){rej(new Error('capture library failed'));};
+      document.head.appendChild(s);
+    });
+    return h2cLoading;
+  }
+  // Render the card itself into the PDF so the file looks like what is on screen.
+  function cardPdfVisual(result,profile){
+    var card=result.querySelector('[data-cardtop]')||result;
+    var hide=[];
+    Array.prototype.forEach.call(card.querySelectorAll('.citywide-share-btn,.citywide-pdf-btn'),function(b){
+      hide.push([b,b.style.display]); b.style.display='none';
+    });
+    return window.html2canvas(card,{backgroundColor:'#ffffff',scale:2,useCORS:true,allowTaint:false,logging:false,
+      imageTimeout:6000,scrollX:0,scrollY:-window.scrollY}).then(function(canvas){
+      hide.forEach(function(h){ h[0].style.display=h[1]; });
+      var jsPDF=window.jspdf.jsPDF;
+      var doc=new jsPDF({unit:'pt',format:'letter'});
+      var W=612,H=792,M=36, cw=W-M*2;
+      var navy=[13,27,75], orange=[244,121,32], muted=[107,103,96];
+      var topH=52, botH=34, usable=H-topH-botH-M;
+      var scale=cw/canvas.width;
+      var sliceH=Math.floor((usable)/scale);
+      var pages=Math.max(1,Math.ceil(canvas.height/sliceH));
+      var input=profile&&profile.input||'';
+      for(var i=0;i<pages;i++){
+        if(i) doc.addPage();
+        doc.setFillColor(navy[0],navy[1],navy[2]); doc.rect(0,0,W,40,'F');
+        doc.setFillColor(orange[0],orange[1],orange[2]); doc.rect(0,40,W,3,'F');
+        doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(12);
+        doc.text('Brooklyn Community Board 6', M, 26);
+        doc.setFont('helvetica','normal'); doc.setFontSize(9);
+        doc.setTextColor(orange[0],orange[1],orange[2]);
+        doc.text('ADDRESS CARD  \u00b7  bkcb6.app', W-M, 26, {align:'right'});
+
+        var sy=i*sliceH, sh=Math.min(sliceH,canvas.height-sy);
+        var tmp=document.createElement('canvas');
+        tmp.width=canvas.width; tmp.height=sh;
+        tmp.getContext('2d').drawImage(canvas,0,sy,canvas.width,sh,0,0,canvas.width,sh);
+        doc.addImage(tmp.toDataURL('image/jpeg',0.92),'JPEG',M,topH+8,cw,sh*scale);
+
+        doc.setFont('helvetica','normal'); doc.setFontSize(8);
+        doc.setTextColor(muted[0],muted[1],muted[2]);
+        doc.text('bkcb6.app/citywide-search.html  \u00b7  Built on public data from the Department of City Planning and NYC Open Data.', M, H-24);
+        doc.text('Page '+(i+1)+' of '+pages, W-M, H-24, {align:'right'});
+      }
+      var name=String(input).replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();
+      doc.save('bkcb6-'+(name||'address-card')+'.pdf');
+    },function(err){
+      hide.forEach(function(h){ h[0].style.display=h[1]; });
+      throw err;
+    });
+  }
   function bindPdf(result,profile){
     if(!result||!profile) return;
     var btn=result.querySelector('.citywide-pdf-btn');
@@ -883,8 +942,14 @@
     btn.addEventListener('click',function(){
       var prev=btn.textContent;
       btn.textContent='Building PDF...';
-      loadPdfLib().then(function(){ cardPdf(profile); btn.textContent=prev; })
-        .catch(function(){ btn.textContent='PDF failed'; setTimeout(function(){btn.textContent=prev;},1800); });
+      function done(){ btn.textContent=prev; }
+      Promise.all([loadPdfLib(),loadH2C()])
+        .then(function(){ return cardPdfVisual(result,profile); })
+        .then(done)
+        .catch(function(){
+          try{ cardPdfText(profile); done(); }
+          catch(e){ btn.textContent='PDF failed'; setTimeout(done,1800); }
+        });
     });
   }
   function bindShare(root){
