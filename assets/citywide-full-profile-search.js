@@ -18,12 +18,21 @@
   // Plain-language explanation of what a special purpose district does. Codes verified against PLUTO; text grounded in the NYC Zoning Resolution / DCP.
   var SPECIAL_DISTRICT_EXPLAIN={
     'G':'The Special Gowanus Mixed Use District was created by the 2021 Gowanus rezoning. It pairs residential and light-manufacturing (M1) districts so housing and industry can sit side by side, and is organized into five subdistricts with their own rules. It layers in Mandatory Inclusionary Housing in mapped areas, treats blocks along the Gowanus Canal as waterfront subject to a Waterfront Access Plan, and adds environmental, ground-floor, and streetscape requirements on top of the base zoning.',
+    'MX-11':'This lot sits in Special Mixed Use District MX-11, the Gowanus pairing of an M1 manufacturing district with an R7 residence district. MX districts let residential and light industrial uses share a block, each following its own half of the pair, with performance standards on the industrial side so the two can sit next to each other.',
     'SG':'The Special Gowanus Mixed Use District was created by the 2021 Gowanus rezoning. It pairs residential and light-manufacturing (M1) districts so housing and industry can sit side by side, and is organized into five subdistricts with their own rules. It layers in Mandatory Inclusionary Housing in mapped areas, treats blocks along the Gowanus Canal as waterfront subject to a Waterfront Access Plan, and adds environmental, ground-floor, and streetscape requirements on top of the base zoning.'
   };
+  var SPECIAL_DISTRICT_WHAT='A special purpose district is an extra layer of zoning mapped over the base districts. The City Planning Commission creates one to meet goals in a defined area, and its rules modify, supplement or override the zoning underneath, with the special district controlling wherever the two conflict.';
   function specialDistrictExplain(spDisp,codes){
-    var keys=(codes||[]).map(function(c){return String(c||'').toUpperCase();});
-    for(var i=0;i<keys.length;i++){ if(SPECIAL_DISTRICT_EXPLAIN[keys[i]]) return SPECIAL_DISTRICT_EXPLAIN[keys[i]]; }
-    return 'This lot is in the '+spDisp+' special purpose district. Special purpose districts are created by the City Planning Commission to meet specific planning and urban-design goals in a defined area, and their rules modify, supplement, or override the underlying zoning, with the special-district rules controlling where they conflict.';
+    var keys=[];
+    (codes||[]).forEach(function(c){
+      var v=String(c||'').toUpperCase().trim(); if(!v) return;
+      keys.push(v);
+      var m=v.match(/\(([^)]+)\)/); if(m) keys.push(m[1].trim());
+      keys.push(v.replace(/\s*\([^)]*\)\s*/,'').trim());
+    });
+    for(var i=0;i<keys.length;i++){ if(SPECIAL_DISTRICT_EXPLAIN[keys[i]]) return SPECIAL_DISTRICT_WHAT+' '+SPECIAL_DISTRICT_EXPLAIN[keys[i]]; }
+    for(var j=0;j<keys.length;j++){ if(/GOWANUS/.test(keys[j])) return SPECIAL_DISTRICT_WHAT+' '+SPECIAL_DISTRICT_EXPLAIN.G; }
+    return SPECIAL_DISTRICT_WHAT+' This lot is in the '+spDisp+' special purpose district.';
   }
 
 
@@ -41,7 +50,21 @@
   function fmtNum(value,suffix){var raw=String(value==null?'':value).replace(/,/g,'').trim(); if(!raw) return '—'; var n=Number(raw); return Number.isFinite(n) ? n.toLocaleString() + (suffix||'') : String(value) + (suffix||'');}
   function landUseLabel(code){var key=String(code||'').trim().padStart(2,'0'); return LAND_USE_LABELS[key] ? LAND_USE_LABELS[key] + ' (' + key + ')' : (key && key !== '00' ? 'Land use code ' + key : 'Not available from PLUTO');}
   function landUsePlain(code,label){var key=String(code||'').trim().padStart(2,'0'); var notes={'01':'Low-density residential lots, typically one- and two-family homes.','02':'Walk-up apartment buildings, typically smaller multifamily housing.','03':'Elevator apartment buildings, typically larger multifamily housing.','04':'Mixed-use buildings combining residential units with stores, offices, or other commercial uses.','05':'Commercial or office buildings.','06':'Industrial, warehouse, or manufacturing uses.','07':'Transportation or utility infrastructure.','08':'Public facilities and institutions such as schools, hospitals, houses of worship, or government uses.','09':'Open space or outdoor recreation, including parks and playgrounds.','10':'Parking facilities.','11':'Vacant land.'}; return notes[key] || (label ? label + '.' : 'Land-use detail was not available from PLUTO.');}
-  function zoningPlain(z){z=String(z||'').trim().toUpperCase(); if(!z) return ''; if(/^R/.test(z)) return z+' is a residence district. The number generally indicates permitted density and building form; suffixes refine bulk, height, parking, or contextual rules.'; if(/^C/.test(z)) return z+' is a commercial district. It generally permits retail, office, service, or mixed commercial activity depending on district and overlays.'; if(/^M/.test(z)) return z+' is a manufacturing district. It generally permits industrial, warehouse, production, or certain commercial uses depending on performance standards.'; if(/^PARK$/i.test(z)) return 'Mapped parkland or open-space zoning context.'; return z+' is a mapped zoning district. Check ZoLa for exact controls, overlays, and special district rules.';}
+  function zoneBase(z){z=String(z||'').trim().toUpperCase(); if(!z) return '';
+    if(/^R/.test(z)) return 'a residence district. The number sets permitted density and building form, and any letter suffix refines bulk, height, parking or contextual rules.';
+    if(/^C/.test(z)) return 'a commercial district. It permits retail, office, service or mixed commercial uses depending on the district and any overlay.';
+    if(/^M/.test(z)) return 'a manufacturing district. It permits industrial, warehouse, production and certain commercial uses subject to performance standards.';
+    if(/^PARK$/.test(z)) return 'mapped parkland or open space, not an ordinary zoning district.';
+    return 'a mapped zoning district. Check ZoLa for exact controls, overlays and special district rules.';}
+  function zoningPlain(z){z=String(z||'').trim().toUpperCase(); if(!z) return '';
+    if(z.indexOf('/')>-1){
+      var parts=z.split('/').map(function(x){return x.trim();}).filter(Boolean);
+      var each=parts.map(function(x){return x+' is '+zoneBase(x);}).join(' ');
+      return 'a paired Mixed Use district, two districts mapped together on the same lot rather than one district with a slash in its name. '+each+
+        ' Because both are mapped here, housing and light industry are each allowed, every use governed by its own half of the pair, and a residential building follows the '+
+        (parts.filter(function(x){return /^R/.test(x);})[0]||parts[parts.length-1])+' rules for density, bulk and height. Pairings like this are how the city puts homes and industry on the same block instead of separating them.';
+    }
+    return zoneBase(z);}
   function addZone(items,v){var z=String(v||'').trim().toUpperCase(); if(z && !/^(NA|N\/A|NONE|0)$/.test(z) && items.indexOf(z)===-1) items.push(z);}
   function collectZones(a,p){var items=[]; ['zonedist1','zonedist2','zonedist3','zonedist4'].forEach(function(k){addZone(items,p&&p[k]);}); ['zoningDistrict1','zoningDistrict2','zoningDistrict3','zoningDistrict4'].forEach(function(k){addZone(items,a&&a[k]);}); return items;}
   function knownBoroughName(v){var s=String(v||'').toLowerCase().replace(/[^a-z]/g,''); var map={manhattan:'Manhattan',newyork:'Manhattan',ny:'Manhattan',brooklyn:'Brooklyn',kings:'Brooklyn',bronx:'Bronx',queens:'Queens',statenisland:'Staten Island',richmond:'Staten Island'}; return map[s]||'';}
