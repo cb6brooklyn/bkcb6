@@ -996,6 +996,227 @@
         doc.save('bkcb6-'+(name||'address-card')+'.pdf');
       },function(err){ cleanup(); throw err; });
   }
+  // Draw the sheet natively. No screen capture, so it finishes in well under a second.
+  function pdfImg(url){
+    return new Promise(function(res){
+      var i=new Image();
+      i.crossOrigin='anonymous';
+      i.onload=function(){
+        try{
+          var c=document.createElement('canvas');
+          c.width=i.naturalWidth; c.height=i.naturalHeight;
+          c.getContext('2d').drawImage(i,0,0);
+          res({data:c.toDataURL('image/png'),w:i.naturalWidth,h:i.naturalHeight});
+        }catch(e){ res(null); }
+      };
+      i.onerror=function(){ res(null); };
+      i.src=url;
+    });
+  }
+  function tileMap(lat,lng,zoom,tw,th){
+    return new Promise(function(res){
+      try{
+        var n=Math.pow(2,zoom);
+        var xf=(lng+180)/360*n;
+        var yf=(1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*n;
+        var c=document.createElement('canvas'); c.width=tw; c.height=th;
+        var ctx=c.getContext('2d');
+        ctx.fillStyle='#eef2f7'; ctx.fillRect(0,0,tw,th);
+        var cx=tw/2, cy=th/2, pending=0, finished=false;
+        var x0=Math.floor(xf-(cx/256))-1, x1=Math.floor(xf+(cx/256))+1;
+        var y0=Math.floor(yf-(cy/256))-1, y1=Math.floor(yf+(cy/256))+1;
+        function done(){
+          if(finished) return; finished=true;
+          ctx.beginPath(); ctx.arc(cx,cy,7,0,Math.PI*2);
+          ctx.fillStyle='#f47920'; ctx.fill();
+          ctx.lineWidth=3; ctx.strokeStyle='#ffffff'; ctx.stroke();
+          var url=null;
+          try{ url=c.toDataURL('image/jpeg',0.85); }catch(e){ url=null; }
+          res(url?{data:url,w:tw,h:th}:null);
+        }
+        var timer=setTimeout(done,2200);
+        for(var x=x0;x<=x1;x++){
+          for(var y=y0;y<=y1;y++){
+            if(y<0||y>=n) continue;
+            pending++;
+            (function(tx,ty){
+              var img=new Image(); img.crossOrigin='anonymous';
+              img.onload=function(){
+                ctx.drawImage(img, cx+(tx-xf)*256, cy+(ty-yf)*256, 256, 256);
+                if(--pending===0){ clearTimeout(timer); done(); }
+              };
+              img.onerror=function(){ if(--pending===0){ clearTimeout(timer); done(); } };
+              img.src='https://a.basemaps.cartocdn.com/light_all/'+zoom+'/'+((tx%n)+n)%n+'/'+ty+'.png';
+            })(x,y);
+          }
+        }
+        if(!pending){ clearTimeout(timer); done(); }
+      }catch(e){ res(null); }
+    });
+  }
+  function cardPdfNative(profile){
+    var a=profile.address||{}, pluto=profile.pluto||{}, input=profile.input||'';
+    var near=profile.nearby||{};
+    var cb=validCommunityBoardCode(profile.foundCd)?String(profile.foundCd):String(a.communityDistrict||pluto.cd||'');
+    var cbLabel=validCommunityBoardCode(cb)?boardLabel(cb):'Community Board not identified';
+    var zones=collectZones(a,pluto), zDisp=zones.length?zones.join(' / '):'Not available from PLUTO';
+    var spDists=collectSpecialDistricts(pluto), spDisp=spDists.length?spDists.join(' / '):'';
+    var lUse=landUseLabel(pluto.landuse);
+    var akaHit=AKA[liftNorm(input)], aka='';
+    if(akaHit) aka=(typeof akaHit==='object')?(akaHit.full||('aka '+(akaHit.text||''))):('aka '+akaHit);
+    var akaBg=(akaHit&&typeof akaHit==='object'&&akaHit.bg)?akaHit.bg:'#0d1b4b';
+    var siteIcon=SITE_ICON[liftNorm(input)]||null;
+    var boardShort=validCommunityBoardCode(cb)?BOROUGH_SHORT[cb.charAt(0)]:'';
+    var boardNum=validCommunityBoardCode(cb)?parseInt(cb.slice(1),10):0;
+    var logoUrl=(cb==='306')?'/cb6-logo-card.png':(boardShort&&boardNum?'/banners/banner-'+boardShort+'-'+boardNum+'.png':'');
+    var lat=parseFloat(profile.lat), lng=parseFloat(profile.lng);
+
+    return Promise.all([
+      logoUrl?pdfImg(logoUrl):Promise.resolve(null),
+      siteIcon?pdfImg(siteIcon.src):Promise.resolve(null),
+      (isFinite(lat)&&isFinite(lng))?tileMap(lat,lng,16,640,420):Promise.resolve(null)
+    ]).then(function(assets){
+      var logo=assets[0], icon=assets[1], map=assets[2];
+      var jsPDF=window.jspdf.jsPDF;
+      var W=756,H=936;
+      var doc=new jsPDF({unit:'pt',format:[W,H]});
+      var haveFonts=applyPdfFonts(doc);
+      var NAVY=[13,27,75], ORANGE=[244,121,32], INK=[51,51,51], MUTED=[107,103,96];
+      var M=26, topH=58, botH=58;
+      var colGap=18, colW=(W-M*2-colGap)/2;
+      var Lx=M, Rx=M+colW+colGap;
+      var ly=topH+22, ry=topH+22;
+
+      function sans(sz,color){ doc.setFont(haveFonts?'DMSans':'helvetica','bold'); doc.setFontSize(sz);
+        doc.setTextColor(color[0],color[1],color[2]); }
+      function mono(sz,color){ doc.setFont(haveFonts?'DMMono':'helvetica','normal'); doc.setFontSize(sz);
+        doc.setTextColor(color[0],color[1],color[2]); }
+      function body(sz,color){ doc.setFont('helvetica','normal'); doc.setFontSize(sz);
+        doc.setTextColor(color[0],color[1],color[2]); }
+      function hex(h){ h=String(h).replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
+
+      // bands
+      doc.setFillColor(NAVY[0],NAVY[1],NAVY[2]);
+      doc.rect(0,0,W,topH,'F'); doc.rect(0,H-botH,W,botH,'F');
+      sans(25,[255,255,255]); doc.text('CB6', M, topH/2+9);
+      var cw6=doc.getTextWidth('CB6');
+      mono(13,ORANGE); doc.text('& BEYOND', M+8+cw6, topH/2+8);
+      sans(25,ORANGE); doc.text('bkcb6.app', W/2, topH/2+10, {align:'center'});
+      sans(31,ORANGE); doc.text('bkcb6.app', W/2, H-botH/2+10, {align:'center'});
+
+      // ---- left column ----
+      sans(19,NAVY);
+      doc.splitTextToSize(input, colW).forEach(function(ln){ doc.text(ln, Lx, ly); ly+=23; });
+      if(aka){
+        var pf=hex(akaBg);
+        sans(12,[255,255,255]);
+        var tw=doc.getTextWidth(aka);
+        doc.setFillColor(pf[0],pf[1],pf[2]);
+        doc.roundedRect(Lx, ly-12, Math.min(tw+24, colW), 24, 12,12,'F');
+        doc.text(aka, Lx+12, ly+4);
+        ly+=34;
+      }
+      sans(13,NAVY); doc.text('is in '+cbLabel, Lx, ly); ly+=24;
+
+      var zh=spDists.length?96:78;
+      doc.setFillColor(NAVY[0],NAVY[1],NAVY[2]);
+      doc.roundedRect(Lx,ly,colW,zh,7,7,'F');
+      mono(10,ORANGE); doc.text('ZONED', Lx+14, ly+22);
+      sans(30,[255,255,255]); doc.text(zDisp, Lx+14, ly+56);
+      if(spDists.length){ mono(9,[201,210,230]); doc.text('in the '+spDisp+' special district', Lx+14, ly+80); }
+      ly+=zh+14;
+
+      var gap=zoneUseNote(zones[0],pluto.landuse);
+      if(gap){
+        body(9,INK);
+        var gl=doc.splitTextToSize(gap.head+': '+gap.text, colW-22);
+        var gh=gl.length*12+18;
+        doc.setFillColor(255,248,242); doc.rect(Lx,ly,colW,gh,'F');
+        doc.setFillColor(ORANGE[0],ORANGE[1],ORANGE[2]); doc.rect(Lx,ly,4,gh,'F');
+        body(9,INK);
+        gl.forEach(function(ln,i){ doc.text(ln, Lx+14, ly+16+i*12); });
+        ly+=gh+14;
+      }
+
+      if(map&&map.data){
+        var mh=colW*map.h/map.w;
+        doc.addImage(map.data,'JPEG',Lx,ly,colW,mh,undefined,'FAST');
+        doc.setDrawColor(167,243,208); doc.roundedRect(Lx,ly,colW,mh,6,6,'S');
+        ly+=mh+14;
+      }
+
+      function svc(label,item,nameFn,detailFn){
+        if(!item) return;
+        var p=item.properties||{}, v=(nameFn?nameFn(p):'')||label;
+        var d=distLabel(item.distanceFeet), det=detailFn?detailFn(p):'';
+        if(d) v+=' \u00b7 '+d; if(det) v+=' \u00b7 '+det;
+        var lines=doc.splitTextToSize(v, colW-20);
+        var h=18+lines.length*12;
+        doc.setDrawColor(229,226,219); doc.roundedRect(Lx,ly,colW,h,5,5,'S');
+        mono(7.5,MUTED); doc.text(String(label).toUpperCase(), Lx+10, ly+13);
+        sans(9.5,NAVY); lines.forEach(function(ln,i){ doc.text(ln, Lx+10, ly+26+i*12); });
+        ly+=h+7;
+      }
+      svc('Closest park',near.park,function(p){return p.signname||p.name311||'Park';},function(p){return p.typecategory||'';});
+      svc('Closest subway',near.subway,function(p){return p.display_name||p.stop_name||'Subway';},function(p){return p.daytime_routes||p.routes||'';});
+      svc('Closest bus stop',near.bus,function(p){var r=Array.isArray(p.routes)?p.routes.join(', '):(p.routes||''); return (r?r+' \u00b7 ':'')+(p.stop_name||'Bus stop');});
+      svc('Closest citi bike',near.citibike,function(p){return p.name||'Citi Bike';},function(p){return p.short_name||'';});
+
+      // ---- right column ----
+      var logoH=0;
+      if(logo&&logo.data){ logoH=Math.min(96, colW*0.42*logo.h/logo.w);
+        var lw=logoH*logo.w/logo.h;
+        doc.addImage(logo.data,'PNG',Rx+colW-lw,ry,lw,logoH); }
+      if(icon&&icon.data){ var ih=Math.min(72, colW*0.42*icon.h/icon.w), iw=ih*icon.w/icon.h;
+        doc.addImage(icon.data,'PNG',Rx+colW-iw,ry+logoH+8,iw,ih); ry+=logoH+ih+18; }
+      else ry+=logoH+16;
+
+      function tile(k,v,x,w){
+        if(v===undefined||v===null||v==='') return 0;
+        var lines=doc.splitTextToSize(String(v), w-18);
+        var h=18+lines.length*13+6;
+        doc.setDrawColor(229,226,219); doc.roundedRect(x,ry,w,h,5,5,'S');
+        mono(7.5,MUTED); doc.text(String(k).toUpperCase(), x+9, ry+13);
+        sans(10,NAVY); lines.forEach(function(ln,i){ doc.text(ln, x+9, ry+27+i*13); });
+        return h;
+      }
+      var half=(colW-8)/2;
+      function pair(k1,v1,k2,v2){
+        var h1=tile(k1,v1,Rx,half), h2=tile(k2,v2,Rx+half+8,half);
+        var h=Math.max(h1,h2); if(h) ry+=h+8;
+      }
+      pair('Owner', pluto.ownername||pluto.owner||'', 'Community board', cbLabel);
+      pair('Borough', pluto.borough||a.firstBoroughName||'', 'Year built', pluto.yearbuilt||'');
+      pair('Land use', lUse, 'Lot area', fmtNum(pluto.lotarea,' sq ft'));
+      pair('Total units', fmtNum(pluto.unitstotal,''), 'Council district', districtNumber(a.cityCouncilDistrict));
+      ry+=6;
+
+      var bases=baseDistricts(zones[0]);
+      if(USEMATRIX && bases.length){
+        sans(12,NAVY);
+        doc.text('What can be built here \u00b7 '+(bases.length>1?zones[0]:bases[0])+' rules', Rx, ry); ry+=16;
+        var RANK={N:0,S:1,L:2,Y:3};
+        USEMATRIX.goals.filter(function(g){return USE_SHOW.indexOf(g.id)>-1;}).forEach(function(g){
+          if(ry>H-botH-30) return;
+          var row=USEMATRIX.matrix[g.ug]; if(!row) return;
+          var vs=bases.map(function(b){return row[b]||null;}).filter(Boolean);
+          if(!vs.length) return;
+          var v=vs.sort(function(x,y){return RANK[y]-RANK[x];})[0];
+          var bg=hex(USE_BG[v]), fg=hex(USE_FG[v]);
+          var lab=g.q.replace(/^I want to /,''); lab=lab.charAt(0).toUpperCase()+lab.slice(1);
+          doc.setFillColor(bg[0],bg[1],bg[2]);
+          doc.roundedRect(Rx,ry,78,17,4,4,'F');
+          sans(8,fg); doc.text(USE_LBL[v], Rx+39, ry+11.5, {align:'center'});
+          sans(10,NAVY); doc.text(lab, Rx+86, ry+12);
+          ry+=22;
+          doc.setDrawColor(240,237,232); doc.line(Rx,ry-4,Rx+colW,ry-4);
+        });
+      }
+
+      var name=String(input).replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();
+      doc.save('bkcb6-'+(name||'address-card')+'.pdf');
+    });
+  }
   function bindPdf(result,profile){
     if(!result||!profile) return;
     var btn=result.querySelector('.citywide-pdf-btn');
@@ -1009,8 +1230,8 @@
       },900);
       btn.textContent='Building PDF...';
       function done(){ clearInterval(ticker); btn.textContent=prev; }
-      Promise.all([loadPdfLib(),loadH2C(),loadPdfFonts()])
-        .then(function(){ return cardPdfVisual(result,profile); })
+      Promise.all([loadPdfLib(),loadPdfFonts()])
+        .then(function(){ return cardPdfNative(profile); })
         .then(done)
         .catch(function(){
           try{ cardPdfText(profile); done(); }
