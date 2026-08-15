@@ -380,7 +380,7 @@
 
     }
     var cards=mini(zones.length>1?'Zoning Districts':'Zoning District',zDisp)+(spDists.length?mini(spDists.length>1?'Special Districts':'Special District',spDisp):'')+mini('Land Use',lUse)+mini('Landmark Status',historic)+mini('Election District',Number.isFinite(ed)?ed:'—')+mini('Assembly',repLabel('state_assembly',ad,'Assembly District'))+mini('City Council',repLabel('city_council',council,'Council District'))+mini('State Senate',repLabel('state_senate',senate,'State Senate District'))+mini('Congress',repLabel('congress',cong,'Congressional District'))+mini('School District',school?'CSD '+school:'—')+mini('Police Precinct',police?police+' Precinct':'—')+mini('Zoning Code Explanation',zones.length?zones.map(function(z){return z+': '+zoningPlain(z);}).join(' / '):'Check ZoLa for exact district controls.')+mini('Use Group Explanation',landUsePlain(pluto.landuse,lUse))+propertyMini('Owner',pluto.ownername||pluto.owner||a.ownerName||a.ownername)+mini('Community Board',cbLabel)+mini('Borough',pluto.borough||a.firstBoroughName||BOROUGH_NAMES[b]||'—')+propertyMini('Year Built',fmtNum(pluto.yearbuilt,''))+propertyMini('Building Class',pluto.bldgclass)+propertyMini('Lot Area',fmtNum(pluto.lotarea,' sq ft'))+propertyMini('Building Area',fmtNum(pluto.bldgarea,' sq ft'))+propertyMini('Residential Units',fmtNum(pluto.unitsres,''))+propertyMini('Total Units',fmtNum(pluto.unitstotal,'')); return '<div data-cardtop style="scroll-margin-top:12px;position:relative;background:#f0f8f4;border:1.5px solid #a7f3d0;border-radius:8px;padding:12px 14px;margin-top:4px"><div data-cardaddr style="font-size:1.15rem;font-weight:900;line-height:1.2;color:var(--navy,#0d1b4b)">'+esc(input)+'</div><div style="font-size:.95rem;font-weight:600;line-height:1.35;color:var(--navy,#0d1b4b);margin-top:3px">is in <strong style="font-weight:900">'+esc(cbLabel)+'</strong></div><div style="display:flex;align-items:flex-start;gap:10px;margin:10px 0 9px"><div style="flex:1;min-width:0;background:#0d1b4b;border-radius:7px;padding:11px 13px;align-self:stretch"><div style="font-family:\'DM Mono\',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:#f47920;font-weight:700">zoned</div><div style="font-size:1.9rem;font-weight:900;line-height:1.12;color:#fff;margin-top:3px;word-break:break-word">'+esc(zones.length?zDisp:'Not available from PLUTO')+'</div>'+(zones.length?'<a href="#" data-zoomto="1" style="display:inline-block;margin-top:6px;font-size:.72rem;font-weight:700;color:#fff;opacity:.85;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.5)">See what this means &rarr;</a>':'')+(spDists.length?'<div style="font-family:\'DM Mono\',monospace;font-size:.66rem;color:rgba(255,255,255,.82);margin-top:5px">in the '+esc(spDisp)+' special district</div>':'')+'</div>'+cardLogo+'</div><div style="font-size:.75rem;color:var(--muted,#6b6760);margin-bottom:8px">ED '+(Number.isFinite(ed)?ed:'—')+' &middot; AD '+(Number.isFinite(ad)?ad:'—')+(council?' &middot; Council District '+esc(council):'')+(senate?' &middot; State Senate District '+esc(senate):'')+(cong?' &middot; Congressional District '+esc(cong):'')+(school?' &middot; School District '+esc(school):'')+(police?' &middot; Police Precinct '+esc(police):'')+'</div><div class="citywide-result-map" data-lat="'+lat+'" data-lng="'+lng+'" data-label="'+esc(input)+'" style="height:240px;border-radius:8px;border:1px solid #a7f3d0;margin-bottom:10px;background:#eef2f7"></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:10px">'+cards+'</div><div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px;font-size:.73rem;line-height:1.45;color:var(--navy,#0d1b4b)"><div><strong>Zoning:</strong> '+(zones.length?zones.map(function(z){return '<strong>'+esc(z)+'</strong>: '+esc(zoningPlain(z));}).join('<br>'):'Zoning was not available from PLUTO for this address.')+'</div><div style="margin-top:5px"><strong>Land use:</strong> '+esc(landUsePlain(pluto.landuse,lUse))+'</div>'+(function(){var g=zoneUseNote(zones[0],pluto.landuse); if(!g) return '';
-      return '<div style="margin-top:6px;padding:7px 9px;background:'+(g.ok?'#f4f8f4':'#fff8f2')+';border-left:3px solid '+(g.ok?'#2e6b30':'#f47920')+';border-radius:0 5px 5px 0"><strong>'+g.head+':</strong> '+esc(g.text)+'</div>';})()+''+(spDists.length?'<div style="margin-top:5px"><strong>Special district:</strong> '+esc(specialDistrictExplain(spDisp,[pluto.spdist1,pluto.spdist2,pluto.spdist3]))+'</div>':'')+(hd.length?'<div style="margin-top:5px"><strong>Historic district:</strong> This is in a historic district, so exterior changes usually need LPC review.</div>':'')+'</div>'+facilitiesHtml(facs,zones,pluto.overlay1||pluto.overlay2||'')+'<div data-usegrid="'+esc(baseDistricts(zones[0]).join(','))+'" data-zone="'+esc(zones[0]||'')+'" style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px"></div>'+nearbyHtml(n)+'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"><a href="'+dob+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">DOB BIS</a><a href="'+zap+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">ZAP Projects</a><a href="'+acris+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">ACRIS Deeds</a><a href="'+zola+'" target="_blank" style="font-size:.73rem;font-weight:600;color:#2e7d32;text-decoration:none;padding:5px 10px;border:1px solid #a5d6a7;border-radius:5px;background:#f1f8f1">ZoLa Zoning</a><a href="https://maps.google.com/?q='+lat+','+lng+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">Map</a><button type="button" class="citywide-share-btn" data-share-address="'+esc(input)+'" style="font-size:.73rem;font-weight:700;color:#fff;cursor:pointer;padding:5px 12px;border:1px solid var(--orange,#FD890E);border-radius:5px;background:var(--orange,#FD890E)">Share card</button></div><div style="border-top:1px solid #d1fae5;padding-top:8px;display:flex;flex-wrap:wrap;gap:12px"><a href="'+(boardSlug(cb)?boardSlug(cb)+'?addr='+enc+'#sec-map':'mydistricts.html?address='+enc)+'" style="font-size:.75rem;color:var(--navy,#0d1b4b);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy,#0d1b4b)">Open '+esc(cbLabel)+' district profile &rarr;</a></div></div>';}
+      return '<div style="margin-top:6px;padding:7px 9px;background:'+(g.ok?'#f4f8f4':'#fff8f2')+';border-left:3px solid '+(g.ok?'#2e6b30':'#f47920')+';border-radius:0 5px 5px 0"><strong>'+g.head+':</strong> '+esc(g.text)+'</div>';})()+''+(spDists.length?'<div style="margin-top:5px"><strong>Special district:</strong> '+esc(specialDistrictExplain(spDisp,[pluto.spdist1,pluto.spdist2,pluto.spdist3]))+'</div>':'')+(hd.length?'<div style="margin-top:5px"><strong>Historic district:</strong> This is in a historic district, so exterior changes usually need LPC review.</div>':'')+'</div>'+facilitiesHtml(facs,zones,pluto.overlay1||pluto.overlay2||'')+'<div data-usegrid="'+esc(baseDistricts(zones[0]).join(','))+'" data-zone="'+esc(zones[0]||'')+'" style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px"></div>'+nearbyHtml(n)+'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"><a href="'+dob+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">DOB BIS</a><a href="'+zap+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">ZAP Projects</a><a href="'+acris+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">ACRIS Deeds</a><a href="'+zola+'" target="_blank" style="font-size:.73rem;font-weight:600;color:#2e7d32;text-decoration:none;padding:5px 10px;border:1px solid #a5d6a7;border-radius:5px;background:#f1f8f1">ZoLa Zoning</a><a href="https://maps.google.com/?q='+lat+','+lng+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">Map</a><button type="button" class="citywide-share-btn" data-share-address="'+esc(input)+'" style="font-size:.73rem;font-weight:700;color:#fff;cursor:pointer;padding:5px 12px;border:1px solid var(--orange,#FD890E);border-radius:5px;background:var(--orange,#FD890E)">Share card</button><button type="button" class="citywide-pdf-btn" style="font-size:.73rem;font-weight:700;color:var(--navy,#0d1b4b);cursor:pointer;padding:5px 12px;border:1px solid var(--navy,#0d1b4b);border-radius:5px;background:#fff">Download PDF</button></div><div style="border-top:1px solid #d1fae5;padding-top:8px;display:flex;flex-wrap:wrap;gap:12px"><a href="'+(boardSlug(cb)?boardSlug(cb)+'?addr='+enc+'#sec-map':'mydistricts.html?address='+enc)+'" style="font-size:.75rem;color:var(--navy,#0d1b4b);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy,#0d1b4b)">Open '+esc(cbLabel)+' district profile &rarr;</a></div></div>';}
   async function nyzdQuery(geomObj,geomType){
     var url='https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=ZONEDIST&returnGeometry=false&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(geomObj))+'&geometryType='+geomType+'&inSR=4326&spatialRel=esriSpatialRelIntersects&f=json&resultRecordCount=20';
     var d=await fetchJsonOptional(url);
@@ -743,6 +743,150 @@
     var main=document.querySelector('main')||document.body;
     if(main && result.parentNode){ main.insertBefore(result,main.firstChild); result.dataset.cardHoisted='true'; }
   }
+  // ---- download the card as a PDF ----
+  var PDF_LIB='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  var pdfLoading=null;
+  function loadPdfLib(){
+    if(typeof window.jspdf!=='undefined') return Promise.resolve();
+    if(pdfLoading) return pdfLoading;
+    pdfLoading=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src=PDF_LIB; s.onload=function(){res();}; s.onerror=function(){rej(new Error('PDF library failed to load'));};
+      document.head.appendChild(s);
+    });
+    return pdfLoading;
+  }
+  function cardPdf(profile){
+    var jsPDF=window.jspdf.jsPDF;
+    var doc=new jsPDF({unit:'pt',format:'letter'});
+    var W=612, M=54, cw=W-M*2, y=0, page=1;
+    var navy=[13,27,75], orange=[244,121,32], ink=[51,51,51], muted=[107,103,96];
+
+    var a=profile.address||{}, pluto=profile.pluto||{}, input=profile.input||'';
+    var cb=validCommunityBoardCode(profile.foundCd)?String(profile.foundCd):String(a.communityDistrict||pluto.cd||'');
+    var cbLabel=validCommunityBoardCode(cb)?boardLabel(cb):'Community Board not identified';
+    var zones=collectZones(a,pluto), zDisp=zones.length?zones.join(' / '):'Not available from PLUTO';
+    var spDists=collectSpecialDistricts(pluto), spDisp=spDists.length?spDists.join(' / '):'';
+    var lUse=landUseLabel(pluto.landuse);
+    var bbl=normalizeBbl(a.bbl)||normalizeBbl(pluto.bbl);
+    var akaHit=AKA[liftNorm(input)], aka='';
+    if(akaHit) aka=(typeof akaHit==='object')?(akaHit.full||('aka '+(akaHit.text||''))):('aka '+akaHit);
+
+    function band(){
+      doc.setFillColor(navy[0],navy[1],navy[2]); doc.rect(0,0,W,46,'F');
+      doc.setFillColor(orange[0],orange[1],orange[2]); doc.rect(0,46,W,3,'F');
+      doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(13);
+      doc.text('Brooklyn Community Board 6', M, 30);
+      doc.setFont('helvetica','normal'); doc.setFontSize(9);
+      doc.setTextColor(orange[0],orange[1],orange[2]);
+      doc.text('ADDRESS CARD  \u00b7  bkcb6.app', W-M, 30, {align:'right'});
+    }
+    function foot(){
+      doc.setFont('helvetica','normal'); doc.setFontSize(8);
+      doc.setTextColor(muted[0],muted[1],muted[2]);
+      doc.text('Built on public data from the Department of City Planning, NYC Open Data and Geoclient.', M, 762);
+      doc.text('bkcb6.app/citywide-search.html', M, 774);
+      doc.text('Page '+page, W-M, 774, {align:'right'});
+    }
+    function newPage(){ foot(); doc.addPage(); page++; band(); y=78; }
+    function room(h){ if(y+h>736) newPage(); }
+    function h2(t){
+      room(30); doc.setFont('helvetica','bold'); doc.setFontSize(11);
+      doc.setTextColor(navy[0],navy[1],navy[2]); doc.text(t, M, y); y+=6;
+      doc.setDrawColor(229,226,219); doc.line(M,y,W-M,y); y+=14;
+    }
+    function para(t,size){
+      if(!t) return;
+      doc.setFont('helvetica','normal'); doc.setFontSize(size||9.5);
+      doc.setTextColor(ink[0],ink[1],ink[2]);
+      var lines=doc.splitTextToSize(String(t), cw);
+      lines.forEach(function(ln){ room(14); doc.text(ln, M, y); y+=13; });
+      y+=5;
+    }
+    function row(k,v){
+      if(v===undefined||v===null||v==='') return;
+      room(15);
+      doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(muted[0],muted[1],muted[2]);
+      doc.text(String(k).toUpperCase(), M, y);
+      doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(ink[0],ink[1],ink[2]);
+      var lines=doc.splitTextToSize(String(v), cw-150);
+      doc.text(lines[0], M+150, y);
+      y+=13;
+      for(var i=1;i<lines.length;i++){ room(13); doc.text(lines[i], M+150, y); y+=13; }
+      y+=3;
+    }
+
+    band(); y=80;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(19); doc.setTextColor(navy[0],navy[1],navy[2]);
+    doc.splitTextToSize(input, cw).forEach(function(ln){ doc.text(ln, M, y); y+=23; });
+    if(aka){ doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(orange[0],orange[1],orange[2]); doc.text(aka, M, y); y+=17; }
+    doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(navy[0],navy[1],navy[2]);
+    doc.text('is in '+cbLabel, M, y); y+=22;
+
+    // zoning band
+    var bandH=spDists.length?76:60;
+    room(bandH+10);
+    doc.setFillColor(navy[0],navy[1],navy[2]); doc.roundedRect(M,y,cw,bandH,6,6,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(orange[0],orange[1],orange[2]);
+    doc.text('ZONED', M+16, y+20);
+    doc.setFontSize(22); doc.setTextColor(255,255,255);
+    doc.text(zDisp, M+16, y+45);
+    if(spDists.length){
+      doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(201,210,230);
+      doc.text('in the '+spDisp+' special district', M+16, y+64);
+    }
+    y+=bandH+20;
+
+    h2('Districts');
+    row('Community Board', cbLabel);
+    row('Election District', a.electionDistrict||'');
+    row('Assembly District', districtNumber(a.assemblyDistrict));
+    row('Council District', districtNumber(a.cityCouncilDistrict));
+    row('State Senate District', districtNumber(a.stateSenatorialDistrict));
+    row('Congressional District', districtNumber(a.congressionalDistrict));
+    row('School District', districtNumber(addressValue(a,['communitySchoolDistrict','schoolDistrict','schoolDistrictNumber'])||pluto.schooldist));
+    row('Police Precinct', districtNumber(addressValue(a,['policePrecinct','policePrecinctCode','nycPolicePrecinct'])||pluto.policeprct));
+
+    h2('The lot');
+    row('BBL', bbl);
+    row('Borough, block, lot', bbl?(BOROUGH_NAMES[bbl.slice(0,1)]||'')+', block '+parseInt(bbl.slice(1,6),10)+', lot '+parseInt(bbl.slice(6,10),10):'');
+    row('Zoning district', zDisp);
+    if(spDists.length) row('Special district', spDisp);
+    row('Land use', lUse);
+    row('Owner', pluto.ownername||pluto.owner||'');
+    row('Year built', pluto.yearbuilt||'');
+    row('Building class', pluto.bldgclass||'');
+    row('Lot area', fmtNum(pluto.lotarea,' sq ft'));
+    row('Building area', fmtNum(pluto.bldgarea,' sq ft'));
+    row('Residential units', fmtNum(pluto.unitsres,''));
+    row('Total units', fmtNum(pluto.unitstotal,''));
+    var hd=(profile.landmarkStatus&&profile.landmarkStatus.historicDistricts)||[];
+    row('Landmark status', hd.length?hd.join(' / '):'Not in an LPC historic district');
+
+    h2('What the zoning means');
+    zones.forEach(function(z){ para(z+': '+zoningPlain(z)); });
+    para('Land use: '+landUsePlain(pluto.landuse,lUse));
+    var gap=zoneUseNote(zones[0],pluto.landuse);
+    if(gap) para(gap.head+': '+gap.text);
+    if(spDists.length) para('Special district: '+specialDistrictExplain(spDisp,[pluto.spdist1,pluto.spdist2,pluto.spdist3]));
+
+    foot();
+    var name=String(input).replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();
+    doc.save('bkcb6-'+(name||'address-card')+'.pdf');
+  }
+  function bindPdf(result,profile){
+    if(!result||!profile) return;
+    var btn=result.querySelector('.citywide-pdf-btn');
+    if(!btn||btn.dataset.pdfBound==='true') return;
+    btn.dataset.pdfBound='true';
+    btn.addEventListener('click',function(){
+      var prev=btn.textContent;
+      btn.textContent='Building PDF...';
+      loadPdfLib().then(function(){ cardPdf(profile); btn.textContent=prev; })
+        .catch(function(){ btn.textContent='PDF failed'; setTimeout(function(){btn.textContent=prev;},1800); });
+    });
+  }
   function bindShare(root){
     if(!root) return;
     Array.prototype.forEach.call(root.querySelectorAll('.citywide-share-btn'),function(btn){
@@ -798,7 +942,7 @@
         }
         if(status) status.textContent='Searching full '+(boroughName||'citywide')+' address profile…';
         result.hidden=true; result.innerHTML='';
-        try{var profile=await build(q,{boroughName:boroughName,shortLabel:boroughName}); result.innerHTML=profile.html; result.hidden=false; initResultMap(result); bindShare(result); injectCardBar(result); injectSiteNote(result); injectLiftBadge(result,q); injectAliasLine(result,LAST_PLACE,q); bindZoneLink(result); stampUrl(q); if(status) status.textContent=profile.status || 'Search complete.'; try{ setTimeout(function(){ var t=result.querySelector('[data-cardtop]')||result; t.scrollIntoView({block:'start',behavior:'smooth'}); },60); }catch(e){}}catch(err){console.error(err); if(status) status.textContent=err&&err.message?err.message:'Address lookup failed. Please try a full NYC street address.'; result.hidden=true; result.innerHTML='';}
+        try{var profile=await build(q,{boroughName:boroughName,shortLabel:boroughName}); result.innerHTML=profile.html; result.hidden=false; initResultMap(result); bindShare(result); injectCardBar(result); injectSiteNote(result); injectLiftBadge(result,q); injectAliasLine(result,LAST_PLACE,q); bindZoneLink(result); bindPdf(result,profile); stampUrl(q); if(status) status.textContent=profile.status || 'Search complete.'; try{ setTimeout(function(){ var t=result.querySelector('[data-cardtop]')||result; t.scrollIntoView({block:'start',behavior:'smooth'}); },60); }catch(e){}}catch(err){console.error(err); if(status) status.textContent=err&&err.message?err.message:'Address lookup failed. Please try a full NYC street address.'; result.hidden=true; result.innerHTML='';}
       }
       input.dataset.fullProfileBound='true';
       if(button && button.dataset.fullProfileBound!=='true'){button.dataset.fullProfileBound='true'; button.addEventListener('click', function(e){e.preventDefault(); e.stopImmediatePropagation(); runFull();}, true);}
