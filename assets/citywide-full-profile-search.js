@@ -561,19 +561,24 @@
     '24-64 KANE ST':'Brooklyn Marine Terminal, or the BMT',
     '435 HOYT ST':'Gowanus Green, on the site long known as Public Place',
     '250 BALTIC ST':{full:'Location of the CB6 district office'},
-    '1 E 161 ST':'Yankee Stadium'
+    '1 E 161 ST':{text:'Yankee Stadium',bg:'#021B44',fg:'#ffffff'}
   };
   function injectAliasLine(result,placeName,address){
     if(!result) return;
     var head=result.querySelector('[data-cardaddr]');
     if(!head||result.querySelector('[data-cardalias]')) return;
-    var hit=AKA[liftNorm(address)], text=hit||placeName, full='';
-    if(hit&&typeof hit==='object'){ full=hit.full; text=''; }
+    var hit=AKA[liftNorm(address)], text=hit||placeName, full='', bg='', fg='';
+    if(hit&&typeof hit==='object'){ full=hit.full||''; text=hit.text||''; bg=hit.bg||''; fg=hit.fg||''; }
     if(!text&&!full) return;
     var d=document.createElement('div');
     d.setAttribute('data-cardalias','');
-    d.setAttribute('style','font-size:.9rem;font-weight:700;line-height:1.35;color:var(--orange,#f47920);margin-top:2px');
-    d.textContent=full||('aka '+text);
+    d.setAttribute('style','font-size:.9rem;font-weight:700;line-height:1.35;margin-top:4px'+(bg?'':';color:var(--orange,#f47920)'));
+    if(bg){
+      d.innerHTML='<span style="display:inline-block;background:'+bg+';color:'+fg+';border:1.5px solid '+bg+
+        ';padding:3px 11px;border-radius:14px;font-weight:900;letter-spacing:.01em">'+esc(full||('aka '+text))+'</span>';
+    } else {
+      d.textContent=full||('aka '+text);
+    }
     head.parentNode.insertBefore(d, head.nextSibling);
   }
   function injectLiftBadge(result,address){
