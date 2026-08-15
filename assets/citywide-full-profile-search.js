@@ -561,7 +561,7 @@
     '24-64 KANE ST':'Brooklyn Marine Terminal, or the BMT',
     '435 HOYT ST':'Gowanus Green, on the site long known as Public Place',
     '250 BALTIC ST':{full:'Location of the CB6 district office'},
-    '1 E 161 ST':{text:'Yankee Stadium',bg:'#021B44',fg:'#ffffff'}
+    '1 E 161 ST':{text:'Yankee Stadium',bg:'#142448',fg:'#FFFFFF'}
   };
   function injectAliasLine(result,placeName,address){
     if(!result) return;
