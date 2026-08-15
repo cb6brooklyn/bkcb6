@@ -875,6 +875,25 @@
     var name=String(input).replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();
     doc.save('bkcb6-'+(name||'address-card')+'.pdf');
   }
+  // DM Sans and DM Mono, embedded so the bands print in the real typeface.
+  var PDF_FONTS=null, pdfFontLoading=null;
+  function loadPdfFonts(){
+    if(PDF_FONTS) return Promise.resolve(PDF_FONTS);
+    if(pdfFontLoading) return pdfFontLoading;
+    pdfFontLoading=fetch('/assets/pdf-fonts.json').then(function(r){return r.json();})
+      .then(function(j){ PDF_FONTS=j; return j; }).catch(function(){ PDF_FONTS=null; return null; });
+    return pdfFontLoading;
+  }
+  function applyPdfFonts(doc){
+    if(!PDF_FONTS) return false;
+    try{
+      doc.addFileToVFS('DMSans-Bold.ttf', PDF_FONTS['DMSans-Bold']);
+      doc.addFont('DMSans-Bold.ttf','DMSans','bold');
+      doc.addFileToVFS('DMMono-Medium.ttf', PDF_FONTS['DMMono-Medium']);
+      doc.addFont('DMMono-Medium.ttf','DMMono','normal');
+      return true;
+    }catch(e){ return false; }
+  }
   var H2C_LIB='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
   var h2cLoading=null;
   function loadH2C(){
@@ -946,16 +965,20 @@
         doc.rect(0,0,W,topH,'F');
         doc.rect(0,H-botH,W,botH,'F');
 
-        doc.setFont('helvetica','bold'); doc.setFontSize(23); doc.setTextColor(255,255,255);
-        doc.text('CB6', M+6, topH/2+8);
-        var cb6w=doc.getTextWidth('CB6');
-        doc.setFontSize(13); doc.setTextColor(orange[0],orange[1],orange[2]);
-        doc.text('& BEYOND', M+12+cb6w, topH/2+7);
-        doc.setFontSize(24);
-        doc.text('bkcb6.app', W/2, topH/2+9, {align:'center'});
+        var haveFonts=applyPdfFonts(doc);
+        function sans(sz){ doc.setFont(haveFonts?'DMSans':'helvetica','bold'); doc.setFontSize(sz); }
+        function monoF(sz){ doc.setFont(haveFonts?'DMMono':'helvetica','normal'); doc.setFontSize(sz); }
 
-        doc.setFontSize(30);
-        doc.text('bkcb6.app', W/2, H-botH/2+11, {align:'center'});
+        sans(25); doc.setTextColor(255,255,255);
+        doc.text('CB6', M+6, topH/2+9);
+        var cb6w=doc.getTextWidth('CB6');
+        monoF(13); doc.setTextColor(orange[0],orange[1],orange[2]);
+        doc.text('& BEYOND', M+14+cb6w, topH/2+8);
+        sans(25);
+        doc.text('bkcb6.app', W/2, topH/2+10, {align:'center'});
+
+        sans(31);
+        doc.text('bkcb6.app', W/2, H-botH/2+10, {align:'center'});
 
         var avail=H-topH-botH-M;
         var cw=W-M*2;
@@ -977,7 +1000,7 @@
       var prev=btn.textContent;
       btn.textContent='Building PDF...';
       function done(){ btn.textContent=prev; }
-      Promise.all([loadPdfLib(),loadH2C()])
+      Promise.all([loadPdfLib(),loadH2C(),loadPdfFonts()])
         .then(function(){ return cardPdfVisual(result,profile); })
         .then(done)
         .catch(function(){
