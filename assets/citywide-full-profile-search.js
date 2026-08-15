@@ -536,18 +536,19 @@
   var AKA={
     '24-64 KANE ST':'Brooklyn Marine Terminal, or the BMT',
     '435 HOYT ST':'Gowanus Green, on the site long known as Public Place',
-    '250 BALTIC ST':'the CB6 district office'
+    '250 BALTIC ST':{full:'Location of the CB6 district office'}
   };
   function injectAliasLine(result,placeName,address){
     if(!result) return;
     var head=result.querySelector('[data-cardaddr]');
     if(!head||result.querySelector('[data-cardalias]')) return;
-    var text=AKA[liftNorm(address)]||placeName;
-    if(!text) return;
+    var hit=AKA[liftNorm(address)], text=hit||placeName, full='';
+    if(hit&&typeof hit==='object'){ full=hit.full; text=''; }
+    if(!text&&!full) return;
     var d=document.createElement('div');
     d.setAttribute('data-cardalias','');
     d.setAttribute('style','font-size:.9rem;font-weight:700;line-height:1.35;color:var(--orange,#f47920);margin-top:2px');
-    d.textContent='aka '+text;
+    d.textContent=full||('aka '+text);
     head.parentNode.insertBefore(d, head.nextSibling);
   }
   function injectLiftBadge(result,address){
