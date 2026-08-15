@@ -360,7 +360,10 @@
     return LIFT_P;
   }
   function liftNorm(a){
-    return String(a||'').toUpperCase().replace(/[.,]/g,' ')
+    return String(a||'').toUpperCase()
+      .replace(/,?\s*(BROOKLYN|MANHATTAN|NEW YORK|QUEENS|BRONX|THE BRONX|STATEN ISLAND)\b/g,' ')
+      .replace(/,?\s*NY\b/g,' ').replace(/\b\d{5}(-\d{4})?\b/g,' ')
+      .replace(/[.,]/g,' ')
       .replace(/\bSTREET\b/g,'ST').replace(/\bAVENUE\b/g,'AVE').replace(/\bBOULEVARD\b/g,'BLVD')
       .replace(/\bROAD\b/g,'RD').replace(/\bPLACE\b/g,'PL').replace(/\bDRIVE\b/g,'DR')
       .replace(/\bPARKWAY\b/g,'PKWY').replace(/\bEAST\b/g,'E').replace(/\bWEST\b/g,'W')
@@ -387,7 +390,7 @@
         }
       }
       if(!hit && isFinite(lat) && isFinite(lng) && s.lat!=null && s.lng!=null){
-        if(liftDist(lat,lng,s.lat,s.lng)<=120) hit=true;
+        if(liftDist(lat,lng,s.lat,s.lng)<=200) hit=true;
       }
       if(hit) out.push(s);
     });
