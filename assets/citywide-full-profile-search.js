@@ -533,14 +533,21 @@
       return {q:a.Address+(bn?', '+bn:''), label:best.label};
     }catch(e){ return null; }
   }
-  function injectAliasLine(result,placeName){
-    if(!result||!placeName) return;
+  var AKA={
+    '24-64 KANE ST':'Brooklyn Marine Terminal, or the BMT',
+    '435 HOYT ST':'Gowanus Green, on the site long known as Public Place',
+    '250 BALTIC ST':'the CB6 district office'
+  };
+  function injectAliasLine(result,placeName,address){
+    if(!result) return;
     var head=result.querySelector('[data-cardaddr]');
     if(!head||result.querySelector('[data-cardalias]')) return;
+    var text=AKA[liftNorm(address)]||placeName;
+    if(!text) return;
     var d=document.createElement('div');
     d.setAttribute('data-cardalias','');
     d.setAttribute('style','font-size:.9rem;font-weight:700;line-height:1.35;color:var(--orange,#f47920);margin-top:2px');
-    d.textContent='better known as '+placeName;
+    d.textContent='aka '+text;
     head.parentNode.insertBefore(d, head.nextSibling);
   }
   function injectLiftBadge(result,address){
@@ -664,7 +671,7 @@
         }
         if(status) status.textContent='Searching full '+(boroughName||'citywide')+' address profile…';
         result.hidden=true; result.innerHTML='';
-        try{var profile=await build(q,{boroughName:boroughName,shortLabel:boroughName}); result.innerHTML=profile.html; result.hidden=false; initResultMap(result); bindShare(result); injectCardBar(result); injectSiteNote(result); injectLiftBadge(result,q); injectAliasLine(result,LAST_PLACE); stampUrl(q); if(status) status.textContent=profile.status || 'Search complete.'; try{ setTimeout(function(){ var t=result.querySelector('[data-cardtop]')||result; t.scrollIntoView({block:'start',behavior:'smooth'}); },60); }catch(e){}}catch(err){console.error(err); if(status) status.textContent=err&&err.message?err.message:'Address lookup failed. Please try a full NYC street address.'; result.hidden=true; result.innerHTML='';}
+        try{var profile=await build(q,{boroughName:boroughName,shortLabel:boroughName}); result.innerHTML=profile.html; result.hidden=false; initResultMap(result); bindShare(result); injectCardBar(result); injectSiteNote(result); injectLiftBadge(result,q); injectAliasLine(result,LAST_PLACE,q); stampUrl(q); if(status) status.textContent=profile.status || 'Search complete.'; try{ setTimeout(function(){ var t=result.querySelector('[data-cardtop]')||result; t.scrollIntoView({block:'start',behavior:'smooth'}); },60); }catch(e){}}catch(err){console.error(err); if(status) status.textContent=err&&err.message?err.message:'Address lookup failed. Please try a full NYC street address.'; result.hidden=true; result.innerHTML='';}
       }
       input.dataset.fullProfileBound='true';
       if(button && button.dataset.fullProfileBound!=='true'){button.dataset.fullProfileBound='true'; button.addEventListener('click', function(e){e.preventDefault(); e.stopImmediatePropagation(); runFull();}, true);}
