@@ -405,7 +405,13 @@
     'BBP':'Brooklyn Bridge Park',
     'BBG':'Brooklyn Botanic Garden',
     'MSG':'Madison Square Garden',
-    'BAM':'Brooklyn Academy of Music'
+    'BAM':'Brooklyn Academy of Music',
+    'ATLANTIC YARDS':'620 Atlantic Avenue, Brooklyn',
+    'THE ATLANTIC YARDS':'620 Atlantic Avenue, Brooklyn',
+    'ATLANTIC YARDS/BARCLAYS CENTER':'620 Atlantic Avenue, Brooklyn',
+    'PACIFIC PARK':'620 Atlantic Avenue, Brooklyn',
+    'PACIFIC PARK BROOKLYN':'620 Atlantic Avenue, Brooklyn',
+    'ATLANTIC TERMINAL':'139 Flatbush Avenue, Brooklyn'
   };
   function nickAlias(q){
     var k=String(q||'').trim().toUpperCase().replace(/\s+/g,' ').replace(/[.]/g,'');
