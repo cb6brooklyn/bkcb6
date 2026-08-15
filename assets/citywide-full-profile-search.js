@@ -1074,15 +1074,16 @@
     return Promise.all([
       logoUrl?pdfImg(logoUrl):Promise.resolve(null),
       siteIcon?pdfImg(siteIcon.src):Promise.resolve(null),
-      (isFinite(lat)&&isFinite(lng))?tileMap(lat,lng,16,640,420):Promise.resolve(null)
+      (isFinite(lat)&&isFinite(lng))?tileMap(lat,lng,16,640,420):Promise.resolve(null),
+      pdfImg('/qr-citywide-search.png')
     ]).then(function(assets){
-      var logo=assets[0], icon=assets[1], map=assets[2];
+      var logo=assets[0], icon=assets[1], map=assets[2], qr=assets[3];
       var jsPDF=window.jspdf.jsPDF;
       var W=756,H=936;
       var doc=new jsPDF({unit:'pt',format:[W,H]});
       var haveFonts=applyPdfFonts(doc);
       var NAVY=[13,27,75], ORANGE=[244,121,32], INK=[51,51,51], MUTED=[107,103,96];
-      var M=26, topH=58, botH=58;
+      var M=26, topH=58, botH=58, qrStrip=102;
       var colGap=18, colW=(W-M*2-colGap)/2;
       var Lx=M, Rx=M+colW+colGap;
       var ly=topH+22, ry=topH+22;
@@ -1197,7 +1198,7 @@
         doc.text('What can be built here \u00b7 '+(bases.length>1?zones[0]:bases[0])+' rules', Rx, ry); ry+=16;
         var RANK={N:0,S:1,L:2,Y:3};
         USEMATRIX.goals.filter(function(g){return USE_SHOW.indexOf(g.id)>-1;}).forEach(function(g){
-          if(ry>H-botH-30) return;
+          if(ry>H-botH-qrStrip-24) return;
           var row=USEMATRIX.matrix[g.ug]; if(!row) return;
           var vs=bases.map(function(b){return row[b]||null;}).filter(Boolean);
           if(!vs.length) return;
@@ -1211,6 +1212,18 @@
           ry+=22;
           doc.setDrawColor(240,237,232); doc.line(Rx,ry-4,Rx+colW,ry-4);
         });
+      }
+
+      // scan or type, above the footer band
+      var qs=74, qy=H-botH-qs-14;
+      if(qr&&qr.data){
+        doc.addImage(qr.data,'PNG',M,qy,qs,qs);
+        sans(12,NAVY); doc.text('For more info scan the QR code', M+qs+14, qy+28);
+        sans(12,NAVY); doc.text('or go to:', M+qs+14, qy+45);
+        sans(13,ORANGE); doc.text('bkcb6.app/citywide-search.html', M+qs+14, qy+64);
+      } else {
+        sans(12,NAVY); doc.text('For more info go to:', M, qy+45);
+        sans(13,ORANGE); doc.text('bkcb6.app/citywide-search.html', M, qy+64);
       }
 
       var name=String(input).replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();
