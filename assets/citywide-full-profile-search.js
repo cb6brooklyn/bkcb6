@@ -487,7 +487,8 @@
       var box=document.createElement('div');
       box.className='lift-badge';
       box.setAttribute('style','margin:10px 0;padding:11px 13px;background:#0d1b4b;border-left:5px solid #f47920;border-radius:9px');
-      box.innerHTML='<div style="font-family:\'DM Mono\',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.1em;color:#f47920;font-weight:700;margin-bottom:5px">On the LIFT list &middot; Block by Block</div>'+
+      box.innerHTML='<img src="/lift-badge-banner.jpg" alt="Block by Block, Land Inventory Fast Track (LIFT), Office of the Mayor" width="1173" height="342" loading="lazy" style="display:block;width:100%;height:auto;border-radius:5px;margin-bottom:9px">'+
+        '<div style="font-family:\'DM Mono\',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.1em;color:#f47920;font-weight:700;margin-bottom:5px">On the LIFT list &middot; Block by Block</div>'+
         '<div style="color:#fff;font-size:.9rem;font-weight:900;line-height:1.3">'+esc(name||'')+'</div>'+
         '<div style="color:rgba(255,255,255,.78);font-family:\'DM Mono\',monospace;font-size:.68rem;line-height:1.5;margin-top:4px">'+esc(bits.join(' \u00b7 '))+'</div>'+
         '<a href="/blockbyblock/#foldAllSites" style="display:inline-block;margin-top:9px;background:#f47920;color:#fff;text-decoration:none;font-size:.73rem;font-weight:800;padding:6px 12px;border-radius:16px">See it on Block by Block &rarr;</a>';
