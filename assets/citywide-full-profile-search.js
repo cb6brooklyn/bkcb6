@@ -899,34 +899,31 @@
       hide.forEach(function(h){ h[0].style.display=h[1]; });
       var jsPDF=window.jspdf.jsPDF;
       var doc=new jsPDF({unit:'pt',format:'letter'});
-      var W=612,H=792,M=36, cw=W-M*2;
+      var W=612,H=792,M=30, cw=W-M*2;
       var navy=[13,27,75], orange=[244,121,32], muted=[107,103,96];
-      var topH=52, botH=34, usable=H-topH-botH-M;
-      var scale=cw/canvas.width;
-      var sliceH=Math.floor((usable)/scale);
-      var pages=Math.max(1,Math.ceil(canvas.height/sliceH));
+      var topH=46, botH=26;
+      var avail=H-topH-botH-14;
       var input=profile&&profile.input||'';
-      for(var i=0;i<pages;i++){
-        if(i) doc.addPage();
-        doc.setFillColor(navy[0],navy[1],navy[2]); doc.rect(0,0,W,40,'F');
-        doc.setFillColor(orange[0],orange[1],orange[2]); doc.rect(0,40,W,3,'F');
-        doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(12);
-        doc.text('Brooklyn Community Board 6', M, 26);
-        doc.setFont('helvetica','normal'); doc.setFontSize(9);
-        doc.setTextColor(orange[0],orange[1],orange[2]);
-        doc.text('ADDRESS CARD  \u00b7  bkcb6.app', W-M, 26, {align:'right'});
 
-        var sy=i*sliceH, sh=Math.min(sliceH,canvas.height-sy);
-        var tmp=document.createElement('canvas');
-        tmp.width=canvas.width; tmp.height=sh;
-        tmp.getContext('2d').drawImage(canvas,0,sy,canvas.width,sh,0,0,canvas.width,sh);
-        doc.addImage(tmp.toDataURL('image/jpeg',0.92),'JPEG',M,topH+8,cw,sh*scale);
+      // one page: fit the whole card, scaled down if it is taller than the page
+      var scale=Math.min(cw/canvas.width, avail/canvas.height);
+      var drawW=canvas.width*scale, drawH=canvas.height*scale;
+      var x=(W-drawW)/2;
 
-        doc.setFont('helvetica','normal'); doc.setFontSize(8);
-        doc.setTextColor(muted[0],muted[1],muted[2]);
-        doc.text('bkcb6.app/citywide-search.html  \u00b7  Built on public data from the Department of City Planning and NYC Open Data.', M, H-24);
-        doc.text('Page '+(i+1)+' of '+pages, W-M, H-24, {align:'right'});
-      }
+      doc.setFillColor(navy[0],navy[1],navy[2]); doc.rect(0,0,W,36,'F');
+      doc.setFillColor(orange[0],orange[1],orange[2]); doc.rect(0,36,W,3,'F');
+      doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(12);
+      doc.text('Brooklyn Community Board 6', M, 24);
+      doc.setFont('helvetica','normal'); doc.setFontSize(9);
+      doc.setTextColor(orange[0],orange[1],orange[2]);
+      doc.text('ADDRESS CARD  \u00b7  bkcb6.app', W-M, 24, {align:'right'});
+
+      doc.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',x,topH,drawW,drawH);
+
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+      doc.setTextColor(muted[0],muted[1],muted[2]);
+      doc.text('bkcb6.app/citywide-search.html  \u00b7  Built on public data from the Department of City Planning and NYC Open Data.', M, H-14);
+
       var name=String(input).replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();
       doc.save('bkcb6-'+(name||'address-card')+'.pdf');
     },function(err){
