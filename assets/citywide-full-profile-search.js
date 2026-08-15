@@ -393,6 +393,24 @@
     });
     return out;
   }
+  var NICKNAMES={
+    'BMT':'Brooklyn Marine Terminal',
+    'THE BMT':'Brooklyn Marine Terminal',
+    'BROOKLYN MARINE':'Brooklyn Marine Terminal',
+    'MARINE TERMINAL':'Brooklyn Marine Terminal',
+    '250 BALTIC':'250 Baltic Street',
+    'CB6':'250 Baltic Street',
+    'CB6 OFFICE':'250 Baltic Street',
+    'GOWANUS GREEN':'435 Hoyt Street, Brooklyn',
+    'BBP':'Brooklyn Bridge Park',
+    'BBG':'Brooklyn Botanic Garden',
+    'MSG':'Madison Square Garden',
+    'BAM':'Brooklyn Academy of Music'
+  };
+  function nickAlias(q){
+    var k=String(q||'').trim().toUpperCase().replace(/\s+/g,' ').replace(/[.]/g,'');
+    return NICKNAMES[k] || q;
+  }
   function liftAlias(q){
     var t=String(q||'').trim();
     if(!t || /\d/.test(t.split(/\s+/)[0])) return Promise.resolve(t);
@@ -540,13 +558,15 @@
       async function runFull(){
         var q=input.value.trim();
         if(!q){if(status) status.textContent='Enter an address to search.'; result.hidden=true; result.innerHTML=''; return;}
-        var qIn=q; q=await liftAlias(q);
-        if(q!==qIn && status) status.textContent='Found '+qIn+' on the LIFT list. Searching '+q+'\u2026';
-        if(q===qIn && !/^\d/.test(q.trim())){
+        var qIn=q;
+        q=nickAlias(q);
+        q=await liftAlias(q);
+        if(!/^\d/.test(q.trim())){
           if(status) status.textContent='Looking up '+qIn+'\u2026';
           var pl=await placeAlias(q);
-          if(pl && pl.q){ q=pl.q; if(status) status.textContent='Found '+qIn+' at '+q+'. Searching\u2026'; }
+          if(pl && pl.q) q=pl.q;
         }
+        if(q!==qIn && status) status.textContent='Found '+qIn+' at '+q+'. Searching\u2026';
         var explicit=explicitBoroughInQuery(q);
         if(boroughName && explicit && explicit!==boroughName){
           if(status) status.textContent='This '+boroughName+' page searches '+boroughName+' addresses only. Use Citywide Search for '+explicit+' addresses.';
