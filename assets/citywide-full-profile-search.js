@@ -939,8 +939,13 @@
 
     function cleanup(){ if(stage.parentNode) stage.parentNode.removeChild(stage); }
 
-    return window.html2canvas(liveMap||card,{backgroundColor:'#eef2f7',scale:2,useCORS:true,logging:false,imageTimeout:6000})
-      .catch(function(){ return null; })
+    var mapShot=liveMap
+      ? Promise.race([
+          window.html2canvas(liveMap,{backgroundColor:'#eef2f7',scale:1,useCORS:true,logging:false,imageTimeout:2500}),
+          new Promise(function(r){ setTimeout(function(){ r(null); },3500); })
+        ]).catch(function(){ return null; })
+      : Promise.resolve(null);
+    return mapShot
       .then(function(mapCanvas){
         if(cloneMap && mapCanvas){
           var mi=document.createElement('img');
@@ -949,8 +954,8 @@
           mi.style.borderRadius='8px'; mi.style.border='1px solid #a7f3d0';
           cloneMap.parentNode.replaceChild(mi,cloneMap);
         }
-        return window.html2canvas(stage,{backgroundColor:'#ffffff',scale:2,useCORS:true,logging:false,imageTimeout:8000,
-          windowWidth:1040,width:1040});
+        return window.html2canvas(stage,{backgroundColor:'#ffffff',scale:1.6,useCORS:true,logging:false,imageTimeout:3000,
+          windowWidth:1040,width:1040,removeContainer:true});
       })
       .then(function(canvas){
         cleanup();
@@ -984,7 +989,7 @@
         var cw=W-M*2;
         var scale=Math.min(cw/canvas.width, avail/canvas.height);
         var dw=canvas.width*scale, dh=canvas.height*scale;
-        doc.addImage(canvas.toDataURL('image/jpeg',0.93),'JPEG',(W-dw)/2,topH+8,dw,dh);
+        doc.addImage(canvas.toDataURL('image/jpeg',0.86),'JPEG',(W-dw)/2,topH+8,dw,dh,undefined,'FAST');
 
         var input=profile&&profile.input||'';
         var name=String(input).replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();
@@ -997,15 +1002,19 @@
     if(!btn||btn.dataset.pdfBound==='true') return;
     btn.dataset.pdfBound='true';
     btn.addEventListener('click',function(){
-      var prev=btn.textContent;
+      var prev=btn.textContent, step=0;
+      var ticker=setInterval(function(){
+        step++;
+        btn.textContent=step<3?'Building PDF...':(step<7?'Rendering the card...':'Almost there...');
+      },900);
       btn.textContent='Building PDF...';
-      function done(){ btn.textContent=prev; }
+      function done(){ clearInterval(ticker); btn.textContent=prev; }
       Promise.all([loadPdfLib(),loadH2C(),loadPdfFonts()])
         .then(function(){ return cardPdfVisual(result,profile); })
         .then(done)
         .catch(function(){
           try{ cardPdfText(profile); done(); }
-          catch(e){ btn.textContent='PDF failed'; setTimeout(done,1800); }
+          catch(e){ clearInterval(ticker); btn.textContent='PDF failed'; setTimeout(function(){btn.textContent=prev;},1800); }
         });
     });
   }
