@@ -358,6 +358,11 @@
       note:'This site does not go through the city\'s ULURP. Zoning here is set by the State: Empire State Development adopts a General Project Plan, with environmental review first and Public Authorities Control Board approval at the end. A 28 member Advisory Task Force and the Brooklyn Marine Terminal Development Corporation oversee the commitments.',
       href:'/bmt.html',
       label:'The full BMT page &rarr;'
+    },
+    '435 HOYT ST':{
+      note:'This site is a product of the Gowanus rezoning, the largest neighborhood rezoning in the city in a decade, which CB6 voted to approve and the Council adopted in 2021. It went through the city\'s ULURP, and what gets built here is governed by the rezoning and the Points of Agreement that came with it, including the affordability commitments. The canal alongside it is an active federal Superfund cleanup.',
+      href:'/gowanus.html#gowanus-poa',
+      label:'The full Gowanus page &rarr;'
     }
   };
   function liftSites(){
