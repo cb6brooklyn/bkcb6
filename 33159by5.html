@@ -101,8 +101,9 @@ main{padding:22px 0 60px}
 .cdtip b{display:block;font-size:.85rem;color:var(--navy)}
 .cdtip span{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
 .maplegend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:11px}
-.maplegend .lgc{display:inline-flex;align-items:center;gap:6px;font-size:.73rem;color:var(--navy)}
-.maplegend .lgc i{width:12px;height:12px;border-radius:3px;display:block;flex-shrink:0}
+.maplegend .lgc{display:inline-flex;align-items:center;gap:7px;font-size:.78rem;color:var(--navy)}
+.maplegend .lgc i{width:17px;height:17px;border-radius:4px;display:block;flex-shrink:0;border:1px solid rgba(0,0,0,.14)}
+.maplegend .lgc b{font-family:var(--mono);font-size:.72rem;color:var(--muted);font-weight:400}
 .maplegend .lgnote{flex-basis:100%;font-family:var(--mono);font-size:.6rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-top:2px}
 @media (max-width:640px){ #cdmap{height:330px} }
 
@@ -364,7 +365,7 @@ var CAT_MAP = {
   graffiti:['Graffiti'],
   trees:['Tree']
 };
-var CAT_COLORS = {noise:'#f59e0b',parking:'#ef4444',housing:'#f97316',streets:'#eab308',sanitation:'#84cc16',social:'#6b7280',snow:'#60a5fa',food:'#a78bfa',graffiti:'#fbbf24',trees:'#22c55e',other:'#94a3b8'};
+var CAT_COLORS = {parking:'#c1121f',housing:'#2f5fa8',noise:'#e8a33d',streets:'#1f8a80',sanitation:'#5c9a3a',social:'#5f6b7a',snow:'#7fd4e8',food:'#8e4ec6',graffiti:'#d9558f',trees:'#2f6b3f',other:'#a8a49c'};
 var CAT_LABELS = {noise:'Noise',parking:'Parking & Vehicles',housing:'Housing & Buildings',streets:'Streets & Infrastructure',sanitation:'Sanitation',social:'Social & Police',snow:'Snow & Weather',food:'Food & Business',graffiti:'Graffiti',trees:'Trees & Parks',other:'Other'};
 var CAT_ORDER = Object.keys(CAT_LABELS);
 
@@ -855,12 +856,12 @@ function paintMap(){
   Object.keys(cdLayers).forEach(function(k){
     var layer = cdLayers[k], top = topCatFor(k);
     var cat = top ? top.cat : 'other';
-    used[cat] = true;
+    used[cat] = (used[cat] || 0) + 1;
     var selected = (S.level === 'cd' && k === S.cd) ||
                    (S.level === 'boro' && k.slice(3) === S.boro);
     layer.setStyle({
       fillColor: CAT_COLORS[cat] || CAT_COLORS.other,
-      fillOpacity: selected ? .95 : .68,
+      fillOpacity: selected ? 1 : .88,
       color: selected ? '#0d1b4b' : '#ffffff',
       weight: selected ? 3 : 1
     });
@@ -874,13 +875,14 @@ function paintMap(){
       {sticky:true, direction:'top', opacity:.97});
   });
 
-  // Only legend the categories that actually win somewhere, in rank order.
-  var order = CAT_ORDER.concat(['other']).filter(function(c){ return used[c]; });
+  // Only legend the categories that actually win somewhere, commonest first,
+  // with the number of districts each one leads.
+  var order = Object.keys(used).sort(function(a,b){ return used[b] - used[a]; });
   el('mapLegend').innerHTML = order.map(function(c){
     return '<span class="lgc"><i style="background:' + (CAT_COLORS[c]||CAT_COLORS.other) + '"></i>' +
-      esc(CAT_LABELS[c]||c) + '</span>';
-  }).join('') + '<span class="lgnote">Most common complaint category, ' + esc(periodName()) +
-    ' · tap a district to open it</span>';
+      esc(CAT_LABELS[c]||c) + ' <b>' + used[c] + '</b></span>';
+  }).join('') + '<span class="lgnote">Each district is filled with its most common complaint category, ' +
+    esc(periodName()) + '. Bold number is how many districts that category leads. Tap one to open it.</span>';
 }
 
 function initMap(){
@@ -902,7 +904,7 @@ function initMap(){
     gj.features.forEach(function(f){
       var key = keyForCode(String(f.properties.cd || ''));
       if (!key) return;   // skips parks and joint interest areas
-      var layer = L.geoJSON(f, {style:{weight:1, color:'#fff', fillOpacity:.72}}).addTo(cdMap);
+      var layer = L.geoJSON(f, {style:{weight:1, color:'#fff', fillOpacity:.88}}).addTo(cdMap);
       layer.on('mouseover', function(){ if (!isSelected(key)) layer.setStyle({weight:2.5, color:'#0d1b4b'}); });
       layer.on('mouseout',  function(){ if (!isSelected(key)) layer.setStyle({weight:1, color:'#fff'}); });
       layer.on('click', function(){ selectDistrict(key); });
