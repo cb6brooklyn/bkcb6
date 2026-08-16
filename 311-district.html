@@ -284,7 +284,7 @@ function cdRec(){ return CD_LIST.filter(function(d){ return d.key === S.cd; })[0
 /* ---------------- data ---------------- */
 var HEAVY_SECONDS = 8;
 function load(force){
-  loadRank().then(function(){
+  Promise.all([loadRank(), loadPop()]).then(function(){
     var n = expectedRecords();
     var sec = n ? etaSeconds(n) : 0;
     if (!force && n && sec > HEAVY_SECONDS){ offerChoice(n, sec); return; }
@@ -426,7 +426,16 @@ function fetchRetry(url, attempt){
 // Per district, per year totals, so the page can say how big a pull is before
 // it starts one. Measured throughput: about 12,000 records/second end to end,
 // plus roughly 1.5s of fixed overhead.
-var rankFile = null;
+var rankFile = null, popFile = null;
+// 2010 Census population per district (NYC Open Data xi7c-iiu2), the most
+// recent CD-level count the City publishes.
+function loadPop(){
+  if (popFile) return Promise.resolve(popFile);
+  return fetch('33159by5-pop.json').then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){ popFile = j; return j; }).catch(function(){ return null; });
+}
+function popOf(key){ return (popFile && popFile.districts[key]) ? popFile.districts[key].y2010 : null; }
+function hoodName(key){ return (popFile && popFile.districts[key]) ? popFile.districts[key].name : null; }
 function loadRank(){
   if (rankFile) return Promise.resolve(rankFile);
   return fetch('33159by5-rank.json').then(function(r){ return r.ok ? r.json() : null; })
@@ -469,6 +478,12 @@ function render(){
   var open = ROWS.filter(function(r){ return String(r.status||'').toLowerCase() !== 'closed'; }).length;
 
   var h = '<div class="stat"><div class="v">' + fmt(total) + '</div><div class="k">Total complaints</div><div class="x">' + esc(d.label) + ' · ' + periodLabel() + '</div></div>';
+  var pop = popOf(S.cd);
+  if (pop){
+    var annual = S.month === '' ? total : total * 12;
+    h += '<div class="stat"><div class="v">' + (annual/pop*1000).toFixed(0) + '</div><div class="k">Per 1,000 residents</div><div class="x">' +
+      (S.month === '' ? 'For the year' : 'At this month\'s pace') + ' · population ' + fmt(pop) + ' (2010 Census)</div></div>';
+  }
   h += '<div class="stat"><div class="v" style="font-size:.95rem;color:#2f6b3f;line-height:1.35">All ' + fmt(VERIFIED) + ' accounted for</div><div class="k">Record check</div><div class="x">Matches the City\'s own count for this period</div></div>';
   catRows.slice(0,2).forEach(function(c){
     h += '<div class="stat"><div class="v" style="color:' + CAT_COLORS[c.k] + '">' + fmt(c.n) + '</div><div class="k">' + esc(c.label) + '</div><div class="x">' + pct(c.n,total) + ' of all</div></div>';
@@ -692,7 +707,9 @@ function renderMasthead(){
   el('masthead').innerHTML = img +
     '<div><div class="eyebrow">311 service requests</div>' +
     '<h1>' + esc(title(d.boro)) + ' Community Board ' + d.num + '</h1>' +
-    '<p>NYC Open Data, 2020 to present · <a href="cb-' + d.short + '-' + d.num + '.html" style="color:#fff">District profile</a></p></div>';
+    '<p>' + (hoodName(S.cd) ? esc(hoodName(S.cd)) + ' · ' : '') +
+    (popOf(S.cd) ? fmt(popOf(S.cd)) + ' residents · ' : '') +
+    '<a href="cb-' + d.short + '-' + d.num + '.html" style="color:#fff">District profile</a></p></div>';
   document.title = '311 · ' + title(d.boro) + ' CD ' + d.num;
 }
 
@@ -758,6 +775,7 @@ function readParams(){
 buildControls();
 readParams();
 syncUI();
+loadPop().then(renderMasthead);
 renderMasthead();
 initMap();
 
