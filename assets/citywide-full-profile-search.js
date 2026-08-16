@@ -494,22 +494,12 @@
       loadResultZoning(map,lat,lng);
       try{document.querySelectorAll('[data-usegrid]').forEach(function(el){paintUseGrid(el);});}catch(e){}
       var label=el.getAttribute('data-label')||'Searched address';
-      var si=SITE_ICON[liftNorm(label)]||null;
-      var aliasHit=AKA[liftNorm(label)];
-      var aliasTxt=aliasHit?(typeof aliasHit==='object'?(aliasHit.full||aliasHit.text||''):String(aliasHit).replace(/^the /,'')):'';
-      var mk;
-      if(si){
-        var ratio=si.h/si.w, iw=64, ih=Math.round(iw*ratio);
-        mk=L.marker([lat,lng],{icon:L.divIcon({className:'',iconSize:[iw,ih+10],iconAnchor:[iw/2,ih+10],
-          html:'<div style="text-align:center"><img src="'+si.src+'" alt="'+esc(si.alt||'')+'" '+
-            'style="width:'+iw+'px;height:'+ih+'px;display:block;background:#fff;border:2px solid #0d1b4b;'+
-            'border-radius:7px;box-shadow:0 2px 6px rgba(0,0,0,.28)"><div style="width:0;height:0;margin:0 auto;'+
-            'border-left:6px solid transparent;border-right:6px solid transparent;border-top:9px solid #0d1b4b"></div></div>'})});
-      } else {
-        mk=L.marker([lat,lng]);
-      }
-      mk.addTo(map).bindPopup('<div style="font-family:\'DM Sans\',sans-serif;font-size:.85rem;line-height:1.45;color:#0d1b4b">'+
-        '<b>'+esc(label)+'</b>'+(aliasTxt?'<br><span style="color:#f47920;font-weight:700">'+esc(aliasTxt)+'</span>':'')+'</div>');
+      var mi=markFor(label);
+      markerFor(label,lat,lng).addTo(map).bindPopup(
+        '<div style="font-family:\'DM Sans\',sans-serif;font-size:.85rem;line-height:1.45;color:#0d1b4b">'+
+        '<b>'+esc(label)+'</b>'+(mi.alias?'<br><span style="color:#f47920;font-weight:700">'+esc(mi.alias)+'</span>':'')+
+        (mi.kind?'<br><span style="font-family:\'DM Mono\',monospace;font-size:.66rem;color:#6b6760">'+esc(mi.kind.label)+'</span>':'')+
+        '</div>');
       setTimeout(function(){map.invalidateSize();},120);
     }catch(e){console.error(e);}
   }
@@ -1090,6 +1080,49 @@
       target.style.boxShadow='0 0 0 2px #f47920';
       setTimeout(function(){ target.style.boxShadow=''; },1600);
     });
+  }
+  // Every named place gets its own pin. An image where we have one, otherwise a marker
+  // keyed to what the place is.
+  var MARK_KINDS=[
+    {re:/Broadway theatre/i,             glyph:'\u265B', bg:'#7a1f2b', label:'Broadway theatre'},
+    {re:/museum/i,                       glyph:'\u25F3', bg:'#4a3b7a', label:'Museum'},
+    {re:/librar/i,                       glyph:'\u25A4', bg:'#1f5f4a', label:'Library'},
+    {re:/zoo|botanic|garden of|cemetery|park\b/i, glyph:'\u2663', bg:'#2e6b30', label:'Open space'},
+    {re:/stadium|arena|field|ball ?fields|cyclone|luna park|barclays/i, glyph:'\u25CF', bg:'#142448', label:'Stadium or arena'},
+    {re:/terminal|station|penn/i,        glyph:'\u25AC', bg:'#0d1b4b', label:'Transit'},
+    {re:/city hall|borough hall|district office/i, glyph:'\u2691', bg:'#0d1b4b', label:'Government'},
+    {re:/stock exchange|world trade|empire state|rockefeller|carnegie|radio city|apollo|lincoln center|kings theatre|studio 54|old stone house|snug harbor|cultural/i,
+                                         glyph:'\u2605', bg:'#8a5a10', label:'Landmark'},
+    {re:/navy yard|industry city|ikea|marine terminal/i, glyph:'\u25A0', bg:'#7a4a12', label:'Industrial or waterfront'},
+    {re:/gowanus green|public place|lift/i, glyph:'\u2302', bg:'#f47920', label:'Housing site'}
+  ];
+  function markFor(label){
+    var key=liftNorm(label);
+    var img=SITE_ICON[key]||null;
+    var a=AKA[key];
+    var txt=a?(typeof a==='object'?(a.full||a.text||''):String(a)):'';
+    var kind=null;
+    if(txt){ for(var i=0;i<MARK_KINDS.length;i++){ if(MARK_KINDS[i].re.test(txt)){ kind=MARK_KINDS[i]; break; } } }
+    return {img:img, kind:kind, alias:txt.replace(/^the /,'')};
+  }
+  function markerFor(label,lat,lng){
+    var m=markFor(label);
+    if(m.img){
+      var ratio=m.img.h/m.img.w, iw=64, ih=Math.round(iw*ratio);
+      return L.marker([lat,lng],{icon:L.divIcon({className:'',iconSize:[iw,ih+10],iconAnchor:[iw/2,ih+10],
+        html:'<div style="text-align:center"><img src="'+m.img.src+'" alt="'+esc(m.img.alt||'')+'" '+
+          'style="width:'+iw+'px;height:'+ih+'px;display:block;background:#fff;border:2px solid #0d1b4b;'+
+          'border-radius:7px;box-shadow:0 2px 6px rgba(0,0,0,.28)"><div style="width:0;height:0;margin:0 auto;'+
+          'border-left:6px solid transparent;border-right:6px solid transparent;border-top:9px solid #0d1b4b"></div></div>'})});
+    }
+    if(m.kind){
+      return L.marker([lat,lng],{icon:L.divIcon({className:'',iconSize:[34,42],iconAnchor:[17,42],
+        html:'<div style="text-align:center"><div style="width:34px;height:34px;border-radius:9px;background:'+m.kind.bg+';'+
+          'border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3);color:#fff;font-size:17px;line-height:32px;'+
+          'font-family:\'DM Sans\',sans-serif">'+m.kind.glyph+'</div><div style="width:0;height:0;margin:0 auto;'+
+          'border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid '+m.kind.bg+'"></div></div>'})});
+    }
+    return L.marker([lat,lng]);
   }
   function injectAliasLine(result,placeName,address){
     if(!result) return;
