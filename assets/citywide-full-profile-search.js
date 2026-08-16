@@ -816,7 +816,47 @@
     out.sort(function(x,y){ return x.name.localeCompare(y.name); });
     return out;
   }
+  // NYCHA developments come from the same directory the NYCHA page uses.
+  var NYCHA_DIR=null, nychaLoading=null;
+  function loadNycha(){
+    if(NYCHA_DIR) return Promise.resolve(NYCHA_DIR);
+    if(nychaLoading) return nychaLoading;
+    nychaLoading=fetch('/data/nycha-directory.json').then(function(r){return r.json();})
+      .then(function(j){ NYCHA_DIR=Array.isArray(j)?j:[]; return NYCHA_DIR; })
+      .catch(function(){ NYCHA_DIR=[]; return NYCHA_DIR; });
+    return nychaLoading;
+  }
+  var BORO_TITLE={BROOKLYN:'Brooklyn',MANHATTAN:'Manhattan',BRONX:'Bronx',QUEENS:'Queens','STATEN ISLAND':'Staten Island'};
+  function nychaList(filter){
+    var out=[];
+    (NYCHA_DIR||[]).forEach(function(x){
+      var addr=(x.addrs&&x.addrs[0])||'';
+      if(!addr || !/^\d/.test(addr)) return;
+      if(filter && !filter(x)) return;
+      var bn=BORO_TITLE[String(x.boro||'').toUpperCase()]||'';
+      if(!bn && /^\d+-\d+/.test(addr)) bn='Queens';
+      out.push({name:x.name+(bn?' \u00b7 '+bn:''), addr:addr+(bn?', '+bn:'')});
+    });
+    out.sort(function(a,b){ return a.name.localeCompare(b.name); });
+    return out;
+  }
   var GENERIC=[
+    {re:/^(nycha|public housing|city housing|housing authority|nycha developments?|nycha houses|public housing developments?|nyc housing authority)$/i,
+     title:'NYCHA developments',
+     note:'Every NYCHA development in the city. Pick one to see its zoning, land use, districts and everything else on the lot.',
+     items:function(){ return nychaList(null); },
+     needs:loadNycha},
+    {re:/^(nycha|public housing)\s+(in\s+)?(cb6|community board 6|brooklyn cb6|park slope|gowanus|red hook|carroll gardens|cobble hill)$/i,
+     title:'NYCHA in CB6',
+     note:'The NYCHA developments in Brooklyn Community Board 6.',
+     items:function(){ return nychaList(function(x){ return (x.cds||[]).indexOf('306')>-1; }); },
+     needs:loadNycha},
+    {re:/^(nycha|public housing)\s+(in\s+)?(brooklyn|manhattan|queens|the bronx|bronx|staten island)$/i,
+     title:'NYCHA developments',
+     note:'NYCHA developments in that borough. Pick one to see the full record for its lot.',
+     items:function(){ return nychaList(function(x){ return String(x.boro||'').toUpperCase()===String(this.boro||'').toUpperCase(); }.bind(this)); },
+     needs:loadNycha,
+     boroFrom:true},
     {re:/^(the\s+)?(broadway|b'?way)(\s+(shows?|musicals?|theatres?|theaters?|plays?|district))?$/i,
      title:'Broadway theatres',
      note:'There are 41 Broadway theatres. Pick one to see its zoning, land use, districts and everything else on the lot.',
@@ -1642,8 +1682,13 @@
         var gen=genericMatch(q);
         if(gen){
           gen.onpick=function(){ runFull(); };
+          if(gen.boroFrom){ var bm=q.match(/(brooklyn|manhattan|queens|bronx|staten island)/i); gen.boro=bm?bm[1].toUpperCase():''; }
+          if(status) status.textContent='Loading the list...';
+          await (gen.needs?gen.needs():Promise.resolve());
+          var picks=gen.items();
+          if(!picks.length){ if(status) status.textContent='Nothing found for that.'; return; }
           showPicker(result,input,gen);
-          if(status) status.textContent='Pick one of the '+gen.items().length+' theatres.';
+          if(status) status.textContent='Pick one of the '+picks.length+'.';
           return;
         }
         var qIn=q; LAST_PLACE='';
