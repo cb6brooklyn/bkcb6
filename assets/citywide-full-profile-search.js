@@ -1084,7 +1084,8 @@
   // Every named place gets its own pin. An image where we have one, otherwise a marker
   // keyed to what the place is.
   var MARK_KINDS=[
-    {re:/Broadway theatre/i,             glyph:'\u265B', bg:'#7a1f2b', label:'Broadway theatre'},
+    {re:/Broadway theatre/i,             glyph:'\u265B', bg:'#7a1f2b', label:'Broadway theatre',
+      img:{src:'/site-icons/broadway.png',alt:'Broadway',w:400,h:184}},
     {re:/museum/i,                       glyph:'\u25F3', bg:'#4a3b7a', label:'Museum'},
     {re:/librar/i,                       glyph:'\u25A4', bg:'#1f5f4a', label:'Library'},
     {re:/zoo|botanic|garden of|cemetery|park\b/i, glyph:'\u2663', bg:'#2e6b30', label:'Open space'},
@@ -1099,10 +1100,12 @@
   function markFor(label){
     var key=liftNorm(label);
     var img=SITE_ICON[key]||null;
+    var byKind=null;
     var a=AKA[key];
     var txt=a?(typeof a==='object'?(a.full||a.text||''):String(a)):'';
     var kind=null;
     if(txt){ for(var i=0;i<MARK_KINDS.length;i++){ if(MARK_KINDS[i].re.test(txt)){ kind=MARK_KINDS[i]; break; } } }
+    if(!img && kind && kind.img) img=kind.img;
     return {img:img, kind:kind, alias:txt.replace(/^the /,'')};
   }
   function markerFor(label,lat,lng){
