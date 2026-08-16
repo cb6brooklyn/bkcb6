@@ -50,6 +50,15 @@
     .controls select,.controls input{width:100%;border:1px solid var(--border);border-radius:12px;padding:10px 12px;font:500 .82rem 'DM Sans',sans-serif;background:#fff;color:#1f2937}
     .controls select:focus,.controls input:focus{outline:2px solid var(--navy);outline-offset:-1px}
     .types{display:flex;gap:7px;flex-wrap:wrap;padding:12px 16px 8px;background:var(--off)}
+    .subs{display:none}
+    .subs.on{display:flex;gap:7px;flex-wrap:wrap;align-items:center;padding:2px 16px 10px;background:var(--off)}
+    .sub-l{font:.6rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-right:2px}
+    .sbtn{padding:5px 11px;border:1px solid var(--border);border-radius:999px;background:#fff;cursor:pointer;
+      font:600 .7rem 'DM Sans',sans-serif;color:var(--navy)}
+    .sbtn .n{font:.62rem 'DM Mono',monospace;color:var(--muted)}
+    .sbtn.off{opacity:.4}
+    .sbtn.all{background:#b3121d;color:#fff;border-color:#b3121d}
+    .sbtn.all .n{color:rgba(255,255,255,.72)}
     .boros{display:flex;gap:13px;flex-wrap:wrap;align-items:center;padding:0 16px 12px;border-bottom:1px solid var(--border);background:var(--off)}
     .bk-l{font:.6rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.09em;color:var(--muted)}
     .bk{display:inline-flex;align-items:center;gap:5px;font-size:.7rem;color:#475569}
@@ -134,6 +143,7 @@
       <div class="stat"><div class="v" id="sTop">0</div><div class="l">Boroughs</div></div>
     </div>
     <div class="types" id="types"></div>
+    <div class="subs" id="subs"></div>
     <div class="boros" id="boros"></div>
     <div class="controls">
       <div>
@@ -242,6 +252,27 @@
     {k:'Bronx',         color:'#c62828'},
     {k:'Staten Island', color:'#7e57c2'}
   ];
+  // movie theatres split further, since an art house and a twenty screen
+  // multiplex are not the same kind of place
+  var SUBS = {
+    film: [
+      {k:'nonprofit',   label:'Nonprofit'},
+      {k:'independent', label:'Independent'},
+      {k:'chain',       label:'Chain'}
+    ]
+  };
+  var onSubs = {};
+  function subLabel(t, k){
+    var list = SUBS[t] || [];
+    for(var i=0;i<list.length;i++){ if(list[i].k === k) return list[i].label; }
+    return '';
+  }
+  function subType(){
+    // the sub filter only makes sense when one type is the whole view
+    var on = TYPES.filter(function(t){ return onTypes[t.k]; });
+    return (on.length === 1 && SUBS[on[0].k]) ? on[0].k : null;
+  }
+
   var BCOLOR = {};
   BOROS.forEach(function(b){ BCOLOR[b.k] = b.color; });
   function boroColor(n){ return BCOLOR[n] || '#6b6760'; }
@@ -272,6 +303,7 @@
   var addrAC = document.getElementById('addrAC');
   var originEl = document.getElementById('origin');
   var borosEl = document.getElementById('boros');
+  var subsEl = document.getElementById('subs');
 
   var places = [];
   var districts = [];
@@ -353,8 +385,10 @@
   }
   function shown(){
     var b = boroSel.value, cb = cbSel.value, q = qInput.value.trim().toLowerCase();
+    var st = subType();
     return places.filter(function(p){
       if(!onTypes[p.type]) return false;
+      if(st && p.type === st && onSubs[st] && !onSubs[st][p.subtype || 'independent']) return false;
       if(q && !matchesText(p, q)) return false;
       // an address search is not bound by district: the nearest thing is the
       // nearest thing, whichever side of a line it sits on
@@ -394,10 +428,52 @@
           }
         }
         syncTypeBar();
+        renderSubBar();
         refresh();
       });
     });
   }
+  function renderSubBar(){
+    var t = subType();
+    if(!t){ subsEl.className = 'subs'; subsEl.innerHTML = ''; return; }
+    if(!onSubs[t]){
+      onSubs[t] = {};
+      SUBS[t].forEach(function(x){ onSubs[t][x.k] = true; });
+    }
+    var tally = {};
+    places.forEach(function(p){
+      if(p.type !== t) return;
+      var k = p.subtype || 'independent';
+      tally[k] = (tally[k]||0)+1;
+    });
+    var all = SUBS[t].every(function(x){ return onSubs[t][x.k]; });
+    subsEl.className = 'subs on';
+    subsEl.innerHTML = '<span class="sub-l">' + typeLabel(t) + ', by kind</span>'
+      + '<button class="sbtn'+(all ? ' all' : '')+'" type="button" data-s="__all">All <span class="n">'
+      + places.filter(function(p){ return p.type === t; }).length + '</span></button>'
+      + SUBS[t].map(function(x){
+          return '<button class="sbtn'+(onSubs[t][x.k] ? '' : ' off')+'" type="button" data-s="'+x.k+'">'
+            + x.label + ' <span class="n">'+(tally[x.k]||0)+'</span></button>';
+        }).join('');
+    Array.prototype.forEach.call(subsEl.querySelectorAll('.sbtn'), function(el){
+      el.addEventListener('click', function(){
+        var k = el.getAttribute('data-s');
+        if(k === '__all'){
+          SUBS[t].forEach(function(x){ onSubs[t][x.k] = true; });
+        } else if(SUBS[t].every(function(x){ return onSubs[t][x.k]; })){
+          SUBS[t].forEach(function(x){ onSubs[t][x.k] = (x.k === k); });
+        } else {
+          onSubs[t][k] = !onSubs[t][k];
+          if(!SUBS[t].some(function(x){ return onSubs[t][x.k]; })){
+            SUBS[t].forEach(function(x){ onSubs[t][x.k] = true; });
+          }
+        }
+        renderSubBar();
+        refresh();
+      });
+    });
+  }
+
   function renderBoroKey(){
     borosEl.innerHTML = '<span class="bk-l">Ring colour is the borough</span>' + BOROS.map(function(b){
       return '<span class="bk"><i style="border-color:'+b.color+'"></i>'+b.k+'</span>';
@@ -429,7 +505,9 @@
   function popupHTML(p){
     var h = p.logo ? '<img class="plogo" src="'+esc(p.logo)+'" alt="">' : '';
     h += '<h4>'+esc(p.name)+'</h4>';
-    h += '<p class="small" style="color:'+(COLOR[p.type]||'#f47920')+'">'+typeLabel(p.type)+(p.system ? ' &middot; '+esc(p.system) : '')+'</p>';
+    h += '<p class="small" style="color:'+(COLOR[p.type]||'#f47920')+'">'+typeLabel(p.type)
+       + (p.system ? ' &middot; '+esc(p.system) : '')
+       + (p.subtype ? ' &middot; '+subLabel(p.type, p.subtype) : '')+'</p>';
     if(p.address) h += '<p>'+esc(p.address)+'</p>';
     h += '<p class="small">'+p.cb+(p.approx ? ' (nearest district)' : '')+(p.council ? ' &middot; Council '+p.council : '')+'</p>';
     if(p.zoning || p.land_use_label){
@@ -508,7 +586,9 @@
         + '</div>'
         + (p.address ? '<p>'+esc(p.address)+'</p>' : '')
         + '<div class="meta">'
-        + '<span class="tag t" style="background:'+(COLOR[p.type]||'#f47920')+'">'+typeLabel(p.type)+(p.system ? ' &middot; '+esc(p.system) : '')+'</span>'
+        + '<span class="tag t" style="background:'+(COLOR[p.type]||'#f47920')+'">'+typeLabel(p.type)
+        + (p.system ? ' &middot; '+esc(p.system) : '')
+        + (p.subtype ? ' &middot; '+subLabel(p.type, p.subtype) : '')+'</span>'
         + '<span class="tag">'+p.cb+'</span>'
         + '<span class="tag bo" style="border-color:'+boroColor(p.boro_name)+'">'+esc(p.boro_name)+'</span>'
         + (near && origin.cb && p.cb !== origin.cb ? '<span class="tag out">Outside '+origin.cb+'</span>' : '')
@@ -655,6 +735,7 @@
     }).addTo(map);
     labelLayer.addTo(map);
     renderTypeBar();
+    renderSubBar();
     renderBoroKey();
     fillCbSelect();
     refresh();
