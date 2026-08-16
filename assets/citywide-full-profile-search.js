@@ -400,6 +400,7 @@
     var siteIcon=SITE_ICON[liftNorm(input)]||null;
     if(!siteIcon && /HOUSING AUTHORITY|\bNYCHA\b/i.test(String(pluto.ownername||pluto.owner||''))) siteIcon=NYCHA_ICON;
     if(!siteIcon && isBroadwayAddr(input)) siteIcon=BROADWAY_ICON;
+    if(!siteIcon && FERRY_ADDRS[liftNorm(input)]) siteIcon=FERRY_ICON;
     var logoImg='';
     if(cb==='306'){ logoImg='<img src="/cb6-logo-card.png" alt="Brooklyn Community Board 6" width="500" height="500" loading="lazy" style="display:block;width:74px;height:74px;border-radius:6px">'; }
     else if(boardShort&&boardNum){ logoImg='<img src="/banners/banner-'+boardShort+'-'+boardNum+'.png" alt="'+esc(cbLabel)+'" width="540" height="270" loading="lazy" style="display:block;width:124px;height:62px;border-radius:5px;background:#fff">'; }
@@ -612,6 +613,30 @@
     'PACIFIC PARK':'620 Atlantic Avenue, Brooklyn',
     'PACIFIC PARK BROOKLYN':'620 Atlantic Avenue, Brooklyn',
     'ATLANTIC TERMINAL':'139 Flatbush Avenue, Brooklyn',
+    'STATEN ISLAND FERRY':'4 South Street, Manhattan',
+    'SI FERRY':'4 South Street, Manhattan',
+    'THE FERRY':'4 South Street, Manhattan',
+    'WHITEHALL TERMINAL':'4 South Street, Manhattan',
+    'WHITEHALL FERRY TERMINAL':'4 South Street, Manhattan',
+    'STATEN ISLAND FERRY MANHATTAN':'4 South Street, Manhattan',
+    'ST GEORGE FERRY TERMINAL':'1 Bay Street, Staten Island',
+    'ST GEORGE TERMINAL':'1 Bay Street, Staten Island',
+    'SAINT GEORGE FERRY TERMINAL':'1 Bay Street, Staten Island',
+    'STATEN ISLAND FERRY STATEN ISLAND':'1 Bay Street, Staten Island',
+    'PORT AUTHORITY':'625 8 Avenue, Manhattan',
+    'PORT AUTHORITY BUS TERMINAL':'625 8 Avenue, Manhattan',
+    'PABT':'625 8 Avenue, Manhattan',
+    'THE PORT AUTHORITY':'625 8 Avenue, Manhattan',
+    'MOYNIHAN':'421 8 Avenue, Manhattan',
+    'MOYNIHAN TRAIN HALL':'421 8 Avenue, Manhattan',
+    'MOYNIHAN HALL':'421 8 Avenue, Manhattan',
+    'JAMAICA STATION':'93-02 Sutphin Boulevard, Queens',
+    'SUTPHIN BOULEVARD STATION':'93-02 Sutphin Boulevard, Queens',
+    'JAMAICA LIRR':'93-02 Sutphin Boulevard, Queens',
+    'FULTON CENTER':'200 Broadway, Manhattan',
+    'FULTON STREET STATION':'200 Broadway, Manhattan',
+    'GWB BUS STATION':'4211 Broadway, Manhattan',
+    'GEORGE WASHINGTON BRIDGE BUS STATION':'4211 Broadway, Manhattan',
     'MOMA':'11 West 53 Street, Manhattan',
     'THE MOMA':'11 West 53 Street, Manhattan',
     'MUSEUM OF MODERN ART':'11 West 53 Street, Manhattan',
@@ -934,6 +959,17 @@
     out.sort(function(a,b){ return a.name.localeCompare(b.name); });
     return out;
   }
+  function transitList(){
+    var seen={}, out=[];
+    Object.keys(NICKNAMES).forEach(function(k){
+      var addr=NICKNAMES[k], key=liftNorm(addr), a=AKA[key];
+      if(typeof a==='string' && /terminal|train hall|station|ferry|bus terminal|fulton center/i.test(a) && !seen[key]){
+        seen[key]=1; out.push({name:a.replace(/^the /,''), addr:addr});
+      }
+    });
+    out.sort(function(x,y){ return x.name.localeCompare(y.name); });
+    return out;
+  }
   function museumList(){
     var seen={}, out=[];
     Object.keys(NICKNAMES).forEach(function(k){
@@ -947,6 +983,10 @@
     return out;
   }
   var GENERIC=[
+    {re:/^(the\s+)?(transit|transit hubs?|transportation hubs?|train stations?|bus terminals?|ferry|ferries|transportation)$/i,
+     title:'Transit hubs',
+     note:'The big transportation hubs. Pick one to see its zoning, land use, districts and everything else on the lot.',
+     items:transitList},
     {re:/^(the\s+)?(museums?|nyc museums?|new york museums?|art museums?)$/i,
      title:'Museums',
      note:'Major museums across the five boroughs. Pick one to see its zoning, land use, districts and everything else on the lot.',
@@ -1064,6 +1104,8 @@
     }catch(e){ return null; }
   }
   var NYCHA_ICON={src:'/site-icons/nycha.png',alt:'New York City Housing Authority',w:309,h:360};
+  var FERRY_ICON={src:'/site-icons/staten-island-ferry.png',alt:'Staten Island Ferry',w:520,h:130};
+  var FERRY_ADDRS={'4 S ST':1,'1 BAY ST':1};
   var BROADWAY_ICON={src:'/site-icons/broadway-org.png',alt:'Broadway',w:520,h:91};
   function isBroadwayAddr(addr){ var a=AKA[liftNorm(addr)]; return typeof a==='string' && /Broadway theatre/i.test(a); }
   var SITE_ICON={
@@ -1076,6 +1118,13 @@
     '250 BALTIC ST':{full:'Location of the CB6 district office'},
     '1 E 161 ST':{text:'Yankee Stadium',bg:'#142448',fg:'#FFFFFF'},
     '139 FLATBUSH AVE':'Atlantic Terminal',
+    '4 S ST':'Whitehall Ferry Terminal, the Manhattan end of the Staten Island Ferry',
+    '1 BAY ST':'St. George Ferry Terminal, the Staten Island end of the ferry',
+    '625 8 AVE':'the Port Authority Bus Terminal',
+    '421 8 AVE':'Moynihan Train Hall, the western half of Penn Station',
+    '93-02 SUTPHIN BLVD':'Jamaica Station, where the LIRR, the subway and the AirTrain meet',
+    '200 BROADWAY':'the Fulton Center',
+    '4211 BROADWAY':'the George Washington Bridge Bus Station',
     '11 W 53 ST':'the Museum of Modern Art',
     '1071 5 AVE':'the Solomon R. Guggenheim Museum',
     '99 GANSEVOORT ST':'the Whitney Museum of American Art',
@@ -1195,7 +1244,7 @@
     {re:/librar/i,                       glyph:'\u25A4', bg:'#1f5f4a', label:'Library'},
     {re:/zoo|botanic|garden of|cemetery|park\b/i, glyph:'\u2663', bg:'#2e6b30', label:'Open space'},
     {re:/stadium|arena|field|ball ?fields|cyclone|luna park|barclays/i, glyph:'\u25CF', bg:'#142448', label:'Stadium or arena'},
-    {re:/terminal|station|penn/i,        glyph:'\u25AC', bg:'#0d1b4b', label:'Transit'},
+    {re:/terminal|station|penn|train hall|ferry|fulton center|bus station/i, glyph:'\u25AC', bg:'#0d1b4b', label:'Transit'},
     {re:/city hall|borough hall|district office/i, glyph:'\u2691', bg:'#0d1b4b', label:'Government'},
     {re:/stock exchange|world trade|empire state|rockefeller|carnegie|radio city|apollo|lincoln center|kings theatre|studio 54|old stone house|snug harbor|cultural/i,
                                          glyph:'\u2605', bg:'#8a5a10', label:'Landmark'},
@@ -1210,6 +1259,7 @@
     var txt=a?(typeof a==='object'?(a.full||a.text||''):String(a)):'';
     var kind=null;
     if(txt){ for(var i=0;i<MARK_KINDS.length;i++){ if(MARK_KINDS[i].re.test(txt)){ kind=MARK_KINDS[i]; break; } } }
+    if(!img && FERRY_ADDRS[key]) img=FERRY_ICON;
     if(!img && /HOUSING AUTHORITY|\bNYCHA\b/i.test(String(owner||''))){
       img=NYCHA_ICON;
       if(!kind) kind={label:'NYCHA development',bg:'#8b2233',glyph:'\u2302'};
@@ -1645,6 +1695,7 @@
     var siteIcon=SITE_ICON[liftNorm(input)]||null;
     if(!siteIcon && /HOUSING AUTHORITY|\bNYCHA\b/i.test(String(pluto.ownername||pluto.owner||''))) siteIcon=NYCHA_ICON;
     if(!siteIcon && isBroadwayAddr(input)) siteIcon=BROADWAY_ICON;
+    if(!siteIcon && FERRY_ADDRS[liftNorm(input)]) siteIcon=FERRY_ICON;
     var boardShort=validCommunityBoardCode(cb)?BOROUGH_SHORT[cb.charAt(0)]:'';
     var boardNum=validCommunityBoardCode(cb)?parseInt(cb.slice(1),10):0;
     var logoUrl=(cb==='306')?'/cb6-logo-card.png':(boardShort&&boardNum?'/banners/banner-'+boardShort+'-'+boardNum+'.png':'');
