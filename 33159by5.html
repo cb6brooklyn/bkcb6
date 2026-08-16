@@ -161,6 +161,9 @@ main{padding:22px 0 60px}
 .chip b{color:var(--muted);font-weight:400}
 
 /* ---------- rank strip (signature) ---------- */
+.ranktoggle{display:inline-flex;gap:3px;background:#f0f0ee;border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:12px}
+.ranktoggle button{font-family:var(--sans);font-size:.78rem;font-weight:700;padding:7px 14px;border:0;border-radius:6px;background:transparent;color:var(--navy);cursor:pointer}
+.ranktoggle button[aria-pressed=true]{background:var(--navy);color:#fff}
 .rankhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:12px}
 .rankbadge{font-family:var(--mono);font-size:1.05rem;color:#fff;background:var(--orange);padding:4px 11px;border-radius:6px;letter-spacing:-.01em}
 .rank{position:relative;display:flex;flex-direction:column;gap:2px;max-height:430px;overflow-y:auto;padding-right:4px}
@@ -299,6 +302,10 @@ footer code{font-family:var(--mono);font-size:.72rem;background:#efede7;padding:
     <section class="card">
       <h2>Where this district sits</h2>
       <p class="note" id="rankNote">All 59 community districts, ranked by total complaints</p>
+      <div class="ranktoggle">
+        <button type="button" id="rkTotal" aria-pressed="true">Total complaints</button>
+        <button type="button" id="rkRate" aria-pressed="false">Per 1,000 residents</button>
+      </div>
       <div class="rankhead" id="rankHead"></div>
       <div class="rank" id="rank"></div>
     </section>
@@ -583,6 +590,13 @@ function renderStats(total, peak, topType, topCat){
   if (topCat)  h += '<div class="stat"><div class="v" style="color:' + catCol + '">' + fmt(topCat.n) + '</div><div class="k">' + esc(CAT_LABELS[topCat.k]||topCat.k) + '</div><div class="x">' + pct(topCat.n,total) + ' of all, the top category</div></div>';
   if (topType) h += '<div class="stat"><div class="v" style="color:' + typeCol + '">' + fmt(topType.n) + '</div><div class="k">' + esc(topType.k) + '</div><div class="x">' + pct(topType.n,total) + ' of all, most common request</div></div>';
   if (peak)    h += '<div class="stat"><div class="v" style="font-size:1.15rem">' + esc(peak.label) + '</div><div class="k">Busiest month</div><div class="x">' + fmt(peak.n) + ' complaints</div></div>';
+  var pop = popForScope();
+  if (pop){
+    var years = S.to - S.from + 1;
+    var rate = perK(total / years, pop);
+    h += '<div class="stat"><div class="v">' + rate.toFixed(0) + '</div><div class="k">Per 1,000 residents</div><div class="x">' +
+      'A year on average · population ' + fmt(pop) + ' (2010 Census)</div></div>';
+  }
   h += '<div class="stat"><div class="v" style="font-size:.95rem;color:#2f6b3f;line-height:1.35">All ' + fmt(total) + ' accounted for</div><div class="k">Record check</div><div class="x">Matches the City\'s own count for this period</div></div>';
   el('stats').innerHTML = h;
 }
@@ -619,38 +633,59 @@ function renderChips(node, rows){
 }
 
 function renderRank(res){
-  var map = res.map;
-  var rows = CD_LIST.map(function(d){ return {key:d.key, label:d.label, n: map.get(d.key)||0}; })
-                    .sort(function(a,b){ return b.n - a.n; });
-  var max = rows[0] ? rows[0].n : 1;
+  var map = res.map, built = res.built;
+  var rows = CD_LIST.map(function(d){
+    var n = map.get(d.key) || 0, pop = popOf(d.key);
+    return {key:d.key, label:d.label, n:n, pop:pop,
+            rate: pop ? (n / pop * 1000) : null};
+  });
+
+  // In rate mode any district without a population figure is excluded rather
+  // than shown as zero, and the note says so.
+  var usable = RATE ? rows.filter(function(r){ return r.rate !== null; }) : rows;
+  usable.sort(function(a,b){ return RATE ? b.rate - a.rate : b.n - a.n; });
+  var missing = RATE ? rows.length - usable.length : 0;
+
+  var val = function(r){ return RATE ? r.rate : r.n; };
+  var max = usable.length ? val(usable[0]) : 1;
   var head = el('rankHead');
 
   if (S.level === 'cd'){
-    var idx = rows.findIndex(function(r){ return r.key === S.cd; });
-    var mine = rows[idx];
-    head.innerHTML = '<span class="rankbadge">#' + (idx+1) + ' of 59</span>' +
-      '<span style="font-size:.86rem;color:var(--muted)">' + esc(scopeName()) + ' logged ' + fmt(mine.n) +
-      ' complaints in ' + periodName() + ', ' + (idx === 0 ? 'the most of any district' : 'more than ' + (58-idx) + ' other districts') + '.</span>';
-    el('rankNote').textContent = 'All 59 community districts, ranked by total complaints' +
-      (res.built ? ' · rankings updated ' + res.built : '');
+    var idx = -1;
+    for (var i = 0; i < usable.length; i++){ if (usable[i].key === S.cd) idx = i; }
+    var mine = idx > -1 ? usable[idx] : null;
+    if (mine){
+      head.innerHTML = '<span class="rankbadge">#' + (idx+1) + ' of ' + usable.length + '</span>' +
+        '<span style="font-size:.86rem;color:var(--muted)">' + esc(scopeName()) + ' logged ' + fmt(mine.n) +
+        ' complaints in ' + periodName() +
+        (RATE ? ', or <b>' + mine.rate.toFixed(0) + ' per 1,000 residents</b>' : '') + '. ' +
+        (idx === 0 ? 'That is the highest of any district.' : 'That is more than ' + (usable.length-1-idx) + ' other districts.') +
+        '</span>';
+    } else {
+      head.innerHTML = '<span style="font-size:.86rem;color:var(--muted)">No population figure on file for ' + esc(scopeName()) + '.</span>';
+    }
   } else {
-    head.innerHTML = '<span style="font-size:.86rem;color:var(--muted)">Every community district in the city, ranked for ' + periodName() + '. Switch to District level to highlight one.</span>';
-    el('rankNote').textContent = 'All 59 community districts, ranked by total complaints' +
-      (res.built ? ' · rankings updated ' + res.built : '');
+    head.innerHTML = '<span style="font-size:.86rem;color:var(--muted)">Every community district in the city, ranked for ' +
+      esc(periodName()) + '. Switch to District level to highlight one.</span>';
   }
 
-  el('rank').innerHTML = rows.map(function(r,i){
-    var me = (S.level === 'cd' && r.key === S.cd) || (S.level === 'boro' && r.key.indexOf(S.boro) !== -1);
+  el('rankNote').textContent = RATE
+    ? 'Ranked by complaints per 1,000 residents · 2010 Census population, the latest the City publishes by district'
+    : 'All 59 community districts, ranked by total complaints' + (built ? ' · rankings updated ' + built : '');
+
+  el('rank').innerHTML = usable.map(function(r,i){
+    var me = (S.level === 'cd' && r.key === S.cd) || (S.level === 'boro' && r.key.slice(3) === S.boro);
     return '<div class="rrow' + (me ? ' me' : '') + '">' +
       '<div class="rk">' + (i+1) + '</div>' +
       '<div class="nm">' + esc(r.label) + '</div>' +
-      '<div class="tr"><div class="fl" style="width:' + Math.max((r.n/max)*100,0.6).toFixed(2) + '%"></div></div>' +
-      '<div class="nn">' + fmtShort(r.n) + '</div>' +
+      '<div class="tr"><div class="fl" style="width:' + Math.max(val(r)/max*100, 0.6).toFixed(2) + '%"></div></div>' +
+      '<div class="nn">' + (RATE ? r.rate.toFixed(0) : fmtShort(r.n)) + '</div>' +
     '</div>';
-  }).join('');
+  }).join('') + (missing ? '<div class="state" style="padding:10px 4px;text-align:left">' + missing +
+      ' district(s) omitted: no population figure on file.</div>' : '');
 
-  var box = el('rank'), mine = box.querySelector('.rrow.me');
-  if (mine) box.scrollTop = Math.max(0, mine.offsetTop - box.clientHeight/2 + mine.offsetHeight/2);
+  var box = el('rank'), mine2 = box.querySelector('.rrow.me');
+  if (mine2) box.scrollTop = Math.max(0, mine2.offsetTop - box.clientHeight/2 + mine2.offsetHeight/2);
 }
 
 function renderTrend(series){
@@ -813,14 +848,42 @@ function load(){
   // Never scoped: comparing all 59 is the whole point. Served from a small
   // precomputed file, because the live version of this query scans the whole
   // city and runs past 90 seconds on a multi-year range.
-  rankTotals().then(function(res){
+  Promise.all([rankTotals(), loadPop()]).then(function(r){
     if (!fresh()) return;
-    renderRank(res);
+    LAST_RANK = r[0];
+    renderRank(LAST_RANK);
   }).catch(sectionError(el('rank'), 'the district ranking'));
 }
 
 // District-by-year totals, built by build-rank.py.
-var rankFile = null;
+// 2010 Census population per district, from NYC Open Data xi7c-iiu2. That is
+// the most recent CD-level count the City publishes: there is no 2020-census
+// equivalent on Open Data, so every rate is labelled as being against 2010.
+var popFile = null;
+function loadPop(){
+  if (popFile) return Promise.resolve(popFile);
+  return fetch('33159by5-pop.json').then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){ popFile = j; return j; })
+    .catch(function(){ return null; });
+}
+function popOf(key){
+  return (popFile && popFile.districts[key]) ? popFile.districts[key].y2010 : null;
+}
+function popForScope(){
+  if (!popFile) return null;
+  var t = 0, n = 0;
+  CD_LIST.forEach(function(d){
+    if (S.level === 'boro' && d.boro !== S.boro) return;
+    if (S.level === 'cd' && d.key !== S.cd) return;
+    var p = popOf(d.key);
+    if (p){ t += p; n++; }
+  });
+  return n ? t : null;
+}
+function perK(n, pop){ return pop ? (n / pop * 1000) : null; }
+var RATE = false;   // false = totals, true = per 1,000 residents
+
+var rankFile = null, LAST_RANK = null;
 function rankTotals(){
   var sum = function(){
     var m = new Map();
@@ -1247,6 +1310,14 @@ el('lvlCd').addEventListener('click',   function(){ setLevel('cd'); });
   el(id).addEventListener('change', function(){ readUI(); writeHash(); load(); });
 });
 el('goBtn').addEventListener('click', function(){ readUI(); writeHash(); load(); });
+el('rkTotal').addEventListener('click', function(){ setRate(false); });
+el('rkRate').addEventListener('click', function(){ setRate(true); });
+function setRate(on){
+  RATE = on;
+  el('rkTotal').setAttribute('aria-pressed', !on);
+  el('rkRate').setAttribute('aria-pressed', on);
+  if (LAST_RANK) loadPop().then(function(){ renderRank(LAST_RANK); });
+}
 el('addrBtn').addEventListener('click', findAddress);
 el('addrInput').addEventListener('keydown', function(e){ if (e.key === 'Enter') findAddress(); });
 el('addrBoro').addEventListener('change', function(){ if (el('addrInput').value.trim()) findAddress(); });
