@@ -755,7 +755,7 @@ function runActivities(origin,originLabel){
 
 // Every matching location goes on the map. When results are ranked, the closest
 // twelve carry a number so the list and the map line up.
-function drawFacilities(list,codes,ranked){
+function drawFacilities(list,codes,ranked,skipFit){
   if(recLayer)map.removeLayer(recLayer);
   recLayer=L.layerGroup();
   list.forEach(function(r,i){
@@ -774,6 +774,7 @@ function drawFacilities(list,codes,ranked){
     m.bindTooltip(tip,{opacity:1}).addTo(recLayer);
   });
   recLayer.addTo(map);
+  if(skipFit)return;
   var pts=(ranked?list.slice(0,12):list).map(function(r){return [r.y,r.x];});
   if(lastOrigin)pts.push(lastOrigin);
   if(pts.length){try{map.fitBounds(L.latLngBounds(pts),{padding:[45,45],maxZoom:15});}catch(e){}}
@@ -784,7 +785,8 @@ function drawFacilities(list,codes,ranked){
 function updateBrowsePins(){
   if(browseLayer){map.removeLayer(browseLayer);browseLayer=null;}
   if(!recData||activeActs().length)return;
-  if(map.getZoom()<14)return;
+  if(document.getElementById('s-cd').value)return;
+  if(map.getZoom()<13)return;
   var b=map.getBounds();
   browseLayer=L.layerGroup();
   var n=0;
@@ -817,8 +819,16 @@ function showScopeAll(cd,boro){
   rows.forEach(function(r){r.a.forEach(function(a){all[a]=(all[a]||0)+1;});});
   var kinds=ACT_ORDER.filter(function(c){return all[c];});
 
-  if(browseLayer){map.removeLayer(browseLayer);browseLayer=null;}
-  drawFacilities(list,kinds,false);
+  // A whole borough or the whole city is too many pins to read, so at those
+  // scopes the parks themselves carry the map and pins appear as you zoom in.
+  var wide=!cd;
+  if(wide){
+    if(recLayer){map.removeLayer(recLayer);recLayer=null;}
+    updateBrowsePins();
+  } else {
+    if(browseLayer){map.removeLayer(browseLayer);browseLayer=null;}
+    drawFacilities(list,kinds,false,!!cdIndex[cd]);
+  }
   topResults=list.slice(0,12);
 
   document.getElementById('act-head').innerHTML='<strong>'+escH(where)+'</strong> <span>· '+
@@ -837,7 +847,9 @@ function showScopeAll(cd,boro){
   document.getElementById('act-panel').classList.add('open');
 
   showResult('<strong>'+escH(where)+'</strong>: '+rows.length.toLocaleString()+' facilit'+(rows.length===1?'y':'ies')+' at '+
-    list.length.toLocaleString()+' park site'+(list.length===1?'':'s')+'. Turn on an activity above to narrow it, or add an address to rank by distance.');
+    list.length.toLocaleString()+' park site'+(list.length===1?'':'s')+'. '+
+    (wide?'Parks are shaded green, and activity icons appear as you zoom in. Turn on an activity to map every one of them.'
+        :'Turn on an activity above to narrow it, or add an address to rank by distance.'));
 }
 
 function flyTo(i){var r=topResults[i];if(r)map.setView([r.y,r.x],17);}
@@ -914,7 +926,7 @@ function setScope(which){
   var boroSel=document.getElementById('s-boro'),cdSel=document.getElementById('s-cd');
   if(which==='district'&&HOME_CD){
     boroSel.value=HOME_CD.charAt(0);fillDistricts();cdSel.value=HOME_CD;
-    if(cdIndex[HOME_CD]){try{map.fitBounds(cdIndex[HOME_CD].getBounds(),{padding:[18,18]});}catch(e){}}
+    if(cdIndex[HOME_CD]){try{map.fitBounds(cdIndex[HOME_CD].getBounds().pad(0.45),{padding:[12,12]});}catch(e){}}
   } else if(which==='borough'){
     var b=HOME_BORO||(HOME_CD?HOME_CD.charAt(0):'');
     boroSel.value=b;fillDistricts();cdSel.value='';
@@ -953,7 +965,7 @@ function applyUrlParams(){
     var sel=document.getElementById('s-cd');
     for(var i=0;i<sel.options.length;i++){if(sel.options[i].value===cd){sel.value=cd;break;}}
     highlightDistrict(cd);
-    if(cdIndex[cd]){try{map.fitBounds(cdIndex[cd].getBounds(),{padding:[20,20]});}catch(e){}}
+    if(cdIndex[cd]){try{map.fitBounds(cdIndex[cd].getBounds().pad(0.45),{padding:[12,12]});}catch(e){}}
   }
   showScopeBar(cd,boro);
   if(act){
