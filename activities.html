@@ -297,6 +297,22 @@ body.embed .embed-title a{margin-left:auto;font-size:.76rem;font-weight:700;colo
 
 <script>
 var map=L.map('map',{scrollWheelZoom:true,preferCanvas:true}).setView([40.706,-73.94],11);
+// In an iframe the container can still be sizing when the first fit runs, which
+// makes Leaflet pick a near-minimum zoom. Keep the last fit and re-apply it.
+var lastFit=null;
+function fitTo(bounds,opts){
+  if(!bounds)return;
+  lastFit={b:bounds,o:opts||{}};
+  try{map.fitBounds(bounds,opts);}catch(e){}
+}
+function refit(){
+  try{map.invalidateSize();}catch(e){}
+  if(lastFit){try{map.fitBounds(lastFit.b,lastFit.o);}catch(e){}}
+}
+window.addEventListener('load',function(){setTimeout(refit,120);setTimeout(refit,600);});
+if(window.ResizeObserver){
+  try{new ResizeObserver(function(){refit();}).observe(document.getElementById('map'));}catch(e){}
+}
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO | NYC Parks, NYC Open Data',subdomains:'abcd',maxZoom:19}).addTo(map);
 
 var ACT_LABELS={'BKB':'Basketball','HDB':'Handball','TNS':'Tennis','PKB':'Pickleball','VLB':'Volleyball','BOC':'Bocce','HKY':'Hockey','BSB':'Baseball','SFB':'Softball','SCR':'Soccer','FTB':'Football','CRK':'Cricket','RGB':'Rugby','LAX':'Lacrosse','KCK':'Kickball','NET':'Netball','FRS':'Frisbee','TRK':'Running Track','MPP':'Multi-Purpose','SWM':'Lap Swimming','WAD':'Wading Pool','SKT':'Skateboarding','DOG':'Dog Run'};
@@ -777,7 +793,7 @@ function drawFacilities(list,codes,ranked,skipFit){
   if(skipFit)return;
   var pts=(ranked?list.slice(0,12):list).map(function(r){return [r.y,r.x];});
   if(lastOrigin)pts.push(lastOrigin);
-  if(pts.length){try{map.fitBounds(L.latLngBounds(pts),{padding:[45,45],maxZoom:15});}catch(e){}}
+  if(pts.length)fitTo(L.latLngBounds(pts),{padding:[45,45],maxZoom:15});
 }
 
 // With nothing selected, the map still shows what is there: every facility in
@@ -904,7 +920,7 @@ function resetView(){
   if(searchMarker){map.removeLayer(searchMarker);searchMarker=null;}
   highlightDistrict('');
   refreshParks();
-  map.fitBounds(HOME);
+  fitTo(HOME,{});
 }
 function boroBounds(b){
   var pts=[];
@@ -926,15 +942,15 @@ function setScope(which){
   var boroSel=document.getElementById('s-boro'),cdSel=document.getElementById('s-cd');
   if(which==='district'&&HOME_CD){
     boroSel.value=HOME_CD.charAt(0);fillDistricts();cdSel.value=HOME_CD;
-    if(cdIndex[HOME_CD]){try{map.fitBounds(cdIndex[HOME_CD].getBounds().pad(0.12),{padding:[10,10]});}catch(e){}}
+    if(cdIndex[HOME_CD]){try{fitTo(cdIndex[HOME_CD].getBounds().pad(0.12),{padding:[10,10]});}catch(e){}}
   } else if(which==='borough'){
     var b=HOME_BORO||(HOME_CD?HOME_CD.charAt(0):'');
     boroSel.value=b;fillDistricts();cdSel.value='';
     var bb=boroBounds(b);
-    if(bb){try{map.fitBounds(bb,{padding:[15,15]});}catch(e){}}
+    if(bb)fitTo(bb,{padding:[15,15]});
   } else {
     boroSel.value='';fillDistricts();cdSel.value='';
-    try{map.fitBounds(HOME);}catch(e){}
+    fitTo(HOME,{});
   }
   rerun();
 }
@@ -957,7 +973,7 @@ function applyUrlParams(){
     document.getElementById('s-boro').value=boro;
     fillDistricts();
     var bb=boroBounds(boro);
-    if(bb){try{map.fitBounds(bb,{padding:[15,15]});}catch(e){}}
+    if(bb)fitTo(bb,{padding:[15,15]});
   }
   if(cd&&/^\d{3}$/.test(cd)){
     document.getElementById('s-boro').value=cd.charAt(0);
@@ -965,7 +981,7 @@ function applyUrlParams(){
     var sel=document.getElementById('s-cd');
     for(var i=0;i<sel.options.length;i++){if(sel.options[i].value===cd){sel.value=cd;break;}}
     highlightDistrict(cd);
-    if(cdIndex[cd]){try{map.fitBounds(cdIndex[cd].getBounds().pad(0.12),{padding:[10,10]});}catch(e){}}
+    if(cdIndex[cd]){try{fitTo(cdIndex[cd].getBounds().pad(0.12),{padding:[10,10]});}catch(e){}}
   }
   showScopeBar(cd,boro);
   var addr=p.get('addr');
@@ -1001,7 +1017,7 @@ var EMBED=new URLSearchParams(window.location.search).get('embed')==='1';
 if(EMBED)document.body.classList.add('embed');
 if(EMBED&&new URLSearchParams(window.location.search).get('boro'))document.body.classList.add('boro');
 
-map.fitBounds(HOME);
+fitTo(HOME,{});
 Promise.all([
   fetch('data/nyc-recreation.json').then(function(r){return r.json();}),
   fetch('data/cd-lookup.json').then(function(r){return r.json();}).catch(function(){return {};}),
