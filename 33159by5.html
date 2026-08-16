@@ -788,7 +788,7 @@ function load(){
   el('rankHead').innerHTML = ''; el('catChips').innerHTML = '';
   renderIdent();
   loadCats().then(function(){
-    paintMap();
+    updateMapMode();
     if (S.level === 'cd') showPanel(S.cd, true); else el('cdPanel').className = 'cdpanel';
   }).catch(function(){});
 
@@ -1060,10 +1060,227 @@ function paintMap(){
     esc(periodName()) + '. Bold number is how many districts that category leads. Tap one to open it.</span>';
 }
 
+
+/* ---------- district dot map, matching the logic of 311.html ---------- */
+// At district level the map stops being a citywide choropleth and becomes the
+// same thing 311.html shows for CB6: the district outline with one dot per
+// complaint, coloured by category. Every complaint is plotted, so a wide year
+// range is gated behind an estimate first.
+var dotLayer = null, dotBoundary = null, DOT_GRID = null, DOT_CELL = 0.0015, dotSeq = 0;
+
+var DotTiles = L.GridLayer.extend({
+  createTile: function(coords){
+    var tile = document.createElement('canvas');
+    var size = this.getTileSize();
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    tile.width = size.x * dpr; tile.height = size.y * dpr;
+    tile.style.width = size.x + 'px'; tile.style.height = size.y + 'px';
+    var ctx = tile.getContext('2d');
+    ctx.scale(dpr, dpr);
+    var nw = cdMap.unproject(coords.scaleBy(size), coords.z);
+    var se = cdMap.unproject(coords.add([1,1]).scaleBy(size), coords.z);
+    var pad = 7 * (se.lat - nw.lat) / size.y;
+    dotsInBounds(se.lat + pad, nw.lat - pad, nw.lng - pad, se.lng + pad, function(r){
+      var pxy = cdMap.project([r.la, r.ln], coords.z).subtract(coords.scaleBy(size));
+      ctx.beginPath();
+      ctx.arc(pxy.x, pxy.y, 5, 0, 6.2832);
+      ctx.fillStyle = CAT_COLORS[r.c] || CAT_COLORS.other;
+      ctx.globalAlpha = .8; ctx.fill();
+      ctx.globalAlpha = 1; ctx.lineWidth = 1; ctx.strokeStyle = '#fff'; ctx.stroke();
+    });
+    return tile;
+  }
+});
+
+function dotsInBounds(latMin, latMax, lngMin, lngMax, fn){
+  if (!DOT_GRID) return;
+  var i0 = Math.floor(latMin/DOT_CELL), i1 = Math.ceil(latMax/DOT_CELL);
+  var j0 = Math.floor(lngMin/DOT_CELL), j1 = Math.ceil(lngMax/DOT_CELL);
+  for (var i=i0;i<=i1;i++) for (var j=j0;j<=j1;j++){
+    var cell = DOT_GRID[i + ':' + j];
+    if (!cell) continue;
+    for (var n=0;n<cell.length;n++){
+      var r = cell[n];
+      if (r.la >= latMin && r.la <= latMax && r.ln >= lngMin && r.ln <= lngMax) fn(r);
+    }
+  }
+}
+
+// Nearest dot to a click, from the same grid the tiles draw from.
+function dotNear(lat, lng, maxDeg){
+  if (!DOT_GRID) return null;
+  var ci = Math.round(lat/DOT_CELL), cj = Math.round(lng/DOT_CELL);
+  var best = null, bestD = Infinity;
+  for (var i=-1;i<=1;i++) for (var j=-1;j<=1;j++){
+    var cell = DOT_GRID[(ci+i) + ':' + (cj+j)];
+    if (!cell) continue;
+    for (var n=0;n<cell.length;n++){
+      var r = cell[n], dla = r.la - lat, dln = (r.ln - lng) * 0.76;
+      var dd = dla*dla + dln*dln;
+      if (dd < bestD){ bestD = dd; best = r; }
+    }
+  }
+  return (best && Math.sqrt(bestD) <= maxDeg) ? best : null;
+}
+
+function openDotPopup(e){
+  if (!DOT_GRID) return;
+  var tol = 13 * 360 / (256 * Math.pow(2, cdMap.getZoom()));
+  var r = dotNear(e.latlng.lat, e.latlng.lng, tol);
+  if (!r) return;
+  L.popup({maxWidth:260})
+    .setLatLng([r.la, r.ln])
+    .setContent('<div style="font-family:\'DM Sans\',sans-serif;font-size:.82rem;min-width:180px">' +
+      '<div style="font-weight:700;color:#0d1b4b;margin-bottom:4px">' + esc(r.t) + '</div>' +
+      '<div style="color:#6b6760;font-size:.75rem;margin-bottom:2px">' + esc(r.d||'') + '</div>' +
+      '<div style="font-size:.75rem;color:#333;margin-top:6px">' + esc(r.a||'') + '</div>' +
+      '<div style="font-size:.72rem;color:#6b6760;margin-top:2px">' + esc(r.dt) + ' · ' + esc(r.st||'') + '</div></div>')
+    .openOn(cdMap);
+}
+
+function clearDots(){
+  if (dotLayer){ cdMap.removeLayer(dotLayer); dotLayer = null; }
+  if (dotBoundary){ cdMap.removeLayer(dotBoundary); dotBoundary = null; }
+  DOT_GRID = null;
+}
+
+function showChoropleth(){
+  clearDots();
+  Object.keys(cdLayers).forEach(function(k){ if (!cdMap.hasLayer(cdLayers[k])) cdLayers[k].addTo(cdMap); });
+  paintMap();
+  var all = Object.keys(cdLayers).map(function(k){ return cdLayers[k]; });
+  if (S.level === 'boro'){
+    var bb = null;
+    all.forEach(function(l, i){
+      var k = Object.keys(cdLayers)[i];
+      if (k.slice(3) === S.boro) bb = bb ? bb.extend(l.getBounds()) : l.getBounds();
+    });
+    if (bb) cdMap.fitBounds(bb, {padding:[12,12]});
+  } else if (all.length){
+    var bounds = all[0].getBounds();
+    all.forEach(function(l){ bounds.extend(l.getBounds()); });
+    cdMap.fitBounds(bounds, {padding:[8,8]});
+  }
+}
+
+function dotFetch(seq){
+  var d = CD_LIST.filter(function(x){ return x.key === S.cd; })[0];
+  var PAGE_SIZE = 50000;
+  function pageOf(sl, offset, acc){
+    var params = {
+      '$select':'created_date,complaint_type,descriptor,incident_address,street_name,status,latitude,longitude',
+      '$where': whereFor(sl, "community_board='" + S.cd + "'"),
+      '$order': ':id', '$limit': String(PAGE_SIZE), '$offset': String(offset)
+    };
+    return soda(sl.ds, params).then(function(rows){
+      if (seq !== dotSeq) return acc;
+      acc = acc.concat(rows);
+      el('mapLegend').innerHTML = '<span class="lgnote"><span class="spin"></span>Plotting ' +
+        fmt(acc.length) + ' complaints in ' + esc(d.label) + '</span>';
+      if (rows.length < PAGE_SIZE) return acc;
+      return pageOf(sl, offset + PAGE_SIZE, acc);
+    });
+  }
+  var chain = Promise.resolve([]);
+  slices(S.from, S.to).forEach(function(sl){
+    chain = chain.then(function(acc){ return pageOf(sl, 0, acc); });
+  });
+  return Promise.all([chain, officialTotal("community_board='" + S.cd + "'")]);
+}
+
+function renderDots(){
+  var seq = ++dotSeq;
+  var d = CD_LIST.filter(function(x){ return x.key === S.cd; })[0];
+  if (!d || !cdMap) return;
+
+  // Outline first so the district frames itself while the dots load.
+  Object.keys(cdLayers).forEach(function(k){ if (cdMap.hasLayer(cdLayers[k])) cdMap.removeLayer(cdLayers[k]); });
+  clearDots();
+  if (CD_GEO){
+    var f = CD_GEO.features.filter(function(x){ return String(x.properties.cd) === codeFor(S.cd); })[0];
+    if (f){
+      dotBoundary = L.geoJSON(f, {style:{color:'#0d1b4b', weight:2.5, opacity:.9,
+        fillColor:'#0d1b4b', fillOpacity:.04}}).addTo(cdMap);
+      cdMap.fitBounds(dotBoundary.getBounds(), {padding:[16,16]});
+    }
+  }
+
+  dotFetch(seq).then(function(res){
+    if (seq !== dotSeq) return;
+    var rows = res[0], official = res[1];
+    if (rows.length !== official){
+      throw new Error('Record check failed: the City reports ' + fmt(official) +
+        ' complaints here but ' + fmt(rows.length) + ' were retrieved. Nothing plotted.');
+    }
+    var pts = [], counts = {};
+    DOT_GRID = {};
+    rows.forEach(function(r){
+      var c = categorize(r.complaint_type);
+      counts[c] = (counts[c] || 0) + 1;
+      if (!r.latitude || !r.longitude) return;
+      var o = {la:Number(r.latitude), ln:Number(r.longitude), c:c,
+               t:r.complaint_type, d:r.descriptor, a:r.incident_address || r.street_name,
+               dt:String(r.created_date||'').slice(0,10), st:r.status};
+      pts.push(o);
+      var k = Math.round(o.la/DOT_CELL) + ':' + Math.round(o.ln/DOT_CELL);
+      (DOT_GRID[k] || (DOT_GRID[k] = [])).push(o);
+    });
+    dotLayer = new DotTiles();
+    dotLayer.addTo(cdMap);
+
+    var noGeo = rows.length - pts.length;
+    el('mapLegend').innerHTML = Object.keys(counts).sort(function(a,b){ return counts[b]-counts[a]; })
+      .map(function(c){
+        return '<span class="lgc"><i style="background:' + (CAT_COLORS[c]||CAT_COLORS.other) +
+          ';border-radius:50%"></i>' + esc(CAT_LABELS[c]||c) + ' <b>' + fmt(counts[c]) + '</b></span>';
+      }).join('') +
+      '<span class="lgnote">One dot per complaint in ' + esc(d.label) + ', ' + esc(periodName()) +
+      ' · all ' + fmt(official) + ' accounted for' +
+      (noGeo ? ' · ' + fmt(noGeo) + ' have no coordinates in the City record' : '') + '</span>';
+  }).catch(function(err){
+    if (seq !== dotSeq) return;
+    el('mapLegend').innerHTML = '<span class="lgnote" style="color:#b42318">' +
+      esc(err.message || 'Could not plot complaints.') + '</span>';
+  });
+}
+
+// Expected record volume for the current district and range, from the rank file.
+function expectedDots(){
+  if (!rankFile || S.level !== 'cd') return null;
+  var n = 0;
+  for (var y = S.from; y <= S.to; y++){
+    var yr = rankFile.years[String(y)];
+    if (yr && yr[S.cd]) n += yr[S.cd];
+  }
+  return n;
+}
+
+function updateMapMode(){
+  if (!cdMap || !CD_GEO) return;
+  if (S.level !== 'cd'){ showChoropleth(); return; }
+  var n = expectedDots();
+  if (n && n > 120000){
+    // Big enough to be worth a choice rather than a surprise.
+    Object.keys(cdLayers).forEach(function(k){ if (cdMap.hasLayer(cdLayers[k])) cdMap.removeLayer(cdLayers[k]); });
+    clearDots();
+    el('mapLegend').innerHTML = '<span class="lgnote">' + fmt(n) + ' complaints in ' +
+      esc(periodName()) + '. Plotting every one takes ' + etaLabel(1.5 + n/12000) +
+      '. <a href="#" id="plotAnyway" style="color:var(--orange);font-weight:700">Plot them all</a>' +
+      ' · <a href="#" id="plotNarrow" style="color:var(--orange);font-weight:700">or just ' + S.to + '</a></span>';
+    var a = el('plotAnyway'); if (a) a.addEventListener('click', function(e){ e.preventDefault(); renderDots(); });
+    var b2 = el('plotNarrow'); if (b2) b2.addEventListener('click', function(e){
+      e.preventDefault(); S.from = S.to; syncUI(); writeHash(); load();
+    });
+    return;
+  }
+  renderDots();
+}
+
 function initMap(){
   if (cdMap || typeof L === 'undefined') return;
   cdMap = L.map('cdmap', {scrollWheelZoom:false, zoomControl:true})
            .setView([40.7128, -73.96], 10);
+  cdMap.on('click', openDotPopup);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
     {maxZoom:18, attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(cdMap);
 
@@ -1097,7 +1314,7 @@ function initMap(){
       all.forEach(function(l){ bounds.extend(l.getBounds()); });
       cdMap.fitBounds(bounds, {padding:[8,8]});
     }
-    paintMap();
+    updateMapMode();
   }).catch(function(err){
     el('mapLegend').innerHTML = '<span style="color:#b42318;text-transform:none;letter-spacing:0">District outlines did not load (' + esc(err.message) + ').</span>';
   });
