@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Find an Activity — NYC Parks by Community District | BKCB6</title>
+<meta name="description" content="Find the closest place to play tennis, swim laps, run a track, skate, or walk a dog, anywhere in New York City, with the community district for every location."/>
+<meta property="og:title" content="Find an Activity — NYC Parks by Community District"/>
+<meta property="og:description" content="Search NYC Parks by what you want to do. Ranked by distance, with the community district for every location."/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:#f8f7f4;color:#0d1b4b}
+.top-bar{background:#06024D;color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.top-bar h1{font-size:1rem;font-weight:900;letter-spacing:.01em}
+.top-bar h1 span{font-weight:400;opacity:.85}
+.back-link{color:#fff;text-decoration:none;font-size:.78rem;border:1px solid rgba(255,255,255,.45);border-radius:999px;padding:5px 11px}
+.back-link:hover{background:rgba(255,255,255,.12)}
+.search-bar{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px;background:#fff;border-bottom:1.5px solid #e5e2db}
+.search-bar input,.search-bar select{padding:9px 11px;border:1.5px solid #e5e2db;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.86rem;color:#0d1b4b;background:#fff;min-width:0}
+.search-bar input{flex:1 1 200px}
+.search-bar select{flex:0 1 auto}
+.search-bar button{padding:9px 15px;background:#f47920;color:#fff;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.84rem;font-weight:700;cursor:pointer}
+.search-bar button:hover{background:#d4631a}
+.search-bar button.sec{background:#06024D}
+.search-bar button.sec:hover{background:#1a2d6b}
+.result-bar{display:none;padding:10px 14px;background:#fffaf5;border-bottom:1.5px solid #e5e2db;font-size:.84rem;line-height:1.45}
+.act-panel{display:none;background:#fff;border-bottom:1.5px solid #e5e2db;padding:12px 14px}
+.act-panel.open{display:block}
+.act-head{font-size:.82rem;color:#0d1b4b;font-weight:700;margin-bottom:8px}
+.act-head span{font-weight:400;color:#666}
+.act-list{display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto}
+.act-row{display:flex;align-items:flex-start;gap:10px;background:#f8f7f4;border:1.5px solid #e5e2db;border-radius:6px;padding:9px 11px;cursor:pointer;text-align:left}
+.act-row:hover{border-color:#f47920}
+.act-rank{font-family:'DM Mono',monospace;font-size:.75rem;font-weight:700;color:#f47920;min-width:18px;padding-top:2px}
+.act-body{flex:1;min-width:0}
+.act-name{font-size:.86rem;font-weight:700;color:#0d1b4b;line-height:1.25}
+.act-meta{font-size:.74rem;color:#666;margin-top:2px;line-height:1.4}
+.act-dist{font-family:'DM Mono',monospace;font-size:.74rem;color:#0d1b4b;white-space:nowrap;padding-top:2px}
+.act-tag{display:inline-block;font-size:.66rem;font-weight:700;letter-spacing:.03em;padding:2px 6px;border-radius:3px;margin-right:5px;margin-top:4px;background:#06024D;color:#fff}
+.act-tag.alt{background:#f47920}
+#map{height:66vh;min-height:420px;width:100%}
+.note-bar{padding:10px 14px;font-size:.76rem;color:#6b6760;background:#fff;border-top:1.5px solid #e5e2db;line-height:1.5}
+.note-bar a{color:#f47920;font-weight:700;text-decoration:none}
+.defs{background:#fff;border-top:1.5px solid #e5e2db}
+.defs summary{padding:12px 14px;font-size:.84rem;font-weight:700;cursor:pointer;color:#0d1b4b}
+.defs-body{padding:0 14px 14px;font-size:.8rem;color:#4f4a42;line-height:1.6}
+.defs-body p{margin-bottom:8px}
+@media(max-width:640px){#map{height:56vh;min-height:340px}.search-bar input,.search-bar select,.search-bar button{flex:1 1 100%}}
+.embed-fab{position:fixed;bottom:20px;right:20px;z-index:9000;background:#06024D;color:#fff;border:none;border-radius:50px;padding:10px 16px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.embed-fab:hover{background:#1a2d6b}
+.embed-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px}
+.embed-modal-bg.open{display:flex}
+.embed-modal{background:#fff;border-radius:12px;padding:24px;max-width:520px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.embed-modal h3{font-size:1rem;font-weight:700;color:#0d1b4b;margin-bottom:6px}
+.embed-modal p{font-size:.82rem;color:#6b6760;margin-bottom:14px;line-height:1.5}
+.embed-url-row{display:flex;gap:8px;margin-bottom:16px}
+.embed-url-box{flex:1;padding:8px 10px;border:1.5px solid #e5e2db;border-radius:6px;font-size:.78rem;font-family:'DM Mono',monospace;color:#0d1b4b;background:#f8f7f4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.embed-copy-btn{padding:8px 14px;background:#f47920;color:#fff;border:none;border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif}
+.embed-copy-btn:hover{background:#d4631a}
+.embed-close{width:100%;padding:10px;background:#f8f7f4;border:1.5px solid #e5e2db;border-radius:6px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;color:#0d1b4b}
+.embed-close:hover{background:#e5e2db}
+</style>
+<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b6e9b47ba0cf416388d72db8edaf4198"}'></script><!-- End Cloudflare Web Analytics -->
+</head>
+<body>
+
+<div class="top-bar">
+  <h1>BKCB6 <span>Find an Activity, Citywide</span></h1>
+  <a class="back-link" href="parks.html">← CB6 Parks</a>
+</div>
+
+<div class="search-bar">
+  <select id="s-activity">
+    <option value="">Choose an activity…</option>
+    <optgroup label="Courts">
+      <option value="BKB">Basketball</option>
+      <option value="HDB">Handball</option>
+      <option value="TNS">Tennis</option>
+      <option value="PKB">Pickleball</option>
+      <option value="VLB">Volleyball</option>
+      <option value="BOC">Bocce</option>
+      <option value="HKY">Hockey</option>
+    </optgroup>
+    <optgroup label="Fields">
+      <option value="BSB">Baseball</option>
+      <option value="SFB">Softball</option>
+      <option value="SCR">Soccer</option>
+      <option value="FTB">Football</option>
+      <option value="CRK">Cricket</option>
+      <option value="RGB">Rugby</option>
+      <option value="LAX">Lacrosse</option>
+      <option value="KCK">Kickball</option>
+      <option value="NET">Netball</option>
+      <option value="FRS">Frisbee</option>
+      <option value="TRK">Running Track</option>
+      <option value="MPP">Multi-Purpose</option>
+    </optgroup>
+    <optgroup label="Water">
+      <option value="SWM">Lap Swimming</option>
+      <option value="WAD">Wading / Kiddie Pool</option>
+    </optgroup>
+    <optgroup label="Other">
+      <option value="SKT">Skateboarding</option>
+      <option value="DOG">Dog Run</option>
+    </optgroup>
+  </select>
+  <select id="s-boro" onchange="fillDistricts()">
+    <option value="">All boroughs</option>
+    <option value="1">Manhattan</option>
+    <option value="2">Bronx</option>
+    <option value="3">Brooklyn</option>
+    <option value="4">Queens</option>
+    <option value="5">Staten Island</option>
+  </select>
+  <select id="s-cd"><option value="">All districts</option></select>
+  <input id="s-addr" type="text" placeholder="Address (optional, ranks by distance)"/>
+  <button onclick="doSearch()">Search</button>
+  <button class="sec" onclick="findNearest()">📍 Nearest to me</button>
+</div>
+
+<div class="result-bar" id="result-bar"></div>
+<div class="act-panel" id="act-panel">
+  <div class="act-head" id="act-head"></div>
+  <div class="act-list" id="act-list"></div>
+</div>
+<div id="map"></div>
+
+<details class="defs">
+  <summary>Where this data comes from</summary>
+  <div class="defs-body">
+    <p>Locations are drawn from four NYC Parks datasets on NYC Open Data: Athletic Facilities, Pools, SkateParks, and Dog Runs. Each record is placed at the center of its mapped footprint and matched to the community district it sits in.</p>
+    <p>Lap Swimming covers Olympic, Intermediate, and Large pools. Wading and mini pools are listed separately. Pools are marked indoor or outdoor, which matters for anything outside the summer season.</p>
+    <p>This covers property run by NYC Parks. School gyms, private clubs, and YMCA facilities are not in these datasets. Parks data does not carry closure status, so a location listed here may be shut for construction or seasonal maintenance. Check with NYC Parks before you go.</p>
+    <p><a href="parks.html">CB6 parks map →</a></p>
+  </div>
+</details>
+
+<div class="note-bar" id="note">Loading citywide recreation data…</div>
+
+<script>
+var map=L.map('map',{scrollWheelZoom:true}).setView([40.706,-73.94],11);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+
+var ACT_LABELS={'BKB':'Basketball','HDB':'Handball','TNS':'Tennis','PKB':'Pickleball','VLB':'Volleyball','BOC':'Bocce','HKY':'Hockey','BSB':'Baseball','SFB':'Softball','SCR':'Soccer','FTB':'Football','CRK':'Cricket','RGB':'Rugby','LAX':'Lacrosse','KCK':'Kickball','NET':'Netball','FRS':'Frisbee','TRK':'Running Track','MPP':'Multi-Purpose','SWM':'Lap Swimming','WAD':'Wading / Kiddie Pool','SKT':'Skateboarding','DOG':'Dog Run'};
+var BORO_NAMES={'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
+var BORO_KEY={'1':'MN','2':'BX','3':'BK','4':'QN','5':'SI'};
+var recData=null,cdLookup={},recLayer=null,searchMarker=null,topResults=[];
+
+function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function showResult(html){var b=document.getElementById('result-bar');b.style.display='block';b.innerHTML=html;}
+
+function cdLabel(c){
+  c=String(c||'');
+  if(c.length!==3)return '';
+  var b=BORO_NAMES[c.charAt(0)];
+  if(!b)return '';
+  var n=parseInt(c.substring(1),10);
+  if(n>18)return b+' parkland';
+  return b+' CB'+n;
+}
+function cdNeighborhoods(c){
+  c=String(c||'');
+  var k=BORO_KEY[c.charAt(0)];
+  if(!k)return '';
+  var rec=cdLookup[k+'CB'+parseInt(c.substring(1),10)];
+  if(!rec||!rec.se||!rec.se.length)return '';
+  return rec.se.join(', ');
+}
+function milesBetween(aLat,aLng,bLat,bLng){
+  var R=3958.8,t=Math.PI/180;
+  var dLat=(bLat-aLat)*t,dLng=(bLng-aLng)*t;
+  var h=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(aLat*t)*Math.cos(bLat*t)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
+}
+function fmtDist(mi){return mi<0.19?Math.round(mi*5280)+' ft':mi.toFixed(1)+' mi';}
+function recDetail(r){
+  var bits=[];
+  if(r.pt)bits.push(r.pt+(r['in']?' · indoor':' · outdoor'));
+  if(r.dt&&r.dt!=='Dog Run')bits.push(r.dt);
+  if(r.sf)bits.push(r.sf);
+  if(r._ct>1)bits.push(r._ct+' courts or fields');
+  if(r.lt)bits.push('lighted');
+  if(r.ac)bits.push('accessible');
+  if(r.ad)bits.push(r.ad);
+  return bits.join(' · ');
+}
+
+function fillDistricts(){
+  var b=document.getElementById('s-boro').value;
+  var sel=document.getElementById('s-cd');
+  sel.innerHTML='<option value="">All districts</option>';
+  if(!b||!recData)return;
+  var codes={};
+  recData.forEach(function(r){var c=String(r.c);if(c.charAt(0)===b&&parseInt(c.substring(1),10)<=18)codes[c]=1;});
+  Object.keys(codes).sort(function(x,y){return parseInt(x.substring(1),10)-parseInt(y.substring(1),10);}).forEach(function(c){
+    var o=document.createElement('option');
+    o.value=c;o.textContent='CB'+parseInt(c.substring(1),10);
+    sel.appendChild(o);
+  });
+}
+
+function collapse(rows){
+  var seen={},out=[];
+  rows.forEach(function(r){
+    var k=r.n+'|'+(r.ad||'')+'|'+r.c;
+    if(seen[k]){seen[k]._ct++;return;}
+    var c={};for(var p in r)c[p]=r[p];
+    c._ct=1;seen[k]=c;out.push(c);
+  });
+  return out;
+}
+
+function render(code,origin,originLabel){
+  var boro=document.getElementById('s-boro').value;
+  var cd=document.getElementById('s-cd').value;
+  var rows=recData.filter(function(r){return r.a.indexOf(code)!==-1;});
+  var scope=rows;
+  if(cd)scope=rows.filter(function(r){return r.c===cd;});
+  else if(boro)scope=rows.filter(function(r){return String(r.c).charAt(0)===boro;});
+  var list=collapse(scope);
+  var where=cd?cdLabel(cd):(boro?BORO_NAMES[boro]:'citywide');
+
+  var fellBack=false;
+  if(!list.length){
+    var alt=collapse(rows);
+    if(!alt.length){
+      showResult('No '+ACT_LABELS[code]+' locations in the NYC Parks data.');
+      document.getElementById('act-panel').classList.remove('open');
+      return;
+    }
+    fellBack=true;
+    list=alt;
+    if(!origin){
+      // Rank from the middle of the chosen district or borough so the list is useful
+      var near=recData.filter(function(r){return cd?r.c===cd:(boro?String(r.c).charAt(0)===boro:false);});
+      if(near.length){
+        var sy=0,sx=0;
+        near.forEach(function(r){sy+=r.y;sx+=r.x;});
+        origin=[sy/near.length,sx/near.length];
+        originLabel='the middle of '+where;
+      }
+    }
+  }
+
+  if(origin){
+    list.forEach(function(r){r._d=milesBetween(origin[0],origin[1],r.y,r.x);});
+    list.sort(function(a,b){return a._d-b._d;});
+  } else {
+    list.sort(function(a,b){return a.n<b.n?-1:a.n>b.n?1:0;});
+  }
+
+  var top=list.slice(0,12);
+  topResults=top;
+  var head='<strong>'+ACT_LABELS[code]+'</strong> <span>· ';
+  if(fellBack){
+    head+='none in '+escH(where)+', showing all '+list.length+' citywide';
+  } else {
+    head+=list.length+' site'+(list.length===1?'':'s')+' in '+escH(where);
+    if(cd){var nb=cdNeighborhoods(cd);if(nb)head+=' ('+escH(nb)+')';}
+  }
+  if(origin)head+=' · ranked from '+escH(originLabel||'your location');
+  head+='</span>';
+  document.getElementById('act-head').innerHTML=head;
+
+  var html='';
+  top.forEach(function(r,i){
+    var extra=(code==='SWM'&&r['in'])?'<span class="act-tag alt">Indoor</span>':'';
+    html+='<div class="act-row" onclick="flyTo('+i+')">'+
+      '<div class="act-rank">'+(i+1)+'</div>'+
+      '<div class="act-body"><div class="act-name">'+escH(r.n)+'</div>'+
+      '<div class="act-meta">'+escH(recDetail(r))+'</div>'+
+      '<span class="act-tag">'+escH(cdLabel(r.c)||'NYC Parks')+'</span>'+extra+'</div>'+
+      (origin?'<div class="act-dist">'+fmtDist(r._d)+'</div>':'')+
+      '</div>';
+  });
+  document.getElementById('act-list').innerHTML=html;
+  document.getElementById('act-panel').classList.add('open');
+
+  if(recLayer)map.removeLayer(recLayer);
+  recLayer=L.layerGroup();
+  top.forEach(function(r,i){
+    L.marker([r.y,r.x],{icon:L.divIcon({className:'',html:'<div style="background:#06024D;color:#fff;font:700 11px/20px \'DM Mono\',monospace;width:20px;height:20px;border-radius:50%;text-align:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)">'+(i+1)+'</div>',iconSize:[24,24],iconAnchor:[12,12]})})
+      .bindTooltip('<strong>'+escH(r.n)+'</strong><br><span style="font-size:.72rem;color:#555">'+escH(ACT_LABELS[code]+' · '+(cdLabel(r.c)||''))+(r._d!==undefined?' · '+fmtDist(r._d):'')+'</span>',{opacity:1})
+      .addTo(recLayer);
+  });
+  recLayer.addTo(map);
+  var pts=top.map(function(r){return [r.y,r.x];});
+  if(origin)pts.push(origin);
+  try{map.fitBounds(L.latLngBounds(pts),{padding:[45,45],maxZoom:15});}catch(e){}
+
+  var pre='<strong>'+ACT_LABELS[code]+'</strong>: '+(fellBack?'none in '+escH(where)+'. ':'');
+  if(origin&&top.length){
+    showResult(pre+'Closest is <strong>'+escH(top[0].n)+'</strong> ('+fmtDist(top[0]._d)+') in '+escH(cdLabel(top[0].c)||'NYC')+'.');
+  } else if(top.length){
+    showResult(pre+(fellBack?list.length+' citywide, listed alphabetically.':list.length+' site'+(list.length===1?'':'s')+' in '+escH(where)+'.')+' Add an address or tap Nearest to me to rank by distance.');
+  }
+}
+
+function flyTo(i){var r=topResults[i];if(r)map.setView([r.y,r.x],17);}
+
+function doSearch(){
+  var code=document.getElementById('s-activity').value;
+  if(!code){showResult('Choose an activity to search.');return;}
+  var q=document.getElementById('s-addr').value.trim();
+  if(!q){render(code,null,null);return;}
+  showResult('Searching…');
+  fetch('https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(q)+'&size=1')
+    .then(function(r){return r.json();}).then(function(geo){
+      if(!geo.features||!geo.features.length){showResult('Address not found.');return;}
+      var f=geo.features[0],lat=f.geometry.coordinates[1],lng=f.geometry.coordinates[0];
+      if(searchMarker)map.removeLayer(searchMarker);
+      searchMarker=L.circleMarker([lat,lng],{radius:6,fillColor:'#f47920',color:'#fff',weight:2,fillOpacity:1}).addTo(map);
+      render(code,[lat,lng],f.properties.label||q);
+    }).catch(function(){showResult('Search failed.');});
+}
+
+function findNearest(){
+  var code=document.getElementById('s-activity').value;
+  if(!code){showResult('Choose an activity first.');return;}
+  if(!navigator.geolocation){showResult('Location is not available in this browser.');return;}
+  showResult('Finding your location…');
+  navigator.geolocation.getCurrentPosition(function(pos){
+    var lat=pos.coords.latitude,lng=pos.coords.longitude;
+    if(searchMarker)map.removeLayer(searchMarker);
+    searchMarker=L.circleMarker([lat,lng],{radius:8,fillColor:'#f47920',color:'#fff',weight:2,fillOpacity:1}).addTo(map);
+    render(code,[lat,lng],'your location');
+  },function(){showResult('Could not get your location.');});
+}
+
+function applyUrlParams(){
+  var p=new URLSearchParams(window.location.search);
+  var cd=p.get('cd'),act=p.get('a');
+  if(cd&&/^\d{3}$/.test(cd)){
+    document.getElementById('s-boro').value=cd.charAt(0);
+    fillDistricts();
+    var sel=document.getElementById('s-cd');
+    for(var i=0;i<sel.options.length;i++){if(sel.options[i].value===cd){sel.value=cd;break;}}
+  }
+  if(act&&ACT_LABELS[act])document.getElementById('s-activity').value=act;
+  if(act&&ACT_LABELS[act])doSearch();
+}
+
+Promise.all([
+  fetch('data/nyc-recreation.json').then(function(r){return r.json();}),
+  fetch('data/cd-lookup.json').then(function(r){return r.json();}).catch(function(){return {};})
+]).then(function(res){
+  recData=res[0];cdLookup=res[1]||{};
+  fillDistricts();
+  applyUrlParams();
+  var cds={},jia=0;
+  recData.forEach(function(r){var c=String(r.c);if(c.length!==3)return;if(parseInt(c.substring(1),10)<=18)cds[c]=1;else jia++;});
+  document.getElementById('note').innerHTML=recData.length.toLocaleString()+' NYC Parks recreation locations across '+Object.keys(cds).length+' community districts, plus '+jia+' on large parkland mapped outside any numbered district. Source: NYC Open Data (Athletic Facilities, Pools, SkateParks, Dog Runs). Every location is matched to its district by mapped boundary, not by the agency field. &nbsp;|&nbsp; <a href="parks.html">CB6 parks map</a>';
+}).catch(function(e){document.getElementById('note').textContent='Load error: '+e;});
+
+document.getElementById('s-addr').addEventListener('keydown',function(e){if(e.key==='Enter')doSearch();});
+document.getElementById('s-activity').addEventListener('change',function(){if(recData&&this.value)doSearch();});
+document.getElementById('s-cd').addEventListener('change',function(){if(recData&&document.getElementById('s-activity').value)doSearch();});
+</script>
+
+<button aria-label="Share or embed this page" class="embed-fab" onclick="document.getElementById('bkcb6EmbedModal').classList.add('open')">
+  &lt;/&gt; Share / Embed
+</button>
+<div class="embed-modal-bg" id="bkcb6EmbedModal" onclick="if(event.target===this)this.classList.remove('open')">
+<div class="embed-modal">
+<h3>Share or Embed This Page</h3>
+<p>Copy the direct link to share, or use the embed code to display this page on your own site.</p>
+<div class="embed-url-row">
+<div class="embed-url-box" id="bkcb6EmbedUrlBox"></div>
+<button class="embed-copy-btn" onclick="bkcb6CopyEmbed()">Copy</button>
+</div>
+<button class="embed-close" onclick="document.getElementById('bkcb6EmbedModal').classList.remove('open')">Close</button>
+</div>
+</div>
+<script>
+(function(){
+  var url=window.location.href.split('?')[0].split('#')[0];
+  url=url.replace('cb6brooklyn.github.io/bkcb6','bkcb6.app');
+  document.getElementById('bkcb6EmbedUrlBox').textContent=url;
+})();
+function bkcb6CopyEmbed(){
+  var t=document.getElementById('bkcb6EmbedUrlBox').textContent;
+  navigator.clipboard.writeText(t).then(function(){
+    var b=document.querySelector('.embed-copy-btn');
+    var o=b.textContent;b.textContent='Copied!';b.style.background='#2d6a4f';
+    setTimeout(function(){b.textContent=o;b.style.background='';},1800);
+  });
+}
+</script>
+</body>
+</html>
