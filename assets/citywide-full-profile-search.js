@@ -493,7 +493,23 @@
       L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
       loadResultZoning(map,lat,lng);
       try{document.querySelectorAll('[data-usegrid]').forEach(function(el){paintUseGrid(el);});}catch(e){}
-      L.marker([lat,lng]).addTo(map).bindPopup(el.getAttribute('data-label')||'Searched address');
+      var label=el.getAttribute('data-label')||'Searched address';
+      var si=SITE_ICON[liftNorm(label)]||null;
+      var aliasHit=AKA[liftNorm(label)];
+      var aliasTxt=aliasHit?(typeof aliasHit==='object'?(aliasHit.full||aliasHit.text||''):String(aliasHit).replace(/^the /,'')):'';
+      var mk;
+      if(si){
+        var ratio=si.h/si.w, iw=64, ih=Math.round(iw*ratio);
+        mk=L.marker([lat,lng],{icon:L.divIcon({className:'',iconSize:[iw,ih+10],iconAnchor:[iw/2,ih+10],
+          html:'<div style="text-align:center"><img src="'+si.src+'" alt="'+esc(si.alt||'')+'" '+
+            'style="width:'+iw+'px;height:'+ih+'px;display:block;background:#fff;border:2px solid #0d1b4b;'+
+            'border-radius:7px;box-shadow:0 2px 6px rgba(0,0,0,.28)"><div style="width:0;height:0;margin:0 auto;'+
+            'border-left:6px solid transparent;border-right:6px solid transparent;border-top:9px solid #0d1b4b"></div></div>'})});
+      } else {
+        mk=L.marker([lat,lng]);
+      }
+      mk.addTo(map).bindPopup('<div style="font-family:\'DM Sans\',sans-serif;font-size:.85rem;line-height:1.45;color:#0d1b4b">'+
+        '<b>'+esc(label)+'</b>'+(aliasTxt?'<br><span style="color:#f47920;font-weight:700">'+esc(aliasTxt)+'</span>':'')+'</div>');
       setTimeout(function(){map.invalidateSize();},120);
     }catch(e){console.error(e);}
   }
