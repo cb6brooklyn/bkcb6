@@ -401,6 +401,7 @@
     if(!siteIcon && /HOUSING AUTHORITY|\bNYCHA\b/i.test(String(pluto.ownername||pluto.owner||''))) siteIcon=NYCHA_ICON;
     if(!siteIcon && isBroadwayAddr(input)) siteIcon=BROADWAY_ICON;
     if(!siteIcon && FERRY_ADDRS[liftNorm(input)]) siteIcon=FERRY_ICON;
+    if(!siteIcon && PARK_ICONS[normalizeBbl(a.bbl)||normalizeBbl(pluto.bbl)]) siteIcon=PARK_ICONS[normalizeBbl(a.bbl)||normalizeBbl(pluto.bbl)];
     var logoImg='';
     if(cb==='306'){ logoImg='<img src="/cb6-logo-card.png" alt="Brooklyn Community Board 6" width="500" height="500" loading="lazy" style="display:block;width:74px;height:74px;border-radius:6px">'; }
     else if(boardShort&&boardNum){ logoImg='<img src="/banners/banner-'+boardShort+'-'+boardNum+'.png" alt="'+esc(cbLabel)+'" width="540" height="270" loading="lazy" style="display:block;width:124px;height:62px;border-radius:5px;background:#fff">'; }
@@ -613,6 +614,18 @@
     'PACIFIC PARK':'620 Atlantic Avenue, Brooklyn',
     'PACIFIC PARK BROOKLYN':'620 Atlantic Avenue, Brooklyn',
     'ATLANTIC TERMINAL':'139 Flatbush Avenue, Brooklyn',
+    'PROSPECT PARK':'95 Prospect Park West, Brooklyn',
+    'THE PARK':'95 Prospect Park West, Brooklyn',
+    'LONG MEADOW':'95 Prospect Park West, Brooklyn',
+    'THE LONG MEADOW':'95 Prospect Park West, Brooklyn',
+    'LITCHFIELD VILLA':'95 Prospect Park West, Brooklyn',
+    'PROSPECT PARK BANDSHELL':'95 Prospect Park West, Brooklyn',
+    'THE BANDSHELL':'95 Prospect Park West, Brooklyn',
+    'PROSPECT PARK BOATHOUSE':'95 Prospect Park West, Brooklyn',
+    'THE BOATHOUSE':'95 Prospect Park West, Brooklyn',
+    'PROSPECT PARK ZOO':'95 Prospect Park West, Brooklyn',
+    'LEFFERTS HISTORIC HOUSE':'95 Prospect Park West, Brooklyn',
+    'PROSPECT PARK ALLIANCE':'95 Prospect Park West, Brooklyn',
     'STATEN ISLAND FERRY':'4 South Street, Manhattan',
     'SI FERRY':'4 South Street, Manhattan',
     'THE FERRY':'4 South Street, Manhattan',
@@ -1104,6 +1117,7 @@
     }catch(e){ return null; }
   }
   var NYCHA_ICON={src:'/site-icons/nycha.png',alt:'New York City Housing Authority',w:309,h:360};
+  var PARK_ICONS={'3011170001':{src:'/site-icons/prospect-park.png',alt:'Prospect Park',w:400,h:399}};
   var FERRY_ICON={src:'/site-icons/staten-island-ferry.png',alt:'Staten Island Ferry',w:520,h:130};
   var FERRY_ADDRS={'4 S ST':1,'1 BAY ST':1};
   var BROADWAY_ICON={src:'/site-icons/broadway-org.png',alt:'Broadway',w:520,h:91};
@@ -1121,6 +1135,7 @@
     '250 BALTIC ST':{full:'Location of the CB6 district office'},
     '1 E 161 ST':{text:'Yankee Stadium',bg:'#142448',fg:'#FFFFFF'},
     '139 FLATBUSH AVE':'Atlantic Terminal',
+    '95 PROSPECT PARK W':'Prospect Park, 526 acres on one tax lot',
     '4 S ST':'Whitehall Ferry Terminal, the Manhattan end of the Staten Island Ferry',
     '1 BAY ST':'St. George Ferry Terminal, the Staten Island end of the ferry',
     '625 8 AVE':'the Port Authority Bus Terminal',
@@ -1699,6 +1714,7 @@
     if(!siteIcon && /HOUSING AUTHORITY|\bNYCHA\b/i.test(String(pluto.ownername||pluto.owner||''))) siteIcon=NYCHA_ICON;
     if(!siteIcon && isBroadwayAddr(input)) siteIcon=BROADWAY_ICON;
     if(!siteIcon && FERRY_ADDRS[liftNorm(input)]) siteIcon=FERRY_ICON;
+    if(!siteIcon && PARK_ICONS[normalizeBbl(a.bbl)||normalizeBbl(pluto.bbl)]) siteIcon=PARK_ICONS[normalizeBbl(a.bbl)||normalizeBbl(pluto.bbl)];
     var boardShort=validCommunityBoardCode(cb)?BOROUGH_SHORT[cb.charAt(0)]:'';
     var boardNum=validCommunityBoardCode(cb)?parseInt(cb.slice(1),10):0;
     var logoUrl=(cb==='306')?'/cb6-logo-card.png':(boardShort&&boardNum?'/banners/banner-'+boardShort+'-'+boardNum+'.png':'');
