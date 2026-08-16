@@ -398,6 +398,7 @@
   function render(input,a,foundCd,lat,lng,pluto,landmarks,n,context,facs){context=context||{}; pluto=pluto||{}; var ed=parseInt(a.electionDistrict,10), ad=parseInt(a.assemblyDistrict,10), council=districtNumber(a.cityCouncilDistrict), senate=districtNumber(a.stateSenatorialDistrict), cong=districtNumber(a.congressionalDistrict), school=districtNumber(addressValue(a,['communitySchoolDistrict','schoolDistrict','schoolDistrictNumber'])||pluto.schooldist), police=districtNumber(addressValue(a,['policePrecinct','policePrecinctCode','nycPolicePrecinct'])||pluto.policeprct); var bbl=normalizeBbl(a.bbl)||normalizeBbl(pluto.bbl), b=bbl.slice(0,1)||String(foundCd||'').charAt(0), block=bbl.slice(1,6), lot=bbl.slice(6,10); var cb=validCommunityBoardCode(foundCd)?String(foundCd):String(a.communityDistrict||pluto.cd||''); var cbLabel=validCommunityBoardCode(cb)?boardLabel(cb):'Community Board not identified'; var zones=collectZones(a,pluto), zDisp=zones.length?zones.join(' / '):'Not available from PLUTO'; var spDists=collectSpecialDistricts(pluto), spDisp=spDists.length?spDists.join(' / '):''; var lUse=landUseLabel(pluto.landuse); var hd=(landmarks&&landmarks.historicDistricts)||[]; var historic=hd.length?hd.join(' / '):'Not in an LPC historic district'; var dob=b&&block&&lot?'https://a810-bisweb.nyc.gov/bisweb/PropertyBrowseByBBLServlet?allborough='+encodeURIComponent(b)+'&allblock='+parseInt(block,10)+'&alllot='+parseInt(lot,10)+'&filetype=html&requestid=0':'#'; var zola=b&&block&&lot?'https://zola.planning.nyc.gov/l/lot/'+encodeURIComponent(b)+'/'+parseInt(block,10)+'/'+parseInt(lot,10):'#'; var acris=b&&block&&lot?'https://a836-acris.nyc.gov/DS/DocumentSearch/BBL?REQUEST_BBL='+encodeURIComponent(b)+block+lot:'#'; var zap=block&&lot?'https://zap.planning.nyc.gov/projects?block='+parseInt(block,10)+'&lot='+parseInt(lot,10):'#'; var enc=encodeURIComponent(input); var boardShort=validCommunityBoardCode(cb)?BOROUGH_SHORT[cb.charAt(0)]:'', boardNum=validCommunityBoardCode(cb)?parseInt(cb.slice(1),10):0;
     var cardLogo='';
     var siteIcon=SITE_ICON[liftNorm(input)]||null;
+    if(!siteIcon && /HOUSING AUTHORITY|\bNYCHA\b/i.test(String(pluto.ownername||pluto.owner||''))) siteIcon=NYCHA_ICON;
     var logoImg='';
     if(cb==='306'){ logoImg='<img src="/cb6-logo-card.png" alt="Brooklyn Community Board 6" width="500" height="500" loading="lazy" style="display:block;width:74px;height:74px;border-radius:6px">'; }
     else if(boardShort&&boardNum){ logoImg='<img src="/banners/banner-'+boardShort+'-'+boardNum+'.png" alt="'+esc(cbLabel)+'" width="540" height="270" loading="lazy" style="display:block;width:124px;height:62px;border-radius:5px;background:#fff">'; }
@@ -985,6 +986,7 @@
       return {q:a.Address+(bn?', '+bn:''), label:best.label};
     }catch(e){ return null; }
   }
+  var NYCHA_ICON={src:'/site-icons/nycha.png',alt:'New York City Housing Authority',w:309,h:360};
   var SITE_ICON={
     '1 E 161 ST':{src:'/site-icons/yankee-stadium.png',alt:'Yankee Stadium',w:360,h:147},
     '4 PENN PLAZA':{src:'/site-icons/madison-square-garden.png',alt:'Madison Square Garden, home of the Knicks and the Rangers',w:420,h:405}
@@ -1098,7 +1100,6 @@
     {re:/navy yard|industry city|ikea|marine terminal/i, glyph:'\u25A0', bg:'#7a4a12', label:'Industrial or waterfront'},
     {re:/gowanus green|public place|lift/i, glyph:'\u2302', bg:'#f47920', label:'Housing site'}
   ];
-  var NYCHA_ICON={src:'/site-icons/nycha.png',alt:'New York City Housing Authority',w:309,h:360};
   function markFor(label,owner){
     var key=liftNorm(label);
     var img=SITE_ICON[key]||null;
@@ -1540,6 +1541,7 @@
     if(akaHit) aka=(typeof akaHit==='object')?(akaHit.full||('aka '+(akaHit.text||''))):('aka '+akaHit);
     var akaBg=(akaHit&&typeof akaHit==='object'&&akaHit.bg)?akaHit.bg:'#0d1b4b';
     var siteIcon=SITE_ICON[liftNorm(input)]||null;
+    if(!siteIcon && /HOUSING AUTHORITY|\bNYCHA\b/i.test(String(pluto.ownername||pluto.owner||''))) siteIcon=NYCHA_ICON;
     var boardShort=validCommunityBoardCode(cb)?BOROUGH_SHORT[cb.charAt(0)]:'';
     var boardNum=validCommunityBoardCode(cb)?parseInt(cb.slice(1),10):0;
     var logoUrl=(cb==='306')?'/cb6-logo-card.png':(boardShort&&boardNum?'/banners/banner-'+boardShort+'-'+boardNum+'.png':'');
