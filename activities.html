@@ -63,6 +63,8 @@ body{font-family:'DM Sans',sans-serif;background:#f8f7f4;color:#0d1b4b}
 .defs summary{padding:12px 14px;font-size:.84rem;font-weight:700;cursor:pointer;color:#0d1b4b}
 .defs-body{padding:0 14px 14px;font-size:.8rem;color:#4f4a42;line-height:1.6}
 .defs-body p{margin-bottom:8px}
+.pk-label{font-family:'DM Sans',sans-serif;font-size:10.5px;font-weight:700;color:#2f6b1f;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap;transform:translate(-50%,-50%);pointer-events:none;line-height:1.1}
+.pk-label.has{color:#1d5410}
 .pk-pop{font-family:'DM Sans',sans-serif;min-width:190px}
 .pk-pop h4{font-size:.9rem;color:#0d1b4b;margin-bottom:3px;line-height:1.25}
 .pk-pop .sub{font-size:.72rem;color:#777;margin-bottom:7px}
@@ -101,7 +103,7 @@ body{font-family:'DM Sans',sans-serif;background:#f8f7f4;color:#0d1b4b}
 </div>
 
 <div class="panel">
-  <p class="panel-lede">Every NYC Parks property and all 59 community districts are on the map. Zoom in and click any park to see what is there. Or pick an activity below to find the closest place to go.</p>
+  <p class="panel-lede">Every NYC Parks property and all 59 community districts are on the map. Zoom in to see park names, and click a park for what is there. Or pick an activity below to find the closest place to go.</p>
   <div class="field-row">
     <div class="field">
       <label for="s-activity">Activity</label>
@@ -201,7 +203,7 @@ var BORO_NAMES={'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Sta
 var BORO_KEY={'1':'MN','2':'BX','3':'BK','4':'QN','5':'SI'};
 var HOME=[[40.49,-74.27],[40.92,-73.68]];
 
-var recData=null,cdLookup={},parkLayer=null,cdLayer=null,recLayer=null,searchMarker=null,topResults=[],cdIndex={};
+var recData=null,cdLookup={},parkLayer=null,parkGeo=null,labelGroup=null,cdLayer=null,recLayer=null,searchMarker=null,topResults=[],cdIndex={};
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function showResult(html){var b=document.getElementById('result-bar');b.style.display='block';b.innerHTML=html;}
@@ -253,7 +255,48 @@ function drawDistricts(geo){
     }
   }).addTo(map);
 }
+function buildParkLabels(){
+  if(!parkGeo)return;
+  if(labelGroup){map.removeLayer(labelGroup);labelGroup=null;}
+  if(map.getZoom()<14)return;
+  var b=map.getBounds();
+  labelGroup=L.layerGroup();
+  var shown={},n=0;
+  parkGeo.features.forEach(function(f){
+    if(n>220)return;
+    var nm=f.properties.n;
+    if(!nm||shown[nm])return;
+    var c=labelPoint(f);
+    if(!c||!b.contains(c))return;
+    shown[nm]=1;n++;
+    var has=f.properties.a&&f.properties.a.length;
+    L.marker(c,{
+      icon:L.divIcon({className:'',html:'<div class="pk-label'+(has?' has':'')+'">'+escH(nm)+'</div>',iconSize:[0,0],iconAnchor:[0,0]}),
+      interactive:false,zIndexOffset:-200
+    }).addTo(labelGroup);
+  });
+  labelGroup.addTo(map);
+}
+function labelPoint(f){
+  if(f._lp!==undefined)return f._lp;
+  var best=null,bestA=-1;
+  function ring(r){
+    var minx=180,maxx=-180,miny=90,maxy=-90;
+    for(var i=0;i<r.length;i++){var x=r[i][0],y=r[i][1];
+      if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;}
+    var a=(maxx-minx)*(maxy-miny);
+    if(a>bestA){bestA=a;best=[(miny+maxy)/2,(minx+maxx)/2];}
+  }
+  var g=f.geometry;
+  if(!g)return (f._lp=null);
+  if(g.type==='Polygon')ring(g.coordinates[0]);
+  else if(g.type==='MultiPolygon')g.coordinates.forEach(function(p){ring(p[0]);});
+  f._lp=best?L.latLng(best[0],best[1]):null;
+  return f._lp;
+}
+
 function drawParks(geo){
+  parkGeo=geo;
   parkLayer=L.geoJSON(geo,{
     style:function(f){
       var has=f.properties.a&&f.properties.a.length;
@@ -263,7 +306,7 @@ function drawParks(geo){
       var p=f.properties;
       l.bindPopup(function(){
         var h='<div class="pk-pop"><h4>'+escH(p.n)+'</h4><div class="sub">'+
-          escH([p.t,(p.ac?parseFloat(p.ac).toFixed(1)+' acres':''),cdLabel(p.c)].filter(Boolean).join(' · '))+
+          escH([p.t,(p.ac?parseFloat(p.ac).toFixed(1)+' acres':'')].filter(Boolean).join(' · '))+
           (p.ad?'<br>'+escH(p.ad):'')+'</div>';
         if(p.a&&p.a.length){
           h+='<div class="acts">';
@@ -444,10 +487,12 @@ Promise.all([
   recData=res[0];cdLookup=res[1]||{};
   drawParks(res[3]);
   drawDistricts(res[2]);
+  buildParkLabels();
+  map.on('zoomend moveend',buildParkLabels);
   fillDistricts();
   applyUrlParams();
   var withAct=res[3].features.filter(function(f){return f.properties.a&&f.properties.a.length;}).length;
-  document.getElementById('note').innerHTML=res[3].features.length.toLocaleString()+' NYC Parks properties, '+withAct.toLocaleString()+' of them with a recorded court, field, pool, skatepark, or dog run, across all 59 community districts. Click any park for details. Source: NYC Open Data. &nbsp;|&nbsp; <a href="parks.html">CB6 parks map</a>';
+  document.getElementById('note').innerHTML=res[3].features.length.toLocaleString()+' NYC Parks properties, '+withAct.toLocaleString()+' of them with a recorded court, field, pool, skatepark, or dog run, across all 59 community districts. Park names appear as you zoom in. Click any park for what is there. Source: NYC Open Data. &nbsp;|&nbsp; <a href="parks.html">CB6 parks map</a>';
 }).catch(function(e){document.getElementById('note').textContent='Load error: '+e;});
 
 document.getElementById('s-addr').addEventListener('keydown',function(e){if(e.key==='Enter')doSearch();});
