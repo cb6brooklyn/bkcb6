@@ -266,7 +266,7 @@ function categorize(ct){
 /* ---------------- state ---------------- */
 var NOW = new Date();
 var S = {cd:'06 BROOKLYN', year:MAX_YEAR, month:String(NOW.getMonth()), cat:''};
-var ROWS = [], FILTERED = [], shown = 0, PAGE = 200, reqSeq = 0, TRUNCATED = false;
+var ROWS = [], FILTERED = [], shown = 0, PAGE = 200, reqSeq = 0;
 var map = null, dotLayer = null, boundaryLayer = null, boundaryGeo = null;
 
 function cdRec(){ return CD_LIST.filter(function(d){ return d.key === S.cd; })[0] || CD_LIST[0]; }
@@ -293,7 +293,10 @@ function load(){
   el('more').innerHTML = '';
 
   var where = "community_board='" + S.cd + "' AND created_date>='" + from + "' AND created_date<'" + to + "'";
-  var PAGE_SIZE = 50000, MAX_PAGES = 6;   // ceiling of 300k records
+  var PAGE_SIZE = 50000;
+  // No record ceiling. Paginate until a short page proves we have every record.
+  // A partial count presented as a total is worse than a slow page.
+  var RUNAWAY = 2000000;
 
   function page(offset, acc){
     var params = {
@@ -309,8 +312,8 @@ function load(){
       .then(function(rows){
         if (seq !== reqSeq) return acc;
         acc = acc.concat(rows);
-        // A short page means we reached the end.
-        if (rows.length < PAGE_SIZE || acc.length >= PAGE_SIZE * MAX_PAGES) return acc;
+        if (rows.length < PAGE_SIZE) return acc;          // end of data
+        if (acc.length >= RUNAWAY) throw new Error('Unexpected record volume, refusing to report a partial count.');
         el('stats').innerHTML = '<div class="stat"><div class="v"><span class="spin"></span></div><div class="k">Loading ' +
           esc(d.label) + '</div><div class="x">' + fmt(acc.length) + ' complaints so far</div></div>';
         return page(offset + PAGE_SIZE, acc);
@@ -320,7 +323,6 @@ function load(){
   page(0, [])
     .then(function(rows){
       if (seq !== reqSeq) return;
-      TRUNCATED = rows.length >= PAGE_SIZE * MAX_PAGES;
       ROWS = rows.map(function(r){
         r.__cat = categorize(r.complaint_type);
         return r;
@@ -363,7 +365,6 @@ function render(){
   });
   if (topType) h += '<div class="stat"><div class="v" style="font-size:1rem;line-height:1.35">' + esc(topType) + '</div><div class="k">Most common request</div><div class="x">' + fmt(typeTotals[topType]) + ' · ' + pct(typeTotals[topType],total) + ' of all</div></div>';
   h += '<div class="stat"><div class="v">' + fmt(open) + '</div><div class="k">Still open</div><div class="x">' + pct(open,total) + ' of all</div></div>';
-  if (TRUNCATED) h += '<div class="stat"><div class="v" style="font-size:.9rem;color:#b42318;line-height:1.35">Partial</div><div class="k">Record ceiling hit</div><div class="x">Pick a single month for exact totals</div></div>';
   el('stats').innerHTML = h;
 
   el('chips').innerHTML = catRows.map(function(c){
@@ -436,36 +437,115 @@ function drawRows(){
   }
 }
 
+var DotTiles = L.GridLayer.extend({
+  createTile: function(coords){
+    var tile = document.createElement('canvas');
+    var size = this.getTileSize();
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    tile.width = size.x * dpr; tile.height = size.y * dpr;
+    tile.style.width = size.x + 'px'; tile.style.height = size.y + 'px';
+    var ctx = tile.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    var nw = map.unproject(coords.scaleBy(size), coords.z);
+    var se = map.unproject(coords.add([1,1]).scaleBy(size), coords.z);
+    var pad = 6 * (se.lat - nw.lat) / size.y;   // a dot's worth of overdraw
+
+    forEachInBounds(se.lat + pad, nw.lat - pad, nw.lng - pad, se.lng + pad, function(r){
+      var pxy = map.project([Number(r.latitude), Number(r.longitude)], coords.z)
+                   .subtract(coords.scaleBy(size));
+      ctx.beginPath();
+      ctx.arc(pxy.x, pxy.y, 4, 0, 6.2832);
+      ctx.fillStyle = CAT_COLORS[r.__cat] || CAT_COLORS.other;
+      ctx.globalAlpha = .85; ctx.fill();
+      ctx.globalAlpha = 1; ctx.lineWidth = 1; ctx.strokeStyle = '#fff'; ctx.stroke();
+    });
+    return tile;
+  }
+});
+
+function forEachInBounds(latMin, latMax, lngMin, lngMax, fn){
+  if (!GRID) return;
+  var i0 = Math.floor(latMin/CELL), i1 = Math.ceil(latMax/CELL);
+  var j0 = Math.floor(lngMin/CELL), j1 = Math.ceil(lngMax/CELL);
+  for (var i=i0;i<=i1;i++){
+    for (var j=j0;j<=j1;j++){
+      var cell = GRID[i + ':' + j];
+      if (!cell) continue;
+      for (var n=0;n<cell.length;n++){
+        var r = cell[n], la = Number(r.latitude), ln = Number(r.longitude);
+        if (la >= latMin && la <= latMax && ln >= lngMin && ln <= lngMax) fn(r);
+      }
+    }
+  }
+}
+
+// Bucket points into a coarse lat/lng grid so a click only compares against
+// its own cell and the eight around it.
+var GRID = null, CELL = 0.0015;   // roughly 165m
+function buildIndex(pts){
+  GRID = {};
+  pts.forEach(function(r){
+    var la = Number(r.latitude), ln = Number(r.longitude);
+    var k = Math.round(la/CELL) + ':' + Math.round(ln/CELL);
+    (GRID[k] || (GRID[k] = [])).push(r);
+  });
+}
+function nearestTo(lat, lng, maxDeg){
+  if (!GRID) return null;
+  var ci = Math.round(lat/CELL), cj = Math.round(lng/CELL);
+  var best = null, bestD = Infinity;
+  for (var i=-1;i<=1;i++){
+    for (var j=-1;j<=1;j++){
+      var cell = GRID[(ci+i) + ':' + (cj+j)];
+      if (!cell) continue;
+      for (var n=0;n<cell.length;n++){
+        var r = cell[n];
+        var dla = Number(r.latitude) - lat, dln = (Number(r.longitude) - lng) * 0.76;
+        var d = dla*dla + dln*dln;
+        if (d < bestD){ bestD = d; best = r; }
+      }
+    }
+  }
+  return (best && Math.sqrt(bestD) <= maxDeg) ? best : null;
+}
+
+function openDot(e){
+  // Tolerance scales with zoom so the tap target stays about 12 screen pixels.
+  var tol = 12 * 360 / (256 * Math.pow(2, map.getZoom()));
+  var r = nearestTo(e.latlng.lat, e.latlng.lng, tol);
+  if (!r) return;
+  L.popup()
+    .setLatLng([Number(r.latitude), Number(r.longitude)])
+    .setContent(
+      '<b>' + esc(r.complaint_type) + '</b><br>' + esc(r.descriptor||'') +
+      '<br>' + esc(r.incident_address || r.street_name || '') +
+      '<br><span style="color:#6b6760">' + esc(String(r.created_date||'').slice(0,10)) + ' · ' + esc(r.status||'') + '</span>')
+    .openOn(map);
+}
+
 function drawMap(){
   if (!map) return;
   if (dotLayer) map.removeLayer(dotLayer);
   var pts = (S.cat ? ROWS.filter(function(r){ return r.__cat === S.cat; }) : ROWS)
     .filter(function(r){ return r.latitude && r.longitude; });
 
-  var DOT_CAP = 20000;
-  var capped = pts.length > DOT_CAP;
-  var draw = capped ? pts.slice(0, DOT_CAP) : pts;
-
-  dotLayer = L.layerGroup();
-  draw.forEach(function(r){
-    var col = CAT_COLORS[r.__cat] || CAT_COLORS.other;
-    L.circleMarker([Number(r.latitude), Number(r.longitude)], {
-      radius:4, color:'#fff', weight:1, fillColor:col, fillOpacity:.85
-    }).bindPopup(
-      '<b>' + esc(r.complaint_type) + '</b><br>' + esc(r.descriptor||'') +
-      '<br>' + esc(r.incident_address || r.street_name || '') +
-      '<br><span style="color:#6b6760">' + esc(String(r.created_date||'').slice(0,10)) + ' · ' + esc(r.status||'') + '</span>'
-    ).addTo(dotLayer);
-  });
+  // Every complaint with coordinates gets a dot, no cap.
+  // Leaflet's vector layers redraw all paths on every pan frame, which at
+  // 199k points meant multi-second drags. A tiled canvas layer draws each
+  // 256px tile once and reuses it, so panning only costs newly exposed tiles.
+  buildIndex(pts);
+  dotLayer = new DotTiles();
   dotLayer.addTo(map);
 
   var scoped = S.cat ? ROWS.filter(function(r){ return r.__cat===S.cat; }).length : ROWS.length;
-  el('mapNote').textContent = fmt(draw.length) + ' of ' + fmt(scoped) + ' complaints plotted · ' +
+  var noGeo = scoped - pts.length;
+  el('mapNote').textContent = fmt(pts.length) + ' of ' + fmt(scoped) + ' complaints plotted · ' +
     periodLabel() + (S.cat ? ' · ' + (CAT_LABELS[S.cat]||S.cat) : '') +
-    (capped ? ' · showing the first ' + fmt(DOT_CAP) + ', pick a month to see them all' : '');
+    (noGeo > 0 ? ' · ' + fmt(noGeo) + ' have no coordinates in the City record' : '');
 
   var counts = {};
-  draw.forEach(function(r){ counts[r.__cat] = (counts[r.__cat]||0)+1; });
+  pts.forEach(function(r){ counts[r.__cat] = (counts[r.__cat]||0)+1; });
   el('legend').innerHTML = Object.keys(counts).sort(function(a,b){ return counts[b]-counts[a]; }).map(function(c){
     return '<span class="lgc"><i style="background:' + (CAT_COLORS[c]||CAT_COLORS.other) + '"></i>' +
       esc(CAT_LABELS[c]||c) + ' <b>' + fmt(counts[c]) + '</b></span>';
@@ -485,6 +565,7 @@ function drawBoundary(){
 function initMap(){
   if (typeof L === 'undefined') return;
   map = L.map('map', {scrollWheelZoom:false, preferCanvas:true}).setView([40.7128,-73.96], 12);
+  map.on('click', openDot);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
     {maxZoom:19, attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
   fetch('cd-boundaries-simple.geojson')
@@ -536,7 +617,7 @@ function readUI(){
 function writeHash(){
   var d = cdRec();
   var p = 'cd=' + d.short + '-' + d.num + '&year=' + S.year;
-  if (S.month !== '') p += '&month=' + S.month;
+  p += '&month=' + (S.month === '' ? 'all' : S.month);
   if (S.cat) p += '&cat=' + S.cat;
   history.replaceState(null, '', location.pathname + '?' + p);
 }
@@ -558,7 +639,8 @@ function readParams(){
   }
   var y = Number(q.year);
   if (y >= MIN_YEAR && y <= MAX_YEAR) S.year = y;
-  if (q.month !== undefined && q.month !== '' && Number(q.month) >= 0 && Number(q.month) <= 11) S.month = String(Number(q.month));
+  if (q.month === 'all') S.month = '';
+  else if (q.month !== undefined && q.month !== '' && Number(q.month) >= 0 && Number(q.month) <= 11) S.month = String(Number(q.month));
   if (q.cat && CAT_LABELS[q.cat]) S.cat = q.cat;
 }
 
