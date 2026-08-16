@@ -100,8 +100,10 @@ main{padding:22px 0 60px}
 .cdtip{font-family:var(--sans);font-size:.78rem}
 .cdtip b{display:block;font-size:.85rem;color:var(--navy)}
 .cdtip span{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
-.maplegend{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;font-family:var(--mono);font-size:.62rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
-.maplegend i{width:26px;height:11px;border-radius:2px;display:block}
+.maplegend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:11px}
+.maplegend .lgc{display:inline-flex;align-items:center;gap:6px;font-size:.73rem;color:var(--navy)}
+.maplegend .lgc i{width:12px;height:12px;border-radius:3px;display:block;flex-shrink:0}
+.maplegend .lgnote{flex-basis:100%;font-family:var(--mono);font-size:.6rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-top:2px}
 @media (max-width:640px){ #cdmap{height:330px} }
 
 /* ---------- identity banner ---------- */
@@ -353,11 +355,11 @@ BOROS.forEach(function(b){
 var CAT_MAP = {
   noise:['Noise','Noise - Commercial','Noise - Residential','Noise - Street/Sidewalk','Noise - Vehicle','Noise - Helicopter','Noise - House of Worship','Illegal Fireworks'],
   parking:['Illegal Parking','Blocked Driveway','Abandoned Vehicle','Derelict Vehicle','For Hire Vehicle Complaint','Abandoned Bike','Taxi Complaint'],
-  housing:['HEAT/HOT WATER','HEATING','PLUMBING','ELECTRIC','PAINT','DOOR/WINDOW','WATER LEAK','UNSANITARY CONDITION','Lead','Elevator','General Construction','Maintenance or Facility'],
-  streets:['Street Condition','Sidewalk Condition','Curb Condition','Traffic Signal Condition','Street Light Condition','Water System','Sewer','Root/Sewer/Sidewalk Condition','Obstruction'],
-  sanitation:['Dirty Condition','Rodent','Illegal Dumping','Missed Collection','Air Quality','Commercial Disposal Complaint','Residential Disposal Complaint','Dead Animal','Dumpster Complaint','Request Large Bulky Item Collection'],
-  social:['Non-Emergency Police Matter','Encampment','Homeless Person Assistance','Panhandling','Animal-Abuse','Smoking or Vaping','Urinating in Public','Drug Activity'],
-  snow:['Snow or Ice'],
+  housing:['HEAT/HOT WATER','HEATING','PLUMBING','ELECTRIC','PAINT','DOOR/WINDOW','WATER LEAK','UNSANITARY CONDITION','Lead','Elevator','General Construction','Maintenance or Facility','NONCONST','APPLIANCE','Building/Use','FLOORING/STAIRS','SAFETY','OUTSIDE BUILDING','GENERAL','Plumbing','Boilers','Asbestos','Mold'],
+  streets:['Street Condition','Sidewalk Condition','Curb Condition','Traffic Signal Condition','Street Light Condition','Water System','Sewer','Root/Sewer/Sidewalk Condition','Obstruction','Broken Muni Meter','Highway Condition','Bridge Condition','Street Sign','Traffic','Sewer Backup'],
+  sanitation:['Dirty Condition','Rodent','Illegal Dumping','Missed Collection','Air Quality','Commercial Disposal Complaint','Residential Disposal Complaint','Dead Animal','Dumpster Complaint','Request Large Bulky Item Collection','Sanitation Condition','Sweeping/Missed','Sweeping/Inadequate','Recycling Enforcement','Litter Basket'],
+  social:['Non-Emergency Police Matter','Encampment','Homeless Person Assistance','Panhandling','Animal-Abuse','Smoking or Vaping','Urinating in Public','Drug Activity','DHS Advantage - Tenant','DHS Advantage -Landlord/Broker','Homeless Encampment'],
+  snow:['Snow or Ice','Snow'],
   food:['Food Establishment','Food Poisoning','Consumer Complaint','Mobile Food Vendor','Vendor Enforcement','Day Care'],
   graffiti:['Graffiti'],
   trees:['Tree']
@@ -700,6 +702,7 @@ function load(){
   skeleton(el('rank'), 8, 15);
   el('rankHead').innerHTML = ''; el('catChips').innerHTML = '';
   renderIdent();
+  loadCats().then(paintMap).catch(function(){});
 
   var scope = scopeSql();
   var peakSoFar = null, totalSoFar = null, topType = null, topCat = null;
@@ -763,7 +766,6 @@ function load(){
   rankTotals().then(function(res){
     if (!fresh()) return;
     renderRank(res);
-    paintMap();
   }).catch(sectionError(el('rank'), 'the district ranking'));
 }
 
@@ -811,7 +813,7 @@ function sectionError(node, what){
 // cd-boundaries-simple.geojson already ships with the site: 64 features keyed
 // by a 3-digit code (borough digit + district number), plus a label point.
 var CD_GEO = null, cdMap = null, cdLayers = {}, addrMarker = null;
-var CHORO = ['#eceae4','#cdd7e4','#9db4d2','#6a8fc0','#3d6bab','#1d4587'];
+var catFile = null;
 
 function codeFor(key){ return BORO_DIGIT[key.slice(3)] + key.slice(0,2); }   // "06 BROOKLYN" -> "306"
 function keyForCode(c){
@@ -822,45 +824,63 @@ function keyForCode(c){
   return CD_LIST.some(function(d){ return d.key === k; }) ? k : null;
 }
 
-function choroColor(n, max){
-  if (!max || !n) return CHORO[0];
-  var i = Math.min(CHORO.length-1, Math.floor(Math.sqrt(n/max) * CHORO.length));
-  return CHORO[i];
+// Per district, per year, per category totals, built by build-cats.py.
+function loadCats(){
+  if (catFile) return Promise.resolve(catFile);
+  return fetch('33159by5-cats.json').then(function(r){
+    if (!r.ok) throw new Error('categories ' + r.status);
+    return r.json();
+  }).then(function(j){ catFile = j; return j; });
+}
+
+// Winning category for a district across the selected years, with its share.
+function topCatFor(key){
+  if (!catFile) return null;
+  var sum = {}, total = 0;
+  for (var y = S.from; y <= S.to; y++){
+    var yr = catFile.years[String(y)];
+    if (!yr || !yr[key]) continue;
+    var row = yr[key];
+    for (var c in row){ sum[c] = (sum[c]||0) + row[c]; total += row[c]; }
+  }
+  var best = null;
+  for (var k in sum){ if (!best || sum[k] > sum[best]) best = k; }
+  return best ? {cat:best, n:sum[best], total:total} : null;
 }
 
 function paintMap(){
-  if (!cdMap || !rankFile) return;
-  var totals = new Map(), max = 0;
-  CD_LIST.forEach(function(d){
-    var n = 0;
-    for (var y = S.from; y <= S.to; y++){
-      var yr = rankFile.years[String(y)];
-      if (yr && yr[d.key]) n += yr[d.key];
-    }
-    totals.set(d.key, n);
-    if (n > max) max = n;
-  });
+  if (!cdMap || !catFile) return;
+  var used = {};
 
   Object.keys(cdLayers).forEach(function(k){
-    var layer = cdLayers[k], n = totals.get(k) || 0;
+    var layer = cdLayers[k], top = topCatFor(k);
+    var cat = top ? top.cat : 'other';
+    used[cat] = true;
     var selected = (S.level === 'cd' && k === S.cd) ||
                    (S.level === 'boro' && k.slice(3) === S.boro);
     layer.setStyle({
-      fillColor: choroColor(n, max),
-      fillOpacity: selected ? .92 : .72,
-      color: selected ? '#f47920' : '#ffffff',
-      weight: selected ? 2.5 : 1
+      fillColor: CAT_COLORS[cat] || CAT_COLORS.other,
+      fillOpacity: selected ? .95 : .68,
+      color: selected ? '#0d1b4b' : '#ffffff',
+      weight: selected ? 3 : 1
     });
     if (selected) layer.bringToFront();
     var d = CD_LIST.filter(function(x){ return x.key === k; })[0];
-    layer.bindTooltip('<div class="cdtip"><b>' + esc(d.label) + '</b><span>' +
-      fmt(n) + ' complaints · ' + periodName() + '</span></div>',
+    var body = top
+      ? '<span>' + esc(CAT_LABELS[cat]||cat) + ' leads · ' + fmt(top.n) + ' of ' + fmt(top.total) +
+        ' (' + pct(top.n, top.total) + ')</span>'
+      : '<span>No data for ' + esc(periodName()) + '</span>';
+    layer.bindTooltip('<div class="cdtip"><b>' + esc(d.label) + '</b>' + body + '</div>',
       {sticky:true, direction:'top', opacity:.97});
   });
 
-  el('mapLegend').innerHTML = 'Fewer ' +
-    CHORO.map(function(c){ return '<i style="background:' + c + '"></i>'; }).join('') +
-    ' More · complaints in ' + esc(periodName()) + ' · tap a district to open it';
+  // Only legend the categories that actually win somewhere, in rank order.
+  var order = CAT_ORDER.concat(['other']).filter(function(c){ return used[c]; });
+  el('mapLegend').innerHTML = order.map(function(c){
+    return '<span class="lgc"><i style="background:' + (CAT_COLORS[c]||CAT_COLORS.other) + '"></i>' +
+      esc(CAT_LABELS[c]||c) + '</span>';
+  }).join('') + '<span class="lgnote">Most common complaint category, ' + esc(periodName()) +
+    ' · tap a district to open it</span>';
 }
 
 function initMap(){
@@ -870,10 +890,14 @@ function initMap(){
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
     {maxZoom:18, attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(cdMap);
 
-  fetch('cd-boundaries-simple.geojson').then(function(r){
-    if (!r.ok) throw new Error('boundaries ' + r.status);
-    return r.json();
-  }).then(function(gj){
+  Promise.all([
+    fetch('cd-boundaries-simple.geojson').then(function(r){
+      if (!r.ok) throw new Error('boundaries ' + r.status);
+      return r.json();
+    }),
+    loadCats()
+  ]).then(function(res){
+    var gj = res[0];
     CD_GEO = gj;
     gj.features.forEach(function(f){
       var key = keyForCode(String(f.properties.cd || ''));
