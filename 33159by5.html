@@ -76,6 +76,24 @@ main{padding:22px 0 60px}
 .card h2{font-size:.95rem;font-weight:700;color:var(--navy);margin:0 0 3px;letter-spacing:-.01em}
 .card .note{font-family:var(--mono);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
 
+/* ---------- identity banner ---------- */
+.ident{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:16px}
+.ident .mark{flex:none;display:flex;align-items:center;gap:12px}
+.ident .mark img{display:block;background:#fff;border-radius:6px}
+.ident .mark img.banner{width:150px;height:75px}
+.ident .mark img.square{width:76px;height:76px}
+.ident .who{min-width:0}
+.ident .who .eyebrow{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--orange);font-weight:700}
+.ident .who h2{font-size:1.5rem;font-weight:800;color:var(--navy);line-height:1.15;margin:3px 0 2px;letter-spacing:-.02em}
+.ident .who p{margin:0;font-size:.82rem;color:var(--muted)}
+.ident .who a{color:var(--navy);font-weight:700;font-size:.75rem;text-decoration:none;border-bottom:1px solid var(--navy);display:inline-block;margin-top:7px}
+@media (max-width:640px){
+  .ident{gap:12px;padding:12px 14px}
+  .ident .mark img.banner{width:104px;height:52px}
+  .ident .mark img.square{width:56px;height:56px}
+  .ident .who h2{font-size:1.12rem}
+}
+
 /* ---------- headline stats ---------- */
 .stats{display:flex;background:#fff;border:1px solid var(--border);border-radius:10px;overflow-x:auto;margin-bottom:16px}
 .stat{padding:14px 20px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:3px;white-space:nowrap;flex:0 0 auto}
@@ -200,6 +218,8 @@ footer code{font-family:var(--mono);font-size:.72rem;background:#efede7;padding:
 <main>
   <div class="wrap">
 
+    <div id="ident" class="ident" style="display:none"></div>
+
     <div class="stats" id="stats" aria-live="polite"></div>
 
     <section class="card">
@@ -256,6 +276,8 @@ var MIN_YEAR = 2010;
 var MAX_YEAR = new Date().getFullYear();
 
 var BOROS = ['MANHATTAN','BRONX','BROOKLYN','QUEENS','STATEN ISLAND'];
+var BORO_SHORT = {MANHATTAN:'mn', BRONX:'bx', BROOKLYN:'bk', QUEENS:'qn', 'STATEN ISLAND':'si'};
+var BORO_DIGIT = {MANHATTAN:'1', BRONX:'2', BROOKLYN:'3', QUEENS:'4', 'STATEN ISLAND':'5'};
 var CD_COUNT = {MANHATTAN:12, BRONX:12, BROOKLYN:18, QUEENS:14, 'STATEN ISLAND':3};
 
 var CD_LIST = [];
@@ -415,6 +437,35 @@ function skeleton(node, rows, h){
   var out = '';
   for (var i=0;i<rows;i++) out += '<div class="skel" style="height:' + (h||26) + 'px;margin-bottom:7px;width:' + (100 - i*4) + '%"></div>';
   node.innerHTML = out;
+}
+
+// Board banners live at /banners/banner-<boro>-<n>.png, the same assets the
+// citywide address search uses, so a district is recognisable on sight.
+function renderIdent(){
+  var node = el('ident'), h = '';
+  if (S.level === 'cd'){
+    var d = CD_LIST.filter(function(x){ return x.key === S.cd; })[0];
+    if (!d){ node.innerHTML = ''; return; }
+    var short = BORO_SHORT[d.boro];
+    var img = (short === 'bk' && d.num === 6)
+      ? '<img class="square" src="/cb6-logo-card.png" alt="Brooklyn Community Board 6" width="500" height="500" loading="lazy">'
+      : '<img class="banner" src="/banners/banner-' + short + '-' + d.num + '.png" alt="' + esc(d.label) + '" width="540" height="270" loading="lazy">';
+    h = '<div class="mark">' + img + '</div>' +
+        '<div class="who"><div class="eyebrow">311 service requests</div>' +
+        '<h2>' + esc(title(d.boro)) + ' Community Board ' + d.num + '</h2>' +
+        '<p>' + periodName() + ' · ' + esc(title(d.boro)) + '</p>' +
+        '<a href="cb-' + short + '-' + d.num + '.html">Open the district profile &rarr;</a></div>';
+  } else if (S.level === 'boro'){
+    h = '<div class="who"><div class="eyebrow">311 service requests</div>' +
+        '<h2>' + esc(title(S.boro)) + '</h2>' +
+        '<p>' + periodName() + ' · all ' + CD_COUNT[S.boro] + ' community districts combined</p></div>';
+  } else {
+    h = '<div class="who"><div class="eyebrow">311 service requests</div>' +
+        '<h2>New York City</h2>' +
+        '<p>' + periodName() + ' · all five boroughs, all 59 community districts</p></div>';
+  }
+  node.innerHTML = h;
+  node.style.display = 'flex';
 }
 
 function scopeName(){
@@ -590,6 +641,7 @@ function load(){
   skeleton(el('agencies'), 5);
   skeleton(el('rank'), 8, 15);
   el('rankHead').innerHTML = ''; el('catChips').innerHTML = '';
+  renderIdent();
 
   var scope = scopeSql();
   var peakSoFar = null, totalSoFar = null, topType = null, topCat = null;
