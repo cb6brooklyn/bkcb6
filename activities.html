@@ -112,9 +112,15 @@ body{font-family:'DM Sans',sans-serif;background:#f8f7f4;color:#0d1b4b}
 </div>
 
 <div class="panel">
-  <p class="panel-lede">Every NYC Parks property and all 59 community districts are on the map, with names appearing as you zoom in. Click a park for what is there. Turn on any activity to map every place you can do it, then add an address or use your location to rank them by distance.</p>
+  <p class="panel-lede">Every NYC Parks property and all 59 community districts are on the map, with names appearing as you zoom in. Click a park for what is there. Choose an activity and a district, or search from an address, and the closest places are ranked for you. District lines do not limit the results, so if the nearest court is a district over, it still comes up first.</p>
   <div class="field-row">
         <div class="field">
+      <label for="s-act-pick">Activity</label>
+      <select id="s-act-pick" onchange="pickActivity(this.value)">
+        <option value="">Choose an activity…</option>
+      </select>
+    </div>
+    <div class="field">
       <label for="s-boro">Borough</label>
       <select id="s-boro" onchange="fillDistricts();rerun()">
         <option value="">All boroughs</option>
@@ -392,6 +398,14 @@ var actOn={};
 function buildActToggles(){
   var counts={};
   recData.forEach(function(r){r.a.forEach(function(a){counts[a]=(counts[a]||0)+1;});});
+  var pick=document.getElementById('s-act-pick');
+  pick.innerHTML='<option value="">Choose an activity…</option>';
+  ACT_ORDER.forEach(function(code){
+    if(!counts[code])return;
+    var o=document.createElement('option');
+    o.value=code;o.textContent=ACT_LABELS[code]+' ('+counts[code].toLocaleString()+')';
+    pick.appendChild(o);
+  });
   var wrap=document.getElementById('act-toggles');
   wrap.innerHTML='';
   ACT_ORDER.forEach(function(code){
@@ -410,8 +424,18 @@ function togAct(code){
   if(b)b.classList.toggle('on',!!actOn[code]);
   runActivities();
 }
+function pickActivity(code){
+  if(!code)return;
+  actOn={};
+  ACT_ORDER.forEach(function(c){var b=document.getElementById('ta-'+c);if(b)b.classList.remove('on');});
+  actOn[code]=true;
+  var b=document.getElementById('ta-'+code);
+  if(b)b.classList.add('on');
+  doSearch();
+}
 function clearActs(){
   actOn={};
+  document.getElementById('s-act-pick').value='';
   ACT_ORDER.forEach(function(c){var b=document.getElementById('ta-'+c);if(b)b.classList.remove('on');});
   runActivities();
 }
@@ -422,6 +446,11 @@ function actListLabel(codes){
   return codes.length+' activities';
 }
 
+function inFilter(r,cd,boro){
+  if(cd)return r.c===cd;
+  if(boro)return String(r.c).charAt(0)===boro;
+  return true;
+}
 function scopedRows(codes){
   var boro=document.getElementById('s-boro').value;
   var cd=document.getElementById('s-cd').value;
@@ -448,43 +477,48 @@ function runActivities(origin,originLabel){
   if(origin===undefined&&lastOrigin){origin=lastOrigin;originLabel=lastOriginLabel;}
   var where=cd?cdLabel(cd):(boro?BORO_NAMES[boro]:'the city');
   var sc=scopedRows(codes);
-  var list=collapse(sc.rows);
+  if(!sc.all.length){
+    showResult('No '+actListLabel(codes)+' locations in the NYC Parks data.');
+    document.getElementById('act-panel').classList.remove('open');
+    if(recLayer){map.removeLayer(recLayer);recLayer=null;}
+    return;
+  }
+  var inScope=collapse(sc.rows);
 
-  var fellBack=false;
-  if(!list.length){
-    if(!sc.all.length){
-      showResult('No '+actListLabel(codes)+' locations in the NYC Parks data.');
-      document.getElementById('act-panel').classList.remove('open');
-      if(recLayer){map.removeLayer(recLayer);recLayer=null;}
-      return;
-    }
-    fellBack=true;
-    list=collapse(sc.all);
-    if(!origin){
-      var near=recData.filter(function(r){return cd?r.c===cd:(boro?String(r.c).charAt(0)===boro:false);});
-      if(near.length){
-        var sy=0,sx=0;near.forEach(function(r){sy+=r.y;sx+=r.x;});
-        origin=[sy/near.length,sx/near.length];originLabel='the middle of '+where;
-      }
+  // Nobody is bound by a district line. Once there is a starting point, rank
+  // everything citywide by distance so a closer court one district over is not
+  // hidden behind a filter.
+  if(!origin&&(cd||boro)&&!inScope.length){
+    var near=recData.filter(function(r){return cd?r.c===cd:String(r.c).charAt(0)===boro;});
+    if(near.length){
+      var sy=0,sx=0;near.forEach(function(r){sy+=r.y;sx+=r.x;});
+      origin=[sy/near.length,sx/near.length];originLabel='the middle of '+where;
     }
   }
 
+  var list,ranked=!!origin,crossed=false;
   if(origin){
+    list=collapse(sc.all);
     list.forEach(function(r){r._d=milesBetween(origin[0],origin[1],r.y,r.x);});
     list.sort(function(a,b){return a._d-b._d;});
+    crossed=!!((cd||boro)&&list.length&&!inFilter(list[0],cd,boro));
   } else {
+    list=inScope.length?inScope:collapse(sc.all);
     list.sort(function(a,b){return a.n<b.n?-1:a.n>b.n?1:0;});
   }
+  var fellBack=!inScope.length;
 
   drawFacilities(list,codes,!!origin);
 
   var top=list.slice(0,12);topResults=top;
   var head='<strong>'+escH(actListLabel(codes))+'</strong> <span>· ';
-  if(fellBack){head+='none in '+escH(where)+', showing all '+list.length+' citywide';}
-  else{
+  if(fellBack&&(cd||boro)){head+='none in '+escH(where)+', showing the closest anywhere';}
+  else if(origin&&(cd||boro)){head+=inScope.length+' in '+escH(where)+', ranked against all '+list.length+' citywide';}
+  else if(cd||boro){
     head+=list.length+' site'+(list.length===1?'':'s')+' in '+escH(where);
     if(cd){var nb=cdNeighborhoods(cd);if(nb)head+=' ('+escH(nb)+')';}
   }
+  else{head+=list.length+' site'+(list.length===1?'':'s')+' citywide';}
   if(origin)head+=' · ranked from '+escH(originLabel||'your location');
   head+='</span>';
   document.getElementById('act-head').innerHTML=head;
@@ -493,6 +527,7 @@ function runActivities(origin,originLabel){
   top.forEach(function(r,i){
     var mine=codes.filter(function(c){return r.a.indexOf(c)!==-1;}).map(function(c){return ACT_LABELS[c];}).join(', ');
     var extra=(r.a.indexOf('SWM')!==-1&&r['in'])?'<span class="act-tag alt">Indoor</span>':'';
+    if((cd||boro)&&inFilter(r,cd,boro))extra+='<span class="act-tag alt">In '+escH(where)+'</span>';
     html+='<div class="act-row" onclick="flyTo('+i+')">'+
       '<div class="act-rank">'+(i+1)+'</div>'+
       '<div class="act-body"><div class="act-name">'+escH(r.n)+'</div>'+
@@ -503,9 +538,17 @@ function runActivities(origin,originLabel){
   document.getElementById('act-list').innerHTML=html;
   document.getElementById('act-panel').classList.add('open');
 
-  var pre='<strong>'+escH(actListLabel(codes))+'</strong>: '+(fellBack?'none in '+escH(where)+'. ':'');
+  var pre='<strong>'+escH(actListLabel(codes))+'</strong>: ';
   if(origin&&top.length){
-    showResult(pre+'Closest is <strong>'+escH(top[0].n)+'</strong> ('+fmtDist(top[0]._d)+') in '+escH(cdLabel(top[0].c)||'NYC')+'.');
+    var msg=pre+'Closest is <strong>'+escH(top[0].n)+'</strong> ('+fmtDist(top[0]._d)+') in '+escH(cdLabel(top[0].c)||'NYC')+'.';
+    if(crossed){
+      var firstIn=null;
+      for(var q=0;q<list.length;q++){if(inFilter(list[q],cd,boro)){firstIn=list[q];break;}}
+      msg+=' That is outside '+escH(where)+'.';
+      if(firstIn)msg+=' Closest inside '+escH(where)+' is <strong>'+escH(firstIn.n)+'</strong> ('+fmtDist(firstIn._d)+').';
+      else msg+=' There are none in '+escH(where)+'.';
+    }
+    showResult(msg);
   } else if(top.length){
     showResult(pre+list.length+' site'+(list.length===1?'':'s')+' in '+escH(where)+'. Add an address or tap Nearest to me to rank by distance.');
   }
@@ -570,6 +613,7 @@ function resetView(){
   if(parkLayer)parkLayer.addTo(map);
   if(cdLayer)cdLayer.addTo(map);
   actOn={};
+  document.getElementById('s-act-pick').value='';
   ACT_ORDER.forEach(function(c){var b=document.getElementById('ta-'+c);if(b)b.classList.remove('on');});
   lastOrigin=null;lastOriginLabel='';
   document.getElementById('s-boro').value='';
