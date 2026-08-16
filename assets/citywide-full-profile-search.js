@@ -399,6 +399,7 @@
     var cardLogo='';
     var siteIcon=SITE_ICON[liftNorm(input)]||null;
     if(!siteIcon && /HOUSING AUTHORITY|\bNYCHA\b/i.test(String(pluto.ownername||pluto.owner||''))) siteIcon=NYCHA_ICON;
+    if(!siteIcon && isBroadwayAddr(input)) siteIcon=BROADWAY_ICON;
     var logoImg='';
     if(cb==='306'){ logoImg='<img src="/cb6-logo-card.png" alt="Brooklyn Community Board 6" width="500" height="500" loading="lazy" style="display:block;width:74px;height:74px;border-radius:6px">'; }
     else if(boardShort&&boardNum){ logoImg='<img src="/banners/banner-'+boardShort+'-'+boardNum+'.png" alt="'+esc(cbLabel)+'" width="540" height="270" loading="lazy" style="display:block;width:124px;height:62px;border-radius:5px;background:#fff">'; }
@@ -987,6 +988,8 @@
     }catch(e){ return null; }
   }
   var NYCHA_ICON={src:'/site-icons/nycha.png',alt:'New York City Housing Authority',w:309,h:360};
+  var BROADWAY_ICON={src:'/site-icons/broadway-org.png',alt:'Broadway',w:520,h:91};
+  function isBroadwayAddr(addr){ var a=AKA[liftNorm(addr)]; return typeof a==='string' && /Broadway theatre/i.test(a); }
   var SITE_ICON={
     '1 E 161 ST':{src:'/site-icons/yankee-stadium.png',alt:'Yankee Stadium',w:360,h:147},
     '4 PENN PLAZA':{src:'/site-icons/madison-square-garden.png',alt:'Madison Square Garden, home of the Knicks and the Rangers',w:420,h:405}
@@ -1542,6 +1545,7 @@
     var akaBg=(akaHit&&typeof akaHit==='object'&&akaHit.bg)?akaHit.bg:'#0d1b4b';
     var siteIcon=SITE_ICON[liftNorm(input)]||null;
     if(!siteIcon && /HOUSING AUTHORITY|\bNYCHA\b/i.test(String(pluto.ownername||pluto.owner||''))) siteIcon=NYCHA_ICON;
+    if(!siteIcon && isBroadwayAddr(input)) siteIcon=BROADWAY_ICON;
     var boardShort=validCommunityBoardCode(cb)?BOROUGH_SHORT[cb.charAt(0)]:'';
     var boardNum=validCommunityBoardCode(cb)?parseInt(cb.slice(1),10):0;
     var logoUrl=(cb==='306')?'/cb6-logo-card.png':(boardShort&&boardNum?'/banners/banner-'+boardShort+'-'+boardNum+'.png':'');
