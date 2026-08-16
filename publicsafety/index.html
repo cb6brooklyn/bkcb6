@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Public Safety Hub — BKCB6</title>
+<meta name="description" content="NYPD precincts and patrol sectors, FDNY battalions and firehouses, and DSNY sections for every community district, precinct, sector, borough, and citywide.">
+<meta property="og:title" content="Public Safety Hub — BKCB6">
+<meta property="og:description" content="NYPD precincts and patrol sectors, FDNY battalions and firehouses, and DSNY sections for every community district, precinct, sector, borough, and citywide.">
+<meta property="og:url" content="https://bkcb6.app/publicsafety">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:#0d1b4b}
+body{display:flex;flex-direction:column}
+.top-bar{background:#0d1b4b;border-bottom:3px solid #f47920;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-shrink:0}
+.top-bar h1{font-size:.92rem;font-weight:700;color:#fff;white-space:nowrap;flex-shrink:0}
+.top-bar h1 span{color:#f47920}
+.back-link{font-size:.7rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.45);text-decoration:none;white-space:nowrap;margin-left:auto}
+.back-link:hover{color:#f47920}
+.pick-bar{padding:8px 14px;background:#0d1b4b;border-bottom:1px solid rgba(255,255,255,.1);display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-shrink:0}
+.pick-bar span.lbl{font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.45);margin-right:2px}
+.tbtn{padding:5px 13px;font-size:.76rem;font-family:'DM Sans',sans-serif;font-weight:700;border:1.5px solid rgba(255,255,255,.25);border-radius:20px;background:transparent;color:rgba(255,255,255,.6);cursor:pointer;transition:all .15s;white-space:nowrap}
+.tbtn.on{background:#f47920;border-color:#f47920;color:#fff}
+#place{padding:6px 10px;font-size:.8rem;font-family:'DM Sans',sans-serif;font-weight:600;border:1.5px solid rgba(255,255,255,.25);border-radius:6px;background:#0d1b4b;color:#fff;max-width:100%;min-width:200px}
+#place:disabled{opacity:.35}
+.layer-bar{padding:8px 14px;background:#0d1b4b;border-bottom:1px solid rgba(255,255,255,.1);display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-shrink:0}
+.layer-bar span.lbl{font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.45);margin-right:2px}
+.lbtn{padding:5px 13px;font-size:.76rem;font-family:'DM Sans',sans-serif;font-weight:700;border:1.5px solid rgba(255,255,255,.25);border-radius:20px;background:transparent;color:rgba(255,255,255,.6);cursor:pointer;transition:all .15s;white-space:nowrap}
+.lbtn.on{background:var(--pc);border-color:var(--pc);color:#fff}
+.legend-bar{padding:6px 14px;background:#fafaf8;border-bottom:1px solid #e5e2db;display:flex;flex-wrap:wrap;gap:10px;align-items:center;flex-shrink:0}
+.li{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;color:#444}
+.ls{display:inline-block;width:14px;height:10px;border-radius:2px}
+#map{flex:1;min-height:300px}
+.note-bar{padding:5px 14px;font-size:.68rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.55);background:#0d1b4b;flex-shrink:0;line-height:1.5}
+.note-bar b{color:#f47920;font-weight:500}
+.note-bar a{color:#f47920;text-decoration:none}
+.leaflet-tooltip.sec-lbl{background:transparent;border:none;box-shadow:none;font-family:'DM Mono',monospace;font-size:.62rem;font-weight:500;color:#0d1b4b;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;padding:0}
+.leaflet-tooltip.cd-lbl{background:transparent;border:none;box-shadow:none;font-family:'DM Mono',monospace;font-size:.6rem;color:#5a5750;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;padding:0}
+</style>
+<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b6e9b47ba0cf416388d72db8edaf4198"}'></script><!-- End Cloudflare Web Analytics -->
+</head>
+<body>
+<div class="top-bar">
+  <h1>BKCB6 <span>Public Safety Hub</span></h1>
+  <a class="back-link" href="/">← bkcb6.app</a>
+</div>
+<div class="pick-bar">
+  <span class="lbl">View</span>
+  <button class="tbtn on" data-lvl="city" id="lvl-city">Citywide</button>
+  <button class="tbtn" data-lvl="boro" id="lvl-boro">Borough</button>
+  <button class="tbtn" data-lvl="cd" id="lvl-cd">Community District</button>
+  <button class="tbtn" data-lvl="pct" id="lvl-pct">Precinct</button>
+  <button class="tbtn" data-lvl="sec" id="lvl-sec">Sector</button>
+  <select id="place" disabled><option>Citywide</option></select>
+</div>
+<div class="layer-bar">
+  <span class="lbl">Layers</span>
+  <button class="lbtn on" id="btn-pct" style="--pc:#1d4ed8">🚔 Precincts</button>
+  <button class="lbtn" id="btn-sec" style="--pc:#7c3aed">🎯 Patrol Sectors</button>
+  <button class="lbtn" id="btn-bat" style="--pc:#dc2626">🚒 FDNY Battalions</button>
+  <button class="lbtn" id="btn-house" style="--pc:#b91c1c">🏠 Firehouses</button>
+  <button class="lbtn" id="btn-dsny" style="--pc:#15803d">🗑 DSNY Sections</button>
+  <button class="lbtn on" id="btn-cd" style="--pc:#6b6760">🗺 District Lines</button>
+</div>
+<div class="legend-bar">
+  <span class="li"><span class="ls" style="background:#1d4ed8;opacity:.55"></span>NYPD Precinct</span>
+  <span class="li"><span class="ls" style="background:#7c3aed;opacity:.55"></span>Patrol Sector</span>
+  <span class="li"><span class="ls" style="background:#dc2626;opacity:.45"></span>FDNY Battalion</span>
+  <span class="li"><span style="font-size:.9rem">🚒</span>Firehouse</span>
+  <span class="li"><span class="ls" style="background:#15803d;opacity:.45"></span>DSNY Section</span>
+  <span class="li"><span class="ls" style="background:transparent;border:2px dashed #f47920"></span>Selected area</span>
+</div>
+<div id="map"></div>
+<div class="note-bar" id="note">Loading citywide public safety boundaries…</div>
+
+<script>
+var BORO={'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
+var BCODE={'1':'MN','2':'BX','3':'BK','4':'QN','5':'SI'};
+var REAL_CD=function(c){var b=c.charAt(0),n=parseInt(c.slice(1),10);
+  if(b==='1')return n>=1&&n<=12; if(b==='2')return n>=1&&n<=12; if(b==='3')return n>=1&&n<=18;
+  if(b==='4')return n>=1&&n<=14; if(b==='5')return n>=1&&n<=3; return false;};
+
+var map=L.map('map',{scrollWheelZoom:true,preferCanvas:true}).setView([40.706,-73.955],10);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+
+var D={};              // loaded geojson by key
+var LYR={};            // leaflet layers by key
+var VIS={pct:true,sec:false,bat:false,house:false,dsny:false,cd:true};
+var XW=null;           // crosswalk
+var CDL=null;          // cd-lookup
+var selLayer=null;
+var state={lvl:'city',key:''};
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function pad(n){n=String(n);return n.length<2?'0'+n:n;}
+function ord(n){n=parseInt(n,10);var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+function cdName(c){
+  if(!REAL_CD(c))return 'Joint Interest Area '+c;
+  var code=BCODE[c.charAt(0)]+'CB'+parseInt(c.slice(1),10);
+  var rec=CDL&&CDL[code];
+  return code+(rec&&rec.cn&&rec.cn.length?' · '+rec.cn.slice(0,3).join(', '):'');
+}
+function note(html){document.getElementById('note').innerHTML=html;}
+
+function getJSON(u){return fetch(u).then(function(r){if(!r.ok)throw new Error(u);return r.json();});}
+
+/* ---------- layer builders ---------- */
+function pctColor(p){
+  var n=parseInt(p,10)||0;
+  var pal=['#1d4ed8','#2563eb','#3b82f6','#1e40af','#1746a2'];
+  return pal[n%pal.length];
+}
+function buildPct(){
+  return L.geoJSON(D.pct,{
+    style:function(f){return{color:pctColor(f.properties.precinct),weight:1.4,fillColor:pctColor(f.properties.precinct),fillOpacity:.10};},
+    onEachFeature:function(f,l){
+      var p=String(f.properties.precinct);
+      l.bindTooltip('<b>🚔 '+ord(p)+' Precinct</b>',{sticky:true,opacity:1});
+      l.on('click',function(e){L.DomEvent.stop(e);select('pct',p);});
+    }
+  });
+}
+function buildSec(){
+  return L.geoJSON(D.sec,{
+    style:function(){return{color:'#7c3aed',weight:1,fillColor:'#7c3aed',fillOpacity:.08};},
+    onEachFeature:function(f,l){
+      var s=String(f.properties.sector||''),p=String(f.properties.pct||'').replace(/^0+/,'');
+      l.bindTooltip('<b>🎯 Sector '+esc(s)+'</b><br>'+ord(p)+' Precinct',{sticky:true,opacity:1});
+      l.on('click',function(e){L.DomEvent.stop(e);select('sec',s);});
+    }
+  });
+}
+function buildBat(){
+  return L.geoJSON(D.bat,{
+    style:function(){return{color:'#dc2626',weight:1.2,fillColor:'#dc2626',fillOpacity:.07};},
+    onEachFeature:function(f,l){l.bindTooltip('<b>🚒 FDNY Battalion '+esc(f.properties.fire_bn)+'</b>',{sticky:true,opacity:1});}
+  });
+}
+function buildHouse(){
+  return L.geoJSON(D.house,{
+    pointToLayer:function(f,ll){
+      return L.marker(ll,{icon:L.divIcon({className:'',html:'<div style="font-size:15px;line-height:15px">🚒</div>',iconSize:[15,15],iconAnchor:[7,7]})});
+    },
+    onEachFeature:function(f,l){
+      var p=f.properties;
+      l.bindTooltip('<b>'+esc(p.name)+'</b><br>'+esc(p.address)+'<br>'+esc(p.borough)+' · CD '+esc(p.cb),{sticky:true,opacity:1});
+    }
+  });
+}
+function buildDsny(){
+  return L.geoJSON(D.dsny,{
+    style:function(){return{color:'#15803d',weight:1,fillColor:'#15803d',fillOpacity:.07};},
+    onEachFeature:function(f,l){l.bindTooltip('<b>🗑 DSNY '+esc(f.properties.section)+'</b><br>District '+esc(f.properties.district),{sticky:true,opacity:1});}
+  });
+}
+function buildCd(){
+  return L.geoJSON(D.cd,{
+    filter:function(f){return REAL_CD(f.properties.c);},
+    style:function(){return{color:'#6b6760',weight:1.2,fill:false,dashArray:'3 3'};},
+    onEachFeature:function(f,l){
+      var c=f.properties.c;
+      l.bindTooltip(esc(cdName(c)),{sticky:true,opacity:1});
+      l.on('click',function(e){L.DomEvent.stop(e);select('cd',c);});
+    }
+  });
+}
+var BUILDERS={pct:buildPct,sec:buildSec,bat:buildBat,house:buildHouse,dsny:buildDsny,cd:buildCd};
+var SRC={pct:'/data/police-precincts-lite.geojson',sec:'/data/nypd-sectors-lite.geojson',
+         bat:'/data/fire-battalions-lite.geojson',house:'/data/fdny_firehouses.geojson',
+         dsny:'/data/dsny-sections-lite.geojson',cd:'/data/cd-boundaries-lite.geojson'};
+
+function ensure(k){
+  if(LYR[k])return Promise.resolve(LYR[k]);
+  if(D[k]){LYR[k]=BUILDERS[k]();return Promise.resolve(LYR[k]);}
+  return getJSON(SRC[k]).then(function(j){D[k]=j;LYR[k]=BUILDERS[k]();return LYR[k];});
+}
+function applyVis(k){
+  if(!VIS[k]){if(LYR[k]&&map.hasLayer(LYR[k]))map.removeLayer(LYR[k]);return Promise.resolve();}
+  return ensure(k).then(function(l){if(!map.hasLayer(l))l.addTo(map);orderLayers();});
+}
+function orderLayers(){
+  ['bat','dsny','pct','sec','cd'].forEach(function(k){if(LYR[k]&&map.hasLayer(LYR[k])&&LYR[k].bringToFront)LYR[k].bringToFront();});
+  if(selLayer)selLayer.bringToFront();
+  if(LYR.house&&map.hasLayer(LYR.house)&&LYR.house.bringToFront)LYR.house.bringToFront();
+}
+
+['pct','sec','bat','house','dsny','cd'].forEach(function(k){
+  document.getElementById('btn-'+k).onclick=function(){
+    VIS[k]=!VIS[k];this.classList.toggle('on');applyVis(k);
+  };
+});
+
+/* ---------- selection ---------- */
+function featuresFor(lvl,key){
+  if(lvl==='city')return null;
+  if(lvl==='boro')return (D.cd.features||[]).filter(function(f){return f.properties.c.charAt(0)===key;});
+  if(lvl==='cd')return (D.cd.features||[]).filter(function(f){return f.properties.c===key;});
+  if(lvl==='pct')return (D.pct.features||[]).filter(function(f){return String(f.properties.precinct)===key;});
+  if(lvl==='sec')return (D.sec.features||[]).filter(function(f){return String(f.properties.sector)===key;});
+  return null;
+}
+function needFor(lvl){return lvl==='pct'?'pct':(lvl==='sec'?'sec':'cd');}
+
+function drawSel(lvl,key){
+  if(selLayer){map.removeLayer(selLayer);selLayer=null;}
+  if(lvl==='city'){map.setView([40.706,-73.955],10);return;}
+  var feats=featuresFor(lvl,key);
+  if(!feats||!feats.length)return;
+  selLayer=L.geoJSON({type:'FeatureCollection',features:feats},{
+    style:function(){return{color:'#f47920',weight:3,fill:false,dashArray:'6 3'};},interactive:false
+  }).addTo(map);
+  map.fitBounds(selLayer.getBounds(),{padding:[26,26]});
+  orderLayers();
+}
+
+function servesList(lvl,key){
+  if(!XW)return '';
+  function inArea(tbl,test){
+    var out=[];
+    for(var k in tbl){for(var c in tbl[k]){if(test(c)){out.push(k);break;}}}
+    return out.sort(function(a,b){return String(a).localeCompare(String(b),undefined,{numeric:true});});
+  }
+  var test;
+  if(lvl==='cd')test=function(c){return c===key;};
+  else if(lvl==='boro')test=function(c){return c.charAt(0)===key;};
+  else return '';
+  var p=inArea(XW.pct,test),s=inArea(XW.sec,test),b=inArea(XW.bat,test),d=inArea(XW.dsny,test);
+  var parts=[];
+  if(p.length)parts.push('<b>NYPD</b> '+p.map(function(x){return ord(x);}).join(', '));
+  if(s.length)parts.push('<b>Sectors</b> '+(s.length>14?s.length+' sectors':s.join(', ')));
+  if(b.length)parts.push('<b>FDNY Bn</b> '+b.join(', '));
+  if(d.length)parts.push('<b>DSNY</b> '+(d.length>10?d.length+' sections':d.join(', ')));
+  return parts.join(' &nbsp;|&nbsp; ');
+}
+
+function describe(lvl,key){
+  if(lvl==='city')return '<b>Citywide</b> &nbsp;|&nbsp; 78 precincts, 303 patrol sectors, 49 FDNY battalions, 219 firehouses, 232 DSNY sections. Tap any precinct, sector, or district line to zoom to it.';
+  if(lvl==='boro')return '<b>'+esc(BORO[key])+'</b> &nbsp;|&nbsp; '+servesList(lvl,key);
+  if(lvl==='cd'){
+    var head='<b>'+esc(cdName(key))+'</b>';
+    var link=REAL_CD(key)?' &nbsp;|&nbsp; <a href="/cb-'+BCODE[key.charAt(0)].toLowerCase()+'-'+parseInt(key.slice(1),10)+'.html">District page →</a>':'';
+    return head+' &nbsp;|&nbsp; '+servesList(lvl,key)+link;
+  }
+  if(lvl==='pct'){
+    var cds=XW&&XW.pct[key]?Object.keys(XW.pct[key]):[];
+    var secs=[];for(var s in (XW?XW.sec:{})){if(String(s).replace(/[A-Z]+$/,'')===key)secs.push(s);}
+    secs.sort();
+    return '<b>'+ord(key)+' Precinct</b> &nbsp;|&nbsp; '+(secs.length?'<b>Sectors</b> '+secs.join(', ')+' &nbsp;|&nbsp; ':'')+'<b>Districts</b> '+realOnly(cds).map(cdShort).join(', ');
+  }
+  if(lvl==='sec'){
+    var p=key.replace(/[A-Z]+$/,'');
+    var cds2=XW&&XW.sec[key]?Object.keys(XW.sec[key]):[];
+    return '<b>Sector '+esc(key)+'</b> &nbsp;|&nbsp; '+ord(p)+' Precinct &nbsp;|&nbsp; <b>Districts</b> '+realOnly(cds2).map(cdShort).join(', ');
+  }
+  return '';
+}
+function cdShort(c){return BCODE[c.charAt(0)]+'CB'+parseInt(c.slice(1),10);}
+function realOnly(a){return a.filter(REAL_CD);}
+
+function select(lvl,key,skipUi){
+  state.lvl=lvl;state.key=key;
+  ensure(needFor(lvl)).then(function(){
+    drawSel(lvl,key);
+    note(describe(lvl,key));
+    if(!skipUi)syncUi();
+    setHash(lvl,key);
+  });
+}
+function setHash(lvl,key){
+  var q=lvl==='city'?'':'?'+(lvl==='boro'?'boro':lvl)+'='+encodeURIComponent(key);
+  try{history.replaceState(null,'',location.pathname+q);}catch(e){}
+}
+
+/* ---------- pickers ---------- */
+var sel=document.getElementById('place');
+function optionsFor(lvl){
+  var out=[];
+  if(lvl==='city')return [['','Citywide']];
+  if(lvl==='boro'){for(var b in BORO)out.push([b,BORO[b]]);return out;}
+  if(lvl==='cd'){
+    var cs=(D.cd.features||[]).map(function(f){return f.properties.c;}).filter(REAL_CD);
+    cs.sort();return cs.map(function(c){return [c,cdName(c)];});
+  }
+  if(lvl==='pct'){
+    var ps=(D.pct.features||[]).map(function(f){return String(f.properties.precinct);});
+    ps.sort(function(a,b){return a-b;});
+    return ps.map(function(p){return [p,ord(p)+' Precinct'];});
+  }
+  if(lvl==='sec'){
+    var ss=(D.sec.features||[]).map(function(f){return String(f.properties.sector);});
+    ss.sort();return ss.map(function(s){return [s,'Sector '+s+' ('+ord(s.replace(/[A-Z]+$/,''))+' Pct)'];});
+  }
+  return out;
+}
+function fillSelect(lvl){
+  return ensure(needFor(lvl)).then(function(){
+    var opts=optionsFor(lvl);
+    sel.innerHTML='';
+    opts.forEach(function(o){var e=document.createElement('option');e.value=o[0];e.textContent=o[1];sel.appendChild(e);});
+    sel.disabled=(lvl==='city');
+    if(state.key)sel.value=state.key;
+  });
+}
+function syncUi(){
+  ['city','boro','cd','pct','sec'].forEach(function(l){
+    document.getElementById('lvl-'+l).classList.toggle('on',l===state.lvl);
+  });
+  fillSelect(state.lvl);
+}
+['city','boro','cd','pct','sec'].forEach(function(l){
+  document.getElementById('lvl-'+l).onclick=function(){
+    state.lvl=l;state.key='';
+    syncUi();
+    if(l==='city'){select('city','',true);}
+    else{fillSelect(l).then(function(){if(sel.options.length)select(l,sel.options[0].value,true);});}
+  };
+});
+sel.onchange=function(){select(state.lvl,sel.value,true);};
+
+/* ---------- boot ---------- */
+Promise.all([
+  getJSON('/data/cd-boundaries-lite.geojson'),
+  getJSON('/data/police-precincts-lite.geojson'),
+  getJSON('/data/safety-crosswalk.json'),
+  getJSON('/data/cd-lookup.json')
+]).then(function(r){
+  D.cd=r[0];D.pct=r[1];XW=r[2];CDL=r[3];
+  LYR.cd=buildCd();LYR.pct=buildPct();
+  LYR.pct.addTo(map);LYR.cd.addTo(map);
+  orderLayers();
+
+  var q=new URLSearchParams(location.search);
+  var lvl='city',key='';
+  if(q.get('cd')){lvl='cd';key=q.get('cd');}
+  else if(q.get('pct')){lvl='pct';key=String(parseInt(q.get('pct'),10));}
+  else if(q.get('sec')||q.get('sector')){lvl='sec';key=(q.get('sec')||q.get('sector')).toUpperCase();}
+  else if(q.get('boro')){
+    var v=q.get('boro').toUpperCase();
+    for(var b in BCODE){if(BCODE[b]===v||b===v)key=b;}
+    if(key)lvl='boro';
+  }
+  state.lvl=lvl;state.key=key;
+  syncUi();
+  select(lvl,key,true);
+}).catch(function(e){
+  note('Could not load boundary data. '+esc(e.message));
+});
+</script>
+</body>
+</html>
