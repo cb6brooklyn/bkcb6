@@ -40,6 +40,8 @@ def fetch_year(year):
     url = f'https://data.cityofnewyork.us/resource/{ds}.json?' + urllib.parse.urlencode(params)
     with urllib.request.urlopen(url, timeout=180) as r:
         rows = json.load(r)
+    if len(rows) >= 500:
+        raise RuntimeError(f'{year}: grouped result hit the 500 row limit; refusing to write partial data')
     # Keep only the 59 real districts. The field also carries Unspecified,
     # park and airport pseudo districts, and joint interest areas.
     return {r['cb']: int(r['n']) for r in rows if r.get('cb') in VALID}
