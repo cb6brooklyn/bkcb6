@@ -266,7 +266,7 @@ function categorize(ct){
 /* ---------------- state ---------------- */
 var NOW = new Date();
 var S = {cd:'06 BROOKLYN', year:MAX_YEAR, month:String(NOW.getMonth()), cat:''};
-var ROWS = [], FILTERED = [], shown = 0, PAGE = 200, reqSeq = 0;
+var ROWS = [], FILTERED = [], shown = 0, PAGE = 200, reqSeq = 0, VERIFIED = null;
 var map = null, dotLayer = null, boundaryLayer = null, boundaryGeo = null;
 
 function cdRec(){ return CD_LIST.filter(function(d){ return d.key === S.cd; })[0] || CD_LIST[0]; }
@@ -312,7 +312,7 @@ function load(){
       .then(function(rows){
         if (seq !== reqSeq) return acc;
         acc = acc.concat(rows);
-        if (rows.length < PAGE_SIZE) return acc;          // end of data
+        if (rows.length < PAGE_SIZE) return acc;   // short page proves the data is exhausted
         if (acc.length >= RUNAWAY) throw new Error('Unexpected record volume, refusing to report a partial count.');
         el('stats').innerHTML = '<div class="stat"><div class="v"><span class="spin"></span></div><div class="k">Loading ' +
           esc(d.label) + '</div><div class="x">' + fmt(acc.length) + ' complaints so far</div></div>';
@@ -320,9 +320,26 @@ function load(){
       });
   }
 
-  page(0, [])
-    .then(function(rows){
+  // Independent authority for "how many reports exist in this window".
+  // The fetched records must equal it exactly or nothing is displayed.
+  function officialCount(){
+    var pr = {'$select':'count(1) as n', '$where': where};
+    var q2 = Object.keys(pr).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(pr[k]); }).join('&');
+    return fetch('https://data.cityofnewyork.us/resource/' + DS + '.json?' + q2 + '&$$app_token=' + TOKEN)
+      .then(function(r){ if (!r.ok) throw new Error('count check failed (' + r.status + ')'); return r.json(); })
+      .then(function(j){ return Number(j[0].n); });
+  }
+
+  Promise.all([page(0, []), officialCount()])
+    .then(function(res){
       if (seq !== reqSeq) return;
+      var rows = res[0], official = res[1];
+      if (rows.length !== official){
+        throw new Error('Record check failed: the City reports ' + fmt(official) +
+          ' complaints for this period but ' + fmt(rows.length) + ' were retrieved. ' +
+          'Refusing to show a partial count. Reload to try again.');
+      }
+      VERIFIED = official;
       ROWS = rows.map(function(r){
         r.__cat = categorize(r.complaint_type);
         return r;
@@ -331,9 +348,14 @@ function load(){
     })
     .catch(function(err){
       if (seq !== reqSeq) return;
-      el('stats').innerHTML = '<div class="stat" style="flex:1"><div class="state err">Could not reach NYC Open Data. ' +
-        esc(err.message||'') + '</div></div>';
-      el('cats').innerHTML = ''; el('tbody').innerHTML = '';
+      ROWS = []; FILTERED = []; VERIFIED = null;
+      el('stats').innerHTML = '<div class="stat" style="flex:1"><div class="state err">' +
+        esc(err.message || 'Could not reach NYC Open Data.') + '</div></div>';
+      el('cats').innerHTML = ''; el('chips').innerHTML = '';
+      el('tbody').innerHTML = ''; el('tcount').textContent = ''; el('more').innerHTML = '';
+      el('mapNote').textContent = 'No data displayed until the record count verifies.';
+      if (dotLayer && map){ map.removeLayer(dotLayer); dotLayer = null; }
+      el('legend').innerHTML = '';
     });
 }
 function pad(n){ return (n<10?'0':'') + n; }
@@ -360,6 +382,7 @@ function render(){
   var open = ROWS.filter(function(r){ return String(r.status||'').toLowerCase() !== 'closed'; }).length;
 
   var h = '<div class="stat"><div class="v">' + fmt(total) + '</div><div class="k">Total complaints</div><div class="x">' + esc(d.label) + ' · ' + periodLabel() + '</div></div>';
+  h += '<div class="stat"><div class="v" style="font-size:.95rem;color:#2f6b3f;line-height:1.35">All ' + fmt(VERIFIED) + ' accounted for</div><div class="k">Record check</div><div class="x">Matches the City\'s own count for this period</div></div>';
   catRows.slice(0,2).forEach(function(c){
     h += '<div class="stat"><div class="v" style="color:' + CAT_COLORS[c.k] + '">' + fmt(c.n) + '</div><div class="k">' + esc(c.label) + '</div><div class="x">' + pct(c.n,total) + ' of all</div></div>';
   });
