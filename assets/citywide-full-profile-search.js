@@ -1112,6 +1112,7 @@
     '1 E 161 ST':{src:'/site-icons/yankee-stadium.png',alt:'Yankee Stadium',w:360,h:147},
     '89 E 42 ST':{src:'/site-icons/grand-central.png',alt:'Grand Central Terminal',w:356,h:342},
     '625 8 AVE':{src:'/site-icons/port-authority.png',alt:'Port Authority Bus Terminal',w:416,h:116},
+    '421 8 AVE':{src:'/site-icons/moynihan.png',alt:'Moynihan Train Hall, Pennsylvania Station',w:460,h:195},
     '4 PENN PLAZA':{src:'/site-icons/madison-square-garden.png',alt:'Madison Square Garden, home of the Knicks and the Rangers',w:420,h:405}
   };
   var AKA={
