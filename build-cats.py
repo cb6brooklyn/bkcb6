@@ -85,6 +85,8 @@ def fetch_year(year):
             wait = 20 * (attempt + 1)
             print(f'{year}: {type(e).__name__}, retrying in {wait}s', flush=True)
             time.sleep(wait)
+    if len(rows) >= 50000:
+        raise RuntimeError(f'{year}: grouped result hit the 50000 row limit; refusing to write partial data')
     out, types = {}, {}
     for row in rows:
         cb = row.get('cb')
