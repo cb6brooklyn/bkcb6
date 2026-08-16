@@ -95,6 +95,18 @@ main{padding:22px 0 60px}
 .findmsg{font-size:.8rem;color:var(--muted);margin:0 0 12px;min-height:1.2em}
 .findmsg.err{color:#b42318}
 .findmsg b{color:var(--navy)}
+.cdpanel{display:none;gap:14px;align-items:center;background:#fff;border:1px solid var(--border);border-left:5px solid var(--border);border-radius:8px;padding:12px 15px;margin-bottom:11px}
+.cdpanel.on{display:flex;flex-wrap:wrap}
+.cdpanel .pmain{flex:1;min-width:190px}
+.cdpanel .pname{font-size:1.05rem;font-weight:800;color:var(--navy);line-height:1.15;letter-spacing:-.01em}
+.cdpanel .pmeta{font-size:.8rem;color:var(--muted);margin-top:3px}
+.cdpanel .pmeta b{color:var(--ink);font-weight:700}
+.cdpanel .pissue{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:.82rem;color:var(--ink)}
+.cdpanel .pissue i{width:13px;height:13px;border-radius:4px;display:block;flex-shrink:0}
+.cdpanel .pgo{display:inline-flex;align-items:center;gap:7px;background:var(--orange);color:#fff;font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;font-weight:500;padding:11px 16px;border-radius:7px;text-decoration:none;white-space:nowrap}
+.cdpanel .pgo:hover{filter:brightness(1.07)}
+.cdpanel .phint{font-family:var(--mono);font-size:.58rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);flex-basis:100%}
+@media (max-width:640px){ .cdpanel .pgo{width:100%;justify-content:center} }
 #cdmap{height:460px;border-radius:8px;border:1px solid var(--border);background:#eef0ec}
 #cdmap .leaflet-container{font-family:var(--sans)}
 .cdtip{font-family:var(--sans);font-size:.78rem}
@@ -279,6 +291,7 @@ footer code{font-family:var(--mono);font-size:.72rem;background:#efede7;padding:
         <button class="btn" type="button" id="addrBtn">Find district</button>
       </div>
       <p class="findmsg" id="findMsg"></p>
+      <div class="cdpanel" id="cdPanel"></div>
       <div id="cdmap"></div>
       <div class="maplegend" id="mapLegend"></div>
     </section>
@@ -703,7 +716,10 @@ function load(){
   skeleton(el('rank'), 8, 15);
   el('rankHead').innerHTML = ''; el('catChips').innerHTML = '';
   renderIdent();
-  loadCats().then(paintMap).catch(function(){});
+  loadCats().then(function(){
+    paintMap();
+    if (S.level === 'cd') showPanel(S.cd, true); else el('cdPanel').className = 'cdpanel';
+  }).catch(function(){});
 
   var scope = scopeSql();
   var peakSoFar = null, totalSoFar = null, topType = null, topCat = null;
@@ -842,11 +858,63 @@ function topCatFor(key){
     var yr = catFile.years[String(y)];
     if (!yr || !yr[key]) continue;
     var row = yr[key];
-    for (var c in row){ sum[c] = (sum[c]||0) + row[c]; total += row[c]; }
+    for (var c in row){ if (c.charAt(0) === '_') continue; sum[c] = (sum[c]||0) + row[c]; total += row[c]; }
   }
   var best = null;
   for (var k in sum){ if (!best || sum[k] > sum[best]) best = k; }
-  return best ? {cat:best, n:sum[best], total:total} : null;
+  if (!best) return null;
+  // Leading complaint type across the range, from the most recent year that has one.
+  var type = null, typeN = 0;
+  for (var y2 = S.to; y2 >= S.from; y2--){
+    var row2 = catFile.years[String(y2)] && catFile.years[String(y2)][key];
+    if (row2 && row2._t){ type = row2._t; typeN = row2._tn || 0; break; }
+  }
+  return {cat:best, n:sum[best], total:total, type:type, typeN:typeN};
+}
+
+// The panel is the durable answer to "what am I looking at". Tooltips were
+// being destroyed the instant paintMap rebound them on click.
+function showPanel(key, pinned){
+  var d = CD_LIST.filter(function(x){ return x.key === key; })[0];
+  if (!d) return;
+  var top = topCatFor(key), cat = top ? top.cat : 'other';
+  var color = CAT_COLORS[cat] || CAT_COLORS.other;
+  var rank = rankFile ? rankOf(key) : null;
+  var short = BORO_SHORT[d.boro];
+
+  var meta = top ? '<b>' + fmt(top.total) + '</b> complaints in ' + periodName() : periodName();
+  if (rank) meta += ' · ranked <b>#' + rank + ' of 59</b> citywide';
+
+  var issue = top
+    ? '<i style="background:' + color + '"></i><span>Number one issue: <b>' +
+      esc(top.type || CAT_LABELS[cat] || cat) + '</b>' +
+      (top.typeN ? ' (' + fmt(top.typeN) + ', ' + pct(top.typeN, top.total) + ' of all)' : '') + '</span>'
+    : '<i style="background:' + color + '"></i><span>No data for ' + esc(periodName()) + '</span>';
+
+  var p = el('cdPanel');
+  p.className = 'cdpanel on';
+  p.style.borderLeftColor = color;
+  p.innerHTML =
+    '<div class="pmain">' +
+      '<div class="pname">' + esc(d.label.replace(' CD ', ' Community Board ')) + '</div>' +
+      '<div class="pmeta">' + meta + '</div>' +
+      '<div class="pissue">' + issue + '</div>' +
+    '</div>' +
+    '<a class="pgo" href="cb-' + short + '-' + d.num + '.html">Open district profile &rarr;</a>' +
+    (pinned ? '' : '<span class="phint">Hovering · click to open this district</span>');
+}
+
+function rankOf(key){
+  var rows = CD_LIST.map(function(d){
+    var n = 0;
+    for (var y = S.from; y <= S.to; y++){
+      var yr = rankFile.years[String(y)];
+      if (yr && yr[d.key]) n += yr[d.key];
+    }
+    return {key:d.key, n:n};
+  }).sort(function(a,b){ return b.n - a.n; });
+  for (var i = 0; i < rows.length; i++){ if (rows[i].key === key) return i+1; }
+  return null;
 }
 
 function paintMap(){
@@ -866,13 +934,6 @@ function paintMap(){
       weight: selected ? 3 : 1
     });
     if (selected) layer.bringToFront();
-    var d = CD_LIST.filter(function(x){ return x.key === k; })[0];
-    var body = top
-      ? '<span>' + esc(CAT_LABELS[cat]||cat) + ' leads · ' + fmt(top.n) + ' of ' + fmt(top.total) +
-        ' (' + pct(top.n, top.total) + ')</span>'
-      : '<span>No data for ' + esc(periodName()) + '</span>';
-    layer.bindTooltip('<div class="cdtip"><b>' + esc(d.label) + '</b>' + body + '</div>',
-      {sticky:true, direction:'top', opacity:.97});
   });
 
   // Only legend the categories that actually win somewhere, commonest first,
@@ -905,9 +966,15 @@ function initMap(){
       var key = keyForCode(String(f.properties.cd || ''));
       if (!key) return;   // skips parks and joint interest areas
       var layer = L.geoJSON(f, {style:{weight:1, color:'#fff', fillOpacity:.88}}).addTo(cdMap);
-      layer.on('mouseover', function(){ if (!isSelected(key)) layer.setStyle({weight:2.5, color:'#0d1b4b'}); });
-      layer.on('mouseout',  function(){ if (!isSelected(key)) layer.setStyle({weight:1, color:'#fff'}); });
-      layer.on('click', function(){ selectDistrict(key); });
+      layer.on('mouseover', function(){
+        if (!isSelected(key)) layer.setStyle({weight:3, color:'#0d1b4b'});
+        showPanel(key, false);
+      });
+      layer.on('mouseout', function(){
+        if (!isSelected(key)) layer.setStyle({weight:1, color:'#fff'});
+        if (S.level === 'cd') showPanel(S.cd, true);
+      });
+      layer.on('click', function(){ selectDistrict(key); showPanel(key, true); });
       cdLayers[key] = layer;
     });
     var all = Object.keys(cdLayers).map(function(k){ return cdLayers[k]; });
