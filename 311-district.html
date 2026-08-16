@@ -392,8 +392,12 @@ function doLoad(expected){
     .catch(function(err){
       if (seq !== reqSeq) return;
       ROWS = []; FILTERED = []; VERIFIED = null;
-      el('stats').innerHTML = '<div class="stat" style="flex:1"><div class="state err">' +
-        esc(err.message || 'Could not reach NYC Open Data.') + '</div></div>';
+      var m = err && err.message || '';
+      if (!m || m === 'Failed to fetch' || m.indexOf('NetworkError') > -1)
+        m = 'Could not reach NYC Open Data. Nothing is shown rather than a partial count. Check your connection and reload.';
+      el('stats').innerHTML = '<div class="stat" style="flex:1"><div class="state err">' + esc(m) +
+        '<br><button class="btn" type="button" id="retryBtn" style="margin-top:10px">Try again</button></div></div>';
+      var rb = el('retryBtn'); if (rb) rb.addEventListener('click', function(){ load(true); });
       el('cats').innerHTML = ''; el('chips').innerHTML = '';
       el('tbody').innerHTML = ''; el('tcount').textContent = ''; el('more').innerHTML = '';
       el('mapNote').textContent = 'No data displayed until the record count verifies.';
@@ -410,7 +414,9 @@ function fetchRetry(url, attempt){
   return fetch(url)
     .then(function(r){ if (!r.ok) throw new Error('Open Data returned ' + r.status); return r.json(); })
     .catch(function(err){
-      if (attempt >= 3) throw err;
+      if (attempt >= 3){
+        throw new Error('Could not reach NYC Open Data after 4 attempts. Nothing is shown rather than a partial count. Check your connection and reload.');
+      }
       return new Promise(function(res){ setTimeout(res, 1500 * (attempt + 1)); })
         .then(function(){ return fetchRetry(url, attempt + 1); });
     });
