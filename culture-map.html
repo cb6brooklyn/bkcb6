@@ -135,7 +135,7 @@
   <div class="card">
     <div class="head">
       <h1>NYC Culture Map by Community District</h1>
-      <p>Museums, every branch of the three public library systems, Broadway and neighborhood theatres, performing arts venues, movie theaters and parks. Filter by type, borough, or district.</p>
+      <p>Museums, every branch of the three public library systems, Broadway and neighborhood theatres, performing arts venues, every movie theater in the five boroughs, and parks. Filter by type, borough, or district.</p>
     </div>
     <div class="stats">
       <div class="stat"><div class="v" id="sMus">0</div><div class="l">Places shown</div></div>
@@ -173,7 +173,7 @@
     </div>
     <div class="origin" id="origin"></div>
     <div id="map"></div>
-    <div class="notice">Sources: NYC Open Data museum directory, the NYPL, Brooklyn Public Library and Queens Public Library branch directories, NYC Geoclient and Department of City Planning MapPLUTO for the tax lot records, DCP community district boundaries, and the Broadway theatre list from broadway.org. Places drawn from the lot records carry zoning, ownership, land use and year built. Places on piers, islands, or inside Central Park and Flushing Meadows fall outside any community district; those are assigned to the nearest one and flagged. Owner of record is the tax roll owner, which is often not the operator. Confirm hours and admission directly.</div>
+    <div class="notice">Sources: NYC Open Data museum directory, the NYPL, Brooklyn Public Library and Queens Public Library branch directories, NYC Geoclient and Department of City Planning MapPLUTO for the tax lot records, DCP community district boundaries, the Broadway theatre list from broadway.org, and OpenStreetMap for the movie theaters. Places drawn from the lot records carry zoning, ownership, land use and year built. Places on piers, islands, or inside Central Park and Flushing Meadows fall outside any community district; those are assigned to the nearest one and flagged. Owner of record is the tax roll owner, which is often not the operator. Confirm hours and admission directly.</div>
   </div>
 
   <div class="card">
@@ -523,9 +523,32 @@
   }
   function renderLabels(){
     labelLayer.clearLayers();
-    districts.forEach(function(f){
+    if(map.getZoom() < 9) return;                  // nothing readable fits below that
+    var bounds = map.getBounds().pad(0.12);
+    var placed = [];
+    // draw in a stable order, then skip any label whose box would sit on one
+    // already drawn. a selected district always wins its spot
+    var queue = districts.filter(function(f){
       var d = f.properties;
-      if(d.lx === undefined) return;
+      return d.lx !== undefined && bounds.contains(L.latLng(d.ly, d.lx));
+    }).sort(function(a, b){
+      var sa = cbSel.value === a.properties.cb ? 0 : 1;
+      var sb = cbSel.value === b.properties.cb ? 0 : 1;
+      if(sa !== sb) return sa - sb;
+      var ba = boroSel.value && a.properties.boro !== boroSel.value ? 1 : 0;
+      var bb = boroSel.value && b.properties.boro !== boroSel.value ? 1 : 0;
+      return ba - bb;
+    });
+    queue.forEach(function(f){
+      var d = f.properties;
+      var pt = map.latLngToLayerPoint([d.ly, d.lx]);
+      var w = d.cb.length * 5.2 + 8, h = 13;
+      var box = {x1: pt.x - w/2, x2: pt.x + w/2, y1: pt.y - h/2, y2: pt.y + h/2};
+      for(var i=0; i<placed.length; i++){
+        var o = placed[i];
+        if(box.x1 < o.x2 && box.x2 > o.x1 && box.y1 < o.y2 && box.y2 > o.y1) return;
+      }
+      placed.push(box);
       var sel = cbSel.value === d.cb;
       var dim = (boroSel.value && d.boro !== boroSel.value) || (cbSel.value && !sel);
       labelLayer.addLayer(L.marker([d.ly, d.lx], {
@@ -534,7 +557,7 @@
         icon: L.divIcon({
           className: 'cdl',
           html: '<span class="cdl-b'+(sel ? ' on' : '')+(dim ? ' dim' : '')+'">'+d.cb+'</span>',
-          iconSize: [64,14], iconAnchor: [32,7]
+          iconSize: [Math.round(w), h], iconAnchor: [Math.round(w/2), Math.round(h/2)]
         })
       }));
     });
@@ -734,6 +757,7 @@
       }
     }).addTo(map);
     labelLayer.addTo(map);
+    map.on('zoomend moveend', renderLabels);
     renderTypeBar();
     renderSubBar();
     renderBoroKey();
