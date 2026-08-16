@@ -924,6 +924,23 @@ function districtAt(lng, lat){
   return null;
 }
 
+// GeoSearch does not rank by the borough in the query: "20 Bay Street, Staten
+// Island" returns the Bronx match first. So parse the borough out ourselves and
+// filter the candidates by it.
+var BORO_ALIASES = [
+  ['STATEN ISLAND', /\b(staten\s*island|s\.?i\.?|richmond county)\b/i],
+  ['BROOKLYN',      /\b(brooklyn|bklyn|b'?klyn|kings county)\b/i],
+  ['MANHATTAN',     /\b(manhattan|new york, ?ny|nyc borough of manhattan|new york county)\b/i],
+  ['BRONX',         /\b(the\s+bronx|bronx|bx|bronx county)\b/i],
+  ['QUEENS',        /\b(queens|queens county)\b/i]
+];
+function boroughInText(t){
+  for (var i = 0; i < BORO_ALIASES.length; i++){
+    if (BORO_ALIASES[i][1].test(t)) return BORO_ALIASES[i][0];
+  }
+  return null;
+}
+
 function findAddress(){
   var q = el('addrInput').value.trim();
   var msg = el('findMsg');
@@ -931,13 +948,43 @@ function findAddress(){
   if (!q){ msg.textContent = 'Type an address to look up its community district.'; return; }
   msg.innerHTML = '<span class="spin"></span>Looking up ' + esc(q);
 
-  // NYC Planning Labs GeoSearch: no key, no domain restriction.
-  fetch('https://geosearch.planninglabs.nyc/v2/search?size=1&text=' + encodeURIComponent(q))
+  var wantBoro = boroughInText(q);
+
+  fetch('https://geosearch.planninglabs.nyc/v2/search?size=8&text=' + encodeURIComponent(q))
     .then(function(r){ if (!r.ok) throw new Error('search ' + r.status); return r.json(); })
     .then(function(g){
-      var f = g && g.features && g.features[0];
-      if (!f) throw new Error('no match');
-      var lng = f.geometry.coordinates[0], lat = f.geometry.coordinates[1];
+      var feats = (g && g.features) || [];
+      if (!feats.length) throw new Error('no match');
+
+      var pick = null;
+      if (wantBoro){
+        pick = feats.filter(function(f){
+          return String((f.properties||{}).borough || '').toUpperCase() === wantBoro;
+        })[0];
+        if (!pick){
+          msg.className = 'findmsg err';
+          msg.textContent = 'No match for that address in ' + title(wantBoro) + '. Check the street number, or try another borough.';
+          return;
+        }
+      } else {
+        // No borough given. If the same street address exists in more than one
+        // borough, say so rather than silently picking the first.
+        var boros = {};
+        feats.forEach(function(f){
+          var p = f.properties || {};
+          if (String(p.street||'').length && p.borough) boros[p.borough] = true;
+        });
+        var names = Object.keys(boros);
+        if (names.length > 1){
+          msg.className = 'findmsg err';
+          msg.innerHTML = 'That address exists in more than one borough (' + esc(names.join(', ')) +
+            '). Add the borough, for example "' + esc(q) + ', ' + esc(names[0]) + '".';
+          return;
+        }
+        pick = feats[0];
+      }
+
+      var lng = pick.geometry.coordinates[0], lat = pick.geometry.coordinates[1];
       var key = districtAt(lng, lat);
       if (!key){
         msg.className = 'findmsg err';
@@ -945,7 +992,7 @@ function findAddress(){
         return;
       }
       var d = CD_LIST.filter(function(x){ return x.key === key; })[0];
-      msg.innerHTML = esc(f.properties.label || q) + ' is in <b>' + esc(d.label) + '</b>.';
+      msg.innerHTML = esc(pick.properties.label || q) + ' is in <b>' + esc(d.label) + '</b>.';
       if (addrMarker) cdMap.removeLayer(addrMarker);
       addrMarker = L.circleMarker([lat,lng], {radius:7, color:'#fff', weight:2.5,
         fillColor:'#f47920', fillOpacity:1}).addTo(cdMap);
