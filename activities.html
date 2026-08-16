@@ -58,6 +58,11 @@ body{font-family:'DM Sans',sans-serif;background:#f8f7f4;color:#0d1b4b}
 .lb-label{font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#8a857c;margin-right:2px}
 .lbtn{--pc:#06024D;border:1.5px solid var(--pc);background:#fff;color:var(--pc);border-radius:999px;padding:6px 11px;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;line-height:1}
 .lbtn.on{background:var(--pc);color:#fff}
+.act-bar{background:#fff;border-bottom:1.5px solid #e5e2db;padding:8px 14px 10px}
+.act-bar-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.act-toggles{display:flex;flex-wrap:wrap;gap:6px}
+.lbtn.tiny{padding:4px 9px;font-size:.66rem;--pc:#8a857c}
+.lbtn.act{--pc:#f47920}
 .legend-bar{display:flex;flex-wrap:wrap;gap:10px 16px;padding:9px 14px;background:#fff;border-bottom:1.5px solid #e5e2db;font-size:.72rem;color:#4f4a42;align-items:center}
 .lg{display:inline-flex;align-items:center;gap:6px}
 .lgs{width:14px;height:10px;border-radius:2px;display:inline-block}
@@ -107,46 +112,9 @@ body{font-family:'DM Sans',sans-serif;background:#f8f7f4;color:#0d1b4b}
 </div>
 
 <div class="panel">
-  <p class="panel-lede">Every NYC Parks property and all 59 community districts are on the map. Zoom in for park names, click a park for what is there, and use the toggles to turn layers on and off. Or pick an activity below to find the closest place to go.</p>
+  <p class="panel-lede">Every NYC Parks property and all 59 community districts are on the map, with names appearing as you zoom in. Click a park for what is there. Turn on any activity to map every place you can do it, then add an address or use your location to rank them by distance.</p>
   <div class="field-row">
-    <div class="field">
-      <label for="s-activity">Activity</label>
-      <select id="s-activity">
-        <option value="">Choose an activity…</option>
-        <optgroup label="Courts">
-          <option value="BKB">Basketball</option>
-          <option value="HDB">Handball</option>
-          <option value="TNS">Tennis</option>
-          <option value="PKB">Pickleball</option>
-          <option value="VLB">Volleyball</option>
-          <option value="BOC">Bocce</option>
-          <option value="HKY">Hockey</option>
-        </optgroup>
-        <optgroup label="Fields">
-          <option value="BSB">Baseball</option>
-          <option value="SFB">Softball</option>
-          <option value="SCR">Soccer</option>
-          <option value="FTB">Football</option>
-          <option value="CRK">Cricket</option>
-          <option value="RGB">Rugby</option>
-          <option value="LAX">Lacrosse</option>
-          <option value="KCK">Kickball</option>
-          <option value="NET">Netball</option>
-          <option value="FRS">Frisbee</option>
-          <option value="TRK">Running Track</option>
-          <option value="MPP">Multi-Purpose</option>
-        </optgroup>
-        <optgroup label="Water">
-          <option value="SWM">Lap Swimming</option>
-          <option value="WAD">Wading / Kiddie Pool</option>
-        </optgroup>
-        <optgroup label="Other">
-          <option value="SKT">Skateboarding</option>
-          <option value="DOG">Dog Run</option>
-        </optgroup>
-      </select>
-    </div>
-    <div class="field">
+        <div class="field">
       <label for="s-boro">Borough</label>
       <select id="s-boro" onchange="fillDistricts();rerun()">
         <option value="">All boroughs</option>
@@ -180,15 +148,20 @@ body{font-family:'DM Sans',sans-serif;background:#f8f7f4;color:#0d1b4b}
 <div class="layer-bar">
   <span class="lb-label">Show</span>
   <button class="lbtn on" id="tg-parks" style="--pc:#6cb33f" onclick="togParks(this)">Parks</button>
-  <button class="lbtn on" id="tg-names" style="--pc:#2f6b1f" onclick="togNames(this)">Names</button>
   <button class="lbtn on" id="tg-cds" style="--pc:#06024D" onclick="togCds(this)">District lines</button>
-  <button class="lbtn" id="tg-onlyact" style="--pc:#f47920" onclick="togOnlyAct(this)">Only parks with activities</button>
+</div>
+<div class="act-bar">
+  <div class="act-bar-head">
+    <span class="lb-label">Activities</span>
+    <button class="lbtn tiny" onclick="clearActs()">Clear</button>
+  </div>
+  <div class="act-toggles" id="act-toggles"></div>
 </div>
 <div class="legend-bar">
   <span class="lg"><span class="lgs" style="background:#6cb33f;opacity:.6"></span>Has courts, fields, pool, skatepark or dog run</span>
   <span class="lg"><span class="lgs" style="background:#cfe3bd;opacity:.7"></span>Other parkland</span>
   <span class="lg"><span class="lgs" style="background:transparent;border:1.5px solid #06024D"></span>Community district</span>
-  <span class="lg"><span class="lgs" style="background:#f47920"></span>Search result</span>
+  <span class="lg"><span class="lgs" style="background:#f47920;border-radius:50%;width:11px;height:11px"></span>Activity location</span>
 </div>
 <div id="map"></div>
 
@@ -215,7 +188,7 @@ var BORO_KEY={'1':'MN','2':'BX','3':'BK','4':'QN','5':'SI'};
 var HOME=[[40.49,-74.27],[40.92,-73.68]];
 
 var recData=null,cdLookup={},parkLayer=null,parkGeo=null,labelGroup=null,cdLayer=null,recLayer=null,searchMarker=null,topResults=[],cdIndex={};
-var showParks=true,showNames=true,showCds=true,onlyAct=false;
+var showParks=true,showNames=true,showCds=true,onlyAct=false,lastOrigin=null,lastOriginLabel='';
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function showResult(html){var b=document.getElementById('result-bar');b.style.display='block';b.innerHTML=html;}
@@ -340,12 +313,10 @@ function togParks(btn){
   if(parkLayer){showParks?parkLayer.addTo(map):map.removeLayer(parkLayer);}
   buildParkLabels();
 }
-function togNames(btn){showNames=!showNames;btn.classList.toggle('on',showNames);buildParkLabels();}
 function togCds(btn){
   showCds=!showCds;btn.classList.toggle('on',showCds);
   if(cdLayer){showCds?cdLayer.addTo(map):map.removeLayer(cdLayer);}
 }
-function togOnlyAct(btn){onlyAct=!onlyAct;btn.classList.toggle('on',onlyAct);refreshParks();}
 function labelPoint(f){
   if(f._lp!==undefined)return f._lp;
   var best=null,bestA=-1;
@@ -414,22 +385,81 @@ function highlightDistrict(cd){
     cdIndex[k].setStyle(k===cd?{color:'#f47920',weight:2.5,opacity:1}:{color:'#06024D',weight:1,opacity:.55});
   });
 }
-function render(code,origin,originLabel){
+// ---------- activity toggles ----------
+var ACT_ORDER=['BKB','HDB','TNS','PKB','VLB','BOC','HKY','BSB','SFB','SCR','FTB','CRK','RGB','LAX','KCK','NET','FRS','TRK','MPP','SWM','WAD','SKT','DOG'];
+var actOn={};
+
+function buildActToggles(){
+  var counts={};
+  recData.forEach(function(r){r.a.forEach(function(a){counts[a]=(counts[a]||0)+1;});});
+  var wrap=document.getElementById('act-toggles');
+  wrap.innerHTML='';
+  ACT_ORDER.forEach(function(code){
+    if(!counts[code])return;
+    var b=document.createElement('button');
+    b.className='lbtn act'+(actOn[code]?' on':'');
+    b.id='ta-'+code;
+    b.textContent=ACT_LABELS[code];
+    b.onclick=function(){togAct(code);};
+    wrap.appendChild(b);
+  });
+}
+function togAct(code){
+  actOn[code]=!actOn[code];
+  var b=document.getElementById('ta-'+code);
+  if(b)b.classList.toggle('on',!!actOn[code]);
+  runActivities();
+}
+function clearActs(){
+  actOn={};
+  ACT_ORDER.forEach(function(c){var b=document.getElementById('ta-'+c);if(b)b.classList.remove('on');});
+  runActivities();
+}
+function activeActs(){return ACT_ORDER.filter(function(c){return actOn[c];});}
+function actListLabel(codes){
+  if(codes.length===1)return ACT_LABELS[codes[0]];
+  if(codes.length===2)return ACT_LABELS[codes[0]]+' and '+ACT_LABELS[codes[1]];
+  return codes.length+' activities';
+}
+
+function scopedRows(codes){
   var boro=document.getElementById('s-boro').value;
   var cd=document.getElementById('s-cd').value;
+  var rows=recData.filter(function(r){
+    for(var i=0;i<codes.length;i++){if(r.a.indexOf(codes[i])!==-1)return true;}
+    return false;
+  });
+  if(cd)return {rows:rows.filter(function(r){return r.c===cd;}),all:rows};
+  if(boro)return {rows:rows.filter(function(r){return String(r.c).charAt(0)===boro;}),all:rows};
+  return {rows:rows,all:rows};
+}
+
+function runActivities(origin,originLabel){
+  var codes=activeActs();
+  var cd=document.getElementById('s-cd').value;
+  var boro=document.getElementById('s-boro').value;
   highlightDistrict(cd);
-  var rows=recData.filter(function(r){return r.a.indexOf(code)!==-1;});
-  var scope=rows;
-  if(cd)scope=rows.filter(function(r){return r.c===cd;});
-  else if(boro)scope=rows.filter(function(r){return String(r.c).charAt(0)===boro;});
-  var list=collapse(scope);
+  if(!codes.length){
+    if(recLayer){map.removeLayer(recLayer);recLayer=null;}
+    document.getElementById('act-panel').classList.remove('open');
+    document.getElementById('result-bar').style.display='none';
+    return;
+  }
+  if(origin===undefined&&lastOrigin){origin=lastOrigin;originLabel=lastOriginLabel;}
   var where=cd?cdLabel(cd):(boro?BORO_NAMES[boro]:'the city');
+  var sc=scopedRows(codes);
+  var list=collapse(sc.rows);
 
   var fellBack=false;
   if(!list.length){
-    var alt=collapse(rows);
-    if(!alt.length){showResult('No '+ACT_LABELS[code]+' locations in the NYC Parks data.');document.getElementById('act-panel').classList.remove('open');return;}
-    fellBack=true;list=alt;
+    if(!sc.all.length){
+      showResult('No '+actListLabel(codes)+' locations in the NYC Parks data.');
+      document.getElementById('act-panel').classList.remove('open');
+      if(recLayer){map.removeLayer(recLayer);recLayer=null;}
+      return;
+    }
+    fellBack=true;
+    list=collapse(sc.all);
     if(!origin){
       var near=recData.filter(function(r){return cd?r.c===cd:(boro?String(r.c).charAt(0)===boro:false);});
       if(near.length){
@@ -438,6 +468,7 @@ function render(code,origin,originLabel){
       }
     }
   }
+
   if(origin){
     list.forEach(function(r){r._d=milesBetween(origin[0],origin[1],r.y,r.x);});
     list.sort(function(a,b){return a._d-b._d;});
@@ -445,8 +476,10 @@ function render(code,origin,originLabel){
     list.sort(function(a,b){return a.n<b.n?-1:a.n>b.n?1:0;});
   }
 
+  drawFacilities(list,codes,!!origin);
+
   var top=list.slice(0,12);topResults=top;
-  var head='<strong>'+ACT_LABELS[code]+'</strong> <span>· ';
+  var head='<strong>'+escH(actListLabel(codes))+'</strong> <span>· ';
   if(fellBack){head+='none in '+escH(where)+', showing all '+list.length+' citywide';}
   else{
     head+=list.length+' site'+(list.length===1?'':'s')+' in '+escH(where);
@@ -458,75 +491,87 @@ function render(code,origin,originLabel){
 
   var html='';
   top.forEach(function(r,i){
-    var extra=(code==='SWM'&&r['in'])?'<span class="act-tag alt">Indoor</span>':'';
+    var mine=codes.filter(function(c){return r.a.indexOf(c)!==-1;}).map(function(c){return ACT_LABELS[c];}).join(', ');
+    var extra=(r.a.indexOf('SWM')!==-1&&r['in'])?'<span class="act-tag alt">Indoor</span>':'';
     html+='<div class="act-row" onclick="flyTo('+i+')">'+
       '<div class="act-rank">'+(i+1)+'</div>'+
       '<div class="act-body"><div class="act-name">'+escH(r.n)+'</div>'+
-      '<div class="act-meta">'+escH(recDetail(r))+'</div>'+
+      '<div class="act-meta">'+escH(mine)+(recDetail(r)?' · '+escH(recDetail(r)):'')+'</div>'+
       '<span class="act-tag">'+escH(cdLabel(r.c)||'NYC Parks')+'</span>'+extra+'</div>'+
       (origin?'<div class="act-dist">'+fmtDist(r._d)+'</div>':'')+'</div>';
   });
   document.getElementById('act-list').innerHTML=html;
   document.getElementById('act-panel').classList.add('open');
 
-  if(recLayer)map.removeLayer(recLayer);
-  recLayer=L.layerGroup();
-  top.forEach(function(r,i){
-    L.marker([r.y,r.x],{icon:L.divIcon({className:'',html:'<div style="background:#f47920;color:#fff;font:700 11px/20px \'DM Mono\',monospace;width:20px;height:20px;border-radius:50%;text-align:center;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4)">'+(i+1)+'</div>',iconSize:[24,24],iconAnchor:[12,12]})})
-      .bindTooltip('<strong>'+escH(r.n)+'</strong><br><span style="font-size:.72rem;color:#555">'+escH(ACT_LABELS[code]+' · '+(cdLabel(r.c)||''))+(r._d!==undefined?' · '+fmtDist(r._d):'')+'</span>',{opacity:1})
-      .addTo(recLayer);
-  });
-  recLayer.addTo(map);
-  var pts=top.map(function(r){return [r.y,r.x];});
-  if(origin)pts.push(origin);
-  try{map.fitBounds(L.latLngBounds(pts),{padding:[45,45],maxZoom:15});}catch(e){}
-
-  var pre='<strong>'+ACT_LABELS[code]+'</strong>: '+(fellBack?'none in '+escH(where)+'. ':'');
+  var pre='<strong>'+escH(actListLabel(codes))+'</strong>: '+(fellBack?'none in '+escH(where)+'. ':'');
   if(origin&&top.length){
     showResult(pre+'Closest is <strong>'+escH(top[0].n)+'</strong> ('+fmtDist(top[0]._d)+') in '+escH(cdLabel(top[0].c)||'NYC')+'.');
   } else if(top.length){
     showResult(pre+list.length+' site'+(list.length===1?'':'s')+' in '+escH(where)+'. Add an address or tap Nearest to me to rank by distance.');
   }
 }
+
+// Every matching location goes on the map. When results are ranked, the closest
+// twelve carry a number so the list and the map line up.
+function drawFacilities(list,codes,ranked){
+  if(recLayer)map.removeLayer(recLayer);
+  recLayer=L.layerGroup();
+  list.forEach(function(r,i){
+    var mine=codes.filter(function(c){return r.a.indexOf(c)!==-1;}).map(function(c){return ACT_LABELS[c];}).join(', ');
+    var tip='<strong>'+escH(r.n)+'</strong><br><span style="font-size:.72rem;color:#555">'+escH(mine)+(cdLabel(r.c)?' · '+escH(cdLabel(r.c)):'')+(r._d!==undefined?' · '+fmtDist(r._d):'')+'</span>';
+    var m;
+    if(ranked&&i<12){
+      m=L.marker([r.y,r.x],{icon:L.divIcon({className:'',html:'<div style="background:#f47920;color:#fff;font:700 11px/20px \'DM Mono\',monospace;width:20px;height:20px;border-radius:50%;text-align:center;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4)">'+(i+1)+'</div>',iconSize:[24,24],iconAnchor:[12,12]})});
+    } else {
+      m=L.circleMarker([r.y,r.x],{radius:5,fillColor:'#f47920',color:'#fff',weight:1.5,fillOpacity:.95});
+    }
+    m.bindTooltip(tip,{opacity:1}).addTo(recLayer);
+  });
+  recLayer.addTo(map);
+  var pts=(ranked?list.slice(0,12):list).map(function(r){return [r.y,r.x];});
+  if(lastOrigin)pts.push(lastOrigin);
+  if(pts.length){try{map.fitBounds(L.latLngBounds(pts),{padding:[45,45],maxZoom:15});}catch(e){}}
+}
+
 function flyTo(i){var r=topResults[i];if(r)map.setView([r.y,r.x],17);}
-function rerun(){var c=document.getElementById('s-activity').value;if(recData&&c)doSearch();else highlightDistrict(document.getElementById('s-cd').value);}
+function rerun(){runActivities(undefined);}
+
 function doSearch(){
-  var code=document.getElementById('s-activity').value;
-  if(!code){showResult('Choose an activity to search, or click any park on the map.');return;}
+  if(!activeActs().length){showResult('Turn on an activity above, or click any park on the map.');return;}
   var q=document.getElementById('s-addr').value.trim();
-  if(!q){render(code,null,null);return;}
+  if(!q){lastOrigin=null;lastOriginLabel='';runActivities(null);return;}
   showResult('Searching…');
   fetch('https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(q)+'&size=1')
     .then(function(r){return r.json();}).then(function(geo){
       if(!geo.features||!geo.features.length){showResult('Address not found.');return;}
       var f=geo.features[0],lat=f.geometry.coordinates[1],lng=f.geometry.coordinates[0];
       if(searchMarker)map.removeLayer(searchMarker);
-      searchMarker=L.circleMarker([lat,lng],{radius:6,fillColor:'#f47920',color:'#fff',weight:2,fillOpacity:1}).addTo(map);
-      render(code,[lat,lng],f.properties.label||q);
+      searchMarker=L.circleMarker([lat,lng],{radius:6,fillColor:'#06024D',color:'#fff',weight:2,fillOpacity:1}).addTo(map);
+      lastOrigin=[lat,lng];lastOriginLabel=f.properties.label||q;
+      runActivities(lastOrigin,lastOriginLabel);
     }).catch(function(){showResult('Search failed.');});
 }
 function findNearest(){
-  var code=document.getElementById('s-activity').value;
-  if(!code){showResult('Choose an activity first.');return;}
+  if(!activeActs().length){showResult('Turn on an activity above first.');return;}
   if(!navigator.geolocation){showResult('Location is not available in this browser.');return;}
   showResult('Finding your location…');
   navigator.geolocation.getCurrentPosition(function(pos){
     var lat=pos.coords.latitude,lng=pos.coords.longitude;
     if(searchMarker)map.removeLayer(searchMarker);
-    searchMarker=L.circleMarker([lat,lng],{radius:8,fillColor:'#f47920',color:'#fff',weight:2,fillOpacity:1}).addTo(map);
-    render(code,[lat,lng],'your location');
+    searchMarker=L.circleMarker([lat,lng],{radius:8,fillColor:'#06024D',color:'#fff',weight:2,fillOpacity:1}).addTo(map);
+    lastOrigin=[lat,lng];lastOriginLabel='your location';
+    runActivities(lastOrigin,lastOriginLabel);
   },function(){showResult('Could not get your location.');});
 }
 function resetView(){
-  showParks=true;showNames=true;showCds=true;onlyAct=false;
+  showParks=true;showCds=true;
   document.getElementById('tg-parks').classList.add('on');
-  document.getElementById('tg-names').classList.add('on');
   document.getElementById('tg-cds').classList.add('on');
-  document.getElementById('tg-onlyact').classList.remove('on');
   if(parkLayer)parkLayer.addTo(map);
   if(cdLayer)cdLayer.addTo(map);
-  refreshParks();
-  document.getElementById('s-activity').value='';
+  actOn={};
+  ACT_ORDER.forEach(function(c){var b=document.getElementById('ta-'+c);if(b)b.classList.remove('on');});
+  lastOrigin=null;lastOriginLabel='';
   document.getElementById('s-boro').value='';
   fillDistricts();
   document.getElementById('s-addr').value='';
@@ -535,6 +580,7 @@ function resetView(){
   if(recLayer){map.removeLayer(recLayer);recLayer=null;}
   if(searchMarker){map.removeLayer(searchMarker);searchMarker=null;}
   highlightDistrict('');
+  refreshParks();
   map.fitBounds(HOME);
 }
 function applyUrlParams(){
@@ -548,7 +594,11 @@ function applyUrlParams(){
     highlightDistrict(cd);
     if(cdIndex[cd]){try{map.fitBounds(cdIndex[cd].getBounds(),{padding:[20,20]});}catch(e){}}
   }
-  if(act&&ACT_LABELS[act]){document.getElementById('s-activity').value=act;doSearch();}
+  if(act){
+    act.split(',').forEach(function(a){if(ACT_LABELS[a])actOn[a]=true;});
+    buildActToggles();
+    if(activeActs().length)runActivities(null);
+  }
 }
 
 map.fitBounds(HOME);
@@ -564,13 +614,14 @@ Promise.all([
   buildParkLabels();
   map.on('zoomend moveend',buildParkLabels);
   fillDistricts();
+  buildActToggles();
   applyUrlParams();
   var withAct=res[3].features.filter(function(f){return f.properties.a&&f.properties.a.length;}).length;
-  document.getElementById('note').innerHTML=res[3].features.length.toLocaleString()+' NYC Parks properties, '+withAct.toLocaleString()+' of them with a recorded court, field, pool, skatepark, or dog run, across all 59 community districts and the large parks mapped on their own, including Prospect Park, Central Park, Van Cortlandt, Pelham Bay, Bronx Park, Forest Park, and Flushing Meadows. Park names appear as you zoom in. Click any park for what is there. Source: NYC Open Data. &nbsp;|&nbsp; <a href="parks.html">CB6 parks map</a>';
+  document.getElementById('note').innerHTML=res[3].features.length.toLocaleString()+' NYC Parks properties, '+withAct.toLocaleString()+' of them with a recorded court, field, pool, skatepark, or dog run, across all 59 community districts and the large parks mapped on their own, including Prospect Park, Central Park, Van Cortlandt, Pelham Bay, Bronx Park, Forest Park, and Flushing Meadows. Names appear as you zoom in. Click any park for what is there. Source: NYC Open Data. &nbsp;|&nbsp; <a href="parks.html">CB6 parks map</a>';
 }).catch(function(e){document.getElementById('note').textContent='Load error: '+e;});
 
+
 document.getElementById('s-addr').addEventListener('keydown',function(e){if(e.key==='Enter')doSearch();});
-document.getElementById('s-activity').addEventListener('change',function(){if(recData&&this.value)doSearch();});
 </script>
 
 <button aria-label="Share or embed this page" class="embed-fab" onclick="document.getElementById('bkcb6EmbedModal').classList.add('open')">
