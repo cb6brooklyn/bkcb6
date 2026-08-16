@@ -18,6 +18,7 @@
   // Plain-language explanation of what a special purpose district does. Codes verified against PLUTO; text grounded in the NYC Zoning Resolution / DCP.
   var SPECIAL_DISTRICT_EXPLAIN={
     'G':'The Special Gowanus Mixed Use District was created by the 2021 Gowanus rezoning. It pairs residential and light-manufacturing (M1) districts so housing and industry can sit side by side, and is organized into five subdistricts with their own rules. It layers in Mandatory Inclusionary Housing in mapped areas, treats blocks along the Gowanus Canal as waterfront subject to a Waterfront Access Plan, and adds environmental, ground-floor, and streetscape requirements on top of the base zoning.',
+    'BPC':'The Special Battery Park City District covers land created by landfill and overseen by the Battery Park City Authority, a State public benefit corporation. The Authority holds the land and ground leases the parcels, so the zoning here works alongside the Authority\'s own master plan and design guidelines rather than in place of them.',
     'MID':'The Special Midtown District governs the core of Midtown Manhattan. It sets bulk, tower setback and street wall rules, protects daylight on the avenues, and carries subdistricts for Times Square, the Theater Subdistrict, Fifth Avenue and Grand Central, each with its own controls layered on top of the base commercial zoning.',
     'HY':'The Special Hudson Yards District was mapped to turn the far West Side rail yards into a dense mixed use district. It ties additional floor area to district improvement contributions that paid for the 7 train extension and the open space network, and it is organized into subdistricts with their own height and use rules.',
     'DB':'The Special Downtown Brooklyn District covers the Downtown Brooklyn core. It concentrates office and residential density near transit, sets street wall and ground floor retail requirements, and modifies the underlying zoning on use, bulk and parking.',
@@ -170,12 +171,14 @@
       var uniq=names.filter(function(v,i,a){return a.indexOf(v)===i;});
       return uniq.join(' paired with ').replace(/^./,function(c){return c.toUpperCase();})+', a Mixed Use district';
     }
+    if(z==='BPC') return 'Battery Park City district';
     if(/^R/.test(z)) return 'Residential district';
     if(/^C/.test(z)) return 'Commercial district';
     if(/^M/.test(z)) return 'Manufacturing district';
     return 'Mapped zoning district';
   }
   function zoneBase(z){z=String(z||'').trim().toUpperCase(); if(!z) return '';
+    if(z==='BPC') return 'the Battery Park City zoning district. The land is State owned, created by landfill and administered by the Battery Park City Authority, which ground leases the parcels and sets its own master plan and design guidelines alongside the zoning.';
     if(/^R/.test(z)) return 'a residence district. The number sets permitted density and building form, and any letter suffix refines bulk, height, parking or contextual rules.';
     if(/^C/.test(z)) return 'a commercial district. It permits retail, office, service or mixed commercial uses depending on the district and any overlay.';
     if(/^M/.test(z)) return 'a manufacturing district. It permits industrial, warehouse, production and certain commercial uses subject to performance standards.';
@@ -616,6 +619,18 @@
     'ATLANTIC TERMINAL':'139 Flatbush Avenue, Brooklyn',
     'PROSPECT PARK':'95 Prospect Park West, Brooklyn',
     'CENTRAL PARK':'830 5 Avenue, Manhattan',
+    'CHRYSLER BUILDING':'405 Lexington Avenue, Manhattan',
+    'THE CHRYSLER BUILDING':'405 Lexington Avenue, Manhattan',
+    'CHRYSLER':'405 Lexington Avenue, Manhattan',
+    'HUDSON YARDS':'30 Hudson Yards, Manhattan',
+    'THE EDGE':'30 Hudson Yards, Manhattan',
+    'THE VESSEL':'20 Hudson Yards, Manhattan',
+    'VESSEL':'20 Hudson Yards, Manhattan',
+    'BATTERY PARK CITY':'200 Liberty Street, Manhattan',
+    'BATTERY PARK CITY AUTHORITY':'200 Liberty Street, Manhattan',
+    'BPCA':'200 Liberty Street, Manhattan',
+    'BROOKFIELD PLACE':'230 Vesey Street, Manhattan',
+    'WORLD FINANCIAL CENTER':'230 Vesey Street, Manhattan',
     'THE CENTRAL PARK':'830 5 Avenue, Manhattan',
     'CENTRAL PARK CONSERVANCY':'830 5 Avenue, Manhattan',
     'THE ARSENAL':'830 5 Avenue, Manhattan',
@@ -1142,6 +1157,19 @@
     '22-25 JACKSON AVE':{src:'/site-icons/moma-ps1.png',alt:'MoMA PS1',w:440,h:247},
     '1000 5 AVE':{src:'/site-icons/the-met.png',alt:'The Metropolitan Museum of Art',w:440,h:438},
     '830 5 AVE':{src:'/site-icons/central-park.png',alt:'Central Park',w:440,h:217},
+    '200 CENTRAL PARK W':{src:'/site-icons/amnh.png',alt:'American Museum of Natural History',w:440,h:207},
+    '1260 6 AVE':{src:'/site-icons/radio-city.png',alt:'Radio City Music Hall',w:440,h:70},
+    '1260 AVE OF THE AMER':{src:'/site-icons/radio-city.png',alt:'Radio City Music Hall',w:440,h:70},
+    '30 ROCKEFELLER PLAZA':{src:'/site-icons/rockefeller-center.png',alt:'Rockefeller Center',w:440,h:155},
+    '1250 AVE OF THE AMER':{src:'/site-icons/rockefeller-center.png',alt:'Rockefeller Center',w:440,h:155},
+    '881 7 AVE':{src:'/site-icons/carnegie-hall.png',alt:'Carnegie Hall',w:440,h:369},
+    '338 5 AVE':{src:'/site-icons/empire-state.png',alt:'The Empire State Building',w:440,h:140},
+    '185 GREENWICH ST':{src:'/site-icons/one-world-trade.png',alt:'One World Trade Center',w:440,h:202},
+    '405 LEXINGTON AVE':{src:'/site-icons/chrysler.png',alt:'Chrysler Building',w:440,h:39},
+    '30 HUDSON YARDS':{src:'/site-icons/hudson-yards.png',alt:'Hudson Yards',w:440,h:76},
+    '20 HUDSON YARDS':{src:'/site-icons/hudson-yards.png',alt:'Hudson Yards',w:440,h:76},
+    '200 LIBERTY ST':{src:'/site-icons/battery-park-city.png',alt:'Battery Park City',w:440,h:147},
+    '230 VESEY ST':{src:'/site-icons/battery-park-city.png',alt:'Battery Park City',w:440,h:147},
     '95 PROSPECT PARK W':{src:'/site-icons/prospect-park.png',alt:'Prospect Park',w:400,h:399},
     '186 EASTERN PKWY':{src:'/site-icons/brooklyn-museum.png',alt:'Brooklyn Museum',w:440,h:348},
     '334 FURMAN ST':{src:'/site-icons/brooklyn-bridge-park.png',alt:'Brooklyn Bridge Park',w:440,h:177},
@@ -1157,6 +1185,11 @@
     '1 E 161 ST':{text:'Yankee Stadium',bg:'#142448',fg:'#FFFFFF'},
     '139 FLATBUSH AVE':'Atlantic Terminal',
     '95 PROSPECT PARK W':'Prospect Park, 526 acres on one tax lot',
+    '405 LEXINGTON AVE':'the Chrysler Building',
+    '30 HUDSON YARDS':'30 Hudson Yards, the Edge observation deck, in the Hudson Yards development',
+    '20 HUDSON YARDS':'20 Hudson Yards, the Shops and the Vessel, in the Hudson Yards development',
+    '200 LIBERTY ST':'Battery Park City, built on landfill and governed by the Battery Park City Authority',
+    '230 VESEY ST':'Brookfield Place, in Battery Park City',
     '830 5 AVE':'Central Park, 843 acres on one tax lot, and the Arsenal, the Parks Department headquarters',
     '4 S ST':'Whitehall Ferry Terminal, the Manhattan end of the Staten Island Ferry',
     '1 BAY ST':'St. George Ferry Terminal, the Staten Island end of the ferry',
@@ -1230,10 +1263,10 @@
     '1634 BROADWAY':'the Winter Garden Theatre, a Broadway theatre',
     '338 5 AVE':'the Empire State Building',
     '89 E 42 ST':'Grand Central Terminal',
-    '1260 6 AVE':'Radio City Music Hall, part of Rockefeller Center',
-    '1260 AVE OF THE AMER':'Radio City Music Hall, part of Rockefeller Center',
-    '1250 AVE OF THE AMER':'30 Rockefeller Plaza, the heart of Rockefeller Center',
-    '30 ROCKEFELLER PLAZA':'30 Rockefeller Plaza, the heart of Rockefeller Center',
+    '1260 6 AVE':'Radio City Music Hall, its own tax lot at 1260 Avenue of the Americas, next door to 30 Rockefeller Plaza',
+    '1260 AVE OF THE AMER':'Radio City Music Hall, its own tax lot at 1260 Avenue of the Americas, next door to 30 Rockefeller Plaza',
+    '1250 AVE OF THE AMER':'30 Rockefeller Plaza, a separate tax lot from Radio City Music Hall next door',
+    '30 ROCKEFELLER PLAZA':'30 Rockefeller Plaza, a separate tax lot from Radio City Music Hall next door',
     '881 7 AVE':'Carnegie Hall',
     '4 PENN PLAZA':{text:'Madison Square Garden, above Penn Station',bg:'#255792',fg:'#FFFFFF'},
     '60 COLUMBUS AVE':'Lincoln Center',
