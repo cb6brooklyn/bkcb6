@@ -722,14 +722,39 @@ table.dir td.nm{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700
       }}).addTo(lMap);
     if(shLayer.bringToBack) shLayer.bringToBack();
   }
+  /* Each site is housing. The glyph says which agency is building it, the size says how
+     many homes, and the outline says how far along it is. */
+  var AGGLYPH={HPD:'\u2302',EDC:'\u25A3',NYCHA:'\u2637',ECF:'\u25A4'};
+  var STAGE_STYLE={
+    'Post Public Approval':{dash:0,fill:1,label:'approved'},
+    'Developer Selected/Pre-Public Approval':{dash:1,fill:.92,label:'developer selected'},
+    'Pre-Public Approval':{dash:1,fill:.9,label:'pre approval'},
+    'RFP Active':{dash:1,fill:.78,label:'bidding'},
+    'Pre-RFP':{dash:1,fill:.66,label:'not yet bid'}
+  };
+  function siteIconFor(s,big){
+    var u=s.u||0;
+    var size=Math.round(Math.max(big?26:22, Math.min(big?52:46, 18+Math.sqrt(u)/1.9)));
+    var col=AGC[s.ag]||'#6b6760';
+    var st=STAGE_STYLE[s.st]||{dash:1,fill:.8};
+    var border=st.dash?'2.5px dashed #ffffff':'2.5px solid #ffffff';
+    var glyph=AGGLYPH[s.ag]||'\u2302';
+    var fs=Math.round(size*0.5);
+    return L.divIcon({className:'',iconSize:[size,size+8],iconAnchor:[size/2,size+8],
+      html:'<div style="text-align:center">'+
+        '<div style="width:'+size+'px;height:'+size+'px;border-radius:'+Math.round(size*0.28)+'px;'+
+        'background:'+col+';opacity:'+st.fill+';border:'+border+';box-shadow:0 2px 5px rgba(0,0,0,.35);'+
+        'color:#fff;font-size:'+fs+'px;line-height:'+(size-5)+'px;font-weight:700">'+glyph+'</div>'+
+        '<div style="width:0;height:0;margin:0 auto;border-left:5px solid transparent;'+
+        'border-right:5px solid transparent;border-top:8px solid '+col+'"></div></div>'});
+  }
   function drawPoints(){
     if(!lMap) return;
     if(mkLayer) lMap.removeLayer(mkLayer);
     mkLayer=L.layerGroup();
     SITES.forEach(function(s){
       if(s.lat==null||s.lng==null) return;
-      L.circleMarker([s.lat,s.lng],{radius:Math.max(5,Math.min(22,4+Math.sqrt(s.u||0)/2.6)),
-        color:'#fff',weight:1.5,fillColor:AGC[s.ag]||'#6b6760',fillOpacity:.9})
+      L.marker([s.lat,s.lng],{icon:siteIconFor(s,false)})
        .bindTooltip('<b>'+esc(s.n)+'</b><br>'+n(s.u)+' homes'+(s.addr?('<br>'+esc(s.addr)):''),{sticky:true,direction:'top',className:'lift-tip'})
             .bindPopup('<div class="lift-pop"><b>'+esc(s.n)+'</b>'+esc(s.addr)+'<br>'+n(s.u)+' homes'+
          (s.nb?(' \u00b7 '+esc(s.nb)):'')+'<br><span>'+esc(AGFULL[s.ag]||s.ag)+' \u00b7 '+esc(s.st)+
@@ -748,9 +773,12 @@ table.dir td.nm{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700
     else txt='Shaded by homes planned, none of them built. <b>'+n(covered)+'</b> '+esc(L4[1].toLowerCase())+
       ' have at least one site, led by <b>'+esc(top.a)+'</b> with '+n(top.homes)+'.';
     $('liftNote').innerHTML=txt+'<div class="mn-k">'+Object.keys(AGC).map(function(k){
-      return '<span class="lg"><i style="background:'+AGC[k]+'"></i>'+k+
-        '<em>'+esc(AGWHAT[k]||'')+'</em></span>';
-    }).join('')+'</div>';
+      return '<span class="lg"><i style="background:'+AGC[k]+';color:#fff;font-size:10px;line-height:15px;text-align:center">'+
+        (AGGLYPH[k]||'')+'</i>'+k+'<em>'+esc(AGWHAT[k]||'')+'</em></span>';
+    }).join('')+'</div>'+
+      '<div class="mn-k"><span class="lg"><i style="background:#fff;border:2px solid #0d1b4b"></i>Solid outline<em>approved</em></span>'+
+      '<span class="lg"><i style="background:#fff;border:2px dashed #0d1b4b"></i>Dashed outline<em>still in review or not yet bid</em></span>'+
+      '<span class="lg"><i style="background:#0d1b4b"></i>Bigger pin<em>more homes</em></span></div>';
   }
   function needGeo(cb){
     var L4=lvl(); if(!L4[3]){ cb(); return; }
@@ -1288,8 +1316,7 @@ table.dir td.nm{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700
       unionPlaces(SEL).forEach(function(s){
         if(s.lat==null||s.lng==null) return;
         pts.push([s.lat,s.lng]);
-        L.circleMarker([s.lat,s.lng],{radius:Math.max(6,Math.min(22,4+Math.sqrt(s.u||0)/2.6)),
-          color:'#fff',weight:2,fillColor:AGC[s.ag]||'#6b6760',fillOpacity:.95})
+        L.marker([s.lat,s.lng],{icon:siteIconFor(s,true)})
          .bindTooltip('<b>'+esc(s.name)+'</b><br>'+n(s.u)+' homes'+(s.addr?('<br>'+esc(s.addr)):''),{sticky:true,direction:'top',className:'lift-tip'})
         .bindPopup('<div class="lift-pop"><b>'+esc(s.name)+'</b>'+n(s.u)+' homes</div>').addTo(rptPts);
       });
