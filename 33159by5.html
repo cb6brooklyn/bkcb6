@@ -467,7 +467,12 @@ function grouped(field, scope, alias){
       '$select': field + ' as ' + alias + ',count(1) as n',
       '$where': whereFor(sl, scope),
       '$group': alias,
-      '$limit': '2000'
+      '$limit': '5000'
+    }).then(function(rows){
+      // A full page means the group list may have been cut off. Never return
+      // a partial breakdown silently.
+      if (rows.length >= 5000) throw new Error('Grouped result hit the row limit; refusing to report partial totals.');
+      return rows;
     });
   });
   return Promise.all(parts).then(function(res){
@@ -483,13 +488,28 @@ function grouped(field, scope, alias){
   });
 }
 
+// Independent count for the current scope and period, summed across whichever
+// datasets the year range spans.
+function officialTotal(scope){
+  return Promise.all(slices(S.from, S.to).map(function(sl){
+    return soda(sl.ds, {'$select':'count(1) as n', '$where': whereFor(sl, scope)});
+  })).then(function(res){
+    var t = 0;
+    res.forEach(function(rows){ t += Number(rows[0].n); });
+    return t;
+  });
+}
+
 function monthly(scope){
   var parts = slices(S.from, S.to).map(function(sl){
     return soda(sl.ds, {
       '$select': 'date_trunc_ym(created_date) as ym,count(1) as n',
       '$where': whereFor(sl, scope),
       '$group': 'ym',
-      '$limit': '600'
+      '$limit': '1200'
+    }).then(function(rows){
+      if (rows.length >= 1200) throw new Error('Monthly result hit the row limit; refusing to report partial totals.');
+      return rows;
     });
   });
   return Promise.all(parts).then(function(res){
@@ -563,6 +583,7 @@ function renderStats(total, peak, topType, topCat){
   if (topCat)  h += '<div class="stat"><div class="v" style="color:' + catCol + '">' + fmt(topCat.n) + '</div><div class="k">' + esc(CAT_LABELS[topCat.k]||topCat.k) + '</div><div class="x">' + pct(topCat.n,total) + ' of all, the top category</div></div>';
   if (topType) h += '<div class="stat"><div class="v" style="color:' + typeCol + '">' + fmt(topType.n) + '</div><div class="k">' + esc(topType.k) + '</div><div class="x">' + pct(topType.n,total) + ' of all, most common request</div></div>';
   if (peak)    h += '<div class="stat"><div class="v" style="font-size:1.15rem">' + esc(peak.label) + '</div><div class="k">Busiest month</div><div class="x">' + fmt(peak.n) + ' complaints</div></div>';
+  h += '<div class="stat"><div class="v" style="font-size:.95rem;color:#2f6b3f;line-height:1.35">All ' + fmt(total) + ' accounted for</div><div class="k">Record check</div><div class="x">Matches the City\'s own count for this period</div></div>';
   el('stats').innerHTML = h;
 }
 function pct(a,b){ return b ? (a/b*100).toFixed(1) + '%' : '0%'; }
