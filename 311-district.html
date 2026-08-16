@@ -101,6 +101,15 @@ td.cat span{display:inline-block;font-family:var(--mono);font-size:.66rem;paddin
 td.status span{font-family:var(--mono);font-size:.66rem;color:var(--muted)}
 .more{text-align:center;padding:12px}
 
+.heads{background:#fff;border:1px solid var(--border);border-left:5px solid var(--orange);border-radius:10px;padding:16px 18px;margin-bottom:16px}
+.heads h3{margin:0 0 5px;font-size:.95rem;font-weight:800;color:var(--navy)}
+.heads p{margin:0 0 12px;font-size:.86rem;color:var(--muted);line-height:1.5}
+.heads p b{color:var(--ink)}
+.heads .acts{display:flex;flex-wrap:wrap;gap:8px}
+.heads .acts button{font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;padding:11px 16px;border-radius:7px;cursor:pointer;font-weight:500}
+.heads .go{background:var(--orange);color:#fff;border:0}
+.heads .alt{background:#fff;color:var(--navy);border:1px solid var(--border)}
+.progress{font-family:var(--mono);font-size:.72rem;color:var(--muted);margin-top:8px}
 .state{padding:26px 4px;text-align:center;color:var(--muted);font-size:.86rem}
 .state.err{color:#b42318}
 .spin{display:inline-block;width:15px;height:15px;border:2px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-3px;margin-right:7px}
@@ -158,6 +167,7 @@ footer code{font-family:var(--mono);font-size:.72rem;background:#efede7;padding:
 
 <main>
   <div class="wrap">
+    <div id="heads"></div>
     <div class="stats" id="stats" aria-live="polite"></div>
 
     <section class="card">
@@ -272,7 +282,37 @@ var map = null, dotLayer = null, boundaryLayer = null, boundaryGeo = null;
 function cdRec(){ return CD_LIST.filter(function(d){ return d.key === S.cd; })[0] || CD_LIST[0]; }
 
 /* ---------------- data ---------------- */
-function load(){
+var HEAVY_SECONDS = 8;
+function load(force){
+  loadRank().then(function(){
+    var n = expectedRecords();
+    var sec = n ? etaSeconds(n) : 0;
+    if (!force && n && sec > HEAVY_SECONDS){ offerChoice(n, sec); return; }
+    el('heads').innerHTML = '';
+    doLoad(n);
+  });
+}
+
+function offerChoice(n, sec){
+  var d = cdRec();
+  var lastMonth = S.year === MAX_YEAR ? new Date().getMonth() : 11;
+  el('heads').innerHTML =
+    '<div class="heads"><h3>This is a big pull</h3>' +
+    '<p>' + esc(d.label) + ' logged about <b>' + fmt(n) + ' complaints</b> across ' + periodLabel().toLowerCase() +
+    '. Every one is fetched and counted, nothing is sampled, so expect <b>' + etaLabel(sec) + '</b> on a good connection, longer on a phone.</p>' +
+    '<div class="acts">' +
+      '<button class="go" type="button" id="goAnyway">Load all ' + fmt(n) + ' &rarr;</button>' +
+      '<button class="alt" type="button" id="goMonth">Just ' + MN[lastMonth] + ' instead (a few seconds)</button>' +
+    '</div></div>';
+  el('stats').innerHTML = ''; el('cats').innerHTML = ''; el('chips').innerHTML = '';
+  el('tbody').innerHTML = ''; el('tcount').textContent = ''; el('more').innerHTML = '';
+  el('goAnyway').addEventListener('click', function(){ load(true); });
+  el('goMonth').addEventListener('click', function(){
+    S.month = String(lastMonth); syncUI(); writeHash(); load(true);
+  });
+}
+
+function doLoad(expected){
   var seq = ++reqSeq;
   var d = cdRec();
   var y = S.year;
@@ -286,7 +326,8 @@ function load(){
     to   = (m === 11 ? (y+1) + '-01-01T00:00:00' : y + '-' + pad(m+2) + '-01T00:00:00');
   }
 
-  el('stats').innerHTML = '<div class="stat"><div class="v"><span class="spin"></span></div><div class="k">Loading ' + esc(d.label) + '</div></div>';
+  el('stats').innerHTML = '<div class="stat"><div class="v"><span class="spin"></span></div><div class="k">Loading ' + esc(d.label) + '</div><div class="x">' +
+    (expected ? fmt(expected) + ' complaints · ' + etaLabel(etaSeconds(expected)) : periodLabel()) + '</div></div>';
   skeleton(el('cats'), 7);
   el('chips').innerHTML = '';
   el('tbody').innerHTML = '<tr><td colspan="6" class="state"><span class="spin"></span>Loading complaints</td></tr>';
@@ -307,15 +348,16 @@ function load(){
       '$offset': String(offset)
     };
     var qs = Object.keys(params).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(params[k]); }).join('&');
-    return fetch('https://data.cityofnewyork.us/resource/' + DS + '.json?' + qs + '&$$app_token=' + TOKEN)
-      .then(function(r){ if (!r.ok) throw new Error('Open Data returned ' + r.status); return r.json(); })
+    return fetchRetry('https://data.cityofnewyork.us/resource/' + DS + '.json?' + qs + '&$$app_token=' + TOKEN)
       .then(function(rows){
         if (seq !== reqSeq) return acc;
         acc = acc.concat(rows);
         if (rows.length < PAGE_SIZE) return acc;   // short page proves the data is exhausted
         if (acc.length >= RUNAWAY) throw new Error('Unexpected record volume, refusing to report a partial count.');
+        var pctDone = expected ? Math.min(99, Math.round(acc.length / expected * 100)) : null;
         el('stats').innerHTML = '<div class="stat"><div class="v"><span class="spin"></span></div><div class="k">Loading ' +
-          esc(d.label) + '</div><div class="x">' + fmt(acc.length) + ' complaints so far</div></div>';
+          esc(d.label) + '</div><div class="x">' + fmt(acc.length) +
+          (expected ? ' of about ' + fmt(expected) + ' · ' + pctDone + '%' : ' complaints so far') + '</div></div>';
         return page(offset + PAGE_SIZE, acc);
       });
   }
@@ -340,6 +382,7 @@ function load(){
           'Refusing to show a partial count. Reload to try again.');
       }
       VERIFIED = official;
+      el('heads').innerHTML = '';
       ROWS = rows.map(function(r){
         r.__cat = categorize(r.complaint_type);
         return r;
@@ -359,6 +402,44 @@ function load(){
     });
 }
 function pad(n){ return (n<10?'0':'') + n; }
+
+// The City's API drops requests under load. A transient failure must not be
+// allowed to end a pull early, so retry with backoff before giving up.
+function fetchRetry(url, attempt){
+  attempt = attempt || 0;
+  return fetch(url)
+    .then(function(r){ if (!r.ok) throw new Error('Open Data returned ' + r.status); return r.json(); })
+    .catch(function(err){
+      if (attempt >= 3) throw err;
+      return new Promise(function(res){ setTimeout(res, 1500 * (attempt + 1)); })
+        .then(function(){ return fetchRetry(url, attempt + 1); });
+    });
+}
+
+/* ---------------- expected size and time ---------------- */
+// Per district, per year totals, so the page can say how big a pull is before
+// it starts one. Measured throughput: about 12,000 records/second end to end,
+// plus roughly 1.5s of fixed overhead.
+var rankFile = null;
+function loadRank(){
+  if (rankFile) return Promise.resolve(rankFile);
+  return fetch('33159by5-rank.json').then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){ rankFile = j; return j; });
+}
+function expectedRecords(){
+  if (!rankFile) return null;
+  var yr = rankFile.years[String(S.year)];
+  var n = yr && yr[S.cd];
+  if (!n) return null;
+  if (S.month === '') return n;
+  return Math.round(n / 12);          // rough, only used for the estimate
+}
+function etaSeconds(n){ return 1.5 + n / 12000; }
+function etaLabel(sec){
+  if (sec < 45) return 'about ' + (sec < 10 ? Math.round(sec) : Math.round(sec/5)*5) + ' seconds';
+  var m = sec / 60;
+  return 'about ' + (m < 2 ? '1 to 2 minutes' : Math.round(m) + ' minutes');
+}
 
 /* ---------------- render ---------------- */
 function periodLabel(){
