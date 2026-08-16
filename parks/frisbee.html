@@ -62,6 +62,8 @@ iframe.map{width:100%;height:580px;border:0;display:block}
 .pbtn{padding:12px 18px;border:none;border-radius:8px;background:#f47920;color:#fff;font:700 .95rem 'DM Sans',sans-serif;cursor:pointer;white-space:nowrap}
 .pbtn:hover{background:#d4631a}
 .pbtn.ghost{background:#fff;color:#06024D;border:1.5px solid #e5e2db}
+.pbtn.loc{background:#06024D}
+.pbtn.loc:hover{background:#1a2d6b}
 .pick-note{font-size:.84rem;color:#4a453e;margin-top:9px;line-height:1.5;min-height:1px}
 @media(max-width:640px){iframe.map{height:460px}.top-txt h1{font-size:1.02rem}.pick-row .pbtn{flex:1 1 calc(50% - 4px)}}
 </style>
@@ -84,7 +86,7 @@ iframe.map{width:100%;height:580px;border:0;display:block}
       <h2>Frisbee map</h2>
       <a href="../activities.html?a=FRS" target="_blank" rel="noopener">Open full map &#8599;</a>
     </div>
-    <iframe class="map" id="the-map" src="../activities.html?a=FRS&amp;embed=1&amp;v=792" loading="lazy" title="Where to play Frisbee in NYC" allow="geolocation"></iframe>
+    <iframe class="map" id="the-map" src="../activities.html?a=FRS&amp;embed=1&amp;v=793" loading="lazy" title="Where to play Frisbee in NYC" allow="geolocation"></iframe>
   </div>
 
   <details class="drop pick" id="pick-drop">
@@ -93,8 +95,10 @@ iframe.map{width:100%;height:580px;border:0;display:block}
       <p class="pick-lede">Pick as many as you like, add a starting point, and the map ranks the closest place for each.</p>
       <div class="chips" id="pick-chips"><button class="pchip" onclick="togPick(this,'BKB')"><span class="gy" style="background:#1f6feb">🏀</span>Basketball<span class="n">2</span></button><button class="pchip" onclick="togPick(this,'HDB')"><span class="gy" style="background:#1f6feb">🤾</span>Handball<span class="n">1</span></button><button class="pchip" onclick="togPick(this,'VLB')"><span class="gy" style="background:#1f6feb">🏐</span>Volleyball<span class="n">1</span></button><button class="pchip" onclick="togPick(this,'HKY')"><span class="gy" style="background:#1f6feb">🏒</span>Hockey<span class="n">30</span></button><button class="pchip" onclick="togPick(this,'BSB')"><span class="gy" style="background:#2e9e6b">⚾</span>Baseball<span class="n">4</span></button><button class="pchip" onclick="togPick(this,'SFB')"><span class="gy" style="background:#2e9e6b">🥎</span>Softball<span class="n">15</span></button><button class="pchip" onclick="togPick(this,'SCR')"><span class="gy" style="background:#2e9e6b">⚽</span>Soccer<span class="n">124</span></button><button class="pchip" onclick="togPick(this,'FTB')"><span class="gy" style="background:#2e9e6b">🏈</span>Football<span class="n">121</span></button><button class="pchip" onclick="togPick(this,'CRK')"><span class="gy" style="background:#2e9e6b">🏏</span>Cricket<span class="n">6</span></button><button class="pchip" onclick="togPick(this,'RGB')"><span class="gy" style="background:#2e9e6b">🏉</span>Rugby<span class="n">65</span></button><button class="pchip" onclick="togPick(this,'LAX')"><span class="gy" style="background:#2e9e6b">🥍</span>Lacrosse<span class="n">71</span></button><button class="pchip" onclick="togPick(this,'KCK')"><span class="gy" style="background:#2e9e6b">👟</span>Kickball<span class="n">18</span></button><button class="pchip" onclick="togPick(this,'NET')"><span class="gy" style="background:#2e9e6b">🥅</span>Netball<span class="n">1</span></button><button class="pchip" onclick="togPick(this,'FRS')"><span class="gy" style="background:#2e9e6b">🥏</span>Frisbee<span class="n">126</span></button></div>
       <div class="pick-row">
-        <input id="pick-addr" type="text" placeholder="Starting address, optional"/>
+        <input id="pick-addr" type="text" placeholder="Starting address" autocomplete="off" list="addr-list"/>
+        <datalist id="addr-list"></datalist>
         <button class="pbtn" onclick="findClosest()">Find closest</button>
+        <button class="pbtn loc" onclick="useMyLocation()">Use my location</button>
         <button class="pbtn ghost" onclick="clearPick()">Clear</button>
       </div>
       <div class="pick-note" id="pick-note"></div>
@@ -123,7 +127,7 @@ iframe.map{width:100%;height:580px;border:0;display:block}
 <script>
 var PICKED={};
 var MAP_PARAM='a=FRS';
-var BUILD='792';
+var BUILD='793';
 // If the browser hands back a cached copy of the map from an earlier build, the
 // frame reloads itself once with a unique URL so it cannot be served stale.
 function checkBuild(){
@@ -169,9 +173,46 @@ function findClosest(){
   if(addr)q+='&addr='+encodeURIComponent(addr);
   document.getElementById('pick-note').textContent=addr
     ? 'Showing the closest options to '+addr+'.'
-    : 'Showing every location. Add an address to rank them by distance.';
+    : 'Showing every location. Add an address or use your location to rank them by distance.';
   setMap(q);
 }
+function useMyLocation(){
+  var note=document.getElementById('pick-note');
+  if(!navigator.geolocation){note.textContent='This browser cannot share a location.';return;}
+  note.textContent='Finding your location…';
+  navigator.geolocation.getCurrentPosition(function(pos){
+    var at=pos.coords.latitude.toFixed(5)+','+pos.coords.longitude.toFixed(5);
+    var p=picked();
+    var q=MAP_PARAM+(p.length?'&a='+p.join(','):'')+'&at='+at;
+    note.textContent=p.length
+      ? 'Showing the closest options to where you are.'
+      : 'Showing what is nearest to you. Pick an activity to narrow it.';
+    setMap(q);
+  },function(){
+    note.textContent='Could not get your location. Try typing an address instead.';
+  },{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
+}
+// Address suggestions from the city's own geocoder
+var acTimer=null;
+function suggest(){
+  var v=document.getElementById('pick-addr').value.trim();
+  if(v.length<4)return;
+  clearTimeout(acTimer);
+  acTimer=setTimeout(function(){
+    fetch('https://geosearch.planninglabs.nyc/v2/autocomplete?text='+encodeURIComponent(v)+'&size=6')
+      .then(function(r){return r.json();})
+      .then(function(g){
+        var dl=document.getElementById('addr-list');
+        dl.innerHTML='';
+        (g.features||[]).forEach(function(f){
+          var o=document.createElement('option');
+          o.value=f.properties.label;
+          dl.appendChild(o);
+        });
+      }).catch(function(){});
+  },220);
+}
+document.getElementById('pick-addr').addEventListener('input',suggest);
 document.getElementById('pick-addr').addEventListener('keydown',function(e){if(e.key==='Enter')findClosest();});
 </script>
 </body>
