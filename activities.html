@@ -85,6 +85,12 @@ body{font-family:'DM Sans',sans-serif;background:#f8f7f4;color:#1c1a17;-webkit-t
 .act-bar-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}
 .act-toggles{display:flex;flex-wrap:wrap;gap:6px}
 .lbtn.tiny{padding:6px 11px;font-size:.76rem;--pc:#6b6760}
+.scope-bar{display:none;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+.scope-bar.on{display:flex}
+.sbtn{border:1.5px solid #06024D;background:#fff;color:#06024D;border-radius:999px;padding:7px 14px;font:700 .82rem 'DM Sans',sans-serif;cursor:pointer;line-height:1.1}
+.sbtn.on{background:#06024D;color:#fff}
+.sbtn:hover{border-color:#f47920}
+body.embed .scope-bar{margin-bottom:7px}
 .tbtn{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border:1.5px solid #e5e2db;border-radius:999px;background:#fff;cursor:pointer;font:700 .82rem 'DM Sans',sans-serif;color:#06024D;line-height:1.1}
 .tbtn .gy{display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;border-radius:50%;font-size:12px;flex:0 0 auto}
 .tbtn .n{font:.74rem 'DM Mono',monospace;color:#6b6760}
@@ -168,6 +174,12 @@ body.embed .embed-title a{margin-left:auto;font-size:.76rem;font-weight:700;colo
     <img src="site-icons/nyc-parks.png" alt="NYC Parks"/>
     <strong id="embed-heading">Parks and activities</strong>
     <a id="embed-full" href="activities.html" target="_blank" rel="noopener">Open full map →</a>
+  </div>
+  <div class="scope-bar" id="scope-bar">
+    <span class="lb-label">Showing</span>
+    <button class="sbtn on" id="sc-district" onclick="setScope('district')">District</button>
+    <button class="sbtn" id="sc-borough" onclick="setScope('borough')">Borough</button>
+    <button class="sbtn" id="sc-city" onclick="setScope('city')">Citywide</button>
   </div>
   <div class="field-row compact">
     <div class="field">
@@ -612,7 +624,11 @@ function runActivities(origin,originLabel){
     if(recLayer){map.removeLayer(recLayer);recLayer=null;}
     updateBrowsePins();
     document.getElementById('act-panel').classList.remove('open');
-    document.getElementById('result-bar').style.display='none';
+    if(HOME_CD||HOME_BORO){
+      showResult('Showing the whole city. '+recData.length.toLocaleString()+' facilities in all. Turn on an activity to map it, or switch back to '+escH(cdLabel(HOME_CD)||BORO_NAMES[HOME_BORO]||'your district')+'.');
+    } else {
+      document.getElementById('result-bar').style.display='none';
+    }
     return;
   }
   if(origin===undefined&&lastOrigin){origin=lastOrigin;originLabel=lastOriginLabel;}
@@ -825,6 +841,8 @@ function resetView(){
   ACT_ORDER.forEach(function(c){var b=document.getElementById('ta-'+c);if(b)b.classList.remove('off');});
   syncAllChip();
   lastOrigin=null;lastOriginLabel='';
+  document.getElementById('scope-bar').classList.remove('on');
+  HOME_CD='';HOME_BORO='';
   document.getElementById('s-boro').value='';
   fillDistricts();
   document.getElementById('s-addr').value='';
@@ -848,6 +866,38 @@ function boroBounds(b){
   });
   return pts.length?L.latLngBounds(pts):null;
 }
+var HOME_CD='',HOME_BORO='';
+function setScope(which){
+  document.getElementById('sc-district').classList.toggle('on',which==='district');
+  document.getElementById('sc-borough').classList.toggle('on',which==='borough');
+  document.getElementById('sc-city').classList.toggle('on',which==='city');
+  var boroSel=document.getElementById('s-boro'),cdSel=document.getElementById('s-cd');
+  if(which==='district'&&HOME_CD){
+    boroSel.value=HOME_CD.charAt(0);fillDistricts();cdSel.value=HOME_CD;
+    if(cdIndex[HOME_CD]){try{map.fitBounds(cdIndex[HOME_CD].getBounds(),{padding:[18,18]});}catch(e){}}
+  } else if(which==='borough'){
+    var b=HOME_BORO||(HOME_CD?HOME_CD.charAt(0):'');
+    boroSel.value=b;fillDistricts();cdSel.value='';
+    var bb=boroBounds(b);
+    if(bb){try{map.fitBounds(bb,{padding:[15,15]});}catch(e){}}
+  } else {
+    boroSel.value='';fillDistricts();cdSel.value='';
+    try{map.fitBounds(HOME);}catch(e){}
+  }
+  rerun();
+}
+function showScopeBar(cd,boro){
+  HOME_CD=cd||'';HOME_BORO=boro||(cd?cd.charAt(0):'');
+  if(!HOME_CD&&!boro)return;
+  var bar=document.getElementById('scope-bar');
+  bar.classList.add('on');
+  var d=document.getElementById('sc-district');
+  if(!HOME_CD){d.style.display='none';}
+  else{d.textContent=cdLabel(HOME_CD).replace(/^.*? (CB\d+)$/,'$1')||'District';}
+  document.getElementById('sc-borough').textContent=BORO_NAMES[HOME_BORO]||'Borough';
+  document.getElementById('sc-district').classList.toggle('on',!!HOME_CD);
+  document.getElementById('sc-borough').classList.toggle('on',!HOME_CD);
+}
 function applyUrlParams(){
   var p=new URLSearchParams(window.location.search);
   var cd=p.get('cd'),act=p.get('a'),boro=p.get('boro');
@@ -865,6 +915,7 @@ function applyUrlParams(){
     highlightDistrict(cd);
     if(cdIndex[cd]){try{map.fitBounds(cdIndex[cd].getBounds(),{padding:[20,20]});}catch(e){}}
   }
+  showScopeBar(cd,boro);
   if(act){
     act.split(',').forEach(function(a){if(ACT_LABELS[a])actOn[a]=true;});
     buildActToggles();
