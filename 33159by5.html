@@ -86,7 +86,9 @@ main{padding:22px 0 60px}
 
 /* ---------- find a district ---------- */
 .find{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
-.find .grow{flex:1;min-width:230px;display:flex;flex-direction:column;gap:5px}
+.find .grow{flex:1;min-width:200px;display:flex;flex-direction:column;gap:5px}
+.find .pick{display:flex;flex-direction:column;gap:5px}
+.find select{font-family:var(--sans);font-size:.9rem;padding:10px 12px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--ink);min-width:150px}
 .find label{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .find input{font-family:var(--sans);font-size:.9rem;padding:10px 12px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--ink);width:100%}
 .find .btn{padding:11px 18px}
@@ -192,6 +194,9 @@ footer code{font-family:var(--mono);font-size:.72rem;background:#efede7;padding:
   .tabs{width:100%}
   .tabs button{flex:1;padding:11px 6px;font-size:.82rem}
   .lvlrow .hint{display:none}
+  .find .grow{flex:1 1 100%}
+  .find .pick{flex:1 1 auto}
+  .find select{min-width:0;width:100%}
   select{min-width:112px;font-size:.85rem}
   .stat .v{font-size:1.3rem}
   .stat{padding:12px 16px}
@@ -260,7 +265,13 @@ footer code{font-family:var(--mono);font-size:.72rem;background:#efede7;padding:
       <div class="find">
         <div class="grow">
           <label for="addrInput">Address</label>
-          <input type="text" id="addrInput" placeholder="e.g. 250 Baltic Street, Brooklyn" autocomplete="off" enterkeyhint="search">
+          <input type="text" id="addrInput" placeholder="e.g. 250 Baltic Street" autocomplete="off" enterkeyhint="search">
+        </div>
+        <div class="pick">
+          <label for="addrBoro">Borough</label>
+          <select id="addrBoro">
+            <option value="">Any borough</option>
+          </select>
         </div>
         <button class="btn" type="button" id="addrBtn">Find district</button>
       </div>
@@ -948,7 +959,8 @@ function findAddress(){
   if (!q){ msg.textContent = 'Type an address to look up its community district.'; return; }
   msg.innerHTML = '<span class="spin"></span>Looking up ' + esc(q);
 
-  var wantBoro = boroughInText(q);
+  var picked = el('addrBoro').value;
+  var wantBoro = picked || boroughInText(q);
 
   fetch('https://geosearch.planninglabs.nyc/v2/search?size=8&text=' + encodeURIComponent(q))
     .then(function(r){ if (!r.ok) throw new Error('search ' + r.status); return r.json(); })
@@ -963,7 +975,7 @@ function findAddress(){
         })[0];
         if (!pick){
           msg.className = 'findmsg err';
-          msg.textContent = 'No match for that address in ' + title(wantBoro) + '. Check the street number, or try another borough.';
+          msg.textContent = 'No match for that address in ' + title(wantBoro) + '. Check the street number, or try a different borough.';
           return;
         }
       } else {
@@ -977,8 +989,8 @@ function findAddress(){
         var names = Object.keys(boros);
         if (names.length > 1){
           msg.className = 'findmsg err';
-          msg.innerHTML = 'That address exists in more than one borough (' + esc(names.join(', ')) +
-            '). Add the borough, for example "' + esc(q) + ', ' + esc(names[0]) + '".';
+          msg.innerHTML = 'That address exists in ' + names.length + ' boroughs (' + esc(names.join(', ')) +
+            '). Pick one from the Borough menu, or add it to the address.';
           return;
         }
         pick = feats[0];
@@ -1011,6 +1023,8 @@ function buildControls(){
   b.innerHTML = BOROS.map(function(x){ return '<option value="' + x + '">' + title(x) + '</option>'; }).join('');
   var c = el('cdSel');
   c.innerHTML = CD_LIST.map(function(d){ return '<option value="' + d.key + '">' + d.label + '</option>'; }).join('');
+  el('addrBoro').innerHTML = '<option value="">Any borough</option>' +
+    BOROS.map(function(x){ return '<option value="' + x + '">' + title(x) + '</option>'; }).join('');
   var yrs = '';
   for (var y=MAX_YEAR; y>=MIN_YEAR; y--) yrs += '<option value="' + y + '">' + y + '</option>';
   el('fromSel').innerHTML = yrs;
@@ -1094,6 +1108,7 @@ el('lvlCd').addEventListener('click',   function(){ setLevel('cd'); });
 el('goBtn').addEventListener('click', function(){ readUI(); writeHash(); load(); });
 el('addrBtn').addEventListener('click', findAddress);
 el('addrInput').addEventListener('keydown', function(e){ if (e.key === 'Enter') findAddress(); });
+el('addrBoro').addEventListener('change', function(){ if (el('addrInput').value.trim()) findAddress(); });
 
 el('shareBtn').addEventListener('click', function(){
   var url = location.origin + location.pathname + location.hash;
