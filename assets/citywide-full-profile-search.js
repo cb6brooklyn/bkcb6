@@ -803,6 +803,59 @@
       .replace(/\b(Of|The|And|At)\b/g,function(w){return w.toLowerCase();})
       .replace(/^./,function(c){return c.toUpperCase();});}
   function cleanPlace(l){return titlePlace(String(l||'').replace(/,\s*(Kings|Queens|New York|Bronx|Richmond)\s+County.*$/i,'').replace(/,\s*(Brooklyn|Manhattan|Queens|Bronx|Staten Island)?,?\s*NY,?\s*USA\s*$/i,'').replace(/,\s*(Brooklyn|Manhattan|Queens|Bronx|Staten Island)\s*$/i,'').trim());}
+  // A generic search like "broadway show" is not an address. Offer the list instead.
+  function broadwayList(){
+    var seen={}, out=[];
+    Object.keys(NICKNAMES).forEach(function(k){
+      var addr=NICKNAMES[k], key=liftNorm(addr), a=AKA[key];
+      if(typeof a==='string' && /Broadway theatre$/.test(a) && !seen[key]){
+        seen[key]=1;
+        out.push({name:a.replace(/^the /,'').replace(/,\s*a Broadway theatre$/,''), addr:addr});
+      }
+    });
+    out.sort(function(x,y){ return x.name.localeCompare(y.name); });
+    return out;
+  }
+  var GENERIC=[
+    {re:/^(the\s+)?(broadway|b'?way)(\s+(shows?|musicals?|theatres?|theaters?|plays?|district))?$/i,
+     title:'Broadway theatres',
+     note:'There are 41 Broadway theatres. Pick one to see its zoning, land use, districts and everything else on the lot.',
+     items:broadwayList},
+    {re:/^(the\s+)?(theat(re|er)\s+district|times\s+square\s+theat(re|er)s?)$/i,
+     title:'Broadway theatres',
+     note:'The Theater District, and the 41 Broadway theatres in it. Pick one to see the full record for its lot.',
+     items:broadwayList}
+  ];
+  function genericMatch(q){
+    var t=String(q||'').trim();
+    // an exact theatre name wins over the generic list
+    var k=t.toUpperCase().replace(/\s+/g,' ').replace(/[.]/g,'');
+    if(k!=='BROADWAY' && NICKNAMES[k]) return null;
+    for(var i=0;i<GENERIC.length;i++){ if(GENERIC[i].re.test(t)) return GENERIC[i]; }
+    return null;
+  }
+  function showPicker(result,input,g){
+    var items=g.items();
+    result.innerHTML='<div style="background:#f0f8f4;border:1.5px solid #a7f3d0;border-radius:8px;padding:14px">'+
+      '<div style="font-size:1.05rem;font-weight:900;color:var(--navy,#0d1b4b)">'+esc(g.title)+'</div>'+
+      '<div style="font-size:.83rem;line-height:1.55;color:#444;margin:5px 0 12px">'+esc(g.note)+'</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:7px">'+
+      items.map(function(it){
+        return '<button type="button" data-pick="'+esc(it.addr)+'" style="text-align:left;cursor:pointer;'+
+          'background:#fff;border:1px solid var(--border,#e5e2db);border-radius:6px;padding:8px 10px;font-family:inherit">'+
+          '<span style="display:block;font-size:.85rem;font-weight:800;color:var(--navy,#0d1b4b)">'+esc(it.name)+'</span>'+
+          '<span style="display:block;font-family:\'DM Mono\',monospace;font-size:.66rem;color:var(--muted,#6b6760);margin-top:2px">'+
+          esc(it.addr.replace(/,\s*Manhattan$/,''))+'</span></button>';
+      }).join('')+'</div></div>';
+    result.hidden=false;
+    result.addEventListener('click',function(ev){
+      var b=ev.target.closest?ev.target.closest('[data-pick]'):null;
+      if(!b) return;
+      if(input){ input.value=b.getAttribute('data-pick'); }
+      if(typeof g.onpick==='function') g.onpick();
+    });
+    try{ result.scrollIntoView({block:'start',behavior:'smooth'}); }catch(e){}
+  }
   function nickAlias(q){
     var k=String(q||'').trim().toUpperCase().replace(/\s+/g,' ').replace(/[.]/g,'');
     if(!NICKNAMES[k]) return q;
@@ -1586,6 +1639,13 @@
       async function runFull(){
         var q=input.value.trim();
         if(!q){if(status) status.textContent='Enter an address to search.'; result.hidden=true; result.innerHTML=''; return;}
+        var gen=genericMatch(q);
+        if(gen){
+          gen.onpick=function(){ runFull(); };
+          showPicker(result,input,gen);
+          if(status) status.textContent='Pick one of the '+gen.items().length+' theatres.';
+          return;
+        }
         var qIn=q; LAST_PLACE='';
         q=nickAlias(q);
         q=await liftAlias(q);
