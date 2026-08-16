@@ -85,14 +85,23 @@ def fetch_year(year):
             wait = 20 * (attempt + 1)
             print(f'{year}: {type(e).__name__}, retrying in {wait}s', flush=True)
             time.sleep(wait)
-    out = {}
+    out, types = {}, {}
     for row in rows:
         cb = row.get('cb')
         if cb not in VALID:
             continue
+        n = int(row['n'])
         cat = categorize(row.get('ct'))
         d = out.setdefault(cb, {})
-        d[cat] = d.get(cat, 0) + int(row['n'])
+        d[cat] = d.get(cat, 0) + n
+        # Track the single most common complaint type so the map panel can name
+        # the actual number one issue, not just its category.
+        t = types.setdefault(cb, {})
+        t[row.get('ct')] = t.get(row.get('ct'), 0) + n
+    for cb, t in types.items():
+        top = max(t, key=t.get)
+        out[cb]['_t'] = top
+        out[cb]['_tn'] = t[top]
     print(f'{year}: {len(out)} districts, {len(rows)} type-rows, {time.time()-t0:.0f}s', flush=True)
     return year, out
 
