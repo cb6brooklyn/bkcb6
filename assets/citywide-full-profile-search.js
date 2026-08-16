@@ -615,6 +615,14 @@
     'PACIFIC PARK BROOKLYN':'620 Atlantic Avenue, Brooklyn',
     'ATLANTIC TERMINAL':'139 Flatbush Avenue, Brooklyn',
     'PROSPECT PARK':'95 Prospect Park West, Brooklyn',
+    'CENTRAL PARK':'830 5 Avenue, Manhattan',
+    'THE CENTRAL PARK':'830 5 Avenue, Manhattan',
+    'CENTRAL PARK CONSERVANCY':'830 5 Avenue, Manhattan',
+    'THE ARSENAL':'830 5 Avenue, Manhattan',
+    'SHEEP MEADOW':'830 5 Avenue, Manhattan',
+    'THE RAMBLE':'830 5 Avenue, Manhattan',
+    'BETHESDA TERRACE':'830 5 Avenue, Manhattan',
+    'CENTRAL PARK ZOO':'830 5 Avenue, Manhattan',
     'THE PARK':'95 Prospect Park West, Brooklyn',
     'LONG MEADOW':'95 Prospect Park West, Brooklyn',
     'THE LONG MEADOW':'95 Prospect Park West, Brooklyn',
@@ -1117,7 +1125,12 @@
     }catch(e){ return null; }
   }
   var NYCHA_ICON={src:'/site-icons/nycha.png',alt:'New York City Housing Authority',w:309,h:360};
-  var PARK_ICONS={'3011170001':{src:'/site-icons/prospect-park.png',alt:'Prospect Park',w:400,h:399}};
+  var PARK_ICONS={
+    '3011170001':{src:'/site-icons/prospect-park.png',alt:'Prospect Park',w:400,h:399},
+    '3002450015':{src:'/site-icons/brooklyn-bridge-park.png',alt:'Brooklyn Bridge Park',w:440,h:177},
+    '3001990003':{src:'/site-icons/brooklyn-bridge-park.png',alt:'Brooklyn Bridge Park',w:440,h:177},
+    '3002450029':{src:'/site-icons/brooklyn-bridge-park.png',alt:'Brooklyn Bridge Park',w:440,h:177}
+  };
   var FERRY_ICON={src:'/site-icons/staten-island-ferry.png',alt:'Staten Island Ferry',w:520,h:130};
   var FERRY_ADDRS={'4 S ST':1,'1 BAY ST':1};
   var BROADWAY_ICON={src:'/site-icons/broadway-org.png',alt:'Broadway',w:520,h:91};
@@ -1125,6 +1138,14 @@
   var SITE_ICON={
     '1 E 161 ST':{src:'/site-icons/yankee-stadium.png',alt:'Yankee Stadium',w:360,h:147},
     '89 E 42 ST':{src:'/site-icons/grand-central.png',alt:'Grand Central Terminal',w:356,h:342},
+    '11 W 53 ST':{src:'/site-icons/moma.png',alt:'Museum of Modern Art',w:440,h:122},
+    '22-25 JACKSON AVE':{src:'/site-icons/moma-ps1.png',alt:'MoMA PS1',w:440,h:247},
+    '1000 5 AVE':{src:'/site-icons/the-met.png',alt:'The Metropolitan Museum of Art',w:440,h:438},
+    '830 5 AVE':{src:'/site-icons/central-park.png',alt:'Central Park',w:440,h:217},
+    '95 PROSPECT PARK W':{src:'/site-icons/prospect-park.png',alt:'Prospect Park',w:400,h:399},
+    '186 EASTERN PKWY':{src:'/site-icons/brooklyn-museum.png',alt:'Brooklyn Museum',w:440,h:348},
+    '334 FURMAN ST':{src:'/site-icons/brooklyn-bridge-park.png',alt:'Brooklyn Bridge Park',w:440,h:177},
+    '146 FURMAN ST':{src:'/site-icons/brooklyn-bridge-park.png',alt:'Brooklyn Bridge Park',w:440,h:177},
     '625 8 AVE':{src:'/site-icons/port-authority.png',alt:'Port Authority Bus Terminal',w:416,h:116},
     '421 8 AVE':{src:'/site-icons/moynihan.png',alt:'Moynihan Train Hall, Pennsylvania Station',w:460,h:195},
     '4 PENN PLAZA':{src:'/site-icons/madison-square-garden.png',alt:'Madison Square Garden, home of the Knicks and the Rangers',w:420,h:405}
@@ -1136,6 +1157,7 @@
     '1 E 161 ST':{text:'Yankee Stadium',bg:'#142448',fg:'#FFFFFF'},
     '139 FLATBUSH AVE':'Atlantic Terminal',
     '95 PROSPECT PARK W':'Prospect Park, 526 acres on one tax lot',
+    '830 5 AVE':'Central Park, 843 acres on one tax lot, and the Arsenal, the Parks Department headquarters',
     '4 S ST':'Whitehall Ferry Terminal, the Manhattan end of the Staten Island Ferry',
     '1 BAY ST':'St. George Ferry Terminal, the Staten Island end of the ferry',
     '625 8 AVE':'the Port Authority Bus Terminal',
@@ -1216,7 +1238,7 @@
     '4 PENN PLAZA':{text:'Madison Square Garden, above Penn Station',bg:'#255792',fg:'#FFFFFF'},
     '60 COLUMBUS AVE':'Lincoln Center',
     '253 W 125 ST':'the Apollo Theater',
-    '1000 5 AVE':'the Metropolitan Museum of Art',
+    '1000 5 AVE':'the Metropolitan Museum of Art, which sits on Central Park\'s tax lot',
     '200 CENTRAL PARK W':'the American Museum of Natural History',
     '185 GREENWICH ST':'One World Trade Center',
     '11 WALL ST':'the New York Stock Exchange',
