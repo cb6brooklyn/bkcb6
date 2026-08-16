@@ -954,7 +954,8 @@
     }catch(e){ return null; }
   }
   var SITE_ICON={
-    '1 E 161 ST':{src:'/site-icons/yankee-stadium.png',alt:'Yankee Stadium',w:360,h:147}
+    '1 E 161 ST':{src:'/site-icons/yankee-stadium.png',alt:'Yankee Stadium',w:360,h:147},
+    '4 PENN PLAZA':{src:'/site-icons/madison-square-garden.png',alt:'Madison Square Garden, home of the Knicks and the Rangers',w:420,h:405}
   };
   var AKA={
     '24-64 KANE ST':'Brooklyn Marine Terminal, or the BMT',
@@ -1010,7 +1011,7 @@
     '1250 AVE OF THE AMER':'30 Rockefeller Plaza, the heart of Rockefeller Center',
     '30 ROCKEFELLER PLAZA':'30 Rockefeller Plaza, the heart of Rockefeller Center',
     '881 7 AVE':'Carnegie Hall',
-    '4 PENN PLAZA':'Madison Square Garden and Penn Station',
+    '4 PENN PLAZA':{text:'Madison Square Garden, above Penn Station',bg:'#255792',fg:'#FFFFFF'},
     '60 COLUMBUS AVE':'Lincoln Center',
     '253 W 125 ST':'the Apollo Theater',
     '1000 5 AVE':'the Metropolitan Museum of Art',
