@@ -16,6 +16,8 @@
 <meta name="twitter:title" content="311 Citywide — Every Community District">
 <meta name="twitter:description" content="311 complaint data for all 59 NYC community districts, five boroughs, and citywide. 2010 to present.">
 <meta name="twitter:image" content="https://cb6brooklyn.github.io/bkcb6/icon-311.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -81,6 +83,24 @@ main{padding:22px 0 60px}
 .card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:16px}
 .card h2{font-size:.95rem;font-weight:700;color:var(--navy);margin:0 0 3px;letter-spacing:-.01em}
 .card .note{font-family:var(--mono);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
+
+/* ---------- find a district ---------- */
+.find{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.find .grow{flex:1;min-width:230px;display:flex;flex-direction:column;gap:5px}
+.find label{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.find input{font-family:var(--sans);font-size:.9rem;padding:10px 12px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--ink);width:100%}
+.find .btn{padding:11px 18px}
+.findmsg{font-size:.8rem;color:var(--muted);margin:0 0 12px;min-height:1.2em}
+.findmsg.err{color:#b42318}
+.findmsg b{color:var(--navy)}
+#cdmap{height:460px;border-radius:8px;border:1px solid var(--border);background:#eef0ec}
+#cdmap .leaflet-container{font-family:var(--sans)}
+.cdtip{font-family:var(--sans);font-size:.78rem}
+.cdtip b{display:block;font-size:.85rem;color:var(--navy)}
+.cdtip span{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+.maplegend{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;font-family:var(--mono);font-size:.62rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.maplegend i{width:26px;height:11px;border-radius:2px;display:block}
+@media (max-width:640px){ #cdmap{height:330px} }
 
 /* ---------- identity banner ---------- */
 .ident{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:16px}
@@ -233,6 +253,21 @@ footer code{font-family:var(--mono);font-size:.72rem;background:#efede7;padding:
     <div id="ident" class="ident" style="display:none"></div>
 
     <div class="stats" id="stats" aria-live="polite"></div>
+
+    <section class="card">
+      <h2>Find a district</h2>
+      <p class="note">Search an address, or pick a district off the map</p>
+      <div class="find">
+        <div class="grow">
+          <label for="addrInput">Address</label>
+          <input type="text" id="addrInput" placeholder="e.g. 250 Baltic Street, Brooklyn" autocomplete="off" enterkeyhint="search">
+        </div>
+        <button class="btn" type="button" id="addrBtn">Find district</button>
+      </div>
+      <p class="findmsg" id="findMsg"></p>
+      <div id="cdmap"></div>
+      <div class="maplegend" id="mapLegend"></div>
+    </section>
 
     <section class="card">
       <h2>Where this district sits</h2>
@@ -717,6 +752,7 @@ function load(){
   rankTotals().then(function(res){
     if (!fresh()) return;
     renderRank(res);
+    paintMap();
   }).catch(sectionError(el('rank'), 'the district ranking'));
 }
 
@@ -757,6 +793,169 @@ function sectionError(node, what){
     var b = node.querySelector('button');
     if (b) b.addEventListener('click', load);
   };
+}
+
+
+/* ---------------- district map + address search ---------------- */
+// cd-boundaries-simple.geojson already ships with the site: 64 features keyed
+// by a 3-digit code (borough digit + district number), plus a label point.
+var CD_GEO = null, cdMap = null, cdLayers = {}, addrMarker = null;
+var CHORO = ['#eceae4','#cdd7e4','#9db4d2','#6a8fc0','#3d6bab','#1d4587'];
+
+function codeFor(key){ return BORO_DIGIT[key.slice(3)] + key.slice(0,2); }   // "06 BROOKLYN" -> "306"
+function keyForCode(c){
+  var boro = null;
+  for (var b in BORO_DIGIT){ if (BORO_DIGIT[b] === c.charAt(0)) boro = b; }
+  if (!boro) return null;
+  var k = c.slice(1) + ' ' + boro;
+  return CD_LIST.some(function(d){ return d.key === k; }) ? k : null;
+}
+
+function choroColor(n, max){
+  if (!max || !n) return CHORO[0];
+  var i = Math.min(CHORO.length-1, Math.floor(Math.sqrt(n/max) * CHORO.length));
+  return CHORO[i];
+}
+
+function paintMap(){
+  if (!cdMap || !rankFile) return;
+  var totals = new Map(), max = 0;
+  CD_LIST.forEach(function(d){
+    var n = 0;
+    for (var y = S.from; y <= S.to; y++){
+      var yr = rankFile.years[String(y)];
+      if (yr && yr[d.key]) n += yr[d.key];
+    }
+    totals.set(d.key, n);
+    if (n > max) max = n;
+  });
+
+  Object.keys(cdLayers).forEach(function(k){
+    var layer = cdLayers[k], n = totals.get(k) || 0;
+    var selected = (S.level === 'cd' && k === S.cd) ||
+                   (S.level === 'boro' && k.slice(3) === S.boro);
+    layer.setStyle({
+      fillColor: choroColor(n, max),
+      fillOpacity: selected ? .92 : .72,
+      color: selected ? '#f47920' : '#ffffff',
+      weight: selected ? 2.5 : 1
+    });
+    if (selected) layer.bringToFront();
+    var d = CD_LIST.filter(function(x){ return x.key === k; })[0];
+    layer.bindTooltip('<div class="cdtip"><b>' + esc(d.label) + '</b><span>' +
+      fmt(n) + ' complaints · ' + periodName() + '</span></div>',
+      {sticky:true, direction:'top', opacity:.97});
+  });
+
+  el('mapLegend').innerHTML = 'Fewer ' +
+    CHORO.map(function(c){ return '<i style="background:' + c + '"></i>'; }).join('') +
+    ' More · complaints in ' + esc(periodName()) + ' · tap a district to open it';
+}
+
+function initMap(){
+  if (cdMap || typeof L === 'undefined') return;
+  cdMap = L.map('cdmap', {scrollWheelZoom:false, zoomControl:true})
+           .setView([40.7128, -73.96], 10);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+    {maxZoom:18, attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(cdMap);
+
+  fetch('cd-boundaries-simple.geojson').then(function(r){
+    if (!r.ok) throw new Error('boundaries ' + r.status);
+    return r.json();
+  }).then(function(gj){
+    CD_GEO = gj;
+    gj.features.forEach(function(f){
+      var key = keyForCode(String(f.properties.cd || ''));
+      if (!key) return;   // skips parks and joint interest areas
+      var layer = L.geoJSON(f, {style:{weight:1, color:'#fff', fillOpacity:.72}}).addTo(cdMap);
+      layer.on('mouseover', function(){ if (!isSelected(key)) layer.setStyle({weight:2.5, color:'#0d1b4b'}); });
+      layer.on('mouseout',  function(){ if (!isSelected(key)) layer.setStyle({weight:1, color:'#fff'}); });
+      layer.on('click', function(){ selectDistrict(key); });
+      cdLayers[key] = layer;
+    });
+    var all = Object.keys(cdLayers).map(function(k){ return cdLayers[k]; });
+    if (all.length){
+      var bounds = all[0].getBounds();
+      all.forEach(function(l){ bounds.extend(l.getBounds()); });
+      cdMap.fitBounds(bounds, {padding:[8,8]});
+    }
+    paintMap();
+  }).catch(function(err){
+    el('mapLegend').innerHTML = '<span style="color:#b42318;text-transform:none;letter-spacing:0">District outlines did not load (' + esc(err.message) + ').</span>';
+  });
+}
+function isSelected(k){
+  return (S.level === 'cd' && k === S.cd) || (S.level === 'boro' && k.slice(3) === S.boro);
+}
+
+function selectDistrict(key){
+  S.level = 'cd'; S.cd = key; S.boro = key.slice(3);
+  syncUI(); writeHash(); load();
+}
+
+// Ray casting against the same outlines the map draws, so the answer always
+// matches what the user sees.
+function pointInFeature(lng, lat, geom){
+  function ring(r){
+    var inside = false;
+    for (var i = 0, j = r.length-1; i < r.length; j = i++){
+      var xi = r[i][0], yi = r[i][1], xj = r[j][0], yj = r[j][1];
+      if ((yi > lat) !== (yj > lat) && lng < (xj-xi)*(lat-yi)/(yj-yi)+xi) inside = !inside;
+    }
+    return inside;
+  }
+  var polys = geom.type === 'MultiPolygon' ? geom.coordinates : [geom.coordinates];
+  for (var p = 0; p < polys.length; p++){
+    if (ring(polys[p][0])){
+      var inHole = false;
+      for (var h = 1; h < polys[p].length; h++){ if (ring(polys[p][h])) inHole = true; }
+      if (!inHole) return true;
+    }
+  }
+  return false;
+}
+
+function districtAt(lng, lat){
+  if (!CD_GEO) return null;
+  for (var i = 0; i < CD_GEO.features.length; i++){
+    var f = CD_GEO.features[i];
+    if (pointInFeature(lng, lat, f.geometry)) return keyForCode(String(f.properties.cd||''));
+  }
+  return null;
+}
+
+function findAddress(){
+  var q = el('addrInput').value.trim();
+  var msg = el('findMsg');
+  msg.className = 'findmsg';
+  if (!q){ msg.textContent = 'Type an address to look up its community district.'; return; }
+  msg.innerHTML = '<span class="spin"></span>Looking up ' + esc(q);
+
+  // NYC Planning Labs GeoSearch: no key, no domain restriction.
+  fetch('https://geosearch.planninglabs.nyc/v2/search?size=1&text=' + encodeURIComponent(q))
+    .then(function(r){ if (!r.ok) throw new Error('search ' + r.status); return r.json(); })
+    .then(function(g){
+      var f = g && g.features && g.features[0];
+      if (!f) throw new Error('no match');
+      var lng = f.geometry.coordinates[0], lat = f.geometry.coordinates[1];
+      var key = districtAt(lng, lat);
+      if (!key){
+        msg.className = 'findmsg err';
+        msg.textContent = 'Found that address, but it is not inside one of the 59 community districts. It may sit in a park or on an airport parcel.';
+        return;
+      }
+      var d = CD_LIST.filter(function(x){ return x.key === key; })[0];
+      msg.innerHTML = esc(f.properties.label || q) + ' is in <b>' + esc(d.label) + '</b>.';
+      if (addrMarker) cdMap.removeLayer(addrMarker);
+      addrMarker = L.circleMarker([lat,lng], {radius:7, color:'#fff', weight:2.5,
+        fillColor:'#f47920', fillOpacity:1}).addTo(cdMap);
+      selectDistrict(key);
+      if (cdLayers[key]) cdMap.fitBounds(cdLayers[key].getBounds(), {padding:[24,24]});
+    })
+    .catch(function(){
+      msg.className = 'findmsg err';
+      msg.textContent = 'No match for that address. Try adding the borough, for example "250 Baltic Street, Brooklyn".';
+    });
 }
 
 /* ---------------- controls ---------------- */
@@ -846,6 +1045,8 @@ el('lvlCd').addEventListener('click',   function(){ setLevel('cd'); });
   el(id).addEventListener('change', function(){ readUI(); writeHash(); load(); });
 });
 el('goBtn').addEventListener('click', function(){ readUI(); writeHash(); load(); });
+el('addrBtn').addEventListener('click', findAddress);
+el('addrInput').addEventListener('keydown', function(e){ if (e.key === 'Enter') findAddress(); });
 
 el('shareBtn').addEventListener('click', function(){
   var url = location.origin + location.pathname + location.hash;
@@ -861,6 +1062,7 @@ el('shareBtn').addEventListener('click', function(){
 
 window.addEventListener('hashchange', function(){ readHash(); syncUI(); load(); });
 
+initMap();
 load();
 })();
 </script>
