@@ -463,10 +463,17 @@ function fillDistricts(){
   var sel=document.getElementById('s-cd');
   sel.innerHTML='<option value="">All districts</option>';
   if(!b||!recData)return;
-  var codes={};
-  recData.forEach(function(r){var c=String(r.c);if(c.charAt(0)===b&&parseInt(c.substring(1),10)<=18)codes[c]=1;});
+  var codes={},parks={};
+  recData.forEach(function(r){
+    var c=String(r.c);
+    if(c.charAt(0)!==b)return;
+    if(parseInt(c.substring(1),10)<=18)codes[c]=1;else parks[c]=1;
+  });
   Object.keys(codes).sort(function(x,y){return parseInt(x.substring(1),10)-parseInt(y.substring(1),10);}).forEach(function(c){
     var o=document.createElement('option');o.value=c;o.textContent='CB'+parseInt(c.substring(1),10);sel.appendChild(o);
+  });
+  Object.keys(parks).sort().forEach(function(c){
+    var o=document.createElement('option');o.value=c;o.textContent=cdLabel(c);sel.appendChild(o);
   });
 }
 function collapse(rows){
@@ -572,6 +579,7 @@ function runActivities(origin,originLabel){
   var boro=document.getElementById('s-boro').value;
   highlightDistrict(cd);
   if(!codes.length){
+    if(cd||boro){showScopeAll(cd,boro);return;}
     if(recLayer){map.removeLayer(recLayer);recLayer=null;}
     updateBrowsePins();
     document.getElementById('act-panel').classList.remove('open');
@@ -708,6 +716,46 @@ function updateBrowsePins(){
   browseLayer.addTo(map);
 }
 
+// Landing on a district or borough with no activity chosen still gives a real
+// map of that place: every facility in it, listed by site.
+function showScopeAll(cd,boro){
+  var where=cd?cdLabel(cd):BORO_NAMES[boro];
+  var rows=recData.filter(function(r){return cd?r.c===cd:String(r.c).charAt(0)===boro;});
+  if(!rows.length){
+    showResult('No recorded courts, fields, pools, skateparks, or dog runs in '+escH(where)+'.');
+    document.getElementById('act-panel').classList.remove('open');
+    if(recLayer){map.removeLayer(recLayer);recLayer=null;}
+    return;
+  }
+  var list=collapse(rows);
+  list.sort(function(a,b){return b.a.length-a.a.length||(a.n<b.n?-1:a.n>b.n?1:0);});
+  var all={};
+  rows.forEach(function(r){r.a.forEach(function(a){all[a]=(all[a]||0)+1;});});
+  var kinds=ACT_ORDER.filter(function(c){return all[c];});
+
+  if(browseLayer){map.removeLayer(browseLayer);browseLayer=null;}
+  drawFacilities(list,kinds,false);
+  topResults=list.slice(0,12);
+
+  document.getElementById('act-head').innerHTML='<strong>'+escH(where)+'</strong> <span>· '+
+    rows.length.toLocaleString()+' facilit'+(rows.length===1?'y':'ies')+' across '+list.length.toLocaleString()+' park site'+(list.length===1?'':'s')+
+    ' · '+kinds.length+' different activit'+(kinds.length===1?'y':'ies')+'</span>';
+
+  var html='';
+  list.slice(0,12).forEach(function(r,i){
+    html+='<div class="act-row" onclick="flyTo('+i+')">'+
+      '<div class="act-rank">'+(i+1)+'</div>'+
+      '<div class="act-body"><div class="act-name">'+escH(r.n)+'</div>'+
+      '<div class="act-meta">'+escH(r.a.map(function(a){return ACT_LABELS[a];}).join(', '))+(r.ad?' · '+escH(r.ad):'')+'</div>'+
+      '<span class="act-tag">'+escH(cdLabel(r.c)||'NYC Parks')+'</span></div></div>';
+  });
+  document.getElementById('act-list').innerHTML=html;
+  document.getElementById('act-panel').classList.add('open');
+
+  showResult('<strong>'+escH(where)+'</strong>: '+rows.length.toLocaleString()+' facilit'+(rows.length===1?'y':'ies')+' at '+
+    list.length.toLocaleString()+' park site'+(list.length===1?'':'s')+'. Turn on an activity above to narrow it, or add an address to rank by distance.');
+}
+
 function flyTo(i){var r=topResults[i];if(r)map.setView([r.y,r.x],17);}
 function rerun(){runActivities(undefined);}
 
@@ -780,12 +828,6 @@ function applyUrlParams(){
     var bb=boroBounds(boro);
     if(bb){try{map.fitBounds(bb,{padding:[15,15]});}catch(e){}}
   }
-  if(cd&&/^\d{3}$/.test(cd)&&!cdIndex[cd]&&!/^[1-5](0[1-9]|1[0-8])$/.test(cd)){
-    // a large park mapped outside any numbered district
-    var pts=[];
-    recData.forEach(function(r){if(r.c===cd)pts.push([r.y,r.x]);});
-    if(pts.length){try{map.fitBounds(L.latLngBounds(pts),{padding:[30,30]});}catch(e){}}
-  }
   if(cd&&/^\d{3}$/.test(cd)){
     document.getElementById('s-boro').value=cd.charAt(0);
     fillDistricts();
@@ -797,7 +839,11 @@ function applyUrlParams(){
   if(act){
     act.split(',').forEach(function(a){if(ACT_LABELS[a])actOn[a]=true;});
     buildActToggles();
-    if(activeActs().length)runActivities(null);
+    var on=activeActs();
+    if(on.length===1)document.getElementById('s-act-pick').value=on[0];
+    if(on.length)runActivities(null);
+  } else if(cd||boro){
+    runActivities(null);
   }
   if(EMBED){
     var m=document.getElementById('more-filters');
