@@ -75,6 +75,7 @@ body{font-family:'DM Sans',sans-serif;background:#f8f7f4;color:#1c1a17;-webkit-t
 .key-pin{width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex:0 0 auto;position:relative}
 .key-pin.top{width:32px;height:32px;font-size:16px}
 .key-rank{position:absolute;top:-6px;right:-6px;background:#fff;color:#06024D;border:1.5px solid #06024D;border-radius:50%;width:15px;height:15px;font:700 9px/12px 'DM Mono',monospace;text-align:center}
+.key-cdl{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:900;color:#06024D;text-transform:uppercase;letter-spacing:.02em;flex:0 0 auto}
 .key-ring{width:22px;height:22px;border-radius:50%;background:#fff;border:4px solid #06024D;flex:0 0 auto;box-shadow:0 1px 3px rgba(0,0,0,.2)}
 .key-dot{width:16px;height:16px;border-radius:50%;background:#06024D;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);flex:0 0 auto}
 .key-icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px}
@@ -111,6 +112,10 @@ body.embed .scope-bar{margin-bottom:7px}
 .fac-pin{width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px rgba(255,255,255,.95),0 1px 4px rgba(13,27,75,.4);display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;position:relative}
 .fac-pin.top{width:32px;height:32px;font-size:16px;margin:-2px}
 .fac-rank{position:absolute;top:-6px;right:-6px;background:#fff;color:#06024D;border:1.5px solid currentColor;border-radius:50%;width:15px;height:15px;font:700 9px/12px 'DM Mono',monospace;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.cd-label{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;color:#3d4a75;letter-spacing:.01em;
+  text-shadow:0 0 4px #fff,0 0 4px #fff,0 0 4px #fff,0 0 4px #fff;white-space:nowrap;
+  transform:translate(-50%,-50%);pointer-events:none;line-height:1.1;text-transform:uppercase}
+.cd-label.sel{font-size:13px;font-weight:900;color:#06024D;letter-spacing:.02em}
 .pk-label{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:900;color:#22521a;text-shadow:0 0 4px #fff,0 0 4px #fff,0 0 4px #fff,0 0 4px #fff;white-space:nowrap;transform:translate(-50%,-50%);pointer-events:none;line-height:1.1;letter-spacing:-.005em}
 .pk-label.has{color:#14400c}
 .pk-pop{font-family:'DM Sans',sans-serif;min-width:190px}
@@ -251,6 +256,7 @@ body.embed .embed-title a{margin-left:auto;font-size:.76rem;font-weight:700;colo
         <div class="key-row"><span class="key-sw" style="background:transparent;border:1.5px solid #06024D"></span>Community district boundary</div>
         <div class="key-row"><span class="key-sw" style="background:transparent;border:2.5px solid #f47920"></span>The district you picked</div>
         <div class="key-row"><span class="key-lbl">Carroll Park</span>Park name, appears at zoom 12 and in</div>
+        <div class="key-row"><span class="key-cdl">Brooklyn CB6</span>Community district name, bolder for the one you picked</div>
       </div>
       <div class="key-block">
         <h5>Pins on the map</h5>
@@ -321,7 +327,7 @@ function actIcon(codes,r){
 var HOME=[[40.49,-74.27],[40.92,-73.68]];
 
 var recData=null,cdLookup={},parkLayer=null,parkGeo=null,labelGroup=null,cdLayer=null,recLayer=null,searchMarker=null,topResults=[],cdIndex={};
-var showParks=true,showNames=true,showCds=true,onlyAct=false,lastOrigin=null,lastOriginLabel='',browseLayer=null;
+var showParks=true,showNames=true,showCds=true,onlyAct=false,lastOrigin=null,lastOriginLabel='',browseLayer=null,cdGeo=null,cdLabelGroup=null;
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function showResult(html){var b=document.getElementById('result-bar');b.style.display='block';b.innerHTML=html;}
@@ -363,7 +369,37 @@ function recDetail(r){
 }
 
 // ---------- base layers ----------
+function buildCdLabels(){
+  if(cdLabelGroup){map.removeLayer(cdLabelGroup);cdLabelGroup=null;}
+  if(!cdGeo||!showCds)return;
+  var z=map.getZoom();
+  if(z<10)return;
+  var b=map.getBounds();
+  cdLabelGroup=L.layerGroup();
+  var sel=document.getElementById('s-cd').value;
+  cdGeo.features.forEach(function(f){
+    var c=String(f.properties.c);
+    var isSel=(c===sel);
+    if(!isSel&&z<11)return;
+    var pt=labelPoint(f);
+    if(!pt)return;
+    if(!isSel&&!b.contains(pt))return;
+    var n=parseInt(c.substring(1),10);
+    // Large parks only get a label when they have a name worth showing
+    if(n>18&&!JIA_NAMES[c])return;
+    if(n>18&&!isSel&&z<12)return;
+    var txt=cdLabel(c);
+    if(!txt)return;
+    L.marker(pt,{
+      icon:L.divIcon({className:'',html:'<div class="cd-label'+(isSel?' sel':'')+'">'+escH(txt)+'</div>',iconSize:[0,0],iconAnchor:[0,0]}),
+      interactive:false,zIndexOffset:-100
+    }).addTo(cdLabelGroup);
+  });
+  cdLabelGroup.addTo(map);
+}
+
 function drawDistricts(geo){
+  cdGeo=geo;
   cdLayer=L.geoJSON(geo,{
     style:function(){return{color:'#06024D',weight:1,opacity:.55,fill:true,fillOpacity:0,fillColor:'#06024D'};},
     onEachFeature:function(f,l){
@@ -449,6 +485,7 @@ function togParks(btn){
 function togCds(btn){
   showCds=!showCds;btn.classList.toggle('on',showCds);
   if(cdLayer){showCds?cdLayer.addTo(map):map.removeLayer(cdLayer);}
+  buildCdLabels();
 }
 function labelPoint(f){
   if(f._lp!==undefined)return f._lp;
@@ -521,6 +558,7 @@ function collapse(rows){
   return out;
 }
 function highlightDistrict(cd){
+  setTimeout(buildCdLabels,0);
   Object.keys(cdIndex).forEach(function(k){
     cdIndex[k].setStyle(k===cd?{color:'#f47920',weight:2.5,opacity:1}:{color:'#06024D',weight:1,opacity:.55});
   });
@@ -954,7 +992,8 @@ Promise.all([
   drawDistricts(res[2]);
   buildParkLabels();
   updateBrowsePins();
-  map.on('zoomend moveend',function(){buildParkLabels();updateBrowsePins();});
+  buildCdLabels();
+  map.on('zoomend moveend',function(){buildParkLabels();updateBrowsePins();buildCdLabels();});
   fillDistricts();
   buildActToggles();
   buildKeyIcons();
