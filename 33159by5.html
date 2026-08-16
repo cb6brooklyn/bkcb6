@@ -730,7 +730,19 @@ function load(){
   var seq = ++reqSeq;
   var fresh = function(){ return seq === reqSeq; };
 
-  el('stats').innerHTML = '<div class="stat"><div class="v"><span class="spin"></span></div><div class="k">Loading ' + esc(scopeName()) + '</div></div>';
+  var sec = etaSeconds();
+  var alt = '';
+  if (sec > 12){
+    alt = ' · <a href="#" id="narrowLink" style="color:var(--orange);font-weight:700">just ' + S.to + ' instead</a>';
+  }
+  el('stats').innerHTML = '<div class="stat" style="flex:1"><div class="v"><span class="spin"></span></div><div class="k">Loading ' +
+    esc(scopeName()) + ' · ' + esc(periodName()) + '</div><div class="x">Counting every complaint in this period, nothing sampled. ' +
+    'This takes ' + etaLabel(sec) + '.' + alt + '</div></div>';
+  var nl = el('narrowLink');
+  if (nl) nl.addEventListener('click', function(e){
+    e.preventDefault();
+    S.from = S.to; syncUI(); writeHash(); load();
+  });
   skeleton(el('types'), 8);
   skeleton(el('cats'), 6);
   skeleton(el('agencies'), 5);
@@ -846,6 +858,21 @@ function sectionError(node, what){
   };
 }
 
+
+// Rough cost model for the grouped queries, from measured loads: a single
+// district-year is a couple of seconds, citywide across 11 years is about 90.
+function etaSeconds(){
+  var years = S.to - S.from + 1;
+  var spansOld = S.from < SPLIT ? 1.6 : 1;                 // the archive dataset is slower
+  var scopeCost = S.level === 'city' ? 7.5 : (S.level === 'boro' ? 3 : 1.1);
+  return 1.5 + years * scopeCost * spansOld;
+}
+function etaLabel(sec){
+  if (sec < 10) return 'a few seconds';
+  if (sec < 45) return 'about ' + Math.round(sec/5)*5 + ' seconds';
+  var m = sec/60;
+  return m < 2 ? 'about a minute and a half' : 'about ' + Math.round(m) + ' minutes';
+}
 
 /* ---------------- district map + address search ---------------- */
 // cd-boundaries-simple.geojson already ships with the site: 64 features keyed
