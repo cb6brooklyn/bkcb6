@@ -79,6 +79,7 @@ main{padding:24px 0 60px}
 .dcard img.sq{width:38px;height:38px}
 .dcard .dn{font-size:.86rem;font-weight:700;color:var(--navy);line-height:1.2}
 .dcard .dm{font-family:var(--mono);font-size:.66rem;color:var(--muted);margin-top:2px}
+.dcard .dh{font-size:.7rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dcard .dc{display:flex;align-items:center;gap:5px;font-size:.7rem;color:var(--muted);margin-top:3px}
 .dcard .dc span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dcard .dc i{width:8px;height:8px;border-radius:50%;display:block;flex-shrink:0}
@@ -149,7 +150,7 @@ footer code{font-family:var(--mono);font-size:.72rem;background:#efede7;padding:
 
     <section class="sect">
       <h2>Or go straight to a district</h2>
-      <p class="note">All 59 community districts · each opens its own 311 page</p>
+      <p class="note">All 59 community districts · complaint counts and rates per 1,000 residents (2010 Census)</p>
       <div class="filters" id="filters"></div>
       <div class="grid" id="grid"></div>
     </section>
@@ -211,14 +212,23 @@ function fmt(n){ return Number(n).toLocaleString('en-US'); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
 function el(id){ return document.getElementById(id); }
 
-var rankFile = null, catFile = null, YEAR = MAX_YEAR, FILTER = 'ALL', GEO = null;
+var rankFile = null, catFile = null, popFile = null, YEAR = MAX_YEAR, FILTER = 'ALL', GEO = null, RATE = false;
 
 /* ---------- data ---------- */
 function loadFiles(){
   return Promise.all([
     fetch('33159by5-rank.json').then(function(r){ return r.ok ? r.json() : null; }),
-    fetch('33159by5-cats.json').then(function(r){ return r.ok ? r.json() : null; })
-  ]).then(function(res){ rankFile = res[0]; catFile = res[1]; });
+    fetch('33159by5-cats.json').then(function(r){ return r.ok ? r.json() : null; }),
+    fetch('33159by5-pop.json').then(function(r){ return r.ok ? r.json() : null; })
+  ]).then(function(res){ rankFile = res[0]; catFile = res[1]; popFile = res[2]; });
+}
+
+// 2010 Census population per district, the latest the City publishes at this level.
+function popOf(key){ return (popFile && popFile.districts[key]) ? popFile.districts[key].y2010 : null; }
+function hoodName(key){ return (popFile && popFile.districts[key]) ? popFile.districts[key].name : null; }
+function rateOf(key){
+  var p = popOf(key), n = totalFor(key);
+  return p ? n / p * 1000 : null;
 }
 
 function totalFor(key){
@@ -239,6 +249,23 @@ function topCatFor(key){
 }
 
 /* ---------- render ---------- */
+function popSum(filter){
+  if (!popFile) return null;
+  var t = 0;
+  CD_LIST.forEach(function(d){ if (!filter || d.boro === filter){ var p = popOf(d.key); if (p) t += p; } });
+  return t || null;
+}
+function cityRateLabel(){
+  var p = popSum(null); if (!p) return '';
+  var n = 0; CD_LIST.forEach(function(d){ n += totalFor(d.key); });
+  return (n/p*1000).toFixed(0) + ' per 1,000 residents';
+}
+function boroRateLabel(b){
+  var p = popSum(b); if (!p) return '';
+  var n = 0; CD_LIST.forEach(function(d){ if (d.boro === b) n += totalFor(d.key); });
+  return (n/p*1000).toFixed(0) + ' per 1,000 residents';
+}
+
 function renderTiles(){
   var cityTotal = 0, boroTotals = {};
   CD_LIST.forEach(function(d){
@@ -251,6 +278,7 @@ function renderTiles(){
     '<div class="tn">Citywide</div>' +
     '<div class="tv">' + fmt(cityTotal) + '</div>' +
     '<div class="tk">Complaints in ' + YEAR + '</div>' +
+    '<div class="tk" style="text-transform:none;letter-spacing:0;color:var(--ink)">' + cityRateLabel() + '</div>' +
     '<div class="tc">All five boroughs · 59 districts</div></a>';
 
   BOROS.forEach(function(b){
@@ -258,6 +286,7 @@ function renderTiles(){
       '<div class="tn">' + esc(title(b)) + '</div>' +
       '<div class="tv">' + fmt(boroTotals[b]||0) + '</div>' +
       '<div class="tk">Complaints in ' + YEAR + '</div>' +
+      '<div class="tk" style="text-transform:none;letter-spacing:0;color:var(--ink)">' + boroRateLabel(b) + '</div>' +
       '<div class="tc">' + CD_COUNT[b] + ' community districts</div></a>';
   });
   el('tiles').innerHTML = h;
@@ -292,7 +321,10 @@ function renderGrid(){
       : '';
     return '<a class="dcard" style="border-left-color:' + col + '" href="311-district.html?cd=' + d.short + '-' + d.num + '">' +
       img + '<div><div class="dn">' + esc(d.label) + '</div>' +
-      '<div class="dm">' + fmt(n) + ' in ' + YEAR + '</div>' + lead + '</div></a>';
+      '<div class="dm">' + fmt(n) + ' in ' + YEAR +
+      (rateOf(d.key) ? ' · ' + rateOf(d.key).toFixed(0) + ' per 1,000' : '') + '</div>' +
+      (hoodName(d.key) ? '<div class="dh">' + esc(hoodName(d.key)) + '</div>' : '') +
+      lead + '</div></a>';
   }).join('');
 }
 
@@ -394,7 +426,9 @@ function find(){
     var top = topCatFor(key);
     msg.innerHTML = esc(pick.properties.label || q) + ' is in <a href="311-district.html?cd=' + d.short + '-' + d.num + '">' +
       esc(d.label) + '</a>' +
+      (hoodName(key) ? ' (' + esc(hoodName(key)) + ')' : '') +
       (top ? ', where the leading category is ' + esc(CAT_LABELS[top.cat] || top.cat) + (top.type ? ' and the top single request is ' + esc(top.type) : '') + '.' : '.') +
+      (rateOf(key) ? ' That is ' + rateOf(key).toFixed(0) + ' complaints per 1,000 residents in ' + YEAR + '.' : '') +
       ' <a href="311-district.html?cd=' + d.short + '-' + d.num + '">Open its 311 page &rarr;</a>';
 
     FILTER = d.boro;
