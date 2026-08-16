@@ -116,7 +116,10 @@ body.embed .panel{padding:8px 10px;border-bottom:1.5px solid #e5e2db}
 body.embed .more{display:block;border:none;background:transparent;margin-top:0}
 body.embed .more summary{display:none}
 body.embed .more-body{padding:0}
-body.embed .more-body .field-row,body.embed .layer-bar{display:none}
+body.embed .layer-bar{display:none}
+body.embed .more-body .field-row{display:none}
+body.embed.boro .more-body .field-row{display:flex;margin-bottom:7px}
+body.embed.boro .more-body .field-row .btn.ghost,body.embed.boro .more-body .field-row .field:first-child{display:none}
 body.embed .act-bar{padding:0}
 body.embed .act-toggles{max-height:64px;overflow-y:auto}
 body.embed #map{height:calc(100vh - 118px);min-height:280px}
@@ -756,9 +759,27 @@ function resetView(){
   refreshParks();
   map.fitBounds(HOME);
 }
+function boroBounds(b){
+  var pts=[];
+  Object.keys(cdIndex).forEach(function(k){
+    if(k.charAt(0)!==b)return;
+    try{
+      var bb=cdIndex[k].getBounds();
+      pts.push([bb.getSouth(),bb.getWest()]);
+      pts.push([bb.getNorth(),bb.getEast()]);
+    }catch(e){}
+  });
+  return pts.length?L.latLngBounds(pts):null;
+}
 function applyUrlParams(){
   var p=new URLSearchParams(window.location.search);
-  var cd=p.get('cd'),act=p.get('a');
+  var cd=p.get('cd'),act=p.get('a'),boro=p.get('boro');
+  if(!cd&&boro&&/^[1-5]$/.test(boro)){
+    document.getElementById('s-boro').value=boro;
+    fillDistricts();
+    var bb=boroBounds(boro);
+    if(bb){try{map.fitBounds(bb,{padding:[15,15]});}catch(e){}}
+  }
   if(cd&&/^\d{3}$/.test(cd)){
     document.getElementById('s-boro').value=cd.charAt(0);
     fillDistricts();
@@ -775,9 +796,9 @@ function applyUrlParams(){
   if(EMBED){
     var m=document.getElementById('more-filters');
     if(m)m.open=true;
-    var lbl=cd?cdLabel(cd):'';
+    var lbl=cd?cdLabel(cd):(boro?BORO_NAMES[boro]:'');
     document.getElementById('embed-heading').textContent=lbl?('Parks and activities in '+lbl):'Parks and activities';
-    document.getElementById('embed-full').href='activities.html'+(cd?'?cd='+cd:'');
+    document.getElementById('embed-full').href='activities.html'+(cd?'?cd='+cd:(boro?'?boro='+boro:''));
   }
 }
 
@@ -785,6 +806,7 @@ function applyUrlParams(){
 // iframe on each community board page.
 var EMBED=new URLSearchParams(window.location.search).get('embed')==='1';
 if(EMBED)document.body.classList.add('embed');
+if(EMBED&&new URLSearchParams(window.location.search).get('boro'))document.body.classList.add('boro');
 
 map.fitBounds(HOME);
 Promise.all([
