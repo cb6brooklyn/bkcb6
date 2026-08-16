@@ -54,6 +54,10 @@ body{font-family:'DM Sans',sans-serif;background:#f8f7f4;color:#0d1b4b}
 .act-tag.alt{background:#f47920}
 
 #map{height:70vh;min-height:460px;width:100%}
+.layer-bar{display:flex;flex-wrap:wrap;gap:7px;align-items:center;padding:9px 14px;background:#fff;border-bottom:1.5px solid #e5e2db}
+.lb-label{font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#8a857c;margin-right:2px}
+.lbtn{--pc:#06024D;border:1.5px solid var(--pc);background:#fff;color:var(--pc);border-radius:999px;padding:6px 11px;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;line-height:1}
+.lbtn.on{background:var(--pc);color:#fff}
 .legend-bar{display:flex;flex-wrap:wrap;gap:10px 16px;padding:9px 14px;background:#fff;border-bottom:1.5px solid #e5e2db;font-size:.72rem;color:#4f4a42;align-items:center}
 .lg{display:inline-flex;align-items:center;gap:6px}
 .lgs{width:14px;height:10px;border-radius:2px;display:inline-block}
@@ -63,7 +67,7 @@ body{font-family:'DM Sans',sans-serif;background:#f8f7f4;color:#0d1b4b}
 .defs summary{padding:12px 14px;font-size:.84rem;font-weight:700;cursor:pointer;color:#0d1b4b}
 .defs-body{padding:0 14px 14px;font-size:.8rem;color:#4f4a42;line-height:1.6}
 .defs-body p{margin-bottom:8px}
-.pk-label{font-family:'DM Sans',sans-serif;font-size:10.5px;font-weight:700;color:#2f6b1f;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap;transform:translate(-50%,-50%);pointer-events:none;line-height:1.1}
+.pk-label{font-family:'DM Sans',sans-serif;font-size:10px;font-weight:700;color:#2c5f1c;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap;transform:translate(-50%,-50%);pointer-events:none;line-height:1.1;letter-spacing:.005em}
 .pk-label.has{color:#1d5410}
 .pk-pop{font-family:'DM Sans',sans-serif;min-width:190px}
 .pk-pop h4{font-size:.9rem;color:#0d1b4b;margin-bottom:3px;line-height:1.25}
@@ -103,7 +107,7 @@ body{font-family:'DM Sans',sans-serif;background:#f8f7f4;color:#0d1b4b}
 </div>
 
 <div class="panel">
-  <p class="panel-lede">Every NYC Parks property and all 59 community districts are on the map. Zoom in to see park names, and click a park for what is there. Or pick an activity below to find the closest place to go.</p>
+  <p class="panel-lede">Every NYC Parks property and all 59 community districts are on the map. Zoom in for park names, click a park for what is there, and use the toggles to turn layers on and off. Or pick an activity below to find the closest place to go.</p>
   <div class="field-row">
     <div class="field">
       <label for="s-activity">Activity</label>
@@ -173,9 +177,16 @@ body{font-family:'DM Sans',sans-serif;background:#f8f7f4;color:#0d1b4b}
   <div class="act-list" id="act-list"></div>
 </div>
 
+<div class="layer-bar">
+  <span class="lb-label">Show</span>
+  <button class="lbtn on" id="tg-parks" style="--pc:#6cb33f" onclick="togParks(this)">Parks</button>
+  <button class="lbtn on" id="tg-names" style="--pc:#2f6b1f" onclick="togNames(this)">Park names</button>
+  <button class="lbtn on" id="tg-cds" style="--pc:#06024D" onclick="togCds(this)">District lines</button>
+  <button class="lbtn" id="tg-onlyact" style="--pc:#f47920" onclick="togOnlyAct(this)">Only parks with activities</button>
+</div>
 <div class="legend-bar">
-  <span class="lg"><span class="lgs" style="background:#6cb33f;opacity:.55"></span>Parks with activities</span>
-  <span class="lg"><span class="lgs" style="background:#a8d08d;opacity:.5"></span>Other parkland</span>
+  <span class="lg"><span class="lgs" style="background:#6cb33f;opacity:.6"></span>Has courts, fields, pool, skatepark or dog run</span>
+  <span class="lg"><span class="lgs" style="background:#cfe3bd;opacity:.7"></span>Other parkland</span>
   <span class="lg"><span class="lgs" style="background:transparent;border:1.5px solid #06024D"></span>Community district</span>
   <span class="lg"><span class="lgs" style="background:#f47920"></span>Search result</span>
 </div>
@@ -204,6 +215,7 @@ var BORO_KEY={'1':'MN','2':'BX','3':'BK','4':'QN','5':'SI'};
 var HOME=[[40.49,-74.27],[40.92,-73.68]];
 
 var recData=null,cdLookup={},parkLayer=null,parkGeo=null,labelGroup=null,cdLayer=null,recLayer=null,searchMarker=null,topResults=[],cdIndex={};
+var showParks=true,showNames=true,showCds=true,onlyAct=false;
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function showResult(html){var b=document.getElementById('result-bar');b.style.display='block';b.innerHTML=html;}
@@ -256,28 +268,84 @@ function drawDistricts(geo){
     }
   }).addTo(map);
 }
+// Label the biggest parks first and only as many as the zoom level can carry,
+// so names stay readable instead of stacking on top of each other.
+var LABEL_RULES=[
+  {z:12,min:60,cap:14},
+  {z:13,min:20,cap:20},
+  {z:14,min:4,cap:26},
+  {z:15,min:1.2,cap:34},
+  {z:16,min:.35,cap:44},
+  {z:17,min:0,cap:60}
+];
+function labelRule(z){
+  var r=LABEL_RULES[0];
+  for(var i=0;i<LABEL_RULES.length;i++){if(z>=LABEL_RULES[i].z)r=LABEL_RULES[i];}
+  return r;
+}
 function buildParkLabels(){
-  if(!parkGeo)return;
   if(labelGroup){map.removeLayer(labelGroup);labelGroup=null;}
-  if(map.getZoom()<14)return;
+  if(!parkGeo||!showNames||!showParks)return;
+  var z=map.getZoom();
+  if(z<12)return;
+  var rule=labelRule(z);
   var b=map.getBounds();
-  labelGroup=L.layerGroup();
-  var shown={},n=0;
+  var cand=[];
   parkGeo.features.forEach(function(f){
-    if(n>220)return;
-    var nm=f.properties.n;
-    if(!nm||shown[nm])return;
+    var p=f.properties;
+    if(!p.n)return;
+    if(onlyAct&&!(p.a&&p.a.length))return;
+    var ac=parseFloat(p.ac)||0;
+    if(ac<rule.min)return;
     var c=labelPoint(f);
     if(!c||!b.contains(c))return;
-    shown[nm]=1;n++;
-    var has=f.properties.a&&f.properties.a.length;
-    L.marker(c,{
-      icon:L.divIcon({className:'',html:'<div class="pk-label'+(has?' has':'')+'">'+escH(nm)+'</div>',iconSize:[0,0],iconAnchor:[0,0]}),
+    cand.push({n:p.n,c:c,ac:ac,has:!!(p.a&&p.a.length)});
+  });
+  cand.sort(function(x,y){return y.ac-x.ac;});
+  labelGroup=L.layerGroup();
+  var shown={},placed=[],n=0;
+  // Rough collision test in screen pixels so labels do not pile up
+  var minGapY=13,perChar=5.2;
+  for(var i=0;i<cand.length&&n<rule.cap;i++){
+    var it=cand[i];
+    if(shown[it.n])continue;
+    var pt=map.latLngToLayerPoint(it.c);
+    var halfW=(it.n.length*perChar)/2;
+    var clash=false;
+    for(var j=0;j<placed.length;j++){
+      if(Math.abs(pt.y-placed[j].y)<minGapY&&Math.abs(pt.x-placed[j].x)<(halfW+placed[j].hw+6)){clash=true;break;}
+    }
+    if(clash)continue;
+    placed.push({x:pt.x,y:pt.y,hw:halfW});
+    shown[it.n]=1;n++;
+    L.marker(it.c,{
+      icon:L.divIcon({className:'',html:'<div class="pk-label'+(it.has?' has':'')+'">'+escH(it.n)+'</div>',iconSize:[0,0],iconAnchor:[0,0]}),
       interactive:false,zIndexOffset:-200
     }).addTo(labelGroup);
-  });
+  }
   labelGroup.addTo(map);
 }
+
+function parkStyle(f){
+  var has=f.properties.a&&f.properties.a.length;
+  if(onlyAct&&!has)return{opacity:0,fillOpacity:0,weight:0,interactive:false};
+  return{color:'#ffffff',weight:.6,fillColor:has?'#6cb33f':'#cfe3bd',fillOpacity:has?.6:.55};
+}
+function refreshParks(){
+  if(parkLayer)parkLayer.setStyle(parkStyle);
+  buildParkLabels();
+}
+function togParks(btn){
+  showParks=!showParks;btn.classList.toggle('on',showParks);
+  if(parkLayer){showParks?parkLayer.addTo(map):map.removeLayer(parkLayer);}
+  buildParkLabels();
+}
+function togNames(btn){showNames=!showNames;btn.classList.toggle('on',showNames);buildParkLabels();}
+function togCds(btn){
+  showCds=!showCds;btn.classList.toggle('on',showCds);
+  if(cdLayer){showCds?cdLayer.addTo(map):map.removeLayer(cdLayer);}
+}
+function togOnlyAct(btn){onlyAct=!onlyAct;btn.classList.toggle('on',onlyAct);refreshParks();}
 function labelPoint(f){
   if(f._lp!==undefined)return f._lp;
   var best=null,bestA=-1;
@@ -299,10 +367,7 @@ function labelPoint(f){
 function drawParks(geo){
   parkGeo=geo;
   parkLayer=L.geoJSON(geo,{
-    style:function(f){
-      var has=f.properties.a&&f.properties.a.length;
-      return{color:'#ffffff',weight:.6,fillColor:has?'#6cb33f':'#a8d08d',fillOpacity:has?.55:.5};
-    },
+    style:parkStyle,
     onEachFeature:function(f,l){
       var p=f.properties;
       l.bindPopup(function(){
@@ -453,6 +518,14 @@ function findNearest(){
   },function(){showResult('Could not get your location.');});
 }
 function resetView(){
+  showParks=true;showNames=true;showCds=true;onlyAct=false;
+  document.getElementById('tg-parks').classList.add('on');
+  document.getElementById('tg-names').classList.add('on');
+  document.getElementById('tg-cds').classList.add('on');
+  document.getElementById('tg-onlyact').classList.remove('on');
+  if(parkLayer)parkLayer.addTo(map);
+  if(cdLayer)cdLayer.addTo(map);
+  refreshParks();
   document.getElementById('s-activity').value='';
   document.getElementById('s-boro').value='';
   fillDistricts();
