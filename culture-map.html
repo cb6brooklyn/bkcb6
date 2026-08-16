@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NYC Culture Map by Community District</title>
+  <meta name="description" content="Museums, theatres, performing arts venues, parks and landmarks across New York City, mapped and counted by borough and community district.">
+  <link rel="canonical" href="https://bkcb6.app/culture-map.html">
+  <meta property="og:title" content="NYC Culture Map by Community District">
+  <meta property="og:description" content="Museums, theatres, performing arts venues, parks and landmarks across New York City, mapped and counted by borough and community district.">
+  <meta property="og:url" content="https://bkcb6.app/culture-map.html">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <style>
+    :root{--navy:#0d1b4b;--orange:#f47920;--border:#e5e2db;--muted:#6b7280;--bg:#f8f7f4;--off:#fcfbf9}
+    *{box-sizing:border-box} body{margin:0;font-family:'DM Sans',sans-serif;background:var(--bg);color:#1f2937}
+    .shell{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);gap:14px;padding:14px}
+    .card{background:#fff;border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 2px 10px rgba(13,27,75,.04)}
+    .head{padding:14px 16px;border-bottom:1px solid var(--border);background:#fffdfa}
+    .head h1,.head h2{margin:0 0 6px;color:var(--navy);font-size:1rem}
+    .head p{margin:0;color:var(--muted);font-size:.8rem;line-height:1.55}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border)}
+    .stat{padding:12px 10px;text-align:center;border-right:1px solid var(--border)}
+    .stat:last-child{border-right:none}
+    .stat .v{font:700 1rem 'DM Mono',monospace;color:var(--orange)}
+    .stat .l{font:.62rem 'DM Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+    .controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+    .controls label{display:block;margin-bottom:6px;font:.66rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .controls select,.controls input{width:100%;border:1px solid var(--border);border-radius:12px;padding:10px 12px;font:500 .82rem 'DM Sans',sans-serif;background:#fff;color:#1f2937}
+    .controls select:focus,.controls input:focus{outline:2px solid var(--navy);outline-offset:-1px}
+    .types{display:flex;gap:7px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--off)}
+    .tbtn{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border:1px solid var(--border);border-radius:999px;background:#fff;cursor:pointer;font:600 .72rem 'DM Sans',sans-serif;color:var(--navy)}
+    .tbtn .dot{width:9px;height:9px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.2)}
+    .tbtn .n{font:.64rem 'DM Mono',monospace;color:var(--muted)}
+    .tbtn.off{opacity:.4}
+    .tbtn.all{background:var(--navy);color:#fff;border-color:var(--navy)}
+    .tbtn.all .n{color:rgba(255,255,255,.7)}
+    .legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--off);font-size:.72rem;color:var(--muted)}
+    .legend span{display:inline-flex;align-items:center;gap:7px}
+    .sw{width:13px;height:13px;border-radius:4px;display:inline-block;border:1px solid rgba(0,0,0,.15)}
+    #map{height:660px;width:100%}
+    .notice{padding:10px 16px;background:var(--off);border-top:1px solid var(--border);font-size:.72rem;color:var(--muted);line-height:1.6}
+    .side-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .side-head h2{margin:0 0 6px;color:var(--navy);font-size:.98rem}
+    .side-head p{margin:0;color:var(--muted);font-size:.78rem;line-height:1.55}
+    .count{font:.68rem 'DM Mono',monospace;color:var(--orange);white-space:nowrap}
+    .tabs{display:flex;border-bottom:1px solid var(--border)}
+    .tab{flex:1;padding:10px;background:#fff;border:none;border-right:1px solid var(--border);font:600 .74rem 'DM Sans',sans-serif;color:var(--muted);cursor:pointer}
+    .tab:last-child{border-right:none}
+    .tab.on{background:var(--navy);color:#fff}
+    #list{padding:12px 14px 16px;max-height:790px;overflow:auto}
+    .item{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;cursor:pointer;transition:transform .15s ease, box-shadow .15s ease}
+    .item:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(13,27,75,.05)}
+    .item h3{margin:0 0 4px;color:var(--navy);font-size:.84rem;line-height:1.35}
+    .item p{margin:0 0 8px;color:var(--muted);font-size:.75rem;line-height:1.5}
+    .meta{display:flex;flex-wrap:wrap;gap:6px}
+    .tag{padding:4px 8px;border-radius:999px;font:.62rem 'DM Mono',monospace;background:#eef1f9;color:var(--navy)}
+    .tag.b{background:#fdefe3;color:#8a4310}
+    .tag.a{background:#f3f4f6;color:#475569}
+    .tag.t{color:#fff}
+    .rank{display:grid;grid-template-columns:78px 1fr 34px;gap:9px;align-items:center;padding:6px 2px;border-bottom:1px solid var(--border);font-size:.76rem;cursor:pointer}
+    .rank:hover{background:#fbf9f4}
+    .rank .cbn{font:600 .72rem 'DM Mono',monospace;color:var(--navy)}
+    .rank .track{height:12px;background:#f0eee8;border-radius:3px;overflow:hidden}
+    .rank .fill{height:100%;background:var(--orange)}
+    .rank .n{text-align:right;font:700 .74rem 'DM Mono',monospace;color:var(--navy)}
+    .empty{padding:18px;border:1px dashed var(--border);border-radius:12px;text-align:center;color:var(--muted);font-size:.8rem}
+    .leaflet-popup-content{font-family:'DM Sans',sans-serif;margin:12px 14px;max-width:240px}
+    .leaflet-popup-content h4{margin:0 0 5px;font-size:.88rem;color:var(--navy);line-height:1.35}
+    .leaflet-popup-content p{margin:0 0 6px;font-size:.76rem;color:#475569;line-height:1.45}
+    .leaflet-popup-content .small{font:.66rem 'DM Mono',monospace;color:#6b7280}
+    .leaflet-popup-content a{color:var(--orange)}
+    @media (max-width:980px){.shell{grid-template-columns:1fr}.controls{grid-template-columns:1fr}#map{height:520px}#list{max-height:none}}
+  </style>
+
+<style id="bkcb6-embed-modal-css">
+  .embed-fab{position:fixed;right:16px;bottom:16px;z-index:1200;border:none;border-radius:999px;padding:11px 18px;background:#0d1b4b;color:#fff;font:600 .78rem 'DM Sans',sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(13,27,75,.25)}
+  .embed-modal-bg{display:none;position:fixed;inset:0;background:rgba(13,27,75,.45);z-index:1300;align-items:center;justify-content:center;padding:18px}
+  .embed-modal-bg.open{display:flex}
+  .embed-modal{background:#fff;border-radius:16px;max-width:520px;width:100%;padding:20px;font-family:'DM Sans',sans-serif}
+  .embed-modal h3{margin:0 0 4px;color:#0d1b4b;font-size:1rem}
+  .embed-modal p{margin:0 0 14px;color:#6b7280;font-size:.8rem;line-height:1.5}
+  .embed-tabs{display:flex;gap:8px;margin-bottom:12px}
+  .embed-tabs button{flex:1;padding:9px;border:1px solid #e5e2db;border-radius:10px;background:#fff;font:600 .74rem 'DM Sans',sans-serif;color:#6b7280;cursor:pointer}
+  .embed-tabs button.on{background:#0d1b4b;color:#fff;border-color:#0d1b4b}
+  .embed-url-box,.embed-code-box{border:1px solid #e5e2db;border-radius:10px;padding:11px;font:.72rem 'DM Mono',monospace;color:#1f2937;word-break:break-all;background:#f8f7f4;margin-bottom:10px}
+  .embed-actions{display:flex;gap:8px}
+  .embed-actions button{flex:1;padding:10px;border:none;border-radius:10px;background:#f47920;color:#fff;font:600 .76rem 'DM Sans',sans-serif;cursor:pointer}
+  .embed-actions button.sec{background:#eef1f9;color:#0d1b4b}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <div class="card">
+    <div class="head">
+      <h1>NYC Culture Map by Community District</h1>
+      <p>Museums, Broadway and neighborhood theatres, performing arts venues, parks, landmarks, and the transit halls and civic buildings people treat as destinations. Districts are shaded by how many sit inside them. Filter by type, borough, or district.</p>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="v" id="sMus">0</div><div class="l">Places shown</div></div>
+      <div class="stat"><div class="v" id="sCb">0</div><div class="l">Districts with one</div></div>
+      <div class="stat"><div class="v" id="sTop">0</div><div class="l">Most in one district</div></div>
+    </div>
+    <div class="types" id="types"></div>
+    <div class="controls">
+      <div>
+        <label for="boroSel">Borough</label>
+        <select id="boroSel">
+          <option value="">All five boroughs</option>
+          <option value="Manhattan">Manhattan</option>
+          <option value="Bronx">Bronx</option>
+          <option value="Brooklyn">Brooklyn</option>
+          <option value="Queens">Queens</option>
+          <option value="Staten Island">Staten Island</option>
+        </select>
+      </div>
+      <div>
+        <label for="cbSel">Community district</label>
+        <select id="cbSel"><option value="">All districts</option></select>
+      </div>
+      <div>
+        <label for="qInput">Search by name or nickname</label>
+        <input id="qInput" type="text" placeholder="For example, MoMA or the Apollo" autocomplete="off">
+      </div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div id="map"></div>
+    <div class="notice">Sources: NYC Open Data museum directory, NYC Geoclient and Department of City Planning MapPLUTO for the tax lot records, DCP community district boundaries, and the Broadway theatre list from broadway.org. Places drawn from the lot records carry zoning, ownership, land use and year built. Places on piers, islands, or inside Central Park and Flushing Meadows fall outside any community district; those are assigned to the nearest one and flagged. Owner of record is the tax roll owner, which is often not the operator. Confirm hours and admission directly.</div>
+  </div>
+
+  <div class="card">
+    <div class="side-head">
+      <div>
+        <h2 id="sideTitle">Cultural places</h2>
+        <p id="sideSub">Browse the full list, or switch to the district ranking.</p>
+      </div>
+      <div class="count" id="count"></div>
+    </div>
+    <div class="tabs">
+      <button class="tab on" id="tabList" type="button">List</button>
+      <button class="tab" id="tabRank" type="button">By district</button>
+    </div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<button class="embed-fab" onclick="document.getElementById('bkcb6EmbedModal').classList.add('open')">Share or embed</button>
+<div class="embed-modal-bg" id="bkcb6EmbedModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="embed-modal">
+    <h3>Share or embed this map</h3>
+    <p>Copy the link, or take the iframe code to put this map on another site.</p>
+    <div class="embed-tabs">
+      <button class="on" type="button" onclick="bkcb6SwitchEmbedTab(this,'link')">Link</button>
+      <button type="button" onclick="bkcb6SwitchEmbedTab(this,'iframe')">Embed</button>
+    </div>
+    <div id="bkcb6EmbedLinkPanel">
+      <div class="embed-url-box" id="bkcb6EmbedUrlBox"></div>
+      <div class="embed-actions">
+        <button type="button" onclick="bkcb6CopyEmbed('link')">Copy link</button>
+        <button class="sec" type="button" onclick="document.getElementById('bkcb6EmbedModal').classList.remove('open')">Close</button>
+      </div>
+    </div>
+    <div id="bkcb6EmbedIframePanel" style="display:none">
+      <div class="embed-code-box" id="bkcb6EmbedCodeBox"></div>
+      <div class="embed-actions">
+        <button type="button" onclick="bkcb6CopyEmbed('iframe')">Copy code</button>
+        <button class="sec" type="button" onclick="document.getElementById('bkcb6EmbedModal').classList.remove('open')">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+(function(){
+  var TYPES = [
+    {k:'museum',          label:'Museums',         color:'#f47920'},
+    {k:'theatre',         label:'Theatres',        color:'#0d1b4b'},
+    {k:'performing arts', label:'Performing arts', color:'#8b2fa0'},
+    {k:'park',            label:'Parks',           color:'#2f8f4e'},
+    {k:'landmark',        label:'Landmarks',       color:'#b3121d'},
+    {k:'transit',         label:'Transit',         color:'#00699c'},
+    {k:'arena',           label:'Arenas',          color:'#7a4a1e'},
+    {k:'library',         label:'Libraries',       color:'#c98c00'},
+    {k:'civic',           label:'Civic',           color:'#4b5563'}
+  ];
+  var COLOR = {};
+  TYPES.forEach(function(t){ COLOR[t.k] = t.color; });
+  function typeLabel(k){
+    for(var i=0;i<TYPES.length;i++){ if(TYPES[i].k === k) return TYPES[i].label; }
+    return k;
+  }
+
+  var BINS = [
+    {min:0,  max:0,  color:'#f2f0ea', label:'None'},
+    {min:1,  max:1,  color:'#dbe2f2', label:'1'},
+    {min:2,  max:4,  color:'#a9bde0', label:'2 to 4'},
+    {min:5,  max:9,  color:'#f7c396', label:'5 to 9'},
+    {min:10, max:1e6,color:'#f47920', label:'10 or more'}
+  ];
+  function binColor(n){
+    for(var i=0;i<BINS.length;i++){ if(n>=BINS[i].min && n<=BINS[i].max) return BINS[i].color; }
+    return '#f2f0ea';
+  }
+
+  var map = L.map('map', {scrollWheelZoom:true}).setView([40.7128,-73.96], 11);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+
+  var legend = document.getElementById('legend');
+  BINS.forEach(function(b){
+    var s = document.createElement('span');
+    s.innerHTML = '<i class="sw" style="background:'+b.color+'"></i>'+b.label;
+    legend.appendChild(s);
+  });
+
+  var boroSel = document.getElementById('boroSel');
+  var cbSel = document.getElementById('cbSel');
+  var qInput = document.getElementById('qInput');
+  var listEl = document.getElementById('list');
+  var countEl = document.getElementById('count');
+  var tabList = document.getElementById('tabList');
+  var tabRank = document.getElementById('tabRank');
+  var typesEl = document.getElementById('types');
+
+  var places = [];
+  var districts = [];
+  var cdLayer = null;
+  var markerLayer = L.layerGroup().addTo(map);
+  var markerFor = {};
+  var totalsAll = {};
+  var view = 'list';
+  var onTypes = {};
+  TYPES.forEach(function(t){ onTypes[t.k] = true; });
+
+  function allTypesOn(){
+    for(var i=0;i<TYPES.length;i++){ if(!onTypes[TYPES[i].k]) return false; }
+    return true;
+  }
+  function counts(list){
+    var c = {};
+    list.forEach(function(m){ c[m.cb] = (c[m.cb]||0)+1; });
+    return c;
+  }
+  function matchesText(p, q){
+    if(p.name.toLowerCase().indexOf(q) !== -1) return true;
+    for(var i=0;i<p.nicknames.length;i++){
+      if(p.nicknames[i].toLowerCase().indexOf(q) !== -1) return true;
+    }
+    return (p.address || '').toLowerCase().indexOf(q) !== -1;
+  }
+  function shown(){
+    var b = boroSel.value, cb = cbSel.value, q = qInput.value.trim().toLowerCase();
+    return places.filter(function(p){
+      if(!onTypes[p.type]) return false;
+      if(b && p.boro_name !== b) return false;
+      if(cb && p.cb !== cb) return false;
+      if(q && !matchesText(p, q)) return false;
+      return true;
+    });
+  }
+  function renderTypeBar(){
+    var byType = {};
+    places.forEach(function(p){ byType[p.type] = (byType[p.type]||0)+1; });
+    var html = '<button class="tbtn all" type="button" data-t="__all">All types <span class="n">'+places.length+'</span></button>';
+    html += TYPES.map(function(t){
+      return '<button class="tbtn'+(onTypes[t.k] ? '' : ' off')+'" type="button" data-t="'+t.k+'">'
+        + '<span class="dot" style="background:'+t.color+'"></span>'+t.label
+        + ' <span class="n">'+(byType[t.k]||0)+'</span></button>';
+    }).join('');
+    typesEl.innerHTML = html;
+    Array.prototype.forEach.call(typesEl.querySelectorAll('.tbtn'), function(el){
+      el.addEventListener('click', function(){
+        var k = el.getAttribute('data-t');
+        if(k === '__all'){
+          TYPES.forEach(function(t){ onTypes[t.k] = true; });
+        } else if(allTypesOn()){
+          TYPES.forEach(function(t){ onTypes[t.k] = (t.k === k); });
+        } else {
+          onTypes[k] = !onTypes[k];
+          if(!TYPES.some(function(t){ return onTypes[t.k]; })){
+            TYPES.forEach(function(t){ onTypes[t.k] = true; });
+          }
+        }
+        syncTypeBar();
+        refresh();
+      });
+    });
+  }
+  function syncTypeBar(){
+    Array.prototype.forEach.call(typesEl.querySelectorAll('.tbtn'), function(el){
+      var k = el.getAttribute('data-t');
+      if(k === '__all'){ el.classList.toggle('all', allTypesOn()); return; }
+      el.classList.toggle('off', !onTypes[k]);
+    });
+  }
+  function fillCbSelect(){
+    var b = boroSel.value, keep = cbSel.value;
+    var opts = districts.filter(function(d){ return !b || d.properties.boro === b; })
+      .map(function(d){ return d.properties.cb; })
+      .sort(function(x,y){
+        var nx = parseInt(x.replace(/\D/g,''),10), ny = parseInt(y.replace(/\D/g,''),10);
+        var px = x.replace(/[0-9]/g,''), py = y.replace(/[0-9]/g,'');
+        return px === py ? nx - ny : px.localeCompare(py);
+      });
+    cbSel.innerHTML = '<option value="">All districts</option>' + opts.map(function(c){
+      return '<option value="'+c+'">'+c+' ('+(totalsAll[c]||0)+')</option>';
+    }).join('');
+    if(opts.indexOf(keep) !== -1) cbSel.value = keep;
+  }
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function num(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function popupHTML(p){
+    var h = '<h4>'+esc(p.name)+'</h4>';
+    h += '<p class="small" style="color:'+COLOR[p.type]+'">'+typeLabel(p.type)+'</p>';
+    if(p.address) h += '<p>'+esc(p.address)+'</p>';
+    h += '<p class="small">'+p.cb+(p.approx ? ' (nearest district)' : '')+(p.council ? ' &middot; Council '+p.council : '')+'</p>';
+    if(p.zoning || p.land_use_label){
+      h += '<p class="small">'+esc([p.zoning, p.land_use_label].filter(Boolean).join(' &middot; '))+'</p>';
+    }
+    if(p.owner) h += '<p class="small">Owner of record: '+esc(p.owner)+'</p>';
+    if(p.year_built) h += '<p class="small">Built '+esc(p.year_built)+'</p>';
+    if(p.bbl) h += '<p class="small">BBL '+esc(p.bbl)+'</p>';
+    if(p.tel) h += '<p class="small">'+esc(p.tel)+'</p>';
+    if(p.url) h += '<p><a href="'+esc(p.url)+'" target="_blank" rel="noopener">Website</a></p>';
+    return h;
+  }
+  function renderMarkers(list){
+    markerLayer.clearLayers();
+    markerFor = {};
+    list.forEach(function(p){
+      var mk = L.circleMarker([p.lat, p.lng], {radius:6, color:'#ffffff', weight:1.4, fillColor:COLOR[p.type]||'#f47920', fillOpacity:.95});
+      mk.bindPopup(popupHTML(p));
+      mk.addTo(markerLayer);
+      markerFor[p.name] = mk;
+    });
+  }
+  function renderStats(list, c){
+    var keys = Object.keys(c);
+    var top = 0;
+    keys.forEach(function(k){ if(c[k] > top) top = c[k]; });
+    document.getElementById('sMus').textContent = list.length;
+    document.getElementById('sCb').textContent = keys.length;
+    document.getElementById('sTop').textContent = top;
+  }
+  function renderList(list){
+    countEl.textContent = list.length + ' of ' + places.length;
+    if(!list.length){ listEl.innerHTML = '<div class="empty">Nothing matches these filters.</div>'; return; }
+    var sorted = list.slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
+    listEl.innerHTML = sorted.map(function(p){
+      return '<div class="item" data-name="'+esc(p.name).replace(/"/g,'&quot;')+'">'
+        + '<h3>'+esc(p.name)+'</h3>'
+        + (p.address ? '<p>'+esc(p.address)+'</p>' : '')
+        + '<div class="meta">'
+        + '<span class="tag t" style="background:'+COLOR[p.type]+'">'+typeLabel(p.type)+'</span>'
+        + '<span class="tag">'+p.cb+'</span>'
+        + '<span class="tag b">'+esc(p.boro_name)+'</span>'
+        + (p.approx ? '<span class="tag a">Nearest district</span>' : '')
+        + (p.building_area_sqft ? '<span class="tag a">'+num(p.building_area_sqft)+' sq ft</span>' : '')
+        + '</div></div>';
+    }).join('');
+    Array.prototype.forEach.call(listEl.querySelectorAll('.item'), function(el){
+      el.addEventListener('click', function(){
+        var mk = markerFor[el.getAttribute('data-name')];
+        if(mk){ map.setView(mk.getLatLng(), 15); mk.openPopup(); }
+      });
+    });
+  }
+  function renderRank(list, c){
+    countEl.textContent = Object.keys(c).length + ' districts';
+    var rows = Object.keys(c).map(function(k){ return [k, c[k]]; })
+      .sort(function(a,b){ return b[1] - a[1] || a[0].localeCompare(b[0]); });
+    if(!rows.length){ listEl.innerHTML = '<div class="empty">Nothing matches these filters.</div>'; return; }
+    var max = rows[0][1];
+    listEl.innerHTML = rows.map(function(r){
+      return '<div class="rank" data-cb="'+r[0]+'">'
+        + '<span class="cbn">'+r[0]+'</span>'
+        + '<span class="track"><span class="fill" style="width:'+Math.round(r[1]/max*100)+'%"></span></span>'
+        + '<span class="n">'+r[1]+'</span></div>';
+    }).join('');
+    Array.prototype.forEach.call(listEl.querySelectorAll('.rank'), function(el){
+      el.addEventListener('click', function(){
+        var cb = el.getAttribute('data-cb');
+        var d = districts.filter(function(x){ return x.properties.cb === cb; })[0];
+        if(d) boroSel.value = d.properties.boro;
+        fillCbSelect();
+        cbSel.value = cb;
+        refresh();
+      });
+    });
+  }
+
+  var liveCounts = {};
+  function cdStyle(f){
+    var n = liveCounts[f.properties.cb] || 0;
+    var sel = cbSel.value === f.properties.cb;
+    var dim = (boroSel.value && f.properties.boro !== boroSel.value) || (cbSel.value && !sel);
+    return {
+      color: sel ? '#0d1b4b' : '#ffffff',
+      weight: sel ? 2.4 : 0.8,
+      fillColor: binColor(n),
+      fillOpacity: dim ? 0.18 : 0.72,
+      opacity: dim ? 0.35 : 0.9
+    };
+  }
+  function draw(fit){
+    var list = shown();
+    liveCounts = counts(list);
+    if(cdLayer) cdLayer.setStyle(cdStyle);
+    renderMarkers(list);
+    renderStats(list, liveCounts);
+    if(view === 'list') renderList(list); else renderRank(list, liveCounts);
+    if(!fit || !cdLayer) return;
+    var target = null;
+    if(cbSel.value){
+      cdLayer.eachLayer(function(l){ if(l.feature.properties.cb === cbSel.value) target = l; });
+    } else if(boroSel.value){
+      var b = L.latLngBounds([]);
+      cdLayer.eachLayer(function(l){ if(l.feature.properties.boro === boroSel.value) b.extend(l.getBounds()); });
+      if(b.isValid()) map.fitBounds(b, {padding:[18,18]});
+      return;
+    }
+    if(target) map.fitBounds(target.getBounds(), {padding:[28,28]});
+    else if(!boroSel.value) map.fitBounds(cdLayer.getBounds(), {padding:[10,10]});
+  }
+  function refresh(){ draw(true); }
+
+  boroSel.addEventListener('change', function(){ cbSel.value = ''; fillCbSelect(); refresh(); });
+  cbSel.addEventListener('change', refresh);
+  qInput.addEventListener('input', function(){ draw(false); });
+  tabList.addEventListener('click', function(){
+    view = 'list'; tabList.classList.add('on'); tabRank.classList.remove('on');
+    document.getElementById('sideTitle').textContent = 'Cultural places';
+    document.getElementById('sideSub').textContent = 'Browse the full list, or switch to the district ranking.';
+    draw(false);
+  });
+  tabRank.addEventListener('click', function(){
+    view = 'rank'; tabRank.classList.add('on'); tabList.classList.remove('on');
+    document.getElementById('sideTitle').textContent = 'Places by district';
+    document.getElementById('sideSub').textContent = 'Districts ranked by how many they hold. Tap one to filter the map.';
+    draw(false);
+  });
+
+  Promise.all([
+    fetch('cd-boundaries-simple.geojson').then(function(r){ return r.json(); }),
+    fetch('data/culture-places.json').then(function(r){ return r.json(); })
+  ]).then(function(res){
+    districts = res[0].features;
+    places = res[1];
+    totalsAll = counts(places);
+    liveCounts = totalsAll;
+    cdLayer = L.geoJSON(res[0], {
+      style: cdStyle,
+      onEachFeature: function(f, lyr){
+        lyr.bindTooltip(f.properties.cb + ': ' + (totalsAll[f.properties.cb]||0), {sticky:true});
+        lyr.on('click', function(){
+          boroSel.value = f.properties.boro;
+          fillCbSelect();
+          cbSel.value = f.properties.cb;
+          refresh();
+        });
+      }
+    }).addTo(map);
+    renderTypeBar();
+    fillCbSelect();
+    refresh();
+  }).catch(function(){
+    listEl.innerHTML = '<div class="empty">Culture data could not be loaded. Please refresh.</div>';
+  });
+})();
+</script>
+
+<script>
+(function(){
+  var url = window.location.href.split('?')[0].split('#')[0];
+  url = url.replace('cb6brooklyn.github.io/bkcb6','bkcb6.app');
+  document.getElementById('bkcb6EmbedUrlBox').textContent = url;
+  document.getElementById('bkcb6EmbedCodeBox').textContent =
+    '<iframe src="'+url+'" width="100%" height="800" style="border:1px solid #e5e2db;border-radius:12px" loading="lazy"></iframe>';
+})();
+function bkcb6SwitchEmbedTab(btn,panel){
+  var wrap = btn.parentNode;
+  Array.prototype.forEach.call(wrap.children, function(b){ b.classList.remove('on'); });
+  btn.classList.add('on');
+  document.getElementById('bkcb6EmbedLinkPanel').style.display = panel === 'link' ? '' : 'none';
+  document.getElementById('bkcb6EmbedIframePanel').style.display = panel === 'iframe' ? '' : 'none';
+}
+function bkcb6CopyEmbed(type){
+  var el = document.getElementById(type === 'link' ? 'bkcb6EmbedUrlBox' : 'bkcb6EmbedCodeBox');
+  navigator.clipboard.writeText(el.textContent);
+}
+</script>
+</body>
+</html>
