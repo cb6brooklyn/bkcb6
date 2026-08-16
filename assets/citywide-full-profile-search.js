@@ -841,7 +841,7 @@
     return out;
   }
   var GENERIC=[
-    {re:/^(nycha|public housing|city housing|housing authority|nycha developments?|nycha houses|public housing developments?|nyc housing authority)$/i,
+    {re:/^(the\s+)?(nycha|nycha developments?|nycha houses|nycha buildings|nycha housing|public housing|nyc public housing|public housing developments?|city housing|housing projects|housing authority|nyc housing authority|new york city housing authority|nyc ha)$/i,
      title:'NYCHA developments',
      note:'Every NYCHA development in the city. Pick one to see its zoning, land use, districts and everything else on the lot.',
      items:function(){ return nychaList(null); },
