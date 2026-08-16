@@ -13,6 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="">
   <style>
     :root{--navy:#0d1b4b;--orange:#f47920;--border:#e5e2db;--muted:#6b7280;--bg:#f8f7f4;--off:#fcfbf9}
     *{box-sizing:border-box} body{margin:0;font-family:'DM Sans',sans-serif;background:var(--bg);color:#1f2937}
@@ -30,9 +31,14 @@
     .controls label{display:block;margin-bottom:6px;font:.66rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
     .controls select,.controls input{width:100%;border:1px solid var(--border);border-radius:12px;padding:10px 12px;font:500 .82rem 'DM Sans',sans-serif;background:#fff;color:#1f2937}
     .controls select:focus,.controls input:focus{outline:2px solid var(--navy);outline-offset:-1px}
-    .types{display:flex;gap:7px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--off)}
+    .types{display:flex;gap:7px;flex-wrap:wrap;padding:12px 16px 8px;background:var(--off)}
+    .boros{display:flex;gap:13px;flex-wrap:wrap;align-items:center;padding:0 16px 12px;border-bottom:1px solid var(--border);background:var(--off)}
+    .bk-l{font:.6rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.09em;color:var(--muted)}
+    .bk{display:inline-flex;align-items:center;gap:5px;font-size:.7rem;color:#475569}
+    .bk i{width:11px;height:11px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.15)}
     .tbtn{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border:1px solid var(--border);border-radius:999px;background:#fff;cursor:pointer;font:600 .72rem 'DM Sans',sans-serif;color:var(--navy)}
-    .tbtn .dot{width:9px;height:9px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.2)}
+    .tbtn .gy{display:inline-flex;align-items:center}
+    .tbtn .gy svg{display:block}
     .tbtn .n{font:.64rem 'DM Mono',monospace;color:var(--muted)}
     .tbtn.off{opacity:.4}
     .tbtn.all{background:var(--navy);color:#fff;border-color:var(--navy)}
@@ -41,6 +47,10 @@
     .pin-b{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;
       border:2px solid #fff;box-shadow:0 1px 4px rgba(13,27,75,.35)}
     .pin-b svg{display:block}
+    .cpin{background:none;border:none}
+    .cpin-b{display:flex;align-items:center;justify-content:center;border-radius:50%;color:#fff;
+      font:700 .8rem 'DM Mono',monospace;border:3px solid rgba(255,255,255,.92);box-shadow:0 2px 7px rgba(13,27,75,.35)}
+    .leaflet-cluster-anim .leaflet-marker-icon{transition:transform .25s ease-out,opacity .25s ease-in}
     #map{height:660px;width:100%}
     .notice{padding:10px 16px;background:var(--off);border-top:1px solid var(--border);font-size:.72rem;color:var(--muted);line-height:1.6}
     .side-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
@@ -100,6 +110,7 @@
       <div class="stat"><div class="v" id="sTop">0</div><div class="l">Boroughs</div></div>
     </div>
     <div class="types" id="types"></div>
+    <div class="boros" id="boros"></div>
     <div class="controls">
       <div>
         <label for="boroSel">Borough</label>
@@ -164,6 +175,7 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
 <script>
 (function(){
   var GLYPH = {
@@ -192,15 +204,27 @@
     return '<svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'" fill="'+fill+'" aria-hidden="true">'
       + (GLYPH[k] || GLYPH.landmark) + '</svg>';
   }
+  var BOROS = [
+    {k:'Manhattan',     color:'#0d1b4b'},
+    {k:'Brooklyn',      color:'#f47920'},
+    {k:'Queens',        color:'#2e9e6b'},
+    {k:'Bronx',         color:'#c62828'},
+    {k:'Staten Island', color:'#7e57c2'}
+  ];
+  var BCOLOR = {};
+  BOROS.forEach(function(b){ BCOLOR[b.k] = b.color; });
+  function boroColor(n){ return BCOLOR[n] || '#6b6760'; }
+
   var iconCache = {};
-  function iconFor(k){
-    if(iconCache[k]) return iconCache[k];
-    iconCache[k] = L.divIcon({
+  function iconFor(type, boro){
+    var key = type + '|' + boro;
+    if(iconCache[key]) return iconCache[key];
+    iconCache[key] = L.divIcon({
       className: 'pin',
-      html: '<span class="pin-b" style="background:'+(COLOR[k]||'#f47920')+'">'+glyphSVG(k, 15, '#fff')+'</span>',
+      html: '<span class="pin-b" style="background:'+boroColor(boro)+'">'+glyphSVG(type, 15, '#fff')+'</span>',
       iconSize: [26,26], iconAnchor: [13,13], popupAnchor: [0,-13]
     });
-    return iconCache[k];
+    return iconCache[key];
   }
 
   var map = L.map('map', {scrollWheelZoom:true}).setView([40.7128,-73.96], 11);
@@ -212,11 +236,31 @@
   var listEl = document.getElementById('list');
   var countEl = document.getElementById('count');
   var typesEl = document.getElementById('types');
+  var borosEl = document.getElementById('boros');
 
   var places = [];
   var districts = [];
   var cdLayer = null;
-  var markerLayer = L.layerGroup().addTo(map);
+  var markerLayer = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    maxClusterRadius: 46,
+    spiderfyDistanceMultiplier: 1.4,
+    disableClusteringAtZoom: 16,
+    iconCreateFunction: function(cluster){
+      var kids = cluster.getAllChildMarkers();
+      var tally = {};
+      kids.forEach(function(m){ var b = m.options.boro; tally[b] = (tally[b]||0)+1; });
+      var top = null;
+      Object.keys(tally).forEach(function(b){ if(!top || tally[b] > tally[top]) top = b; });
+      var n = kids.length;
+      var d = n < 10 ? 34 : n < 50 ? 42 : n < 150 ? 50 : 58;
+      return L.divIcon({
+        className: 'cpin',
+        html: '<span class="cpin-b" style="background:'+boroColor(top)+';width:'+d+'px;height:'+d+'px">'+n+'</span>',
+        iconSize: [d,d], iconAnchor: [d/2,d/2]
+      });
+    }
+  }).addTo(map);
   var markerFor = {};
   var totalsAll = {};
   var onTypes = {};
@@ -254,7 +298,7 @@
     var html = '<button class="tbtn all" type="button" data-t="__all">All types <span class="n">'+places.length+'</span></button>';
     html += TYPES.map(function(t){
       return '<button class="tbtn'+(onTypes[t.k] ? '' : ' off')+'" type="button" data-t="'+t.k+'">'
-        + '<span class="dot" style="background:'+t.color+'"></span>'+t.label
+        + '<span class="gy">'+glyphSVG(t.k, 12, '#0d1b4b')+'</span>'+t.label
         + ' <span class="n">'+(byType[t.k]||0)+'</span></button>';
     }).join('');
     typesEl.innerHTML = html;
@@ -275,6 +319,11 @@
         refresh();
       });
     });
+  }
+  function renderBoroKey(){
+    borosEl.innerHTML = '<span class="bk-l">Colour by borough</span>' + BOROS.map(function(b){
+      return '<span class="bk"><i style="background:'+b.color+'"></i>'+b.k+'</span>';
+    }).join('');
   }
   function syncTypeBar(){
     Array.prototype.forEach.call(typesEl.querySelectorAll('.tbtn'), function(el){
@@ -302,7 +351,7 @@
   function popupHTML(p){
     var h = p.logo ? '<img class="plogo" src="'+esc(p.logo)+'" alt="">' : '';
     h += '<h4>'+esc(p.name)+'</h4>';
-    h += '<p class="small" style="color:'+COLOR[p.type]+'">'+typeLabel(p.type)+(p.system ? ' &middot; '+esc(p.system) : '')+'</p>';
+    h += '<p class="small" style="color:'+boroColor(p.boro_name)+'">'+typeLabel(p.type)+(p.system ? ' &middot; '+esc(p.system) : '')+'</p>';
     if(p.address) h += '<p>'+esc(p.address)+'</p>';
     h += '<p class="small">'+p.cb+(p.approx ? ' (nearest district)' : '')+(p.council ? ' &middot; Council '+p.council : '')+'</p>';
     if(p.zoning || p.land_use_label){
@@ -319,12 +368,14 @@
   function renderMarkers(list){
     markerLayer.clearLayers();
     markerFor = {};
+    var batch = [];
     list.forEach(function(p){
-      var mk = L.marker([p.lat, p.lng], {icon: iconFor(p.type), title: p.name});
+      var mk = L.marker([p.lat, p.lng], {icon: iconFor(p.type, p.boro_name), title: p.name, boro: p.boro_name});
       mk.bindPopup(popupHTML(p));
-      mk.addTo(markerLayer);
       markerFor[p.name] = mk;
+      batch.push(mk);
     });
+    markerLayer.addLayers(batch);
   }
   function renderStats(list, c){
     var boros = {};
@@ -340,15 +391,15 @@
     listEl.innerHTML = sorted.map(function(p){
       return '<div class="item" data-name="'+esc(p.name).replace(/"/g,'&quot;')+'">'
         + '<div class="ihead">'
-        + '<span class="ibadge" style="background:'+COLOR[p.type]+'">'+glyphSVG(p.type, 13, '#fff')+'</span>'
+        + '<span class="ibadge" style="background:'+boroColor(p.boro_name)+'">'+glyphSVG(p.type, 13, '#fff')+'</span>'
         + '<h3>'+esc(p.name)+'</h3>'
         + (p.logo ? '<img class="ilogo" src="'+esc(p.logo)+'" alt="" loading="lazy">' : '')
         + '</div>'
         + (p.address ? '<p>'+esc(p.address)+'</p>' : '')
         + '<div class="meta">'
-        + '<span class="tag t" style="background:'+COLOR[p.type]+'">'+typeLabel(p.type)+(p.system ? ' &middot; '+esc(p.system) : '')+'</span>'
+        + '<span class="tag">'+typeLabel(p.type)+(p.system ? ' &middot; '+esc(p.system) : '')+'</span>'
         + '<span class="tag">'+p.cb+'</span>'
-        + '<span class="tag b">'+esc(p.boro_name)+'</span>'
+        + '<span class="tag t" style="background:'+boroColor(p.boro_name)+'">'+esc(p.boro_name)+'</span>'
         + (p.approx ? '<span class="tag a">Nearest district</span>' : '')
         + (p.building_area_sqft ? '<span class="tag a">'+num(p.building_area_sqft)+' sq ft</span>' : '')
         + '</div></div>';
@@ -356,7 +407,10 @@
     Array.prototype.forEach.call(listEl.querySelectorAll('.item'), function(el){
       el.addEventListener('click', function(){
         var mk = markerFor[el.getAttribute('data-name')];
-        if(mk){ map.setView(mk.getLatLng(), 15); mk.openPopup(); }
+        if(!mk) return;
+        map.setView(mk.getLatLng(), 16);
+        if(markerLayer.zoomToShowLayer) markerLayer.zoomToShowLayer(mk, function(){ mk.openPopup(); });
+        else mk.openPopup();
       });
     });
   }
@@ -419,6 +473,7 @@
       }
     }).addTo(map);
     renderTypeBar();
+    renderBoroKey();
     fillCbSelect();
     refresh();
   }).catch(function(){
