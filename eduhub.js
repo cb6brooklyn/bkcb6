@@ -834,43 +834,107 @@
 
   function zonesPage() {
     var summary = null, csdGj = null, cdGj = null;
+    var LABEL_ZOOM = 13, LABEL_CAP = 60;
+    var show = { zone: true, cd: false, csd: false };
+    var zoneShapes = null, labelGroup = null, cdLayer = null, csdLayer = null;
+
     Promise.all([loadZone('elementary'), get(BASE + 'districts.geojson'),
                  get(BASE + 'school-districts.geojson'), get(BASE + 'summary.json')])
       .then(function (res) {
         cdGj = res[1]; csdGj = res[2]; summary = res[3];
         initMap([40.7128, -73.94], 11);
+        labelGroup = L.layerGroup().addTo(map);
+        buildOverlays();
         drawZones();
         buildZoneChips();
+        buildOverlayChips();
+        buildJumpers();
         buildDirectory();
         wireAddress();
-        buildKey($('#mapkey'), { shading: false });
+        zoneKey();
+        map.on('moveend zoomend', refreshLabels);
       })
       .catch(function (e) {
         var t = $('#zone-status');
         if (t) t.textContent = 'Could not load the zone data. ' + e.message;
       });
 
+    function zoneKey() {
+      var host = $('#mapkey'); if (!host) return;
+      host.innerHTML = '';
+      var k = el('div', 'key-block');
+      k.appendChild(el('div', 'key-h', 'What the map shows'));
+      var list = el('div', 'key-items');
+      var z = ZLV.filter(function (x) { return x.k === zoneLevel; })[0];
+      [['fill', z.c, z.label + ' with a zoned school'],
+       ['hatch', '#9aa0b0', 'No zoned school here (park, cemetery, airport, or choice district)'],
+       ['line', '#06024D', 'Community district boundary'],
+       ['dash', '#7a3ea8', 'School district boundary'],
+       ['dot', '#f47920', 'The address you looked up']].forEach(function (r) {
+        var d = el('span', 'key-item');
+        var sw = el('i', 'kswatch ' + r[0]);
+        sw.style.setProperty('--c', r[1]);
+        d.appendChild(sw);
+        d.appendChild(el('span', null, r[2]));
+        list.appendChild(d);
+      });
+      k.appendChild(list);
+      k.appendChild(el('div', 'key-note', 'Zone numbers appear on the map once you zoom in. Use Jump to, or the address box above, to get somewhere quickly.'));
+      host.appendChild(k);
+    }
+
+    function buildOverlays() {
+      cdLayer = L.geoJSON(cdGj, {
+        style: { color: '#06024D', weight: 2, fill: false, opacity: 0.9 },
+        onEachFeature: function (f, l) { l.bindTooltip(cdLabel(f.properties.cd) + ' \u2014 ' + f.properties.name, { sticky: true }); }
+      });
+      csdLayer = L.geoJSON(csdGj, {
+        style: { color: '#7a3ea8', weight: 2, fill: false, dashArray: '6 4', opacity: 0.9 },
+        onEachFeature: function (f, l) { l.bindTooltip(f.properties.name, { sticky: true }); }
+      });
+    }
+
     function drawZones() {
       shapeLayer.clearLayers();
-      var gj = zoneData[zoneLevel];
-      L.geoJSON(gj, {
+      if (!show.zone) { refreshLabels(); return; }
+      zoneShapes = L.geoJSON(zoneData[zoneLevel], {
         style: zoneStyle(zoneLevel),
         onEachFeature: function (f, l) {
           l.bindTooltip('<strong>' + zoneName(f) + '</strong>' +
             (f.properties.csd ? '<br>School District ' + esc(f.properties.csd) : ''), { sticky: true });
         }
       }).addTo(shapeLayer);
-      var lbl = L.layerGroup();
-      gj.features.forEach(function (f) {
+      refreshLabels();
+    }
+
+    /* Zone numbers only when they can be read: past a zoom threshold, only for
+       zones currently on screen, and capped so a dense borough never floods. */
+    function refreshLabels() {
+      if (!labelGroup) return;
+      labelGroup.clearLayers();
+      var note = $('#label-note');
+      if (!show.zone) { if (note) note.textContent = 'Zone shading is off.'; return; }
+      if (map.getZoom() < LABEL_ZOOM) {
+        if (note) note.textContent = 'Zoom in to see the zone numbers on the map.';
+        return;
+      }
+      var b = map.getBounds(), shown = 0, inView = 0;
+      zoneData[zoneLevel].features.forEach(function (f) {
         if (!f.properties.label || f.properties.lx == null) return;
+        if (!b.contains([f.properties.ly, f.properties.lx])) return;
+        inView++;
+        if (shown >= LABEL_CAP) return;
+        shown++;
         L.marker([f.properties.ly, f.properties.lx], {
           interactive: false, keyboard: false,
           icon: L.divIcon({ className: 'dlabel-wrap',
             html: '<span class="zlabel">' + esc(f.properties.label) + '</span>',
             iconSize: [34, 18], iconAnchor: [17, 9] })
-        }).addTo(lbl);
+        }).addTo(labelGroup);
       });
-      lbl.addTo(shapeLayer);
+      if (note) note.textContent = inView > shown
+        ? 'Showing ' + shown + ' of ' + inView + ' zone numbers in view. Zoom in for the rest.'
+        : shown + ' zone ' + (shown === 1 ? 'number' : 'numbers') + ' in view.';
     }
 
     function buildZoneChips() {
@@ -884,12 +948,77 @@
         b.textContent = z.label;
         b.addEventListener('click', function () {
           zoneLevel = z.k;
+          show.zone = true;
+          var zt = $('#t-zone'); if (zt) zt.setAttribute('aria-pressed', 'true');
           Array.prototype.forEach.call(host.children, function (o) { o.setAttribute('aria-pressed', 'false'); });
           b.setAttribute('aria-pressed', 'true');
-          loadZone(z.k).then(function () { drawZones(); buildDirectory(); });
+          loadZone(z.k).then(function () { drawZones(); buildDirectory(); zoneKey(); });
         });
         host.appendChild(b);
       });
+    }
+
+    function buildOverlayChips() {
+      var host = $('#overlaychips'); if (!host) return;
+      host.innerHTML = '';
+      [{ id: 't-zone', k: 'zone', label: 'Zone shading', c: '#1b6ca8' },
+       { id: 't-cd', k: 'cd', label: 'Community districts', c: '#06024D' },
+       { id: 't-csd', k: 'csd', label: 'School districts', c: '#7a3ea8' }].forEach(function (o) {
+        var b = el('button', 'chip lvl');
+        b.type = 'button'; b.id = o.id;
+        b.style.setProperty('--pin', o.c);
+        b.setAttribute('aria-pressed', show[o.k] ? 'true' : 'false');
+        b.textContent = o.label;
+        b.addEventListener('click', function () {
+          show[o.k] = !show[o.k];
+          b.setAttribute('aria-pressed', show[o.k] ? 'true' : 'false');
+          if (o.k === 'zone') drawZones();
+          if (o.k === 'cd') show.cd ? cdLayer.addTo(map) : map.removeLayer(cdLayer);
+          if (o.k === 'csd') show.csd ? csdLayer.addTo(map) : map.removeLayer(csdLayer);
+        });
+        host.appendChild(b);
+      });
+    }
+
+    /* Quick jumps: pick a community district or a school district and the map
+       flies there, instead of pinch-zooming around the whole city. */
+    function buildJumpers() {
+      var a = $('#jump-cd'), c = $('#jump-csd');
+      if (a) {
+        a.innerHTML = '<option value="">Jump to a community district...</option>';
+        summary.districts.forEach(function (d) {
+          var o = document.createElement('option');
+          o.value = d.cd; o.textContent = cdLabel(d.cd) + ' \u2014 ' + d.name;
+          a.appendChild(o);
+        });
+        a.addEventListener('change', function () {
+          if (!a.value) return;
+          var f = cdGj.features.filter(function (x) { return x.properties.cd === a.value; })[0];
+          if (!f) return;
+          if (!show.cd) { show.cd = true; cdLayer.addTo(map); var t = $('#t-cd'); if (t) t.setAttribute('aria-pressed', 'true'); }
+          map.fitBounds(L.geoJSON(f).getBounds(), { padding: [20, 20] });
+          if (c) c.value = '';
+          document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      }
+      if (c) {
+        c.innerHTML = '<option value="">Jump to a school district...</option>';
+        csdGj.features.slice().sort(function (x, y) { return x.properties.csd - y.properties.csd; })
+          .forEach(function (f) {
+            var o = document.createElement('option');
+            o.value = f.properties.csd; o.textContent = 'School District ' + f.properties.csd;
+            c.appendChild(o);
+          });
+        c.addEventListener('change', function () {
+          if (!c.value) return;
+          var f = csdGj.features.filter(function (x) { return String(x.properties.csd) === c.value; })[0];
+          if (!f) return;
+          if (!show.csd) { show.csd = true; csdLayer.addTo(map); var t = $('#t-csd'); if (t) t.setAttribute('aria-pressed', 'true'); }
+          map.fitBounds(L.geoJSON(f).getBounds(), { padding: [20, 20] });
+          if (a) a.value = '';
+          document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      }
     }
 
     function buildDirectory() {
