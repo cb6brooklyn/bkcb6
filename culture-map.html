@@ -760,13 +760,39 @@
     }).addTo(map);
     labelLayer.addTo(map);
     map.on('zoomend moveend', renderLabels);
+    // a link can arrive scoped: ?type=film&cb=BKCB6&boro=Brooklyn&sub=chain
+    var qp = new URLSearchParams(window.location.search);
+    var wantType = (qp.get('type') || '').toLowerCase().replace(/[+_]/g, ' ');
+    if(wantType && TYPES.some(function(t){ return t.k === wantType; })){
+      TYPES.forEach(function(t){ onTypes[t.k] = (t.k === wantType); });
+    }
+    var wantSub = (qp.get('sub') || '').toLowerCase();
+    if(wantType && SUBS[wantType] && SUBS[wantType].some(function(x){ return x.k === wantSub; })){
+      onSubs[wantType] = {};
+      SUBS[wantType].forEach(function(x){ onSubs[wantType][x.k] = (x.k === wantSub); });
+    }
     renderTypeBar();
     renderSubBar();
     renderBoroKey();
-    // this is a CB6 site, so the district opens on CB6
-    boroSel.value = 'Brooklyn';
-    fillCbSelect();
-    cbSel.value = 'BKCB6';
+
+    var wantCb = (qp.get('cb') || '').toUpperCase();
+    var wantBoro = qp.get('boro') || '';
+    var cbHit = wantCb ? districts.filter(function(f){ return f.properties.cb === wantCb; })[0] : null;
+    if(cbHit){
+      boroSel.value = cbHit.properties.boro;
+      fillCbSelect();
+      cbSel.value = wantCb;
+    } else if(wantBoro && BCOLOR[wantBoro]){
+      boroSel.value = wantBoro;
+      fillCbSelect();
+    } else if(qp.get('cb') === 'all' || qp.get('boro') === 'all'){
+      fillCbSelect();
+    } else {
+      // this is a CB6 site, so the district opens on CB6 unless told otherwise
+      boroSel.value = 'Brooklyn';
+      fillCbSelect();
+      cbSel.value = 'BKCB6';
+    }
     refresh();
   }).catch(function(){
     listEl.innerHTML = '<div class="empty">Culture data could not be loaded. Please refresh.</div>';
