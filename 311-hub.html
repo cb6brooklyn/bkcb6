@@ -45,6 +45,8 @@ a{color:var(--navy)}
 .frow select{font-family:var(--sans);font-size:.95rem;padding:12px 12px;border:1px solid rgba(255,255,255,.22);border-radius:8px;background:#fff;color:var(--ink);min-width:150px}
 .btn{font-family:var(--mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;padding:12px 20px;border-radius:8px;border:0;background:var(--orange);color:#fff;cursor:pointer;font-weight:500;white-space:nowrap}
 .btn:hover{filter:brightness(1.07)}
+.locbtn{background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff}
+.locbtn:hover{background:rgba(255,255,255,.1);filter:none}
 input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
 .fmsg{margin:11px 0 0;font-size:.85rem;color:#c3c8ea;min-height:1.2em}
 .fmsg.err{color:#ffb4a8}
@@ -195,13 +197,14 @@ footer code{font-family:var(--mono);font-size:.72rem;background:#efede7;padding:
 
 <div class="finder">
   <div class="wrap">
-    <div class="lab">Find your community district</div>
+    <div class="lab">Find your community district &mdash; by address, by location, or by pin on the map</div>
     <div class="frow">
       <input type="text" id="addr" placeholder="e.g. 250 Baltic Street" autocomplete="off" enterkeyhint="search" aria-label="Address">
       <select id="addrBoro" aria-label="Borough">
         <option value="">Any borough</option>
       </select>
       <button class="btn" type="button" id="findBtn">Find my district</button>
+      <button class="btn locbtn" type="button" id="locBtn">&#9678; Use my location</button>
     </div>
     <p class="fmsg" id="fmsg"></p>
   </div>
@@ -722,6 +725,52 @@ function districtAt(lng, lat){
   return null;
 }
 
+// Shared endpoint for address, pin and device location.
+function resolveTo(lat, lng, label){
+  var msg = el('fmsg');
+  var go = function(){
+    var key = districtAt(lng, lat);
+    if (!key){
+      msg.className = 'fmsg err';
+      msg.textContent = label + ' is not inside one of the 59 community districts. It may be a park, an airport parcel, or outside New York City.';
+      return;
+    }
+    var d = CD_LIST.filter(function(x){ return x.key === key; })[0];
+    var top = topCatFor(key);
+    msg.className = 'fmsg';
+    msg.innerHTML = esc(label) + ' is in <a href="311-district.html?cd=' + d.short + '-' + d.num + '">' +
+      esc(d.label) + '</a>' + (hoodName(key) ? ' (' + esc(hoodName(key)) + ')' : '') +
+      (top ? ', where the leading category is ' + esc(CAT_LABELS[top.cat] || top.cat) + '.' : '.') +
+      ' <a href="33159by5.html#level=cd&cd=' + encodeURIComponent(key) + '&from=' + YEAR + '&to=' + YEAR + '">See it on the map &rarr;</a>';
+  };
+  if (GEO) go();
+  else fetch('cd-boundaries-simple.geojson').then(function(r){ return r.json(); })
+        .then(function(g){ GEO = g; go(); })
+        .catch(function(){
+          msg.className = 'fmsg err';
+          msg.textContent = 'District outlines could not be loaded. Try again in a moment.';
+        });
+}
+
+function useMyLocation(){
+  var msg = el('fmsg');
+  msg.className = 'fmsg';
+  if (!navigator.geolocation){
+    msg.className = 'fmsg err';
+    msg.textContent = 'This browser cannot share a location. Type an address instead.';
+    return;
+  }
+  msg.innerHTML = '<span class="spin"></span>Getting your location';
+  navigator.geolocation.getCurrentPosition(function(pos){
+    resolveTo(pos.coords.latitude, pos.coords.longitude, 'Your location');
+  }, function(err){
+    msg.className = 'fmsg err';
+    msg.textContent = err.code === 1
+      ? 'Location permission was denied. Type an address instead, or drop a pin on the map page.'
+      : 'Could not get your location. Type an address instead.';
+  }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
+}
+
 function find(){
   var q = el('addr').value.trim(), msg = el('fmsg');
   msg.className = 'fmsg';
@@ -795,6 +844,7 @@ el('yearSel').value = YEAR;
 
 el('yearSel').addEventListener('change', function(){ YEAR = Number(this.value); renderAll(); });
 el('findBtn').addEventListener('click', find);
+el('locBtn').addEventListener('click', useMyLocation);
 el('addr').addEventListener('keydown', function(e){ if (e.key === 'Enter') find(); });
 el('addrBoro').addEventListener('change', function(){ if (el('addr').value.trim()) find(); });
 
