@@ -283,7 +283,7 @@
       onEachFeature: function (f, l) {
         var k = f.properties.cd != null ? f.properties.cd : f.properties.csd;
         shapes[k] = l;
-        l.on('mouseover', function () { if (k !== pickedKey) l.setStyle({ weight: 2.5, color: '#f47920' }); l.bringToFront(); });
+        l.on('mouseover', function () { if (k !== pickedKey) l.setStyle({ weight: 2.5, color: '#111318' }); l.bringToFront(); });
         l.on('mouseout', function () { if (k !== pickedKey) l.setStyle({ weight: 1.2, color: '#fff' }); });
         l.on('click', function () { pick(k); });
       }
@@ -327,7 +327,7 @@
     function pick(k) {
       if (pickedKey && shapes[pickedKey]) shapes[pickedKey].setStyle({ weight: 1.2, color: '#fff' });
       pickedKey = k;
-      if (shapes[k]) { shapes[k].setStyle({ weight: 3.5, color: '#f47920' }); shapes[k].bringToFront(); }
+      if (shapes[k]) { shapes[k].setStyle({ weight: 4, color: '#111318' }); shapes[k].bringToFront(); }
       var host = $('#picked');
       if (!host) return;
       host.innerHTML = '';
@@ -491,6 +491,26 @@
   function buildBoundaryToggle(host, gj, opts) {
     if (!host) return;
     host.innerHTML = '';
+
+    /* Community districts are the filled shapes, but they need a control of
+       their own or the panel reads as if only school districts exist. */
+    var cdBtn = el('button', 'chip lvl');
+    cdBtn.type = 'button'; cdBtn.id = 'bound-cd';
+    cdBtn.style.setProperty('--pin', '#06024D');
+    cdBtn.setAttribute('aria-pressed', 'true');
+    cdBtn.textContent = 'Community districts';
+    cdBtn.addEventListener('click', function () {
+      var now = cdBtn.getAttribute('aria-pressed') === 'true';
+      shapeLayer.eachLayer(function (l) {
+        if (l.setStyle) l.setStyle({ fillOpacity: now ? 0 : 0.85, opacity: now ? 0 : 1 });
+        if (l.eachLayer) l.eachLayer(function (x) {
+          if (x.setStyle) x.setStyle({ fillOpacity: now ? 0 : 0.85, opacity: now ? 0 : 1 });
+        });
+      });
+      if (labelLayer) { if (now) map.removeLayer(labelLayer); else labelLayer.addTo(map); }
+      cdBtn.setAttribute('aria-pressed', now ? 'false' : 'true');
+    });
+    host.appendChild(cdBtn);
     boundLayers.csd = L.geoJSON(gj, {
       style: { color: '#7a3ea8', weight: 2.4, fill: false, dashArray: '7 4', opacity: 0.95 },
       onEachFeature: function (f, l) {
@@ -527,6 +547,48 @@
     });
     host.appendChild(b);
     if (on) { boundLayers.csd.addTo(map); boundLayers.csdStamps.addTo(map); }
+  }
+
+  /* Somewhere to click. A picker beats hunting for a shape on a phone. */
+  function buildJumpers(cdSel, csdSel, districts, cdGj, csdGj) {
+    var a = $(cdSel), c = $(csdSel);
+    if (a) {
+      a.innerHTML = '<option value="">Go to a community district...</option>';
+      districts.forEach(function (d) {
+        var o = document.createElement('option');
+        o.value = d.cd;
+        o.textContent = cdLabel(d.cd) + ' \u2014 ' + d.name;
+        a.appendChild(o);
+      });
+      a.addEventListener('change', function () {
+        if (!a.value) return;
+        var f = cdGj.features.filter(function (x) { return x.properties.cd === a.value; })[0];
+        if (f) map.fitBounds(L.geoJSON(f).getBounds(), { padding: [20, 20] });
+        var lay = shapeLayer.getLayers()[0];
+        if (lay && lay.pick) lay.pick(a.value);
+        if (c) c.value = '';
+        document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
+    if (c && csdGj) {
+      c.innerHTML = '<option value="">Go to a school district...</option>';
+      csdGj.features.slice().sort(function (x, y) { return x.properties.csd - y.properties.csd; })
+        .forEach(function (f) {
+          var o = document.createElement('option');
+          o.value = f.properties.csd;
+          o.textContent = 'School District ' + f.properties.csd;
+          c.appendChild(o);
+        });
+      c.addEventListener('change', function () {
+        if (!c.value) return;
+        var f = csdGj.features.filter(function (x) { return String(x.properties.csd) === c.value; })[0];
+        if (f) map.fitBounds(L.geoJSON(f).getBounds(), { padding: [20, 20] });
+        var t = $('#bound-csd');
+        if (t && t.getAttribute('aria-pressed') !== 'true') t.click();
+        if (a) a.value = '';
+        document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
   }
 
   function overview(cfg) {
@@ -582,6 +644,7 @@
         });
         schemeLegend($('#schemekey'), S.districts);
         buildBoundaryToggle($('#boundchips'), res[3], { on: true });
+        buildJumpers('#jump-cd', '#jump-csd', S.districts, res[2], res[3]);
         buildKey($('#mapkey'), { shading: false });
       }
     });
@@ -700,6 +763,12 @@
             return mine.some(function (d) { return (d.csd || []).indexOf(f.properties.csd) > -1; });
           })
         }, { on: true });
+        buildJumpers('#jump-cd', '#jump-csd', mine, gj, {
+          type: 'FeatureCollection',
+          features: res[3].features.filter(function (f) {
+            return mine.some(function (d) { return (d.csd || []).indexOf(f.properties.csd) > -1; });
+          })
+        });
         buildKey($('#mapkey'), { shading: false });
         buildBoroTable(s, b);
       }
