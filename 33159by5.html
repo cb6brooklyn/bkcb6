@@ -84,6 +84,15 @@ main{padding:22px 0 60px}
 .card h2{font-size:.95rem;font-weight:700;color:var(--navy);margin:0 0 3px;letter-spacing:-.01em}
 .card .note{font-family:var(--mono);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
 
+/* ---------- jump buttons ---------- */
+.jump{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px}
+.jump .jt{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.jchips{display:flex;flex-wrap:wrap;gap:6px}
+.jchip{padding:7px 14px;font-family:var(--sans);font-size:.8rem;font-weight:700;border:2px solid var(--navy);border-radius:20px;background:#fff;color:var(--navy);cursor:pointer;white-space:nowrap}
+.jchip:hover{background:#f2f4fb}
+.jchip.on{background:var(--orange);border-color:var(--orange);color:#fff}
+.jchip.up{border-color:var(--border);color:var(--muted);font-weight:400}
+
 /* ---------- find a district ---------- */
 .find{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
 .find .grow{flex:1;min-width:200px;display:flex;flex-direction:column;gap:5px}
@@ -276,6 +285,7 @@ footer code{font-family:var(--mono);font-size:.72rem;background:#efede7;padding:
   <div class="wrap">
 
     <div id="ident" class="ident" style="display:none"></div>
+    <div id="jump"></div>
 
     <div class="stats" id="stats" aria-live="polite"></div>
 
@@ -572,6 +582,38 @@ function renderIdent(){
   node.style.display = 'flex';
 }
 
+// Borough and district views carry the community-board buttons, so the hub
+// does not have to list all 59 and every level is one tap from the next.
+function renderJump(){
+  var node = el('jump');
+  if (S.level === 'city'){
+    node.innerHTML = '<div class="jump"><div class="jt">Jump to a borough</div><div class="jchips">' +
+      BOROS.map(function(b){
+        return '<button class="jchip" type="button" data-boro="' + b + '">' + esc(boroLabel(b)) + '</button>';
+      }).join('') + '</div></div>';
+  } else {
+    var boro = S.level === 'boro' ? S.boro : S.cd.slice(3);
+    var list = CD_LIST.filter(function(d){ return d.boro === boro; });
+    node.innerHTML = '<div class="jump"><div class="jt">' + esc(boroLabel(boro)) +
+      ' · ' + list.length + ' community districts</div><div class="jchips">' +
+      '<button class="jchip up" type="button" data-boro="' + boro + '">All of ' + esc(boroLabel(boro)) + '</button>' +
+      list.map(function(d){
+        return '<button class="jchip' + (S.level === 'cd' && d.key === S.cd ? ' on' : '') +
+          '" type="button" data-cd="' + esc(d.key) + '">CB ' + d.num + '</button>';
+      }).join('') +
+      '<button class="jchip up" type="button" data-city="1">All 59 citywide</button>' +
+      '</div></div>';
+  }
+  Array.prototype.forEach.call(node.querySelectorAll('.jchip'), function(btn){
+    btn.addEventListener('click', function(){
+      if (btn.dataset.cd) { selectDistrict(btn.dataset.cd); }
+      else if (btn.dataset.boro){ S.level='boro'; S.boro=btn.dataset.boro; syncUI(); writeHash(); load(); }
+      else { S.level='city'; syncUI(); writeHash(); load(); }
+    });
+  });
+}
+function boroLabel(b){ return b === 'BRONX' ? 'The Bronx' : title(b); }
+
 function scopeName(){
   if (S.level === 'city') return 'New York City';
   if (S.level === 'boro') return title(S.boro);
@@ -787,6 +829,7 @@ function load(){
   skeleton(el('rank'), 8, 15);
   el('rankHead').innerHTML = ''; el('catChips').innerHTML = '';
   renderIdent();
+  renderJump();
   loadCats().then(function(){
     updateMapMode();
     if (S.level === 'cd') showPanel(S.cd, true); else el('cdPanel').className = 'cdpanel';
