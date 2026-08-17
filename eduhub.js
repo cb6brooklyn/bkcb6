@@ -1120,7 +1120,8 @@
         var zf = findZone(zoneData[z.k], lon, lat);
         var block = el('div', 'res-zone');
         var head = el('div', 'res-zone-h');
-        head.innerHTML = '<i style="background:' + z.c + '"></i>' + z.label;
+        head.innerHTML = '<i style="background:' + z.c + '"></i>' + z.label +
+          '<img src="assets/eduhub/doe.png" alt="NYC Department of Education" loading="lazy">';
         block.appendChild(head);
         var body = el('div', 'res-zone-b');
         body.innerHTML = zf ? zoneSchoolLines(zf)
