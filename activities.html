@@ -9,7 +9,21 @@
 <meta property="og:description" content="Every NYC park and every community district on one map. Search by activity to find the closest place to play, swim, skate or walk a dog."/>
 <meta property="og:image" content="https://bkcb6.app/site-icons/nyc-parks.png"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+  // Two parks that CB6 uses but that the city files place elsewhere: Prospect
+  // Park sits in Brooklyn Joint Interest Area 55, and most of Brooklyn Bridge
+  // Park is filed under CB2. Both border the district, so CB6 counts them.
+  var CD_INCLUDE = {'306': [['355','Prospect Park'], ['302','Brooklyn Bridge Park']]};
+  function inCd(r, cd){
+    if (r.c === cd) return true;
+    var ex = CD_INCLUDE[cd];
+    if (!ex) return false;
+    for (var i = 0; i < ex.length; i++){
+      if (r.c === ex[i][0] && String(r.n || '').indexOf(ex[i][1]) === 0) return true;
+    }
+    return false;
+  }
+</script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -666,7 +680,7 @@ function actListLabel(codes){
 }
 
 function inFilter(r,cd,boro){
-  if(cd)return r.c===cd;
+  if(cd)return inCd(r,cd);
   if(boro)return String(r.c).charAt(0)===boro;
   return true;
 }
@@ -677,7 +691,7 @@ function scopedRows(codes){
     for(var i=0;i<codes.length;i++){if(r.a.indexOf(codes[i])!==-1)return true;}
     return false;
   });
-  if(cd)return {rows:rows.filter(function(r){return r.c===cd;}),all:rows};
+  if(cd)return {rows:rows.filter(function(r){return inCd(r,cd);}),all:rows};
   if(boro)return {rows:rows.filter(function(r){return String(r.c).charAt(0)===boro;}),all:rows};
   return {rows:rows,all:rows};
 }
@@ -714,7 +728,7 @@ function runActivities(origin,originLabel){
   // everything citywide by distance so a closer court one district over is not
   // hidden behind a filter.
   if(!origin&&(cd||boro)&&!inScope.length){
-    var near=recData.filter(function(r){return cd?r.c===cd:String(r.c).charAt(0)===boro;});
+    var near=recData.filter(function(r){return cd?inCd(r,cd):String(r.c).charAt(0)===boro;});
     if(near.length){
       var sy=0,sx=0;near.forEach(function(r){sy+=r.y;sx+=r.x;});
       origin=[sy/near.length,sx/near.length];originLabel='the middle of '+where;
@@ -834,7 +848,7 @@ function updateBrowsePins(){
 // map of that place: every facility in it, listed by site.
 function showScopeAll(cd,boro){
   var where=cd?cdLabel(cd):BORO_NAMES[boro];
-  var rows=recData.filter(function(r){return cd?r.c===cd:String(r.c).charAt(0)===boro;});
+  var rows=recData.filter(function(r){return cd?inCd(r,cd):String(r.c).charAt(0)===boro;});
   if(!rows.length){
     showResult('No recorded courts, fields, pools, skateparks, or dog runs in '+escH(where)+'.');
     document.getElementById('act-panel').classList.remove('open');
