@@ -621,7 +621,10 @@
         }
       }
       if(!hit && isFinite(lat) && isFinite(lng) && s.lat!=null && s.lng!=null){
-        if(liftDist(lat,lng,s.lat,s.lng)<=200) hit=true;
+        // Proximity is not identity. Flag it so the badge can say "nearby"
+        // instead of claiming this lot is on the list.
+        var dm=liftDist(lat,lng,s.lat,s.lng);
+        if(dm<=200){ hit=true; s={n:s.n,addr:s.addr,u:s.u,ag:s.ag,st:s.st,lat:s.lat,lng:s.lng,boro:s.boro,_near:true,_dist:Math.round(dm)}; }
       }
       if(hit) out.push(s);
     });
@@ -1433,18 +1436,25 @@
       if(!hits.length || !result.isConnected || result.querySelector('.lift-badge')) return;
       var s=hits[0], units=0;
       hits.forEach(function(h){ units+=(h.u||0); });
+      var onList=hits.some(function(h){ return !h._near; });
       var name=LIFT_PLACE[liftNorm(s.addr)] || (hits.length>1 ? s.n.replace(/\s+(Building|Bldg|Phase)\s+\S+$/i,'') : s.n);
+      if(!onList) name='Near '+name;
       var bits=[];
       if(units) bits.push(units.toLocaleString()+' homes planned');
       if(hits.length>1) bits.push(hits.length+' buildings');
       if(s.ag) bits.push(s.ag);
       if(s.st) bits.push(s.st);
+      if(!onList){
+        // Say plainly that this is a different lot, how far, and where.
+        bits.unshift(s._dist+' m from this address');
+        if(s.addr) bits.push('at '+s.addr);
+      }
       var deep=LIFT_DEEP[liftNorm(s.addr)]||null;
       var box=document.createElement('div');
       box.className='lift-badge';
       box.setAttribute('style','margin:10px 0;padding:11px 13px;background:#0d1b4b;border-left:5px solid #f47920;border-radius:9px');
       box.innerHTML='<img src="/lift-badge-banner.jpg" alt="Block by Block, Land Inventory Fast Track (LIFT), Office of the Mayor" width="1173" height="342" loading="lazy" style="display:block;width:100%;height:auto;border-radius:5px;margin-bottom:9px">'+
-        '<div style="font-family:\'DM Mono\',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.1em;color:#f47920;font-weight:700;margin-bottom:5px">On the LIFT list &middot; Block by Block</div>'+
+        '<div style="font-family:\'DM Mono\',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.1em;color:#f47920;font-weight:700;margin-bottom:5px">'+(onList?'On the LIFT list &middot; Block by Block':'Nearby LIFT site &middot; Block by Block')+'</div>'+
         '<div style="color:#fff;font-size:.9rem;font-weight:900;line-height:1.3">'+esc(name||'')+'</div>'+
         '<div style="color:rgba(255,255,255,.78);font-family:\'DM Mono\',monospace;font-size:.68rem;line-height:1.5;margin-top:4px">'+esc(bits.join(' \u00b7 '))+'</div>'+
         (deep?('<div style="margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.22);color:rgba(255,255,255,.86);font-size:.79rem;line-height:1.55">'+deep.note+'</div>'):'')+
