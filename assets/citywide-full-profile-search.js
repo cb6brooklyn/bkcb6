@@ -43,6 +43,27 @@
 
   function esc(v){return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
   function validCommunityBoardCode(cd){cd=String(cd||''); var b=cd.charAt(0), n=parseInt(cd.slice(1),10); return !!(BOROUGH_NAMES[b] && n >= 1 && ((b==='1'&&n<=12)||(b==='2'&&n<=12)||(b==='3'&&n<=18)||(b==='4'&&n<=14)||(b==='5'&&n<=3)));}
+  // Joint interest areas: large parks and the airports belong to no single
+  // community board, so the City maps them separately. Codes verified against
+  // NYC Open Data 5crt-au7u by testing a known landmark inside each area.
+  var JIA_NAMES={
+    '164':'Central Park','226':'Van Cortlandt Park','227':'Bronx Park','228':'Pelham Bay Park',
+    '355':'Prospect Park','356':'Floyd Bennett Field & Gateway','480':'LaGuardia Airport',
+    '481':'Flushing Meadows Corona Park','482':'Forest Park','483':'John F. Kennedy Airport',
+    '484':'Jamaica Bay','595':'Great Kills & Miller Field'
+  };
+  function jointInterestLabel(cd){
+    cd=String(cd||'');
+    var b=cd.charAt(0), n=parseInt(cd.slice(1),10);
+    if(!BOROUGH_NAMES[b] || !(n>18)) return '';
+    var nm=JIA_NAMES[cd];
+    return BOROUGH_NAMES[b]+' Joint Interest Area '+n+(nm?', '+nm:'');
+  }
+  function areaLabel(cd){
+    if(validCommunityBoardCode(cd)) return boardLabel(cd);
+    var j=jointInterestLabel(cd);
+    return j || 'Community Board not identified';
+  }
   function boardLabel(cd){cd=String(cd||''); var b=cd.charAt(0), n=parseInt(cd.slice(1),10); return validCommunityBoardCode(cd) ? BOROUGH_NAMES[b] + ' Community Board ' + n : 'Community Board';}
   function boardSlug(cd){cd=String(cd||''); if(!validCommunityBoardCode(cd)) return ''; return 'cb-' + BOROUGH_SHORT[cd.charAt(0)] + '-' + parseInt(cd.slice(1),10) + '.html';}
   function districtNumber(value){var m=String(value||'').match(/\d+/); return m ? String(parseInt(m[0],10)) : '';}
@@ -426,7 +447,7 @@
       (items.length===1?' public facility':' public facilities')+'</div>'+list+
       '<div style="font-size:.66rem;color:#9ca3af;line-height:1.5;margin-top:7px">Public and publicly funded facilities recorded at this lot in the NYC Facilities Database. Private businesses are not included.</div></div>';
   }
-  function render(input,a,foundCd,lat,lng,pluto,landmarks,n,context,facs){context=context||{}; pluto=pluto||{}; var ed=parseInt(a.electionDistrict,10), ad=parseInt(a.assemblyDistrict,10), council=districtNumber(a.cityCouncilDistrict), senate=districtNumber(a.stateSenatorialDistrict), cong=districtNumber(a.congressionalDistrict), school=districtNumber(addressValue(a,['communitySchoolDistrict','schoolDistrict','schoolDistrictNumber'])||pluto.schooldist), police=districtNumber(addressValue(a,['policePrecinct','policePrecinctCode','nycPolicePrecinct'])||pluto.policeprct); var bbl=normalizeBbl(a.bbl)||normalizeBbl(pluto.bbl), b=bbl.slice(0,1)||String(foundCd||'').charAt(0), block=bbl.slice(1,6), lot=bbl.slice(6,10); var cb=validCommunityBoardCode(foundCd)?String(foundCd):String(a.communityDistrict||pluto.cd||''); var cbLabel=validCommunityBoardCode(cb)?boardLabel(cb):'Community Board not identified'; var zones=collectZones(a,pluto), zDisp=zones.length?zones.join(' / '):'Not available from PLUTO'; var spDists=collectSpecialDistricts(pluto), spDisp=spDists.length?spDists.join(' / '):''; var lUse=landUseLabel(pluto.landuse); var hd=(landmarks&&landmarks.historicDistricts)||[]; var historic=hd.length?hd.join(' / '):'Not in an LPC historic district'; var dob=b&&block&&lot?'https://a810-bisweb.nyc.gov/bisweb/PropertyBrowseByBBLServlet?allborough='+encodeURIComponent(b)+'&allblock='+parseInt(block,10)+'&alllot='+parseInt(lot,10)+'&filetype=html&requestid=0':'#'; var zola=b&&block&&lot?'https://zola.planning.nyc.gov/l/lot/'+encodeURIComponent(b)+'/'+parseInt(block,10)+'/'+parseInt(lot,10):'#'; var acris=b&&block&&lot?'https://a836-acris.nyc.gov/DS/DocumentSearch/BBL?REQUEST_BBL='+encodeURIComponent(b)+block+lot:'#'; var zap=block&&lot?'https://zap.planning.nyc.gov/projects?block='+parseInt(block,10)+'&lot='+parseInt(lot,10):'#'; var enc=encodeURIComponent(input); var boardShort=validCommunityBoardCode(cb)?BOROUGH_SHORT[cb.charAt(0)]:'', boardNum=validCommunityBoardCode(cb)?parseInt(cb.slice(1),10):0;
+  function render(input,a,foundCd,lat,lng,pluto,landmarks,n,context,facs){context=context||{}; pluto=pluto||{}; var ed=parseInt(a.electionDistrict,10), ad=parseInt(a.assemblyDistrict,10), council=districtNumber(a.cityCouncilDistrict), senate=districtNumber(a.stateSenatorialDistrict), cong=districtNumber(a.congressionalDistrict), school=districtNumber(addressValue(a,['communitySchoolDistrict','schoolDistrict','schoolDistrictNumber'])||pluto.schooldist), police=districtNumber(addressValue(a,['policePrecinct','policePrecinctCode','nycPolicePrecinct'])||pluto.policeprct); var bbl=normalizeBbl(a.bbl)||normalizeBbl(pluto.bbl), b=bbl.slice(0,1)||String(foundCd||'').charAt(0), block=bbl.slice(1,6), lot=bbl.slice(6,10); var cb=validCommunityBoardCode(foundCd)?String(foundCd):String(a.communityDistrict||pluto.cd||''); var cbLabel=areaLabel(cb||String(a.communityDistrict||pluto.cd||'')); var zones=collectZones(a,pluto), zDisp=zones.length?zones.join(' / '):'Not available from PLUTO'; var spDists=collectSpecialDistricts(pluto), spDisp=spDists.length?spDists.join(' / '):''; var lUse=landUseLabel(pluto.landuse); var hd=(landmarks&&landmarks.historicDistricts)||[]; var historic=hd.length?hd.join(' / '):'Not in an LPC historic district'; var dob=b&&block&&lot?'https://a810-bisweb.nyc.gov/bisweb/PropertyBrowseByBBLServlet?allborough='+encodeURIComponent(b)+'&allblock='+parseInt(block,10)+'&alllot='+parseInt(lot,10)+'&filetype=html&requestid=0':'#'; var zola=b&&block&&lot?'https://zola.planning.nyc.gov/l/lot/'+encodeURIComponent(b)+'/'+parseInt(block,10)+'/'+parseInt(lot,10):'#'; var acris=b&&block&&lot?'https://a836-acris.nyc.gov/DS/DocumentSearch/BBL?REQUEST_BBL='+encodeURIComponent(b)+block+lot:'#'; var zap=block&&lot?'https://zap.planning.nyc.gov/projects?block='+parseInt(block,10)+'&lot='+parseInt(lot,10):'#'; var enc=encodeURIComponent(input); var boardShort=validCommunityBoardCode(cb)?BOROUGH_SHORT[cb.charAt(0)]:'', boardNum=validCommunityBoardCode(cb)?parseInt(cb.slice(1),10):0;
     var cardLogo='';
     var siteIcon=SITE_ICON[liftNorm(input)]||null;
     if(!siteIcon && /HOUSING AUTHORITY|\bNYCHA\b/i.test(String(pluto.ownername||pluto.owner||''))) siteIcon=NYCHA_ICON;
@@ -1226,8 +1247,6 @@
   var AKA={
     // Arenas and ballparks: on a stadium card the point is the venue and who
     // plays there, not the lot number.
-    '4 PENNSYLVANIA PLAZA':{text:'Madison Square Garden, home of the Knicks and Rangers',bg:'#0d1b4b',fg:'#FFFFFF'},
-    '620 ATLANTIC AVE':{text:'Barclays Center, home of the Nets and the Liberty',bg:'#0d1b4b',fg:'#FFFFFF'},
     '41 SEAVER WAY':{text:'Citi Field, home of the Mets',bg:'#0d1b4b',fg:'#FFFFFF'},
     '126-01 ROOSEVELT AVE':{text:'Etihad Park, the future home of NYCFC',bg:'#0d1b4b',fg:'#FFFFFF'},
     '124-02 ROOSEVELT AVE':{text:'the USTA Billie Jean King National Tennis Center, home of the US Open',bg:'#0d1b4b',fg:'#FFFFFF'},
@@ -1473,10 +1492,15 @@
         (deep?('<a href="'+deep.href+'" style="background:#f47920;color:#fff;text-decoration:none;font-size:.73rem;font-weight:800;padding:6px 12px;border-radius:16px">'+deep.label+'</a>'):'')+
         '<a href="/blockbyblock/#foldAllSites" style="background:'+(deep?'transparent':'#f47920')+';color:#fff;text-decoration:none;font-size:.73rem;font-weight:800;padding:6px 12px;border-radius:16px'+(deep?';border:1.5px solid rgba(255,255,255,.35)':'')+'">See it on Block by Block &rarr;</a>'+
         '</div>';
+      // Place it after the zoning band and district lines, not above them: on a
+      // stadium card the zoning is the point, and a nearby LIFT site is context.
       var first=result.firstElementChild;
-      if(first && first.firstElementChild && first.firstElementChild.nextElementSibling)
+      var anchor=first && (first.querySelector('.citywide-result-map') || first.querySelector('.zoning-band'));
+      if(anchor && anchor.parentNode){
+        anchor.parentNode.insertBefore(box, anchor.nextSibling);
+      } else if(first && first.firstElementChild && first.firstElementChild.nextElementSibling){
         first.insertBefore(box, first.firstElementChild.nextElementSibling.nextElementSibling);
-      else if(first) first.insertBefore(box, first.firstElementChild);
+      } else if(first) first.appendChild(box);
       else result.appendChild(box);
     }).catch(function(){});
   }
@@ -1531,7 +1555,7 @@
 
     var a=profile.address||{}, pluto=profile.pluto||{}, input=profile.input||'';
     var cb=validCommunityBoardCode(profile.foundCd)?String(profile.foundCd):String(a.communityDistrict||pluto.cd||'');
-    var cbLabel=validCommunityBoardCode(cb)?boardLabel(cb):'Community Board not identified';
+    var cbLabel=areaLabel(cb||String(a.communityDistrict||pluto.cd||''));
     var zones=collectZones(a,pluto), zDisp=zones.length?zones.join(' / '):'Not available from PLUTO';
     var spDists=collectSpecialDistricts(pluto), spDisp=spDists.length?spDists.join(' / '):'';
     var lUse=landUseLabel(pluto.landuse);
@@ -1825,7 +1849,7 @@
     var a=profile.address||{}, pluto=profile.pluto||{}, input=profile.input||'';
     var near=profile.nearby||{};
     var cb=validCommunityBoardCode(profile.foundCd)?String(profile.foundCd):String(a.communityDistrict||pluto.cd||'');
-    var cbLabel=validCommunityBoardCode(cb)?boardLabel(cb):'Community Board not identified';
+    var cbLabel=areaLabel(cb||String(a.communityDistrict||pluto.cd||''));
     var zones=collectZones(a,pluto), zDisp=zones.length?zones.join(' / '):'Not available from PLUTO';
     var spDists=collectSpecialDistricts(pluto), spDisp=spDists.length?spDists.join(' / '):'';
     var lUse=landUseLabel(pluto.landuse);
