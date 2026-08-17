@@ -187,14 +187,98 @@
       Math.round(a[2] + (b[2] - a[2]) * f) + ')';
   }
 
+  /* Colour schemes for the district map. A raw count mostly tells you how big
+     a district is, so it is not the default: borough and school district are
+     categorical and answer a question someone actually has. */
+  var BOROCOL = { mn: '#1b6ca8', bx: '#0f766e', bk: '#f47920', qn: '#7a3ea8', si: '#b4436c' };
+  var SPLITCOL = { 1: '#cfd6e6', 2: '#8fa6cf', 3: '#4b6fae', 4: '#22417f', 5: '#06024D' };
+  var CSDCOL = ['#1b6ca8', '#f47920', '#0f766e', '#7a3ea8', '#b4436c', '#4b9fd5', '#c9820f',
+                '#2f8f5b', '#9b5bc4', '#d1567f', '#06024D', '#e0952f', '#3aa0a0', '#8c6d3f',
+                '#5b7fd4', '#d0483a'];
+
+  var SCHEMES = {
+    borough: {
+      label: 'Borough',
+      blurb: 'The five boroughs, so the map reads as the city you know before anything else.',
+      color: function (d) { return BOROCOL[d.boro]; },
+      value: function (d) { return BORO[d.boro]; },
+      legend: function (ds) {
+        return Object.keys(BORO).map(function (b) {
+          return { c: BOROCOL[b], t: BORO[b] + '  (' + ds.filter(function (d) { return d.boro === b; }).length + ' districts)' };
+        });
+      }
+    },
+    csd: {
+      label: 'School district',
+      blurb: 'Each community district takes the colour of the school district covering most of it, and its label shows that district number. There are 32 school districts and 16 colours, so a colour repeats across the city; the D number on the label is what identifies it.',
+      color: function (d) { return d.csd_main ? CSDCOL[(d.csd_main - 1) % CSDCOL.length] : '#dfe3ee'; },
+      value: function (d) { return d.csd_main ? 'Mostly School District ' + d.csd_main : 'No school district'; },
+      legend: function (ds) {
+        var seen = {};
+        ds.forEach(function (d) { if (d.csd_main) seen[d.csd_main] = true; });
+        return Object.keys(seen).sort(function (a, b) { return a - b; }).map(function (n) {
+          return { c: CSDCOL[(n - 1) % CSDCOL.length], t: 'CSD ' + n };
+        });
+      }
+    },
+    split: {
+      label: 'How many school districts',
+      blurb: 'How many school districts each community district is cut into. Darker means a board dealing with more superintendents for one neighbourhood.',
+      color: function (d) { return SPLITCOL[Math.min(d.csd_count || 1, 5)]; },
+      value: function (d) { return d.csd_count === 1 ? 'One school district' : d.csd_count + ' school districts'; },
+      legend: function (ds) {
+        return [1, 2, 3, 4, 5].filter(function (n) {
+          return ds.some(function (d) { return (d.csd_count || 1) === n; });
+        }).map(function (n) {
+          var c = ds.filter(function (d) { return (d.csd_count || 1) === n; }).length;
+          return { c: SPLITCOL[n], t: (n === 1 ? 'One school district' : n + ' school districts') + '  (' + c + ')' };
+        });
+      }
+    },
+    density: {
+      label: 'Sites per square mile',
+      blurb: 'Schools and childcare per square mile, which unlike a raw count does not simply reward a district for being large.',
+      seq: true,
+      color: function (d, max) { return shade(d.per_sqmi, max); },
+      metric: function (d) { return d.per_sqmi; },
+      value: function (d) { return d.per_sqmi + ' per square mile' }
+    },
+    total: {
+      label: 'Total sites',
+      blurb: 'The raw count. Useful for a total, but it largely tracks how big the district is, so read it next to the per square mile view.',
+      seq: true,
+      color: function (d, max) { return shade(d.total, max); },
+      metric: function (d) { return d.total; },
+      value: function (d) { return num(d.total) + ' sites' }
+    }
+  };
+  var scheme = 'borough';
+
   var labelLayer = null, pickedKey = null;
+
+  var recBy = {}, schemeMax = 1, activeScheme = null;
+
+  var LABELVAL = {
+    borough: function (d) { return num(d.total); },
+    csd: function (d) { return d.csd_main ? 'D' + d.csd_main : '\u2014'; },
+    split: function (d) { return (d.csd_count || 1) + (d.csd_count === 1 ? ' dist' : ' dists'); },
+    density: function (d) { return d.per_sqmi + '/mi'; },
+    total: function (d) { return num(d.total); }
+  };
+
+  function fillFor(k) {
+    var sc = SCHEMES[scheme];
+    var d = recBy[k];
+    if (!d || !sc) return '#eef0f7';
+    return sc.seq ? sc.color(d, schemeMax) : sc.color(d);
+  }
 
   function choropleth(gj, counts, max, hrefFor, nameFor) {
     var shapes = {};
     var lay = L.geoJSON(gj, {
       style: function (f) {
         var k = f.properties.cd != null ? f.properties.cd : f.properties.csd;
-        return { color: '#fff', weight: 1.2, fillColor: shade(counts[k] || 0, max), fillOpacity: 0.85 };
+        return { color: '#fff', weight: 1.2, fillColor: activeScheme ? fillFor(k) : shade(counts[k] || 0, max), fillOpacity: 0.85 };
       },
       onEachFeature: function (f, l) {
         var k = f.properties.cd != null ? f.properties.cd : f.properties.csd;
@@ -212,16 +296,18 @@
       var k = f.properties.cd != null ? f.properties.cd : f.properties.csd;
       if (f.properties.lx == null) return;
       var n = counts[k] || 0;
-      var dark = (n / max) > 0.45;
+      function labelHtml() {
+        var d = recBy[k];
+        var v = (activeScheme && d && LABELVAL[scheme]) ? LABELVAL[scheme](d) : num(n);
+        return '<span class="dlabel"><b>' + esc(f.properties.short) + '</b><i>' + esc(v) + '</i></span>';
+      }
       var m = L.marker([f.properties.ly, f.properties.lx], {
         interactive: true, keyboard: false,
-        icon: L.divIcon({
-          className: 'dlabel-wrap',
-          html: '<span class="dlabel' + (dark ? ' on-dark' : '') + '">' +
-                '<b>' + esc(f.properties.short) + '</b><i>' + num(n) + '</i></span>',
-          iconSize: [54, 30], iconAnchor: [27, 15]
-        })
+        icon: L.divIcon({ className: 'dlabel-wrap', html: labelHtml(), iconSize: [58, 30], iconAnchor: [29, 15] })
       });
+      m.relabel = function () {
+        m.setIcon(L.divIcon({ className: 'dlabel-wrap', html: labelHtml(), iconSize: [58, 30], iconAnchor: [29, 15] }));
+      };
       m.on('click', function () { pick(k); });
       m.addTo(labelLayer);
     });
@@ -229,6 +315,14 @@
     lay.pick = pick;
     lay.labels = labelLayer;
     lay.hrefFor = hrefFor;
+    lay.restyle = function () {
+      lay.eachLayer(function (l) {
+        var k = l.feature.properties.cd != null ? l.feature.properties.cd : l.feature.properties.csd;
+        if (k !== pickedKey) l.setStyle({ fillColor: fillFor(k), color: '#fff', weight: 1.2 });
+        else l.setStyle({ fillColor: fillFor(k) });
+      });
+      labelLayer.eachLayer(function (m) { if (m.relabel) m.relabel(); });
+    };
 
     function pick(k) {
       if (pickedKey && shapes[pickedKey]) shapes[pickedKey].setStyle({ weight: 1.2, color: '#fff' });
@@ -248,6 +342,58 @@
   }
 
   /* ---------- key + controls ---------- */
+  function buildSchemePicker(host, ds, onChange) {
+    if (!host) return;
+    host.innerHTML = '';
+    Object.keys(SCHEMES).forEach(function (k) {
+      var b = el('button', 'chip scheme');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', k === scheme ? 'true' : 'false');
+      b.textContent = SCHEMES[k].label;
+      b.addEventListener('click', function () {
+        scheme = k;
+        Array.prototype.forEach.call(host.children, function (o) { o.setAttribute('aria-pressed', 'false'); });
+        b.setAttribute('aria-pressed', 'true');
+        setSchemeMax(ds);
+        onChange();
+      });
+      host.appendChild(b);
+    });
+  }
+
+  function setSchemeMax(ds) {
+    var sc = SCHEMES[scheme];
+    schemeMax = sc.seq ? Math.max.apply(null, ds.map(sc.metric)) : 1;
+  }
+
+  function schemeLegend(host, ds) {
+    if (!host) return;
+    host.innerHTML = '';
+    var sc = SCHEMES[scheme];
+    var blk = el('div', 'key-block');
+    blk.appendChild(el('div', 'key-h', 'Colour: ' + sc.label));
+    if (sc.seq) {
+      var ramp = el('div', 'ramp');
+      [0.02, 0.25, 0.5, 0.75, 1].forEach(function (t) {
+        var i = el('i'); i.style.background = shade(t * schemeMax, schemeMax); ramp.appendChild(i);
+      });
+      blk.appendChild(ramp);
+      var lo = Math.min.apply(null, ds.map(sc.metric));
+      blk.appendChild(el('div', 'key-scale', lo + '   \u2192   ' + schemeMax + ' in the highest district'));
+    } else {
+      var list = el('div', 'key-items');
+      sc.legend(ds).forEach(function (r) {
+        var d = el('span', 'key-item');
+        var sw = el('i', 'kswatch fill'); sw.style.setProperty('--c', r.c); sw.style.opacity = 1;
+        d.appendChild(sw); d.appendChild(el('span', null, r.t));
+        list.appendChild(d);
+      });
+      blk.appendChild(list);
+    }
+    blk.appendChild(el('div', 'key-note', sc.blurb));
+    host.appendChild(blk);
+  }
+
   function buildKey(host, opts) {
     if (!host) return;
     host.innerHTML = '';
@@ -373,14 +519,21 @@
         S = res[0]; items = res[1];
         buildStats(S); buildBorough(S); buildTable(S); buildIndex(S); buildAudit(S);
         initMap([40.7128, -73.94], 11);
-        var c = {}; S.districts.forEach(function (d) { c[d.cd] = d.total; });
+        var c = {}; S.districts.forEach(function (d) { c[d.cd] = d.total; recBy[d.cd] = d; });
         var names = {}; S.districts.forEach(function (d) { names[d.cd] = cdLabel(d.cd) + ' \u2014 ' + d.name; });
+        activeScheme = true;
+        setSchemeMax(S.districts);
         var lay = choropleth(res[2], c, S.max_district_total,
           function (k) { return 'eduhub-' + k; },
           function (k) { return names[k]; });
         lay.addTo(shapeLayer);
         buildMarkers(items);
-        buildKey($('#mapkey'), { shading: true, max: S.max_district_total });
+        buildSchemePicker($('#schemechips'), S.districts, function () {
+          lay.restyle();
+          schemeLegend($('#schemekey'), S.districts);
+        });
+        schemeLegend($('#schemekey'), S.districts);
+        buildKey($('#mapkey'), { shading: false });
       }
     });
 
@@ -477,13 +630,21 @@
         initMap([40.7, -73.95], 11);
         var mine = s.districts.filter(function (x) { return x.boro === b; });
         var c = {}, names = {}, max = 0;
-        mine.forEach(function (x) { c[x.cd] = x.total; names[x.cd] = cdLabel(x.cd) + ' \u2014 ' + x.name; if (x.total > max) max = x.total; });
+        mine.forEach(function (x) { c[x.cd] = x.total; recBy[x.cd] = x; names[x.cd] = cdLabel(x.cd) + ' \u2014 ' + x.name; if (x.total > max) max = x.total; });
         var gj = { type: 'FeatureCollection', features: res[2].features.filter(function (f) { return f.properties.cd.indexOf(b + '-') === 0; }) };
+        activeScheme = true;
+        scheme = 'csd';
+        setSchemeMax(mine);
         var lay = choropleth(gj, c, max, function (k) { return 'eduhub-' + k; }, function (k) { return names[k]; });
         lay.addTo(shapeLayer);
         map.fitBounds(lay.getBounds(), { padding: [14, 14] });
         buildMarkers(items);
-        buildKey($('#mapkey'), { shading: true, max: max });
+        buildSchemePicker($('#schemechips'), mine, function () {
+          lay.restyle();
+          schemeLegend($('#schemekey'), mine);
+        });
+        schemeLegend($('#schemekey'), mine);
+        buildKey($('#mapkey'), { shading: false });
         buildBoroTable(s, b);
       }
     });
