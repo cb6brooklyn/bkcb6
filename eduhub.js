@@ -19,6 +19,50 @@
   var LEVEL_ORDER = ['Elementary', 'K-8', 'Middle', 'Secondary (6-12)', 'High school', 'K-12', 'Level not published'];
   var CHILDCARE = { c: '#f47920', g: 'child', k: 'Childcare, day care & pre-K' };
   var ZOOM_FOR_SITES = 14;
+  /* Colours for the school district slices inside one community district,
+     assigned largest share first so the dominant CSD always reads strongest. */
+  var SPLIT = ['#7a3ea8', '#f47920', '#1b6ca8', '#0f766e', '#b4436c'];
+
+  function splitBar(rows, host, unit) {
+    if (!host) return;
+    host.innerHTML = '';
+    var bar = el('div', 'splitbar');
+    rows.forEach(function (r, i) {
+      var seg = el('span', 'splitseg');
+      seg.style.width = Math.max(r.pct, 2) + '%';
+      seg.style.background = SPLIT[i % SPLIT.length];
+      seg.title = r.label + ' \u2014 ' + r.pct.toFixed(1) + '%';
+      if (r.pct >= 8) seg.textContent = r.pct.toFixed(0) + '%';
+      bar.appendChild(seg);
+    });
+    host.appendChild(bar);
+    var keys = el('div', 'splitkeys');
+    rows.forEach(function (r, i) {
+      var k = el('span', 'splitkey');
+      var sw = el('i'); sw.style.background = SPLIT[i % SPLIT.length];
+      k.appendChild(sw);
+      k.appendChild(el('span', null, r.label + '  ' + r.pct.toFixed(1) + '%' +
+        (r.sites != null ? '  \u00b7  ' + num(r.sites) + ' ' + (r.sites === 1 ? unit.replace(/s$/, '') : unit) : '')));
+      keys.appendChild(k);
+    });
+    host.appendChild(keys);
+  }
+
+  function splitSentence(name, rows) {
+    if (!rows.length) return '';
+    if (rows.length === 1) {
+      return rows[0].pct_of_cd >= 99.9
+        ? name + ' sits entirely inside School District ' + rows[0].csd + '.'
+        : name + ' is served by one school district, School District ' + rows[0].csd + ', covering ' +
+          rows[0].pct_of_cd.toFixed(1) + '% of its land; the remainder falls outside any school district boundary.';
+    }
+    var first = rows[0], rest = rows.slice(1);
+    var tail = rest.map(function (r) { return 'District ' + r.csd + ' (' + r.pct_of_cd.toFixed(0) + '%)'; });
+    var joined = tail.length === 1 ? tail[0] : tail.slice(0, -1).join(', ') + ' and ' + tail[tail.length - 1];
+    var lead = first.pct_of_cd >= 75 ? 'is mostly' : (first.pct_of_cd >= 50 ? 'is mainly' : 'leans toward');
+    return name + ' ' + lead + ' School District ' + first.csd + ' (' + first.pct_of_cd.toFixed(0) +
+      '%), with ' + (rest.length === 1 && rest[0].pct_of_cd < 15 ? 'a slice in ' : 'the rest in ') + joined + '.';
+  }
 
   /* Glyphs: schoolhouse, graduation cap, child. Drawn white on the level colour. */
   var GLYPH = {
@@ -143,21 +187,64 @@
       Math.round(a[2] + (b[2] - a[2]) * f) + ')';
   }
 
+  var labelLayer = null, pickedKey = null;
+
   function choropleth(gj, counts, max, hrefFor, nameFor) {
-    return L.geoJSON(gj, {
+    var shapes = {};
+    var lay = L.geoJSON(gj, {
       style: function (f) {
         var k = f.properties.cd != null ? f.properties.cd : f.properties.csd;
         return { color: '#fff', weight: 1.2, fillColor: shade(counts[k] || 0, max), fillOpacity: 0.85 };
       },
       onEachFeature: function (f, l) {
         var k = f.properties.cd != null ? f.properties.cd : f.properties.csd;
-        var n = counts[k] || 0;
-        l.bindTooltip('<strong>' + nameFor(k, f) + '</strong><br>' + num(n) + ' schools and childcare sites', { sticky: true });
-        l.on('mouseover', function () { l.setStyle({ weight: 3, color: '#f47920' }); l.bringToFront(); });
-        l.on('mouseout', function () { l.setStyle({ weight: 1.2, color: '#fff' }); });
-        l.on('click', function () { if (hrefFor) window.location.href = hrefFor(k); });
+        shapes[k] = l;
+        l.on('mouseover', function () { if (k !== pickedKey) l.setStyle({ weight: 2.5, color: '#f47920' }); l.bringToFront(); });
+        l.on('mouseout', function () { if (k !== pickedKey) l.setStyle({ weight: 1.2, color: '#fff' }); });
+        l.on('click', function () { pick(k); });
       }
     });
+
+    /* Permanent name + count on every district, so the map reads without hovering.
+       Hover and tap are extras, not the only way in. */
+    labelLayer = L.layerGroup();
+    gj.features.forEach(function (f) {
+      var k = f.properties.cd != null ? f.properties.cd : f.properties.csd;
+      if (f.properties.lx == null) return;
+      var n = counts[k] || 0;
+      var dark = (n / max) > 0.45;
+      var m = L.marker([f.properties.ly, f.properties.lx], {
+        interactive: true, keyboard: false,
+        icon: L.divIcon({
+          className: 'dlabel-wrap',
+          html: '<span class="dlabel' + (dark ? ' on-dark' : '') + '">' +
+                '<b>' + esc(f.properties.short) + '</b><i>' + num(n) + '</i></span>',
+          iconSize: [54, 30], iconAnchor: [27, 15]
+        })
+      });
+      m.on('click', function () { pick(k); });
+      m.addTo(labelLayer);
+    });
+
+    lay.pick = pick;
+    lay.labels = labelLayer;
+    lay.hrefFor = hrefFor;
+
+    function pick(k) {
+      if (pickedKey && shapes[pickedKey]) shapes[pickedKey].setStyle({ weight: 1.2, color: '#fff' });
+      pickedKey = k;
+      if (shapes[k]) { shapes[k].setStyle({ weight: 3.5, color: '#f47920' }); shapes[k].bringToFront(); }
+      var host = $('#picked');
+      if (!host) return;
+      host.innerHTML = '';
+      host.appendChild(el('div', 'picked-name', nameFor(k)));
+      host.appendChild(el('div', 'picked-n', num(counts[k] || 0) + ' schools and childcare sites'));
+      var a = el('a', 'btn solid picked-go', 'Open this page');
+      a.href = hrefFor(k);
+      host.appendChild(a);
+      host.hidden = false;
+    }
+    return lay;
   }
 
   /* ---------- key + controls ---------- */
@@ -265,6 +352,10 @@
       var vis = items.filter(matches);
       var on = showSites();
       shapeLayer.eachLayer(function (l) { if (l.setStyle) l.setStyle({ fillOpacity: on ? 0.12 : 0.85 }); });
+      if (labelLayer) {
+        if (on) map.removeLayer(labelLayer);
+        else if (!map.hasLayer(labelLayer)) labelLayer.addTo(map);
+      }
       drawSites();
       setText('#map-count', on ? num(vis.length) + ' sites shown' : 'Districts shaded by how many sites they hold');
       var t = $('#sites-toggle');
@@ -284,9 +375,10 @@
         initMap([40.7128, -73.94], 11);
         var c = {}; S.districts.forEach(function (d) { c[d.cd] = d.total; });
         var names = {}; S.districts.forEach(function (d) { names[d.cd] = cdLabel(d.cd) + ' \u2014 ' + d.name; });
-        choropleth(res[2], c, S.max_district_total,
+        var lay = choropleth(res[2], c, S.max_district_total,
           function (k) { return 'eduhub-' + k; },
-          function (k) { return names[k]; }).addTo(shapeLayer);
+          function (k) { return names[k]; });
+        lay.addTo(shapeLayer);
         buildMarkers(items);
         buildKey($('#mapkey'), { shading: true, max: S.max_district_total });
       }
@@ -457,36 +549,74 @@
   function district(cd) {
     detail({
       status: '#cards',
-      loads: [BASE + cd + '.json', BASE + 'districts.geojson', BASE + 'csd-summary.json', BASE + 'school-districts.geojson'],
+      loads: [BASE + cd + '.json', BASE + 'districts.geojson', BASE + 'csd-summary.json',
+              BASE + 'cd-csd-overlap.geojson'],
       cards: cardList,
       ready: function (res) {
-        var d = res[0], gj = res[1], cs = res[2], sd = res[3];
+        var d = res[0], gj = res[1], cs = res[2], ov = res[3];
         items = d.items;
         initMap([40.7, -73.95], 12);
         var f = gj.features.filter(function (x) { return x.properties.cd === cd; });
         var bound = L.geoJSON({ type: 'FeatureCollection', features: f }, {
-          style: { color: '#06024D', weight: 2.5, fill: true, fillColor: '#06024D', fillOpacity: 0.04 }
+          style: { color: '#06024D', weight: 3, fill: false }
         }).addTo(shapeLayer);
         map.fitBounds(bound.getBounds(), { padding: [16, 16] });
+
         var rows = cs.by_cd[cd] || [];
-        var only = { type: 'FeatureCollection', features: sd.features.filter(function (x) {
-          return rows.some(function (r) { return r.csd === x.properties.csd; }); }) };
-        var csdLayer = L.geoJSON(only, {
-          style: { color: '#7a3ea8', weight: 2, fill: false, dashArray: '5 4', opacity: 0.85 },
-          onEachFeature: function (ft, l) { l.bindTooltip(ft.properties.name, { sticky: true }); }
+        var rank = {};
+        rows.forEach(function (r, i) { rank[r.csd] = i; });
+
+        /* Fill the district with one patch per school district it falls in,
+           so the split is visible on the map itself, not just in a table. */
+        var pieces = ov.features.filter(function (x) { return x.properties.cd === cd; });
+        var splitLayer = L.layerGroup();
+        L.geoJSON({ type: 'FeatureCollection', features: pieces }, {
+          style: function (ft) {
+            var col = SPLIT[rank[ft.properties.csd] % SPLIT.length];
+            return { color: col, weight: 3, fill: true, fillColor: col, fillOpacity: 0.3 };
+          },
+          onEachFeature: function (ft, l) {
+            var pr = ft.properties;
+            l.bindTooltip('<strong>School District ' + pr.csd + '</strong><br>' +
+              pr.pct_of_cd.toFixed(1) + '% of this community district<br>' +
+              num(pr.sites) + ' schools and childcare ' + (pr.sites === 1 ? 'site' : 'sites'), { sticky: true });
+          }
+        }).addTo(splitLayer);
+        /* Stamp the school district number on each patch so it reads under the pins. */
+        pieces.forEach(function (ft) {
+          if (ft.properties.lx == null) return;
+          var col = SPLIT[rank[ft.properties.csd] % SPLIT.length];
+          L.marker([ft.properties.ly, ft.properties.lx], {
+            interactive: false, keyboard: false, zIndexOffset: -500,
+            icon: L.divIcon({ className: 'dlabel-wrap',
+              html: '<span class="csdstamp" style="--c:' + col + '">D' + ft.properties.csd + '</span>',
+              iconSize: [46, 22], iconAnchor: [23, 11] })
+          }).addTo(splitLayer);
         });
+        splitLayer.addTo(map);
+
         var tog = $('#csd-toggle');
-        if (tog) tog.addEventListener('click', function () {
-          var on = tog.getAttribute('aria-pressed') === 'true';
-          if (on) { map.removeLayer(csdLayer); tog.setAttribute('aria-pressed', 'false'); }
-          else { csdLayer.addTo(map); tog.setAttribute('aria-pressed', 'true'); }
-        });
+        if (tog) {
+          tog.setAttribute('aria-pressed', 'true');
+          tog.textContent = 'Hide school district split';
+          tog.addEventListener('click', function () {
+            var on = tog.getAttribute('aria-pressed') === 'true';
+            if (on) { map.removeLayer(splitLayer); tog.setAttribute('aria-pressed', 'false'); tog.textContent = 'Show school district split'; }
+            else { splitLayer.addTo(map); tog.setAttribute('aria-pressed', 'true'); tog.textContent = 'Hide school district split'; }
+          });
+        }
+
         var host = $('#cd-overlap');
         if (host) { host.innerHTML = ''; host.appendChild(overlapTable(rows, 'byCd')); }
+        splitBar(rows.map(function (r) {
+          return { pct: r.pct_of_cd, csd: r.csd, sites: r.sites, label: 'School District ' + r.csd };
+        }), $('#splitbar'), 'sites');
         var lead = $('#overlap-lead');
-        if (lead) lead.textContent = rows.length === 1
-          ? 'This community district sits entirely inside one school district.'
-          : 'This community district is split across ' + rows.length + ' school districts.';
+        if (lead) lead.textContent = splitSentence(d.name, rows);
+        var mapLead = $('#map-split-note');
+        if (mapLead) mapLead.textContent = rows.length === 1
+          ? 'The whole district is one school district, so the fill is a single colour.'
+          : 'The coloured patches inside the district boundary are its ' + rows.length + ' school districts.';
         buildMarkers(items);
       }
     });
@@ -567,7 +697,7 @@
       var host = $('#crosswalk');
       var t = document.createElement('table');
       var tr = t.createTHead().insertRow();
-      ['Community district', 'Area', 'School districts it covers', 'Split'].forEach(function (h) {
+      ['Community district', 'Area', 'School districts it covers', 'Share of the district', 'Split'].forEach(function (h) {
         var th = document.createElement('th'); th.textContent = h; tr.appendChild(th);
       });
       var tb = t.createTBody();
@@ -580,6 +710,16 @@
           return '<a href="eduhub-csd-' + r.csd + '">CSD ' + r.csd + '</a> ' + r.pct_of_cd.toFixed(0) + '%';
         }).join(' &middot; ');
         c2.style.whiteSpace = 'normal';
+        var c3 = row.insertCell();
+        var mini = el('span', 'minibar');
+        rows.forEach(function (r, i) {
+          var seg = el('i');
+          seg.style.width = Math.max(r.pct_of_cd, 2) + '%';
+          seg.style.background = SPLIT[i % SPLIT.length];
+          seg.title = 'CSD ' + r.csd + ' \u2014 ' + r.pct_of_cd.toFixed(1) + '%';
+          mini.appendChild(seg);
+        });
+        c3.appendChild(mini);
         row.insertCell().textContent = rows.length === 1 ? 'whole district' : rows.length + ' school districts';
       });
       host.innerHTML = ''; host.appendChild(t);
@@ -617,6 +757,255 @@
         });
         host.appendChild(ul);
       }
+    }
+  }
+
+
+  /* ---------- zoned school finder ---------- */
+  var ZLV = [
+    { k: 'elementary', label: 'Elementary zone', c: '#1b6ca8' },
+    { k: 'middle',     label: 'Middle school zone', c: '#0f766e' },
+    { k: 'high',       label: 'High school zone', c: '#06024D' }
+  ];
+  var zoneData = {}, zoneLayer = null, zoneLevel = 'elementary', hereMarker = null;
+
+  function loadZone(k) {
+    if (zoneData[k]) return Promise.resolve(zoneData[k]);
+    return get(BASE + 'zones-' + k + '.geojson').then(function (g) { zoneData[k] = g; return g; });
+  }
+
+  /* Ray casting against a GeoJSON Polygon / MultiPolygon ring set. */
+  function inRing(pt, ring) {
+    var x = pt[0], y = pt[1], inside = false;
+    for (var i = 0, jj = ring.length - 1; i < ring.length; jj = i++) {
+      var xi = ring[i][0], yi = ring[i][1], xj = ring[jj][0], yj = ring[jj][1];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  function inPolygon(pt, poly) {
+    if (!inRing(pt, poly[0])) return false;
+    for (var i = 1; i < poly.length; i++) if (inRing(pt, poly[i])) return false;
+    return true;
+  }
+  function findZone(gj, lon, lat) {
+    var pt = [lon, lat];
+    for (var i = 0; i < gj.features.length; i++) {
+      var g = gj.features[i].geometry;
+      if (g.type === 'Polygon') { if (inPolygon(pt, g.coordinates)) return gj.features[i]; }
+      else if (g.type === 'MultiPolygon') {
+        for (var m = 0; m < g.coordinates.length; m++) if (inPolygon(pt, g.coordinates[m])) return gj.features[i];
+      }
+    }
+    return null;
+  }
+
+  function zoneStyle(k) {
+    var c = ZLV.filter(function (z) { return z.k === k; })[0].c;
+    return function (f) {
+      return f.properties.zoned
+        ? { color: c, weight: 1.2, fillColor: c, fillOpacity: 0.14 }
+        : { color: '#9aa0b0', weight: 1, fillColor: '#9aa0b0', fillOpacity: 0.1, dashArray: '3 3' };
+    };
+  }
+
+  function zoneName(f) {
+    var p = f.properties;
+    if (p.schools && p.schools.length) {
+      return p.schools.map(function (s) { return s.name ? title(s.name) : s.dbn; }).join(' / ');
+    }
+    return p.remarks ? p.remarks : 'No zoned school';
+  }
+
+  function zoneSchoolLines(f) {
+    var p = f.properties;
+    if (!p.schools || !p.schools.length) {
+      return '<div class="zline muted">' + esc(p.remarks || 'No zoned school for this area.') + '</div>';
+    }
+    return p.schools.map(function (s) {
+      return '<div class="zline"><b>' + (s.name ? title(s.name) : esc(s.dbn)) + '</b>' +
+        '<span>' + esc(s.dbn) + (s.grades ? ' \u00b7 grades ' + esc(s.grades) : '') + '</span>' +
+        (s.addr ? '<span>' + title(s.addr) + '</span>' : '') +
+        (s.phone ? '<span>' + esc(s.phone) + '</span>' : '') +
+        (s.name ? '' : '<span class="muted">Name not in the published DOE directory for this code.</span>') +
+        '</div>';
+    }).join('');
+  }
+
+  function zonesPage() {
+    var summary = null, csdGj = null, cdGj = null;
+    Promise.all([loadZone('elementary'), get(BASE + 'districts.geojson'),
+                 get(BASE + 'school-districts.geojson'), get(BASE + 'summary.json')])
+      .then(function (res) {
+        cdGj = res[1]; csdGj = res[2]; summary = res[3];
+        initMap([40.7128, -73.94], 11);
+        drawZones();
+        buildZoneChips();
+        buildDirectory();
+        wireAddress();
+        buildKey($('#mapkey'), { shading: false });
+      })
+      .catch(function (e) {
+        var t = $('#zone-status');
+        if (t) t.textContent = 'Could not load the zone data. ' + e.message;
+      });
+
+    function drawZones() {
+      shapeLayer.clearLayers();
+      var gj = zoneData[zoneLevel];
+      L.geoJSON(gj, {
+        style: zoneStyle(zoneLevel),
+        onEachFeature: function (f, l) {
+          l.bindTooltip('<strong>' + zoneName(f) + '</strong>' +
+            (f.properties.csd ? '<br>School District ' + esc(f.properties.csd) : ''), { sticky: true });
+        }
+      }).addTo(shapeLayer);
+      var lbl = L.layerGroup();
+      gj.features.forEach(function (f) {
+        if (!f.properties.label || f.properties.lx == null) return;
+        L.marker([f.properties.ly, f.properties.lx], {
+          interactive: false, keyboard: false,
+          icon: L.divIcon({ className: 'dlabel-wrap',
+            html: '<span class="zlabel">' + esc(f.properties.label) + '</span>',
+            iconSize: [34, 18], iconAnchor: [17, 9] })
+        }).addTo(lbl);
+      });
+      lbl.addTo(shapeLayer);
+    }
+
+    function buildZoneChips() {
+      var host = $('#zonechips'); if (!host) return;
+      host.innerHTML = '';
+      ZLV.forEach(function (z) {
+        var b = el('button', 'chip lvl');
+        b.type = 'button';
+        b.style.setProperty('--pin', z.c);
+        b.setAttribute('aria-pressed', z.k === zoneLevel ? 'true' : 'false');
+        b.textContent = z.label;
+        b.addEventListener('click', function () {
+          zoneLevel = z.k;
+          Array.prototype.forEach.call(host.children, function (o) { o.setAttribute('aria-pressed', 'false'); });
+          b.setAttribute('aria-pressed', 'true');
+          loadZone(z.k).then(function () { drawZones(); buildDirectory(); });
+        });
+        host.appendChild(b);
+      });
+    }
+
+    function buildDirectory() {
+      var host = $('#zonecards'); if (!host) return;
+      var gj = zoneData[zoneLevel];
+      var q = ($('#zq') ? $('#zq').value : '').trim().toLowerCase();
+      var rows = gj.features.filter(function (f) {
+        if (!q) return true;
+        return (zoneName(f) + ' ' + (f.properties.label || '') + ' ' + (f.properties.csd || '') + ' ' +
+          (f.properties.schools || []).map(function (s) { return s.dbn + ' ' + s.addr; }).join(' ')).toLowerCase().indexOf(q) > -1;
+      });
+      setText('#zone-count', num(rows.length) + ' of ' + num(gj.features.length) + ' zones');
+      host.innerHTML = '';
+      if (!rows.length) { host.innerHTML = '<div class="empty">No zones match that search.</div>'; return; }
+      rows.forEach(function (f) {
+        var c = el('div', 'card');
+        var t = el('span', 'tag');
+        t.style.background = ZLV.filter(function (z) { return z.k === zoneLevel; })[0].c;
+        t.textContent = f.properties.zoned ? 'Zone ' + (f.properties.label || f.properties.schools[0].dbn) : 'No zoned school';
+        c.appendChild(t);
+        c.appendChild(el('h3', null, zoneName(f)));
+        var m = el('div', 'meta');
+        m.innerHTML = (f.properties.csd ? 'School District ' + esc(f.properties.csd) : '') +
+          ((f.properties.schools || []).filter(function (s) { return s.addr; })
+            .map(function (s) { return '<br>' + title(s.addr); }).join(''));
+        c.appendChild(m);
+        c.addEventListener('click', function () {
+          if (f.properties.lx == null) return;
+          map.setView([f.properties.ly, f.properties.lx], 14);
+          document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+        host.appendChild(c);
+      });
+    }
+
+    function wireAddress() {
+      var box = $('#addr'), btn = $('#addr-go');
+      if (!box) return;
+      var zbox = $('#zq');
+      if (zbox) zbox.addEventListener('input', buildDirectory);
+      function run() {
+        var v = box.value.trim();
+        if (!v) return;
+        var out = $('#addr-result');
+        out.hidden = false;
+        out.innerHTML = '<div class="loading">Looking up that address...</div>';
+        fetch('https://geosearch.planninglabs.nyc/v2/search?size=5&text=' + encodeURIComponent(v))
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d.features || !d.features.length) {
+              out.innerHTML = '<div class="empty">No New York City address matched that. Try adding the borough, for example "250 Baltic Street Brooklyn".</div>';
+              return;
+            }
+            var f = d.features[0], lon = f.geometry.coordinates[0], lat = f.geometry.coordinates[1];
+            return Promise.all(ZLV.map(function (z) { return loadZone(z.k); })).then(function () {
+              showResult(f, lon, lat, out);
+              alternatives(d.features, out);
+            });
+          })
+          .catch(function (e) { out.innerHTML = '<div class="empty">Address lookup failed. ' + esc(e.message) + '</div>'; });
+      }
+      btn.addEventListener('click', run);
+      box.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+    }
+
+    function alternatives(feats, out) {
+      /* The geocoder guesses. Show the other candidates so a wrong borough is
+         obvious and one tap away from being corrected. */
+      var others = feats.slice(1).filter(function (f) {
+        return f.properties.label && f.properties.label !== feats[0].properties.label;
+      });
+      if (!others.length) return;
+      var box = el('div', 'alts');
+      box.appendChild(el('div', 'alts-h', 'Not the right one? Other addresses matched that search:'));
+      others.forEach(function (f) {
+        var a = el('button', 'altbtn', f.properties.label);
+        a.type = 'button';
+        a.addEventListener('click', function () {
+          showResult(f, f.geometry.coordinates[0], f.geometry.coordinates[1], out);
+          alternatives([f].concat(feats.filter(function (x) { return x !== f; })), out);
+        });
+        box.appendChild(a);
+      });
+      out.appendChild(box);
+    }
+
+    function showResult(f, lon, lat, out) {
+      var cd = findZone(cdGj, lon, lat), csd = findZone(csdGj, lon, lat);
+      out.innerHTML = '';
+      var h = el('div', 'res-head', f.properties.label || 'That address');
+      out.appendChild(h);
+      var ctx = el('div', 'res-ctx');
+      var cdKey = cd ? cd.properties.cd : null;
+      var dRec = cdKey && summary ? summary.districts.filter(function (x) { return x.cd === cdKey; })[0] : null;
+      ctx.innerHTML = (dRec ? '<a href="eduhub-' + cdKey + '">' + cdLabel(cdKey) + ' \u2014 ' + esc(dRec.name) + '</a>' : 'Community district not found') +
+        (csd ? '  \u00b7  <a href="eduhub-csd-' + csd.properties.csd + '">School District ' + csd.properties.csd + '</a>' : '');
+      out.appendChild(ctx);
+      ZLV.forEach(function (z) {
+        var zf = findZone(zoneData[z.k], lon, lat);
+        var block = el('div', 'res-zone');
+        var head = el('div', 'res-zone-h');
+        head.innerHTML = '<i style="background:' + z.c + '"></i>' + z.label;
+        block.appendChild(head);
+        var body = el('div', 'res-zone-b');
+        body.innerHTML = zf ? zoneSchoolLines(zf)
+          : '<div class="zline muted">This address is not inside a published ' + z.label.toLowerCase() + '.</div>';
+        block.appendChild(body);
+        out.appendChild(block);
+      });
+      out.appendChild(el('p', 'note', 'Zone boundaries are the DOE 2024-2025 school zones. Zoning does not guarantee placement, and many high schools admit citywide rather than by zone. Confirm with the school or your enrollment office.'));
+      if (hereMarker) map.removeLayer(hereMarker);
+      hereMarker = L.marker([lat, lon], {
+        icon: L.divIcon({ className: 'dlabel-wrap', html: '<span class="herepin"></span>', iconSize: [22, 22], iconAnchor: [11, 11] })
+      }).addTo(map);
+      map.setView([lat, lon], 15);
+      document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }
 
@@ -691,5 +1080,5 @@
     rows.forEach(function (r) { tb.appendChild(r); });
   }
 
-  window.EDU = { hub: hub, district: district, borough: borough, csdHub: csdHub, csdPage: csdPage };
+  window.EDU = { hub: hub, district: district, borough: borough, csdHub: csdHub, csdPage: csdPage, zones: zonesPage };
 })();
