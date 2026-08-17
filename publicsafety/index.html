@@ -31,7 +31,7 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.01em;line-height:1.05;margin-
 .headline .big{font-size:30px;font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums;line-height:1}
 .headline .lab{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:3px}
 
-.dstabs{display:flex;gap:0;border:1.5px solid var(--navy);border-radius:4px;overflow:hidden;margin-bottom:14px;max-width:520px}
+.dstabs{display:flex;flex-wrap:wrap;gap:0;border:1.5px solid var(--navy);border-radius:4px;overflow:hidden;margin-bottom:14px;max-width:820px}
 .dstabs button{flex:1;font:inherit;font-size:13px;font-weight:700;padding:10px 8px;border:0;
   background:var(--card);color:var(--navy);cursor:pointer;letter-spacing:.02em}
 .dstabs button+button{border-left:1.5px solid var(--navy)}
@@ -140,6 +140,8 @@ text{font-family:"Helvetica Neue",Arial,sans-serif}
   <button id="dsComplaints" aria-pressed="true">Reported crime</button>
   <button id="dsArrests" aria-pressed="false">Arrests</button>
   <button id="dsShootings" aria-pressed="false">Shootings</button>
+  <button id="dsMoving" aria-pressed="false">Moving violations</button>
+  <button id="dsParking" aria-pressed="false">Parking tickets</button>
 </div>
 
 <div class="geo">
@@ -214,10 +216,12 @@ text{font-family:"Helvetica Neue",Arial,sans-serif}
 var BORO={'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
 var BORD=['1','2','3','4','5'];
 var BC={'1':'MN','2':'BX','3':'BK','4':'QN','5':'SI'};
-var DSN={c:'Reported crime',a:'Arrests',s:'Shootings'};
+var DSN={c:'Reported crime',a:'Arrests',s:'Shootings',m:'Moving violations',k:'Parking tickets'};
 var SEVN=['Felony','Misdemeanor','Violation'];
 
-var HUB=null,XW=null,CDL=null,DIR=null,GEO={},PBORO={};
+var HUB=null,XW=null,CDL=null,DIR=null,PARK=null,GEO={},PBORO={};
+var NOSEV={s:1,m:1,k:1};
+function precinctOnly(){return ds==='k';}
 var ds='c',lvl='city',key='',sev='',typ='',yFrom='',yTo='';
 var YEARS=[];
 
@@ -238,6 +242,7 @@ function getJSON(u){return fetch(u).then(function(r){if(!r.ok)throw new Error(u)
 
 /* ---------- counting ---------- */
 function gKeys(l,k){
+  if(ds==='k')return parkKeysFor(l,k);
   if(l==='cd')return ['C'+k];
   if(l==='pct')return ['P'+k];
   if(l==='sec')return ['S'+k];
@@ -253,7 +258,30 @@ function yearsIn(){
   YEARS.forEach(function(y){var n=parseInt(y,10);if(n>=f&&n<=t)a.push(y);});
   return a;
 }
+function parkCount(g,useTyp){
+  if(g.charAt(0)!=='P')return 0;
+  var tv=PARK.p[g.slice(1)];
+  if(!tv)return 0;
+  if(useTyp!=='')return tv[useTyp]||0;
+  var n=0;for(var k in tv)n+=tv[k];
+  return n;
+}
+function parkKeysFor(l,k){
+  /* parking has no coordinates, so a district or sector resolves to the precincts that cover it */
+  if(l==='pct')return ['P'+k];
+  if(l==='sec')return ['P'+k.replace(/[A-Z]+$/,'')];
+  var o=[];
+  if(l==='cd'){
+    for(var p in XW.pct){if(XW.pct[p][k])o.push('P'+p);}
+    return o;
+  }
+  for(var p2 in PARK.p){
+    if(l==='city'||PBORO[p2]===k)o.push('P'+p2);
+  }
+  return o;
+}
 function countGeo(g,years,useSev,useTyp){
+  if(ds==='k')return parkCount(g,useTyp);
   var rec=HUB.g[g];
   if(!rec||!rec[ds])return 0;
   var d=rec[ds],n=0;
@@ -275,6 +303,15 @@ function total(l,k,years){
   return n;
 }
 function typeBreak(){
+  if(ds==='k'){
+    var kk=gKeys(lvl,key),o={};
+    kk.forEach(function(g){
+      var tv=PARK.p[g.slice(1)];
+      if(!tv)return;
+      for(var t in tv)o[t]=(o[t]||0)+tv[t];
+    });
+    return o;
+  }
   var ks=gKeys(lvl,key),years=yearsIn(),out={};
   ks.forEach(function(g){
     var rec=HUB.g[g];
@@ -293,6 +330,7 @@ function typeBreak(){
   return out;
 }
 function sevBreak(){
+  if(NOSEV[ds])return [0,0,0];
   var ks=gKeys(lvl,key),years=yearsIn(),out=[0,0,0];
   ks.forEach(function(g){
     var rec=HUB.g[g];
@@ -310,6 +348,7 @@ function sevBreak(){
   return out;
 }
 function yearSeries(){
+  if(ds==='k')return [];
   var ks=gKeys(lvl,key),out=[];
   YEARS.forEach(function(y){
     var n=0;
@@ -380,7 +419,10 @@ function buildChips(){
 
 /* ---------- map ---------- */
 var MAPSRC={cd:'/data/cd-boundaries-lite.geojson',pct:'/data/police-precincts-lite.geojson',sec:'/data/nypd-sectors-lite.geojson'};
-function unitLevel(){return (lvl==='city'||lvl==='boro')?'cd':'sec';}
+function unitLevel(){
+  if(ds==='k')return 'pct';   /* parking exists only at precinct level */
+  return (lvl==='city'||lvl==='boro')?'cd':'sec';
+}
 function unitKeyOf(u,f){
   if(u==='cd')return f.properties.c;
   if(u==='pct')return String(f.properties.precinct);
@@ -399,6 +441,12 @@ function scopeUnits(u){
     if(u==='cd'){
       if(!realCD(k))return;
       ok=(lvl==='city')||(lvl==='boro'&&k.charAt(0)===key);
+    }else if(u==='pct'){
+      if(lvl==='city')ok=true;
+      else if(lvl==='boro')ok=(PBORO[k]===key);
+      else if(lvl==='cd')ok=!!(XW.pct[k]&&XW.pct[k][key]);
+      else if(lvl==='pct')ok=(k===key);
+      else ok=(k===key.replace(/[A-Z]+$/,''));
     }else{
       var pp=k.replace(/[A-Z]+$/,'');
       if(lvl==='cd')ok=!!(XW.sec[k]&&XW.sec[k][key]);
@@ -476,12 +524,12 @@ function drawMap(){
     };
     p.onmouseleave=function(){tip.style.opacity=0;};
     p.onclick=function(){
-      lvl=(u==='cd')?'cd':'sec';
+      lvl=(u==='cd')?'cd':((u==='pct')?'pct':'sec');
       key=p.getAttribute('data-k');
       syncLvlTabs();buildChips();render();
     };
   });
-  $('mapSub').textContent=(u==='cd')?'community districts':'patrol sectors';
+  $('mapSub').textContent=(u==='cd')?'community districts':((u==='pct')?'precincts':'patrol sectors');
   var lh='<span>Fewer</span>';
   [0,0.25,0.5,0.75,1].forEach(function(t){lh+='<span><i class="sw" style="background:'+ramp(t)+'"></i></span>';});
   lh+='<span>More &middot; peak '+fmt(mx)+'</span>';
@@ -490,7 +538,9 @@ function drawMap(){
 
 /* ---------- charts ---------- */
 function drawTrend(){
-  var ser=yearSeries(),W=420,H=150,pad=20,mx=0;
+  var ser=yearSeries();
+  if(!ser.length){$('trend').innerHTML='';$('trendSub').textContent='';return;}
+  var W=420,H=150,pad=20,mx=0;
   ser.forEach(function(d){if(d.v>mx)mx=d.v;});
   if(!mx)mx=1;
   var bw=(W-pad*2)/ser.length,out='',lastY=YEARS[YEARS.length-1];
@@ -505,7 +555,7 @@ function drawTrend(){
   $('trendSub').textContent=lastY+' is a partial year';
 }
 function drawTypeBars(){
-  var tb=typeBreak(),names=HUB.types[ds],arr=[];
+  var tb=typeBreak(),names=typeNames(),arr=[];
   for(var k in tb)arr.push({i:k,n:names[+k]||'Other',v:tb[k]});
   arr.sort(function(a,b){return b.v-a.v;});
   arr=arr.slice(0,12);
@@ -555,18 +605,45 @@ function drawRank(){
     h+='<li data-k="'+esc(d.k)+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(d.n)+'</span><span class="v">'+fmt(d.v)+'</span></li>';
   });
   $('rankList').innerHTML=h||'<li><span class="rk"></span><span class="nm">No areas</span><span class="v"></span></li>';
-  $('rankSub').textContent=(u==='cd')?'by community district':'by patrol sector';
+  $('rankSub').textContent=(u==='cd')?'by community district':((u==='pct')?'by precinct':'by patrol sector');
   Array.prototype.forEach.call($('rankList').querySelectorAll('li'),function(li){
     li.onclick=function(){
       var k=li.getAttribute('data-k');
       if(!k)return;
-      lvl=(u==='cd')?'cd':'sec';
+      lvl=(u==='cd')?'cd':((u==='pct')?'pct':'sec');
       key=k;
       syncLvlTabs();buildChips();render();
     };
   });
 }
+function moneyFor(){
+  var ks=gKeys(lvl,key),o={n:0,fine:0,paid:0,due:0};
+  ks.forEach(function(g){
+    var m=PARK.money[g.slice(1)];
+    if(!m)return;
+    o.n+=m.n;o.fine+=m.fine;o.paid+=m.paid;o.due+=m.due;
+  });
+  return o;
+}
+function usd(n){
+  n=Math.round(n||0);
+  if(n>=1e9)return '$'+(n/1e9).toFixed(2)+'B';
+  if(n>=1e6)return '$'+(n/1e6).toFixed(1)+'M';
+  if(n>=1e3)return '$'+Math.round(n/1e3)+'K';
+  return '$'+n;
+}
 function drawKpis(){
+  if(ds==='k'){
+    var m=moneyFor(),t=total(lvl,key),hh='';
+    hh+='<div class="kpi"><div class="n">'+fmt(t)+'</div><div class="k">Tickets issued</div><div class="d flat">FY2026 to date</div></div>';
+    hh+='<div class="kpi"><div class="n">'+usd(m.fine)+'</div><div class="k">Fined all time</div></div>';
+    hh+='<div class="kpi"><div class="n">'+usd(m.paid)+'</div><div class="k">Collected</div></div>';
+    hh+='<div class="kpi"><div class="n">'+usd(m.due)+'</div><div class="k">Still owed</div>'+
+        '<div class="d '+(m.fine&&m.due/m.fine>0.15?'up':'flat')+'">'+(m.fine?(m.due/m.fine*100).toFixed(1):'0')+'% of fines</div></div>';
+    $('kpis').innerHTML=hh;
+    $('kpiSub').textContent='dollars cover all years on file';
+    return;
+  }
   var n=YEARS.length,last=YEARS[n-2],prev=YEARS[n-3],ytdY=YEARS[n-1];
   var cur=total(lvl,key,[last]),pv=total(lvl,key,[prev]),ytd=total(lvl,key,[ytdY]);
   var sb=sevBreak(),h='';
@@ -653,10 +730,20 @@ function render(){
   $('geoSub').textContent=areaTitle();
   $('hCount').textContent=fmt(total(lvl,key));
   $('hLab').textContent=DSN[ds].toLowerCase()+', '+yFrom+' to '+yTo;
-  $('wrapSev').style.display=(ds==='s')?'none':'';
-  $('sevCard').style.display=(ds==='s')?'none':'';
-  $('typeH').textContent=(ds==='s')?'By location type':'By offense type';
+  $('wrapSev').style.display=NOSEV[ds]?'none':'';
+  $('sevCard').style.display=NOSEV[ds]?'none':'';
+  $('typeH').textContent=(ds==='s')?'By location type':((ds==='k')?'By parking violation':'By offense type');
+  $('fYearFrom').disabled=$('fYearTo').disabled=(ds==='k');
   drawMap();drawTrend();drawTypeBars();drawSevBars();drawRank();drawKpis();drawDirectory();
+  if(ds==='k'){
+    var pk=gKeys(lvl,key).map(function(g){return g.slice(1);});
+    $('methodNote').innerHTML='<b>Parking tickets have no coordinates.</b> The city publishes them by precinct only, so this tab cannot be broken out by community district or patrol sector. '+
+      (lvl==='cd'||lvl==='sec'||lvl==='boro'||lvl==='city'
+        ? 'The figures above cover the '+pk.length+' precinct'+(pk.length===1?'':'s')+' that serve this area'+(pk.length<=8?' ('+pk.map(ord).join(', ')+')':'')+', not the area itself. '
+        : '')+
+      'A further '+fmt(PARK.cameraTotal)+' camera violations citywide, mostly school zone speed and bus lane, carry no precinct at all and are excluded from the map. '+
+      'Ticket counts are the Fiscal Year 2026 file. Dollar figures come from the Open Parking and Camera Violations file and cover all years on record. Source: NYC Open Data.';
+  }else
   $('methodNote').innerHTML='Shaded by '+esc(DSN[ds].toLowerCase())+' count for the selected years and filters. '+
     'Every record is placed by its own latitude and longitude inside the boundary it falls in, so counts are exact rather than apportioned from precinct totals. '+
     'The NYPD shootings file ships its latitude and longitude columns reversed for years before '+YEARS[YEARS.length-1]+'; that is corrected here. '+
@@ -673,12 +760,13 @@ function syncLvlTabs(){
     b.setAttribute('aria-pressed',b.getAttribute('data-lvl')===lvl?'true':'false');});
 }
 function syncDs(){
-  var m={c:'dsComplaints',a:'dsArrests',s:'dsShootings'};
+  var m={c:'dsComplaints',a:'dsArrests',s:'dsShootings',m:'dsMoving',k:'dsParking'};
   for(var k in m)$(m[k]).setAttribute('aria-pressed',k===ds?'true':'false');
 }
+function typeNames(){return (ds==='k')?PARK.types:HUB.types[ds];}
 function fillTypes(){
-  var s=$('fType'),names=HUB.types[ds];
-  s.innerHTML='<option value="">'+(ds==='s'?'All locations':'All offenses')+'</option>';
+  var s=$('fType'),names=typeNames();
+  s.innerHTML='<option value="">'+(ds==='s'?'All locations':(ds==='k'?'All parking violations':'All offenses'))+'</option>';
   names.forEach(function(n,i){
     var o=document.createElement('option');
     o.value=String(i);
@@ -721,6 +809,8 @@ function boot(){
   $('dsComplaints').onclick=function(){ds='c';typ='';syncDs();fillTypes();render();};
   $('dsArrests').onclick=function(){ds='a';typ='';syncDs();fillTypes();render();};
   $('dsShootings').onclick=function(){ds='s';typ='';sev='';syncDs();syncSev();fillTypes();render();};
+  $('dsMoving').onclick=function(){ds='m';typ='';sev='';syncDs();syncSev();fillTypes();render();};
+  $('dsParking').onclick=function(){ds='k';typ='';sev='';syncDs();syncSev();fillTypes();render();};
   Array.prototype.forEach.call($('lvlTabs').querySelectorAll('button'),function(b){
     b.onclick=function(){
       lvl=b.getAttribute('data-lvl');
@@ -752,9 +842,10 @@ Promise.all([
   getJSON('/data/ps-hub.json'),
   getJSON('/data/safety-crosswalk.json'),
   getJSON('/data/cd-lookup.json'),
-  getJSON('/data/precinct-directory.json')
+  getJSON('/data/precinct-directory.json'),
+  getJSON('/data/ps-parking.json')
 ]).then(function(r){
-  HUB=r[0];XW=r[1];CDL=r[2];DIR=r[3];
+  HUB=r[0];XW=r[1];CDL=r[2];DIR=r[3];PARK=r[4];
   boot();
 }).catch(function(e){
   $('hCount').textContent='\u2014';
