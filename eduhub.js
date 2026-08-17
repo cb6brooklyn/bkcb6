@@ -483,6 +483,52 @@
   }
 
   /* ---------- overview pages (citywide, borough, CSD hub) ---------- */
+  /* Both boundary sets on one map, so the mismatch is visible rather than
+     described. Community districts are the filled shapes; school districts
+     are drawn over them in dashed purple. */
+  var boundLayers = {};
+
+  function buildBoundaryToggle(host, gj, opts) {
+    if (!host) return;
+    host.innerHTML = '';
+    boundLayers.csd = L.geoJSON(gj, {
+      style: { color: '#7a3ea8', weight: 2.4, fill: false, dashArray: '7 4', opacity: 0.95 },
+      onEachFeature: function (f, l) {
+        l.bindTooltip('<strong>' + f.properties.name + '</strong><br>School district line', { sticky: true });
+      }
+    });
+    var stampGroup = L.layerGroup();
+    gj.features.forEach(function (f) {
+      if (f.properties.lx == null) return;
+      L.marker([f.properties.ly, f.properties.lx], {
+        interactive: false, keyboard: false, zIndexOffset: 400,
+        icon: L.divIcon({ className: 'dlabel-wrap',
+          html: '<span class="csdstamp sm" style="--c:#7a3ea8">D' + f.properties.csd + '</span>',
+          iconSize: [40, 20], iconAnchor: [20, 10] })
+      }).addTo(stampGroup);
+    });
+    boundLayers.csdStamps = stampGroup;
+
+    var on = opts && opts.on;
+    var b = el('button', 'chip lvl');
+    b.type = 'button'; b.id = 'bound-csd';
+    b.style.setProperty('--pin', '#7a3ea8');
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.textContent = 'School district lines';
+    b.addEventListener('click', function () {
+      var now = b.getAttribute('aria-pressed') === 'true';
+      if (now) {
+        map.removeLayer(boundLayers.csd); map.removeLayer(boundLayers.csdStamps);
+        b.setAttribute('aria-pressed', 'false');
+      } else {
+        boundLayers.csd.addTo(map); boundLayers.csdStamps.addTo(map);
+        b.setAttribute('aria-pressed', 'true');
+      }
+    });
+    host.appendChild(b);
+    if (on) { boundLayers.csd.addTo(map); boundLayers.csdStamps.addTo(map); }
+  }
+
   function overview(cfg) {
     Promise.all(cfg.loads.map(get)).then(function (res) {
       cfg.ready(res);
@@ -503,7 +549,8 @@
         else if (!map.hasLayer(labelLayer)) labelLayer.addTo(map);
       }
       drawSites();
-      setText('#map-count', on ? num(vis.length) + ' sites shown' : 'Districts shaded by how many sites they hold');
+      setText('#map-count', on ? num(vis.length) + ' sites shown'
+        : 'Districts coloured by ' + (SCHEMES[scheme] ? SCHEMES[scheme].label.toLowerCase() : 'borough'));
       var t = $('#sites-toggle');
       if (t && !forceSites) t.textContent = on ? 'Show district shading' : 'Show every site';
     }
@@ -514,7 +561,7 @@
     var S;
     overview({
       status: '#hub-status',
-      loads: [BASE + 'summary.json', BASE + 'all.json', BASE + 'districts.geojson'],
+      loads: [BASE + 'summary.json', BASE + 'all.json', BASE + 'districts.geojson', BASE + 'school-districts.geojson'],
       ready: function (res) {
         S = res[0]; items = res[1];
         buildStats(S); buildBorough(S); buildTable(S); buildIndex(S); buildAudit(S);
@@ -531,8 +578,10 @@
         buildSchemePicker($('#schemechips'), S.districts, function () {
           lay.restyle();
           schemeLegend($('#schemekey'), S.districts);
+          setText('#map-count', 'Districts coloured by ' + SCHEMES[scheme].label.toLowerCase());
         });
         schemeLegend($('#schemekey'), S.districts);
+        buildBoundaryToggle($('#boundchips'), res[3], { on: true });
         buildKey($('#mapkey'), { shading: false });
       }
     });
@@ -623,7 +672,7 @@
   function borough(b) {
     overview({
       status: '#boro-status',
-      loads: [BASE + 'boro-' + b + '.json', BASE + 'summary.json', BASE + 'districts.geojson'],
+      loads: [BASE + 'boro-' + b + '.json', BASE + 'summary.json', BASE + 'districts.geojson', BASE + 'school-districts.geojson'],
       ready: function (res) {
         var d = res[0], s = res[1];
         items = d.items;
@@ -642,8 +691,15 @@
         buildSchemePicker($('#schemechips'), mine, function () {
           lay.restyle();
           schemeLegend($('#schemekey'), mine);
+          setText('#map-count', 'Districts coloured by ' + SCHEMES[scheme].label.toLowerCase());
         });
         schemeLegend($('#schemekey'), mine);
+        buildBoundaryToggle($('#boundchips'), {
+          type: 'FeatureCollection',
+          features: res[3].features.filter(function (f) {
+            return mine.some(function (d) { return (d.csd || []).indexOf(f.properties.csd) > -1; });
+          })
+        }, { on: true });
         buildKey($('#mapkey'), { shading: false });
         buildBoroTable(s, b);
       }
