@@ -139,6 +139,16 @@ TPL = """<!DOCTYPE html>
 <script src="/{js}"></script>
 <script>
 (function(){{
+  // A venue card is its own stable page. The search script stamps ?address=
+  // onto the URL after it runs; undo that so the address stays clean.
+  var CLEAN = location.pathname;
+  if (history.replaceState){{
+    var keep = setInterval(function(){{
+      if (location.search) history.replaceState(null, '', CLEAN);
+    }}, 250);
+    setTimeout(function(){{ clearInterval(keep); }}, 20000);
+  }}
+
   // Fire the same search the button would, once the script has bound to it.
   var tries = 0;
   function go(){{
