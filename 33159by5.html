@@ -101,6 +101,9 @@ main{padding:22px 0 60px}
 .find label{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .find input{font-family:var(--sans);font-size:.9rem;padding:10px 12px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--ink);width:100%}
 .find .btn{padding:11px 18px}
+.find .locbtn{background:#fff;color:var(--navy);border:1px solid var(--border)}
+.find .locbtn:hover{background:#f4f5f9;filter:none}
+.find .hintline{flex-basis:100%;font-size:.76rem;color:var(--muted);margin-top:-2px}
 .findmsg{font-size:.8rem;color:var(--muted);margin:0 0 12px;min-height:1.2em}
 .findmsg.err{color:#b42318}
 .findmsg b{color:var(--navy)}
@@ -304,8 +307,10 @@ footer code{font-family:var(--mono);font-size:.72rem;background:#efede7;padding:
           </select>
         </div>
         <button class="btn" type="button" id="addrBtn">Find district</button>
+        <button class="btn locbtn" type="button" id="locBtn" title="Use my current location">&#9678; Use my location</button>
       </div>
       <p class="findmsg" id="findMsg"></p>
+      <p class="findmsg" id="pinHint" style="margin-top:-6px">Or drop a pin: tap anywhere on the map to open that district.</p>
       <div class="cdpanel" id="cdPanel"></div>
       <div id="cdmap"></div>
       <div class="maplegend" id="mapLegend"></div>
@@ -1323,7 +1328,14 @@ function initMap(){
   if (cdMap || typeof L === 'undefined') return;
   cdMap = L.map('cdmap', {scrollWheelZoom:false, zoomControl:true})
            .setView([40.7128, -73.96], 10);
-  cdMap.on('click', openDotPopup);
+  cdMap.on('click', function(e){
+    openDotPopup(e);
+    // In choropleth mode the polygons handle their own clicks; in dot mode
+    // (or on water/edges) treat the click as a dropped pin.
+    if (S.level === 'cd' || !districtAtLayer(e.latlng)) {
+      resolvePoint(e.latlng.lat, e.latlng.lng, 'Dropped pin', 'findMsg');
+    }
+  });
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
     {maxZoom:18, attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(cdMap);
 
@@ -1362,6 +1374,7 @@ function initMap(){
     el('mapLegend').innerHTML = '<span style="color:#b42318;text-transform:none;letter-spacing:0">District outlines did not load (' + esc(err.message) + ').</span>';
   });
 }
+function districtAtLayer(ll){ return !!districtAt(ll.lng, ll.lat); }
 function isSelected(k){
   return (S.level === 'cd' && k === S.cd) || (S.level === 'boro' && k.slice(3) === S.boro);
 }
@@ -1419,6 +1432,56 @@ function boroughInText(t){
   return null;
 }
 
+// One resolution path for all three ways in: typed address, dropped pin, or
+// device location. Each produces a coordinate, then the same point-in-polygon
+// test against the outlines the map draws.
+function resolvePoint(lat, lng, label, msgEl){
+  var msg = el(msgEl || 'findMsg');
+  var key = districtAt(lng, lat);
+  if (!key){
+    msg.className = 'findmsg err';
+    msg.textContent = label + ' is not inside one of the 59 community districts. It may be a park, an airport parcel, or outside New York City.';
+    return false;
+  }
+  var d = CD_LIST.filter(function(x){ return x.key === key; })[0];
+  msg.className = 'findmsg';
+  msg.innerHTML = esc(label) + ' is in <b>' + esc(d.label) + '</b>.';
+  if (addrMarker) cdMap.removeLayer(addrMarker);
+  addrMarker = L.circleMarker([lat,lng], {radius:8, color:'#fff', weight:3,
+    fillColor:'#f47920', fillOpacity:1}).addTo(cdMap);
+  addrMarker.bindTooltip(label, {direction:'top', offset:[0,-8]});
+  selectDistrict(key);
+  if (cdLayers[key] && cdLayers[key].getBounds) cdMap.fitBounds(cdLayers[key].getBounds(), {padding:[24,24]});
+  return true;
+}
+
+function useMyLocation(){
+  var msg = el('findMsg');
+  msg.className = 'findmsg';
+  if (!navigator.geolocation){
+    msg.className = 'findmsg err';
+    msg.textContent = 'This browser cannot share a location. Type an address instead.';
+    return;
+  }
+  msg.innerHTML = '<span class="spin"></span>Getting your location';
+  navigator.geolocation.getCurrentPosition(function(pos){
+    var lat = pos.coords.latitude, lng = pos.coords.longitude;
+    var go = function(){ resolvePoint(lat, lng, 'Your location', 'findMsg'); };
+    if (CD_GEO) go();
+    else fetch('cd-boundaries-simple.geojson').then(function(r){ return r.json(); })
+          .then(function(g){ CD_GEO = g; go(); })
+          .catch(function(){
+            msg.className = 'findmsg err';
+            msg.textContent = 'District outlines are still loading. Try again in a moment.';
+          });
+  }, function(err){
+    msg.className = 'findmsg err';
+    msg.textContent = err.code === 1
+      ? 'Location permission was denied. You can type an address, or tap the map to drop a pin.'
+      : 'Could not get your location. Type an address, or tap the map to drop a pin.';
+  }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
+}
+
 function findAddress(){
   var q = el('addrInput').value.trim();
   var msg = el('findMsg');
@@ -1470,13 +1533,7 @@ function findAddress(){
         msg.textContent = 'Found that address, but it is not inside one of the 59 community districts. It may sit in a park or on an airport parcel.';
         return;
       }
-      var d = CD_LIST.filter(function(x){ return x.key === key; })[0];
-      msg.innerHTML = esc(pick.properties.label || q) + ' is in <b>' + esc(d.label) + '</b>.';
-      if (addrMarker) cdMap.removeLayer(addrMarker);
-      addrMarker = L.circleMarker([lat,lng], {radius:7, color:'#fff', weight:2.5,
-        fillColor:'#f47920', fillOpacity:1}).addTo(cdMap);
-      selectDistrict(key);
-      if (cdLayers[key]) cdMap.fitBounds(cdLayers[key].getBounds(), {padding:[24,24]});
+      resolvePoint(lat, lng, pick.properties.label || q, 'findMsg');
     })
     .catch(function(){
       msg.className = 'findmsg err';
@@ -1582,6 +1639,7 @@ function setRate(on){
   if (LAST_RANK) loadPop().then(function(){ renderRank(LAST_RANK); });
 }
 el('addrBtn').addEventListener('click', findAddress);
+el('locBtn').addEventListener('click', useMyLocation);
 el('addrInput').addEventListener('keydown', function(e){ if (e.key === 'Enter') findAddress(); });
 el('addrBoro').addEventListener('change', function(){ if (el('addrInput').value.trim()) findAddress(); });
 
