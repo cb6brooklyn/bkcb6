@@ -1224,6 +1224,17 @@
     '4 PENN PLAZA':{src:'/site-icons/madison-square-garden.png',alt:'Madison Square Garden, home of the Knicks and the Rangers',w:420,h:405}
   };
   var AKA={
+    // Arenas and ballparks: on a stadium card the point is the venue and who
+    // plays there, not the lot number.
+    '4 PENNSYLVANIA PLAZA':{text:'Madison Square Garden, home of the Knicks and Rangers',bg:'#0d1b4b',fg:'#FFFFFF'},
+    '620 ATLANTIC AVE':{text:'Barclays Center, home of the Nets and the Liberty',bg:'#0d1b4b',fg:'#FFFFFF'},
+    '41 SEAVER WAY':{text:'Citi Field, home of the Mets',bg:'#0d1b4b',fg:'#FFFFFF'},
+    '126-01 ROOSEVELT AVE':{text:'Etihad Park, the future home of NYCFC',bg:'#0d1b4b',fg:'#FFFFFF'},
+    '124-02 ROOSEVELT AVE':{text:'the USTA Billie Jean King National Tennis Center, home of the US Open',bg:'#0d1b4b',fg:'#FFFFFF'},
+    '1 TENNIS PL':{text:'Forest Hills Stadium',bg:'#0d1b4b',fg:'#FFFFFF'},
+    '1904 SURF AVE':{text:'Maimonides Park, home of the Brooklyn Cyclones',bg:'#0d1b4b',fg:'#FFFFFF'},
+    '75 RICHMOND TERRACE':{text:'SIUH Community Park, home of the Staten Island FerryHawks',bg:'#0d1b4b',fg:'#FFFFFF'},
+    '20 RANDALLS ISLAND':{text:'Icahn Stadium on Randall\u2019s Island',bg:'#0d1b4b',fg:'#FFFFFF'},
     '24-64 KANE ST':'Brooklyn Marine Terminal, or the BMT',
     '435 HOYT ST':'Gowanus Green, on the site long known as Public Place',
     '250 BALTIC ST':{full:'Location of the CB6 district office'},
