@@ -52,9 +52,12 @@
       pts.push([p.lat, p.lng]);
       // A glyph pin says what the place is at a glance, ringed in the colours
       // of whoever plays there. Two teams gets a two-colour ring.
-      var inner = p.icon
-        ? '<span class="zg">' + p.icon + '</span>'
-        : '<img src="/tiles/' + TILE_PREFIX + p.slug + '.png" alt="">';
+      // art wins over a glyph, and a glyph over the place's own tile
+      var inner = p.art
+        ? '<img src="' + p.art + '" alt="">'
+        : (p.icon
+            ? '<span class="zg">' + p.icon + '</span>'
+            : '<img src="/tiles/' + TILE_PREFIX + p.slug + '.png" alt="">');
       var ring = '';
       if (p.colors && p.colors.length > 1) {
         ring = 'background:conic-gradient(' + p.colors[0][0] + ' 0 50%,' +
@@ -64,7 +67,7 @@
       }
       var icon = L.divIcon({
         className: '',
-        html: '<a class="zpin' + (p.icon ? ' glyph' : '') + '" href="/' + TILE_PREFIX + p.slug +
+        html: '<a class="zpin' + (p.art ? ' art' : (p.icon ? ' glyph' : '')) + '" href="/' + TILE_PREFIX + p.slug +
               '" title="' + esc(p.name) + '" style="' + ring + '">' +
               '<span class="zin">' + inner + '</span></a>',
         iconSize: [40, 40], iconAnchor: [20, 20]
