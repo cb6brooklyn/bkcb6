@@ -26,11 +26,18 @@
     return PLACES.filter(function (p) {
       if (q) {
         // a search looks through everything, not just the current slice
-        return (p.name + ' ' + p.addr + ' ' + (p.zoning || '')).toLowerCase().indexOf(q) !== -1;
+        var hay = [p.name, p.addr, p.zoning || '', p.board || '',
+                   (p.sports || []).join(' '), (p.teams || []).join(' '),
+                   p.kind || ''].join(' ');
+        return hay.toLowerCase().indexOf(q) !== -1;
       }
       if (state.mode === 'all') return true;
       if (state.mode === 'featured') return !!p.featured;
-      return p.boro === state.mode;
+      // a mode can be a borough, a sport or a team
+      if (p.boro === state.mode) return true;
+      if (p.sports && p.sports.indexOf(state.mode) !== -1) return true;
+      if (p.teams && p.teams.indexOf(state.mode) !== -1) return true;
+      return false;
     });
   }
 
@@ -42,17 +49,24 @@
     list.forEach(function (p) {
       if (p.lat == null || p.lng == null) return;
       pts.push([p.lat, p.lng]);
+      // A glyph pin says what the place is at a glance. Falls back to the
+      // place's own tile where no glyph is given.
+      var inner = p.icon
+        ? '<span class="zg">' + p.icon + '</span>'
+        : '<img src="/tiles/' + TILE_PREFIX + p.slug + '.png" alt="">';
       var icon = L.divIcon({
         className: '',
-        html: '<a class="zpin" href="/' + TILE_PREFIX + p.slug + '" title="' + esc(p.name) + '">' +
-              '<img src="/tiles/' + TILE_PREFIX + p.slug + '.png" alt="">' + '</a>',
-        iconSize: [40, 40], iconAnchor: [20, 20]
+        html: '<a class="zpin' + (p.icon ? ' glyph' : '') + '" href="/' + TILE_PREFIX + p.slug +
+              '" title="' + esc(p.name) + '">' + inner + '</a>',
+        iconSize: [38, 38], iconAnchor: [19, 19]
       });
       L.marker([p.lat, p.lng], { icon: icon })
         .bindPopup('<div class="zpop"><h4>' + esc(p.name) + '</h4>' +
           '<div class="sub">' + esc(p.addr) + '</div>' +
           '<div class="sub"><b>' + esc(p.board || '') + '</b></div>' +
           '<div class="sub">Zoned ' + esc(p.zoning || '') + '</div>' +
+          ((p.teams && p.teams.length) ? '<div class="sub">' + esc(p.teams.join(' \u00b7 ')) + '</div>' : '') +
+          (p.kind ? '<div class="sub">' + esc(p.kind) + '</div>' : '') +
           '<a class="go" href="/' + TILE_PREFIX + p.slug + '">Open the full card &rarr;</a></div>')
         .addTo(layer);
     });
