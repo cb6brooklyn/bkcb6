@@ -400,9 +400,10 @@
       if(!onTypes[p.type]) return false;
       if(st && p.type === st && onSubs[st] && !onSubs[st][p.subtype || 'independent']) return false;
       if(q && !matchesText(p, q)) return false;
-      // an address search is not bound by district: the nearest thing is the
-      // nearest thing, whichever side of a line it sits on
-      if(origin) return true;
+      // neither search is bound by district. an address search ranks the whole
+      // city by distance, and a name search finds the place wherever it sits,
+      // rather than reporting nothing because the map opened on one district
+      if(origin || q) return true;
       if(b && p.boro_name !== b) return false;
       if(cb && p.cb !== cb) return false;
       return true;
@@ -599,7 +600,15 @@
   }
   function renderList(list){
     var near = !!origin;
+    // whichever scope the person was in when the search widened past it
+    var outCb = near ? origin.cb : (qInput.value.trim() ? cbSel.value : '');
     countEl.textContent = near ? ('nearest ' + list.length) : (list.length + ' of ' + places.length);
+    var sub = document.getElementById('sideSub');
+    if(!near){
+      sub.textContent = qInput.value.trim()
+        ? 'Searching the whole city, not just the district on screen.'
+        : 'Opens on CB6. Widen it with the borough and district menus, or search an address.';
+    }
     if(!list.length){ listEl.innerHTML = '<div class="empty">Nothing matches these filters.</div>'; return; }
     var sorted = near ? list : list.slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
     listEl.innerHTML = sorted.map(function(p){
@@ -617,7 +626,7 @@
         + (p.subtype ? ' &middot; '+subLabel(p.type, p.subtype) : '')+'</span>'
         + '<span class="tag">'+p.cb+'</span>'
         + '<span class="tag bo" style="border-color:'+boroColor(p.boro_name)+'">'+esc(p.boro_name)+'</span>'
-        + (near && origin.cb && p.cb !== origin.cb ? '<span class="tag out">Outside '+origin.cb+'</span>' : '')
+        + (outCb && p.cb !== outCb ? '<span class="tag out">Outside '+outCb+'</span>' : '')
         + (p.approx ? '<span class="tag a">Nearest district</span>' : '')
         + (p.building_area_sqft ? '<span class="tag a">'+num(p.building_area_sqft)+' sq ft</span>' : '')
         + '</div></div>';
