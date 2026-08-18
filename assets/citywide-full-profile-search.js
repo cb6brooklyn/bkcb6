@@ -1268,6 +1268,8 @@
     '1681 BROADWAY':{src:'/site-icons/playbill-broadway-theatre.png',alt:'The Great Gatsby at the Broadway Theatre',w:360,h:568},
     '302 W 45 ST':{src:'/site-icons/playbill-al-hirschfeld-theatre.png',alt:'Moulin Rouge! at the Al Hirschfeld Theatre',w:360,h:568},
     '1535 BROADWAY':{src:'/site-icons/playbill-marquis-theatre.png',alt:'Stranger Things: The First Shadow at the Marquis Theatre',w:360,h:568},
+    '214 W 43 ST':{src:'/site-icons/playbill-lyric-theatre.png',alt:'Harry Potter and the Cursed Child at the Lyric Theatre',w:360,h:568},
+    '200 W 45 ST':{src:'/site-icons/playbill-minskoff-theatre.png',alt:'The Lion King at the Minskoff Theatre',w:360,h:545},
     '89 E 42 ST':{src:'/site-icons/grand-central.png',alt:'Grand Central Terminal',w:356,h:342},
     '11 W 53 ST':{src:'/site-icons/moma.png',alt:'Museum of Modern Art',w:440,h:122},
     '22-25 JACKSON AVE':{src:'/site-icons/moma-ps1.png',alt:'MoMA PS1',w:440,h:247},
