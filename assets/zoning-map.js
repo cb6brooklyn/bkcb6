@@ -49,16 +49,24 @@
     list.forEach(function (p) {
       if (p.lat == null || p.lng == null) return;
       pts.push([p.lat, p.lng]);
-      // A glyph pin says what the place is at a glance. Falls back to the
-      // place's own tile where no glyph is given.
+      // A glyph pin says what the place is at a glance, ringed in the colours
+      // of whoever plays there. Two teams gets a two-colour ring.
       var inner = p.icon
         ? '<span class="zg">' + p.icon + '</span>'
         : '<img src="/tiles/' + TILE_PREFIX + p.slug + '.png" alt="">';
+      var ring = '';
+      if (p.colors && p.colors.length > 1) {
+        ring = 'background:conic-gradient(' + p.colors[0][0] + ' 0 50%,' +
+               p.colors[1][0] + ' 50% 100%);';
+      } else if (p.color) {
+        ring = 'background:' + p.color + ';';
+      }
       var icon = L.divIcon({
         className: '',
         html: '<a class="zpin' + (p.icon ? ' glyph' : '') + '" href="/' + TILE_PREFIX + p.slug +
-              '" title="' + esc(p.name) + '">' + inner + '</a>',
-        iconSize: [38, 38], iconAnchor: [19, 19]
+              '" title="' + esc(p.name) + '" style="' + ring + '">' +
+              '<span class="zin">' + inner + '</span></a>',
+        iconSize: [40, 40], iconAnchor: [20, 20]
       });
       L.marker([p.lat, p.lng], { icon: icon })
         .bindPopup('<div class="zpop"><h4>' + esc(p.name) + '</h4>' +
@@ -109,7 +117,12 @@
     drawMap(list);
     drawGrid(list);
     document.querySelectorAll('.zbtn').forEach(function (b) {
-      b.classList.toggle('on', !state.query && b.dataset.mode === state.mode);
+      var on = !state.query && b.dataset.mode === state.mode;
+      b.classList.toggle('on', on);
+      if (b.dataset.color) {
+        b.style.background = on ? b.dataset.color : '#fff';
+        b.style.color = on ? '#fff' : b.dataset.color;
+      }
     });
   }
 
@@ -123,6 +136,13 @@
         attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
       }).addTo(map);
     }
+    // each team pill wears that team's colours
+    document.querySelectorAll('.zbtn[data-color]').forEach(function (b) {
+      var c = b.dataset.color, c2 = b.dataset.color2 || '#fff';
+      b.style.borderColor = c;
+      b.style.color = c;
+      b.style.boxShadow = 'inset 0 -3px 0 ' + c2;
+    });
     document.querySelectorAll('.zbtn').forEach(function (b) {
       b.addEventListener('click', function () {
         state.mode = b.dataset.mode;
