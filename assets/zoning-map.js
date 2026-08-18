@@ -126,6 +126,68 @@
     });
   }
 
+
+  // The same zoning layer the address cards draw: districts from DCP's nyzd
+  // service, coloured by family, on the palette the cards already use.
+  var ZONE_FILL = {
+    'Residential': '#56B4E9', 'Commercial': '#E69F00', 'Manufacturing': '#D55E00',
+    'Mixed Use': '#CC79A7', 'Park/Open Space': '#009E73', 'Other': '#999999'
+  };
+  function zoneFamily(z) {
+    z = String(z || '').trim().toUpperCase();
+    if (z.indexOf('/') > -1) return 'Mixed Use';
+    if (z === 'PARK') return 'Park/Open Space';
+    if (/^R/.test(z)) return 'Residential';
+    if (/^C/.test(z)) return 'Commercial';
+    if (/^M/.test(z)) return 'Manufacturing';
+    return 'Other';
+  }
+  var zoneLayer = null, zoneShown = {};
+  function loadZoning() {
+    if (!map) return;
+    var b = map.getBounds();
+    if (map.getZoom() < 12) {                 // too far out to be readable
+      if (zoneLayer) { map.removeLayer(zoneLayer); zoneLayer = null; }
+      drawLegend({});
+      return;
+    }
+    var env = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',');
+    var url = 'https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/' +
+      'FeatureServer/0/query?where=1%3D1&outFields=ZONEDIST&returnGeometry=true&f=geojson' +
+      '&outSR=4326&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects' +
+      '&geometry=' + encodeURIComponent(env) + '&resultRecordCount=1200';
+    fetch(url).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.features) return;
+      if (zoneLayer) map.removeLayer(zoneLayer);
+      var fams = {};
+      zoneLayer = L.geoJSON(d, {
+        style: function (f) {
+          var z = (f.properties || {}).ZONEDIST || '';
+          var fam = zoneFamily(z);
+          fams[fam] = ZONE_FILL[fam];
+          return { color: '#374151', weight: 1, opacity: .55,
+                   fillColor: ZONE_FILL[fam], fillOpacity: .42 };
+        },
+        onEachFeature: function (f, l) {
+          var z = (f.properties || {}).ZONEDIST || '';
+          if (z) l.bindTooltip(z, { sticky: true });
+        }
+      });
+      zoneLayer.addTo(map);
+      if (zoneLayer.bringToBack) zoneLayer.bringToBack();
+      drawLegend(fams);
+    }).catch(function () {});
+  }
+  function drawLegend(fams) {
+    var el = document.getElementById('zlegend');
+    if (!el) return;
+    var keys = Object.keys(fams);
+    if (!keys.length) { el.innerHTML = '<span class="zmuted">Zoom in to shade the zoning districts</span>'; return; }
+    el.innerHTML = '<b>Zoning</b>' + keys.sort().map(function (k) {
+      return '<span class="zk"><i style="background:' + fams[k] + '"></i>' + k + '</span>';
+    }).join('');
+  }
+
   window.initZoningMap = function (opts) {
     PLACES = opts.places || [];
     TILE_PREFIX = opts.prefix || '';
@@ -133,8 +195,10 @@
     if (el && window.L) {
       map = L.map('zmap', { scrollWheelZoom: false });
       L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
+        attribution: '&copy; OpenStreetMap &copy; CARTO &middot; zoning from NYC DCP', maxZoom: 19
       }).addTo(map);
+      map.on('moveend', loadZoning);
+      map.whenReady(function () { setTimeout(loadZoning, 400); });
     }
     // each team pill wears that team's colours
     document.querySelectorAll('.zbtn[data-color]').forEach(function (b) {
