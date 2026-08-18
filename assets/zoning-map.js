@@ -37,6 +37,7 @@
       if (p.boro === state.mode) return true;
       if (p.sports && p.sports.indexOf(state.mode) !== -1) return true;
       if (p.teams && p.teams.indexOf(state.mode) !== -1) return true;
+      if (p.show && p.show === state.mode) return true;
       return false;
     });
   }
@@ -116,6 +117,8 @@
     var list = visible();
     drawMap(list);
     drawGrid(list);
+    var selEl = document.getElementById('zselect');
+    if (selEl && !state.query && selEl.value !== state.mode) selEl.value = state.mode;
     document.querySelectorAll('.zbtn').forEach(function (b) {
       var on = !state.query && b.dataset.mode === state.mode;
       b.classList.toggle('on', on);
@@ -211,11 +214,31 @@
       b.addEventListener('click', function () {
         state.mode = b.dataset.mode;
         state.query = '';
-        var s = document.getElementById('zsearch');
+        var sel = document.getElementById('zselect');
+    if (sel) {
+      sel.addEventListener('change', function () {
+        state.mode = sel.value;
+        state.query = '';
+        var box = document.getElementById('zsearch');
+        if (box) box.value = '';
+        refresh();
+      });
+    }
+    var s = document.getElementById('zsearch');
         if (s) s.value = '';
         refresh();
       });
     });
+    var sel = document.getElementById('zselect');
+    if (sel) {
+      sel.addEventListener('change', function () {
+        state.mode = sel.value;
+        state.query = '';
+        var box = document.getElementById('zsearch');
+        if (box) box.value = '';
+        refresh();
+      });
+    }
     var s = document.getElementById('zsearch');
     if (s) {
       s.addEventListener('input', function () { state.query = s.value; refresh(); });
