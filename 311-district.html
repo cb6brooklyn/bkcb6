@@ -140,6 +140,14 @@ footer code{font-family:var(--mono);font-size:.72rem;background:#efede7;padding:
    so anything sitting on the accent takes the dark colour instead. */
 .btn,.fbtn,.b.hot,button.on,.tbtn.all{color:#1b1b1a}
 [style*="background:var(--orange)"]{color:#1b1b1a}
+
+#rateLegend{display:flex;flex-wrap:wrap;gap:5px 12px;align-items:center;padding:8px 12px;
+  font-family:'DM Mono',monospace;font-size:.63rem;color:var(--muted);background:#fff;
+  border-top:1px solid var(--border)}
+#rateLegend b{font-family:'DM Sans',sans-serif;font-size:.65rem;font-weight:800;color:var(--navy);
+  text-transform:uppercase;letter-spacing:.08em;margin-right:2px}
+#rateLegend .rk{display:inline-flex;align-items:center;gap:5px}
+#rateLegend .rk i{width:13px;height:13px;border-radius:3px;border:1px solid rgba(0,0,0,.25);display:block}
 </style>
 </head>
 <body>
@@ -188,7 +196,8 @@ footer code{font-family:var(--mono);font-size:.72rem;background:#efede7;padding:
     <section class="card">
       <h2>Complaints map</h2>
       <p class="note" id="mapNote">Each dot is one complaint</p>
-      <div id="map"></div>
+      <div id="rateLegend"></div>
+  <div id="map"></div>
       <div class="maplegend" id="legend"></div>
     </section>
 
@@ -440,14 +449,14 @@ var rankFile = null, popFile = null;
 function loadPop(){
   if (popFile) return Promise.resolve(popFile);
   return fetch('33159by5-pop.json').then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(j){ popFile = j; return j; }).catch(function(){ return null; });
+    .then(function(j){ popFile = j; try { drawContext(); } catch (e) {} return j; }).catch(function(){ return null; });
 }
 function popOf(key){ return (popFile && popFile.districts[key]) ? popFile.districts[key].y2010 : null; }
 function hoodName(key){ return (popFile && popFile.districts[key]) ? popFile.districts[key].name : null; }
 function loadRank(){
   if (rankFile) return Promise.resolve(rankFile);
   return fetch('33159by5-rank.json').then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(j){ rankFile = j; return j; });
+    .then(function(j){ rankFile = j; try { drawContext(); } catch (e) {} return j; });
 }
 function expectedRecords(){
   if (!rankFile) return null;
@@ -690,9 +699,78 @@ function drawBoundary(){
   var code = cdRec().code;
   var f = boundaryGeo.features.filter(function(x){ return String(x.properties.cd) === code; })[0];
   if (boundaryLayer) map.removeLayer(boundaryLayer);
+  // Every district shaded by its complaint rate, so the one you picked has
+  // something to be read against. Drawn before the outline so it never hides it,
+  // and before the lookup guard so the context shows even if the outline cannot.
+  drawContext();
+  // the shading needs both files; draw again once both are in hand, whether they
+  // came from the network just now or were already loaded
+  try {
+    Promise.all([loadRank(), loadPop()]).then(function () { drawContext(); });
+  } catch (e) {}
   if (!f) return;
-  boundaryLayer = L.geoJSON(f, {style:{color:'#0d1b4b', weight:2.5, fill:false}}).addTo(map);
+  boundaryLayer = L.geoJSON(f, {style:{color:'#111110', weight:3, fill:false}}).addTo(map);
+  if (boundaryLayer.bringToFront) boundaryLayer.bringToFront();
   map.fitBounds(boundaryLayer.getBounds(), {padding:[16,16]});
+}
+
+// ---- district context shading -------------------------------------------
+// Every district shaded by complaints per 1,000 residents on the year in view,
+// so the district you picked can be read against the rest of the city.
+// Population is the 2010 Census, the newest the City publishes by district.
+var ctxLayer = null;
+var RATE_STOPS = [200, 275, 350, 425, 500];
+var RATE_FILL  = ['#fdf3c8', '#fbe07a', '#f7c948', '#e8a020', '#c2410c', '#8a1c05'];
+function rateColor(r) {
+  if (r == null) return '#e9e7e0';
+  for (var i = 0; i < RATE_STOPS.length; i++) if (r < RATE_STOPS[i]) return RATE_FILL[i];
+  return RATE_FILL[RATE_FILL.length - 1];
+}
+var BORO_OF = {'1':'MANHATTAN','2':'BRONX','3':'BROOKLYN','4':'QUEENS','5':'STATEN ISLAND'};
+function ctxKey(feature) {
+  var n = (feature.properties || {}).cd;
+  if (!n) return null;
+  n = String(n);
+  if (n.length !== 3) return null;
+  return ('0' + n.slice(1)).slice(-2) + ' ' + BORO_OF[n[0]];
+}
+function ctxRate(key) {
+  if (!rankFile || !popFile || !key) return null;
+  var yr = rankFile.years && rankFile.years[String(S.year)];
+  if (!yr || yr[key] == null) return null;
+  var rec = popFile.districts[key];
+  if (!rec || !rec.y2010) return null;
+  var c = typeof yr[key] === 'number' ? yr[key] : (yr[key].total || yr[key].n);
+  return c ? (c / rec.y2010) * 1000 : null;
+}
+function drawContext() {
+  if (!map || !boundaryGeo) return;
+  if (ctxLayer) map.removeLayer(ctxLayer);
+  var any = false;
+  ctxLayer = L.geoJSON(boundaryGeo, {
+    style: function (f) {
+      var r = ctxRate(ctxKey(f));
+      if (r != null) any = true;
+      return { color: '#ffffff', weight: 1, opacity: .8,
+               fillColor: rateColor(r), fillOpacity: r == null ? .2 : .68 };
+    },
+    onEachFeature: function (f, l) {
+      var k = ctxKey(f), r = ctxRate(k);
+      if (k) l.bindTooltip(k.replace(/^0/, '') + (r != null ? ' \u00b7 ' + Math.round(r) + ' per 1,000' : ''),
+                           { sticky: true });
+    }
+  }).addTo(map);
+  if (ctxLayer.bringToBack) ctxLayer.bringToBack();
+  drawRateLegend(any);
+}
+function drawRateLegend(any) {
+  var el = document.getElementById('rateLegend');
+  if (!el) return;
+  if (!any) { el.innerHTML = ''; return; }
+  var labels = ['under 200', '200 to 275', '275 to 350', '350 to 425', '425 to 500', '500 and up'];
+  el.innerHTML = '<b>Complaints per 1,000 residents</b>' + RATE_FILL.map(function (c, i) {
+    return '<span class="rk"><i style="background:' + c + '"></i>' + labels[i] + '</span>';
+  }).join('');
 }
 
 function initMap(){
