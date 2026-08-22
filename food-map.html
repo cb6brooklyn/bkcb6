@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NYC Supermarket and Greenmarket Map by Community District</title>
+  <meta name="description" content="Every supermarket and every farmers market in New York City, mapped and counted by borough and community district.">
+  <link rel="canonical" href="https://bkcb6.app/food-map.html">
+  <meta property="og:title" content="NYC Supermarket and Greenmarket Map by Community District">
+  <meta property="og:description" content="Every supermarket and every farmers market in New York City, mapped and counted by borough and community district.">
+  <meta property="og:url" content="https://bkcb6.app/food-map.html">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="">
+  <style>
+    :root{--navy:#06024D;--navy2:#0d1b4b;--orange:#f47920;--border:#e5e2db;--muted:#5f5a52;--bg:#f8f7f4;--off:#fcfbf9}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'DM Sans',sans-serif;background:var(--bg);color:#1c1a17;-webkit-text-size-adjust:100%}
+
+    .top-bar{background:var(--navy);color:#fff;padding:11px 14px;display:flex;align-items:center;gap:12px}
+    .top-logo{width:40px;height:40px;border-radius:9px;flex:0 0 auto;display:block;background:#fff;object-fit:contain}
+    .top-txt{flex:1;min-width:0}
+    .top-txt h1{font-size:1.22rem;font-weight:900;line-height:1.18;letter-spacing:-.01em}
+    .top-txt p{font-size:.8rem;opacity:.92;margin-top:3px;font-family:'DM Mono',monospace}
+    .back-link{color:#fff;text-decoration:none;font-size:.82rem;font-weight:700;border:1px solid rgba(255,255,255,.45);border-radius:999px;padding:5px 11px;white-space:nowrap}
+    .back-link:hover{background:rgba(255,255,255,.12)}
+    .share-btn{font-family:'DM Sans',sans-serif;cursor:pointer;background:transparent}
+    @media (max-width:560px){.top-bar{gap:9px}.back-link{padding:5px 10px;font-size:.78rem}.top-txt p{display:none}}
+
+    .shell{display:block}
+    .card{background:#fff;border:none;border-radius:0}
+    .head{padding:11px 14px;border-bottom:1.5px solid var(--border);background:#fff}
+    .head h2{margin:0 0 5px;color:var(--navy);font-size:1.02rem;font-weight:700}
+    .head p{margin:0;color:#2f2b26;font-size:.95rem;line-height:1.55}
+    .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;padding:10px 14px;border-bottom:1.5px solid var(--border);background:#fff}
+    .controls>div{display:flex;flex-direction:column;gap:4px;flex:1 1 190px;min-width:0}
+    .addr-wrap{position:relative;flex:1 1 100%}
+    .ac{display:none;position:absolute;z-index:900;left:0;right:0;top:100%;margin-top:4px;background:#fff;
+      border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 22px rgba(13,27,75,.14);overflow:hidden}
+    .ac.on{display:block}
+    .ac button{display:block;width:100%;text-align:left;padding:10px 12px;border:none;background:#fff;cursor:pointer;
+      font:500 .8rem 'DM Sans',sans-serif;color:#1f2937;border-bottom:1px solid var(--border)}
+    .ac button:last-child{border-bottom:none}
+    .ac button:hover{background:#fbf9f4}
+    .origin{display:none;padding:13px 14px;background:#fff6ec;border-bottom:1.5px solid #f0c9a4;border-left:5px solid var(--orange);
+      font-size:1rem;color:#1c1a17;line-height:1.5}
+    .origin.on{display:block}
+    .origin b{color:var(--navy)}
+    .origin button{margin-left:8px;border:none;background:none;color:var(--navy);font:600 .74rem 'DM Sans',sans-serif;
+      text-decoration:underline;cursor:pointer;padding:0}
+    .dist{font:700 .88rem 'DM Mono',monospace;color:var(--navy);white-space:nowrap}
+    .tag.out{background:#fdecec;color:#8a1c1c}
+    .omark{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;
+      background:#1f2937;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4)}
+    .controls label{font:500 .7rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+    .controls select,.controls input{width:100%;border:1.5px solid #d8d4cb;border-radius:8px;padding:11px 12px;font:500 1rem 'DM Sans',sans-serif;background:#fff;color:var(--navy)}
+    .controls select:focus,.controls input:focus{outline:none;border-color:var(--orange)}
+    .types{display:flex;gap:7px;flex-wrap:wrap;padding:9px 14px 7px;background:#fff;align-items:center}
+    .subs{display:none}
+    .subs.on{display:flex;gap:7px;flex-wrap:wrap;align-items:center;padding:0 14px 9px;background:#fff}
+    .sub-l{font:500 .7rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-right:2px}
+    .sbtn{padding:7px 12px;border:1.5px solid #b3121d;border-radius:999px;background:#fff;cursor:pointer;
+      font:700 .82rem 'DM Sans',sans-serif;color:#b3121d;line-height:1.05}
+    .sbtn .n{font:.68rem 'DM Mono',monospace;color:var(--muted)}
+    .sbtn.off{border-color:#d8d4cb;color:#8a857c}
+    .sbtn.all{background:#b3121d;color:#fff;border-color:#b3121d}
+    .sbtn.all .n{color:rgba(255,255,255,.72)}
+    .boros{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:6px 14px;border-bottom:1.5px solid var(--border);background:#fafaf8}
+    .bk-l{font:500 .7rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+    .bk{display:inline-flex;align-items:center;gap:5px;font-size:.8rem;color:#4a453e}
+    .bk i{width:13px;height:13px;border-radius:50%;display:inline-block;border:3px solid #ccc;background:#fff}
+    .tbtn{display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border:1.5px solid var(--navy);border-radius:999px;background:#fff;cursor:pointer;font:700 .84rem 'DM Sans',sans-serif;color:var(--navy);line-height:1.05;transition:all .15s}
+    .tbtn .gy{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%}
+    .tbtn .gy svg{display:block}
+    .tbtn .n{font:.7rem 'DM Mono',monospace;color:var(--muted)}
+    .tbtn.off{border-color:#d8d4cb;color:#8a857c}
+    .tbtn.off .n{color:#a8a29a}
+    .tbtn.all{background:var(--orange);color:#fff;border-color:var(--orange)}
+    .tbtn.all .n{color:rgba(255,255,255,.8)}
+    .pin{background:none;border:none}
+    .pin-b{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;
+      border:3px solid #fff;box-shadow:0 0 0 1px rgba(255,255,255,.95),0 1px 4px rgba(13,27,75,.4)}
+    .pin-b svg{display:block}
+    .cdl{background:none;border:none}
+    .cdl-b{display:block;text-align:center;font:600 .58rem 'DM Mono',monospace;letter-spacing:.03em;
+      color:#5b6478;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap;pointer-events:none}
+    .cdl-b.on{color:var(--navy);font-weight:700}
+    .cdl-b.dim{opacity:.35}
+    .cpin{background:none;border:none}
+    .cpin-b{display:block;border-radius:50%;border:2px solid rgba(255,255,255,.9);
+      box-shadow:0 1px 5px rgba(13,27,75,.3);opacity:.85}
+    .leaflet-cluster-anim .leaflet-marker-icon{transition:transform .25s ease-out,opacity .25s ease-in}
+    #map{height:74vh;min-height:460px;width:100%}
+    .notice{padding:9px 14px;background:var(--navy);font:.68rem 'DM Mono',monospace;color:rgba(255,255,255,.45);line-height:1.6}
+    .side-head{padding:12px 14px;border-bottom:1.5px solid var(--border);display:flex;justify-content:space-between;gap:10px;align-items:flex-start;background:#fff}
+    .side-head h2{margin:0 0 5px;color:var(--navy);font-size:1.02rem;font-weight:700}
+    .side-head p{margin:0;color:#4a453e;font-size:.88rem;line-height:1.5}
+    .count{font:700 .82rem 'DM Mono',monospace;color:var(--orange);white-space:nowrap}
+    #list{padding:12px 14px 18px;background:#f8f7f4;display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:9px;align-content:start}
+    .item{background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:11px;cursor:pointer;transition:border-color .15s ease}
+    .item:hover{border-color:var(--orange);background:#fffaf5}
+    .item h3{margin:0;color:var(--navy);font-size:1.02rem;font-weight:700;line-height:1.28;flex:1}
+    .ihead{display:flex;align-items:flex-start;gap:8px;margin-bottom:5px}
+    .ibadge{flex:none;display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;margin-top:1px;border:2.5px solid #ccc}
+    .ilogo{flex:none;height:18px;width:auto;max-width:74px;object-fit:contain;opacity:.9;margin-top:1px}
+    .item p{margin:0 0 8px;color:#4a453e;font-size:.85rem;line-height:1.45}
+    .meta{display:flex;flex-wrap:wrap;gap:6px}
+    .tag{padding:3px 7px;border-radius:3px;font:700 .73rem 'DM Sans',sans-serif;letter-spacing:.03em;background:#eef1f9;color:var(--navy)}
+    .tag.b{background:#fdefe3;color:#8a4310}
+    .tag.a{background:#f3f4f6;color:#475569}
+    .tag.t{color:#fff}
+    .tag.bo{background:#fff;border:2px solid #ccc;color:var(--navy);padding:1px 6px}
+    .empty{grid-column:1/-1;padding:18px;border:1.5px dashed var(--border);border-radius:8px;text-align:center;color:var(--muted);font-size:.9rem;background:#fff}
+    .leaflet-popup-content{font-family:'DM Sans',sans-serif;margin:12px 14px;max-width:240px}
+    .leaflet-popup-content h4{margin:0 0 5px;font-size:.88rem;color:var(--navy);line-height:1.35}
+    .leaflet-popup-content .plogo{display:block;height:26px;width:auto;max-width:100%;object-fit:contain;margin-bottom:8px}
+    .leaflet-popup-content p{margin:0 0 6px;font-size:.76rem;color:#475569;line-height:1.45}
+    .leaflet-popup-content .small{font:.66rem 'DM Mono',monospace;color:#6b7280}
+    .leaflet-popup-content a{color:var(--orange)}
+    @media (max-width:640px){.controls>div{flex:1 1 100%}#map{height:62vh;min-height:400px}#list{grid-template-columns:1fr}}
+  </style>
+
+<style id="bkcb6-embed-modal-css">
+  .embed-modal-bg{display:none;position:fixed;inset:0;background:rgba(13,27,75,.45);z-index:1300;align-items:center;justify-content:center;padding:18px}
+  .embed-modal-bg.open{display:flex}
+  .embed-modal{background:#fff;border-radius:16px;max-width:520px;width:100%;padding:20px;font-family:'DM Sans',sans-serif}
+  .embed-modal h3{margin:0 0 4px;color:#0d1b4b;font-size:1rem}
+  .embed-modal p{margin:0 0 14px;color:#6b7280;font-size:.8rem;line-height:1.5}
+  .embed-tabs{display:flex;gap:8px;margin-bottom:12px}
+  .embed-tabs button{flex:1;padding:9px;border:1px solid #e5e2db;border-radius:10px;background:#fff;font:600 .74rem 'DM Sans',sans-serif;color:#6b7280;cursor:pointer}
+  .embed-tabs button.on{background:#0d1b4b;color:#fff;border-color:#0d1b4b}
+  .embed-url-box,.embed-code-box{border:1px solid #e5e2db;border-radius:10px;padding:11px;font:.72rem 'DM Mono',monospace;color:#1f2937;word-break:break-all;background:#f8f7f4;margin-bottom:10px}
+  .embed-actions{display:flex;gap:8px}
+  .embed-actions button{flex:1;padding:10px;border:none;border-radius:10px;background:#f47920;color:#fff;font:600 .76rem 'DM Sans',sans-serif;cursor:pointer}
+  .embed-actions button.sec{background:#eef1f9;color:#0d1b4b}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <img class="top-logo" src="cb6-logo-square.png" alt="Brooklyn Community Board 6"/>
+  <div class="top-txt">
+    <h1>NYC Food Map</h1>
+    <p>Supermarkets and greenmarkets, every community district</p>
+  </div>
+  <button class="back-link share-btn" type="button" onclick="document.getElementById('bkcb6EmbedModal').classList.add('open')">Share</button>
+  <a class="back-link" href="/hubs">Hubs</a>
+</div>
+
+<div class="shell">
+  <div class="card">
+    <div class="head">
+      <h2>Supermarkets and greenmarkets by community district</h2>
+      <p>Every licensed supermarket in the five boroughs alongside every farmers market and farm stand. Filter by type, chain or independent, borough, or district, or search an address to see what is closest to it.</p>
+    </div>
+    <div class="types" id="types"></div>
+    <div class="subs" id="subs"></div>
+    <div class="boros" id="boros"></div>
+    <div class="controls">
+      <div>
+        <label for="boroSel">Borough</label>
+        <select id="boroSel">
+          <option value="">All five boroughs</option>
+          <option value="Manhattan">Manhattan</option>
+          <option value="Bronx">Bronx</option>
+          <option value="Brooklyn">Brooklyn</option>
+          <option value="Queens">Queens</option>
+          <option value="Staten Island">Staten Island</option>
+        </select>
+      </div>
+      <div>
+        <label for="cbSel">Community district</label>
+        <select id="cbSel"><option value="">All districts</option></select>
+      </div>
+      <div>
+        <label for="qInput">Search by name, chain, or street</label>
+        <input id="qInput" type="text" placeholder="For example, Key Food or Greenmarket" autocomplete="off">
+      </div>
+      <div class="addr-wrap">
+        <label for="addrInput">Find what is nearest an address</label>
+        <input id="addrInput" type="text" placeholder="250 Baltic Street, Brooklyn" autocomplete="off">
+        <div class="ac" id="addrAC"></div>
+      </div>
+    </div>
+    <div class="origin" id="origin"></div>
+    <div id="map"></div>
+    <div class="notice">Sources: the New York State Department of Agriculture and Markets retail food store license file, downloaded August 2026, and the Department of Health and Mental Hygiene farmers market list published on NYC Open Data. Community district is assigned by point in polygon against Department of City Planning district boundaries. A store is counted as a supermarket when it carries a supermarket banner or reports at least 10,000 square feet; pharmacies, dollar stores, delis, bakeries, breweries and wholesalers are excluded. Square footage is self reported to the state and a small number of entries are plainly wrong, which is flagged where it happens. License records lag closings and openings, so confirm before you travel. Market days, hours and EBT acceptance change through the season. <a href="mailto:Mike@bkcb6.org" style="color:#f47920">Mike Racioppo</a>, Brooklyn Community Board 6.</div>
+
+    <div class="side-head">
+      <div>
+        <h2 id="sideTitle">Food retail</h2>
+        <p id="sideSub">Opens on CB6. Widen it with the borough and district menus, or search an address.</p>
+      </div>
+      <div class="count" id="count"></div>
+    </div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<div class="embed-modal-bg" id="bkcb6EmbedModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="embed-modal">
+    <h3>Share or embed this map</h3>
+    <p>Copy the link, or take the iframe code to put this map on another site.</p>
+    <div class="embed-tabs">
+      <button class="on" type="button" onclick="bkcb6SwitchEmbedTab(this,'link')">Link</button>
+      <button type="button" onclick="bkcb6SwitchEmbedTab(this,'iframe')">Embed</button>
+    </div>
+    <div id="bkcb6EmbedLinkPanel">
+      <div class="embed-url-box" id="bkcb6EmbedUrlBox"></div>
+      <div class="embed-actions">
+        <button type="button" onclick="bkcb6CopyEmbed('link')">Copy link</button>
+        <button class="sec" type="button" onclick="document.getElementById('bkcb6EmbedModal').classList.remove('open')">Close</button>
+      </div>
+    </div>
+    <div id="bkcb6EmbedIframePanel" style="display:none">
+      <div class="embed-code-box" id="bkcb6EmbedCodeBox"></div>
+      <div class="embed-actions">
+        <button type="button" onclick="bkcb6CopyEmbed('iframe')">Copy code</button>
+        <button class="sec" type="button" onclick="document.getElementById('bkcb6EmbedModal').classList.remove('open')">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+<script>
+(function(){
+  var GLYPH = {
+    supermarket:'<path d="M2.2 3h3.1l.7 3h15.4a.9.9 0 0 1 .87 1.14l-2.1 7.4a1.4 1.4 0 0 1-1.35 1.02H8.3l.36 1.6h10.5v1.9H7.5a1 1 0 0 1-.98-.78L3.6 4.9H2.2zm4.9 5 1.3 5.7h9.5L19.6 8z"/><circle cx="9.2" cy="20" r="1.7"/><circle cx="17.6" cy="20" r="1.7"/>',
+    greenmarket:'<path d="M2.4 8.6 5 3.5h14l2.6 5.1a2.3 2.3 0 0 1-2.1 1.6 2.3 2.3 0 0 1-2-1.2 2.3 2.3 0 0 1-2 1.2 2.3 2.3 0 0 1-2-1.2 2.3 2.3 0 0 1-2 1.2 2.3 2.3 0 0 1-2-1.2 2.3 2.3 0 0 1-2 1.2 2.3 2.3 0 0 1-2.1-1.6zM4.4 11.6a4 4 0 0 0 2-.6v9.5H4.4zm13.2 0h2v8.9h-2zM6.9 12.5h10.1v2.4H6.9zm0 3.9h10.1v4.1H6.9z"/>',
+    landmark:'<path d="M12 2.2 9.7 8.1H3.4l5 4.3-1.9 6.2 5.5-3.7 5.5 3.7-1.9-6.2 5-4.3h-6.3z"/>'
+  };
+  var TYPES = [
+    {k:'supermarket', label:'Supermarkets', color:'#0d1b4b'},
+    {k:'greenmarket', label:'Greenmarkets', color:'#2f8f4e'}
+  ];
+  var COLOR = {};
+  TYPES.forEach(function(t){ COLOR[t.k] = t.color; });
+  function typeLabel(k){
+    for(var i=0;i<TYPES.length;i++){ if(TYPES[i].k === k) return TYPES[i].label; }
+    return k;
+  }
+  function glyphSVG(k, size, fill){
+    return '<svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'" fill="'+fill+'" aria-hidden="true">'
+      + (GLYPH[k] || GLYPH.landmark) + '</svg>';
+  }
+  var BOROS = [
+    {k:'Manhattan',     color:'#0d1b4b'},
+    {k:'Brooklyn',      color:'#f47920'},
+    {k:'Queens',        color:'#2e9e6b'},
+    {k:'Bronx',         color:'#c62828'},
+    {k:'Staten Island', color:'#7e57c2'}
+  ];
+  // a Key Food and a one store independent are not the same kind of place,
+  // and a market that runs all year is not the same as a summer farm stand
+  var SUBS = {
+    supermarket: [
+      {k:'chain',       label:'Chain banner'},
+      {k:'independent', label:'Independent'}
+    ],
+    greenmarket: [
+      {k:'yearround', label:'Year round'},
+      {k:'seasonal',  label:'Seasonal'}
+    ]
+  };
+  var onSubs = {};
+  function subLabel(t, k){
+    var list = SUBS[t] || [];
+    for(var i=0;i<list.length;i++){ if(list[i].k === k) return list[i].label; }
+    return '';
+  }
+  function subType(){
+    // the sub filter only makes sense when one type is the whole view
+    var on = TYPES.filter(function(t){ return onTypes[t.k]; });
+    return (on.length === 1 && SUBS[on[0].k]) ? on[0].k : null;
+  }
+
+  var BCOLOR = {};
+  BOROS.forEach(function(b){ BCOLOR[b.k] = b.color; });
+  function boroColor(n){ return BCOLOR[n] || '#6b6760'; }
+
+  var iconCache = {};
+  function iconFor(type, boro){
+    var key = type + '|' + boro;
+    if(iconCache[key]) return iconCache[key];
+    iconCache[key] = L.divIcon({
+      className: 'pin',
+      html: '<span class="pin-b" style="background:'+(COLOR[type]||'#f47920')+';border-color:'+boroColor(boro)+'">'
+            + glyphSVG(type, 14, '#fff') + '</span>',
+      iconSize: [28,28], iconAnchor: [14,14], popupAnchor: [0,-14]
+    });
+    return iconCache[key];
+  }
+
+  var map = L.map('map', {scrollWheelZoom:true}).setView([40.7128,-73.96], 11);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+
+  var boroSel = document.getElementById('boroSel');
+  var cbSel = document.getElementById('cbSel');
+  var qInput = document.getElementById('qInput');
+  var listEl = document.getElementById('list');
+  var countEl = document.getElementById('count');
+  var typesEl = document.getElementById('types');
+  var addrInput = document.getElementById('addrInput');
+  var addrAC = document.getElementById('addrAC');
+  var originEl = document.getElementById('origin');
+  var borosEl = document.getElementById('boros');
+  var subsEl = document.getElementById('subs');
+
+  var places = [];
+  var districts = [];
+  var cdLayer = null;
+  var labelLayer = L.layerGroup();
+  var markerLayer = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    maxClusterRadius: 34,
+    spiderfyDistanceMultiplier: 1.4,
+    disableClusteringAtZoom: 14,
+    iconCreateFunction: function(cluster){
+      var kids = cluster.getAllChildMarkers();
+      var tally = {};
+      kids.forEach(function(m){ var b = m.options.boro; tally[b] = (tally[b]||0)+1; });
+      var top = null;
+      Object.keys(tally).forEach(function(b){ if(!top || tally[b] > tally[top]) top = b; });
+      var n = kids.length;
+      var d = n < 10 ? 20 : n < 50 ? 25 : n < 150 ? 30 : 35;
+      return L.divIcon({
+        className: 'cpin',
+        html: '<span class="cpin-b" style="background:'+boroColor(top)+';width:'+d+'px;height:'+d+'px"></span>',
+        iconSize: [d,d], iconAnchor: [d/2,d/2]
+      });
+    }
+  }).addTo(map);
+  var markerFor = {};
+  var totalsAll = {};
+  var onTypes = {};
+  TYPES.forEach(function(t){ onTypes[t.k] = true; });
+
+  var origin = null;          // {lat, lng, label, cb}
+  var originMarker = null;
+
+  function haversine(a, b){
+    var R = 3958.8, t = Math.PI/180;
+    var dLat = (b[0]-a[0])*t, dLng = (b[1]-a[1])*t;
+    var x = Math.sin(dLat/2)*Math.sin(dLat/2)
+          + Math.cos(a[0]*t)*Math.cos(b[0]*t)*Math.sin(dLng/2)*Math.sin(dLng/2);
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+  }
+  function fmtDist(mi){
+    if(mi < 0.19) return Math.round(mi*5280/10)*10 + ' ft';
+    return (mi < 10 ? mi.toFixed(1) : Math.round(mi)) + ' mi';
+  }
+  function inRing(lng, lat, ring){
+    var hit = false;
+    for(var i=0, j=ring.length-1; i<ring.length; j=i++){
+      var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+      if(((yi > lat) !== (yj > lat)) && (lng < (xj-xi)*(lat-yi)/(yj-yi)+xi)) hit = !hit;
+    }
+    return hit;
+  }
+  function districtAt(lat, lng){
+    for(var i=0; i<districts.length; i++){
+      var g = districts[i].geometry;
+      var polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+      for(var j=0; j<polys.length; j++){
+        if(inRing(lng, lat, polys[j][0])) return districts[i].properties;
+      }
+    }
+    return null;
+  }
+
+  function allTypesOn(){
+    for(var i=0;i<TYPES.length;i++){ if(!onTypes[TYPES[i].k]) return false; }
+    return true;
+  }
+  function counts(list){
+    var c = {};
+    list.forEach(function(m){ c[m.cb] = (c[m.cb]||0)+1; });
+    return c;
+  }
+  function matchesText(p, q){
+    if(p.name.toLowerCase().indexOf(q) !== -1) return true;
+    if((p.chain || '').toLowerCase().indexOf(q) !== -1) return true;
+    return (p.address || '').toLowerCase().indexOf(q) !== -1;
+  }
+  function shown(){
+    var b = boroSel.value, cb = cbSel.value, q = qInput.value.trim().toLowerCase();
+    var st = subType();
+    return places.filter(function(p){
+      if(!onTypes[p.type]) return false;
+      if(st && p.type === st && onSubs[st] && !onSubs[st][p.subtype || 'independent']) return false;
+      if(q && !matchesText(p, q)) return false;
+      // neither search is bound by district. an address search ranks the whole
+      // city by distance, and a name search finds the place wherever it sits,
+      // rather than reporting nothing because the map opened on one district
+      if(origin || q) return true;
+      if(b && p.boro_name !== b) return false;
+      if(cb && p.cb !== cb) return false;
+      return true;
+    });
+  }
+  function nearestList(){
+    var list = shown().slice();
+    list.forEach(function(p){ p._d = haversine([origin.lat, origin.lng], [p.lat, p.lng]); });
+    list.sort(function(a, b){ return a._d - b._d; });
+    return list.slice(0, 40);
+  }
+  function renderTypeBar(){
+    var byType = {};
+    places.forEach(function(p){ byType[p.type] = (byType[p.type]||0)+1; });
+    var html = '<button class="tbtn all" type="button" data-t="__all">All types <span class="n">'+places.length+'</span></button>';
+    html += TYPES.map(function(t){
+      return '<button class="tbtn'+(onTypes[t.k] ? '' : ' off')+'" type="button" data-t="'+t.k+'">'
+        + '<span class="gy" style="background:'+t.color+'">'+glyphSVG(t.k, 11, '#fff')+'</span>'+t.label
+        + ' <span class="n">'+(byType[t.k]||0)+'</span></button>';
+    }).join('');
+    typesEl.innerHTML = html;
+    Array.prototype.forEach.call(typesEl.querySelectorAll('.tbtn'), function(el){
+      el.addEventListener('click', function(){
+        var k = el.getAttribute('data-t');
+        if(k === '__all'){
+          TYPES.forEach(function(t){ onTypes[t.k] = true; });
+        } else if(allTypesOn()){
+          TYPES.forEach(function(t){ onTypes[t.k] = (t.k === k); });
+        } else {
+          onTypes[k] = !onTypes[k];
+          if(!TYPES.some(function(t){ return onTypes[t.k]; })){
+            TYPES.forEach(function(t){ onTypes[t.k] = true; });
+          }
+        }
+        syncTypeBar();
+        renderSubBar();
+        refresh();
+      });
+    });
+  }
+  function renderSubBar(){
+    var t = subType();
+    if(!t){ subsEl.className = 'subs'; subsEl.innerHTML = ''; return; }
+    if(!onSubs[t]){
+      onSubs[t] = {};
+      SUBS[t].forEach(function(x){ onSubs[t][x.k] = true; });
+    }
+    var tally = {};
+    places.forEach(function(p){
+      if(p.type !== t) return;
+      var k = p.subtype || 'independent';
+      tally[k] = (tally[k]||0)+1;
+    });
+    var all = SUBS[t].every(function(x){ return onSubs[t][x.k]; });
+    subsEl.className = 'subs on';
+    subsEl.innerHTML = '<span class="sub-l">' + typeLabel(t) + ', by kind</span>'
+      + '<button class="sbtn'+(all ? ' all' : '')+'" type="button" data-s="__all">All <span class="n">'
+      + places.filter(function(p){ return p.type === t; }).length + '</span></button>'
+      + SUBS[t].map(function(x){
+          return '<button class="sbtn'+(onSubs[t][x.k] ? '' : ' off')+'" type="button" data-s="'+x.k+'">'
+            + x.label + ' <span class="n">'+(tally[x.k]||0)+'</span></button>';
+        }).join('');
+    Array.prototype.forEach.call(subsEl.querySelectorAll('.sbtn'), function(el){
+      el.addEventListener('click', function(){
+        var k = el.getAttribute('data-s');
+        if(k === '__all'){
+          SUBS[t].forEach(function(x){ onSubs[t][x.k] = true; });
+        } else if(SUBS[t].every(function(x){ return onSubs[t][x.k]; })){
+          SUBS[t].forEach(function(x){ onSubs[t][x.k] = (x.k === k); });
+        } else {
+          onSubs[t][k] = !onSubs[t][k];
+          if(!SUBS[t].some(function(x){ return onSubs[t][x.k]; })){
+            SUBS[t].forEach(function(x){ onSubs[t][x.k] = true; });
+          }
+        }
+        renderSubBar();
+        refresh();
+      });
+    });
+  }
+
+  function renderBoroKey(){
+    borosEl.innerHTML = '<span class="bk-l">Ring colour is the borough</span>' + BOROS.map(function(b){
+      return '<span class="bk"><i style="border-color:'+b.color+'"></i>'+b.k+'</span>';
+    }).join('');
+  }
+  function syncTypeBar(){
+    Array.prototype.forEach.call(typesEl.querySelectorAll('.tbtn'), function(el){
+      var k = el.getAttribute('data-t');
+      if(k === '__all'){ el.classList.toggle('all', allTypesOn()); return; }
+      el.classList.toggle('off', !onTypes[k]);
+    });
+  }
+  function fillCbSelect(){
+    var b = boroSel.value, keep = cbSel.value;
+    var opts = districts.filter(function(d){ return !b || d.properties.boro === b; })
+      .map(function(d){ return d.properties.cb; })
+      .sort(function(x,y){
+        var nx = parseInt(x.replace(/\D/g,''),10), ny = parseInt(y.replace(/\D/g,''),10);
+        var px = x.replace(/[0-9]/g,''), py = y.replace(/[0-9]/g,'');
+        return px === py ? nx - ny : px.localeCompare(py);
+      });
+    cbSel.innerHTML = '<option value="">All districts</option>' + opts.map(function(c){
+      return '<option value="'+c+'">'+c+'</option>';
+    }).join('');
+    if(opts.indexOf(keep) !== -1) cbSel.value = keep;
+  }
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function num(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function popupHTML(p){
+    var h = '<h4>'+esc(p.name)+'</h4>';
+    h += '<p class="small" style="color:'+(COLOR[p.type]||'#f47920')+'">'+typeLabel(p.type)
+       + (p.chain ? ' &middot; '+esc(p.chain) : '')
+       + (p.type === 'greenmarket' ? ' &middot; '+(p.subtype === 'yearround' ? 'Year round' : 'Seasonal') : '')+'</p>';
+    if(p.address) h += '<p>'+esc(p.address)+'</p>';
+    if(p.type === 'greenmarket'){
+      if(p.days || p.hours) h += '<p>'+esc([p.days, p.hours].filter(Boolean).join(', '))+'</p>';
+      if(p.ebt) h += '<p class="small">Accepts EBT and SNAP</p>';
+    } else if(p.sqft){
+      h += '<p class="small">'+num(p.sqft)+' sq ft as reported to the state'
+         + (p.sqft_flag ? '. That figure is larger than any food store in the city and looks like a filing error' : '')+'</p>';
+    } else {
+      h += '<p class="small">Square footage not reported</p>';
+    }
+    h += '<p class="small">'+p.cb+(p.approx ? ' (nearest district)' : '')+'</p>';
+    return h;
+  }
+  function renderLabels(){
+    labelLayer.clearLayers();
+    if(map.getZoom() < 9) return;                  // nothing readable fits below that
+    var bounds = map.getBounds().pad(0.12);
+    var placed = [];
+    // draw in a stable order, then skip any label whose box would sit on one
+    // already drawn. a selected district always wins its spot
+    var queue = districts.filter(function(f){
+      var d = f.properties;
+      return d.lx !== undefined && bounds.contains(L.latLng(d.ly, d.lx));
+    }).sort(function(a, b){
+      var sa = cbSel.value === a.properties.cb ? 0 : 1;
+      var sb = cbSel.value === b.properties.cb ? 0 : 1;
+      if(sa !== sb) return sa - sb;
+      var ba = boroSel.value && a.properties.boro !== boroSel.value ? 1 : 0;
+      var bb = boroSel.value && b.properties.boro !== boroSel.value ? 1 : 0;
+      return ba - bb;
+    });
+    queue.forEach(function(f){
+      var d = f.properties;
+      var pt = map.latLngToLayerPoint([d.ly, d.lx]);
+      var w = d.cb.length * 5.2 + 8, h = 13;
+      var box = {x1: pt.x - w/2, x2: pt.x + w/2, y1: pt.y - h/2, y2: pt.y + h/2};
+      for(var i=0; i<placed.length; i++){
+        var o = placed[i];
+        if(box.x1 < o.x2 && box.x2 > o.x1 && box.y1 < o.y2 && box.y2 > o.y1) return;
+      }
+      placed.push(box);
+      var sel = cbSel.value === d.cb;
+      var dim = (boroSel.value && d.boro !== boroSel.value) || (cbSel.value && !sel);
+      labelLayer.addLayer(L.marker([d.ly, d.lx], {
+        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({
+          className: 'cdl',
+          html: '<span class="cdl-b'+(sel ? ' on' : '')+(dim ? ' dim' : '')+'">'+d.cb+'</span>',
+          iconSize: [Math.round(w), h], iconAnchor: [Math.round(w/2), Math.round(h/2)]
+        })
+      }));
+    });
+  }
+
+  function renderMarkers(list){
+    markerLayer.clearLayers();
+    markerFor = {};
+    var batch = [];
+    // some places share a building, and so share a coordinate. fan them out by a
+    // few metres so every pin stays clickable once clustering switches off
+    var seen = {};
+    list.forEach(function(p){
+      var key = p.lat.toFixed(5) + ',' + p.lng.toFixed(5);
+      var nth = seen[key] || 0;
+      seen[key] = nth + 1;
+      var lat = p.lat, lng = p.lng;
+      if(nth){
+        var a = (nth - 1) * 2.4;
+        lat += 0.00013 * Math.cos(a);
+        lng += 0.00017 * Math.sin(a);
+      }
+      var mk = L.marker([lat, lng], {icon: iconFor(p.type, p.boro_name), title: p.name, boro: p.boro_name});
+      mk.bindPopup(popupHTML(p));
+      markerFor[p.name] = mk;
+      batch.push(mk);
+    });
+    markerLayer.addLayers(batch);
+  }
+  function renderList(list){
+    var near = !!origin;
+    // whichever scope the person was in when the search widened past it
+    var outCb = near ? origin.cb : (qInput.value.trim() ? cbSel.value : '');
+    countEl.textContent = near ? ('nearest ' + list.length) : (list.length + ' of ' + places.length);
+    var sub = document.getElementById('sideSub');
+    if(!near){
+      sub.textContent = qInput.value.trim()
+        ? 'Searching the whole city, not just the district on screen.'
+        : 'Opens on CB6. Widen it with the borough and district menus, or search an address.';
+    }
+    if(!list.length){ listEl.innerHTML = '<div class="empty">Nothing matches these filters.</div>'; return; }
+    var sorted = near ? list : list.slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
+    listEl.innerHTML = sorted.map(function(p){
+      return '<div class="item" data-name="'+esc(p.name).replace(/"/g,'&quot;')+'">'
+        + '<div class="ihead">'
+        + '<span class="ibadge" style="background:'+(COLOR[p.type]||'#f47920')+';border-color:'+boroColor(p.boro_name)+'">'+glyphSVG(p.type, 12, '#fff')+'</span>'
+        + '<h3>'+esc(p.name)+'</h3>'
+        + (near ? '<span class="dist">'+fmtDist(p._d)+'</span>' : '')
+
+        + '</div>'
+        + (p.address ? '<p>'+esc(p.address)+'</p>' : '')
+        + '<div class="meta">'
+        + '<span class="tag t" style="background:'+(COLOR[p.type]||'#f47920')+'">'+typeLabel(p.type)
+        + (p.chain ? ' &middot; '+esc(p.chain) : '')+'</span>'
+        + '<span class="tag">'+p.cb+'</span>'
+        + '<span class="tag bo" style="border-color:'+boroColor(p.boro_name)+'">'+esc(p.boro_name)+'</span>'
+        + (outCb && p.cb !== outCb ? '<span class="tag out">Outside '+outCb+'</span>' : '')
+        + (p.approx ? '<span class="tag a">Nearest district</span>' : '')
+        + (p.sqft ? '<span class="tag a">'+num(p.sqft)+' sq ft</span>' : '')
+        + (p.type === 'greenmarket' && p.days ? '<span class="tag b">'+esc(p.days)+'</span>' : '')
+        + (p.type === 'greenmarket' && p.ebt ? '<span class="tag a">EBT</span>' : '')
+        + '</div></div>';
+    }).join('');
+    Array.prototype.forEach.call(listEl.querySelectorAll('.item'), function(el){
+      el.addEventListener('click', function(){
+        var mk = markerFor[el.getAttribute('data-name')];
+        if(!mk) return;
+        map.setView(mk.getLatLng(), 16);
+        if(markerLayer.zoomToShowLayer) markerLayer.zoomToShowLayer(mk, function(){ mk.openPopup(); });
+        else mk.openPopup();
+      });
+    });
+  }
+  var liveCounts = {};
+  function cdStyle(f){
+    var sel = cbSel.value === f.properties.cb;
+    var dim = (boroSel.value && f.properties.boro !== boroSel.value) || (cbSel.value && !sel);
+    return {
+      color: sel ? '#0d1b4b' : '#8f97ad',
+      weight: sel ? 2.4 : 1,
+      fill: true,
+      fillColor: '#ffffff',
+      fillOpacity: sel ? 0.04 : 0.01,
+      opacity: dim ? 0.25 : 0.85
+    };
+  }
+  function draw(fit){
+    var list = shown();
+    liveCounts = counts(list);
+    if(cdLayer) cdLayer.setStyle(cdStyle);
+    renderLabels();
+    renderMarkers(list);
+    renderList(origin ? nearestList() : list);
+    if(!fit || !cdLayer) return;
+    var target = null;
+    if(cbSel.value){
+      cdLayer.eachLayer(function(l){ if(l.feature.properties.cb === cbSel.value) target = l; });
+    } else if(boroSel.value){
+      var b = L.latLngBounds([]);
+      cdLayer.eachLayer(function(l){ if(l.feature.properties.boro === boroSel.value) b.extend(l.getBounds()); });
+      if(b.isValid()) map.fitBounds(b, {padding:[18,18]});
+      return;
+    }
+    if(target) map.fitBounds(target.getBounds(), {padding:[28,28]});
+    else if(!boroSel.value) map.fitBounds(cdLayer.getBounds(), {padding:[10,10]});
+  }
+  function refresh(){ draw(true); }
+
+  // ---- address lookup ----
+  var acTimer = null, acAbort = null;
+  function hideAC(){ addrAC.classList.remove('on'); addrAC.innerHTML = ''; }
+
+  addrInput.addEventListener('input', function(){
+    var q = addrInput.value.trim();
+    clearTimeout(acTimer);
+    if(q.length < 3){ hideAC(); return; }
+    acTimer = setTimeout(function(){
+      if(acAbort) acAbort.abort();
+      acAbort = new AbortController();
+      fetch('https://geosearch.planninglabs.nyc/v2/autocomplete?size=6&text=' + encodeURIComponent(q),
+            {signal: acAbort.signal})
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+          var fs = (j && j.features) || [];
+          if(!fs.length){ hideAC(); return; }
+          addrAC.innerHTML = fs.map(function(f, i){
+            return '<button type="button" data-i="'+i+'">'+esc(f.properties.label)+'</button>';
+          }).join('');
+          addrAC.classList.add('on');
+          Array.prototype.forEach.call(addrAC.querySelectorAll('button'), function(btn){
+            btn.addEventListener('click', function(){
+              var f = fs[+btn.getAttribute('data-i')];
+              setOrigin(f.geometry.coordinates[1], f.geometry.coordinates[0], f.properties.label);
+            });
+          });
+        })
+        .catch(function(){ hideAC(); });
+    }, 260);
+  });
+  addrInput.addEventListener('blur', function(){ setTimeout(hideAC, 180); });
+
+  function setOrigin(lat, lng, label){
+    hideAC();
+    addrInput.value = label;
+    var d = districtAt(lat, lng);
+    origin = {lat: lat, lng: lng, label: label, cb: d ? d.cb : '', boro: d ? d.boro : ''};
+    if(originMarker) map.removeLayer(originMarker);
+    originMarker = L.marker([lat, lng], {
+      icon: L.divIcon({className: 'pin', html: '<span class="omark"></span>', iconSize: [20,20], iconAnchor: [10,10]}),
+      zIndexOffset: 1000
+    }).addTo(map).bindPopup('<h4>'+esc(label)+'</h4>'+(d ? '<p class="small">'+d.cb+'</p>' : ''));
+    originEl.className = 'origin on';
+    originEl.innerHTML = 'Nearest to <b>' + esc(label) + '</b>'
+      + (d ? ', which is in ' + d.cb : '')
+      + '. Results are ranked by distance across the whole city, not just this district.'
+      + '<button type="button" id="clearOrigin">Clear</button>';
+    document.getElementById('clearOrigin').addEventListener('click', clearOrigin);
+    document.getElementById('sideTitle').textContent = 'Nearest first';
+    document.getElementById('sideSub').textContent = 'Closest to the address, whichever district it falls in.';
+    draw(false);
+    map.setView([lat, lng], 14);
+  }
+  function clearOrigin(){
+    origin = null;
+    addrInput.value = '';
+    if(originMarker){ map.removeLayer(originMarker); originMarker = null; }
+    originEl.className = 'origin';
+    originEl.innerHTML = '';
+    document.getElementById('sideTitle').textContent = 'Food retail';
+    document.getElementById('sideSub').textContent = 'Tap a place to find it on the map.';
+    refresh();
+  }
+
+  boroSel.addEventListener('change', function(){
+    cbSel.value = ''; fillCbSelect();
+    if(origin) clearOrigin(); else refresh();
+  });
+  cbSel.addEventListener('change', function(){ if(origin) clearOrigin(); else refresh(); });
+  qInput.addEventListener('input', function(){ draw(false); });
+  Promise.all([
+    fetch('cd-boundaries-simple.geojson').then(function(r){ return r.json(); }),
+    fetch('data/food-places.json').then(function(r){ return r.json(); })
+  ]).then(function(res){
+    districts = res[0].features;
+    places = res[1];
+    totalsAll = counts(places);
+    liveCounts = totalsAll;
+    cdLayer = L.geoJSON(res[0], {
+      style: cdStyle,
+      onEachFeature: function(f, lyr){
+        lyr.bindTooltip(f.properties.cb, {sticky:true});
+        lyr.on('click', function(){
+          boroSel.value = f.properties.boro;
+          fillCbSelect();
+          cbSel.value = f.properties.cb;
+          refresh();
+        });
+      }
+    }).addTo(map);
+    labelLayer.addTo(map);
+    map.on('zoomend moveend', renderLabels);
+    // a link can arrive scoped: ?type=greenmarket&cb=BKCB6&boro=Brooklyn&sub=chain
+    var qp = new URLSearchParams(window.location.search);
+    var wantType = (qp.get('type') || '').toLowerCase().replace(/[+_]/g, ' ');
+    if(wantType && TYPES.some(function(t){ return t.k === wantType; })){
+      TYPES.forEach(function(t){ onTypes[t.k] = (t.k === wantType); });
+    }
+    var wantSub = (qp.get('sub') || '').toLowerCase();
+    if(wantType && SUBS[wantType] && SUBS[wantType].some(function(x){ return x.k === wantSub; })){
+      onSubs[wantType] = {};
+      SUBS[wantType].forEach(function(x){ onSubs[wantType][x.k] = (x.k === wantSub); });
+    }
+    renderTypeBar();
+    renderSubBar();
+    renderBoroKey();
+
+    var wantCb = (qp.get('cb') || '').toUpperCase();
+    var wantBoro = qp.get('boro') || '';
+    var cbHit = wantCb ? districts.filter(function(f){ return f.properties.cb === wantCb; })[0] : null;
+    if(cbHit){
+      boroSel.value = cbHit.properties.boro;
+      fillCbSelect();
+      cbSel.value = wantCb;
+    } else if(wantBoro && BCOLOR[wantBoro]){
+      boroSel.value = wantBoro;
+      fillCbSelect();
+    } else if(qp.get('cb') === 'all' || qp.get('boro') === 'all'){
+      fillCbSelect();
+    } else {
+      // this is a CB6 site, so the district opens on CB6 unless told otherwise
+      boroSel.value = 'Brooklyn';
+      fillCbSelect();
+      cbSel.value = 'BKCB6';
+    }
+    refresh();
+  }).catch(function(){
+    listEl.innerHTML = '<div class="empty">Food data could not be loaded. Please refresh.</div>';
+  });
+})();
+</script>
+
+<script>
+(function(){
+  var url = window.location.href.split('?')[0].split('#')[0];
+  url = url.replace('cb6brooklyn.github.io/bkcb6','bkcb6.app');
+  document.getElementById('bkcb6EmbedUrlBox').textContent = url;
+  document.getElementById('bkcb6EmbedCodeBox').textContent =
+    '<iframe src="'+url+'" width="100%" height="800" style="border:1px solid #e5e2db;border-radius:12px" loading="lazy"></iframe>';
+})();
+function bkcb6SwitchEmbedTab(btn,panel){
+  var wrap = btn.parentNode;
+  Array.prototype.forEach.call(wrap.children, function(b){ b.classList.remove('on'); });
+  btn.classList.add('on');
+  document.getElementById('bkcb6EmbedLinkPanel').style.display = panel === 'link' ? '' : 'none';
+  document.getElementById('bkcb6EmbedIframePanel').style.display = panel === 'iframe' ? '' : 'none';
+}
+function bkcb6CopyEmbed(type){
+  var el = document.getElementById(type === 'link' ? 'bkcb6EmbedUrlBox' : 'bkcb6EmbedCodeBox');
+  navigator.clipboard.writeText(el.textContent);
+}
+</script>
+</body>
+</html>
