@@ -129,8 +129,8 @@ a.inl{color:var(--navy);font-weight:700;border-bottom:2px solid var(--orange);te
   </div>
 
   <div class="searchbox">
-    <label for="addr">Your address</label>
-    <input id="addr" type="text" placeholder="e.g. 250 Baltic Street" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <label for="addr">Your address or place</label>
+    <input id="addr" type="text" placeholder="Address, building, park or housing development" autocomplete="off" autocapitalize="off" spellcheck="false">
     <div id="sug"></div>
     <div class="hint">Every election district in New York City, all 4,070 of them, with the Election Day site and the early voting site the Board of Elections has on file for each one.</div>
   </div>
@@ -278,21 +278,46 @@ a.inl{color:var(--navy);font-weight:700;border-bottom:2px solid var(--orange);te
 
   function lookup(f){
     clearErr(); loadEl.style.display='block'; outEl.style.display='none';
-    var p=f.properties;
-    if(!p.borough){ showErr('That address does not look like it is in New York City. Try an address in one of the five boroughs.'); return; }
+    var p=f.properties||{}, c=(f.geometry&&f.geometry.coordinates)||null;
+    if(!p.borough && !c){ showErr('That does not look like a place in New York City. Try an address in one of the five boroughs.'); return; }
+    // Named places (parks, housing developments, schools, landmarks) carry no house number.
+    // Fall back to the nearest real address to those coordinates.
+    if(p.housenumber && p.street && p.borough) geoclient(p, c);
+    else byPoint(c);
+  }
+
+  function byPoint(c){
+    if(!c){ fail(); return; }
+    fetch('https://geosearch.planninglabs.nyc/v2/reverse?sources=nycpad&size=40&point.lat='+
+          encodeURIComponent(c[1])+'&point.lon='+encodeURIComponent(c[0]))
+      .then(function(r){ if(!r.ok) throw new Error('rev'); return r.json(); })
+      .then(function(d){
+        var fs=(d&&d.features)||[];
+        for(var i=0;i<fs.length;i++){
+          var q=fs[i].properties;
+          if(q.housenumber && q.street && q.borough){ geoclient(q, c, true); return; }
+        }
+        showErr('That looks like a park or open space with no addresses inside it, so there is no poll site to assign. Enter a street address instead.');
+      }, fail);
+  }
+
+  function geoclient(p, c, isFallback){
     var url='https://api.nyc.gov/geoclient/v2/address.json?houseNumber='+encodeURIComponent(p.housenumber||'')+
             '&street='+encodeURIComponent(p.street||'')+'&borough='+encodeURIComponent(p.borough);
     fetch(url,{headers:{'Ocp-Apim-Subscription-Key':GC_KEY}})
       .then(function(r){ if(!r.ok) throw new Error('gc'); return r.json(); })
       .then(function(j){
         var a=j&&j.address;
-        if(!a||!a.assemblyDistrict||!a.electionDistrict){ fail(); return; }
+        if(!a||!a.assemblyDistrict||!a.electionDistrict){
+          if(!isFallback){ byPoint(c); } else { fail(); }
+          return;
+        }
         try{ render(a,p); }catch(e){ fail(); }
-      }, fail);
+      }, function(){ if(!isFallback){ byPoint(c); } else { fail(); } });
   }
 
   function fail(){
-    showErr('Could not resolve districts for that address. Try the building number without an apartment, or look it up at <a class="inl" href="https://findmypollsite.vote.nyc/" target="_blank" rel="noopener">findmypollsite.vote.nyc</a>.');
+    showErr('Could not resolve districts for that one. Try the building number without an apartment, or look it up at <a class="inl" href="https://findmypollsite.vote.nyc/" target="_blank" rel="noopener">findmypollsite.vote.nyc</a>.');
   }
 
   function pad3(x){ x=String(parseInt(x,10)); while(x.length<3) x='0'+x; return x; }
