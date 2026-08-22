@@ -279,7 +279,7 @@
   // ---- what can be built here: Use Group verdicts for the lot's zoning district ----
   var USEMATRIX=null;
   (function(){try{fetch('/data/zoning-matrix.json').then(function(r){return r.json();}).then(function(j){USEMATRIX=j;
-    document.querySelectorAll('[data-usegrid]').forEach(function(el){paintUseGrid(el);});paintUseGroupMinis();}).catch(function(){});}catch(e){}})();
+    document.querySelectorAll('[data-usegrid]').forEach(function(el){paintUseGrid(el);});}).catch(function(){});}catch(e){}})();
   function baseDistrict(z){
     if(!z) return null;
     var m=String(z).trim().toUpperCase().match(/^([RCM])\s*(\d{1,2})/);
@@ -328,41 +328,27 @@
     return out + '</div>';
   }
 
-  // ---- use group as a card value in the results grid -----------------------
-  // Same source as the hero line above, rendered as a plain string so it can
-  // sit in the mini-card grid next to Zoning District.
-  function useGroupText(zones){
-    if (!USEMATRIX || !USEMATRIX.matrix || !zones || !zones.length) return '';
-    var z = String(zones[0]).toUpperCase();
-    if (z === 'PARK') return '';
-    var m = z.match(/^([RCM])(\d+)/);
-    if (!m) return '';
-    var base = m[1] + m[2];
-    var asRight = [], limited = [];
-    Object.keys(USEMATRIX.matrix).forEach(function(g){
-      var v = USEMATRIX.matrix[g][base];
-      if (v === 'Y') asRight.push(g);
-      else if (v === 'L' || v === 'S') limited.push(g);
-    });
-    if (!asRight.length && !limited.length) return '';
-    var out = asRight.length ? asRight.join(', ') + ' as of right' : '';
-    if (limited.length) out += (out ? ' \u00b7 ' : '') + limited.join(', ') + ' with limits';
-    return out;
-  }
-  function useGroupMini(zones){
-    var z = (zones && zones.length) ? String(zones[0]).toUpperCase() : '';
-    if (!z || z === 'PARK' || !/^[RCM]\d/.test(z)) return '';
-    return '<div data-ugmini="' + esc(z) + '" style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:7px 9px">'
-      + '<div style="font-size:.62rem;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted,#6b6760);margin-bottom:2px">Use Group</div>'
-      + '<div data-ugval style="font-size:.8rem;font-weight:800;color:var(--navy,#0d1b4b)">' + esc(useGroupText(zones) || '\u2014') + '</div></div>';
-  }
-  function paintUseGroupMinis(){
-    document.querySelectorAll('[data-ugmini]').forEach(function(el){
-      var v = useGroupText([el.getAttribute('data-ugmini')]);
-      if (!v) return;
-      var t = el.querySelector('[data-ugval]');
-      if (t) t.textContent = v;
-    });
+  // ---- use group of this property, from what the lot is actually used for --
+  // PLUTO land use code is the real world use. City of Yes (2024) consolidated
+  // the Zoning Resolution into ten use groups; this names the one the existing
+  // use falls into, in plain language, rather than listing what is permitted.
+  var UG_BY_LANDUSE={
+    '01':'II \u00b7 One and two family residential',
+    '02':'II \u00b7 Multi-family walk-up residential',
+    '03':'II \u00b7 Multi-family elevator residential',
+    '04':'II and VI \u00b7 Residential with ground floor commercial',
+    '05':'VI or VII \u00b7 Commercial, retail, service or office',
+    '06':'X \u00b7 Manufacturing or industrial',
+    '07':'Transportation or utility infrastructure',
+    '08':'III \u00b7 Community facility such as a school, house of worship or hospital',
+    '09':'I \u00b7 Open use, park or outdoor recreation',
+    '10':'IX \u00b7 Parking',
+    '11':'Vacant land, no use in place'
+  };
+  function useGroupMini(code,label){
+    var v=UG_BY_LANDUSE[String(code||'').trim().padStart(2,'0')];
+    if(!v) return label?mini('Use Group',String(label)):'';
+    return mini('Use Group',v);
   }
 
   function paintUseGrid(el){
@@ -538,7 +524,7 @@
       cardLogo='<div style="flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:6px">'+logoImg+iconImg+'</div>';
 
     }
-    var cards=mini(zones.length>1?'Zoning Districts':'Zoning District',zDisp)+useGroupMini(zones)+(spDists.length?mini(spDists.length>1?'Special Districts':'Special District',spDisp):'')+mini('Land Use',lUse)+mini('Landmark Status',historic)+mini('Election District',Number.isFinite(ed)?ed:'—')+mini('Assembly',repLabel('state_assembly',ad,'Assembly District'))+mini('City Council',repLabel('city_council',council,'Council District'))+mini('State Senate',repLabel('state_senate',senate,'State Senate District'))+mini('Congress',repLabel('congress',cong,'Congressional District'))+mini('School District',school?'CSD '+school:'—')+mini('Police Precinct',police?police+' Precinct':'—')+mini('Zoning Code Explanation',zones.length?zones.map(function(z){return z+': '+zoningPlain(z);}).join(' / '):'Check ZoLa for exact district controls.')+mini('Use Group Explanation',landUsePlain(pluto.landuse,lUse))+propertyMini('Owner',pluto.ownername||pluto.owner||a.ownerName||a.ownername)+mini('Community Board',cbLabel)+mini('Borough',pluto.borough||a.firstBoroughName||BOROUGH_NAMES[b]||'—')+propertyMini('Year Built',fmtNum(pluto.yearbuilt,''))+propertyMini('Building Class',pluto.bldgclass)+propertyMini('Lot Area',fmtNum(pluto.lotarea,' sq ft'))+propertyMini('Building Area',fmtNum(pluto.bldgarea,' sq ft'))+propertyMini('Residential Units',fmtNum(pluto.unitsres,''))+propertyMini('Total Units',fmtNum(pluto.unitstotal,'')); return '<div data-cardtop style="scroll-margin-top:12px;position:relative;background:#f0f8f4;border:1.5px solid #a7f3d0;border-radius:8px;padding:12px 14px;margin-top:4px"><div data-cardaddr style="font-size:1.15rem;font-weight:900;line-height:1.2;color:var(--navy,#0d1b4b)">'+esc(input)+'</div><div style="font-size:.95rem;font-weight:600;line-height:1.35;color:var(--navy,#0d1b4b);margin-top:3px">is in <strong style="font-weight:900">'+areaLabelHtml(cb||String(a.communityDistrict||pluto.cd||''),cbLabel)+'</strong></div>'+jointInterestNote(cb||String(a.communityDistrict||pluto.cd||''))+'<div style="display:flex;align-items:flex-start;gap:10px;margin:10px 0 9px"><div style="flex:1;min-width:0;background:#0d1b4b;border-radius:7px;padding:11px 13px;align-self:stretch"><div style="font-family:\'DM Mono\',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:#f47920;font-weight:700">zoned</div><div style="font-size:1.9rem;font-weight:900;line-height:1.12;color:#fff;margin-top:3px;word-break:break-word">'+esc(zones.length?zDisp:'Not available from PLUTO')+'</div>'+(zones.length?'<a href="#" data-zoomto="1" style="display:inline-block;margin-top:6px;font-size:.72rem;font-weight:700;color:#fff;opacity:.85;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.5)">See what this means &rarr;</a>':'')+(spDists.length?'<div style="font-family:\'DM Mono\',monospace;font-size:.66rem;color:rgba(255,255,255,.82);margin-top:5px">in the '+esc(spDisp)+' special district</div>':'')+useGroupLine(zones)+'</div>'+cardLogo+'</div><div style="font-size:.75rem;color:var(--muted,#6b6760);margin-bottom:8px">ED '+(Number.isFinite(ed)?ed:'—')+' &middot; AD '+(Number.isFinite(ad)?ad:'—')+(council?' &middot; Council District '+esc(council):'')+(senate?' &middot; State Senate District '+esc(senate):'')+(cong?' &middot; Congressional District '+esc(cong):'')+(school?' &middot; School District '+esc(school):'')+(police?' &middot; Police Precinct '+esc(police):'')+'</div><div class="citywide-result-map" data-lat="'+lat+'" data-lng="'+lng+'" data-label="'+esc(input)+'" data-owner="'+esc(pluto.ownername||pluto.owner||'')+'" style="height:240px;border-radius:8px;border:1px solid #a7f3d0;margin-bottom:10px;background:#eef2f7"></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:10px">'+cards+'</div><div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px;font-size:.73rem;line-height:1.45;color:var(--navy,#0d1b4b)"><div><strong>Zoning:</strong> '+(zones.length?zones.map(function(z){return '<strong>'+esc(z)+'</strong>: '+esc(zoningPlain(z));}).join('<br>'):'Zoning was not available from PLUTO for this address.')+'</div><div style="margin-top:5px"><strong>Land use:</strong> '+esc(landUsePlain(pluto.landuse,lUse))+'</div>'+(function(){var zn=zoneNote(input); if(!zn) return '';
+    var cards=mini(zones.length>1?'Zoning Districts':'Zoning District',zDisp)+useGroupMini(pluto.landuse,lUse)+(spDists.length?mini(spDists.length>1?'Special Districts':'Special District',spDisp):'')+mini('Land Use',lUse)+mini('Landmark Status',historic)+mini('Election District',Number.isFinite(ed)?ed:'—')+mini('Assembly',repLabel('state_assembly',ad,'Assembly District'))+mini('City Council',repLabel('city_council',council,'Council District'))+mini('State Senate',repLabel('state_senate',senate,'State Senate District'))+mini('Congress',repLabel('congress',cong,'Congressional District'))+mini('School District',school?'CSD '+school:'—')+mini('Police Precinct',police?police+' Precinct':'—')+mini('Zoning Code Explanation',zones.length?zones.map(function(z){return z+': '+zoningPlain(z);}).join(' / '):'Check ZoLa for exact district controls.')+mini('Use Group Explanation',landUsePlain(pluto.landuse,lUse))+propertyMini('Owner',pluto.ownername||pluto.owner||a.ownerName||a.ownername)+mini('Community Board',cbLabel)+mini('Borough',pluto.borough||a.firstBoroughName||BOROUGH_NAMES[b]||'—')+propertyMini('Year Built',fmtNum(pluto.yearbuilt,''))+propertyMini('Building Class',pluto.bldgclass)+propertyMini('Lot Area',fmtNum(pluto.lotarea,' sq ft'))+propertyMini('Building Area',fmtNum(pluto.bldgarea,' sq ft'))+propertyMini('Residential Units',fmtNum(pluto.unitsres,''))+propertyMini('Total Units',fmtNum(pluto.unitstotal,'')); return '<div data-cardtop style="scroll-margin-top:12px;position:relative;background:#f0f8f4;border:1.5px solid #a7f3d0;border-radius:8px;padding:12px 14px;margin-top:4px"><div data-cardaddr style="font-size:1.15rem;font-weight:900;line-height:1.2;color:var(--navy,#0d1b4b)">'+esc(input)+'</div><div style="font-size:.95rem;font-weight:600;line-height:1.35;color:var(--navy,#0d1b4b);margin-top:3px">is in <strong style="font-weight:900">'+areaLabelHtml(cb||String(a.communityDistrict||pluto.cd||''),cbLabel)+'</strong></div>'+jointInterestNote(cb||String(a.communityDistrict||pluto.cd||''))+'<div style="display:flex;align-items:flex-start;gap:10px;margin:10px 0 9px"><div style="flex:1;min-width:0;background:#0d1b4b;border-radius:7px;padding:11px 13px;align-self:stretch"><div style="font-family:\'DM Mono\',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:#f47920;font-weight:700">zoned</div><div style="font-size:1.9rem;font-weight:900;line-height:1.12;color:#fff;margin-top:3px;word-break:break-word">'+esc(zones.length?zDisp:'Not available from PLUTO')+'</div>'+(zones.length?'<a href="#" data-zoomto="1" style="display:inline-block;margin-top:6px;font-size:.72rem;font-weight:700;color:#fff;opacity:.85;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.5)">See what this means &rarr;</a>':'')+(spDists.length?'<div style="font-family:\'DM Mono\',monospace;font-size:.66rem;color:rgba(255,255,255,.82);margin-top:5px">in the '+esc(spDisp)+' special district</div>':'')+useGroupLine(zones)+'</div>'+cardLogo+'</div><div style="font-size:.75rem;color:var(--muted,#6b6760);margin-bottom:8px">ED '+(Number.isFinite(ed)?ed:'—')+' &middot; AD '+(Number.isFinite(ad)?ad:'—')+(council?' &middot; Council District '+esc(council):'')+(senate?' &middot; State Senate District '+esc(senate):'')+(cong?' &middot; Congressional District '+esc(cong):'')+(school?' &middot; School District '+esc(school):'')+(police?' &middot; Police Precinct '+esc(police):'')+'</div><div class="citywide-result-map" data-lat="'+lat+'" data-lng="'+lng+'" data-label="'+esc(input)+'" data-owner="'+esc(pluto.ownername||pluto.owner||'')+'" style="height:240px;border-radius:8px;border:1px solid #a7f3d0;margin-bottom:10px;background:#eef2f7"></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:10px">'+cards+'</div><div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px;font-size:.73rem;line-height:1.45;color:var(--navy,#0d1b4b)"><div><strong>Zoning:</strong> '+(zones.length?zones.map(function(z){return '<strong>'+esc(z)+'</strong>: '+esc(zoningPlain(z));}).join('<br>'):'Zoning was not available from PLUTO for this address.')+'</div><div style="margin-top:5px"><strong>Land use:</strong> '+esc(landUsePlain(pluto.landuse,lUse))+'</div>'+(function(){var zn=zoneNote(input); if(!zn) return '';
       return '<div style="margin-top:6px;padding:7px 9px;background:#f6f7fb;border-left:3px solid #2145a8;border-radius:0 5px 5px 0"><strong>Worth knowing about the zoning:</strong> '+esc(zn)+'</div>';})()+(function(){var on=ownerNote(input,pluto.ownername||pluto.owner,pluto.ownertype); if(!on) return '';
       return '<div style="margin-top:6px;padding:7px 9px;background:#f6f7fb;border-left:3px solid #2145a8;border-radius:0 5px 5px 0"><strong>Who owns it:</strong> '+esc(on)+'</div>';})()+(function(){var g=zoneUseNote(zones[0],pluto.landuse); if(!g) return '';
       return '<div style="margin-top:6px;padding:7px 9px;background:'+(g.ok?'#f4f8f4':'#fff8f2')+';border-left:3px solid '+(g.ok?'#2e6b30':'#f47920')+';border-radius:0 5px 5px 0"><strong>'+g.head+':</strong> '+esc(g.text)+'</div>';})()+''+(spDists.length?'<div style="margin-top:5px"><strong>Special district:</strong> '+esc(specialDistrictExplain(spDisp,[pluto.spdist1,pluto.spdist2,pluto.spdist3]))+'</div>':'')+(hd.length?'<div style="margin-top:5px"><strong>Historic district:</strong> This is in a historic district, so exterior changes usually need LPC review.</div>':'')+'</div>'+facilitiesHtml(facs,zones,pluto.overlay1||pluto.overlay2||'')+'<div data-usegrid="'+esc(baseDistricts(zones[0]).join(','))+'" data-zone="'+esc(zones[0]||'')+'" style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px"></div>'+nearbyHtml(n)+'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"><a href="'+dob+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">DOB BIS</a><a href="'+zap+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">ZAP Projects</a><a href="'+acris+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">ACRIS Deeds</a><a href="'+zola+'" target="_blank" style="font-size:.73rem;font-weight:600;color:#2e7d32;text-decoration:none;padding:5px 10px;border:1px solid #a5d6a7;border-radius:5px;background:#f1f8f1">ZoLa Zoning</a><a href="https://maps.google.com/?q='+lat+','+lng+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">Map</a><button type="button" class="citywide-share-btn" data-share-address="'+esc(input)+'" style="font-size:.73rem;font-weight:700;color:#fff;cursor:pointer;padding:5px 12px;border:1px solid var(--orange,#FD890E);border-radius:5px;background:var(--orange,#FD890E)">Share card</button><button type="button" class="citywide-pdf-btn" style="font-size:.73rem;font-weight:700;color:var(--navy,#0d1b4b);cursor:pointer;padding:5px 12px;border:1px solid var(--navy,#0d1b4b);border-radius:5px;background:#fff">Download PDF</button></div><div style="border-top:1px solid #d1fae5;padding-top:8px;display:flex;flex-wrap:wrap;gap:12px"><a href="'+(boardSlug(cb)?boardSlug(cb)+'?addr='+enc+'#sec-map':'mydistricts.html?address='+enc)+'" style="font-size:.75rem;color:var(--navy,#0d1b4b);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy,#0d1b4b)">Open '+esc(cbLabel)+' district profile &rarr;</a></div></div>';}
@@ -625,7 +611,7 @@
       var map=L.map(el,{scrollWheelZoom:false}).setView([lat,lng],16);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
       loadResultZoning(map,lat,lng);
-      try{document.querySelectorAll('[data-usegrid]').forEach(function(el){paintUseGrid(el);});paintUseGroupMinis();}catch(e){}
+      try{document.querySelectorAll('[data-usegrid]').forEach(function(el){paintUseGrid(el);});}catch(e){}
       var label=el.getAttribute('data-label')||'Searched address';
       var owner=el.getAttribute('data-owner')||'';
       var mi=markFor(label,owner);
