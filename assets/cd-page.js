@@ -291,10 +291,11 @@
       fetch('/data/housing-jobs.json').then(function(r){return r.json();}).catch(function(){return null;}),
       fetch('/data/cd-landuse.json').then(function(r){return r.json();}).catch(function(){return null;}),
       fetch('/data/nyc-nprc.json').then(function(r){return r.json();}).catch(function(){return null;}),
-      fetch('/data/zoning-matrix.json').then(function(r){return r.json();}).catch(function(){return null;})
+      fetch('/data/zoning-matrix.json').then(function(r){return r.json();}).catch(function(){return null;}),
+      fetch('/data/food-by-district.json').then(function(r){return r.json();}).catch(function(){return null;})
     ]).then(function(a){
       D.look=a[0][CODE]; D.nbgeo=a[1]; D.ccgeo=a[2]; D.cc=a[3]; D.inv=a[4];
-      D.cdgeo=a[5]; D.hdb=a[6]; D.hpd=a[7]; D.jobs=a[8]; D.lu=a[9]; D.nprc=a[10]; D.zmx=a[11];
+      D.cdgeo=a[5]; D.hdb=a[6]; D.hpd=a[7]; D.jobs=a[8]; D.lu=a[9]; D.nprc=a[10]; D.zmx=a[11]; D.food=a[12];
       if(!D.look){ $('bnote').textContent='District not found.'; return; }
       header(); outline(); kpis();
       if(!D.look.se.length){
@@ -303,7 +304,7 @@
         var nb=document.querySelector('[data-lens="nb"]');
         if(nb){ nb.disabled=true; nb.title='StreetEasy publishes no neighborhood rents here'; }
       }
-      draw(); housing(); table(); landuse(); helpers(); districtPicker(a[0]);
+      draw(); housing(); table(); landuse(); helpers(); food(); districtPicker(a[0]);
     }).catch(function(){ $('bnote').textContent='Data could not load.'; });
   }
 
@@ -440,6 +441,71 @@
     }).join('')+'<div style="font-family:DM Mono,monospace;font-size:.64rem;color:#9ca3af;line-height:1.6;margin-top:10px">'+
       'State contracted nonprofits offering free housing help. <a href="/preservation" style="color:#0d1b4b">See all '+D.nprc.orgs.length+' citywide</a>.</div>';
   }
+  function food(){
+    var sec=$('foodsec'); if(!sec) return;
+    var r=D.food&&D.food.districts&&D.food.districts[cdNum()];
+    if(!r){ sec.style.display='none'; return; }
+    var esc=function(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+    var scColor=function(v){
+      if(v==null) return '#b8a68f';
+      if(v>=7) return '#a83e05';
+      if(v>=6.5) return '#e2701c';
+      if(v>=6) return '#f79c4e';
+      if(v>=5.5) return '#d79a5c';
+      return '#b8a68f';
+    };
+    var h='<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px">'+
+      '<div><div style="font:800 1.35rem \'DM Sans\',sans-serif;color:#0d1b4b">'+r.sup+'</div>'+
+      '<div style="font-family:DM Mono,monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af">supermarkets</div></div>'+
+      '<div><div style="font:800 1.35rem \'DM Sans\',sans-serif;color:#0d1b4b">'+r.gm+'</div>'+
+      '<div style="font-family:DM Mono,monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af">greenmarkets</div></div>'+
+      '<div><div style="font:800 1.35rem \'DM Sans\',sans-serif;color:#0d1b4b">'+n(r.sqft)+'</div>'+
+      '<div style="font-family:DM Mono,monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af">sq ft of store</div></div>'+
+      '<div><div style="font:800 1.35rem \'DM Sans\',sans-serif;color:'+scColor(r.score)+'">'+(r.score==null?'\u2014':r.score.toFixed(2))+'</div>'+
+      '<div style="font-family:DM Mono,monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af">food need, 1 to 10</div></div>'+
+      '</div>';
+
+    h+='<div style="font-family:DM Mono,monospace;font-size:.66rem;color:#6b6760;line-height:1.7;margin-bottom:13px">'+
+      'Ranked <b style="color:#f47920">'+r.need_rank+' of 59</b> for emergency food need, and '+r.sup_rank+' of 59 for number of supermarkets.'+
+      (r.gap!=null ? ' The neighborhoods here run '+n(Math.abs(r.gap))+' lbs '+(r.gap>0?'short of':'beyond')+' emergency food demand.' : '')+
+      '</div>';
+
+    if(r.ntas&&r.ntas.length){
+      h+='<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Neighborhood</th><th>Need</th><th>Rank of 197</th><th>Lbs short</th><th>Food insecure</th></tr></thead><tbody>';
+      r.ntas.forEach(function(x){
+        h+='<tr><td>'+esc(x.name)+'</td><td style="color:'+scColor(x.score)+';font-weight:700">'+x.score.toFixed(2)+'</td><td>'+x.rank+'</td><td>'+
+          (x.gap>0?n(x.gap):'\u2212'+n(Math.abs(x.gap)))+'</td><td>'+x.fi.toFixed(1)+'%</td></tr>';
+      });
+      h+='</tbody></table></div>';
+    }
+
+    if(r.stores&&r.stores.length){
+      h+='<div style="font-family:DM Mono,monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;margin:16px 0 6px">Supermarkets</div>';
+      r.stores.forEach(function(x){
+        h+='<div style="padding:8px 0;border-top:1px solid #f0ede8">'+
+          '<div style="font-size:.84rem;font-weight:800;color:#0d1b4b">'+esc(x.n)+'</div>'+
+          '<div style="font-size:.75rem;color:#444;line-height:1.45">'+esc(x.a)+'</div>'+
+          '<div style="font-family:DM Mono,monospace;font-size:.6rem;color:#9ca3af;margin-top:2px">'+
+          (x.c?esc(x.c):'Independent')+(x.s?' \u00b7 '+n(x.s)+' sq ft':' \u00b7 square footage not reported')+'</div></div>';
+      });
+    }
+    if(r.markets&&r.markets.length){
+      h+='<div style="font-family:DM Mono,monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.08em;color:#6b6760;margin:16px 0 6px">Greenmarkets and farm stands</div>';
+      r.markets.forEach(function(x){
+        var tags=[x.d,x.h].filter(Boolean).join(', ');
+        h+='<div style="padding:8px 0;border-top:1px solid #f0ede8">'+
+          '<div style="font-size:.84rem;font-weight:800;color:#0d1b4b">'+esc(x.n)+'</div>'+
+          '<div style="font-size:.75rem;color:#444;line-height:1.45">'+esc(x.a)+'</div>'+
+          '<div style="font-family:DM Mono,monospace;font-size:.6rem;color:#9ca3af;margin-top:2px">'+
+          esc(tags||'Schedule not listed')+(x.y?' \u00b7 year round':'')+(x.e?' \u00b7 EBT':'')+'</div></div>';
+      });
+    }
+    h+='<div style="font-family:DM Mono,monospace;font-size:.62rem;color:#9ca3af;line-height:1.7;margin-top:13px">'+
+      'Stores from the state retail food store license file, markets from DOHMH, need scores from the city Emergency Food Supply Gap, 2025 round. '+
+      '<a href="/food-map.html" style="color:#0d1b4b">Map</a> &middot; <a href="/food-directory.html" style="color:#0d1b4b">Full directory</a>.</div>';
+    $('foodbody').innerHTML=h;
+  }
+
   function districtPicker(all){
     var keys=Object.keys(all).sort(function(a,b){
       var A=all[a],B=all[b];
