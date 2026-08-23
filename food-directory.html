@@ -66,6 +66,20 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:#1c1a17;-webkit
 .nrow .mt{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;margin-top:5px;line-height:1.7}
 .nrow .mt b{color:var(--orange);font-weight:700}
 .nrow .tr{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);margin-top:3px}
+.drow2{display:block;width:100%;border:none;border-bottom:1px solid var(--border);background:#fff;padding:10px 14px;text-align:left;text-decoration:none}
+.drow2.cb6mark{border-left:4px solid var(--orange);padding-left:10px}
+.drow2 .nh{display:flex;align-items:baseline;gap:8px}
+.drow2 .nm{font-size:.88rem;font-weight:800;color:var(--navy);flex:1}
+.drow2 .sc{font-family:'DM Mono',monospace;font-size:.7rem;font-weight:700;color:#fff;border-radius:5px;padding:3px 7px}
+.drow2 .hoods{font-size:.76rem;color:#444;margin-top:2px;line-height:1.45}
+.drow2 .fig{display:flex;gap:14px;flex-wrap:wrap;margin-top:7px}
+.drow2 .fig div{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;line-height:1.5}
+.drow2 .fig b{display:block;font-size:1rem;font-weight:800;color:var(--navy);letter-spacing:0;text-transform:none;font-family:'DM Sans',sans-serif}
+.drow2 .mt{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;margin-top:6px;line-height:1.7}
+.drow2 .mt b{color:var(--orange);font-weight:700}
+.btot{background:#12225a;color:#fff;padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.12);display:flex;gap:16px;flex-wrap:wrap}
+.btot div{font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.55);line-height:1.5}
+.btot b{display:block;font:800 1.02rem 'DM Sans',sans-serif;color:#fff;letter-spacing:0;text-transform:none}
 .notice{padding:11px 14px;background:var(--navy);font:.68rem 'DM Mono',monospace;color:rgba(255,255,255,.45);line-height:1.6}
 .notice a{color:var(--orange)}
 </style>
@@ -84,7 +98,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:#1c1a17;-webkit
 
 <div class="head">
   <h2>Every supermarket and greenmarket, by borough and district</h2>
-  <p>The list behind the map, in two parts. First every store and market by borough and district. Below that, the emergency food need score for all 197 residential neighborhoods. Search either by name, chain, street, zip code, or a district written any way you like, as Brooklyn 6, BKCB6 or 306. Community board 6 entries carry an orange rule down the left.</p>
+  <p>The list behind the map, in three parts. First every store and market by borough and district. Then the same figures broken down by borough and by all 59 community districts. Then the emergency food need score for all 197 residential neighborhoods. Search either by name, chain, street, zip code, or a district written any way you like, as Brooklyn 6, BKCB6 or 306. Community board 6 entries carry an orange rule down the left.</p>
 </div>
 
 <div class="dirtools">
@@ -94,6 +108,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:#1c1a17;-webkit
 <div class="dirchips" id="boroChips"></div>
 <div class="dircount" id="count">Loading&hellip;</div>
 <div class="dirlist" id="list"></div>
+
+<div class="secbar">
+  <h3>Borough and community district breakdown</h3>
+  <p>The same figures cut by geography. Each borough carries its totals, and under it every community district with its store count, its market count, and the average emergency food need score across the neighborhoods inside it. Tap a district to open its own page.</p>
+</div>
+<div class="dirchips" id="dBoroChips"></div>
+<div class="dircount" id="dCount">Loading&hellip;</div>
+<div class="dirlist" id="dList"></div>
 
 <div class="secbar">
   <h3>Emergency food need, by neighborhood</h3>
@@ -208,6 +230,85 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:#1c1a17;-webkit
   }
 
   document.getElementById('q').addEventListener('input',function(){ q=this.value.trim(); render(); });
+
+  // ---- borough and district breakdown ----
+  var BYCD=null, dBoro='ALL';
+  var dListEl=document.getElementById('dList'), dCountEl=document.getElementById('dCount');
+
+  function scColor(sc){
+    if(sc==null) return '#b8a68f';
+    if(sc>=7) return '#a83e05';
+    if(sc>=6.5) return '#e2701c';
+    if(sc>=6) return '#f79c4e';
+    if(sc>=5.5) return '#d79a5c';
+    return '#b8a68f';
+  }
+  function dRow(r){
+    var url='/cd/'+r.code.toLowerCase()+'/';
+    var hoods=(r.ntas||[]).map(function(x){ return x.name; }).join(' &middot; ');
+    return '<a class="drow2'+(r.code==='BKCB6'?' cb6mark':'')+'" href="'+url+'">'
+      + '<div class="nh"><div class="nm">'+r.boro+' Community District '+r.num+'</div>'
+      + '<div class="sc" style="background:'+scColor(r.score)+'">'+(r.score==null?'\u2014':r.score.toFixed(2))+'</div></div>'
+      + (hoods ? '<div class="hoods">'+hoods+'</div>' : '')
+      + '<div class="fig">'
+      + '<div><b>'+r.sup+'</b>supermarkets</div>'
+      + '<div><b>'+r.chain+'</b>chain</div>'
+      + '<div><b>'+r.indep+'</b>independent</div>'
+      + '<div><b>'+r.gm+'</b>greenmarkets</div>'
+      + '<div><b>'+(r.sqft?num(r.sqft):'\u2014')+'</b>sq ft of store</div>'
+      + '</div>'
+      + '<div class="mt">Need ranked <b>'+r.need_rank+' of 59</b> &middot; stores ranked '+r.sup_rank+' of 59'
+      + (r.gap!=null ? ' &middot; '+(r.gap>0?num(r.gap)+' lbs short of demand':num(Math.abs(r.gap))+' lbs beyond demand') : '')
+      + (r.worst ? '<br>Highest need inside it: '+esc(r.worst.name)+', '+r.worst.score.toFixed(2)+', ranked '+r.worst.rank+' of 197' : '')
+      + '</div></a>';
+  }
+  function dChips(){
+    var c={};
+    BYCD.forEach(function(r){ c[r.boro]=(c[r.boro]||0)+1; });
+    var h='<button type="button" class="dchip'+(dBoro==='ALL'?' active':'')+'" data-cb="ALL">All 59 districts</button>';
+    BOROORDER.forEach(function(b){
+      if(!c[b]) return;
+      h+='<button type="button" class="dchip'+(dBoro===b?' active':'')+'" data-cb="'+b+'">'+b+' '+c[b]+'</button>';
+    });
+    document.getElementById('dBoroChips').innerHTML=h;
+    Array.prototype.forEach.call(document.querySelectorAll('.dchip[data-cb]'),function(el){
+      el.addEventListener('click',function(){ dBoro=el.getAttribute('data-cb'); dChips(); dRender(); });
+    });
+  }
+  function dRender(){
+    if(!BYCD) return;
+    var html='', n=0;
+    BOROORDER.forEach(function(b){
+      if(dBoro!=='ALL' && b!==dBoro) return;
+      var grp=BYCD.filter(function(r){ return r.boro===b; }).sort(function(x,y){ return x.num-y.num; });
+      if(!grp.length) return;
+      var sup=0,gm=0,sqft=0,gap=0,sc=0,scn=0;
+      grp.forEach(function(r){
+        sup+=r.sup; gm+=r.gm; sqft+=r.sqft;
+        if(r.gap!=null) gap+=r.gap;
+        if(r.score!=null){ sc+=r.score; scn++; }
+      });
+      html+='<div class="bgroup">'+b+'<span>'+grp.length+' districts</span></div>';
+      html+='<div class="btot">'
+        + '<div><b>'+sup+'</b>supermarkets</div>'
+        + '<div><b>'+gm+'</b>greenmarkets</div>'
+        + '<div><b>'+num(sqft)+'</b>sq ft of store</div>'
+        + '<div><b>'+(scn?(sc/scn).toFixed(2):'\u2014')+'</b>average need score</div>'
+        + '<div><b>'+num(Math.abs(gap))+'</b>lbs '+(gap>0?'short of demand':'beyond demand')+'</div>'
+        + '</div>';
+      grp.forEach(function(r){ html+=dRow(r); n++; });
+    });
+    dListEl.innerHTML=html||'<div class="dnone">Nothing to show.</div>';
+    dCountEl.textContent=n+' of 59 districts listed';
+  }
+  fetch('data/food-by-district.json').then(function(r){ return r.json(); }).then(function(j){
+    BYCD=Object.keys(j.districts).map(function(k){ return j.districts[k]; });
+    dChips();
+    dRender();
+  }).catch(function(){
+    dCountEl.textContent='District breakdown could not load.';
+    dListEl.innerHTML='<div class="dnone">The district breakdown could not be loaded. Please refresh.</div>';
+  });
 
   // ---- the need directory ----
   var NEED=null, nBoro='ALL', nq='';
