@@ -67,6 +67,13 @@
     .sbtn.off{border-color:#d8d4cb;color:#8a857c}
     .sbtn.all{background:#b3121d;color:#fff;border-color:#b3121d}
     .sbtn.all .n{color:rgba(255,255,255,.72)}
+    .needbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:8px 14px;background:#0b1740;border-bottom:2px solid var(--orange)}
+    .needbtn{padding:6px 12px;font:700 .76rem 'DM Sans',sans-serif;border:2px solid rgba(255,255,255,.32);border-radius:20px;background:transparent;color:#fff;cursor:pointer}
+    .needbtn.on{background:var(--orange);border-color:var(--orange)}
+    .needleg{display:none;gap:2px;align-items:center;font-family:'DM Mono',monospace;font-size:.56rem;letter-spacing:.06em;color:rgba(255,255,255,.72)}
+    .needleg.on{display:flex}
+    .needleg i{display:block;width:19px;height:11px;border:1px solid rgba(255,255,255,.35)}
+    .needleg b{font-weight:400;color:rgba(255,255,255,.5);padding:0 5px}
     .boros{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:6px 14px;border-bottom:1.5px solid var(--border);background:#fafaf8}
     .bk-l{font:500 .7rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
     .bk{display:inline-flex;align-items:center;gap:5px;font-size:.8rem;color:#4a453e}
@@ -159,6 +166,10 @@
     <div class="types" id="types"></div>
     <div class="subs" id="subs"></div>
     <div class="boros" id="boros"></div>
+    <div class="needbar">
+      <button type="button" class="needbtn" id="needBtn">Show emergency food need</button>
+      <div class="needleg" id="needLeg"><b>less need</b><i style="background:#fde3c8"></i><i style="background:#fbc38a"></i><i style="background:#f79c4e"></i><i style="background:#e2701c"></i><i style="background:#a83e05"></i><b>more need</b></div>
+    </div>
     <div class="controls">
       <div>
         <label for="boroSel">Borough</label>
@@ -187,7 +198,7 @@
     </div>
     <div class="origin" id="origin"></div>
     <div id="map"></div>
-    <div class="notice">Sources: the New York State Department of Agriculture and Markets retail food store license file, downloaded August 2026, and the Department of Health and Mental Hygiene farmers market list published on NYC Open Data. Community district is assigned by point in polygon against Department of City Planning district boundaries. A store is counted as a supermarket when it carries a supermarket banner or reports at least 10,000 square feet; pharmacies, dollar stores, delis, bakeries, breweries and wholesalers are excluded. Square footage is self reported to the state and a small number of entries are plainly wrong, which is flagged where it happens. License records lag closings and openings, so confirm before you travel. Market days, hours and EBT acceptance change through the season. <a href="mailto:Mike@bkcb6.org" style="color:#f47920">Mike Racioppo</a>, Brooklyn Community Board 6.</div>
+    <div class="notice">Sources: the New York State Department of Agriculture and Markets retail food store license file, downloaded August 2026, and the Department of Health and Mental Hygiene farmers market list published on NYC Open Data. Community district is assigned by point in polygon against Department of City Planning district boundaries. A store is counted as a supermarket when it carries a supermarket banner or reports at least 10,000 square feet; pharmacies, dollar stores, delis, bakeries, breweries and wholesalers are excluded. Square footage is self reported to the state and a small number of entries are plainly wrong, which is flagged where it happens. License records lag closings and openings, so confirm before you travel. Market days, hours and EBT acceptance change through the season. The need shading is the Emergency Food Supply Gap, published by NYC Opportunity with the Mayor&rsquo;s Office of Food Policy, 2025 round, scored 1 to 10 by neighborhood tabulation area, where 10 is the highest unmet need. <a href="mailto:Mike@bkcb6.org" style="color:#f47920">Mike Racioppo</a>, Brooklyn Community Board 6.</div>
 
     <div class="side-head">
       <div>
@@ -648,6 +659,73 @@
       opacity: dim ? 0.25 : 0.85
     };
   }
+  // ---- emergency food need, by neighborhood tabulation area ----
+  var needOn = false, needLayer = null, needData = null, needById = {};
+  var needBtn = document.getElementById('needBtn'), needLeg = document.getElementById('needLeg');
+
+  function needColor(score){
+    if(score >= 8) return '#a83e05';
+    if(score >= 7) return '#e2701c';
+    if(score >= 6) return '#f79c4e';
+    if(score >= 5) return '#fbc38a';
+    return '#fde3c8';
+  }
+  function needStyle(f){
+    var d = needById[f.properties.id];
+    if(!d) return {stroke:false, fill:false};
+    return {color:'#7a3a06', weight:0.5, opacity:0.55, fill:true, fillColor:needColor(d.score), fillOpacity:0.62};
+  }
+  function needPopup(d){
+    var gap = d.gap > 0
+      ? num(d.gap)+' lbs of emergency food short of demand'
+      : num(Math.abs(d.gap))+' lbs of emergency food beyond demand';
+    var h = '<h4>'+esc(d.name)+'</h4>';
+    h += '<p class="small" style="color:#a83e05">Need score '+d.score.toFixed(2)+' of 10 &middot; ranked '+d.rank+' of 197</p>';
+    h += '<p>'+gap+'</p>';
+    h += '<p class="small">'+d.fi.toFixed(1)+' percent food insecure &middot; '+d.ur.toFixed(1)+' percent unemployed</p>';
+    h += '<p class="small">'+esc(d.id)+' &middot; '+esc(d.cb)+'</p>';
+    return h;
+  }
+  function loadNeed(){
+    if(needData) return Promise.resolve(needData);
+    return Promise.all([
+      fetch('data/nta-boundaries.geojson').then(function(r){ return r.json(); }),
+      fetch('data/food-need.json').then(function(r){ return r.json(); })
+    ]).then(function(res){
+      needData = res[0];
+      res[1].ntas.forEach(function(d){ needById[d.id] = d; });
+      needLayer = L.geoJSON(needData, {
+        style: needStyle,
+        onEachFeature: function(f, lyr){
+          var d = needById[f.properties.id];
+          if(d) lyr.bindPopup(needPopup(d));
+        }
+      });
+      return needData;
+    });
+  }
+  needBtn.addEventListener('click', function(){
+    if(needOn){
+      needOn = false;
+      needBtn.classList.remove('on');
+      needLeg.classList.remove('on');
+      needBtn.textContent = 'Show emergency food need';
+      if(needLayer) map.removeLayer(needLayer);
+      return;
+    }
+    needBtn.textContent = 'Loading\u2026';
+    loadNeed().then(function(){
+      needOn = true;
+      needBtn.classList.add('on');
+      needLeg.classList.add('on');
+      needBtn.textContent = 'Hide emergency food need';
+      needLayer.addTo(map);
+      if(needLayer.bringToBack) needLayer.bringToBack();
+    }).catch(function(){
+      needBtn.textContent = 'Need data could not load';
+    });
+  });
+
   function draw(fit){
     var list = shown();
     liveCounts = counts(list);
