@@ -1363,35 +1363,32 @@
     var d=BID_SITES[liftNorm(input)];
     if(!d) return '';
     return '<div style="margin:0 0 10px">'+
-      '<div style="font-family:\'DM Mono\',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted,#6b6760);font-weight:700;margin-bottom:5px">In a business improvement district</div>'+
-      '<a href="'+d.href+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:12px;text-decoration:none;background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:10px 12px">'+
-        '<span style="flex:none;width:58px;height:58px;border-radius:7px;background:'+d.plate+';border:1px solid #e5e2db;display:flex;align-items:center;justify-content:center;overflow:hidden">'+
-          '<img src="'+d.src+'" alt="'+esc(d.name)+'" width="'+d.w+'" height="'+d.h+'" loading="lazy" style="max-width:50px;max-height:50px;width:auto;height:auto;display:block">'+
+      '<div style="font-family:\'DM Mono\',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted,#6b6760);font-weight:700;margin-bottom:4px">In a business improvement district</div>'+
+      '<a href="'+d.href+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;text-decoration:none;background:#fff;border:1px solid #d1fae5;border-radius:7px;padding:6px 9px">'+
+        '<span style="flex:none;width:30px;height:30px;border-radius:5px;background:'+d.plate+';border:1px solid #e5e2db;display:flex;align-items:center;justify-content:center;overflow:hidden">'+
+          '<img src="'+d.src+'" alt="'+esc(d.name)+'" width="'+d.w+'" height="'+d.h+'" loading="lazy" style="max-width:24px;max-height:24px;width:auto;height:auto;display:block">'+
         '</span>'+
-        '<span style="flex:1;min-width:0">'+
-          '<span style="display:block;font-size:.92rem;font-weight:900;color:var(--navy,#0d1b4b);line-height:1.25">'+esc(d.name)+'</span>'+
-          '<span style="display:block;font-size:.73rem;color:var(--muted,#6b6760);line-height:1.4;margin-top:2px">A BID is a defined stretch of commercial street where property owners fund extra sanitation, streetscape and marketing work.</span>'+
-        '</span>'+
-        '<span style="flex:none;font-size:.72rem;font-weight:800;color:#fff;background:var(--orange,#f47920);border-radius:999px;padding:6px 12px;white-space:nowrap">Visit site &#8599;</span>'+
+        '<span style="flex:1;min-width:0;font-size:.78rem;font-weight:700;color:var(--navy,#0d1b4b);line-height:1.3">'+esc(d.name)+'</span>'+
+        '<span style="flex:none;font-size:.68rem;font-weight:700;color:var(--orange,#f47920);white-space:nowrap">Visit site &#8599;</span>'+
       '</a></div>';
   }
   function bizBlock(input){
     var list=BIZ_SITES[liftNorm(input)];
     if(!list||!list.length) return bidBlock(input);
     var rows=list.map(function(b){
-      return '<a href="'+b.href+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:12px;text-decoration:none;background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:10px 12px">'+
-        '<span style="flex:none;width:58px;height:58px;border-radius:7px;background:'+b.plate+';border:1px solid #e5e2db;display:flex;align-items:center;justify-content:center;overflow:hidden">'+
-          '<img src="'+b.src+'" alt="'+esc(b.name)+'" width="'+b.w+'" height="'+b.h+'" loading="lazy" style="max-width:50px;max-height:50px;width:auto;height:auto;display:block">'+
+      return '<a href="'+b.href+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:14px;text-decoration:none;background:#fff;border:1.5px solid #a7f3d0;border-radius:10px;padding:14px 16px">'+
+        '<span style="flex:none;width:92px;height:92px;border-radius:9px;background:'+b.plate+';border:1px solid #e5e2db;display:flex;align-items:center;justify-content:center;overflow:hidden">'+
+          '<img src="'+b.src+'" alt="'+esc(b.name)+'" width="'+b.w+'" height="'+b.h+'" loading="lazy" style="max-width:80px;max-height:80px;width:auto;height:auto;display:block">'+
         '</span>'+
         '<span style="flex:1;min-width:0">'+
-          '<span style="display:block;font-size:.92rem;font-weight:900;color:var(--navy,#0d1b4b);line-height:1.25">'+esc(b.name)+'</span>'+
-          '<span style="display:block;font-size:.73rem;color:var(--muted,#6b6760);line-height:1.4;margin-top:2px">'+esc(b.kind)+'</span>'+
+          '<span style="display:block;font-size:1.2rem;font-weight:900;color:var(--navy,#0d1b4b);line-height:1.2">'+esc(b.name)+'</span>'+
+          '<span style="display:block;font-size:.82rem;color:var(--muted,#6b6760);line-height:1.4;margin-top:3px">'+esc(b.kind)+'</span>'+
+          '<span style="display:inline-block;margin-top:9px;font-size:.78rem;font-weight:800;color:#fff;background:var(--orange,#f47920);border-radius:999px;padding:7px 14px;white-space:nowrap">Visit site &#8599;</span>'+
         '</span>'+
-        '<span style="flex:none;font-size:.72rem;font-weight:800;color:#fff;background:var(--orange,#f47920);border-radius:999px;padding:6px 12px;white-space:nowrap">Visit site &#8599;</span>'+
       '</a>';
     }).join('');
     return '<div style="margin:0 0 10px">'+
-      '<div style="font-family:\'DM Mono\',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted,#6b6760);font-weight:700;margin-bottom:5px">'+
+      '<div style="font-family:\'DM Mono\',monospace;font-size:.66rem;text-transform:uppercase;letter-spacing:.1em;color:var(--navy,#0d1b4b);font-weight:700;margin-bottom:7px">'+
         (list.length>1?'Businesses in this building':'Business in this building')+'</div>'+
       rows+'</div>'+bidBlock(input);
   }
