@@ -71,9 +71,11 @@
     var chips='';
     if(zone) chips+=chip('zoned',zone,zBg);
     if(luName) chips+=chip('land use',luName.replace(/\s*\(\d\d\)\s*$/,''),luBg,ugShort);
+    var biz=(typeof b.bizBlock==='function')?b.bizBlock(info.label||''):'';
     return '<div style="font-size:1.05rem;font-weight:800;line-height:1.2">'+esc(info.label||'This location')+'</div>'
       + (board?'<div style="font-size:.82rem;font-weight:700;margin-top:2px">is in '+esc(board)+'</div>':'')
       + (chips?'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:9px">'+chips+'</div>':'')
+      + (biz?'<div style="margin-top:11px">'+biz+'</div>':'')
       + '<button type="button" data-cw-openfull style="margin-top:10px;border:0;border-radius:9px;background:#FD890E;color:#fff;font-family:inherit;font-weight:800;font-size:.82rem;padding:9px 14px;cursor:pointer">See the full card &rarr;</button>';
   }
 
@@ -100,6 +102,26 @@
 
     var marker=null, hoverTimer=null, seq=0, lastAddress='';
 
+    function bizIcon(address){
+      var b=bits();
+      var list=(typeof b.bizFor==='function')?b.bizFor(address||''):null;
+      if(!list||!list.length) return null;
+      var z=list[0];
+      var iw=64, ih=Math.round(iw*(z.h/z.w));
+      return L.divIcon({className:'',iconSize:[iw,ih+10],iconAnchor:[iw/2,ih+10],
+        html:'<div style="text-align:center"><img src="'+z.src+'" alt="'+esc(z.name)+'" '+
+          'style="width:'+iw+'px;height:'+ih+'px;display:block;background:'+(z.plate||'#fff')+';'+
+          'border:2px solid #0d1b4b;border-radius:7px;box-shadow:0 2px 6px rgba(0,0,0,.28)">'+
+          '<div style="width:0;height:0;margin:0 auto;border-left:6px solid transparent;'+
+          'border-right:6px solid transparent;border-top:9px solid #0d1b4b"></div></div>'});
+    }
+    function dressMarker(address){
+      if(!marker) return;
+      var ic=bizIcon(address);
+      if(ic) marker.setIcon(ic);
+      else if(marker.setIcon) marker.setIcon(new L.Icon.Default());
+    }
+
     var tip=L.tooltip({direction:'top',offset:[0,-6],className:'cw-pick-tip',opacity:.95});
 
     function setPanel(html,muted){
@@ -116,6 +138,7 @@
         var row=await plutoFor(info.bbl);
         if(mine!==seq) return;
         lastAddress=info.label||'';
+        dressMarker(lastAddress);
         setPanel(panelHtml(info,row||{}));
       }catch(e){
         if(mine!==seq) return;
