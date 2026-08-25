@@ -632,7 +632,9 @@
     ugText:function(c){return UG_BY_LANDUSE[String(c||'').trim().padStart(2,'0')]||'';},
     heroInk:heroInk,
     zoneColor:zoneColor,
-    boardLabel:function(cd){return validCommunityBoardCode(String(cd||''))?boardLabel(String(cd||'')):'';}
+    boardLabel:function(cd){return validCommunityBoardCode(String(cd||''))?boardLabel(String(cd||'')):'';},
+    bizFor:function(addr){return BIZ_SITES[liftNorm(addr)]||null;},
+    bizBlock:bizBlock
   };
   function zoneFam(z){z=String(z||'').toUpperCase().trim(); if(!z) return 'Other'; if(/^MX/.test(z)) return 'Mixed Use'; if(z.indexOf('/')>-1 && /M\d/.test(z) && /R\d/.test(z)) return 'Mixed Use'; if(/^R/.test(z)) return 'Residential'; if(/^C/.test(z)) return 'Commercial'; if(/^M/.test(z)) return 'Manufacturing'; if(/PARK|PLAYGROUND/.test(z)) return 'Park/Open Space'; if(/^BPC/.test(z)) return 'Mixed Use'; return 'Other';}
   var ZONE_FAM_GRAY={'Residential':'#e0e0e0','Commercial':'#9e9e9e','Manufacturing':'#4a4a4a','Park/Open Space':'#c4c4c4','Mixed Use':'#757575','Other':'#b3b3b3'};
@@ -1617,6 +1619,11 @@
     var kind=null;
     if(txt){ for(var i=0;i<MARK_KINDS.length;i++){ if(MARK_KINDS[i].re.test(txt)){ kind=MARK_KINDS[i]; break; } } }
     if(!img && FERRY_ADDRS[key]) img=FERRY_ICON;
+    if(!img && BIZ_SITES[key] && BIZ_SITES[key][0]){
+      var bz=BIZ_SITES[key][0];
+      img={src:bz.src,alt:bz.name,w:bz.w,h:bz.h,plate:bz.plate};
+      if(!kind) kind={label:bz.kind,bg:'#0d1b4b',glyph:'\u25cf'};
+    }
     if(!img && /HOUSING AUTHORITY|\bNYCHA\b/i.test(String(owner||''))){
       img=NYCHA_ICON;
       if(!kind) kind={label:'NYCHA development',bg:'#8b2233',glyph:'\u2302'};
@@ -1630,7 +1637,7 @@
       var ratio=m.img.h/m.img.w, iw=64, ih=Math.round(iw*ratio);
       return L.marker([lat,lng],{icon:L.divIcon({className:'',iconSize:[iw,ih+10],iconAnchor:[iw/2,ih+10],
         html:'<div style="text-align:center"><img src="'+m.img.src+'" alt="'+esc(m.img.alt||'')+'" '+
-          'style="width:'+iw+'px;height:'+ih+'px;display:block;background:#fff;border:2px solid #0d1b4b;'+
+          'style="width:'+iw+'px;height:'+ih+'px;display:block;background:'+(m.img.plate||'#fff')+';border:2px solid #0d1b4b;'+
           'border-radius:7px;box-shadow:0 2px 6px rgba(0,0,0,.28)"><div style="width:0;height:0;margin:0 auto;'+
           'border-left:6px solid transparent;border-right:6px solid transparent;border-top:9px solid #0d1b4b"></div></div>'})});
     }
