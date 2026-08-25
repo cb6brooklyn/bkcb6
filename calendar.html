@@ -90,6 +90,9 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 #detail-head{background:var(--navy);padding:10px 14px;display:flex;align-items:center;justify-content:space-between}
 #detail-head span{color:#fff;font-size:.9rem;font-weight:700}
 #detail-head button{background:none;border:none;color:rgba(255,255,255,.6);font-size:1.1rem;cursor:pointer;line-height:1;padding:0}
+#detail-head button.share-btn{border:1.5px solid rgba(255,255,255,.35);border-radius:20px;color:rgba(255,255,255,.85);font-family:'DM Mono',monospace;font-size:.62rem;font-weight:500;text-transform:uppercase;letter-spacing:.05em;padding:3px 9px}
+#detail-head button.share-btn:hover{border-color:#fff;color:#fff}
+#detail-head button.share-btn.copied{background:var(--orange);border-color:var(--orange);color:#fff}
 #detail-body{padding:10px 14px;display:flex;flex-direction:column;gap:7px}
 .det-ev{display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border-radius:7px}
 .det-ev-copy{display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -112,6 +115,21 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 .flyer-lightbox{display:none;position:fixed;inset:0;z-index:11000;background:rgba(13,2,77,.82);align-items:center;justify-content:center;padding:20px;cursor:zoom-out}
 .flyer-lightbox.open{display:flex}
 .flyer-lightbox img{max-width:100%;max-height:92vh;border-radius:10px;box-shadow:0 6px 30px rgba(0,0,0,.4)}
+.flyer-lightbox a.flyer-link{display:block;max-width:100%;cursor:pointer;line-height:0}
+/* Share affordances */
+.share-btn{display:inline-flex;align-items:center;gap:4px;background:none;border:1.5px solid var(--border);border-radius:20px;color:var(--muted);font-family:'DM Mono',monospace;font-size:.62rem;font-weight:500;text-transform:uppercase;letter-spacing:.05em;padding:3px 9px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.share-btn:hover{border-color:var(--navy);color:var(--navy)}
+.share-btn.copied{background:var(--navy);border-color:var(--navy);color:#fff}
+.share-btn.on-dark{border-color:rgba(255,255,255,.35);color:rgba(255,255,255,.85)}
+.share-btn.on-dark:hover{border-color:#fff;color:#fff}
+.share-btn.on-dark.copied{background:var(--orange);border-color:var(--orange);color:#fff}
+.lcb-share{margin-top:6px}
+.det-ev-share{margin-top:8px}
+#range-banner{display:none;max-width:960px;margin:10px auto 0;padding:9px 14px;background:var(--navy);color:#fff;border-radius:8px;border-left:4px solid var(--orange);font-size:.78rem;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#range-banner.on{display:flex}
+#range-banner .rb-label{font-weight:700}
+#range-banner button{background:var(--orange);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:.7rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif}
+.list-card{position:relative}
 .flyer-lightbox .flyer-close{position:absolute;top:14px;right:18px;color:#fff;font-size:2rem;font-weight:700;cursor:pointer;line-height:1;background:none;border:none}
 .detail-event-link{display:inline-flex;align-items:center;width:max-content;max-width:100%;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;text-decoration:none;font-size:.68rem;font-family:'DM Mono',monospace;overflow:hidden;text-overflow:ellipsis}
 .featured-meeting-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
@@ -378,7 +396,10 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
       <option value="fortdefiance">Fort Defiance Sidewalk Galleries</option>
     </select>
     <span class="list-count" id="list-count"></span>
+    <button class="share-btn" id="share-view-btn" onclick="copyShare(shareUrlForView(), this)" title="Copy a link to this filtered view">&#128279; Share view</button>
+    <button class="share-btn" id="share-week-btn" onclick="copyShare(shareUrlForWeek(todayKey()), this)" title="Copy a link to this week">&#128279; Share week</button>
   </div>
+  <div id="range-banner"><span class="rb-label" id="rb-label"></span><button onclick="clearRange()">Show all upcoming</button></div>
   <div class="list-wrap" id="list-body"></div>
 </div><!-- /list-view -->
 
@@ -389,12 +410,18 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     <div class="cal-month" id="cal-title"></div>
     <button onclick="changeMonth(1)">Next &#8594;</button>
   </div>
+  <div style="display:flex;justify-content:center;margin:-6px 0 12px">
+    <button class="share-btn" onclick="copyShare(shareUrlForMonth(viewYear, viewMonth), this)" title="Copy a link to this month">&#128279; Share this month</button>
+  </div>
   <div class="cal-grid" id="cal-dow"></div>
   <div class="cal-grid" id="cal-body" style="margin-top:5px"></div>
   <div id="day-detail">
     <div id="detail-head">
       <span id="detail-title"></span>
-      <button onclick="closeDetail()">&#10005;</button>
+      <span style="display:flex;align-items:center;gap:8px">
+        <button class="share-btn on-dark" id="share-day-btn" onclick="copyShare(shareUrlForDay(selectedDayKey), this)" title="Copy a link to this day">&#128279; Share day</button>
+        <button onclick="closeDetail()">&#10005;</button>
+      </span>
     </div>
     <div id="detail-body"></div>
   </div>
@@ -1724,6 +1751,101 @@ const FEATURED_MEETINGS = [
 ];
 
 function pad(n){ return String(n).padStart(2,'0'); }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SHAREABLE DEEP LINKS
+//  Every listing, day, week, month, and filtered view has a stable URL.
+//  Params: ?event= ?date= ?week= ?month= ?org= ?cat= ?q=
+// ═══════════════════════════════════════════════════════════════════════
+let selectedDayKey = null;
+let rangeFilter = null;   // {kind:'week'|'month', start:'YYYY-MM-DD', end:'YYYY-MM-DD', label:'...'}
+
+function shareBase(){
+  let u = window.location.href.split('?')[0].split('#')[0];
+  return u.replace('cb6brooklyn.github.io/bkcb6','bkcb6.app');
+}
+function slugify(str){
+  return String(str||'')
+    .toLowerCase()
+    .replace(/[\u2018\u2019']/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'')
+    .slice(0,80);
+}
+function evSlug(dateKey, label){ return dateKey + '-' + slugify(label); }
+function todayKey(){ const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function weekStartKey(key){
+  const d = new Date(key + 'T00:00:00');
+  d.setDate(d.getDate() - d.getDay());   // back to Sunday
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+function addDaysKey(key, n){
+  const d = new Date(key + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+function shareUrlForEvent(dateKey, label){ return shareBase() + '?event=' + encodeURIComponent(evSlug(dateKey, label)); }
+function shareUrlForDay(key){ return shareBase() + '?date=' + encodeURIComponent(key || todayKey()); }
+function shareUrlForWeek(key){ return shareBase() + '?week=' + encodeURIComponent(weekStartKey(key || todayKey())); }
+function shareUrlForMonth(y, m){ return shareBase() + '?month=' + y + '-' + pad(m+1); }
+function shareUrlForView(){
+  const parts = [];
+  const org = (document.getElementById('list-org-filter')||{}).value || '';
+  const catEl = document.querySelector('#cat-filter-row .cat-pill.active');
+  const cat = catEl ? (catEl.dataset.cat || '') : '';
+  const q = (document.getElementById('list-search')||{}).value || '';
+  if(org) parts.push('org=' + encodeURIComponent(org));
+  if(cat) parts.push('cat=' + encodeURIComponent(cat));
+  if(q)   parts.push('q=' + encodeURIComponent(q));
+  if(rangeFilter && rangeFilter.kind === 'week')  parts.push('week=' + rangeFilter.start);
+  if(rangeFilter && rangeFilter.kind === 'month') parts.push('month=' + rangeFilter.start.slice(0,7));
+  return shareBase() + (parts.length ? '?' + parts.join('&') : '');
+}
+function copyShare(url, btn){
+  const flash = () => {
+    if(!btn) return;
+    const original = btn.innerHTML;
+    btn.classList.add('copied');
+    btn.innerHTML = '\u2713 Link copied';
+    setTimeout(()=>{ btn.classList.remove('copied'); btn.innerHTML = original; }, 1600);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(flash).catch(()=>fallbackCopy(url, flash));
+  } else {
+    fallbackCopy(url, flash);
+  }
+}
+function fallbackCopy(url, done){
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    ta.setAttribute('readonly','');
+    ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    done();
+  } catch(e){ window.prompt('Copy this link:', url); }
+}
+function setRange(kind, startKey, endKey, label){
+  rangeFilter = { kind, start: startKey, end: endKey, label };
+  const b = document.getElementById('range-banner');
+  if(b){ document.getElementById('rb-label').textContent = label; b.classList.add('on'); }
+  setView('list');
+  renderList();
+}
+function clearRange(){
+  rangeFilter = null;
+  const b = document.getElementById('range-banner');
+  if(b) b.classList.remove('on');
+  renderList();
+}
+function inRange(dateKey){
+  if(!rangeFilter) return true;
+  return dateKey >= rangeFilter.start && dateKey <= rangeFilter.end;
+}
+
 function openCalendarDate(key){
   const parts = key.split('-');
   viewYear = Number(parts[0]);
@@ -1881,6 +2003,7 @@ function renderList(){
       if(q && !ev.label.toLowerCase().includes(q) &&
               !(ev.location||'').toLowerCase().includes(q) &&
               !(ev.desc||'').toLowerCase().includes(q)) return;
+      if(!inRange(dateKey)) return;
       all.push({dateKey, ev});
     });
   });
@@ -1892,7 +2015,10 @@ function renderList(){
   });
   deduped.sort((a,b)=> a.dateKey < b.dateKey ? -1 : a.dateKey > b.dateKey ? 1 : 0);
   const today = new Date(); today.setHours(0,0,0,0);
-  const future = deduped.filter(({dateKey})=> new Date(dateKey+'T00:00:00') >= today);
+  // A week/month share link shows that whole span, including days already past.
+  const future = rangeFilter
+    ? deduped
+    : deduped.filter(({dateKey})=> new Date(dateKey+'T00:00:00') >= today);
   document.getElementById('list-count').textContent = future.length + ' event' + (future.length===1?'':'s');
   if(!future.length){
     document.getElementById('list-body').innerHTML = '<div class="list-empty">No events found.</div>';
@@ -1911,8 +2037,9 @@ function renderList(){
       ev.location ? `<span>📍 ${ev.location}</span>` : '',
     ].filter(Boolean).join('');
     const link = ev.href ? `<a class="lcb-link" href="${ev.href}" target="_blank" rel="noopener noreferrer">${ev.linkText||'Details ↗'}</a>` : '';
-    const flyerThumb = ev.flyer ? `<span class="lcb-flyer" onclick="openFlyer('${ev.flyer}')"><img src="${ev.flyer}" alt="${ev.label} flyer" loading="lazy"></span>` : '';
-    return `<div class="list-card">
+    const flyerThumb = ev.flyer ? `<span class="lcb-flyer" onclick="openFlyer('${ev.flyer}','${(ev.href||'').replace(/'/g,'%27')}')"><img src="${ev.flyer}" alt="${ev.label} flyer" loading="lazy"></span>` : '';
+    const shareBtn = `<button class="share-btn lcb-share" onclick="copyShare(shareUrlForEvent('${dateKey}','${ev.label.replace(/'/g,"\\'")}'), this)" title="Copy a link to this listing">&#128279; Share</button>`;
+    return `<div class="list-card" id="ev-${evSlug(dateKey, ev.label)}">
       <div class="lcd">
         <div class="lcd-month">${MONTHS_SHORT2[d.getMonth()]}</div>
         <div class="lcd-day">${d.getDate()}</div>
@@ -1924,6 +2051,7 @@ function renderList(){
         ${meta ? `<div class="lcb-meta">${meta}</div>` : ''}
         ${flyerThumb}
         ${link}
+        ${shareBtn}
       </div>
     </div>`;
   }).join('');
@@ -1959,8 +2087,9 @@ function buildTodayFlyers(){
     const t = TYPES[ev.type] || TYPES.community;
     if(ev.flyer){
       const safe = ev.flyer.replace(/'/g,"\\'");
+      const safeHref = (ev.href||'').replace(/'/g,'%27');
       cards.push(
-        `<div class="today-flyer-card" onclick="openFlyer('${safe}')">`+
+        `<div class="today-flyer-card" onclick="openFlyer('${safe}','${safeHref}')">`+
         `<img src="${ev.flyer}" alt="${ev.label} flyer" loading="lazy">`+
         `<div class="tfc-label">${ev.label}</div></div>`
       );
@@ -2381,6 +2510,7 @@ function cell(d, key, other, today, weekend){
 const MONTH_NAMES_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 function selectDay(key, d){
+  selectedDayKey = key;
   const evs = EVENTS[key] || [];
   const seen = new Set();
   const uniqEvs = evs.filter(ev => {
@@ -2407,17 +2537,18 @@ function selectDay(key, d){
       ev.desc     ? `<div class="det-ev-desc">${truncateDesc(ev.desc)}</div>` : ''
     ].join('');
     const link = ev.href ? `<a class="detail-event-link" href="${ev.href}" target="_blank" rel="noopener noreferrer">${ev.linkText||'Full details ↗'}</a>` : '';
-    const flyer = ev.flyer ? `<span class="det-ev-flyer" onclick="openFlyer('${ev.flyer}')" title="Tap to enlarge"><img src="${ev.flyer}" alt="${ev.label} flyer" loading="lazy"></span>` : '';
+    const flyer = ev.flyer ? `<span class="det-ev-flyer" onclick="openFlyer('${ev.flyer}','${(ev.href||'').replace(/'/g,'%27')}')" title="Tap to enlarge"><img src="${ev.flyer}" alt="${ev.label} flyer" loading="lazy"></span>` : '';
     const logo = ORG_ICONS[ev.type];
     const iconHtml = ev.type === 'nycvotes'
       ? `<img src="voted-bkcb6-2026.png" alt="" style="width:24px;height:24px;border-radius:50%">`
       : logo
         ? `<img src="${logo}" alt="" style="width:26px;height:26px;border-radius:${(ev.type==='principles'||ev.type==='artichoke')?'50%':'5px'};background:#fff;object-fit:cover;flex-shrink:0">`
         : `<span style="font-size:1.1rem">${t.icon}</span>`;
+    const shareBtn = `<button class="share-btn det-ev-share" onclick="copyShare(shareUrlForEvent('${key}','${ev.label.replace(/'/g,"\\'")}'), this)" title="Copy a link to this listing">&#128279; Share</button>`;
     const embed = (ev.type === 'nycvotes' && /Early Voting ·/.test(ev.label))
       ? `<div class="det-ev-embed" style="margin-top:10px"><iframe src="https://bkcb6.app/poll-finder-bk.html?embed=1" style="width:100%;border:0;height:700px;border-radius:8px" loading="lazy" title="Where Do I Vote — Brooklyn"></iframe></div>`
       : '';
-    return `<div class="det-ev" style="background:${t.bg}">${iconHtml}<div class="det-ev-copy"><div class="det-ev-text">${ev.label}</div>${rows}${flyer}${link}${embed}</div></div>`;
+    return `<div class="det-ev" id="ev-${evSlug(key, ev.label)}" style="background:${t.bg}">${iconHtml}<div class="det-ev-copy"><div class="det-ev-text">${ev.label}</div>${rows}${flyer}${link}${shareBtn}${embed}</div></div>`;
   }).join('');
   panel.style.display = 'block';
   panel.scrollIntoView({behavior:'smooth', block:'nearest'});
@@ -2427,17 +2558,20 @@ function closeDetail(){
   document.getElementById('day-detail').style.display='none';
   document.querySelectorAll('.cal-day.selected').forEach(el=>el.classList.remove('selected'));
 }
-function openFlyer(src){
+function openFlyer(src, href){
   let lb = document.getElementById('flyer-lightbox');
   if(!lb){
     lb = document.createElement('div');
     lb.id = 'flyer-lightbox';
     lb.className = 'flyer-lightbox';
-    lb.innerHTML = '<button class="flyer-close" aria-label="Close" onclick="closeFlyer()">&times;</button><img alt="Event flyer">';
     lb.addEventListener('click', e=>{ if(e.target===lb) closeFlyer(); });
     document.body.appendChild(lb);
   }
-  lb.querySelector('img').src = src;
+  const closeBtn = '<button class="flyer-close" aria-label="Close" onclick="closeFlyer()">&times;</button>';
+  const imgHtml = '<img alt="Event flyer" src="' + src + '">';
+  lb.innerHTML = href
+    ? closeBtn + '<a class="flyer-link" href="' + href + '" target="_blank" rel="noopener noreferrer" title="Open event link \u2197">' + imgHtml + '</a>'
+    : closeBtn + imgHtml;
   lb.classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -2644,15 +2778,69 @@ renderDOW();
   } catch(e){ console.warn('url filter parse failed', e); }
 })();
 
-// Apply ?date=YYYY-MM-DD to open that day's detail panel
+// Apply ?event= ?date= ?week= ?month= ?q= deep links
 function applyUrlDate(){
   try {
     const p = new URLSearchParams(window.location.search);
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+    // ?q= search text
+    const q = p.get('q');
+    if(q){
+      const box = document.getElementById('list-search');
+      if(box){ box.value = q; setView('list'); renderList(); }
+    }
+
+    // ?month=YYYY-MM
+    const month = p.get('month');
+    if(month && /^\d{4}-\d{2}$/.test(month)){
+      const y = Number(month.slice(0,4)), m = Number(month.slice(5,7)) - 1;
+      viewYear = y; viewMonth = m;
+      renderMonth();
+      const last = new Date(y, m+1, 0).getDate();
+      setRange('month', `${month}-01`, `${month}-${pad(last)}`, `Showing ${MONTH_NAMES_LONG[m]} ${y}`);
+      document.querySelector('.cal-wrap').scrollIntoView({behavior:'smooth', block:'start'});
+      return;
+    }
+
+    // ?week=YYYY-MM-DD (any day in the week)
+    const week = p.get('week');
+    if(week && DATE_RE.test(week)){
+      const start = weekStartKey(week);
+      const end = addDaysKey(start, 6);
+      const sd = new Date(start+'T00:00:00'), ed = new Date(end+'T00:00:00');
+      const label = `Showing week of ${MONTH_NAMES_LONG[sd.getMonth()]} ${sd.getDate()} \u2013 ${MONTH_NAMES_LONG[ed.getMonth()]} ${ed.getDate()}, ${ed.getFullYear()}`;
+      setRange('week', start, end, label);
+      return;
+    }
+
+    // ?event=<YYYY-MM-DD-slug>
+    const evParam = p.get('event');
+    if(evParam){
+      const dateKey = evParam.slice(0,10);
+      if(DATE_RE.test(dateKey) && EVENTS[dateKey] && EVENTS[dateKey].length){
+        const match = EVENTS[dateKey].find(e => evSlug(dateKey, e.label) === evParam);
+        openCalendarDate(dateKey);
+        if(match){
+          setTimeout(()=>{
+            const el = document.getElementById('ev-' + evParam);
+            if(el){
+              el.scrollIntoView({behavior:'smooth', block:'center'});
+              el.style.outline = '3px solid var(--orange)';
+              el.style.outlineOffset = '2px';
+            }
+          }, 350);
+        }
+        return;
+      }
+    }
+
+    // ?date=YYYY-MM-DD
     const key = p.get('date');
-    if(key && /^\d{4}-\d{2}-\d{2}$/.test(key) && EVENTS[key] && EVENTS[key].length){
+    if(key && DATE_RE.test(key) && EVENTS[key] && EVENTS[key].length){
       openCalendarDate(key);
     }
-  } catch(e){ console.warn('url date parse failed', e); }
+  } catch(e){ console.warn('url deep link parse failed', e); }
 }
 
 buildTodayFlyers();
