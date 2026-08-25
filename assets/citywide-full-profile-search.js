@@ -580,6 +580,7 @@
     else if(boardShort&&boardNum){ logoImg='<img src="/banners/banner-'+boardShort+'-'+boardNum+'.png" alt="'+esc(cbLabel)+'" width="540" height="270" loading="lazy" style="display:block;width:124px;height:62px;border-radius:5px;background:#fff">'; }
     if(logoImg||siteIcon){
       var iconImg=siteIcon?'<img src="'+siteIcon.src+'" alt="'+esc(siteIcon.alt)+'" width="'+siteIcon.w+'" height="'+siteIcon.h+'" loading="lazy" style="display:block;width:'+(cb==='306'?74:124)+'px;height:auto;border-radius:4px;background:#fff">':'';
+      if(siteIcon&&siteIcon.href) iconImg='<a href="'+siteIcon.href+'" target="_blank" rel="noopener" title="'+esc(siteIcon.alt)+'" style="display:block">'+iconImg+'</a>';
       cardLogo='<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 9px">'+logoImg+iconImg+'</div>';
 
     }
@@ -698,9 +699,9 @@
   function cardModeRequested(){
     try{return new URLSearchParams(location.search).get('card')==='1';}catch(e){return false;}
   }
-  var SHARE_PAGES={'250 BALTIC STREET':'/250baltic','1 EAST 161 STREET':'/yankeestadium'};
+  var SHARE_PAGES={'250 BALTIC ST':'/250baltic','1 E 161 ST':'/yankeestadium','427 5 AVE':'/barkslope','139 9 ST':'/principles'};
   function shareUrlFor(address,cardOnly){
-    var key=String(address||'').trim().toUpperCase().replace(/\s+/g,' ').replace(/,.*$/,'').replace(/\s+(BROOKLYN|NY|NEW YORK).*$/,'');
+    var key=liftNorm(address);
     if(SHARE_PAGES[key]) return location.origin+SHARE_PAGES[key];
     var base=location.origin+location.pathname;
     var url=base+'?address='+encodeURIComponent(address);
@@ -752,6 +753,7 @@
       .replace(/\bROAD\b/g,'RD').replace(/\bPLACE\b/g,'PL').replace(/\bDRIVE\b/g,'DR')
       .replace(/\bPARKWAY\b/g,'PKWY').replace(/\bEAST\b/g,'E').replace(/\bWEST\b/g,'W')
       .replace(/\bNORTH\b/g,'N').replace(/\bSOUTH\b/g,'S')
+      .replace(/\b(\d+)(ST|ND|RD|TH)\b/g,'$1')
       .replace(/\s+/g,' ').trim();
   }
   function liftDist(a,b,c,d){
@@ -1346,6 +1348,8 @@
   function isBroadwayAddr(addr){ var a=AKA[liftNorm(addr)]; return typeof a==='string' && /Broadway theatre/i.test(a); }
   var SITE_ICON={
     '1 E 161 ST':{src:'/site-icons/yankee-stadium.png',alt:'Yankee Stadium',w:360,h:147},
+    '427 5 AVE':{src:'/site-icons/bark-slope.png',alt:'Bark Slope Salon',w:258,h:436,href:'https://www.barkslopesalon.com/'},
+    '139 9 ST':{src:'/site-icons/principles-cafe.png',alt:'Principles Cafe',w:520,h:520,href:'https://principlesbk.nyc/'},
     // Broadway houses: the Playbill cover for what is playing there now.
     '124 W 43 ST':{src:'/site-icons/playbill-stephen-sondheim-theatre.png',alt:'& Juliet at the Stephen Sondheim Theatre',w:360,h:568},
     '214 W 42 ST':{src:'/site-icons/playbill-new-amsterdam-theatre.png',alt:'Aladdin at the New Amsterdam Theatre',w:360,h:568},
