@@ -487,6 +487,115 @@
     }catch(e){ return []; }
   }
 
+  // ---- DOB NOW: what has actually been filed on this lot ----
+  // The DOB NOW public portal is a hash-routed app with no per-lot URL, so a link
+  // alone cannot land on a property. These are the same filings, pulled by BBL
+  // from the DOB NOW datasets on NYC Open Data.
+  var DOBNOW_TOKEN='HvFoIfzodzpRML7a1104Ca2tM';
+  var DOBNOW_PORTAL='https://a810-dobnow.nyc.gov/publish/Index.html#!/search';
+  function dobnowUrl(ds,bbl,select,order){
+    return 'https://data.cityofnewyork.us/resource/'+ds+'.json?$select='+encodeURIComponent(select)+
+      '&$where='+encodeURIComponent("bbl='"+bbl+"' OR bbl='"+bbl+".0'")+
+      (order?'&$order='+encodeURIComponent(order):'')+'&$limit=50&$$app_token='+DOBNOW_TOKEN;
+  }
+  function dobnowDate(v){
+    if(!v) return '';
+    var d=new Date(v);
+    if(isNaN(d.getTime())) return String(v).slice(0,10);
+    return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  }
+  function dobnowMoney(v){
+    var n=parseFloat(String(v||'').replace(/[^0-9.]/g,''));
+    if(!isFinite(n)||n<=0) return '';
+    return '$'+Math.round(n).toLocaleString('en-US');
+  }
+  function dobnowPill(txt,tone){
+    var c={ok:['#f1f8f1','#a5d6a7','#2e7d32'],warn:['#fff8f2','#f6d3ae','#a05a12'],flat:['#f5f4f1','#e5e2db','#6b6760']}[tone||'flat'];
+    return '<span style="display:inline-block;font-family:\'DM Mono\',monospace;font-size:.6rem;font-weight:600;'+
+      'background:'+c[0]+';border:1px solid '+c[1]+';color:'+c[2]+';border-radius:999px;padding:2px 7px;white-space:nowrap">'+esc(txt)+'</span>';
+  }
+  function dobnowTone(status){
+    var t=String(status||'').toLowerCase();
+    if(/sign-?off|signed-?off|issued|approved|complete/.test(t)) return 'ok';
+    if(/withdraw|revok|denied|disapprov|expired/.test(t)) return 'warn';
+    return 'flat';
+  }
+  async function paintDobNow(el){
+    if(!el || el.dataset.dobnowReady==='true') return;
+    el.dataset.dobnowReady='true';
+    var bbl=el.getAttribute('data-dobnow')||'';
+    if(!/^[0-9]{10}$/.test(bbl)){ el.style.display='none'; return; }
+    var filings=[], permits=[], cofos=[];
+    try{
+      var r=await Promise.all([
+        fetchJsonOptional(dobnowUrl('w9ak-ipjd',bbl,'job_filing_number,job_type,filing_status,filing_date,job_description,initial_cost,proposed_dwelling_units,existing_dwelling_units','filing_date DESC')),
+        fetchJsonOptional(dobnowUrl('rbx6-tga4',bbl,'job_filing_number,work_type,permit_status,filing_reason,job_description,estimated_job_costs')),
+        fetchJsonOptional(dobnowUrl('pkdm-hqz6',bbl,'c_of_o_number,c_of_o_status,c_of_o_issuance_date,c_of_o_filing_type,number_of_dwelling_units','c_of_o_issuance_date DESC'))
+      ]);
+      filings=Array.isArray(r[0])?r[0]:[]; permits=Array.isArray(r[1])?r[1]:[]; cofos=Array.isArray(r[2])?r[2]:[];
+    }catch(e){}
+
+    var portal='<a href="'+DOBNOW_PORTAL+'" target="_blank" rel="noopener" style="font-size:.68rem;font-weight:700;color:var(--orange,#f47920);text-decoration:none;white-space:nowrap">Open DOB NOW &#8599;</a>';
+    var head='<div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:7px">'+
+      '<span style="font-family:\'DM Mono\',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted,#6b6760);font-weight:700">DOB NOW filings on this lot</span>'+portal+'</div>';
+
+    if(!filings.length && !permits.length && !cofos.length){
+      el.innerHTML=head+'<div style="font-size:.78rem;color:var(--muted,#6b6760);line-height:1.5">'+
+        'Nothing has been filed on this lot in DOB NOW. DOB NOW took over filing types in stages from 2017 on, so older work sits in DOB BIS instead.</div>';
+      return;
+    }
+
+    var byJob={};
+    permits.forEach(function(p){
+      var k=String(p.job_filing_number||'');
+      (byJob[k]=byJob[k]||[]).push(p);
+    });
+
+    var stats=[['job filing','job filings',filings.length],['approved permit','approved permits',permits.length],['certificate of occupancy','certificates of occupancy',cofos.length]]
+      .filter(function(x){return x[2]>0;}).map(function(x){
+        return '<span style="display:inline-block;background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:5px 9px;font-size:.72rem;color:var(--navy,#0d1b4b)">'+
+          '<b style="font-size:.9rem">'+x[2]+'</b> '+esc(x[2]===1?x[0]:x[1])+'</span>';
+      }).join('');
+
+    var rows=filings.slice(0,6).map(function(f){
+      var job=String(f.job_filing_number||'');
+      var mine=byJob[job]||[];
+      var uniq=[];
+      mine.forEach(function(m){ if(m.work_type && uniq.indexOf(m.work_type)<0) uniq.push(m.work_type); });
+      var desc=f.job_description||(mine[0]&&mine[0].job_description)||'';
+      var cost=dobnowMoney(f.initial_cost)||dobnowMoney(mine[0]&&mine[0].estimated_job_costs);
+      var du=parseInt(f.proposed_dwelling_units,10), duNow=parseInt(f.existing_dwelling_units,10);
+      var duTxt=(isFinite(du)&&isFinite(duNow)&&du!==duNow)?(duNow+' to '+du+' units'):'';
+      var meta=[dobnowDate(f.filing_date)?'filed '+dobnowDate(f.filing_date):'',cost?'cost '+cost:'',duTxt].filter(Boolean).join(' \u00b7 ');
+      return '<div style="border-top:1px solid #eceae4;padding:8px 0">'+
+        '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:3px">'+
+          '<span style="font-family:\'DM Mono\',monospace;font-size:.68rem;font-weight:600;color:var(--navy,#0d1b4b)">'+esc(job)+'</span>'+
+          (f.job_type?dobnowPill(f.job_type,'flat'):'')+
+          (f.filing_status?dobnowPill(f.filing_status,dobnowTone(f.filing_status)):'')+
+        '</div>'+
+        (uniq.length?'<div style="font-size:.73rem;color:var(--navy,#0d1b4b);font-weight:600;margin-bottom:2px">'+esc(uniq.join(', '))+'</div>':'')+
+        (desc?'<div style="font-size:.74rem;color:var(--muted,#6b6760);line-height:1.45">'+esc(desc.length>190?desc.slice(0,190)+'\u2026':desc)+'</div>':'')+
+        (meta?'<div style="font-family:\'DM Mono\',monospace;font-size:.64rem;color:var(--muted,#6b6760);margin-top:3px">'+meta+'</div>':'')+
+      '</div>';
+    }).join('');
+
+    var extra=filings.length-6;
+    var more=extra>0?'<div style="font-size:.71rem;color:var(--muted,#6b6760);border-top:1px solid #eceae4;padding-top:7px">'+
+      extra+' more filing'+(extra===1?'':'s')+' on this lot. The full history is in the DOB NOW portal.</div>':'';
+
+    var co=cofos.length?'<div style="border-top:1px solid #eceae4;padding-top:8px;margin-top:2px">'+
+      '<div style="font-family:\'DM Mono\',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted,#6b6760);font-weight:700;margin-bottom:4px">Certificate of occupancy</div>'+
+      cofos.slice(0,3).map(function(c){
+        return '<div style="font-size:.74rem;color:var(--navy,#0d1b4b);line-height:1.5">'+
+          esc(c.c_of_o_filing_type||'C of O')+
+          (c.c_of_o_status?' \u00b7 '+esc(c.c_of_o_status):'')+
+          (c.c_of_o_issuance_date?' \u00b7 issued '+esc(dobnowDate(c.c_of_o_issuance_date)):'')+
+          (c.number_of_dwelling_units?' \u00b7 '+esc(c.number_of_dwelling_units)+' units':'')+'</div>';
+      }).join('')+'</div>':'';
+
+    el.innerHTML=head+(stats?'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px">'+stats+'</div>':'')+rows+more+co;
+  }
+
   // ---- why is this facility allowed here: map the facility to its Use Group ----
   var FAC_UG=[
     [/LIBRAR/,'III','a library, which is a community facility'],
@@ -587,7 +696,7 @@
     var cards=mini(zones.length>1?'Zoning Districts':'Zoning District',zDisp)+useGroupMini(pluto.landuse,lUse)+(spDists.length?mini(spDists.length>1?'Special Districts':'Special District',spDisp):'')+mini('Land Use',lUse)+mini('Landmark Status',historic)+mini('Election District',Number.isFinite(ed)?ed:'—')+mini('Assembly',repLabel('state_assembly',ad,'Assembly District'))+mini('City Council',repLabel('city_council',council,'Council District'))+mini('State Senate',repLabel('state_senate',senate,'State Senate District'))+mini('Congress',repLabel('congress',cong,'Congressional District'))+mini('School District',school?'CSD '+school:'—')+mini('Police Precinct',police?police+' Precinct':'—')+miniTag('Zoning Code Explanation',zones.length?zones.map(function(z){return z+': '+zoningPlain(z);}).join(' / '):'Check ZoLa for exact district controls.','data-zoneexplain')+miniTag('Use Group Explanation',landUsePlain(pluto.landuse,lUse),'data-landuseexplain')+propertyMini('Owner',pluto.ownername||pluto.owner||a.ownerName||a.ownername)+mini('Community Board',cbLabel)+mini('Borough',pluto.borough||a.firstBoroughName||BOROUGH_NAMES[b]||'—')+propertyMini('Year Built',fmtNum(pluto.yearbuilt,''))+propertyMini('Building Class',pluto.bldgclass)+propertyMini('Lot Area',fmtNum(pluto.lotarea,' sq ft'))+propertyMini('Building Area',fmtNum(pluto.bldgarea,' sq ft'))+propertyMini('Residential Units',fmtNum(pluto.unitsres,''))+propertyMini('Total Units',fmtNum(pluto.unitstotal,'')); return '<div data-cardtop style="scroll-margin-top:12px;position:relative;background:#f0f8f4;border:1.5px solid #a7f3d0;border-radius:8px;padding:12px 14px;margin-top:4px"><div data-cardaddr style="font-size:1.15rem;font-weight:900;line-height:1.2;color:var(--navy,#0d1b4b)">'+esc(input)+'</div><div style="font-size:.95rem;font-weight:600;line-height:1.35;color:var(--navy,#0d1b4b);margin-top:3px">is in <strong style="font-weight:900">'+areaLabelHtml(cb||String(a.communityDistrict||pluto.cd||''),cbLabel)+'</strong></div>'+jointInterestNote(cb||String(a.communityDistrict||pluto.cd||''))+'<div style="display:flex;align-items:flex-start;gap:10px;margin:10px 0 9px"><div style="flex:1;min-width:0;background:'+zInk.bg+';border-radius:7px;padding:11px 13px;align-self:stretch"><div style="font-family:\'DM Mono\',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:'+zInk.sub+';font-weight:700">zoned</div><div style="font-size:1.9rem;font-weight:900;line-height:1.12;color:'+zInk.fg+';margin-top:3px;word-break:normal;overflow-wrap:break-word">'+esc(zones.length?zDisp:'Not available from PLUTO')+'</div>'+(zones.length?'<a href="#" data-zoomto="1" style="display:inline-block;margin-top:6px;font-size:.72rem;font-weight:700;color:'+zInk.fg+';opacity:.9;text-decoration:none;border-bottom:1px solid '+zInk.rule+'">See what this means &rarr;</a>':'')+(spDists.length?'<div style="font-family:\'DM Mono\',monospace;font-size:.66rem;color:'+zInk.sub+';margin-top:5px">in the '+esc(spDisp)+' special district</div>':'')+'</div>'+landUseHero(pluto.landuse)+'</div>'+cardLogo+bizBlock(input)+'<div style="font-size:.75rem;color:var(--muted,#6b6760);margin-bottom:8px">ED '+(Number.isFinite(ed)?ed:'—')+' &middot; AD '+(Number.isFinite(ad)?ad:'—')+(council?' &middot; Council District '+esc(council):'')+(senate?' &middot; State Senate District '+esc(senate):'')+(cong?' &middot; Congressional District '+esc(cong):'')+(school?' &middot; School District '+esc(school):'')+(police?' &middot; Police Precinct '+esc(police):'')+'</div>'+electedRow(council,ad,senate)+'<div class="citywide-result-map" data-lat="'+lat+'" data-lng="'+lng+'" data-label="'+esc(input)+'" data-owner="'+esc(pluto.ownername||pluto.owner||'')+'" style="height:240px;border-radius:8px;border:1px solid #a7f3d0;margin-bottom:10px;background:#eef2f7"></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:10px">'+cards+'</div><div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px;font-size:.73rem;line-height:1.45;color:var(--navy,#0d1b4b)"><div><strong>Zoning:</strong> '+(zones.length?zones.map(function(z){return '<strong>'+esc(z)+'</strong>: '+esc(zoningPlain(z));}).join('<br>'):'Zoning was not available from PLUTO for this address.')+'</div><div style="margin-top:5px"><strong>Land use:</strong> '+esc(landUsePlain(pluto.landuse,lUse))+'</div>'+(function(){var zn=zoneNote(input); if(!zn) return '';
       return '<div style="margin-top:6px;padding:7px 9px;background:#f6f7fb;border-left:3px solid #2145a8;border-radius:0 5px 5px 0"><strong>Worth knowing about the zoning:</strong> '+esc(zn)+'</div>';})()+(function(){var on=ownerNote(input,pluto.ownername||pluto.owner,pluto.ownertype); if(!on) return '';
       return '<div style="margin-top:6px;padding:7px 9px;background:#f6f7fb;border-left:3px solid #2145a8;border-radius:0 5px 5px 0"><strong>Who owns it:</strong> '+esc(on)+'</div>';})()+(function(){var g=zoneUseNote(zones[0],pluto.landuse); if(!g) return '';
-      return '<div style="margin-top:6px;padding:7px 9px;background:'+(g.ok?'#f4f8f4':'#fff8f2')+';border-left:3px solid '+(g.ok?'#2e6b30':'#f47920')+';border-radius:0 5px 5px 0"><strong>'+g.head+':</strong> '+esc(g.text)+'</div>';})()+''+(spDists.length?'<div style="margin-top:5px"><strong>Special district:</strong> '+esc(specialDistrictExplain(spDisp,[pluto.spdist1,pluto.spdist2,pluto.spdist3]))+'</div>':'')+(hd.length?'<div style="margin-top:5px"><strong>Historic district:</strong> This is in a historic district, so exterior changes usually need LPC review.</div>':'')+'</div>'+facilitiesHtml(facs,zones,pluto.overlay1||pluto.overlay2||'')+'<div data-usegrid="'+esc(baseDistricts(zones[0]).join(','))+'" data-zone="'+esc(zones[0]||'')+'" style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px"></div>'+nearbyHtml(n)+'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"><a href="'+dob+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">DOB BIS</a><a href="https://a810-dobnow.nyc.gov/publish/Index.html#!/search" target="_blank" rel="noopener" title="DOB NOW public portal. Search this address there for filings made in DOB NOW." style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">DOB NOW</a><a href="'+zap+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">ZAP Projects</a><a href="'+acris+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">ACRIS Deeds</a><a href="'+zola+'" target="_blank" style="font-size:.73rem;font-weight:600;color:#2e7d32;text-decoration:none;padding:5px 10px;border:1px solid #a5d6a7;border-radius:5px;background:#f1f8f1">ZoLa Zoning</a><a href="https://maps.google.com/?q='+lat+','+lng+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">Map</a><button type="button" class="citywide-share-btn" data-share-address="'+esc(input)+'" style="font-size:.73rem;font-weight:700;color:#fff;cursor:pointer;padding:5px 12px;border:1px solid var(--orange,#FD890E);border-radius:5px;background:var(--orange,#FD890E)">Share card</button><button type="button" class="citywide-pdf-btn" style="font-size:.73rem;font-weight:700;color:var(--navy,#0d1b4b);cursor:pointer;padding:5px 12px;border:1px solid var(--navy,#0d1b4b);border-radius:5px;background:#fff">Download PDF</button></div><div style="border-top:1px solid #d1fae5;padding-top:8px;display:flex;flex-wrap:wrap;gap:12px"><a href="'+(boardSlug(cb)?boardSlug(cb)+'?addr='+enc+'#sec-map':'mydistricts.html?address='+enc)+'" style="font-size:.75rem;color:var(--navy,#0d1b4b);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy,#0d1b4b)">Open '+esc(cbLabel)+' district profile &rarr;</a></div></div>';}
+      return '<div style="margin-top:6px;padding:7px 9px;background:'+(g.ok?'#f4f8f4':'#fff8f2')+';border-left:3px solid '+(g.ok?'#2e6b30':'#f47920')+';border-radius:0 5px 5px 0"><strong>'+g.head+':</strong> '+esc(g.text)+'</div>';})()+''+(spDists.length?'<div style="margin-top:5px"><strong>Special district:</strong> '+esc(specialDistrictExplain(spDisp,[pluto.spdist1,pluto.spdist2,pluto.spdist3]))+'</div>':'')+(hd.length?'<div style="margin-top:5px"><strong>Historic district:</strong> This is in a historic district, so exterior changes usually need LPC review.</div>':'')+'</div>'+facilitiesHtml(facs,zones,pluto.overlay1||pluto.overlay2||'')+'<div data-usegrid="'+esc(baseDistricts(zones[0]).join(','))+'" data-zone="'+esc(zones[0]||'')+'" style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px"></div>'+nearbyHtml(n)+'<div data-dobnow="'+esc(bbl)+'" style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px"></div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"><a href="'+dob+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">DOB BIS</a><a href="https://a810-dobnow.nyc.gov/publish/Index.html#!/search" target="_blank" rel="noopener" title="DOB NOW public portal. Search this address there for filings made in DOB NOW." style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">DOB NOW</a><a href="'+zap+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">ZAP Projects</a><a href="'+acris+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">ACRIS Deeds</a><a href="'+zola+'" target="_blank" style="font-size:.73rem;font-weight:600;color:#2e7d32;text-decoration:none;padding:5px 10px;border:1px solid #a5d6a7;border-radius:5px;background:#f1f8f1">ZoLa Zoning</a><a href="https://maps.google.com/?q='+lat+','+lng+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">Map</a><button type="button" class="citywide-share-btn" data-share-address="'+esc(input)+'" style="font-size:.73rem;font-weight:700;color:#fff;cursor:pointer;padding:5px 12px;border:1px solid var(--orange,#FD890E);border-radius:5px;background:var(--orange,#FD890E)">Share card</button><button type="button" class="citywide-pdf-btn" style="font-size:.73rem;font-weight:700;color:var(--navy,#0d1b4b);cursor:pointer;padding:5px 12px;border:1px solid var(--navy,#0d1b4b);border-radius:5px;background:#fff">Download PDF</button></div><div style="border-top:1px solid #d1fae5;padding-top:8px;display:flex;flex-wrap:wrap;gap:12px"><a href="'+(boardSlug(cb)?boardSlug(cb)+'?addr='+enc+'#sec-map':'mydistricts.html?address='+enc)+'" style="font-size:.75rem;color:var(--navy,#0d1b4b);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy,#0d1b4b)">Open '+esc(cbLabel)+' district profile &rarr;</a></div></div>';}
   async function nyzdQuery(geomObj,geomType){
     var url='https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=ZONEDIST&returnGeometry=false&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(geomObj))+'&geometryType='+geomType+'&inSR=4326&spatialRel=esriSpatialRelIntersects&f=json&resultRecordCount=20';
     var d=await fetchJsonOptional(url);
@@ -684,6 +793,7 @@
       L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
       loadResultZoning(map,lat,lng);
       try{document.querySelectorAll('[data-usegrid]').forEach(function(el){paintUseGrid(el);});}catch(e){}
+      try{document.querySelectorAll('[data-dobnow]').forEach(function(el){paintDobNow(el);});}catch(e){}
       var label=el.getAttribute('data-label')||'Searched address';
       var owner=el.getAttribute('data-owner')||'';
       var mi=markFor(label,owner);
