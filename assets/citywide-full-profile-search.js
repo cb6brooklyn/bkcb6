@@ -505,10 +505,10 @@
     var otherStreet=liftNorm(streetOf(filed))!==liftNorm(streetOf(input));
     if(!isCondo && !otherStreet) return '';
     var body = isCondo
-      ? 'This address sits in a condominium. The city treats the whole condominium as one tax lot and files it under a single address, '+
-        esc(titleCaseAddr(filed))+'. Everything below describes that lot and the building on it, not the individual unit or office.'
-      : 'This address sits on a tax lot the city files under '+esc(titleCaseAddr(filed))+
-        '. One lot often covers more than one entrance or street. Everything below describes that whole lot, which includes this address.';
+      ? 'Zoning, land use and ownership are recorded for a whole tax lot. A condominium is a single lot filed under one address, '+
+        esc(titleCaseAddr(filed))+', so that is the record shown here for every unit in the building.'
+      : 'Zoning, land use and ownership are recorded for a whole tax lot, not for each entrance. This address is on the lot the city files under '+
+        esc(titleCaseAddr(filed))+', so that is the record shown here.';
     return '<div style="font-size:.78rem;color:var(--muted,#6b6760);line-height:1.5;margin-top:5px">'+body+'</div>';
   }
   function titleCaseAddr(v){
