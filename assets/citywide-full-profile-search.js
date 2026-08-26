@@ -1464,6 +1464,7 @@
   // under the board logo rather than beside it.
   var BIZ_SITES={
     '427 5 AVE':[{name:'Bark Slope Salon',kind:'Dog grooming salon',src:'/site-icons/bark-slope.png',w:258,h:436,href:'https://www.barkslopesalon.com/',plate:'#ffffff'}],
+    '197 BOND ST':[{name:'Council Member Shahana Hanif',kind:'District office for City Council District 39, 1st floor',src:'/site-icons/hanif-district-39.png',w:520,h:244,href:'https://council.nyc.gov/district-39/',plate:'#ffffff',label:'Elected official in this building',labelPlural:'Elected officials in this building'}],
     '291 VAN BRUNT ST':[{name:'Red Hook Art Project',kind:'Free after school arts program for young people',src:'/site-icons/red-hook-art-project.png',w:480,h:475,href:'https://www.redhookartproject.org',plate:'#ffffff',label:'Community based organization in this building',labelPlural:'Community based organizations in this building'}],
     '139 9 ST':[{name:'Principles Cafe',kind:'Coffee house',src:'/site-icons/principles-cafe.png',w:520,h:520,href:'https://principlesbk.nyc/',plate:'#3a3c3e'}]
   };
