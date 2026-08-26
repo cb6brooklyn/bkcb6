@@ -489,15 +489,20 @@
 
   // A condominium is one tax lot filed under a single address, so a search for any
   // other entrance in the building lands on a record with a different street number.
+  // A tax lot is filed under one address. A condominium covers a whole building,
+  // and an ordinary lot can still cover more than one entrance or street number,
+  // so a search often lands on a record with a different street number.
   function condoNote(input,pluto,bbl){
-    var lotNo=parseInt(String(bbl||'').slice(6,10),10);
-    if(!(lotNo>=7501)) return '';
     var filed=String((pluto&&pluto.address)||'').trim();
     if(!filed) return '';
     if(liftNorm(filed)===liftNorm(input)) return '';
-    return '<div style="font-size:.78rem;color:var(--muted,#6b6760);line-height:1.5;margin-top:5px">'+
-      'This address sits in a condominium. The city treats the whole condominium as one tax lot and files it under a single address, '+
-      esc(titleCaseAddr(filed))+'. The zoning, land use, ownership and filings below describe that lot and the building on it, not the individual unit or office.</div>';
+    var lotNo=parseInt(String(bbl||'').slice(6,10),10);
+    var body = (lotNo>=7501)
+      ? 'This address sits in a condominium. The city treats the whole condominium as one tax lot and files it under a single address, '+
+        esc(titleCaseAddr(filed))+'. The zoning, land use, ownership and filings below describe that lot and the building on it, not the individual unit or office.'
+      : 'The city files this tax lot under '+esc(titleCaseAddr(filed))+
+        '. One lot often covers more than one entrance or street number, which is why a search for this address lands here. Everything below describes the whole lot, which includes this address.';
+    return '<div style="font-size:.78rem;color:var(--muted,#6b6760);line-height:1.5;margin-top:5px">'+body+'</div>';
   }
   function titleCaseAddr(v){
     return String(v||'').toLowerCase().replace(/\b[a-z]/g,function(c){return c.toUpperCase();})
