@@ -841,7 +841,7 @@
   function cardModeRequested(){
     try{return new URLSearchParams(location.search).get('card')==='1';}catch(e){return false;}
   }
-  var SHARE_PAGES={'250 BALTIC ST':'/250baltic','1 E 161 ST':'/yankeestadium','427 5 AVE':'/barkslope','139 9 ST':'/principles','557 6 AVE':'/557-6-avenue','291 VAN BRUNT ST':'/redhookartproject','197 BOND ST':'/hanif','209 JORALEMON ST':'/boroughhall',
+  var SHARE_PAGES={'250 BALTIC ST':'/250baltic','1 E 161 ST':'/yankeestadium','427 5 AVE':'/barkslope','139 9 ST':'/principles','557 6 AVE':'/557-6-avenue','291 VAN BRUNT ST':'/rhap','197 BOND ST':'/hanif','209 JORALEMON ST':'/boroughhall',
     '9516 ROCKAWAY BEACH BLVD ROCKAWAY BEACH':'/assembly-district-23',
     '185-06 UNION TURNPIKE JAMAICA ESTATES':'/assembly-district-24',
     '159-16 UNION TURNPIKE JAMAICA ESTATES':'/assembly-district-25',
