@@ -124,6 +124,12 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 .share-btn.on-dark:hover{border-color:#fff;color:#fff}
 .share-btn.on-dark.copied{background:var(--orange);border-color:var(--orange);color:#fff}
 .lcb-share{margin-top:6px}
+.past-toggle-wrap{max-width:960px;margin:14px auto 24px;padding:0 16px;display:flex;justify-content:center}
+.past-toggle{background:#fff;border:1.5px solid var(--navy);color:var(--navy);border-radius:22px;padding:10px 20px;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;transition:all .15s}
+.past-toggle:hover{background:var(--navy);color:#fff}
+.past-divider{max-width:960px;margin:22px auto 10px;padding:0 16px;font-family:'DM Mono',monospace;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:flex;align-items:center;gap:10px}
+.past-divider:after{content:"";flex:1;height:1px;background:var(--border)}
+.list-card.is-past{opacity:.72}
 .det-ev-share{margin-top:8px}
 #range-banner{display:none;max-width:960px;margin:10px auto 0;padding:9px 14px;background:var(--navy);color:#fff;border-radius:8px;border-left:4px solid var(--orange);font-size:.78rem;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 #range-banner.on{display:flex}
@@ -1760,6 +1766,17 @@ function pad(n){ return String(n).padStart(2,'0'); }
 // ═══════════════════════════════════════════════════════════════════════
 let selectedDayKey = null;
 let rangeFilter = null;   // {kind:'week'|'month', start:'YYYY-MM-DD', end:'YYYY-MM-DD', label:'...'}
+let showPast = false;     // the list hides past events until the user asks for them
+
+function togglePast(){
+  showPast = !showPast;
+  setView('list');
+  renderList();
+  if(showPast){
+    const div = document.querySelector('.past-divider');
+    if(div) div.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+}
 
 function shareBase(){
   let u = window.location.href.split('?')[0].split('#')[0];
@@ -1829,6 +1846,7 @@ function shareUrlForView(){
   if(q)   parts.push('q=' + encodeURIComponent(q));
   if(rangeFilter && rangeFilter.kind === 'week')  parts.push('week=' + rangeFilter.start);
   if(rangeFilter && rangeFilter.kind === 'month') parts.push('month=' + rangeFilter.start.slice(0,7));
+  if(showPast) parts.push('past=1');
   return shareBase() + (parts.length ? '?' + parts.join('&') : '');
 }
 function copyShare(url, btn){
@@ -2046,15 +2064,35 @@ function renderList(){
   });
   deduped.sort((a,b)=> a.dateKey < b.dateKey ? -1 : a.dateKey > b.dateKey ? 1 : 0);
   const today = new Date(); today.setHours(0,0,0,0);
+  const isUpcoming = ({dateKey}) => new Date(dateKey+'T00:00:00') >= today;
   // A week/month share link shows that whole span, including days already past.
-  const future = rangeFilter
-    ? deduped
-    : deduped.filter(({dateKey})=> new Date(dateKey+'T00:00:00') >= today);
+  const upcoming = rangeFilter ? deduped : deduped.filter(isUpcoming);
+  // Past matches, newest first, revealed by the "See past events" button.
+  const pastEvents = rangeFilter ? [] : deduped.filter(e => !isUpcoming(e)).reverse();
+  const future = showPast ? upcoming.concat(pastEvents) : upcoming;
   document.getElementById('list-count').textContent = future.length + ' event' + (future.length===1?'':'s');
+
+  // Button label names the organization when one is filtered, so it reads
+  // "See past Red Hook Art Project events" rather than a bare "See past events".
+  const selEl = document.getElementById('list-org-filter');
+  const orgName = (selEl && selEl.value && selEl.options[selEl.selectedIndex])
+    ? selEl.options[selEl.selectedIndex].text : '';
+  const pastLabel = orgName ? ('past ' + orgName + ' events') : 'past events';
+  let pastToggle = '';
+  if(pastEvents.length){
+    pastToggle = showPast
+      ? `<div class="past-toggle-wrap"><button class="past-toggle" onclick="togglePast()">Hide ${pastLabel}</button></div>`
+      : `<div class="past-toggle-wrap"><button class="past-toggle" onclick="togglePast()">See ${pastLabel} (${pastEvents.length})</button></div>`;
+  }
+
   if(!future.length){
-    document.getElementById('list-body').innerHTML = '<div class="list-empty">No events found.</div>';
+    document.getElementById('list-body').innerHTML =
+      '<div class="list-empty">' +
+      (pastEvents.length ? 'No upcoming events.' : 'No events found.') +
+      '</div>' + pastToggle;
     return;
   }
+  const firstPastKey = (showPast && pastEvents.length) ? pastEvents[0].dateKey + '|' + pastEvents[0].ev.label : null;
   document.getElementById('list-body').innerHTML = future.map(({dateKey, ev})=>{
     const d = new Date(dateKey+'T00:00:00');
     const t = TYPES[ev.type]||TYPES.community;
@@ -2070,7 +2108,7 @@ function renderList(){
     const link = ev.href ? `<a class="lcb-link" href="${ev.href}" target="_blank" rel="noopener noreferrer">${ev.linkText||'Details ↗'}</a>` : '';
     const flyerThumb = ev.flyer ? `<span class="lcb-flyer" onclick="openFlyer('${ev.flyer}','${(ev.href||'').replace(/'/g,'%27')}')"><img src="${ev.flyer}" alt="${ev.label} flyer" loading="lazy"></span>` : '';
     const shareBtn = `<button class="share-btn lcb-share" onclick="copyShare(shareUrlForEvent('${dateKey}','${ev.label.replace(/'/g,"\\'")}',${ev.flyer?'true':'false'}), this)" title="Copy a link to this listing">&#128279; Share</button>`;
-    return `<div class="list-card" id="ev-${evSlug(dateKey, ev.label)}">
+    const card = `<div class="list-card" id="ev-${evSlug(dateKey, ev.label)}">
       <div class="lcd">
         <div class="lcd-month">${MONTHS_SHORT2[d.getMonth()]}</div>
         <div class="lcd-day">${d.getDate()}</div>
@@ -2085,7 +2123,10 @@ function renderList(){
         ${shareBtn}
       </div>
     </div>`;
-  }).join('');
+    return (firstPastKey && firstPastKey === dateKey + '|' + ev.label)
+      ? `<div class="past-divider">Past ${orgName ? orgName + ' ' : ''}events</div>` + card
+      : card;
+  }).join('') + pastToggle;
 }
 
 const CIVIC_TYPES = new Set(['dcp','lpc','nyccouncil','committee']);
@@ -2814,6 +2855,9 @@ function applyUrlDate(){
   try {
     const p = new URLSearchParams(window.location.search);
     const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+    // ?past=1 opens the list with past events already revealed
+    if(p.get('past') === '1'){ showPast = true; setView('list'); renderList(); }
 
     // ?q= search text
     const q = p.get('q');
