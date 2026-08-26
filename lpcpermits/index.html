@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Landmarks Permits">
+<meta property="og:description" content="Every permit application filed with the Landmarks Preservation Commission, mapped building by building and searchable by address, applicant, owner and work type.">
+<meta property="og:url" content="https://bkcb6.app/lpcpermits">
+<meta property="og:image" content="https://bkcb6.app/tiles/lpcpermits.png">
+<meta property="og:image:secure_url" content="https://bkcb6.app/tiles/lpcpermits.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:alt" content="Landmarks permits: every LPC filing, mapped building by building">
+<meta property="og:image:width" content="600"><meta property="og:image:height" content="600">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://bkcb6.app/tiles/lpcpermits.png">
+<title>Landmarks Permits &mdash; bkcb6.app</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="/assets/cd-page.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+.intro{background:#fff;padding:13px 15px;border-bottom:1px solid var(--border);font-size:.86rem;line-height:1.62;color:#333;max-width:76ch}
+.intro b{color:var(--navy)}
+.intro .cover{margin-top:7px;font-size:.78rem;color:var(--muted);line-height:1.55}
+.kpis2{display:flex;flex-wrap:wrap;background:#fff;border-bottom:1px solid var(--border)}
+.kp{background:#fff;padding:10px 12px;flex:1 1 128px;min-width:128px;box-shadow:inset -1px 0 0 var(--border),inset 0 -1px 0 var(--border)}
+.kp .k{font-family:'DM Mono',monospace;font-size:.5rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700}
+.kp .v{font-family:'DM Mono',monospace;font-size:1.15rem;font-weight:900;color:var(--navy);margin-top:2px}
+.kp .d{font-size:.66rem;color:var(--muted);margin-top:1px;line-height:1.35}
+.kp.wide{flex:1 1 100%;background:#fbfaf8}
+.kp.wide .v{color:var(--orange)}
+.ctrl{background:#fff;padding:11px 12px;border-bottom:1px solid var(--border)}
+.ctrl input[type=search]{width:100%;padding:11px 12px;font-family:'DM Sans',sans-serif;font-size:.86rem;border:2px solid var(--navy2);border-radius:10px;color:var(--navy);margin-bottom:9px}
+.ctrl input[type=search]:disabled{opacity:.55;border-color:var(--border)}
+.frow{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:7px}
+.frow:last-child{margin-bottom:0}
+.flab{font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.fb2{padding:6px 12px;border:1.5px solid var(--border);border-radius:18px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:700;color:var(--navy);cursor:pointer}
+.fb2.on{background:var(--orange);border-color:var(--orange);color:#fff}
+.ctrl select{padding:8px 11px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;border:2px solid var(--navy2);border-radius:9px;color:var(--navy);background:#fff;max-width:100%}
+#map{height:46vh;min-height:280px;background:#eef0f4}
+.mapnote{padding:8px 14px;background:var(--navy);color:rgba(255,255,255,.8);font-size:.73rem;line-height:1.5;border-bottom:2px solid var(--orange)}
+.mapnote b{color:var(--orange)}
+.legend2{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:8px 14px;background:var(--navy2);border-bottom:1px solid rgba(255,255,255,.12)}
+.legend2 .l{font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6);font-weight:700}
+.legend2 .i{display:inline-flex;align-items:center;gap:5px;font-size:.68rem;color:#fff;font-weight:600}
+.legend2 .sw{width:11px;height:11px;border-radius:50%;display:inline-block;border:1.5px solid rgba(255,255,255,.55)}
+.loadbar{padding:8px 14px;background:#fff4ea;border-bottom:1px solid var(--border);font-family:'DM Mono',monospace;font-size:.66rem;color:#a65a00;line-height:1.5}
+.loadbar.done{background:var(--off);color:var(--muted)}
+.count{padding:9px 14px;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);background:var(--off);border-bottom:1px solid var(--border)}
+.site{padding:12px 14px;border-bottom:1px solid var(--border);background:#fff}
+.site .st{font-size:.88rem;font-weight:800;color:var(--navy);line-height:1.3}
+.site .sl{font-size:.75rem;color:#555;line-height:1.5;margin-top:3px}
+.site .sl.bl{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted)}
+.site .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center}
+.tagx{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:4px;font-weight:700;background:#eef0f4;color:var(--muted)}
+.tagx.hd{background:#e8eefb;color:#2145a8}
+.tagx.il{background:#fff1e5;color:#a65a00}
+.tagx.int{background:#efe6f7;color:#5b3a8e}
+.tagx.ca{background:#e3f2e4;color:#2e6b30}
+.tagx.den{background:#fdeaea;color:#b03030}
+.site .open{margin-top:8px;padding:6px 13px;background:var(--navy2);color:#fff;border:none;border-radius:16px;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer}
+.site .open:hover{background:var(--orange)}
+.plist{margin-top:10px;border-top:1px solid var(--border)}
+.prow{padding:9px 0 9px 11px;border-left:3px solid var(--orange);border-bottom:1px solid #f0ede8;background:#fbfaf8;margin-top:8px}
+.prow .pd{font-family:'DM Mono',monospace;font-size:.7rem;font-weight:700;color:var(--navy)}
+.prow .pr{font-size:.78rem;font-weight:700;color:var(--navy);margin-top:3px;line-height:1.35}
+.prow .pw{font-size:.74rem;color:#555;line-height:1.5;margin-top:3px}
+.prow .pf{font-family:'DM Mono',monospace;font-size:.63rem;color:#9ca3af;margin-top:4px;line-height:1.6}
+.more{display:block;width:calc(100% - 24px);margin:12px;padding:12px;background:#fff;border:2px solid var(--navy2);border-radius:24px;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:800;color:var(--navy);cursor:pointer}
+.more:hover{background:#fff4ea;border-color:var(--orange)}
+.regkey{padding:11px 14px;background:var(--off);border-bottom:1px solid var(--border);font-size:.77rem;line-height:1.6;color:#444}
+.regkey b{color:var(--navy);display:block;margin-bottom:5px}
+.regkey dt{font-family:'DM Mono',monospace;font-size:.63rem;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);font-weight:700;margin-top:7px}
+.regkey dd{font-size:.75rem;color:#555;line-height:1.55}
+.regkey a{color:var(--navy);border-bottom:1px solid var(--orange);text-decoration:none}
+.sharebar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:9px 14px;background:#fff;border-bottom:1px solid var(--border)}
+.sharebar .sb-t{font-family:'DM Mono',monospace;font-size:.64rem;color:var(--muted);flex:1 1 auto}
+.lnk{padding:6px 13px;border:1.5px solid var(--navy2);border-radius:16px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:var(--navy);cursor:pointer}
+.lnk:hover{background:#fff4ea;border-color:var(--orange)}
+.leaflet-popup-content{font-family:'DM Sans',sans-serif;font-size:.78rem;line-height:1.5;margin:10px 12px}
+.leaflet-popup-content b{color:var(--navy)}
+.leaflet-popup-content .pp{font-family:'DM Mono',monospace;font-size:.63rem;color:var(--muted);display:block;margin-top:3px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="crumb"><a href="/">CB6 &amp; Beyond</a> &rsaquo; <a href="/useofland/">The Use of Land</a></div>
+    <h1>Landmarks Permits <span>Building by Building</span></h1>
+    <div class="nbs">Every application filed with the Landmarks Preservation Commission, mapped and searchable</div>
+  </div>
+
+  <div class="intro">
+    <b>Nothing changes on a landmarked building without this.</b> Replace a window, repoint a facade, rebuild an areaway, add rooftop mechanicals, put up a storefront sign: in a historic district or on an individual landmark, it goes through the Landmarks Preservation Commission first. Most of it is decided by staff and never reaches a public hearing. The record of what was asked for, what was approved, and who asked is public, and this is that record.
+    <div class="cover">Filings run from the mid 1980s to the present. Certificates of Appropriateness, the ones the Commission votes on in public, are a small share of the total. Everything else moves at staff level.</div>
+  </div>
+
+  <div class="ctrl" style="border-bottom:2px solid var(--orange)">
+    <div class="frow">
+      <span class="flab">District</span>
+      <select id="boroSel"></select>
+      <select id="cdSel"></select>
+    </div>
+    <div class="frow"><span class="eranote" id="cdNote" style="font-family:'DM Mono',monospace;font-size:.66rem;color:var(--muted);line-height:1.5"></span></div>
+  </div>
+
+  <div class="kpis2" id="kpis"></div>
+
+  <div class="ctrl">
+    <input id="q" type="search" placeholder="Search an address, docket, applicant, owner or work type&hellip;" autocomplete="off" disabled>
+    <div class="frow">
+      <span class="flab">Permit type</span>
+      <select id="regSel"></select>
+    </div>
+    <div class="frow">
+      <span class="flab">Landmark</span>
+      <select id="lmSel"></select>
+    </div>
+    <div class="frow">
+      <span class="flab">Filed</span>
+      <select id="yrSel"></select>
+      <button type="button" class="fb2" id="resetBtn">Reset</button>
+    </div>
+  </div>
+
+  <div class="mapnote" id="mapnote"></div>
+  <div class="maphold"><div id="map"></div></div>
+  <div class="legend2">
+    <span class="l">Designation</span>
+    <span class="i"><i class="sw" style="background:#2145a8"></i>Historic district</span>
+    <span class="i"><i class="sw" style="background:#f47920"></i>Individual landmark</span>
+    <span class="i"><i class="sw" style="background:#5b3a8e"></i>Interior or scenic</span>
+    <span class="i"><i class="sw" style="background:#9ca3af"></i>Not recorded</span>
+  </div>
+  <div class="loadbar" id="loadbar">Loading the full permit record&hellip;</div>
+
+  <div class="sharebar"><span class="sb-t" id="sbText"></span>
+    <button type="button" class="lnk" id="shareView">Copy link to this view</button></div>
+
+  <div class="count" id="count"></div>
+  <div id="list"></div>
+  <button type="button" class="more" id="more" style="display:none">Show more</button>
+
+  <div class="regkey">
+    <b>What the permit types mean.</b>
+    <dl>
+      <dt>Certificate of Appropriateness</dt>
+      <dd>The Commission itself votes, in public, after a hearing. Reserved for work that changes a building's significant features: additions, new construction, major facade alterations. This is where a community board weighs in.</dd>
+      <dt>Certificate of No Effect</dt>
+      <dd>Staff finds the work does not affect any significant protected feature. Usually interior work or work requiring a Department of Buildings permit that leaves the exterior alone.</dd>
+      <dt>Permit for Minor Work</dt>
+      <dd>Staff approves work that does not require a Buildings permit: window replacement in kind, repointing, painting, small repairs.</dd>
+      <dt>Notice of Compliance</dt>
+      <dd>Sign off confirming work was completed as permitted.</dd>
+      <dt>Miscellaneous, amendment, status update</dt>
+      <dd>Changes to a permit already issued, or administrative correspondence on an open application.</dd>
+    </dl>
+    <a href="/glossary.html">Full glossary of the terms &rarr;</a>
+  </div>
+
+  <div class="nav">
+    <a href="/useofland/">&#127968; The Use of Land hub</a>
+    <a href="/ulurps">&#128200; ULURPs over time</a>
+    <a href="/zoning">&#128208; What the rules allow</a>
+    <a href="/landusemap">&#128506; Land use &amp; zoning map</a>
+    <a href="/cd/">&#128205; Your district</a>
+  </div>
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+var BASE='/assets/lpc/';
+var BORONAME={MN:'Manhattan',BX:'Bronx',BK:'Brooklyn',QN:'Queens',SI:'Staten Island'};
+var KIND_COLOR={'Historic District':'#2145a8','Individual Landmark':'#f47920','Interior Landmark':'#5b3a8e','Scenic Landmark':'#5b3a8e'};
+var PAGE=40;
+
+var SUM=null,IDX=null,PERM=null,CD='BK-06';
+var view=[],shown=0,openSite=-1,markerLayer=null,map=null,canvas=null;
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function num(n){return Number(n||0).toLocaleString('en-US');}
+function ymd(s){
+  if(!s||s.length!==8)return '';
+  var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var mi=parseInt(s.slice(4,6),10);
+  if(!(mi>=1&&mi<=12))return s;
+  return m[mi-1]+' '+parseInt(s.slice(6,8),10)+', '+s.slice(0,4);
+}
+function titleCase(s){
+  return String(s||'').toLowerCase().replace(/\b([a-z])/g,function(_,c){return c.toUpperCase();})
+    .replace(/\b(\d+)(St|Nd|Rd|Th)\b/g,function(_,d,x){return d+x.toLowerCase();});
+}
+function normCd(v){
+  if(!v)return null;
+  var m=String(v).toUpperCase().replace(/[^A-Z0-9]/g,'').match(/^(MN|BX|BK|QN|SI)0?(\d{1,2})$/);
+  if(!m)return null;
+  return m[1]+'-'+(m[2].length<2?'0'+m[2]:m[2]);
+}
+function el(id){return document.getElementById(id);}
+/* site row: [lat,lon,addr,block,lot,lmIdx,kindIdx,count,firstYr,lastYr,regSet,bld]
+   bld: [address,date,architect,style,origUse,buildType,propName,buildingsOnLot] or 0 */
+function bld(s){return (s&&s[11])?s[11]:null;}
+function siteTitle(s){
+  var b=bld(s);
+  if(b&&b[0])return b[0];
+  return s[2]?titleCase(s[2]):'No address on file';
+}
+function bldText(s){
+  var b=bld(s);
+  if(!b)return '';
+  return [b[0],b[1],b[2],b[3],b[4],b[5],b[6]].join(' ').toLowerCase();
+}
+function bldLine(s){
+  var b=bld(s);
+  if(!b)return '';
+  var bits=[];
+  if(b[1])bits.push(b[1]);
+  if(b[2])bits.push(b[2]);
+  if(b[3])bits.push(b[3]);
+  if(b[4])bits.push('Built as '+b[4].toLowerCase());
+  if(b[6])bits.unshift(b[6]);
+  return bits.join(' \u00b7 ');
+}
+
+/* ---------------------------------------------------------------- boot */
+fetch(BASE+'summary.json').then(function(r){
+  if(!r.ok)throw new Error('summary '+r.status);
+  return r.json();
+}).then(function(s){
+  SUM=s;
+  var want=normCd(new URLSearchParams(location.search).get('cd'))||'BK-06';
+  CD=SUM.districts[want]?want:'BK-06';
+  buildPickers();
+  loadDistrict(CD);
+}).catch(function(e){
+  el('count').textContent='Could not load the permit index. '+e.message;
+});
+
+function buildPickers(){
+  var boros=[];
+  Object.keys(SUM.districts).forEach(function(k){
+    var b=SUM.districts[k].boro;
+    if(boros.indexOf(b)<0)boros.push(b);
+  });
+  boros=['MN','BX','BK','QN','SI'].filter(function(b){return boros.indexOf(b)>=0;});
+  var bs=el('boroSel');
+  bs.innerHTML=boros.map(function(b){
+    return '<option value="'+b+'">'+esc(BORONAME[b])+'</option>';}).join('');
+  bs.value=CD.slice(0,2);
+  fillCds();
+  bs.addEventListener('change',function(){fillCds();switchTo(el('cdSel').value);});
+  el('cdSel').addEventListener('change',function(){switchTo(this.value);});
+}
+function fillCds(){
+  var b=el('boroSel').value;
+  var ks=Object.keys(SUM.districts).filter(function(k){return SUM.districts[k].boro===b;});
+  ks.sort(function(a,c){return parseInt(a.slice(3),10)-parseInt(c.slice(3),10);});
+  el('cdSel').innerHTML=ks.map(function(k){
+    var d=SUM.districts[k];
+    return '<option value="'+k+'">District '+parseInt(k.slice(3),10)+
+      ' \u00b7 '+num(d.permits)+' permits</option>';}).join('');
+  if(ks.indexOf(CD)>=0)el('cdSel').value=CD;
+}
+function switchTo(cd){
+  if(!cd||cd===CD||!SUM.districts[cd])return;
+  CD=cd;
+  history.replaceState(null,'','?cd='+cd.toLowerCase());
+  loadDistrict(cd);
+}
+
+/* ------------------------------------------------------------- loading */
+function loadDistrict(cd){
+  IDX=null;PERM=null;openSite=-1;shown=0;
+  el('q').value='';el('q').disabled=true;
+  el('loadbar').className='loadbar';
+  el('loadbar').textContent='Loading the full permit record\u2026';
+  el('count').textContent='Loading '+esc(SUM.districts[cd].label)+'\u2026';
+  el('list').innerHTML='';el('more').style.display='none';
+
+  fetch(BASE+cd.toLowerCase()+'.json').then(function(r){
+    if(!r.ok)throw new Error('index '+r.status);
+    return r.json();
+  }).then(function(d){
+    if(CD!==cd)return;
+    IDX=d;
+    renderKpis();buildFilters();ensureMap();applyFilters();
+    return fetch(BASE+cd.toLowerCase()+'-permits.json');
+  }).then(function(r){
+    if(!r||CD!==cd)return null;
+    if(!r.ok)throw new Error('permits '+r.status);
+    return r.json();
+  }).then(function(p){
+    if(!p||CD!==cd)return;
+    PERM=p;
+    el('q').disabled=false;
+    el('loadbar').className='loadbar done';
+    el('loadbar').textContent=num(IDX.totals.permits)+' permit records loaded. '+
+      'Search runs across address, docket number, applicant, owner and work description.';
+    applyFilters();
+  }).catch(function(e){
+    el('loadbar').className='loadbar';
+    el('loadbar').textContent='The full permit record did not load ('+e.message+
+      '). The map and building list below still work.';
+  });
+}
+
+/* ---------------------------------------------------------------- kpis */
+function renderKpis(){
+  var d=IDX,yrs=Object.keys(d.byYear).sort();
+  var ca=d.byReg['Certificate of Appropriateness']||0;
+  var recent=0;
+  yrs.forEach(function(y){if(parseInt(y,10)>=2020)recent+=d.byYear[y];});
+  var k=[
+    ['Permits filed',num(d.totals.permits),(yrs[0]||'')+' to '+(yrs[yrs.length-1]||'')],
+    ['Buildings and sites',num(d.totals.sites),'each one a pin on the map'],
+    ['Certificates of Appropriateness',num(ca),'voted in public by the Commission'],
+    ['Filed since 2020',num(recent),Math.round(recent/Math.max(1,d.totals.permits)*100)+'% of the record'],
+    ['Landmarks and districts',num(Object.keys(d.byLm).length),'designations represented here']
+  ];
+  var top=Object.keys(d.byLm)[0];
+  var html=k.map(function(r){
+    return '<div class="kp"><div class="k">'+esc(r[0])+'</div><div class="v">'+esc(r[1])+
+      '</div><div class="d">'+esc(r[2])+'</div></div>';}).join('');
+  if(top){
+    html+='<div class="kp wide"><div class="k">Most filings</div><div class="v">'+esc(top)+
+      '</div><div class="d">'+num(d.byLm[top])+' of '+num(d.totals.permits)+
+      ' permits in this district</div></div>';
+  }
+  el('kpis').innerHTML=html;
+  el('cdNote').textContent=d.label+'. '+num(d.totals.permits)+' permits across '+
+    num(d.totals.sites)+' buildings and sites'+
+    (d.totals.unmapped?', plus '+num(d.totals.unmapped)+' the Commission did not geocode':'')+'.';
+  el('foot').innerHTML=esc(d.method)+'<br>Source: '+esc(d.source)+
+    ' &middot; downloaded '+esc(d.downloaded)+' &middot; <a href="/useofland/" style="color:#9ca3af">The Use of Land hub</a>';
+}
+
+/* ------------------------------------------------------------- filters */
+function buildFilters(){
+  var d=IDX;
+  var reg=el('regSel');
+  reg.innerHTML='<option value="">All permit types</option>'+
+    Object.keys(d.byReg).map(function(r){
+      return '<option value="'+esc(r)+'">'+esc(r)+' \u00b7 '+num(d.byReg[r])+'</option>';}).join('');
+  var lm=el('lmSel');
+  lm.innerHTML='<option value="">All landmarks and districts</option>'+
+    Object.keys(d.byLm).map(function(r){
+      return '<option value="'+esc(r)+'">'+esc(r)+' \u00b7 '+num(d.byLm[r])+'</option>';}).join('');
+  var yrs=Object.keys(d.byYear).sort(),decades={};
+  yrs.forEach(function(y){var dd=y.slice(0,3)+'0';decades[dd]=(decades[dd]||0)+d.byYear[y];});
+  el('yrSel').innerHTML='<option value="">Any year</option>'+
+    Object.keys(decades).sort().reverse().map(function(dd){
+      return '<option value="d'+dd+'">'+dd+'s \u00b7 '+num(decades[dd])+'</option>';}).join('')+
+    yrs.slice().reverse().map(function(y){
+      return '<option value="'+y+'">'+y+' \u00b7 '+num(d.byYear[y])+'</option>';}).join('');
+  ['regSel','lmSel','yrSel'].forEach(function(id){
+    el(id).onchange=function(){openSite=-1;applyFilters();};});
+  var t=null;
+  el('q').oninput=function(){clearTimeout(t);t=setTimeout(function(){
+    openSite=-1;applyFilters();},200);};
+  el('resetBtn').onclick=function(){
+    el('q').value='';el('regSel').value='';el('lmSel').value='';el('yrSel').value='';
+    openSite=-1;applyFilters();};
+  el('shareView').onclick=function(){
+    var p=new URLSearchParams();p.set('cd',CD.toLowerCase());
+    if(el('q').value)p.set('q',el('q').value);
+    if(el('regSel').value)p.set('reg',el('regSel').value);
+    if(el('lmSel').value)p.set('lm',el('lmSel').value);
+    if(el('yrSel').value)p.set('yr',el('yrSel').value);
+    var u=location.origin+location.pathname+'?'+p.toString();
+    if(navigator.clipboard)navigator.clipboard.writeText(u);
+    this.textContent='Link copied';
+    var b=this;setTimeout(function(){b.textContent='Copy link to this view';},1600);
+  };
+  var q=new URLSearchParams(location.search);
+  if(q.get('reg'))el('regSel').value=q.get('reg');
+  if(q.get('lm'))el('lmSel').value=q.get('lm');
+  if(q.get('yr'))el('yrSel').value=q.get('yr');
+  if(q.get('q'))el('q').value=q.get('q');
+}
+
+function permText(p){
+  if(!PERM)return '';
+  var T=PERM.tables;
+  return [p[0],p[1],T.wt[p[6]],T.ap[p[7]],T.ac[p[8]],T.ow[p[9]],T.oc[p[10]],T.rn[p[11]]]
+    .join(' ').toLowerCase();
+}
+
+function applyFilters(){
+  if(!IDX)return;
+  var qs=el('q').value.trim().toLowerCase();
+  var reg=el('regSel').value,lm=el('lmSel').value,yr=el('yrSel').value;
+  var regI=reg?IDX.reg.indexOf(reg):-1;
+  var lmI=lm?IDX.lm.indexOf(lm):-1;
+
+  view=[];
+  var total=0;
+  for(var i=0;i<IDX.sites.length;i++){
+    var s=IDX.sites[i];
+    if(lmI>=0&&s[5]!==lmI)continue;
+    var rows=null;
+    if(PERM){
+      var all=PERM.permits[i]||[],keep=[];
+      for(var j=0;j<all.length;j++){
+        var p=all[j];
+        if(regI>=0&&p[5]!==regI)continue;
+        if(yr&&!yearMatch(p[2],yr))continue;
+        if(qs){
+          var hay=permText(p)+' '+(s[2]||'').toLowerCase()+' '+
+            (s[5]>=0?IDX.lm[s[5]].toLowerCase():'')+' '+bldText(s);
+          if(hay.indexOf(qs)<0)continue;
+        }
+        keep.push(p);
+      }
+      if(!keep.length)continue;
+      rows=keep;total+=keep.length;
+    }else{
+      if(regI>=0&&s[10].indexOf(regI)<0)continue;
+      if(yr&&!rangeMatch(s[8],s[9],yr))continue;
+      if(qs){
+        var h2=(s[2]||'').toLowerCase()+' '+(s[5]>=0?IDX.lm[s[5]].toLowerCase():'')+
+          ' '+bldText(s);
+        if(h2.indexOf(qs)<0)continue;
+      }
+      total+=s[7];
+    }
+    view.push({i:i,s:s,rows:rows,n:rows?rows.length:s[7]});
+  }
+  view.sort(function(a,b){return b.n-a.n||siteTitle(a.s).localeCompare(siteTitle(b.s));});
+
+  // Permits the Commission never geocoded. They cannot go on the map, but they
+  // belong in the directory, otherwise the totals do not reconcile.
+  if(PERM&&PERM.unmapped&&PERM.unmapped.length&&lmI<0){
+    var uk=[];
+    for(var u=0;u<PERM.unmapped.length;u++){
+      var up=PERM.unmapped[u];
+      if(regI>=0&&up[5]!==regI)continue;
+      if(yr&&!yearMatch(up[2],yr))continue;
+      if(qs&&permText(up).indexOf(qs)<0)continue;
+      uk.push(up);
+    }
+    if(uk.length){
+      var uy=uk.map(function(x){return x[2].slice(0,4);}).filter(Boolean).sort();
+      view.push({i:-2,rows:uk,n:uk.length,
+        s:[null,null,'Permits with no mapped location','','',-1,-1,uk.length,
+           uy[0]||'',uy[uy.length-1]||'',[],0]});
+      total+=uk.length;
+    }
+  }
+  shown=0;
+  el('count').textContent=num(view.length)+' building'+(view.length===1?'':'s')+
+    ' \u00b7 '+num(total)+' permit'+(total===1?'':'s')+
+    (PERM?'':' (counts refine when the full record finishes loading)');
+  el('sbText').textContent=(reg||lm||yr||qs)?'Filtered view':'Everything on file for '+IDX.label;
+  drawMap();renderList(true);
+}
+
+function yearMatch(d,yr){
+  if(!d||d.length<4)return false;
+  var y=d.slice(0,4);
+  if(yr.charAt(0)==='d')return y.slice(0,3)===yr.slice(1,4);
+  return y===yr;
+}
+function rangeMatch(a,b,yr){
+  if(!a||!b)return false;
+  var lo=parseInt(a,10),hi=parseInt(b,10);
+  if(yr.charAt(0)==='d'){var t=parseInt(yr.slice(1),10);return hi>=t&&lo<=t+9;}
+  var y=parseInt(yr,10);return lo<=y&&hi>=y;
+}
+
+/* ----------------------------------------------------------------- map */
+function ensureMap(){
+  if(!map){
+    canvas=L.canvas({padding:.4});
+    map=L.map('map',{preferCanvas:true,scrollWheelZoom:false});
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      {maxZoom:19,attribution:'&copy; OpenStreetMap, &copy; CARTO'}).addTo(map);
+    map.setView([40.6782,-73.9942],13);
+  }
+}
+function colorFor(s){
+  if(s[6]<0)return '#9ca3af';
+  return KIND_COLOR[IDX.kind[s[6]]]||'#9ca3af';
+}
+function drawMap(){
+  ensureMap();
+  if(markerLayer)map.removeLayer(markerLayer);
+  var pts=[],bounds=[];
+  var cap=view.slice(0,4000);
+  for(var i=0;i<cap.length;i++){
+    var v=cap[i],s=v.s;
+    if(v.i<0||typeof s[0]!=='number'||typeof s[1]!=='number')continue;
+    var r=3+Math.min(10,Math.sqrt(v.n)*1.7);
+    var m=L.circleMarker([s[0],s[1]],{renderer:canvas,radius:r,
+      color:'#fff',weight:1,opacity:.85,
+      fillColor:colorFor(s),fillOpacity:.72});
+    m.bindPopup(popupFor(v));
+    (function(idx){m.on('click',function(){openSite=idx;renderList(true);});})(v.i);
+    pts.push(m);bounds.push([s[0],s[1]]);
+  }
+  markerLayer=L.layerGroup(pts).addTo(map);
+  if(bounds.length)map.fitBounds(bounds,{padding:[24,24],maxZoom:16});
+  el('mapnote').innerHTML='Each circle is one building or site, sized by how many permits it has. <b>'+
+    num(bounds.length)+'</b> shown'+(view.length>cap.length?' of '+num(view.length)+
+    ', narrow the filters to see the rest':'')+'. Tap a circle for its record.';
+}
+function popupFor(v){
+  var s=v.s;
+  var t=siteTitle(s);
+  var lmn=s[5]>=0?IDX.lm[s[5]]:'';
+  var bl=bldLine(s);
+  return '<b>'+esc(t)+'</b><span class="pp">'+num(v.n)+' permit'+(v.n===1?'':'s')+
+    (s[8]?' \u00b7 '+esc(s[8])+' to '+esc(s[9]):'')+'</span>'+
+    (lmn?'<span class="pp">'+esc(lmn)+'</span>':'')+
+    (bl?'<span class="pp">'+esc(bl)+'</span>':'')+
+    (s[3]?'<span class="pp">Block '+esc(s[3])+', Lot '+esc(s[4])+'</span>':'');
+}
+
+/* ---------------------------------------------------------------- list */
+function kindClass(s){
+  if(s[6]<0)return '';
+  var k=IDX.kind[s[6]];
+  return k==='Historic District'?'hd':(k==='Individual Landmark'?'il':'int');
+}
+function renderList(reset){
+  if(reset){shown=0;el('list').innerHTML='';}
+  var slice=view.slice(shown,shown+PAGE);
+  var html=slice.map(function(v){return siteHtml(v);}).join('');
+  el('list').insertAdjacentHTML('beforeend',html);
+  shown+=slice.length;
+  el('more').style.display=shown<view.length?'block':'none';
+  el('more').textContent='Show more \u00b7 '+num(view.length-shown)+' left';
+  bindOpeners();
+}
+function siteHtml(v){
+  var s=v.s,lmn=s[5]>=0?IDX.lm[s[5]]:'';
+  var open=(openSite===v.i);
+  var h='<div class="site" data-i="'+v.i+'">'+
+    '<div class="st">'+esc(v.i===-2?s[2]:siteTitle(s))+'</div>';
+  if(v.i===-2)h+='<div class="sl">The Commission recorded no coordinates for these filings, '+
+    'so they are not on the map. Each one carries its own address below.</div>';
+  else{
+    if(lmn)h+='<div class="sl">'+esc(lmn)+'</div>';
+    var bl=bldLine(s);
+    if(bl)h+='<div class="sl bl">'+esc(bl)+'</div>';
+  }
+  h+='<div class="meta">';
+  if(s[6]>=0)h+='<span class="tagx '+kindClass(s)+'">'+esc(IDX.kind[s[6]])+'</span>';
+  h+='<span class="tagx">'+num(v.n)+' permit'+(v.n===1?'':'s')+'</span>';
+  if(s[8])h+='<span class="tagx">'+esc(s[8])+' to '+esc(s[9])+'</span>';
+  if(s[3])h+='<span class="tagx">Block '+esc(s[3])+' Lot '+esc(s[4])+'</span>';
+  h+='</div>';
+  if(PERM){
+    h+='<button type="button" class="open" data-i="'+v.i+'">'+
+      (open?'Hide the permits':'See all '+num(v.n)+' permit'+(v.n===1?'':'s'))+'</button>';
+    if(open)h+=permitsHtml(v);
+  }
+  return h+'</div>';
+}
+function permitsHtml(v){
+  var rows=v.rows||(v.i>=0?PERM.permits[v.i]:null)||[],T=PERM.tables;
+  var h='<div class="plist">';
+  rows.forEach(function(p){
+    var reg=p[5]>=0?IDX.reg[p[5]]:'Not recorded';
+    var cls=reg==='Certificate of Appropriateness'?' ca':
+      (reg==='Commission Denial'?' den':'');
+    h+='<div class="prow">'+
+      '<div class="pd">LPC-'+esc(p[0])+(T.rn[p[11]]?' \u00b7 '+esc(T.rn[p[11]]):'')+'</div>'+
+      '<div class="pr"><span class="tagx'+cls+'">'+esc(reg)+'</span></div>';
+    if(T.wt[p[6]])h+='<div class="pw">'+esc(T.wt[p[6]])+'</div>';
+    if(p[1])h+='<div class="pw">Filed for '+esc(titleCase(p[1]))+'</div>';
+    var f=[];
+    if(p[2])f.push('Received '+ymd(p[2]));
+    if(p[3])f.push('Issued '+ymd(p[3]));
+    if(p[4])f.push('Expires '+ymd(p[4]));
+    var who=[];
+    if(T.ap[p[7]])who.push('Applicant: '+T.ap[p[7]]+(T.ac[p[8]]?', '+T.ac[p[8]]:''));
+    else if(T.ac[p[8]])who.push('Applicant: '+T.ac[p[8]]);
+    if(T.ow[p[9]])who.push('Owner: '+T.ow[p[9]]+(T.oc[p[10]]?', '+T.oc[p[10]]:''));
+    else if(T.oc[p[10]])who.push('Owner: '+T.oc[p[10]]);
+    h+='<div class="pf">'+esc(f.join(' \u00b7 '))+(who.length?'<br>'+esc(who.join(' \u00b7 ')):'')+'</div>';
+    h+='</div>';
+  });
+  return h+'</div>';
+}
+function bindOpeners(){
+  var bs=el('list').querySelectorAll('.open');
+  for(var i=0;i<bs.length;i++){
+    bs[i].onclick=function(){
+      var n=parseInt(this.getAttribute('data-i'),10);
+      openSite=(openSite===n)?-1:n;
+      var keep=window.scrollY;
+      renderListPreserve(keep);
+    };
+  }
+}
+function renderListPreserve(y){
+  var was=shown;
+  el('list').innerHTML='';shown=0;
+  var slice=view.slice(0,Math.max(PAGE,was));
+  el('list').insertAdjacentHTML('beforeend',slice.map(siteHtml).join(''));
+  shown=slice.length;
+  el('more').style.display=shown<view.length?'block':'none';
+  el('more').textContent='Show more \u00b7 '+num(view.length-shown)+' left';
+  bindOpeners();
+  window.scrollTo(0,y);
+}
+el('more').onclick=function(){renderList(false);};
+})();
+</script>
+</body>
+</html>
