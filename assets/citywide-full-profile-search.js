@@ -812,7 +812,7 @@
   function cardModeRequested(){
     try{return new URLSearchParams(location.search).get('card')==='1';}catch(e){return false;}
   }
-  var SHARE_PAGES={'250 BALTIC ST':'/250baltic','1 E 161 ST':'/yankeestadium','427 5 AVE':'/barkslope','139 9 ST':'/principles','557 6 AVE':'/557-6-avenue','291 VAN BRUNT ST':'/redhookartproject'};
+  var SHARE_PAGES={'250 BALTIC ST':'/250baltic','1 E 161 ST':'/yankeestadium','427 5 AVE':'/barkslope','139 9 ST':'/principles','557 6 AVE':'/557-6-avenue','291 VAN BRUNT ST':'/redhookartproject','197 BOND ST':'/hanif'};
   function shareUrlFor(address,cardOnly){
     var key=liftNorm(address);
     if(SHARE_PAGES[key]) return location.origin+SHARE_PAGES[key];
