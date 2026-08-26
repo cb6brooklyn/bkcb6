@@ -812,7 +812,7 @@
   function cardModeRequested(){
     try{return new URLSearchParams(location.search).get('card')==='1';}catch(e){return false;}
   }
-  var SHARE_PAGES={'250 BALTIC ST':'/250baltic','1 E 161 ST':'/yankeestadium','427 5 AVE':'/barkslope','139 9 ST':'/principles','557 6 AVE':'/557-6-avenue'};
+  var SHARE_PAGES={'250 BALTIC ST':'/250baltic','1 E 161 ST':'/yankeestadium','427 5 AVE':'/barkslope','139 9 ST':'/principles','557 6 AVE':'/557-6-avenue','291 VAN BRUNT ST':'/redhookartproject'};
   function shareUrlFor(address,cardOnly){
     var key=liftNorm(address);
     if(SHARE_PAGES[key]) return location.origin+SHARE_PAGES[key];
@@ -1464,6 +1464,7 @@
   // under the board logo rather than beside it.
   var BIZ_SITES={
     '427 5 AVE':[{name:'Bark Slope Salon',kind:'Dog grooming salon',src:'/site-icons/bark-slope.png',w:258,h:436,href:'https://www.barkslopesalon.com/',plate:'#ffffff'}],
+    '291 VAN BRUNT ST':[{name:'Red Hook Art Project',kind:'Free after school arts program for young people',src:'/site-icons/red-hook-art-project.png',w:480,h:475,href:'https://www.redhookartproject.org/',plate:'#ffffff'}],
     '139 9 ST':[{name:'Principles Cafe',kind:'Coffee house',src:'/site-icons/principles-cafe.png',w:520,h:520,href:'https://principlesbk.nyc/',plate:'#3a3c3e'}]
   };
   // Business improvement districts. A BID covers a stretch of street, so this is
