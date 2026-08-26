@@ -124,6 +124,8 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 .share-btn.on-dark:hover{border-color:#fff;color:#fff}
 .share-btn.on-dark.copied{background:var(--orange);border-color:var(--orange);color:#fff}
 .lcb-share{margin-top:6px}
+.org-logo-link{cursor:pointer;display:inline-flex;align-items:center;flex-shrink:0;border-radius:6px;transition:box-shadow .15s,transform .15s}
+.org-logo-link:hover{box-shadow:0 0 0 2px var(--orange);transform:scale(1.06)}
 .past-toggle-wrap{max-width:960px;margin:14px auto 24px;padding:0 16px;display:flex;justify-content:center}
 .past-toggle{background:#fff;border:1.5px solid var(--navy);color:var(--navy);border-radius:22px;padding:10px 20px;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;transition:all .15s}
 .past-toggle:hover{background:var(--navy);color:#fff}
@@ -1815,6 +1817,41 @@ function shareUrlForEvent(dateKey, label, hasFlyer){
 function shareUrlForDay(key){ return shareBase() + '?date=' + encodeURIComponent(key || todayKey()); }
 function shareUrlForWeek(key){ return shareBase() + '?week=' + encodeURIComponent(weekStartKey(key || todayKey())); }
 function shareUrlForMonth(y, m){ return shareBase() + '?month=' + y + '-' + pad(m+1); }
+// Clicking an organization's logo anywhere in the list or the day detail jumps
+// to that organization's events. Only types that exist as a filter option are
+// made clickable, so a logo can never lead to an empty, unselectable filter.
+function orgInFilter(type){
+  const sel = document.getElementById('list-org-filter');
+  if(!sel || !type) return false;
+  return Array.prototype.some.call(sel.options, o => o.value === type);
+}
+function filterByOrg(type, e){
+  if(e && e.stopPropagation) e.stopPropagation();
+  const sel = document.getElementById('list-org-filter');
+  if(!sel || !orgInFilter(type)) return;
+  sel.value = type;
+  if(rangeFilter) clearRange();
+  setView('list');
+  renderList();
+  // "All of this org's events" means all of them: if nothing is upcoming, open
+  // the past list straight away rather than landing the user on an empty screen.
+  const body = document.getElementById('list-body');
+  if(body && !body.querySelector('.list-card') && body.querySelector('.past-toggle')){
+    showPast = true;
+    renderList();
+  }
+  const anchor = document.getElementById('list-view') || document.querySelector('.list-controls');
+  if(anchor) anchor.scrollIntoView({behavior:'smooth', block:'start'});
+}
+// Wraps an icon so it acts as a link to that org's events, when the org is filterable.
+function orgLogoLink(type, inner){
+  if(!orgInFilter(type)) return inner;
+  const sel = document.getElementById('list-org-filter');
+  const opt = Array.prototype.filter.call(sel.options, o => o.value === type)[0];
+  const name = opt ? opt.text : 'this organization';
+  return `<span class="org-logo-link" onclick="filterByOrg('${type}', event)" title="See all ${name.replace(/"/g,'&quot;')} events">${inner}</span>`;
+}
+
 // Each org in the filter has a generated /o/<type>.html page whose og: tags name
 // the organization, so a shared org link previews as that org rather than as a
 // generic site card. It forwards to calendar.html?org=<type>.
@@ -2097,9 +2134,9 @@ function renderList(){
     const d = new Date(dateKey+'T00:00:00');
     const t = TYPES[ev.type]||TYPES.community;
     const icon = ORG_ICONS[ev.type];
-    const iconHtml = icon
+    const iconHtml = orgLogoLink(ev.type, icon
       ? `<img class="lci" src="${icon}" alt="" style="border-radius:${(ev.type==='principles'||ev.type==='artichoke'||ev.type==='nycvotes')?'50%':'5px'}">`
-      : `<div class="lci" style="background:${t.bg};border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:1rem">${t.icon}</div>`;
+      : `<div class="lci" style="background:${t.bg};border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:1rem">${t.icon}</div>`);
     const timeStr = ev.time || ((ev.type==='board'||ev.type==='committee')?'6:30 PM':null);
     const meta = [
       timeStr ? `<span>🕐 ${timeStr}</span>` : '',
@@ -2611,11 +2648,11 @@ function selectDay(key, d){
     const link = ev.href ? `<a class="detail-event-link" href="${ev.href}" target="_blank" rel="noopener noreferrer">${ev.linkText||'Full details ↗'}</a>` : '';
     const flyer = ev.flyer ? `<span class="det-ev-flyer" onclick="openFlyer('${ev.flyer}','${(ev.href||'').replace(/'/g,'%27')}')" title="Tap to enlarge"><img src="${ev.flyer}" alt="${ev.label} flyer" loading="lazy"></span>` : '';
     const logo = ORG_ICONS[ev.type];
-    const iconHtml = ev.type === 'nycvotes'
+    const iconHtml = orgLogoLink(ev.type, ev.type === 'nycvotes'
       ? `<img src="voted-bkcb6-2026.png" alt="" style="width:24px;height:24px;border-radius:50%">`
       : logo
         ? `<img src="${logo}" alt="" style="width:26px;height:26px;border-radius:${(ev.type==='principles'||ev.type==='artichoke')?'50%':'5px'};background:#fff;object-fit:cover;flex-shrink:0">`
-        : `<span style="font-size:1.1rem">${t.icon}</span>`;
+        : `<span style="font-size:1.1rem">${t.icon}</span>`);
     const shareBtn = `<button class="share-btn det-ev-share" onclick="copyShare(shareUrlForEvent('${key}','${ev.label.replace(/'/g,"\\'")}',${ev.flyer?'true':'false'}), this)" title="Copy a link to this listing">&#128279; Share</button>`;
     const embed = (ev.type === 'nycvotes' && /Early Voting ·/.test(ev.label))
       ? `<div class="det-ev-embed" style="margin-top:10px"><iframe src="https://bkcb6.app/poll-finder-bk.html?embed=1" style="width:100%;border:0;height:700px;border-radius:8px" loading="lazy" title="Where Do I Vote — Brooklyn"></iframe></div>`
