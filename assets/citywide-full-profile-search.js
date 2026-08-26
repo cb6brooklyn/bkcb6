@@ -1464,7 +1464,7 @@
   // under the board logo rather than beside it.
   var BIZ_SITES={
     '427 5 AVE':[{name:'Bark Slope Salon',kind:'Dog grooming salon',src:'/site-icons/bark-slope.png',w:258,h:436,href:'https://www.barkslopesalon.com/',plate:'#ffffff'}],
-    '291 VAN BRUNT ST':[{name:'Red Hook Art Project',kind:'Free after school arts program for young people',src:'/site-icons/red-hook-art-project.png',w:480,h:475,href:'https://www.redhookartproject.org/',plate:'#ffffff'}],
+    '291 VAN BRUNT ST':[{name:'Red Hook Art Project',kind:'Free after school arts program for young people',src:'/site-icons/red-hook-art-project.png',w:480,h:475,href:'https://www.redhookartproject.org',plate:'#ffffff',label:'Community based organization in this building',labelPlural:'Community based organizations in this building'}],
     '139 9 ST':[{name:'Principles Cafe',kind:'Coffee house',src:'/site-icons/principles-cafe.png',w:520,h:520,href:'https://principlesbk.nyc/',plate:'#3a3c3e'}]
   };
   // Business improvement districts. A BID covers a stretch of street, so this is
@@ -1502,7 +1502,7 @@
     }).join('');
     return '<div style="margin:0 0 10px">'+
       '<div style="font-family:\'DM Mono\',monospace;font-size:.66rem;text-transform:uppercase;letter-spacing:.1em;color:var(--navy,#0d1b4b);font-weight:700;margin-bottom:7px">'+
-        (list.length>1?'Businesses in this building':'Business in this building')+'</div>'+
+        (list.length>1?(list[0].labelPlural||'Businesses in this building'):(list[0].label||'Business in this building'))+'</div>'+
       rows+'</div>'+bidBlock(input);
   }
   var SITE_ICON={
