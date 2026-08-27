@@ -196,6 +196,7 @@ footer code{font-family:var(--mono);font-size:.72rem;background:#efede7;padding:
     <section class="card">
       <h2>Reports map</h2>
       <p class="note" id="mapNote">Each dot is one report</p>
+      <div id="rateLegend"></div>
   <div id="map"></div>
       <div class="maplegend" id="legend"></div>
     </section>
@@ -228,7 +229,7 @@ footer code{font-family:var(--mono);font-size:.72rem;background:#efede7;padding:
 
 <footer>
   <div class="wrap">
-    Source: NYC Open Data, 311 Service Requests (<code>erm2-nwe9</code>), 2020 to present, pulled live. Reports are matched to the district by the location the City mapped them to, using the State Senate district boundary simplified to about 25 metres for the query. For the same reports by community district, see <a href="311-district.html">311 by community district</a>.
+    Source: NYC Open Data, 311 Service Requests (<code>erm2-nwe9</code>), 2020 to present, pulled live. Reports are matched to the district by the location the City mapped them to, using the State Senate district boundary. Boundaries are simplified to fit the City's query limits, to about 5 metres for most districts and no more than 55 metres for the six with long shorelines. For the same reports by community district, see <a href="311-district.html">311 by community district</a>.
    Population figures are the 2010 Decennial Census by community district (NYC Open Data <code>xi7c-iiu2</code>), the most recent the City publishes at this level.</div>
 </footer>
 
@@ -321,7 +322,25 @@ function distRec(){ return SD_LIST.filter(function(d){ return d.sd === S.sd; })[
 /* The Socrata location filter needs the district as a polygon. Boundaries are
    simplified to about 25 metres so the query URL stays inside limits; the
    outline drawn on the map is the full-resolution shape. */
-var POLY = null;
+var POLY = null, RANK = null;
+function loadRank(){
+  if (RANK) return Promise.resolve(RANK);
+  return fetch('data/senate-311-rank.json').then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){ RANK = j; try { drawContext(); } catch (e) {} return j; })
+    .catch(function(){ return null; });
+}
+function yearTotals(){ return (RANK && RANK.years && RANK.years[String(S.year)]) || null; }
+function totalFor(sd){ var t = yearTotals(); return t && t[sd] != null ? t[sd] : null; }
+function rankOf(sd){
+  var t = yearTotals(); if (!t || t[sd] == null) return null;
+  var ks = Object.keys(t).sort(function(a,b){ return t[b] - t[a]; });
+  return {place: ks.indexOf(sd) + 1, of: ks.length};
+}
+function expectedRecords(){
+  var n = totalFor(S.sd);
+  if (!n) return null;
+  return S.month === '' ? n : Math.round(n / 12);
+}
 function loadPolys(){
   if (POLY) return Promise.resolve(POLY);
   return fetch('data/senate-311-polygons.json').then(function(r){
@@ -354,7 +373,10 @@ var HEAVY_SECONDS = 8;
 function load(force){
   // There is no per-senate-district total published anywhere, so the size of the
   // pull is asked of the City directly before deciding whether to warn about it.
-  loadPolys().then(function(){ return countFor(whereClause()); }).then(function(n){
+  Promise.all([loadPolys(), loadRank()]).then(function(){
+    var known = expectedRecords();
+    return known ? known : countFor(whereClause());
+  }).then(function(n){
     var sec = n ? etaSeconds(n) : 0;
     if (!force && n && sec > HEAVY_SECONDS){ offerChoice(n, sec); return; }
     el('heads').innerHTML = '';
@@ -518,6 +540,11 @@ function render(){
   var open = ROWS.filter(function(r){ return String(r.status||'').toLowerCase() !== 'closed'; }).length;
 
   var h = '<div class="stat"><div class="v">' + fmt(total) + '</div><div class="k">Total reports</div><div class="x">' + esc(d.label) + ' · ' + periodLabel() + '</div></div>';
+  var rk = rankOf(S.sd), yrTotal = totalFor(S.sd);
+  if (rk && yrTotal){
+    h += '<div class="stat"><div class="v">' + rk.place + '<span style="font-size:.9rem;font-weight:500"> of ' + rk.of + '</span></div>' +
+      '<div class="k">Busiest senate district</div><div class="x">' + fmt(yrTotal) + ' reports in ' + S.year + ', counted by location</div></div>';
+  }
   h += '<div class="stat"><div class="v" style="font-size:.95rem;color:#2f6b3f;line-height:1.35">All ' + fmt(VERIFIED) + ' accounted for</div><div class="k">Record check</div><div class="x">Matches the City\'s own count for this period</div></div>';
   catRows.slice(0,2).forEach(function(c){
     h += '<div class="stat"><div class="v" style="color:' + CAT_COLORS[c.k] + '">' + fmt(c.n) + '</div><div class="k">' + esc(c.label) + '</div><div class="x">' + pct(c.n,total) + ' of all</div></div>';
@@ -717,6 +744,7 @@ function drawBoundary(){
   var f = boundaryGeo.features.filter(function(x){ return String(x.properties.sd) === sd; })[0];
   if (boundaryLayer) map.removeLayer(boundaryLayer);
   drawContext();
+  try { loadRank().then(function(){ drawContext(); }); } catch (e) {}
   if (!f) return;
   boundaryLayer = L.geoJSON(f, {style:{color:'#111110', weight:3, fill:false}}).addTo(map);
   if (boundaryLayer.bringToFront) boundaryLayer.bringToFront();
@@ -724,23 +752,45 @@ function drawBoundary(){
 }
 
 // ---- district context -----------------------------------------------------
-// The other senate districts are outlined so the one in view can be placed on
-// the map. They are not shaded by report rate: the City publishes no population
-// count by state senate district, and a rate without a denominator would be made up.
+// Every senate district shaded by its own report count for the year in view, so
+// the district you picked has something to be read against. Counts are totals,
+// not rates: the City publishes no population by state senate district, and a
+// per-resident figure would need a denominator that does not exist.
 var ctxLayer = null;
+var COUNT_STOPS = [90000, 110000, 130000, 150000, 175000];
+var COUNT_FILL  = ['#fdf3c8', '#fbe07a', '#f7c948', '#e8a020', '#c2410c', '#8a1c05'];
+function countColor(n) {
+  if (n == null) return '#e9e7e0';
+  for (var i = 0; i < COUNT_STOPS.length; i++) if (n < COUNT_STOPS[i]) return COUNT_FILL[i];
+  return COUNT_FILL[COUNT_FILL.length - 1];
+}
 function drawContext() {
   if (!map || !boundaryGeo) return;
   if (ctxLayer) map.removeLayer(ctxLayer);
+  var any = false;
   ctxLayer = L.geoJSON(boundaryGeo, {
-    style: function () {
-      return { color: '#8f8b82', weight: 1, opacity: .55, fillColor: '#d9d5cc', fillOpacity: .18 };
+    style: function (f) {
+      var n = totalFor(String((f.properties||{}).sd));
+      if (n != null) any = true;
+      return { color: '#ffffff', weight: 1, opacity: .8,
+               fillColor: countColor(n), fillOpacity: n == null ? .2 : .68 };
     },
     onEachFeature: function (f, l) {
-      var sd = f.properties && f.properties.sd;
-      if (sd != null) l.bindTooltip('State Senate District ' + sd, { sticky: true });
+      var sd = String((f.properties||{}).sd), n = totalFor(sd);
+      if (sd) l.bindTooltip('SD ' + sd + (n != null ? ' \u00b7 ' + fmt(n) + ' reports in ' + S.year : ''), { sticky: true });
     }
   }).addTo(map);
   if (ctxLayer.bringToBack) ctxLayer.bringToBack();
+  drawCountLegend(any);
+}
+function drawCountLegend(any) {
+  var node = document.getElementById('rateLegend');
+  if (!node) return;
+  if (!any) { node.innerHTML = ''; return; }
+  var labels = ['under 90k', '90k to 110k', '110k to 130k', '130k to 150k', '150k to 175k', '175k and up'];
+  node.innerHTML = '<b>311 reports in ' + S.year + '</b>' + COUNT_FILL.map(function (c, i) {
+    return '<span class="rk"><i style="background:' + c + '"></i>' + labels[i] + '</span>';
+  }).join('');
 }
 
 function initMap(){
@@ -766,6 +816,12 @@ function renderMasthead(){
     '<h1>State Senate District ' + esc(d.sd) + '</h1>' +
     '<p>' + link + ' \u00b7 ' + esc(d.boro) + '</p></div>';
   document.title = '311 \u00b7 State Senate District ' + d.sd + (d.name ? ' \u00b7 ' + d.name : '');
+}
+
+function skeleton(node, rows){
+  var out = '';
+  for (var i=0;i<rows;i++) out += '<div class="skel" style="height:22px;margin-bottom:8px;width:' + (100-i*5) + '%"></div>';
+  node.innerHTML = out;
 }
 
 /* ---------------- controls ---------------- */
