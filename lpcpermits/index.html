@@ -23,13 +23,6 @@
 .intro{background:#fff;padding:13px 15px;border-bottom:1px solid var(--border);font-size:.86rem;line-height:1.62;color:#333;max-width:76ch}
 .intro b{color:var(--navy)}
 .intro .cover{margin-top:7px;font-size:.78rem;color:var(--muted);line-height:1.55}
-.kpis2{display:flex;flex-wrap:wrap;background:#fff;border-bottom:1px solid var(--border)}
-.kp{background:#fff;padding:10px 12px;flex:1 1 128px;min-width:128px;box-shadow:inset -1px 0 0 var(--border),inset 0 -1px 0 var(--border)}
-.kp .k{font-family:'DM Mono',monospace;font-size:.5rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700}
-.kp .v{font-family:'DM Mono',monospace;font-size:1.15rem;font-weight:900;color:var(--navy);margin-top:2px}
-.kp .d{font-size:.66rem;color:var(--muted);margin-top:1px;line-height:1.35}
-.kp.wide{flex:1 1 100%;background:#fbfaf8}
-.kp.wide .v{color:var(--orange)}
 .ctrl{background:#fff;padding:11px 12px;border-bottom:1px solid var(--border)}
 .ctrl input[type=search]{width:100%;padding:11px 12px;font-family:'DM Sans',sans-serif;font-size:.86rem;border:2px solid var(--navy2);border-radius:10px;color:var(--navy);margin-bottom:9px}
 .ctrl input[type=search]:disabled{opacity:.55;border-color:var(--border)}
@@ -162,7 +155,6 @@
     <div class="frow"><span class="eranote" id="cdNote" style="font-family:'DM Mono',monospace;font-size:.66rem;color:var(--muted);line-height:1.5"></span></div>
   </div>
 
-  <div class="kpis2" id="kpis"></div>
 
   <div class="ctrl">
     <input id="q" type="search" placeholder="Search an address, docket, applicant, owner or work type&hellip;" autocomplete="off" disabled>
@@ -409,7 +401,7 @@ function loadDistrict(cd){
       HD_ORDER=BND.historicDistricts.map(function(d){return d.name;});
     }
     refitNext=true;
-    renderKpis();buildFilters();ensureMap();drawBounds();renderLegend();
+    renderContext();buildFilters();ensureMap();drawBounds();renderLegend();
     applyFilters();
     return fetch(BASE+cd.toLowerCase()+'-permits.json');
   }).then(function(r){
@@ -431,32 +423,12 @@ function loadDistrict(cd){
   });
 }
 
-/* ---------------------------------------------------------------- kpis */
-function renderKpis(){
-  var d=IDX,yrs=Object.keys(d.byYear).sort();
-  var ca=d.byReg['Certificate of Appropriateness']||0;
-  var recent=0;
-  yrs.forEach(function(y){if(parseInt(y,10)>=2020)recent+=d.byYear[y];});
-  var k=[
-    ['Permits filed',num(d.totals.permits),(yrs[0]||'')+' to '+(yrs[yrs.length-1]||'')],
-    ['Buildings and sites',num(d.totals.sites),'each one a pin on the map'],
-    ['Certificates of Appropriateness',num(ca),'voted in public by the Commission'],
-    ['Filed since 2020',num(recent),Math.round(recent/Math.max(1,d.totals.permits)*100)+'% of the record'],
-    ['Landmarks and districts',num(Object.keys(d.byLm).length),'designations represented here']
-  ];
-  var top=Object.keys(d.byLm)[0];
-  var html=k.map(function(r){
-    return '<div class="kp"><div class="k">'+esc(r[0])+'</div><div class="v">'+esc(r[1])+
-      '</div><div class="d">'+esc(r[2])+'</div></div>';}).join('');
-  if(top){
-    html+='<div class="kp wide"><div class="k">Most filings</div><div class="v">'+esc(top)+
-      '</div><div class="d">'+num(d.byLm[top])+' of '+num(d.totals.permits)+
-      ' permits in this district</div></div>';
-  }
-  el('kpis').innerHTML=html;
-  el('cdNote').textContent=d.label+'. '+num(d.totals.permits)+' permits across '+
-    num(d.totals.sites)+' buildings and sites'+
-    (d.totals.unmapped?', plus '+num(d.totals.unmapped)+' the Commission did not geocode':'')+'.';
+/* -------------------------------------------------------------- context */
+function renderContext(){
+  var d=IDX;
+  el('cdNote').textContent=d.label+'. Landmarks permits from '+
+    (Object.keys(d.byYear).sort()[0]||'')+' to '+
+    (Object.keys(d.byYear).sort().pop()||'')+'.';
   var bn=el('badnote');
   if(d.boroMismatch){
     bn.style.display='';
@@ -618,7 +590,8 @@ function rangeMatch(a,b,yr){
 /* One colour per historic district in this board, assigned in the same order
    the panel lists them so the swatch, the polygon and the dots always agree. */
 var HDPAL=['#2145a8','#0f7b6c','#8c2f6b','#b3541e','#4a5568','#6b3fa0',
-           '#1c7ed6','#2e6b30','#a03030','#5c4033'];
+           '#1c7ed6','#2e6b30','#a03030','#5c4033','#00696e','#7a4b00',
+           '#4436a8','#93003a','#0b6b8f','#5f6b00'];
 var IL_COLOR='#f47920', NONE_COLOR='#9ca3af', BAD_COLOR='#c0392b';
 
 function ensureMap(){
@@ -717,6 +690,10 @@ var DOT_ZOOM=15, DOT_ALL=300, DOT_CAP=1200;
 
 function dotsOn(){
   if(!map)return false;
+  // Twenty five community districts hold individual landmarks but no historic
+  // district. There is no polygon layer to stand in for the buildings there, so
+  // the buildings themselves are the overview.
+  if(!BND||!BND.historicDistricts.length)return true;
   return map.getZoom()>=DOT_ZOOM||view.length<=DOT_ALL;
 }
 function drawMap(fit){
@@ -814,11 +791,12 @@ function placeLabels(){
     var cand=[];
     if(fits)cand.push({x:p.x,y:p.y});
     var out=Math.max(ph/2,h/2)+h*0.75;
-    for(var ring=0;ring<4;ring++){
-      var d=out+ring*(h+5);
+    for(var ring=0;ring<7;ring++){
+      var d=out+ring*(h+5),sx=Math.max(pw/2,w/2)+w/2+8+ring*12;
       cand.push({x:p.x,y:p.y-d},{x:p.x,y:p.y+d},
-                {x:p.x+Math.max(pw/2,w/2)+w/2+8+ring*10,y:p.y},
-                {x:p.x-Math.max(pw/2,w/2)-w/2-8-ring*10,y:p.y});
+                {x:p.x+sx,y:p.y},{x:p.x-sx,y:p.y},
+                {x:p.x+sx*0.72,y:p.y-d*0.72},{x:p.x-sx*0.72,y:p.y-d*0.72},
+                {x:p.x+sx*0.72,y:p.y+d*0.72},{x:p.x-sx*0.72,y:p.y+d*0.72});
     }
     var pick=null;
     for(var i=0;i<cand.length;i++){
@@ -827,7 +805,10 @@ function placeLabels(){
         return Math.abs(q.x-c.x)<(q.w+w)/2+5&&Math.abs(q.y-c.y)<(q.h+h)/2+5;});
       if(!hit){pick=c;break;}
     }
-    if(!pick)pick=cand[cand.length-1];
+    // Densest boards, Greenwich Village has fourteen districts, can run out of
+    // room. Stacking tags on top of each other is worse than leaving the least
+    // active one to the panel below, which names every district regardless.
+    if(!pick){e.style.display='none';return;}
     placed.push({x:pick.x,y:pick.y,w:w,h:h});
     o.label.setLatLng(map.layerPointToLatLng(L.point(pick.x,pick.y)));
     if(Math.abs(pick.x-p.x)>2||Math.abs(pick.y-p.y)>2){
@@ -874,10 +855,15 @@ function labelHtml(name,n,year,overview){
 }
 function updateMapNote(){
   var el2=el('mapnote');
+  var nhd=BND?BND.historicDistricts.length:0;
   if(!dotsOn()){
-    el2.innerHTML='The <b>'+num(BND?BND.historicDistricts.length:0)+' historic districts</b>, '+
+    el2.innerHTML='The <b>'+num(nhd)+' historic district'+(nhd===1?'':'s')+'</b> here, '+
       'named and colour matched to the list below. Tap one to filter the directory to it, or '+
       '<b>zoom in</b> to see the individual buildings.';
+  }else if(!nhd){
+    el2.innerHTML='No historic districts here, so every permit sits on an <b>individual '+
+      'landmark</b>. <b>'+num(shownDots)+'</b> in view'+
+      (view.length>shownDots?' of '+num(view.length):'')+'. Tap one for its record.';
   }else{
     el2.innerHTML='<b>'+num(shownDots)+'</b> building'+(shownDots===1?'':'s')+
       ' in view, sized by permits filed and coloured by district. '+
