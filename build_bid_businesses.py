@@ -8,7 +8,7 @@ record rendered by the citywide address search, same code path as a manual
 search. Nothing on the page is invented; every field comes from the BID's own
 directory or from the card the search draws.
 """
-import json, os, shutil, html
+import json, os, re, html
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, 'data/bids/park-slope-5th-avenue-businesses.json')
@@ -22,6 +22,13 @@ CATS, BLOCKS = D['cats'], D['blocks']
 
 def esc(s):
     return html.escape(str(s or ''), quote=True)
+
+
+def pretty_url(u):
+    """Show the host, not a wall of query string."""
+    u = re.sub(r'^https?://', '', u or '')
+    u = re.sub(r'^www\.', '', u)
+    return u.rstrip('/')[:44]
 
 
 def head_split(addr):
@@ -53,6 +60,13 @@ def page(e):
     if e.get('p'):
         tel = ''.join(ch for ch in e['p'] if ch.isdigit() or ch == '+')
         rows.append(('Phone', '<a href="tel:%s">%s</a>' % (esc(tel), esc(e['p']))))
+    if e.get('w'):
+        rows.append(('Website',
+                     '<a href="%s" target="_blank" rel="noopener">%s &#8599;</a>'
+                     % (esc(e['w']), esc(pretty_url(e['w'])))))
+    if e.get('h'):
+        rows.append(('Hours', '<span class="hrs">%s</span>'
+                              '<span class="hsrc">from OpenStreetMap</span>' % esc(e['h'])))
     if cats:
         rows.append(('Listed as', esc(' &middot; '.join(cats)).replace('&amp;', '&')))
     if blk:
@@ -122,7 +136,7 @@ def page(e):
   </div>
 
   <div class="vsrc">
-    Name, address, phone and category come from the <a href="https://parkslopefifthavenuebid.com/business-categories/" target="_blank" rel="noopener">BID&rsquo;s own directory</a>. The block comes from the Department of City Planning street centerline. The lot card below is rendered by the same citywide address search used across the site: districts from Geoclient, zoning and land use from PLUTO, landmark status from the LPC database. A business shown at an address is a marker for that address, not a statement about the whole lot, and not an endorsement by Community Board 6.
+    Name, address, phone and category come from the <a href="https://parkslopefifthavenuebid.com/business-categories/" target="_blank" rel="noopener">BID&rsquo;s own directory</a>. The block comes from the Department of City Planning street centerline. Opening hours and some websites come from OpenStreetMap, matched by name within 350 feet of the listed address, so they are as current as the last person to edit them there. The lot card below is rendered by the same citywide address search used across the site: districts from Geoclient, zoning and land use from PLUTO, landmark status from the LPC database. A business shown at an address is a marker for that address, not a statement about the whole lot, and not an endorsement by Community Board 6.
   </div>
 </div>
 
