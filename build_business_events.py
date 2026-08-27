@@ -55,10 +55,14 @@ for date, body in blocks:
         url = ('/e/' + slug + '.html'
                if os.path.exists(os.path.join(ROOT, 'e', slug + '.html'))
                else '/calendar.html?event=' + slug)
-        by.setdefault(t, []).append({
-            'date': date, 'label': label, 'time': field(rest, 'time'),
-            'location': field(rest, 'location'), 'url': url,
-        })
+        ev = {'date': date, 'label': label, 'time': field(rest, 'time'),
+              'location': field(rest, 'location'), 'url': url}
+        flyer = field(rest, 'flyer')
+        if flyer:
+            # the calendar stores absolute urls; keep them same-origin so the
+            # image is not refetched from the network on our own page
+            ev['flyer'] = re.sub(r'^https?://bkcb6\.app', '', flyer)
+        by.setdefault(t, []).append(ev)
 
 out = {}
 for t, evs in by.items():
