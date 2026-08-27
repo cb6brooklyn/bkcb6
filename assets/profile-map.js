@@ -574,6 +574,17 @@
       if (homeBounds) map.fitBounds(homeBounds, { padding: [14, 14] });
     });
 
+    // Hand the page a handle on the map so a directory alongside it can put its
+    // own pins up. Read only as far as this file is concerned.
+    el._pmap = {
+      map: map,
+      homeBounds: function () { return homeBounds; },
+      pane: LINE_PANE
+    };
+    try {
+      el.dispatchEvent(new CustomEvent('profile-map-ready', { bubbles: true }));
+    } catch (e) {}
+
     setTimeout(function () { map.invalidateSize(); }, 300);
 
     // inside a collapsed <details> the map has no size until it is opened
