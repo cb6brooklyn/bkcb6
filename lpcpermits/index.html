@@ -496,9 +496,16 @@ function applyFilters(){
   el('caBtn').className='fb'+(reg===CA_NAME?' on':'');
   var filtered=!!(qs||reg||yr);
   el('sbText').textContent=(filtered?'Filtered \u00b7 ':'')+scopeLabel();
-  var where=pick.block?
-    (pick.street?prettyStreet(pick.street)+', block '+pick.block:'Block '+pick.block)+
-      ', '+scopeLabel():scopeLabel();
+  var where=scopeLabel();
+  if(pick.block){
+    var lbl='';
+    if(BLK&&BLK.blocks[pick.block]){
+      var bb=BLK.blocks[pick.block],ee=bb.streets[pick.street];
+      if(ee)lbl=prettyStreet(pick.street)+
+        (ee.lo!==null?' '+(ee.lo===ee.hi?ee.lo:ee.lo+'\u2013'+ee.hi):'');
+    }
+    where=(lbl||'this block')+', '+scopeLabel();
+  }
   el('count').textContent=view.length?
     num(view.length)+' building'+(view.length===1?'':'s')+' \u00b7 '+
       num(total)+' permit'+(total===1?'':'s')+' \u00b7 '+where+
@@ -563,8 +570,8 @@ function renderBlocks(){
   }
   var h='<div class="bh">Browse by block</div>'+
     '<div class="bs">Every street in '+esc(scopeLabel())+' with a landmarked building. '+
-    'Pick one, then pick a block to see everything filed on it. The cross streets come '+
-    'from the addresses on each block.</div>';
+    'Pick one, then pick a block to see everything filed on it. Each block shows its '+
+    'house number range and the other streets that run along it.</div>';
   h+='<select id="stSel"><option value="">Choose a street\u2026</option>'+
     BLK.streets.map(function(g){
       return '<option value="'+esc(g.name)+'"'+(pick.street===g.name?' selected':'')+'>'+
@@ -587,14 +594,14 @@ function renderBlocks(){
       var others=Object.keys(r.b.streets).filter(function(x){return x!==pick.street;})
         .sort(function(a,c){return r.b.streets[c].n-r.b.streets[a].n;})
         .map(prettyStreet);
-      var rng=(r.e.lo!==null)?(r.e.lo===r.e.hi?String(r.e.lo):r.e.lo+' to '+r.e.hi):'';
+      var rng=(r.e.lo!==null)?(r.e.lo===r.e.hi?String(r.e.lo):r.e.lo+'\u2013'+r.e.hi):'';
       return '<button type="button" class="blkrow'+(pick.block===r.b.block?' on':'')+
         '" data-blk="'+esc(r.b.block)+'">'+
         '<span class="nm">'+esc(prettyStreet(pick.street))+(rng?' '+esc(rng):'')+
-        '<i>Block '+esc(r.b.block)+' \u00b7 '+
-        (others.length?'cross streets '+esc(others.join(', ')):'no other street on this block')+
+        '<i>'+(others.length?'Also on this block: '+esc(others.join(', ')):
+          'The only street on this block')+
         ' \u00b7 '+num(r.b.n)+' landmarked building'+(r.b.n===1?'':'s')+'</i></span>'+
-        '<span class="ct">'+num(r.b.p)+'<b>on the block</b></span></button>';
+        '<span class="ct">'+num(r.b.p)+'<b>permits</b></span></button>';
     }).join('');
   }
   host.innerHTML=h;
@@ -1008,7 +1015,6 @@ function siteHtml(v){
   if(ca!==0)h+='<span class="tagx ca">'+(ca>0?num(ca)+' Certificate'+
     (ca===1?'':'s')+' of Appropriateness':'Certificate of Appropriateness')+'</span>';
   if(s[7])h+='<span class="tagx">'+esc(s[7])+' to '+esc(s[8])+'</span>';
-  if(s[11])h+='<span class="tagx">Block '+esc(s[11])+' Lot '+esc(s[12])+'</span>';
   h+='</div>';
   var ws=workSummary(v);
   if(ws){
