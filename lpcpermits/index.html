@@ -40,11 +40,12 @@
 .fb2.on{background:var(--orange);border-color:var(--orange);color:#fff}
 .ctrl select{padding:8px 11px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;border:2px solid var(--navy2);border-radius:9px;color:var(--navy);background:#fff;max-width:100%}
 #map{height:56vh;min-height:340px;background:#eef0f4}
-.hdlab{background:rgba(255,255,255,.9);border:1.5px solid var(--navy);border-radius:5px;
- padding:2px 7px;font-family:'DM Sans',sans-serif;font-size:.68rem;font-weight:800;
- color:var(--navy);white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.18)}
-.hdlab.sub{font-size:.62rem;font-weight:700;background:rgba(255,255,255,.85)}
-.hdlab .yr{font-family:'DM Mono',monospace;font-weight:500;color:var(--muted);margin-left:4px}
+.hdlab{background:rgba(255,255,255,.93);border:1.5px solid var(--navy);border-radius:6px;
+ padding:3px 8px;font-family:'DM Sans',sans-serif;font-size:.7rem;font-weight:800;
+ color:var(--navy);white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.2);text-align:center;
+ line-height:1.25}
+.hdlab .yr{display:block;font-family:'DM Mono',monospace;font-weight:500;font-size:.9em;
+ color:var(--orange)}
 .cdlab{background:var(--navy);border:none;border-radius:5px;padding:3px 9px;
  font-family:'DM Mono',monospace;font-size:.6rem;font-weight:700;letter-spacing:.08em;
  text-transform:uppercase;color:#fff;white-space:nowrap}
@@ -67,6 +68,7 @@
  cursor:pointer;background:#fff;width:100%;text-align:left;border-left:none;border-right:none;border-bottom:none}
 .hdrow:hover{background:#fff8f2}
 .hdrow.on{background:#fff1e5}
+.hdrow.hov{background:#fff8f2;box-shadow:inset 3px 0 0 var(--orange)}
 .hdrow .sw{width:13px;height:13px;border-radius:3px;flex:0 0 auto;border:1.5px solid rgba(0,0,0,.2)}
 .hdrow .nm{flex:1;font-size:.79rem;font-weight:700;color:var(--navy);line-height:1.35}
 .hdrow .nm i{display:block;font-family:'DM Mono',monospace;font-size:.63rem;font-weight:500;
@@ -217,6 +219,7 @@ var PAGE=40;
 var SUM=null,IDX=null,PERM=null,CD='BK-06';
 var view=[],shown=0,openSite=-1,markerLayer=null,map=null,canvas=null;
 var BND=null,HD_ORDER=[],hdLayer=null,cdLayer=null,ilLayer=null;
+var hdPolys=[],shownDots=0,repaintTimer=null,refitNext=true;
 var showHd=true,showLab=true,showCd=true;
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
@@ -339,8 +342,9 @@ function loadDistrict(cd){
         return (IDX.byLm[b.name]||0)-(IDX.byLm[a.name]||0);});
       HD_ORDER=BND.historicDistricts.map(function(d){return d.name;});
     }
+    refitNext=true;
     renderKpis();buildFilters();ensureMap();drawBounds();renderLegend();
-    applyFilters();renderHdPanel();
+    applyFilters();
     return fetch(BASE+cd.toLowerCase()+'-permits.json');
   }).then(function(r){
     if(!r||CD!==cd)return null;
@@ -418,8 +422,7 @@ function buildFilters(){
     yrs.slice().reverse().map(function(y){
       return '<option value="'+y+'">'+y+' \u00b7 '+num(d.byYear[y])+'</option>';}).join('');
   ['regSel','lmSel','yrSel'].forEach(function(id){
-    el(id).onchange=function(){openSite=-1;applyFilters();
-      if(id==='lmSel')renderHdPanel();};});
+    el(id).onchange=function(){openSite=-1;refitNext=(id==='lmSel');applyFilters();};});
   var t=null;
   el('q').oninput=function(){clearTimeout(t);t=setTimeout(function(){
     openSite=-1;applyFilters();},200);};
@@ -431,9 +434,7 @@ function buildFilters(){
     drawBounds();refreshIlabels();};
   el('resetBtn').onclick=function(){
     el('q').value='';el('regSel').value='';el('lmSel').value='';el('yrSel').value='';
-    openSite=-1;applyFilters();renderHdPanel();
-    if(BND&&cdLayer)map.fitBounds(L.geoJSON({type:'Feature',geometry:BND.outline}).getBounds(),
-      {padding:[20,20]});};
+    openSite=-1;refitNext=true;applyFilters();};
   el('shareView').onclick=function(){
     var p=new URLSearchParams();p.set('cd',CD.toLowerCase());
     if(el('q').value)p.set('q',el('q').value);
@@ -525,7 +526,7 @@ function applyFilters(){
     ' \u00b7 '+num(total)+' permit'+(total===1?'':'s')+
     (PERM?'':' (counts refine when the full record finishes loading)');
   el('sbText').textContent=(reg||lm||yr||qs)?'Filtered view':'Everything on file for '+IDX.label;
-  drawMap();renderList(true);
+  drawMap(refitNext);refitNext=false;renderList(true);renderHdPanel();
 }
 
 function yearMatch(d,yr){
@@ -555,7 +556,11 @@ function ensureMap(){
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
       {maxZoom:19,attribution:'&copy; OpenStreetMap, &copy; CARTO'}).addTo(map);
     map.setView([40.6782,-73.9942],13);
-    map.on('zoomend',refreshIlabels);
+    map.on('moveend',function(){
+      clearTimeout(repaintTimer);
+      repaintTimer=setTimeout(function(){
+        paintDots();paintChoro();refreshIlabels();updateMapNote();},90);
+    });
   }
 }
 function hdColor(name){
@@ -583,27 +588,27 @@ function drawBounds(){
     style:{color:'#0d1b4b',weight:2.5,opacity:.85,dashArray:'7 5',fill:false},
     interactive:false});
   if(showCd)cdLayer.addTo(map);
-  if(BND.labelPoint){
-    L.marker(BND.labelPoint,{icon:L.divIcon({className:'cdlab',
-      html:esc(IDX.label),iconSize:null}),interactive:false}).addTo(cdLayer);
-  }
 
-  hdLayer=L.layerGroup();
+  hdLayer=L.layerGroup();hdPolys=[];
   BND.historicDistricts.forEach(function(d){
     var c=hdColor(d.name);
     var poly=L.geoJSON({type:'Feature',geometry:d.geometry},{
-      style:{color:c,weight:2,opacity:.9,fillColor:c,fillOpacity:.1}});
+      style:{color:c,weight:2,opacity:.9,fillColor:c,fillOpacity:.15}});
     poly.on('click',function(){selectHd(d.name);});
+    poly.on('mouseover',function(){hoverHd(d.name);});
+    poly.on('mouseout',function(){hoverHd(null);});
     poly.bindTooltip(esc(d.name)+'<br><span style="font-family:DM Mono,monospace;font-size:.9em">'+
       'Designated '+esc(d.year)+' \u00b7 '+esc(d.lp_number)+'</span>',{sticky:true});
     hdLayer.addLayer(poly);
+    var lab=null;
     if(showLab){
-      var short=d.name.replace(/ Historic District/,'').replace(/^Park Slope Extension/,'Park Slope Ext');
-      var cls='hdlab'+(d.extension?' sub':'');
-      hdLayer.addLayer(L.marker(d.label,{icon:L.divIcon({className:cls,
-        html:esc(short)+'<span class="yr">'+esc(d.year)+'</span>',iconSize:null}),
-        interactive:false}));
+      lab=L.tooltip({permanent:true,direction:'center',className:'hdlab',
+        interactive:false}).setLatLng(d.label)
+        .setContent(labelHtml(d.name,0,d.year,true));
+      hdLayer.addLayer(lab);
     }
+    hdPolys.push({name:d.name,year:d.year,layer:poly,label:lab,home:d.label,
+                  bounds:poly.getBounds()});
   });
   if(showHd)hdLayer.addTo(map);
 }
@@ -613,9 +618,9 @@ function drawBounds(){
 function refreshIlabels(){
   if(!map)return;
   if(ilLayer){map.removeLayer(ilLayer);ilLayer=null;}
-  if(!showLab||map.getZoom()<15)return;
+  if(!showLab||map.getZoom()<16)return;
   var b=map.getBounds(),seen={},marks=[];
-  for(var i=0;i<view.length&&marks.length<40;i++){
+  for(var i=0;i<view.length&&marks.length<12;i++){
     var s=view[i].s;
     if(view[i].i<0||s[12])continue;
     if(s[6]<0||IDX.kind[s[6]]==='Historic District')continue;
@@ -629,30 +634,139 @@ function refreshIlabels(){
   if(marks.length){ilLayer=L.layerGroup(marks).addTo(map);}
 }
 
-function drawMap(){
+/* Density is the whole problem here. At the zoom that fits the district, CB6's
+   5,378 buildings work out to roughly 900 dots per 100 by 100 pixel block, which
+   is a solid mass rather than a map. So the overview shows the six districts
+   shaded by how much of the permit record each one holds, and the individual
+   buildings only appear once the map is zoomed in far enough for them to
+   separate. Buildings outside the current view are never drawn. */
+var DOT_ZOOM=15, DOT_ALL=300, DOT_CAP=1200;
+
+function dotsOn(){
+  if(!map)return false;
+  return map.getZoom()>=DOT_ZOOM||view.length<=DOT_ALL;
+}
+function drawMap(fit){
   ensureMap();
-  if(markerLayer)map.removeLayer(markerLayer);
-  var pts=[],bounds=[];
-  var cap=view.slice(0,4000);
-  for(var i=0;i<cap.length;i++){
-    var v=cap[i],s=v.s;
-    if(v.i<0||typeof s[0]!=='number'||typeof s[1]!=='number')continue;
-    var r=3+Math.min(10,Math.sqrt(v.n)*1.7);
+  if(fit!==false)fitToView();
+  paintDots();
+  paintChoro();
+  updateMapNote();
+}
+function fitToView(){
+  var bnds=[];
+  for(var i=0;i<view.length;i++){
+    var s=view[i].s;
+    if(view[i].i>=0&&typeof s[0]==='number')bnds.push([s[0],s[1]]);
+  }
+  if(bnds.length)map.fitBounds(bnds,{padding:[24,24],maxZoom:16});
+}
+function paintDots(){
+  if(markerLayer){map.removeLayer(markerLayer);markerLayer=null;}
+  if(!dotsOn()){shownDots=0;return;}
+  var b=map.getBounds(),z=map.getZoom(),pts=[],n=0;
+  var r0=z>=17?4.2:(z>=16?3.2:2.4);
+  for(var i=0;i<view.length&&n<DOT_CAP;i++){
+    var v=view[i],s=v.s;
+    if(v.i<0||typeof s[0]!=='number')continue;
+    if(!b.contains([s[0],s[1]]))continue;
+    var r=r0+Math.min(5,Math.sqrt(v.n)*0.7);
     var m=L.circleMarker([s[0],s[1]],{renderer:canvas,radius:r,
-      color:'#fff',weight:1,opacity:.9,
-      fillColor:colorFor(s),fillOpacity:.78});
+      color:'#fff',weight:1,opacity:.95,
+      fillColor:colorFor(s),fillOpacity:.85});
     m.bindPopup(popupFor(v));
     (function(idx){m.on('click',function(){openSite=idx;renderListPreserve(window.scrollY);});})(v.i);
-    pts.push(m);bounds.push([s[0],s[1]]);
+    pts.push(m);n++;
   }
+  shownDots=n;
   markerLayer=L.layerGroup(pts).addTo(map);
-  if(markerLayer&&hdLayer&&showHd)hdLayer.bringToBack();
-  if(bounds.length)map.fitBounds(bounds,{padding:[24,24],maxZoom:16});
-  refreshIlabels();
-  el('mapnote').innerHTML='Each circle is one building or site, sized by the number of permits '+
-    'filed on it and coloured by the landmark or district it sits in. <b>'+
-    num(bounds.length)+'</b> shown'+(view.length>cap.length?' of '+num(view.length)+
-    ', narrow the filters to see the rest':'')+'. Tap a circle for its record.';
+}
+/* Every district gets the same fill weight. Shading them by permit count made
+   the small ones, Carroll Gardens and the Cobble Hill extension, disappear
+   entirely, and it implied a density the numbers do not carry. The count lives
+   in the label instead, where it can be read. */
+function paintChoro(){
+  if(!hdLayer||!BND)return;
+  var counts=hdCounts(),overview=!dotsOn();
+  hdPolys.forEach(function(o){
+    var n=counts[o.name]||0;
+    var dim=(el('lmSel').value&&el('lmSel').value!==o.name);
+    o.layer.setStyle({
+      color:hdColor(o.name),
+      weight:overview?2.5:1.5,
+      opacity:dim?.3:.95,
+      fillColor:hdColor(o.name),
+      fillOpacity:dim?0.04:(overview?0.3:0.09)});
+    if(o.label){
+      o.label.setContent(labelHtml(o.name,n,o.year,overview));
+      var e=o.label.getElement&&o.label.getElement();
+      if(e)e.style.opacity=dim?'.45':'1';
+    }
+  });
+  placeLabels();
+}
+
+/* At the zoom that fits CB6, every district is physically smaller on screen
+   than its own name tag. Park Slope is 62 by 133 pixels, Cobble Hill Extension
+   is 3 by 3, and a label box is about 140 by 40. Pinning names to all six is
+   what made the map unreadable: the tags covered the very shapes they named.
+   So a district only gets a permanent label once it is genuinely big enough to
+   hold one. Below that the shapes carry the colour, the panel underneath is the
+   key, and tapping or hovering a district still names it. */
+function placeLabels(){
+  if(!map)return;
+  var placed=[];
+  hdPolys.forEach(function(o){
+    if(!o.label||!o.label.getElement)return;
+    var e=o.label.getElement();
+    if(!e)return;
+    var w=e.offsetWidth||130,h=e.offsetHeight||34;
+    var nw=map.latLngToLayerPoint(o.bounds.getNorthWest());
+    var se=map.latLngToLayerPoint(o.bounds.getSouthEast());
+    var pw=Math.abs(se.x-nw.x),ph=Math.abs(se.y-nw.y);
+    if(!showLab||pw<w*1.05||ph<h*1.6){e.style.display='none';return;}
+    var p=map.latLngToLayerPoint(L.latLng(o.home[0],o.home[1]));
+    if(placed.some(function(q){
+      return Math.abs(q.x-p.x)<(q.w+w)/2+6&&Math.abs(q.y-p.y)<(q.h+h)/2+6;})){
+      e.style.display='none';return;
+    }
+    e.style.display='';
+    placed.push({x:p.x,y:p.y,w:w,h:h});
+    o.label.setLatLng(L.latLng(o.home[0],o.home[1]));
+  });
+}
+function hdCounts(){
+  var c={};
+  for(var i=0;i<view.length;i++){
+    var s=view[i].s;
+    if(view[i].i<0||s[5]<0)continue;
+    var n=IDX.lm[s[5]];
+    c[n]=(c[n]||0)+view[i].n;
+  }
+  return c;
+}
+function shortName(n){
+  return n.replace(/ Historic District/,'').replace(/ Extension II$/,' Ext II')
+          .replace(/ Extension$/,' Ext');
+}
+function labelHtml(name,n,year,overview){
+  if(overview)return esc(shortName(name))+
+    '<span class="yr">'+num(n)+' permits</span>';
+  return esc(shortName(name))+'<span class="yr">'+esc(year)+'</span>';
+}
+function updateMapNote(){
+  var el2=el('mapnote');
+  if(!dotsOn()){
+    el2.innerHTML='The <b>'+num(BND?BND.historicDistricts.length:0)+' historic districts</b>, '+
+      'colour matched to the list below. At this scale the districts are smaller than their '+
+      'own name tags, so tap one to name and filter it, or <b>zoom in</b> for the names and '+
+      'the individual buildings.';
+  }else{
+    el2.innerHTML='<b>'+num(shownDots)+'</b> building'+(shownDots===1?'':'s')+
+      ' in view, sized by permits filed and coloured by district. '+
+      (view.length>shownDots?'Pan or filter to reach the other '+
+        num(view.length-shownDots)+'. ':'')+'Tap one for its record.';
+  }
 }
 
 function renderLegend(){
@@ -673,8 +787,9 @@ function renderHdPanel(){
   var h='<h3>Historic districts in '+esc(IDX.label)+'</h3>'+
     '<div class="sub">'+num(BND.historicDistricts.length)+' designated districts. '+
     'Tap one to zoom to it and filter the directory to its buildings.</div>';
+  var counts=hdCounts();
   BND.historicDistricts.forEach(function(d){
-    var n=IDX.byLm[d.name]||0;
+    var n=counts[d.name]||0;
     h+='<button type="button" class="hdrow'+(el('lmSel').value===d.name?' on':'')+
       '" data-hd="'+esc(d.name)+'">'+
       '<i class="sw" style="background:'+hdColor(d.name)+'"></i>'+
@@ -688,12 +803,17 @@ function renderHdPanel(){
     rows[i].onclick=function(){selectHd(this.getAttribute('data-hd'));};
   }
 }
+function hoverHd(name){
+  var rows=el('hdpanel').querySelectorAll('.hdrow');
+  for(var i=0;i<rows.length;i++){
+    rows[i].classList.toggle('hov',name!==null&&rows[i].getAttribute('data-hd')===name);
+  }
+}
 function selectHd(name){
   var sel=el('lmSel');
   sel.value=(sel.value===name)?'':name;
-  openSite=-1;
+  openSite=-1;refitNext=!sel.value;
   applyFilters();
-  renderHdPanel();
   if(sel.value&&BND){
     for(var i=0;i<BND.historicDistricts.length;i++){
       if(BND.historicDistricts[i].name===name){
