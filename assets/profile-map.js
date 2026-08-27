@@ -182,7 +182,8 @@
           : { color: self.color, weight: 2.5, fillColor: '#f47920', fillOpacity: 0.14 }
       }).addTo(map);
       homeBounds = own.getBounds();
-      map.fitBounds(homeBounds, { padding: [14, 14] });
+      // a BID is a small shape in a small frame, so it can sit tighter
+      map.fitBounds(homeBounds, { padding: bidSlug ? [8, 8] : [14, 14] });
       if (!bidSlug) own.bringToBack();
       if (bidSlug) {
         var nm = (g.features && g.features[0] && g.features[0].properties
