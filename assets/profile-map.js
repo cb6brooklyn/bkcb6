@@ -153,7 +153,7 @@
       ? 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}'
       : 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}';
     L.tileLayer(refTiles, {
-      maxZoom: 19, opacity: bidSlug ? 0.95 : 0.9, pane: LABEL_PANE || undefined
+      maxZoom: 19, opacity: bidSlug ? 0.6 : 0.9, pane: LABEL_PANE || undefined
     }).addTo(map);
 
     var homeBounds = null;
@@ -172,13 +172,13 @@
       if (bidSlug) {
         L.geoJSON(g, {
           pane: LINE_PANE || undefined,
-          style: { color: '#ffffff', weight: 4.5, opacity: 0.9, fill: false }
+          style: { color: '#ffffff', weight: 4, opacity: 1, fill: false }
         }).addTo(map);
       }
       var own = L.geoJSON(g, {
         pane: bidSlug ? (LINE_PANE || undefined) : undefined,
         style: bidSlug
-          ? { color: BID_LINE, weight: 1.6, opacity: 1, fillColor: BID_LINE, fillOpacity: 0.12 }
+          ? { color: BID_LINE, weight: 1.3, opacity: 1, fill: false }
           : { color: self.color, weight: 2.5, fillColor: '#f47920', fillOpacity: 0.14 }
       }).addTo(map);
       homeBounds = own.getBounds();
@@ -262,7 +262,13 @@
             pane: FILL_PANE || undefined,
             style: function (f) {
               var fam = zoneFamily(f.properties.ZONEDIST);
-              return { color: ZONE_FILL[fam], weight: 0.6, fillColor: ZONE_FILL[fam], fillOpacity: 0.42 };
+              return {
+                color: ZONE_FILL[fam],
+                weight: bidSlug ? 0.4 : 0.6,
+                opacity: bidSlug ? 0.5 : 1,
+                fillColor: ZONE_FILL[fam],
+                fillOpacity: bidSlug ? 0.26 : 0.42
+              };
             },
             onEachFeature: function (f, l) { l.bindTooltip(f.properties.ZONEDIST || 'Zoning', { sticky: true }); }
           }).addTo(group);
