@@ -60,8 +60,12 @@
     if (!self) return;
 
     var map = L.map(el, { scrollWheelZoom: false, zoomControl: true });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19, attribution: '&copy; OpenStreetMap &copy; CARTO'
+    // CARTO now watermarks unkeyed tiles, so use Esri's keyless light canvas
+    L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19, attribution: 'Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
+    }).addTo(map);
+    L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19, opacity: 0.9
     }).addTo(map);
 
     var homeBounds = null;
@@ -270,7 +274,7 @@
     }
     ['council', 'assembly', 'senate'].forEach(function (k) {
       if (k === chamber) return;
-      addToggle('overlap-' + k, CHAMBERS[k].label);
+      addToggle('overlap-' + k, 'Overlapping ' + CHAMBERS[k].label.toLowerCase());
     });
     addToggle('zoning', 'Zoning');
     addToggle('landuse', 'Land use');
