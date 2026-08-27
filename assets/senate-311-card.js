@@ -34,6 +34,11 @@
     .then(function (res) { build(res[0], res[1]); })
     .catch(function () { host.remove(); });
 
+  /* Districts with their own shareable page get linked to it, so a shared link
+     carries that district's card rather than the generic one. */
+  var OWN_PAGE = { '26': '/sengounardes/311' };
+  function selfLink(){ return OWN_PAGE[SD] || ('/311-senate.html?sd=' + SD); }
+
   function build(rank, geo) {
     var years = Object.keys(rank.years).sort();
     var year = years[years.length - 1];
@@ -59,7 +64,7 @@
       '</div>' +
       '<div class="s3legend">' + legend + '</div>' +
       '<div class="s3map" id="sen311map"></div>' +
-      '<a class="zoninglink" href="/311-senate.html?sd=' + SD + '">' +
+      '<a class="zoninglink" href="' + selfLink() + '">' +
         'Open the 311 page for Senate District ' + SD +
         '<span>Every report mapped and searchable, by month and category, back to 2020</span></a>';
 
