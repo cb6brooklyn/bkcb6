@@ -40,12 +40,20 @@
 .fb2.on{background:var(--orange);border-color:var(--orange);color:#fff}
 .ctrl select{padding:8px 11px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;border:2px solid var(--navy2);border-radius:9px;color:var(--navy);background:#fff;max-width:100%}
 #map{height:56vh;min-height:340px;background:#eef0f4}
-.hdlab{background:rgba(255,255,255,.93);border:1.5px solid var(--navy);border-radius:6px;
- padding:3px 8px;font-family:'DM Sans',sans-serif;font-size:.7rem;font-weight:800;
- color:var(--navy);white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.2);text-align:center;
- line-height:1.25}
-.hdlab .yr{display:block;font-family:'DM Mono',monospace;font-weight:500;font-size:.9em;
+.hdlab{background:rgba(255,255,255,.95);border:1.5px solid var(--navy);border-radius:5px;
+ padding:1px 6px;font-family:'DM Sans',sans-serif;font-size:.63rem;font-weight:800;
+ color:var(--navy);white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.22);text-align:center;
+ line-height:1.3}
+.hdlab .yr{display:none}
+.hdlab.full{font-size:.7rem;padding:3px 8px}
+.hdlab.full .yr{display:block;font-family:'DM Mono',monospace;font-weight:500;font-size:.86em;
  color:var(--orange)}
+.wmk{font-family:'DM Sans',sans-serif;font-weight:900;color:rgba(13,27,75,.4);
+ letter-spacing:.02em;text-align:center;white-space:nowrap;line-height:1.15;
+ text-shadow:0 1px 0 rgba(255,255,255,.85),0 0 14px rgba(255,255,255,.9)}
+.wmk .a{font-size:1.45rem;display:block}
+.wmk .b{font-family:'DM Mono',monospace;font-size:.56rem;font-weight:700;letter-spacing:.13em;
+ text-transform:uppercase;color:rgba(13,27,75,.42);display:block;margin-top:1px}
 .cdlab{background:var(--navy);border:none;border-radius:5px;padding:3px 9px;
  font-family:'DM Mono',monospace;font-size:.6rem;font-weight:700;letter-spacing:.08em;
  text-transform:uppercase;color:#fff;white-space:nowrap}
@@ -73,7 +81,11 @@
 .hdrow .nm{flex:1;font-size:.79rem;font-weight:700;color:var(--navy);line-height:1.35}
 .hdrow .nm i{display:block;font-family:'DM Mono',monospace;font-size:.63rem;font-weight:500;
  color:var(--muted);font-style:normal;margin-top:2px}
-.hdrow .ct{font-family:'DM Mono',monospace;font-size:.75rem;font-weight:800;color:var(--orange)}
+.hdrow .ct{flex:0 0 auto;white-space:nowrap;text-align:right;font-family:'DM Mono',monospace;
+ font-size:.78rem;font-weight:800;color:var(--orange);line-height:1.2}
+.hdrow .ct b{display:block;font-family:'DM Mono',monospace;font-size:.55rem;font-weight:700;
+ text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.hdrow .nm{min-width:0}
 .badnote{padding:9px 14px;background:#fdf3f3;border-bottom:1px solid var(--border);
  font-size:.72rem;color:#8a3a3a;line-height:1.5}
 .mapnote{padding:8px 14px;background:var(--navy);color:rgba(255,255,255,.8);font-size:.73rem;line-height:1.5;border-bottom:2px solid var(--orange)}
@@ -229,6 +241,7 @@ var SUM=null,IDX=null,PERM=null,CD='BK-06';
 var view=[],shown=0,openSite=-1,markerLayer=null,map=null,canvas=null;
 var BND=null,HD_ORDER=[],hdLayer=null,cdLayer=null,ilLayer=null;
 var hdPolys=[],shownDots=0,repaintTimer=null,refitNext=true;
+var leadLayer=null,wmkLayer=null;
 var showHd=true,showLab=true,showCd=true;
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
@@ -370,9 +383,9 @@ function switchTo(cd){
 /* ------------------------------------------------------------- loading */
 function loadDistrict(cd){
   IDX=null;PERM=null;openSite=-1;shown=0;
-  if(map){[hdLayer,cdLayer,ilLayer,markerLayer].forEach(function(l){
+  if(map){[hdLayer,cdLayer,ilLayer,markerLayer,leadLayer,wmkLayer].forEach(function(l){
     if(l)map.removeLayer(l);});}
-  hdLayer=cdLayer=ilLayer=markerLayer=null;
+  hdLayer=cdLayer=ilLayer=markerLayer=leadLayer=wmkLayer=null;
   el('hdpanel').innerHTML='';el('legend').innerHTML='';
   el('badnote').style.display='none';
   el('q').value='';el('q').disabled=true;
@@ -670,6 +683,7 @@ function drawBounds(){
                   bounds:poly.getBounds()});
   });
   if(showHd)hdLayer.addTo(map);
+  drawWatermark();
 }
 
 /* Individual landmarks are few enough to name on the map. Historic district
@@ -731,7 +745,8 @@ function paintDots(){
     if(!b.contains([s[0],s[1]]))continue;
     var r=r0+Math.min(5,Math.sqrt(v.n)*0.7);
     var ca=hasCA(s);
-    var m=L.circleMarker([s[0],s[1]],{renderer:canvas,radius:ca?r+1.2:r,
+    var m=L.circleMarker([s[0],s[1]],{renderer:canvas,className:'bdot',
+      radius:ca?r+1.2:r,
       color:ca?'#1b5e20':'#fff',weight:ca?2:1,opacity:.95,
       fillColor:colorFor(s),fillOpacity:.85});
     m.bindPopup(popupFor(v));
@@ -766,34 +781,77 @@ function paintChoro(){
   placeLabels();
 }
 
-/* At the zoom that fits CB6, every district is physically smaller on screen
-   than its own name tag. Park Slope is 62 by 133 pixels, Cobble Hill Extension
-   is 3 by 3, and a label box is about 140 by 40. Pinning names to all six is
-   what made the map unreadable: the tags covered the very shapes they named.
-   So a district only gets a permanent label once it is genuinely big enough to
-   hold one. Below that the shapes carry the colour, the panel underneath is the
-   key, and tapping or hovering a district still names it. */
+/* Every district is named on the map at every zoom. At the zoom that fits CB6
+   the shapes are small, Park Slope is 62 by 133 pixels and Cobble Hill Extension
+   is 3 by 3, so a tag centred on each one would cover the shape it names. The
+   labels are therefore kept small, pushed off the shape when they would cover
+   it, and tied back to it with a leader line in the district's own colour. */
 function placeLabels(){
   if(!map)return;
-  var placed=[];
-  hdPolys.forEach(function(o){
+  if(leadLayer){map.removeLayer(leadLayer);leadLayer=null;}
+  if(!showLab){
+    hdPolys.forEach(function(o){
+      var e=o.label&&o.label.getElement&&o.label.getElement();
+      if(e)e.style.display='none';});
+    return;
+  }
+  var placed=[],leads=[],full=!dotsOn()?false:true;
+  // biggest districts claim their spot first
+  var ord=hdPolys.slice().sort(function(a,b){
+    return HD_ORDER.indexOf(a.name)-HD_ORDER.indexOf(b.name);});
+  ord.forEach(function(o){
     if(!o.label||!o.label.getElement)return;
     var e=o.label.getElement();
     if(!e)return;
-    var w=e.offsetWidth||130,h=e.offsetHeight||34;
+    e.style.display='';
+    e.className='leaflet-tooltip hdlab'+(full?' full':'')+' leaflet-zoom-animated';
+    var w=e.offsetWidth||90,h=e.offsetHeight||22;
+    var p=map.latLngToLayerPoint(L.latLng(o.home[0],o.home[1]));
     var nw=map.latLngToLayerPoint(o.bounds.getNorthWest());
     var se=map.latLngToLayerPoint(o.bounds.getSouthEast());
     var pw=Math.abs(se.x-nw.x),ph=Math.abs(se.y-nw.y);
-    if(!showLab||pw<w*1.05||ph<h*1.6){e.style.display='none';return;}
-    var p=map.latLngToLayerPoint(L.latLng(o.home[0],o.home[1]));
-    if(placed.some(function(q){
-      return Math.abs(q.x-p.x)<(q.w+w)/2+6&&Math.abs(q.y-p.y)<(q.h+h)/2+6;})){
-      e.style.display='none';return;
+    var fits=(pw>=w*1.05&&ph>=h*1.8);
+    var cand=[];
+    if(fits)cand.push({x:p.x,y:p.y});
+    var out=Math.max(ph/2,h/2)+h*0.75;
+    for(var ring=0;ring<4;ring++){
+      var d=out+ring*(h+5);
+      cand.push({x:p.x,y:p.y-d},{x:p.x,y:p.y+d},
+                {x:p.x+Math.max(pw/2,w/2)+w/2+8+ring*10,y:p.y},
+                {x:p.x-Math.max(pw/2,w/2)-w/2-8-ring*10,y:p.y});
     }
-    e.style.display='';
-    placed.push({x:p.x,y:p.y,w:w,h:h});
-    o.label.setLatLng(L.latLng(o.home[0],o.home[1]));
+    var pick=null;
+    for(var i=0;i<cand.length;i++){
+      var c=cand[i];
+      var hit=placed.some(function(q){
+        return Math.abs(q.x-c.x)<(q.w+w)/2+5&&Math.abs(q.y-c.y)<(q.h+h)/2+5;});
+      if(!hit){pick=c;break;}
+    }
+    if(!pick)pick=cand[cand.length-1];
+    placed.push({x:pick.x,y:pick.y,w:w,h:h});
+    o.label.setLatLng(map.layerPointToLatLng(L.point(pick.x,pick.y)));
+    if(Math.abs(pick.x-p.x)>2||Math.abs(pick.y-p.y)>2){
+      leads.push(L.polyline([map.layerPointToLatLng(L.point(p.x,p.y)),
+                             map.layerPointToLatLng(L.point(pick.x,pick.y))],
+        {color:hdColor(o.name),weight:1.5,opacity:.75,interactive:false}));
+      leads.push(L.circleMarker(map.layerPointToLatLng(L.point(p.x,p.y)),
+        {renderer:canvas,radius:2.5,color:hdColor(o.name),weight:1.5,
+         fillColor:'#fff',fillOpacity:1,interactive:false}));
+    }
   });
+  if(leads.length){leadLayer=L.layerGroup(leads).addTo(map);}
+}
+
+/* A standing identifier in the middle of the district, so a screenshot of this
+   map is recognisable on its own. */
+function drawWatermark(){
+  if(!map||!BND)return;
+  if(wmkLayer){map.removeLayer(wmkLayer);wmkLayer=null;}
+  if(!BND.labelPoint)return;
+  wmkLayer=L.marker(BND.labelPoint,{interactive:false,zIndexOffset:-500,
+    icon:L.divIcon({className:'wmk',iconSize:null,
+      html:'<span class="a">bkcb6.app</span><span class="b">'+esc(IDX.label)+'</span>'})
+  }).addTo(map);
 }
 function hdCounts(){
   var c={};
@@ -818,9 +876,8 @@ function updateMapNote(){
   var el2=el('mapnote');
   if(!dotsOn()){
     el2.innerHTML='The <b>'+num(BND?BND.historicDistricts.length:0)+' historic districts</b>, '+
-      'colour matched to the list below. At this scale the districts are smaller than their '+
-      'own name tags, so tap one to name and filter it, or <b>zoom in</b> for the names and '+
-      'the individual buildings.';
+      'named and colour matched to the list below. Tap one to filter the directory to it, or '+
+      '<b>zoom in</b> to see the individual buildings.';
   }else{
     el2.innerHTML='<b>'+num(shownDots)+'</b> building'+(shownDots===1?'':'s')+
       ' in view, sized by permits filed and coloured by district. '+
@@ -857,7 +914,7 @@ function renderHdPanel(){
       '<i class="sw" style="background:'+hdColor(d.name)+'"></i>'+
       '<span class="nm">'+esc(d.name)+
       '<i>Designated '+esc(d.year)+' \u00b7 '+esc(d.lp_number)+'</i></span>'+
-      '<span class="ct">'+num(n)+'</span></button>';
+      '<span class="ct">'+num(n)+'<b>permits</b></span></button>';
   });
   el('hdpanel').innerHTML=h;
   var rows=el('hdpanel').querySelectorAll('.hdrow');
