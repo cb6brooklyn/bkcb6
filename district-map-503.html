@@ -863,7 +863,7 @@ function removeOverlayLayer(name){
     if(bikeRoutesLayer) map.removeLayer(bikeRoutesLayer);
     return;
   }
-  var lyrMap = {nypd:nypdLayer,fire:fireLayer,subway:subwayLayer,citibike:citibikeLayer,busroutes:busRoutesLayer,busstops:busStopsLayer,speedlimits:speedLimitsLayer,landuse:landUseLotsLayer,zoning:zoningLayer,parks:parksLayer,schools:schoolsLayer,childcare:childcareLayer,libraries:librariesLayer,schooldistricts:schoolDistrictsLayer,gowanus:gowanusLayer,rents:rentsLayer,cc:ccLayer,assembly:assemblyLayer,senate:senateLayer,congress:congressLayer,historic:window._historicLayer};
+  var lyrMap = {nypd:nypdLayer,fire:fireLayer,subway:subwayLayer,citibike:citibikeLayer,busroutes:busRoutesLayer,busstops:busStopsLayer,speedlimits:speedLimitsLayer,landuse:landUseLotsLayer,zoning:zoningLayer,parks:parksLayer,schools:schoolsLayer,childcare:childcareLayer,libraries:librariesLayer,schooldistricts:schoolDistrictsLayer,gowanus:gowanusLayer,rents:rentsLayer,cc:ccLayer,assembly:assemblyLayer,senate:senateLayer,congress:congressLayer,historic:window._historicLayer,bids:window._bidsLayer};
   if(lyrMap[name]) map.removeLayer(lyrMap[name]);
   if(name==='cc'){ ccLayer=null; window.ccLayer=null; }
   if(name==='assembly'){ assemblyLayer=null; window.assemblyLayer=null; }
@@ -875,7 +875,7 @@ function refreshDistrictFilteredOverlays(){
   var builders = {
     nypd:buildNYPD, fire:buildFire, busroutes:buildBusRoutes, busstops:buildBusStops, speedlimits:buildSpeedLimits, landuse:buildLandUseLots, zoning:buildZoning, parks:buildParks,
     schools:buildSchools, childcare:buildChildcare, libraries:buildLibraries, schooldistricts:buildSchoolDistricts,
-    gowanus:buildGowanus, historic:buildHistoric, rents:buildRents
+    gowanus:buildGowanus, historic:buildHistoric, bids:buildBIDs, rents:buildRents
   };
   Object.keys(builders).forEach(function(name){
     if(!subState[name] || !window['_overlayData_'+name]) return;
@@ -1626,6 +1626,33 @@ function buildHistoric(d){
   if(subState.historic) historicLayer.addTo(map);
 }
 
+function buildBIDs(d){
+  var feats = (d && d.features) || [];
+  var sel = window._selectedCBFeature;
+  var code = (sel && sel.properties) ? String(sel.properties.boro_cd) : '';
+  if(code){
+    feats = feats.filter(function(f){
+      var c = f.properties && f.properties.cds;
+      return c && c.indexOf(code) > -1;
+    });
+  } else {
+    feats = filterByView(feats, function(f){return f.properties&&f.properties.lat;}, function(f){return f.properties&&f.properties.lon;});
+  }
+  var bidsLayer = L.geoJSON({type:'FeatureCollection',features:feats},{
+    style:{color:'#ea580c',weight:2,fillColor:'#ea580c',fillOpacity:.26},
+    onEachFeature:function(f,l){
+      var p = f.properties || {};
+      var base = '<strong>'+(p.name||'Business improvement district')+'</strong>';
+      if(p.year) base += '<br>Established '+p.year;
+      if(p.councils && p.councils.length) base += '<br>Council district'+(p.councils.length>1?'s ':' ')+p.councils.join(', ');
+      l.bindTooltip(base,{sticky:true});
+      l.bindPopup(base+(p.url?'<br><a href="'+p.url+'" target="_blank" rel="noopener">Visit the BID &#8599;</a>':'')+'<br><a href="/bids">All 76 NYC BIDs &rarr;</a>');
+    }
+  });
+  window._bidsLayer = bidsLayer;
+  if(subState.bids) bidsLayer.addTo(map);
+}
+
 function buildRents(d){
   var rentFeatures = filteredBySelectedDistricts(d.features||[], true);
   const vals=rentFeatures.map(f=>f.properties.Studio||f.properties.rent_studio||0).filter(v=>v>0);
@@ -1746,6 +1773,7 @@ function toggleOverlay(name, on){
     schooldistricts:()=>loadOverlay('schooldistricts','data/school-districts-'+_boroKey+'.geojson',buildSchoolDistricts),
     gowanus:()=>loadOverlay('gowanus','data/Gowanus-Rezoning-Boundary-2.geojson',buildGowanus),
     historic:()=>loadOverlay('historic','data/historic-districts.geojson',buildHistoric),
+    bids:()=>loadOverlay('bids','data/bids.geojson',buildBIDs),
     rents:()=>loadOverlay('rents','data/citywide-rents.geojson',buildRents),
     cc:()=>loadOverlay('cc','data/city-council-districts.geojson',buildCC),
     assembly:()=>loadOverlay('assembly','data/state-assembly-districts.geojson',buildAssembly),
@@ -1843,6 +1871,7 @@ function buildSubToggles(){
     {k:'landuse',c:'#475569',tc:'#fff',l:'🏘 Land Use'},
     {k:'zoning',c:'#9333ea',tc:'#fff',l:'🏙 Zoning'},
     {k:'historic',c:'#a16207',tc:'#fff',l:'🏛 Historic Districts'},
+    {k:'bids',c:'#ea580c',tc:'#fff',l:'🏬 BIDs'},
     {k:'speedlimits',c:'#111827',tc:'#fff',l:'🚦 Speed Limits'},
     {k:'schooldistricts',c:'#14b8a6',tc:'#042f2e',l:'🏫 School Districts'},
     {k:'nypd',c:'#e11d48',tc:'#fff',l:'👮 NYPD'},
@@ -1890,7 +1919,7 @@ function updateLegend(){
   const multiDistrictSwatch = 'linear-gradient(90deg,#e11d48,#f97316,#f59e0b,#16a34a,#0891b2,#2563eb,#7c3aed,#db2777)';
   // overlap legend suppressed
   const speedLimitSwatch = 'linear-gradient(90deg,#dc2626,#2ecc71,#3498db,#f1c40f,#e67e22,#e74c3c,#8e44ad)';
-  const labels = {nypd:['#e11d48','NYPD Precincts'],fire:['#ef4444','Fire Battalions'],subway:['#0039a6','Subway Routes & Stops'],citibike:['#00a676','Citi Bike Stations & Bike Lanes'],bus:['#f59e0b','Bus Routes & Stops'],busroutes:['#f59e0b','Bus Routes'],busstops:['#fbbf24','Bus Stops'],speedlimits:[speedLimitSwatch,'Speed Limits'],landuse:['#475569','Land Use Lots'],parks:['#16a34a','Parks'],gowanus:['#0d9488','Gowanus'],rents:['#dc2626','Rents'],historic:['#a16207','Historic Districts'],cc:[multiDistrictSwatch,'City Council Districts'],assembly:[multiDistrictSwatch,'Assembly Districts'],senate:[multiDistrictSwatch,'State Senate Districts'],congress:[multiDistrictSwatch,'Congressional Districts'],schooldistricts:['#14b8a6','School Districts'],zoning:['#9333ea','Zoning'],schools:['#0ea5e9','Schools'],childcare:['#d946ef','Childcare'],libraries:['#db2777','Libraries']};
+  const labels = {nypd:['#e11d48','NYPD Precincts'],fire:['#ef4444','Fire Battalions'],subway:['#0039a6','Subway Routes & Stops'],citibike:['#00a676','Citi Bike Stations & Bike Lanes'],bus:['#f59e0b','Bus Routes & Stops'],busroutes:['#f59e0b','Bus Routes'],busstops:['#fbbf24','Bus Stops'],speedlimits:[speedLimitSwatch,'Speed Limits'],landuse:['#475569','Land Use Lots'],parks:['#16a34a','Parks'],gowanus:['#0d9488','Gowanus'],rents:['#dc2626','Rents'],historic:['#a16207','Historic Districts'],bids:['#ea580c','Business Improvement Districts'],cc:[multiDistrictSwatch,'City Council Districts'],assembly:[multiDistrictSwatch,'Assembly Districts'],senate:[multiDistrictSwatch,'State Senate Districts'],congress:[multiDistrictSwatch,'Congressional Districts'],schooldistricts:['#14b8a6','School Districts'],zoning:['#9333ea','Zoning'],schools:['#0ea5e9','Schools'],childcare:['#d946ef','Childcare'],libraries:['#db2777','Libraries']};
   if(['brooklyn','manhattan','queens','bronx','si','nyc'].includes(activeMain)){
     const boroKey = {brooklyn:'3',manhattan:'1',queens:'4',bronx:'2',si:'5'};
     const bk = boroKey[activeMain];
