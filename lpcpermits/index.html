@@ -355,14 +355,26 @@ function buildPickers(){
   bs.addEventListener('change',function(){fillCds();switchTo(el('cdSel').value);});
   el('cdSel').addEventListener('change',function(){switchTo(this.value);});
 }
+/* All 59 community districts are listed, including the ones with nothing on
+   file. The parks and airports are Joint Interest Areas, not districts, so they
+   sit in their own group rather than posing as community boards. */
 function fillCds(){
   var b=el('boroSel').value;
   var ks=Object.keys(SUM.districts).filter(function(k){return SUM.districts[k].boro===b;});
   ks.sort(function(a,c){return parseInt(a.slice(3),10)-parseInt(c.slice(3),10);});
-  el('cdSel').innerHTML=ks.map(function(k){
-    var d=SUM.districts[k];
-    return '<option value="'+k+'">District '+parseInt(k.slice(3),10)+
-      ' \u00b7 '+num(d.permits)+' permits</option>';}).join('');
+  function opt(k){
+    var d=SUM.districts[k],n=parseInt(k.slice(3),10);
+    var name=d.kind==='jia'?d.label.replace(/ \(.*\)$/,''):'District '+n;
+    return '<option value="'+k+'">'+esc(name)+' \u00b7 '+
+      (d.permits?num(d.permits)+' permit'+(d.permits===1?'':'s'):'none on file')+
+      '</option>';
+  }
+  var cds=ks.filter(function(k){return SUM.districts[k].kind!=='jia';});
+  var jia=ks.filter(function(k){return SUM.districts[k].kind==='jia';});
+  var h='<optgroup label="Community districts">'+cds.map(opt).join('')+'</optgroup>';
+  if(jia.length)h+='<optgroup label="Parks and airports (joint interest areas)">'+
+    jia.map(opt).join('')+'</optgroup>';
+  el('cdSel').innerHTML=h;
   if(ks.indexOf(CD)>=0)el('cdSel').value=CD;
 }
 function switchTo(cd){
@@ -426,9 +438,10 @@ function loadDistrict(cd){
 /* -------------------------------------------------------------- context */
 function renderContext(){
   var d=IDX;
-  el('cdNote').textContent=d.label+'. Landmarks permits from '+
-    (Object.keys(d.byYear).sort()[0]||'')+' to '+
-    (Object.keys(d.byYear).sort().pop()||'')+'.';
+  var ys=Object.keys(d.byYear).sort();
+  el('cdNote').textContent=d.label+(ys.length?
+    '. Landmarks permits from '+ys[0]+' to '+ys[ys.length-1]+'.':
+    '. No landmarks permits on file.');
   var bn=el('badnote');
   if(d.boroMismatch){
     bn.style.display='';
@@ -565,6 +578,13 @@ function applyFilters(){
     }
   }
   shown=0;
+  if(IDX&&!IDX.totals.permits){
+    el('count').textContent='Nothing on file for '+IDX.label+'.';
+    el('sbText').textContent=IDX.label;
+    el('tCa').className='tgl';
+    drawMap(refitNext);refitNext=false;renderList(true);renderHdPanel();
+    return;
+  }
   el('count').textContent=num(view.length)+' building'+(view.length===1?'':'s')+
     ' \u00b7 '+num(total)+' permit'+(total===1?'':'s')+
     (PERM?'':' (counts refine when the full record finishes loading)');
@@ -710,6 +730,8 @@ function fitToView(){
     if(view[i].i>=0&&typeof s[0]==='number')bnds.push([s[0],s[1]]);
   }
   if(bnds.length)map.fitBounds(bnds,{padding:[24,24],maxZoom:16});
+  else if(BND&&BND.outline)map.fitBounds(
+    L.geoJSON({type:'Feature',geometry:BND.outline}).getBounds(),{padding:[20,20]});
 }
 function paintDots(){
   if(markerLayer){map.removeLayer(markerLayer);markerLayer=null;}
@@ -856,6 +878,12 @@ function labelHtml(name,n,year,overview){
 function updateMapNote(){
   var el2=el('mapnote');
   var nhd=BND?BND.historicDistricts.length:0;
+  if(IDX&&!IDX.totals.permits){
+    el2.innerHTML='<b>No landmarks permits on file here.</b> This district has no designated '+
+      'historic district and no individual landmark with permit history, so the Commission '+
+      'has no record to show.';
+    return;
+  }
   if(!dotsOn()){
     el2.innerHTML='The <b>'+num(nhd)+' historic district'+(nhd===1?'':'s')+'</b> here, '+
       'named and colour matched to the list below. Tap one to filter the directory to it, or '+

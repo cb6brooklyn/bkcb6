@@ -133,6 +133,34 @@ def boro_of(cdcode):
     return cdcode[:2]
 
 
+# Joint Interest Areas are parks, waterways and major government installations
+# that sit outside every community district. Names are DCP's own, from
+# nyc.gov/site/planning/community/jias-sources.page. Calling these "Community
+# District 64" would invent a district that does not exist.
+JIA = {
+    'BX-26': 'Van Cortlandt Park', 'BX-27': 'Bronx Park',
+    'BX-28': 'Pelham Bay Park',
+    'BK-55': 'Prospect Park', 'BK-56': 'Brooklyn Gateway National Recreation Area',
+    'MN-64': 'Central Park',
+    'QN-80': 'LaGuardia Airport', 'QN-81': 'Flushing Meadows-Corona Park',
+    'QN-82': 'Forest Park', 'QN-83': 'JFK International Airport',
+    'QN-84': 'Queens Gateway National Recreation Area',
+    'SI-95': 'Staten Island Gateway National Recreation Area',
+}
+# The 59 community districts mandated by the city charter.
+CD_COUNT = {'MN': 12, 'BX': 12, 'BK': 18, 'QN': 14, 'SI': 3}
+
+
+def label_for(cdcode):
+    if cdcode in JIA:
+        return JIA[cdcode] + ' (' + BORONAME[boro_of(cdcode)] + ' joint interest area)'
+    return f'{BORONAME[boro_of(cdcode)]} Community District {int(cdcode[3:])}'
+
+
+def kind_for(cdcode):
+    return 'jia' if cdcode in JIA else 'cd'
+
+
 summary = {}
 sub = df[df['cd'].notna()]
 
@@ -199,10 +227,10 @@ for cdcode, grp in sub.groupby('cd', sort=True):
     yrs_all = grp['rcv'].str[:4]
     yrs_all = yrs_all[yrs_all != '']
     boro = cdcode[:2]
-    label = f'{BORONAME[boro]} Community District {int(cdcode[3:])}'
+    label = label_for(cdcode)
 
     idx = {
-        'cd': cdcode, 'label': label, 'boro': boro,
+        'cd': cdcode, 'label': label, 'boro': boro, 'kind': kind_for(cdcode),
         'source': SOURCE, 'downloaded': DOWNLOADED,
         'method': ('Community district assigned by point in polygon against the '
                    'Department of City Planning Community Districts file. Permits '
@@ -234,7 +262,7 @@ for cdcode, grp in sub.groupby('cd', sort=True):
     json.dump(perm, open(pp_, 'w'), separators=(',', ':'))
 
     summary[cdcode] = {
-        'label': label, 'boro': boro,
+        'label': label, 'boro': boro, 'kind': kind_for(cdcode),
         'permits': idx['totals']['permits'], 'sites': idx['totals']['sites'],
         'firstYear': min(idx['byYear']) if idx['byYear'] else '',
         'lastYear': max(idx['byYear']) if idx['byYear'] else '',
@@ -242,6 +270,31 @@ for cdcode, grp in sub.groupby('cd', sort=True):
         'topLm': [k for k, _ in list(idx['byLm'].items())[:6]],
         'kb': [round(os.path.getsize(pi_) / 1024), round(os.path.getsize(pp_) / 1024)],
     }
+
+# Queens Community District 10 has no landmarks permits on file. Without a shard
+# it disappears from the picker entirely, so write an empty one and let the page
+# say so plainly.
+for _b, _n in CD_COUNT.items():
+    for _i in range(1, _n + 1):
+        _cd = f'{_b}-{_i:02d}'
+        if _cd in summary:
+            continue
+        _idx = {'cd': _cd, 'label': label_for(_cd), 'boro': _b, 'kind': 'cd',
+                'source': SOURCE, 'downloaded': DOWNLOADED,
+                'method': 'Community district assigned by point in polygon against the '
+                          'Department of City Planning Community Districts file.',
+                'totals': {'permits': 0, 'sites': 0, 'unmapped': 0},
+                'reg': [], 'lm': [], 'kind_list': [], 'byYear': {}, 'byReg': {},
+                'byLm': {}, 'bldFields': [], 'bldJoined': 0, 'boroMismatch': 0,
+                'sites': []}
+        json.dump(_idx, open(f'{OUT}/{_cd.lower()}.json', 'w'), separators=(',', ':'))
+        json.dump({'cd': _cd, 'tables': {t: [] for t in TABLES},
+                   'permits': [], 'unmapped': []},
+                  open(f'{OUT}/{_cd.lower()}-permits.json', 'w'), separators=(',', ':'))
+        summary[_cd] = {'label': label_for(_cd), 'boro': _b, 'kind': 'cd',
+                        'permits': 0, 'sites': 0, 'firstYear': '', 'lastYear': '',
+                        'ca': 0, 'topLm': [], 'kb': [1, 1]}
+        print(f'  wrote empty shard for {_cd}')
 
 cw = df['rcv'].str[:4]
 cw = cw[cw != '']
