@@ -76,6 +76,9 @@ def page(e):
     kv = ''.join('<li><span class="k">%s</span><span class="v">%s</span></li>' % (k, v)
                  for k, v in rows)
 
+    logo = ('<div class="vlogo"><img src="%s" alt="%s" loading="eager"></div>'
+            % (esc(e['lg']), esc(name))) if e.get('lg') else ''
+
     return """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -107,7 +110,7 @@ def page(e):
 <div class="vwrap">
   <div class="vhead">
     <div class="vcrumb"><a href="/">bkcb6.app</a> &middot; <a href="/bid-park-slope-5th-avenue/">Park Slope 5th Avenue BID</a></div>
-    <h1>{name}</h1>
+    {logo}<h1>{name}</h1>
     <div class="vsub">{head}</div>
   </div>
 
@@ -182,7 +185,7 @@ def page(e):
 </body>
 </html>
 """.format(name=esc(name), addr=esc(addr), desc=esc(desc), slug=e['s'], og=OG,
-           head=esc(addr + ', Brooklyn, NY 11215') if addr else esc(name),
+           head=esc(addr + ', Brooklyn, NY 11215') if addr else esc(name), logo=logo,
            kv=kv, full=esc(full), jsv=JSV)
 
 
