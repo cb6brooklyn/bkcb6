@@ -849,7 +849,7 @@
   function cardModeRequested(){
     try{return new URLSearchParams(location.search).get('card')==='1';}catch(e){return false;}
   }
-  var SHARE_PAGES={'250 BALTIC ST':'/250baltic','1 E 161 ST':'/yankeestadium','427 5 AVE':'/barkslope','139 9 ST':'/principles','557 6 AVE':'/557-6-avenue','291 VAN BRUNT ST':'/rhap','197 BOND ST':'/hanif','209 JORALEMON ST':'/boroughhall',
+  var SHARE_PAGES={'250 BALTIC ST':'/250baltic','1 E 161 ST':'/yankeestadium','427 5 AVE':'/barkslope','139 9 ST':'/principles','557 6 AVE':'/557-6-avenue','291 VAN BRUNT ST':'/rhap','336 3 ST':'/oldstonehouse-address','197 BOND ST':'/hanif','209 JORALEMON ST':'/boroughhall',
     '142-01 ROCKAWAY BLVD JAMAICA':'/senate-district-10',
     '134-01 20 AVE COLLEGE POINT':'/senate-district-11',
     '37-18 NORTHERN BLVD LONG ISLAND CITY':'/senate-district-12',
@@ -1884,6 +1884,7 @@
     '801 2 AVE':[{name:'State Senator Kristen Gonzalez',kind:'District office for State Senate District 59, Suite #303',src:'/site-icons/senate/sd59.png',w:420,h:420,href:'https://www.nysenate.gov/senators/kristen-gonzalez',plate:'#ffffff',label:'Elected official in this building',labelPlural:'Elected officials in this building'}],
     '209 JORALEMON ST':[{name:'Brooklyn Borough President Antonio Reynoso',kind:'Borough President\u2019s office at Brooklyn Borough Hall',src:'/site-icons/reynoso-borough-president.png',w:520,h:113,href:'https://www.brooklynbp.nyc.gov/',plate:'#03007f',label:'Elected official in this building',labelPlural:'Elected officials in this building'}],
     '197 BOND ST':[{name:'Council Member Shahana Hanif',kind:'District office for City Council District 39, 1st floor',src:'/site-icons/hanif-district-39.png',w:520,h:244,href:'https://council.nyc.gov/district-39/',plate:'#ffffff',label:'Elected official in this building',labelPlural:'Elected officials in this building'}],
+    '336 3 ST':[{name:'The Old Stone House and Washington Park',kind:'Historic house museum and the conservancy for JJ Byrne Playground and Washington Park',src:'/site-icons/old-stone-house.png',w:200,h:200,href:'/oldstonehouse',plate:'#ffffff',label:'Cultural institution in this building',labelPlural:'Cultural institutions in this building'}],
     '291 VAN BRUNT ST':[{name:'Red Hook Art Project',kind:'Free after school arts program for young people',src:'/site-icons/red-hook-art-project.png',w:480,h:475,href:'https://www.redhookartproject.org',plate:'#ffffff',label:'Community based organization in this building',labelPlural:'Community based organizations in this building'}],
     '139 9 ST':[{name:'Principles Cafe',kind:'Coffee house',src:'/site-icons/principles-cafe.png',w:520,h:520,href:'https://principlesbk.nyc/',plate:'#3a3c3e'}]
   };
