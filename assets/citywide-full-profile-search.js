@@ -1943,7 +1943,11 @@
         '<span style="flex:none;font-size:.66rem;font-weight:800;color:var(--orange,#f47920);white-space:nowrap">Open &rarr;</span>'+
       '</a></div>';
   }
-  var BID_LOGOS={'park-slope-5th-avenue':'/site-icons/bid-park-slope-fifth-ave.png'};
+  var BID_LOGOS={
+    'park-slope-5th-avenue':'/site-icons/bid-park-slope-fifth-ave.png',
+    'north-flatbush':'/site-icons/bid-north-flatbush.png',
+    'atlantic-avenue':'/site-icons/bid-atlantic-avenue.png'
+  };
   function paintBid(el){
     if(!el || el.dataset.bidReady==='true') return;
     el.dataset.bidReady='true';
