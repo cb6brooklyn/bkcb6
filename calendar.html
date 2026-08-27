@@ -365,6 +365,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
       <option value="pct76">76th Precinct</option>
       <option value="pct78">78th Precinct</option>
       <option value="ps5bid">Park Slope 5th Ave BID</option>
+      <option value="barkslope">Bark Slope</option>
       <option value="nycvotes">NYC Votes</option>
       <option value="nycparks">NYC Parks</option>
       <option value="green615">6/15 Green Community Garden</option>
@@ -1444,6 +1445,8 @@ const EVENTS = {
     { type: "osh", label: "Old Stone House: BREAD AND PUPPET: The Upside Down World Circus (8:00 PM Show)", time: "8:00 PM", location: "Old Stone House of Brooklyn \u00b7 336 3rd Street, Brooklyn, NY 11215", href: "https://www.eventbrite.com/e/bread-and-puppet-the-upside-down-world-circus-tickets-1992772418949", linkText: "Eventbrite ↗", desc: "The Bread and Puppet Circus returns to the Old Stone House! Ends 9:00 PM.", _hardcoded: true }
   ],
   "2026-09-19": [
+    { type: "barkslope", label: "Freddy\u2019s Dog Fashion Show", time: "2:00 PM", location: "5th Avenue between 17th & 18th Streets, Park Slope", flyer: "https://bkcb6.app/flyer-freddys-dog-fashion-show-2026-09-19.jpg", desc: "Dog fashion show hosted by AbbyTheDogMom with emcee Colt Lightning. Fundraiser and adoption event for BADASS Animal Rescue. Ends 6:00 PM.", _hardcoded: true },
+    { type: "ps5bid", _alt: true, label: "Freddy\u2019s Dog Fashion Show", time: "2:00 PM", location: "5th Avenue between 17th & 18th Streets, Park Slope", flyer: "https://bkcb6.app/flyer-freddys-dog-fashion-show-2026-09-19.jpg", desc: "Dog fashion show hosted by AbbyTheDogMom with emcee Colt Lightning. Fundraiser and adoption event for BADASS Animal Rescue. Ends 6:00 PM.", _hardcoded: true },
     { type: "osh", label: "Old Stone House: Bike Jumble: Fall 2026", time: "10:00 AM", location: "Old Stone House of Brooklyn \u00b7 336 3rd Street, Brooklyn, NY 11215", href: "https://www.eventbrite.com/e/bike-jumble-fall-2026-tickets-1998388245036", linkText: "Eventbrite ↗", desc: "It\u2019s the annual Fall Bike Jumble! Ends 4:00 PM.", _hardcoded: true }, { type: "psos", label: "Park Slope Open Streets: Fall into a Good Book", href: "https://www.parkslopeopenstreets.org/calendar", linkText: "Details \u2197", location: "5th Avenue · Park Slope", _hardcoded: true } ],
   "2026-09-21": [ { type: "altside", label: "ASP Suspended — Yom Kippur" },
     { type: "school", label: "Yom Kippur — Schools Closed", href: "https://www.schools.nyc.gov/calendar/2026-2027-school-year-calendar", linkText: "schools.nyc.gov ↗" }
@@ -1717,6 +1720,7 @@ const TYPES = {
   artichoke:  { bg:"#4a7c59", color:"#fff", icon:"💃" },
   rhap:       { bg:"#cc0000", color:"#fff", icon:"🎨" },
   ps5bid:     { bg:"#1a4b8c", color:"#fff", icon:"🏪" },
+  barkslope:  { bg:"#7b2d8e", color:"#fff", icon:"🐕" },
   bpl:        { bg:"#3d5aad", color:"#fff", icon:"📚" },
   pct78:      { bg:"#1a56db", color:"#fff", icon:"🚔" },
   pct76:      { bg:"#1a56db", color:"#fff", icon:"🚔" },
@@ -2133,7 +2137,7 @@ function renderList(){
     food:      new Set(['dte','rhlp','principles','green615','strongrope','housepepper']),
     civic:     new Set(['lpc','dcp','nyccouncil','aviles','gounardes','bkbp','nycvotes','hpd','rgb','pct76','pct78','fac','rhjc','gcc','cobblehill','cga','aaldc','ps5bid','psos','swbtu','rhi','fofa','cec15','dsny','niyn','rrh','nycdot','dep','cuffh','cswa','mta','bmtdc','mayorsoffice','psccivic','sbdsa','duboisbunche']),
     parks:     new Set(['prospect','bbp','nycparks','bbg','birdcollective']),
-    community: new Set(['bpl','psos','school','ps15','bikebus','bergenbikebus','secretgarden','brooklynpopup','soccer','altside','ulurp','fof','niyn','rrh','dsny','rhba','pacemakers','streetlab']),
+    community: new Set(['bpl','psos','barkslope','school','ps15','bikebus','bergenbikebus','secretgarden','brooklynpopup','soccer','altside','ulurp','fof','niyn','rrh','dsny','rhba','pacemakers','streetlab']),
   };
   const all = [];
   Object.entries(EVENTS).forEach(([dateKey, evs])=>{
@@ -2149,8 +2153,24 @@ function renderList(){
     });
   });
   syncOrgShare();
+  // Cross-listed events (the same listing filed under two organizations, one copy
+  // marked _alt) collapse to a single card: the copy matching the active org
+  // filter when there is one, otherwise the primary copy.
+  const groups = new Map();
+  all.forEach(({dateKey, ev})=>{
+    const k = dateKey+'|'+ev.label;
+    if(!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(ev);
+  });
+  const crossKeep = new Map();
+  groups.forEach((group, k)=>{
+    if(!group.some(e => e._alt)) return;
+    crossKeep.set(k, group.find(e => e.type===org) || group.find(e => !e._alt) || group[0]);
+  });
   const seen = new Set();
   const deduped = all.filter(({dateKey, ev})=>{
+    const ck = dateKey+'|'+ev.label;
+    if(crossKeep.has(ck) && crossKeep.get(ck) !== ev) return false;
     const k = dateKey+'|'+ev.type+'|'+ev.label;
     if(seen.has(k)) return false;
     seen.add(k); return true;
@@ -2678,8 +2698,17 @@ function selectDay(key, d){
   selectedDayKey = key;
   const evs = EVENTS[key] || [];
   const seen = new Set();
+  const activeOrg = (document.getElementById('list-org-filter')||{}).value || '';
+  // Same cross-listing rule as the list: one card per listing, preferring the
+  // copy that belongs to the organization currently filtered.
+  const crossLabels = new Set(evs.filter(e => e._alt).map(e => e.label));
+  const crossKeeper = label =>
+    evs.find(e => e.label===label && e.type===activeOrg) ||
+    evs.find(e => e.label===label && !e._alt) ||
+    evs.find(e => e.label===label);
   const uniqEvs = evs.filter(ev => {
     if(hiddenTypes.has(ev.type)) return false;
+    if(crossLabels.has(ev.label) && crossKeeper(ev.label) !== ev) return false;
     const k = ev.type + '|' + ev.label;
     if(seen.has(k)) return false;
     seen.add(k);
