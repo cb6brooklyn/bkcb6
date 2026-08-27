@@ -1927,7 +1927,8 @@
   }
   function bidBlockFor(d){
     if(!d) return '';
-    var page='/bids.html#'+encodeURIComponent(d.slug||'');
+    var BID_PAGES={'park-slope-5th-avenue':1,'north-flatbush':1,'atlantic-avenue':1};
+    var page=BID_PAGES[d.slug] ? ('/bid-'+d.slug) : ('/bids.html#'+encodeURIComponent(d.slug||''));
     var logo=BID_LOGOS[d.slug]||'';
     var mark=logo
       ? '<span style="flex:none;width:34px;height:34px;border-radius:5px;background:#fff;border:1px solid #e5e2db;display:flex;align-items:center;justify-content:center;overflow:hidden">'
@@ -1939,7 +1940,7 @@
         mark+
         '<span style="flex:1;min-width:0"><span style="display:block;font-size:.78rem;font-weight:700;color:var(--navy,#0d1b4b);line-height:1.3">'+esc(d.name)+' BID</span>'+
         '<span style="display:block;font-family:\'DM Mono\',monospace;font-size:.58rem;color:var(--muted,#6b6760);margin-top:1px">'+
-          (d.year?('Created '+esc(d.year)+' \u00b7 '):'')+'See it on the BID map</span></span>'+
+          (d.year?('Created '+esc(d.year)+' \u00b7 '):'')+(BID_PAGES[d.slug]?'Open the BID profile':'See it on the BID map')+'</span></span>'+
         '<span style="flex:none;font-size:.66rem;font-weight:800;color:var(--orange,#f47920);white-space:nowrap">Open &rarr;</span>'+
       '</a></div>';
   }

@@ -56,7 +56,9 @@
 
     var chamber = el.getAttribute('data-chamber') || 'council';
     var district = String(el.getAttribute('data-district') || '');
-    var self = CHAMBERS[chamber];
+    // a BID is not a chamber, so it names its own file and skips the sibling toggles
+    var bidSlug = el.getAttribute('data-bid-slug') || '';
+    var self = bidSlug ? { label: 'BID', folder: 'bid', color: '#7a5c2e' } : CHAMBERS[chamber];
     if (!self) return;
 
     var map = L.map(el, { scrollWheelZoom: false, zoomControl: true });
@@ -76,7 +78,9 @@
     function say(msg) { if (status) status.textContent = msg || ''; }
 
     // ---- the member's own district ----
-    getJSON('/data/districts/' + self.folder + '-' + district + '.geojson').then(function (g) {
+    var ownFile = bidSlug ? ('/data/districts/bid-' + bidSlug + '.geojson')
+                          : ('/data/districts/' + self.folder + '-' + district + '.geojson');
+    getJSON(ownFile).then(function (g) {
       var own = L.geoJSON(g, {
         style: { color: self.color, weight: 2.5, fillColor: '#f47920', fillOpacity: 0.14 }
       }).addTo(map);
@@ -123,7 +127,7 @@
     }
 
     ['council', 'assembly', 'senate'].forEach(function (k) {
-      if (k === chamber) return;
+      if (!bidSlug && k === chamber) return;
       layers['overlap-' + k] = overlapLayer(k);
     });
 
@@ -321,7 +325,7 @@
       toggleWrap.appendChild(b);
     }
     ['council', 'assembly', 'senate'].forEach(function (k) {
-      if (k === chamber) return;
+      if (!bidSlug && k === chamber) return;
       addToggle('overlap-' + k, 'Overlapping ' + CHAMBERS[k].label.toLowerCase());
     });
 
