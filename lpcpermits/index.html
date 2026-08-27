@@ -96,12 +96,20 @@
 .tagx.int{background:#efe6f7;color:#5b3a8e}
 .tagx.ca{background:#e3f2e4;color:#2e6b30}
 .tagx.den{background:#fdeaea;color:#b03030}
+.site .work{margin-top:7px;display:flex;flex-wrap:wrap;gap:5px;align-items:baseline}
+.site .work .wl{font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;
+ letter-spacing:.08em;color:var(--muted);font-weight:700;margin-right:2px}
+.site .work .wt{font-size:.74rem;color:#3b3b3b;line-height:1.45;background:#f4f2ee;
+ border-radius:4px;padding:2px 8px}
+.site .work .wt.more{background:transparent;color:var(--muted);font-style:italic;padding:2px 0}
 .site .open{margin-top:8px;padding:6px 13px;background:var(--navy2);color:#fff;border:none;border-radius:16px;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer}
 .site .open:hover{background:var(--orange)}
 .plist{margin-top:10px;border-top:1px solid var(--border)}
 .prow{padding:9px 0 9px 11px;border-left:3px solid var(--orange);border-bottom:1px solid #f0ede8;background:#fbfaf8;margin-top:8px}
 .prow .pd{font-family:'DM Mono',monospace;font-size:.7rem;font-weight:700;color:var(--navy)}
-.prow .pr{font-size:.78rem;font-weight:700;color:var(--navy);margin-top:3px;line-height:1.35}
+.prow.hi{border-left-color:#2e6b30;background:#f4faf4}
+.prow .pr{font-size:.79rem;font-weight:700;color:var(--navy);margin-top:4px;line-height:1.4}
+.prow .prt{margin-top:5px}
 .prow .pw{font-size:.74rem;color:#555;line-height:1.5;margin-top:3px}
 .prow .pf{font-family:'DM Mono',monospace;font-size:.63rem;color:#9ca3af;margin-top:4px;line-height:1.6}
 .more{display:block;width:calc(100% - 24px);margin:12px;padding:12px;background:#fff;border:2px solid var(--navy2);border-radius:24px;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:800;color:var(--navy);cursor:pointer}
@@ -166,6 +174,7 @@
     <button type="button" class="tgl on" id="tHd">Historic districts</button>
     <button type="button" class="tgl on" id="tLab">Labels</button>
     <button type="button" class="tgl on" id="tCd">District line</button>
+    <button type="button" class="tgl" id="tCa">Certificates of Appropriateness only</button>
   </div>
   <div class="mapnote" id="mapnote"></div>
   <div class="maphold"><div id="map"></div></div>
@@ -256,6 +265,50 @@ function bldText(s){
   if(!b)return '';
   return [b[0],b[1],b[2],b[3],b[4],b[5],b[6]].join(' ').toLowerCase();
 }
+var CA_NAME='Certificate of Appropriateness';
+function caIdx(){return IDX?IDX.reg.indexOf(CA_NAME):-1;}
+/* The index records which permit types a site has, so a Certificate of
+   Appropriateness can be flagged before the full records finish loading. */
+function hasCA(s){var i=caIdx();return i>=0&&s[10]&&s[10].indexOf(i)>=0;}
+function caCount(v){
+  var i=caIdx();
+  if(i<0)return 0;
+  var rows=v.rows||(PERM&&v.i>=0?PERM.permits[v.i]:null);
+  if(!rows)return hasCA(v.s)?-1:0;
+  var n=0;
+  for(var j=0;j<rows.length;j++)if(rows[j][5]===i)n++;
+  return n;
+}
+/* LPC's work field is a controlled vocabulary, but individual entries contain
+   commas of their own: "A/C, LOUVERS, GRILLES" is one term, not three. Splitting
+   on the comma would invent work types that were never filed. So the values are
+   shown exactly as the Commission recorded them. */
+function workSummary(v){
+  var rows=v.rows||(PERM&&v.i>=0?PERM.permits[v.i]:null);
+  if(!rows||!PERM)return null;
+  var seen={},order=[];
+  for(var j=0;j<rows.length;j++){
+    var t=PERM.tables.wt[rows[j][6]];
+    if(!t||t==='Legacy- Not Available')continue;
+    if(!seen[t]){seen[t]=0;order.push(t);}
+    seen[t]++;
+  }
+  if(!order.length)return null;
+  order.sort(function(a,b){return seen[b]-seen[a];});
+  return {top:order.slice(0,3),more:Math.max(0,order.length-3)};
+}
+/* LPC's older work vocabulary is stored in capitals (WINDOWS, RESTORATIVE WORK)
+   while the newer terms are mixed case, so the two sit badly together. Soften
+   the shouting for display only, leaving acronyms of four letters or fewer
+   (A/C, HVAC, MTA) alone. The underlying value is untouched. */
+function softCaps(t){
+  t=String(t);
+  if(/[a-z]/.test(t))return t;          // already mixed case, leave it alone
+  return t.replace(/[A-Za-z][A-Za-z'\-]*/g,function(w){
+    return w.length<=3?w:w.charAt(0)+w.slice(1).toLowerCase();});
+}
+function clip(t,n){return t.length>n?t.slice(0,n-1).replace(/[\s,;:]+$/,'')+'\u2026':t;}
+
 function bldLine(s){
   var b=bld(s);
   if(!b)return '';
@@ -430,6 +483,11 @@ function buildFilters(){
     if(hdLayer){if(showHd){hdLayer.addTo(map);hdLayer.bringToBack();}else map.removeLayer(hdLayer);}};
   el('tCd').onclick=function(){showCd=!showCd;this.className='tgl'+(showCd?' on':'');
     if(cdLayer){if(showCd)cdLayer.addTo(map);else map.removeLayer(cdLayer);}};
+  el('tCa').onclick=function(){
+    var on=el('regSel').value!==CA_NAME;
+    el('regSel').value=on?CA_NAME:'';
+    this.className='tgl'+(on?' on':'');
+    openSite=-1;refitNext=true;applyFilters();};
   el('tLab').onclick=function(){showLab=!showLab;this.className='tgl'+(showLab?' on':'');
     drawBounds();refreshIlabels();};
   el('resetBtn').onclick=function(){
@@ -526,6 +584,7 @@ function applyFilters(){
     ' \u00b7 '+num(total)+' permit'+(total===1?'':'s')+
     (PERM?'':' (counts refine when the full record finishes loading)');
   el('sbText').textContent=(reg||lm||yr||qs)?'Filtered view':'Everything on file for '+IDX.label;
+  el('tCa').className='tgl'+(reg===CA_NAME?' on':'');
   drawMap(refitNext);refitNext=false;renderList(true);renderHdPanel();
 }
 
@@ -671,8 +730,9 @@ function paintDots(){
     if(v.i<0||typeof s[0]!=='number')continue;
     if(!b.contains([s[0],s[1]]))continue;
     var r=r0+Math.min(5,Math.sqrt(v.n)*0.7);
-    var m=L.circleMarker([s[0],s[1]],{renderer:canvas,radius:r,
-      color:'#fff',weight:1,opacity:.95,
+    var ca=hasCA(s);
+    var m=L.circleMarker([s[0],s[1]],{renderer:canvas,radius:ca?r+1.2:r,
+      color:ca?'#1b5e20':'#fff',weight:ca?2:1,opacity:.95,
       fillColor:colorFor(s),fillOpacity:.85});
     m.bindPopup(popupFor(v));
     (function(idx){m.on('click',function(){openSite=idx;renderListPreserve(window.scrollY);});})(v.i);
@@ -777,6 +837,8 @@ function renderLegend(){
   });
   if(HD_ORDER.length>4)h+='<span class="i" style="opacity:.7">and '+(HD_ORDER.length-4)+' more below</span>';
   h+='<span class="i"><i class="sw" style="background:'+IL_COLOR+'"></i>Individual landmark</span>';
+  h+='<span class="i"><i class="sw" style="background:transparent;border:2px solid #1b5e20"></i>'+
+     'Has a Certificate of Appropriateness</span>';
   if(IDX.boroMismatch)h+='<span class="i"><i class="sw" style="background:'+BAD_COLOR+
     '"></i>Location looks wrong</span>';
   el('legend').innerHTML=h;
@@ -870,9 +932,21 @@ function siteHtml(v){
   h+='<div class="meta">';
   if(s[6]>=0)h+='<span class="tagx '+kindClass(s)+'">'+esc(IDX.kind[s[6]])+'</span>';
   h+='<span class="tagx">'+num(v.n)+' permit'+(v.n===1?'':'s')+'</span>';
+  var ca=caCount(v);
+  if(ca!==0){
+    h+='<span class="tagx ca">'+(ca>0?num(ca)+' Certificate'+(ca===1?'':'s')+
+      ' of Appropriateness':'Certificate of Appropriateness')+'</span>';
+  }
   if(s[8])h+='<span class="tagx">'+esc(s[8])+' to '+esc(s[9])+'</span>';
   if(s[3])h+='<span class="tagx">Block '+esc(s[3])+' Lot '+esc(s[4])+'</span>';
   h+='</div>';
+  var ws=workSummary(v);
+  if(ws){
+    h+='<div class="work"><span class="wl">Filed for</span>'+
+      ws.top.map(function(t){return '<span class="wt">'+esc(softCaps(clip(t,72)))+'</span>';}).join('')+
+      (ws.more?'<span class="wt more">and '+num(ws.more)+' other kind'+
+        (ws.more===1?'':'s')+' of work</span>':'')+'</div>';
+  }
   if(PERM){
     h+='<button type="button" class="open" data-i="'+v.i+'">'+
       (open?'Hide the permits':'See all '+num(v.n)+' permit'+(v.n===1?'':'s'))+'</button>';
@@ -887,10 +961,12 @@ function permitsHtml(v){
     var reg=p[5]>=0?IDX.reg[p[5]]:'Not recorded';
     var cls=reg==='Certificate of Appropriateness'?' ca':
       (reg==='Commission Denial'?' den':'');
-    h+='<div class="prow">'+
+    var work=T.wt[p[6]];
+    h+='<div class="prow'+(cls?' hi':'')+'">'+
       '<div class="pd">LPC-'+esc(p[0])+(T.rn[p[11]]?' \u00b7 '+esc(T.rn[p[11]]):'')+'</div>'+
-      '<div class="pr"><span class="tagx'+cls+'">'+esc(reg)+'</span></div>';
-    if(T.wt[p[6]])h+='<div class="pw">'+esc(T.wt[p[6]])+'</div>';
+      '<div class="pr">'+esc(work&&work!=='Legacy- Not Available'?softCaps(work):
+        'The Commission did not record the work type')+'</div>'+
+      '<div class="prt"><span class="tagx'+cls+'">'+esc(reg)+'</span></div>';
     if(p[1])h+='<div class="pw">Filed for '+esc(titleCase(p[1]))+'</div>';
     var f=[];
     if(p[2])f.push('Received '+ymd(p[2]));
