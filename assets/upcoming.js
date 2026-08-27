@@ -58,7 +58,9 @@
   }
 
   var slots = [].slice.call(document.querySelectorAll('[data-upcoming]'));
-  if (!slots.length) return;
+  var flyerHosts = [].slice.call(document.querySelectorAll('[data-flyer-after-biz]'));
+  // a page can take the flyer without taking the banner, or the other way round
+  if (!slots.length && !flyerHosts.length) return;
 
   fetch('/data/business-events.json').then(function (r) {
     if (!r.ok) throw new Error(r.status);
@@ -91,9 +93,7 @@
      citywide search renders after its own fetch. That card is not ours to
      change, so watch for it and insert once it appears. */
   function placeFlyers(owners) {
-    var hosts = [].slice.call(document.querySelectorAll('[data-flyer-after-biz]'));
-    if (!hosts.length) return;
-    hosts.forEach(function (host) {
+    flyerHosts.forEach(function (host) {
       var o = owners[host.getAttribute('data-flyer-after-biz')];
       if (!o || !o.events) return;
       var ev = null;
