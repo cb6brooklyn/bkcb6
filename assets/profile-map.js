@@ -214,6 +214,54 @@
       };
     })();
 
+    // ---- business improvement districts ----
+    layers.bids = (function () {
+      var group = L.layerGroup();
+      var done = false;
+      var districtNum = parseInt(district, 10);
+      function isOwn(p) {
+        return chamber === 'council' && p && p.councils && p.councils.indexOf(districtNum) > -1;
+      }
+      function popup(p) {
+        var html = '<b>' + p.name + '</b><br>' + p.borough
+          + (p.year ? ' &middot; established ' + p.year : '');
+        if (p.councils && p.councils.length) {
+          html += '<br>Council district' + (p.councils.length > 1 ? 's ' : ' ') + p.councils.join(', ');
+        }
+        if (p.url) html += '<br><a href="' + p.url + '" target="_blank" rel="noopener">Visit the BID &#8599;</a>';
+        html += '<br><a href="/bids">All 76 BIDs &rarr;</a>';
+        return html;
+      }
+      return {
+        group: group,
+        load: function () {
+          if (done) return Promise.resolve();
+          done = true;
+          say('Loading business improvement districts\u2026');
+          return getJSON('/data/bids.geojson').then(function (g) {
+            var drawn = 0;
+            (g.features || []).forEach(function (f) {
+              var p = f.properties || {};
+              var own = isOwn(p);
+              var lyr = L.geoJSON(f, {
+                style: own
+                  ? { color: '#ea580c', weight: 2.2, fillColor: '#ea580c', fillOpacity: 0.4 }
+                  : { color: '#0d1b4b', weight: 1, opacity: 0.5, fillColor: '#0d1b4b', fillOpacity: 0.12 }
+              });
+              try {
+                if (homeBounds && !homeBounds.intersects(lyr.getBounds())) return;
+              } catch (e) { return; }
+              lyr.bindTooltip(p.name + (own ? ' \u00b7 in this district' : ''), { sticky: true });
+              lyr.bindPopup(popup(p));
+              group.addLayer(lyr);
+              drawn++;
+            });
+            say(drawn ? '' : 'No business improvement districts fall in this district.');
+          }).catch(function () { say('Business improvement districts did not load.'); });
+        }
+      };
+    })();
+
     // ---- transportation: subway, bus stops, bike routes for the boroughs in view ----
     layers.transport = (function () {
       var group = L.layerGroup();
@@ -279,6 +327,7 @@
     addToggle('zoning', 'Zoning');
     addToggle('landuse', 'Land use');
     addToggle('landmarks', 'Landmarks');
+    addToggle('bids', 'Business improvement districts');
     addToggle('transport', 'Transportation');
 
     // ---- address search and pin drop ----
