@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Block Parties">
+<meta property="og:description" content="Every block party permitted in New York City since 2013, mapped block by block and searchable by street, cross street, block association and community district.">
+<meta property="og:url" content="https://bkcb6.app/blockparties">
+<meta property="og:image" content="https://bkcb6.app/tiles/blockparties.png">
+<meta property="og:image:secure_url" content="https://bkcb6.app/tiles/blockparties.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:alt" content="Block parties across New York City, mapped block by block">
+<meta property="og:image:width" content="600"><meta property="og:image:height" content="600">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://bkcb6.app/tiles/blockparties.png">
+<meta name="description" content="Every block party permitted in New York City since 2013, mapped block by block and searchable by street, cross street, block association and community district.">
+<title>Block Parties &mdash; bkcb6.app</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="/assets/cd-page.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+.intro{background:#fff;padding:13px 15px;border-bottom:1px solid var(--border);font-size:.86rem;line-height:1.62;color:#333;max-width:76ch}
+.intro b{color:var(--navy)}
+.search{background:var(--navy);padding:12px;border-bottom:2px solid var(--orange)}
+.search input{width:100%;padding:13px 14px;font-family:'DM Sans',sans-serif;font-size:.92rem;font-weight:500;border:none;border-radius:10px;color:var(--navy)}
+.search .hint{font-family:'DM Mono',monospace;font-size:.6rem;color:rgba(255,255,255,.62);margin-top:7px;line-height:1.6}
+.scope{display:flex;gap:7px;flex-wrap:wrap;align-items:center;padding:10px 12px;background:#fff;border-bottom:1px solid var(--border)}
+.scope select{padding:9px 11px;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:700;border:2px solid var(--navy2);border-radius:9px;color:var(--navy);background:#fff;max-width:100%}
+.scope .lab{font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;width:100%}
+.filters{display:flex;gap:7px;flex-wrap:wrap;align-items:center;padding:10px 12px;background:var(--off);border-bottom:1px solid var(--border)}
+.filters select{padding:7px 10px;font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:700;border:1.5px solid var(--border);border-radius:8px;color:var(--navy);background:#fff;max-width:100%}
+.fb{padding:6px 12px;border:1.5px solid var(--border);border-radius:17px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.74rem;font-weight:700;color:var(--navy);cursor:pointer}
+.fb.on{background:var(--orange);border-color:var(--orange);color:#fff}
+.maptools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 12px;background:var(--navy2);border-bottom:1px solid rgba(255,255,255,.12)}
+.maptools .tl{font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.6);font-weight:700}
+.tgl{padding:5px 11px;border:1.5px solid rgba(255,255,255,.3);border-radius:16px;background:transparent;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:#fff;cursor:pointer}
+.tgl.on{background:var(--orange);border-color:var(--orange)}
+#map{height:56vh;min-height:340px;background:#eef0f4}
+.mapnote{padding:8px 14px;background:var(--navy);color:rgba(255,255,255,.82);font-size:.73rem;line-height:1.5;border-bottom:2px solid var(--orange)}
+.mapnote b{color:var(--orange)}
+.legend2{display:flex;gap:11px;align-items:center;flex-wrap:wrap;padding:8px 14px;background:var(--navy2);border-bottom:1px solid rgba(255,255,255,.12)}
+.legend2 .l{font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6);font-weight:700}
+.legend2 .i{display:inline-flex;align-items:center;gap:5px;font-size:.68rem;color:#fff;font-weight:600}
+.legend2 .sw{width:16px;height:5px;border-radius:3px;display:inline-block}
+.boro-lab{background:transparent;border:none;box-shadow:none;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:900;color:rgba(13,27,75,.55);white-space:nowrap;text-shadow:0 1px 0 rgba(255,255,255,.9),0 0 10px rgba(255,255,255,.95);letter-spacing:.05em;text-transform:uppercase}
+.leaflet-tooltip.boro-lab:before{display:none}
+.maptoggle{display:block;width:100%;padding:12px 14px;background:var(--navy2);color:#fff;border:none;border-top:1px solid rgba(255,255,255,.12);font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer;text-align:left}
+.maptoggle:hover{background:var(--orange)}
+.blocks{background:#fff;border-bottom:1px solid var(--border)}
+.blocks .bh{padding:11px 14px 3px;font-size:.8rem;font-weight:900;color:var(--navy)}
+.blocks .bs{padding:0 14px 9px;font-size:.72rem;color:var(--muted);line-height:1.5}
+.blocks .strip{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 11px}
+.stbtn{padding:6px 12px;border:1.5px solid var(--border);border-radius:16px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:700;color:var(--navy);cursor:pointer}
+.stbtn.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.stbtn .n{font-family:'DM Mono',monospace;font-size:.66rem;color:var(--orange);margin-left:5px}
+.stbtn.on .n{color:#ffd9b8}
+.loadbar{padding:8px 14px;background:#fff4ea;border-bottom:1px solid var(--border);font-family:'DM Mono',monospace;font-size:.66rem;color:#a65a00;line-height:1.5}
+.loadbar.done{background:var(--off);color:var(--muted)}
+.count{padding:9px 14px;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);background:var(--off);border-bottom:1px solid var(--border)}
+.site{padding:12px 14px;border-bottom:1px solid var(--border);background:#fff}
+.site .st{font-size:.88rem;font-weight:800;color:var(--navy);line-height:1.3}
+.site .sl{font-size:.75rem;color:#555;line-height:1.5;margin-top:3px}
+.site .where{font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--orange);font-weight:700;margin-top:4px}
+.site .where a{color:var(--orange);text-decoration:none;border-bottom:1px solid rgba(244,121,32,.45)}
+.site .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center}
+.tagx{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:4px;font-weight:700;background:#eef0f4;color:var(--muted)}
+.tagx.run{background:#e8eefb;color:#2145a8}
+.tagx.cur{background:#e3f2e4;color:#2e6b30}
+.tagx.gap{background:#fff1e5;color:#a65a00}
+.site .open{margin-top:8px;padding:6px 13px;background:var(--navy2);color:#fff;border:none;border-radius:16px;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer}
+.site .open:hover{background:var(--orange)}
+.plist{margin-top:10px;border-top:1px solid var(--border)}
+.prow{padding:9px 0 9px 11px;border-left:3px solid var(--orange);border-bottom:1px solid #f0ede8;background:#fbfaf8;margin-top:8px}
+.prow .pd{font-family:'DM Mono',monospace;font-size:.7rem;font-weight:700;color:var(--navy)}
+.prow .pr{font-size:.79rem;font-weight:700;color:var(--navy);margin-top:4px;line-height:1.4}
+.prow .pf{font-family:'DM Mono',monospace;font-size:.63rem;color:#9ca3af;margin-top:4px;line-height:1.6}
+.more{display:block;width:calc(100% - 24px);margin:12px;padding:12px;background:#fff;border:2px solid var(--navy2);border-radius:24px;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:800;color:var(--navy);cursor:pointer}
+.cdpanel{background:#fff;border-bottom:1px solid var(--border)}
+.cdpanel h3{font-size:.8rem;font-weight:900;color:var(--navy);padding:11px 14px 3px}
+.cdpanel .sub{font-size:.72rem;color:var(--muted);padding:0 14px 9px;line-height:1.5}
+.cdrow{display:flex;align-items:center;gap:9px;padding:9px 14px;border-top:1px solid var(--border);cursor:pointer;background:#fff;width:100%;text-align:left;border-left:none;border-right:none;border-bottom:none}
+.cdrow:hover{background:#fff8f2}
+.cdrow.on{background:#fff1e5}
+.cdrow .nm{flex:1;min-width:0;font-size:.79rem;font-weight:700;color:var(--navy);line-height:1.35}
+.cdrow .nm i{display:block;font-family:'DM Mono',monospace;font-size:.63rem;font-weight:500;color:var(--muted);font-style:normal;margin-top:2px}
+.cdrow .ct{flex:0 0 auto;white-space:nowrap;text-align:right;font-family:'DM Mono',monospace;font-size:.78rem;font-weight:800;color:var(--orange);line-height:1.2}
+.cdrow .ct b{display:block;font-family:'DM Mono',monospace;font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.regkey{padding:11px 14px;background:var(--off);border-bottom:1px solid var(--border);font-size:.77rem;line-height:1.6;color:#444}
+.regkey b{color:var(--navy);display:block;margin-bottom:5px}
+.regkey dt{font-family:'DM Mono',monospace;font-size:.63rem;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);font-weight:700;margin-top:7px}
+.regkey dd{font-size:.75rem;color:#555;line-height:1.55}
+.regkey a{color:var(--navy);border-bottom:1px solid var(--orange);text-decoration:none}
+.sharebar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:9px 14px;background:#fff;border-bottom:1px solid var(--border)}
+.sharebar .sb-t{font-family:'DM Mono',monospace;font-size:.64rem;color:var(--muted);flex:1 1 auto}
+.lnk{padding:6px 13px;border:1.5px solid var(--navy2);border-radius:16px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:var(--navy);cursor:pointer}
+.foot a{color:#6b6760;border-bottom:1px solid var(--orange);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="crumb"><a href="/">CB6 &amp; Beyond</a></div>
+    <h1>Block Parties <span>All Five Boroughs</span></h1>
+    <div class="nbs">Every block party permitted by the Street Activity Permit Office, citywide</div>
+  </div>
+
+  <div class="intro">
+    <b>A block party is a street closure that a neighbor asked for.</b> Somebody on the block files with the Street Activity Permit Office, the street comes off the grid for a Saturday, and the block belongs to the people who live on it. This is the whole permitted record since 2013, matched to the actual block that closed, all five boroughs, every community district.
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="search">
+    <input id="q" type="search" autocomplete="off"
+      placeholder="Search a street, a cross street, a block association&hellip;">
+    <div class="hint">A street such as Garfield Place, a pair of cross streets, the name on the permit, a neighborhood or a community district.</div>
+  </div>
+
+  <div class="scope">
+    <span class="lab">Where</span>
+    <select id="boroSel"></select>
+    <select id="cdSel"></select>
+    <button type="button" class="fb" id="scopeReset">Whole city</button>
+  </div>
+
+  <div class="filters">
+    <select id="yrSel"></select>
+    <select id="sortSel"></select>
+    <button type="button" class="fb" id="runBtn">Ran 5 years or more</button>
+    <button type="button" class="fb" id="clearBtn">Clear</button>
+  </div>
+
+  <div class="blocks" id="blocks"></div>
+
+  <button type="button" class="maptoggle" id="mapToggle">Show the map</button>
+  <div id="mapwrap" style="display:none">
+  <div class="maptools">
+    <span class="tl">Show</span>
+    <button type="button" class="tgl on" id="tCd">District boundaries</button>
+    <button type="button" class="tgl on" id="tLab">Borough labels</button>
+  </div>
+  <div class="mapnote" id="mapnote">Loading the citywide record&hellip;</div>
+  <div id="map"></div>
+  <div class="legend2" id="legend"></div>
+  </div>
+  <div class="loadbar" id="loadbar">Loading the citywide record&hellip;</div>
+
+  <div class="sharebar"><span class="sb-t" id="sbText"></span>
+    <button type="button" class="lnk" id="shareView">Copy link to this view</button></div>
+
+  <div class="count" id="count"></div>
+  <div id="list"></div>
+  <button type="button" class="more" id="more" style="display:none">Show more</button>
+
+  <div class="cdpanel" id="cdpanel"></div>
+
+  <div class="regkey">
+    <b>How to read this.</b>
+    <dl>
+      <dt>Full street closure</dt>
+      <dd>The street is closed to traffic for the length of the block. This is what most people mean by a block party, and it is what the overwhelming majority of these permits are.</dd>
+      <dt>Sidewalk and street closure</dt>
+      <dd>Both the roadway and the sidewalk in front of it are given over to the event. More common for larger single block festivals.</dd>
+      <dt>The block, not the address</dt>
+      <dd>Permits are filed against a blockface, a street between two cross streets, not a house number. Every event here is matched to that block, so a block that has thrown a party for twelve straight years reads as one entry with twelve dates behind it.</dd>
+      <dt>How to get one</dt>
+      <dd>Applications go to the Street Activity Permit Office at the Mayor's Office of Citywide Event Coordination and Management. They open in the winter for the following summer and they close early. Your community board is notified and can comment.</dd>
+    </dl>
+    <a href="/glossary.html">Full glossary of the terms &rarr;</a>
+  </div>
+
+  <div class="nav">
+    <a href="/cd/">&#128205; Your district</a>
+    <a href="/parks/">&#127795; Parks &amp; activities</a>
+    <a href="/culture/">&#127917; Culture</a>
+    <a href="/publicsafety/">&#128737; Public safety</a>
+    <a href="/bids.html">&#127978; Business districts</a>
+  </div>
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+var SRC='/assets/blockparties/city-blockparties.json';
+var BOROSLUG=['mn','bx','bk','qn','si'];
+var BOROCODE=['1','2','3','4','5'];
+var BOROCOLOR=['#2145a8','#0f7b6c','#b3541e','#6b3fa0','#8c2f6b'];
+var PAGE=40;
+
+var D=null, BL=[], EV=[], NAMES=[], CDN={}, CLOS=[], TYPES=[], BORO=[];
+var byBlock={}, blockYears={}, cdCount={}, cdBlocks={};
+var state={q:'',boro:'',cd:'',yr:'',run:false,sort:'count'};
+var shown=PAGE, filtered=[], map=null, layer=null, cdLayer=null, labLayer=null, bounds=null, mapReady=false;
+var openBlocks={};
+
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function cdLabel(code){
+  if(!code) return '';
+  var b=BORO[BOROCODE.indexOf(String(code).charAt(0))]||'';
+  return b+' CB'+parseInt(String(code).slice(1),10);
+}
+function cdSlug(code){
+  var i=BOROCODE.indexOf(String(code).charAt(0));
+  if(i<0) return null;
+  return '/cd/'+BOROSLUG[i]+'cb'+parseInt(String(code).slice(1),10)+'/';
+}
+function fmtDate(n){
+  var s=String(n), y=s.slice(0,4), m=parseInt(s.slice(4,6),10), d=parseInt(s.slice(6,8),10);
+  var M=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return M[m-1]+' '+d+', '+y;
+}
+function fmtHour(h){
+  if(h==null||h<0) return '';
+  var ap=h>=12?'pm':'am', hh=h%12; if(hh===0) hh=12;
+  return hh+' '+ap;
+}
+function blockTitle(b){ return b[2]+' between '+b[3]+' and '+b[4]; }
+
+function load(){
+  fetch(SRC).then(function(r){
+    if(!r.ok) throw new Error('http '+r.status);
+    return r.json();
+  }).then(function(d){
+    D=d; BL=d.blocks; EV=d.events; NAMES=d.names; CLOS=d.closures;
+    TYPES=d.types; BORO=d.boroughs; CDN=d.cdnames||{};
+    index();
+    buildScope(); buildFilters(); readHash();
+    $('loadbar').className='loadbar done';
+    $('loadbar').textContent=EV.length.toLocaleString()+' permitted events on '+
+      BL.length.toLocaleString()+' blocks, '+
+      String(EV[EV.length-1][2]).slice(0,4)+' to '+String(EV[0][2]).slice(0,4)+'.';
+    kpis(); render();
+  }).catch(function(e){
+    $('loadbar').textContent='Could not load the record. '+e.message;
+  });
+}
+
+function index(){
+  var i,e,b;
+  for(i=0;i<BL.length;i++){ byBlock[i]=[]; }
+  for(i=0;i<EV.length;i++){
+    e=EV[i];
+    byBlock[e[0]].push(e);
+  }
+  for(i=0;i<BL.length;i++){
+    b=BL[i];
+    var ys={}, list=byBlock[i];
+    for(var j=0;j<list.length;j++){ ys[String(list[j][2]).slice(0,4)]=1; }
+    blockYears[i]=Object.keys(ys).sort();
+    var c=b[1];
+    if(c){ cdCount[c]=(cdCount[c]||0)+list.length; cdBlocks[c]=(cdBlocks[c]||0)+1; }
+    b.push(searchText(b,list));
+  }
+}
+function searchText(b,list){
+  var parts=[b[2],b[3],b[4],BORO[b[0]],cdLabel(b[1]),CDN[b[1]]||''];
+  var seen={};
+  for(var i=0;i<list.length;i++){
+    var n=NAMES[list[i][1]];
+    if(n && !seen[n]){ seen[n]=1; parts.push(n); }
+  }
+  return parts.join(' ').toLowerCase();
+}
+
+function kpis(){
+  var yrs={}, tot=EV.length;
+  for(var i=0;i<EV.length;i++){ var y=String(EV[i][2]).slice(0,4); yrs[y]=(yrs[y]||0)+1; }
+  var peak='', peakN=0;
+  for(var y in yrs){ if(yrs[y]>peakN){ peakN=yrs[y]; peak=y; } }
+  var top=null;
+  for(i=0;i<BL.length;i++){ if(!top||BL[i][7]>top[7]) top=BL[i]; }
+  var h='';
+  h+=kpi('Permitted events',tot.toLocaleString(),'Since 2013, citywide');
+  h+=kpi('Distinct blocks',BL.length.toLocaleString(),'Each one a street between two cross streets');
+  h+=kpi('Busiest year',peak,peakN.toLocaleString()+' block parties');
+  h+=kpi('Most parties on one block',String(top[7]),blockTitle(top)+', '+BORO[top[0]]);
+  $('kpis').innerHTML=h;
+}
+function kpi(k,v,d){
+  return '<div class="kpi"><div class="k">'+esc(k)+'</div><div class="v">'+esc(v)+
+    '</div><div class="d">'+esc(d)+'</div></div>';
+}
+
+function buildScope(){
+  var bs=$('boroSel');
+  bs.innerHTML='<option value="">Every borough</option>'+BORO.map(function(b,i){
+    return '<option value="'+i+'">'+esc(b)+'</option>';}).join('');
+  bs.onchange=function(){ state.boro=bs.value; state.cd=''; fillCd(); apply(); };
+  fillCd();
+  $('cdSel').onchange=function(){ state.cd=$('cdSel').value; apply(); };
+  $('scopeReset').onclick=function(){ state.boro=''; state.cd=''; bs.value=''; fillCd(); apply(); };
+}
+function fillCd(){
+  var sel=$('cdSel'), codes=Object.keys(cdCount).sort();
+  if(state.boro!==''){ codes=codes.filter(function(c){ return c.charAt(0)===BOROCODE[+state.boro]; }); }
+  sel.innerHTML='<option value="">Every community district</option>'+codes.map(function(c){
+    var n=CDN[c]?' &middot; '+CDN[c]:'';
+    return '<option value="'+c+'">'+esc(cdLabel(c))+n+'</option>';}).join('');
+  sel.value=state.cd||'';
+}
+function buildFilters(){
+  var ys={};
+  for(var i=0;i<EV.length;i++){ ys[String(EV[i][2]).slice(0,4)]=1; }
+  var yl=Object.keys(ys).sort().reverse();
+  $('yrSel').innerHTML='<option value="">Every year since 2013</option>'+yl.map(function(y){
+    return '<option value="'+y+'">'+y+'</option>';}).join('');
+  $('yrSel').onchange=function(){ state.yr=$('yrSel').value; apply(); };
+  $('sortSel').innerHTML='<option value="count">Most parties first</option>'+
+    '<option value="recent">Most recent first</option>'+
+    '<option value="az">Street name A to Z</option>';
+  $('sortSel').onchange=function(){ state.sort=$('sortSel').value; apply(); };
+  $('runBtn').onclick=function(){ state.run=!state.run; apply(); };
+  $('clearBtn').onclick=function(){
+    state={q:'',boro:'',cd:'',yr:'',run:false,sort:state.sort};
+    $('q').value=''; $('boroSel').value=''; $('yrSel').value=''; fillCd(); apply();
+  };
+  var t=null;
+  $('q').oninput=function(){ clearTimeout(t); t=setTimeout(function(){ state.q=$('q').value.trim(); apply(); },160); };
+  $('mapToggle').onclick=toggleMap;
+  $('more').onclick=function(){ shown+=PAGE; renderList(); };
+  $('shareView').onclick=share;
+}
+
+function matches(i){
+  var b=BL[i];
+  if(state.boro!=='' && b[0]!==+state.boro) return false;
+  if(state.cd && b[1]!==state.cd) return false;
+  if(state.run && blockYears[i].length<5) return false;
+  if(state.yr && blockYears[i].indexOf(state.yr)<0) return false;
+  if(state.q){
+    var terms=state.q.toLowerCase().split(/\s+/);
+    for(var k=0;k<terms.length;k++){ if(b[9].indexOf(terms[k])<0) return false; }
+  }
+  return true;
+}
+function eventsFor(i){
+  var list=byBlock[i];
+  if(!state.yr) return list;
+  return list.filter(function(e){ return String(e[2]).slice(0,4)===state.yr; });
+}
+
+function apply(){ shown=PAGE; render(); writeHash(); }
+
+function render(){
+  filtered=[];
+  for(var i=0;i<BL.length;i++){ if(matches(i)) filtered.push(i); }
+  if(state.sort==='count'){ filtered.sort(function(a,b){ return eventsFor(b).length-eventsFor(a).length || BL[a][2].localeCompare(BL[b][2]); }); }
+  else if(state.sort==='recent'){ filtered.sort(function(a,b){
+    var ea=eventsFor(a), eb=eventsFor(b);
+    return (eb.length?eb[0][2]:0)-(ea.length?ea[0][2]:0); }); }
+  else { filtered.sort(function(a,b){ return BL[a][2].localeCompare(BL[b][2]) || BL[a][3].localeCompare(BL[b][3]); }); }
+  renderStrip(); renderCount(); renderList(); renderCdPanel();
+  if(mapReady) drawMap();
+  $('runBtn').className='fb'+(state.run?' on':'');
+}
+
+function renderCount(){
+  var n=0;
+  for(var i=0;i<filtered.length;i++){ n+=eventsFor(filtered[i]).length; }
+  var where=state.cd?cdLabel(state.cd):(state.boro!==''?BORO[+state.boro]:'New York City');
+  var yr=state.yr?' in '+state.yr:' since 2013';
+  $('count').textContent=n.toLocaleString()+' block '+(n===1?'party':'parties')+' on '+
+    filtered.length.toLocaleString()+' '+(filtered.length===1?'block':'blocks')+' in '+where+yr+'.';
+  $('sbText').textContent=where+(state.yr?', '+state.yr:'')+(state.q?', matching "'+state.q+'"':'');
+}
+
+function renderStrip(){
+  var counts=[0,0,0,0,0];
+  for(var i=0;i<BL.length;i++){
+    var b=BL[i];
+    if(state.cd && b[1]!==state.cd) continue;
+    counts[b[0]]+=byBlock[i].length;
+  }
+  var h='<div class="bh">Start with a borough</div>'+
+    '<div class="bs">Brooklyn throws more block parties than the other four boroughs combined.</div><div class="strip">';
+  for(var j=0;j<BORO.length;j++){
+    h+='<button type="button" class="stbtn'+(state.boro===String(j)?' on':'')+'" data-b="'+j+'">'+
+      esc(BORO[j])+'<span class="n">'+counts[j].toLocaleString()+'</span></button>';
+  }
+  h+='</div>';
+  $('blocks').innerHTML=h;
+  var btns=$('blocks').querySelectorAll('.stbtn');
+  for(var k=0;k<btns.length;k++){
+    btns[k].onclick=function(){
+      var v=this.getAttribute('data-b');
+      state.boro=(state.boro===v)?'':v; state.cd='';
+      $('boroSel').value=state.boro; fillCd(); apply();
+    };
+  }
+}
+
+function renderList(){
+  var h='', n=Math.min(shown,filtered.length);
+  for(var i=0;i<n;i++){ h+=card(filtered[i]); }
+  $('list').innerHTML=h;
+  $('more').style.display=filtered.length>n?'block':'none';
+  $('more').textContent='Show more ('+(filtered.length-n).toLocaleString()+' blocks left)';
+  var btns=$('list').querySelectorAll('.open');
+  for(var k=0;k<btns.length;k++){
+    btns[k].onclick=function(){
+      var id=+this.getAttribute('data-i');
+      openBlocks[id]=!openBlocks[id];
+      renderList();
+    };
+  }
+}
+
+function card(i){
+  var b=BL[i], list=eventsFor(i), yrs=blockYears[i];
+  var last=list.length?list[0]:null;
+  var recent=yrs.indexOf('2025')>=0||yrs.indexOf('2026')>=0;
+  var h='<div class="site">';
+  h+='<div class="st">'+esc(blockTitle(b))+'</div>';
+  var nm=last?NAMES[last[1]]:'';
+  if(nm) h+='<div class="sl">'+esc(nm)+'</div>';
+  var slug=cdSlug(b[1]);
+  h+='<div class="where">'+esc(BORO[b[0]])+' &middot; '+
+    (slug?'<a href="'+slug+'">'+esc(cdLabel(b[1]))+'</a>':esc(cdLabel(b[1])))+
+    (CDN[b[1]]?' &middot; '+esc(CDN[b[1]]):'')+'</div>';
+  h+='<div class="meta">';
+  h+='<span class="tagx">'+list.length+' '+(list.length===1?'party':'parties')+'</span>';
+  h+='<span class="tagx run">'+yrs.length+' '+(yrs.length===1?'year':'years')+'</span>';
+  if(recent) h+='<span class="tagx cur">Still running</span>';
+  else if(yrs.length) h+='<span class="tagx gap">Last permitted '+yrs[yrs.length-1]+'</span>';
+  h+='</div>';
+  if(list.length){
+    h+='<button type="button" class="open" data-i="'+i+'">'+
+      (openBlocks[i]?'Hide the dates':'Every date on this block')+'</button>';
+  }
+  if(openBlocks[i]){
+    h+='<div class="plist">';
+    for(var j=0;j<list.length;j++){
+      var e=list[j];
+      h+='<div class="prow"><div class="pd">'+esc(fmtDate(e[2]))+'</div>';
+      h+='<div class="pr">'+esc(NAMES[e[1]]||'No name on the permit')+'</div>';
+      var t=[];
+      if(e[3]>=0) t.push(fmtHour(e[3])+(e[4]>=0?' to '+fmtHour(e[4]):''));
+      t.push(CLOS[e[5]]||'');
+      if(TYPES[e[6]] && TYPES[e[6]]!=='Block Party') t.push(TYPES[e[6]]);
+      h+='<div class="pf">'+esc(t.filter(Boolean).join(' &middot; ')).replace(/&amp;middot;/g,'&middot;')+'</div>';
+      h+='</div>';
+    }
+    h+='</div>';
+  }
+  h+='</div>';
+  return h;
+}
+
+function renderCdPanel(){
+  var codes=Object.keys(cdCount).sort(function(a,b){ return cdCount[b]-cdCount[a]; });
+  var h='<h3>Every community district, ranked</h3>'+
+    '<div class="sub">Block parties permitted since 2013, and the number of distinct blocks they were on.</div>';
+  for(var i=0;i<codes.length;i++){
+    var c=codes[i];
+    h+='<button type="button" class="cdrow'+(state.cd===c?' on':'')+'" data-c="'+c+'">'+
+      '<span class="nm">'+esc(cdLabel(c))+
+      (CDN[c]?'<i>'+esc(CDN[c])+'</i>':'')+'</span>'+
+      '<span class="ct">'+cdCount[c].toLocaleString()+'<b>'+cdBlocks[c]+' blocks</b></span></button>';
+  }
+  $('cdpanel').innerHTML=h;
+  var rows=$('cdpanel').querySelectorAll('.cdrow');
+  for(var k=0;k<rows.length;k++){
+    rows[k].onclick=function(){
+      var c=this.getAttribute('data-c');
+      state.cd=(state.cd===c)?'':c;
+      state.boro=state.cd?String(BOROCODE.indexOf(state.cd.charAt(0))):'';
+      $('boroSel').value=state.boro; fillCd();
+      apply();
+      window.scrollTo(0,0);
+    };
+  }
+}
+
+function toggleMap(){
+  var w=$('mapwrap'), open=w.style.display!=='none';
+  w.style.display=open?'none':'block';
+  $('mapToggle').textContent=open?'Show the map':'Hide the map';
+  if(!open && !mapReady){ initMap(); }
+  else if(!open && map){ setTimeout(function(){ map.invalidateSize(); drawMap(); },40); }
+}
+
+function initMap(){
+  map=L.map('map',{preferCanvas:true,scrollWheelZoom:true}).setView([40.70,-73.94],11);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+    attribution:'&copy; OpenStreetMap, &copy; CARTO',maxZoom:19}).addTo(map);
+  cdLayer=L.layerGroup().addTo(map);
+  labLayer=L.layerGroup().addTo(map);
+  layer=L.layerGroup().addTo(map);
+  mapReady=true;
+  $('tCd').onclick=function(){ this.classList.toggle('on'); toggleLayer(cdLayer,this.classList.contains('on')); };
+  $('tLab').onclick=function(){ this.classList.toggle('on'); toggleLayer(labLayer,this.classList.contains('on')); };
+  legend();
+  fetch('/assets/lpc/city-bounds.json').then(function(r){ return r.json(); })
+    .then(function(bd){ drawBounds(bd); }).catch(function(){});
+  drawMap();
+}
+function toggleLayer(l,on){ if(!l) return; if(on){ map.addLayer(l); } else { map.removeLayer(l); } }
+
+function drawBounds(bd){
+  var i;
+  for(i=0;i<bd.outlines.length;i++){
+    L.geoJSON(bd.outlines[i].geometry,{style:{color:'#0d1b4b',weight:.9,opacity:.35,fill:false},
+      interactive:false}).addTo(cdLayer);
+  }
+  for(i=0;i<bd.boroughs.length;i++){
+    var g=L.geoJSON(bd.boroughs[i].geometry,{style:{color:'#0d1b4b',weight:1.6,opacity:.5,fill:false},
+      interactive:false});
+    g.addTo(cdLayer);
+    var c=g.getBounds().getCenter();
+    L.marker(c,{opacity:0,interactive:false}).addTo(labLayer)
+      .bindTooltip(bd.boroughs[i].name,{permanent:true,direction:'center',className:'boro-lab'});
+  }
+}
+
+function colorFor(n){
+  if(n>=15) return '#8c1d18';
+  if(n>=8) return '#c2410c';
+  if(n>=4) return '#f47920';
+  if(n>=2) return '#3f7bd6';
+  return '#6b7280';
+}
+function legend(){
+  var steps=[['1 party','#6b7280'],['2 to 3','#3f7bd6'],['4 to 7','#f47920'],
+             ['8 to 14','#c2410c'],['15 or more','#8c1d18']];
+  var h='<span class="l">Parties on the block</span>';
+  for(var i=0;i<steps.length;i++){
+    h+='<span class="i"><span class="sw" style="background:'+steps[i][1]+'"></span>'+steps[i][0]+'</span>';
+  }
+  $('legend').innerHTML=h;
+}
+
+function drawMap(){
+  if(!mapReady) return;
+  layer.clearLayers();
+  var pts=[], cap=Math.min(filtered.length,4000), i, j;
+  for(i=0;i<cap;i++){
+    var id=filtered[i], b=BL[id], n=eventsFor(id).length;
+    if(!n) continue;
+    var lines=b[8];
+    for(j=0;j<lines.length;j++){
+      var latlngs=lines[j].map(function(p){ return [p[1],p[0]]; });
+      var pl=L.polyline(latlngs,{color:colorFor(n),weight:n>=8?6:(n>=4?5:4),opacity:.85});
+      pl.bindPopup(popup(id,n));
+      pl.addTo(layer);
+    }
+    pts.push([b[6],b[5]]);
+  }
+  if(pts.length){
+    bounds=L.latLngBounds(pts);
+    map.fitBounds(bounds,{padding:[24,24],maxZoom:16});
+  }
+  $('mapnote').innerHTML=pts.length.toLocaleString()+' blocks drawn'+
+    (filtered.length>cap?' of '+filtered.length.toLocaleString()+'. <b>Narrow the search to see the rest.</b>':
+     '. <b>Tap a block for its history.</b>');
+}
+function popup(i,n){
+  var b=BL[i], list=eventsFor(i), yrs=blockYears[i];
+  var h='<b>'+esc(blockTitle(b))+'</b><br>'+esc(BORO[b[0]])+' &middot; '+esc(cdLabel(b[1]))+'<br>'+
+    n+' '+(n===1?'party':'parties')+' over '+yrs.length+' '+(yrs.length===1?'year':'years');
+  if(list.length) h+='<br>Most recent: '+esc(fmtDate(list[0][2]));
+  var nm=list.length?NAMES[list[0][1]]:'';
+  if(nm) h+='<br>'+esc(nm);
+  return h;
+}
+
+function writeHash(){
+  var p=[];
+  if(state.q) p.push('q='+encodeURIComponent(state.q));
+  if(state.boro!=='') p.push('b='+state.boro);
+  if(state.cd) p.push('cd='+state.cd);
+  if(state.yr) p.push('y='+state.yr);
+  if(state.run) p.push('run=1');
+  if(state.sort!=='count') p.push('s='+state.sort);
+  var h=p.join('&');
+  if(history.replaceState) history.replaceState(null,'',h?('#'+h):location.pathname);
+}
+function readHash(){
+  var h=location.hash.replace(/^#/,'');
+  if(!h) return;
+  h.split('&').forEach(function(kv){
+    var a=kv.split('='), k=a[0], v=decodeURIComponent(a[1]||'');
+    if(k==='q'){ state.q=v; $('q').value=v; }
+    else if(k==='b'){ state.boro=v; $('boroSel').value=v; }
+    else if(k==='cd'){ state.cd=v; }
+    else if(k==='y'){ state.yr=v; $('yrSel').value=v; }
+    else if(k==='run'){ state.run=true; }
+    else if(k==='s'){ state.sort=v; $('sortSel').value=v; }
+  });
+  fillCd();
+}
+function share(){
+  var u=location.href;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(u).then(function(){
+      $('shareView').textContent='Copied';
+      setTimeout(function(){ $('shareView').textContent='Copy link to this view'; },1600);
+    });
+  }
+}
+
+$('foot').innerHTML='Permitted events from NYC Open Data, published by the Street Activity Permit Office '+
+  'at the Mayor\'s Office of Citywide Event Coordination and Management.<br>'+
+  'Each permit names a street and two cross streets, not an address. Every one was matched to the '+
+  'actual block it closed by walking the Department of Transportation street centerline between the two '+
+  'intersections, then assigned to a community district by point in polygon against the Department of '+
+  'City Planning community district file. Blocks permitted in both directions are merged into one entry.<br>'+
+  'Questions or a correction: <a href="mailto:Mike@bkcb6.org">Mike Racioppo</a>';
+
+load();
+})();
+</script>
+</body>
+</html>
