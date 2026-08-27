@@ -393,6 +393,18 @@
     });
 
     setTimeout(function () { map.invalidateSize(); }, 300);
+
+    // inside a collapsed <details> the map has no size until it is opened
+    var fold = el.closest ? el.closest('details') : null;
+    if (fold) {
+      fold.addEventListener('toggle', function () {
+        if (!fold.open) return;
+        setTimeout(function () {
+          map.invalidateSize();
+          if (homeBounds) map.fitBounds(homeBounds, { padding: [14, 14] });
+        }, 60);
+      });
+    }
   }
 
   function boot() {
