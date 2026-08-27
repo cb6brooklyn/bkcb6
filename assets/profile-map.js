@@ -324,6 +324,16 @@
       if (k === chamber) return;
       addToggle('overlap-' + k, 'Overlapping ' + CHAMBERS[k].label.toLowerCase());
     });
+
+    // the toggle strip starts closed so it does not swallow the page
+    var togBtn = el.parentNode.querySelector('[data-map-toggle-btn]');
+    if (togBtn && toggleWrap) {
+      togBtn.addEventListener('click', function () {
+        var on = toggleWrap.hidden;
+        toggleWrap.hidden = !on;
+        togBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+      });
+    }
     addToggle('zoning', 'Zoning');
     addToggle('landuse', 'Land use');
     addToggle('landmarks', 'Landmarks');
