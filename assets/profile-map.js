@@ -14,6 +14,14 @@
   var ZONE_FILL = {
     R: '#56B4E9', C: '#E69F00', M: '#D55E00', P: '#009E73', X: '#CC79A7', O: '#999999'
   };
+  // same order the lot search uses, so the two maps read the same way
+  var ZONE_LEGEND = [
+    ['R', 'Residential'], ['C', 'Commercial'], ['P', 'Park / open space'],
+    ['M', 'Manufacturing'], ['X', 'Mixed use']
+  ];
+  // near-black sits outside the zoning palette entirely, so the boundary can
+  // never be mistaken for a zoning category underneath it
+  var BID_LINE = '#111827';
 
   function zoneFamily(z) {
     z = String(z || '').toUpperCase().trim();
@@ -50,6 +58,26 @@
     return getJSON(u);
   }
 
+  var STYLE_ID = 'pmap-legend-css';
+  function injectCss() {
+    if (document.getElementById(STYLE_ID)) return;
+    var s = document.createElement('style');
+    s.id = STYLE_ID;
+    s.textContent =
+      '.pmap-legend{background:rgba(255,255,255,.94);border:1px solid #d6d3d1;border-radius:9px;'
+      + 'padding:8px 10px;font-family:"DM Sans",sans-serif;color:#0d1b4b;'
+      + 'box-shadow:0 2px 8px rgba(0,0,0,.14);line-height:1.35;max-width:170px}'
+      + '.pmap-legend .lt{font-family:"DM Mono",monospace;font-size:.55rem;text-transform:uppercase;'
+      + 'letter-spacing:.09em;color:#6b6760;font-weight:700;margin-bottom:5px}'
+      + '.pmap-legend .li{display:flex;align-items:center;gap:6px;font-size:.7rem;font-weight:600;margin-top:3px}'
+      + '.pmap-legend .sw{width:13px;height:13px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.18)}'
+      + '.pmap-legend .ln{width:13px;height:0;flex:none;border-top:3px solid ' + BID_LINE + ';'
+      + 'box-shadow:0 0 0 1px #fff}'
+      + '@media(max-width:480px){.pmap-legend{padding:6px 8px;max-width:138px}'
+      + '.pmap-legend .li{font-size:.63rem}}';
+    document.head.appendChild(s);
+  }
+
   function init(el) {
     if (typeof L === 'undefined' || !el || el.dataset.profileMapReady === 'true') return;
     el.dataset.profileMapReady = 'true';
@@ -58,16 +86,35 @@
     var district = String(el.getAttribute('data-district') || '');
     // a BID is not a chamber, so it names its own file and skips the sibling toggles
     var bidSlug = el.getAttribute('data-bid-slug') || '';
-    var self = bidSlug ? { label: 'BID', folder: 'bid', color: '#7a5c2e' } : CHAMBERS[chamber];
+    var self = bidSlug ? { label: 'BID', folder: 'bid', color: BID_LINE } : CHAMBERS[chamber];
     if (!self) return;
+    injectCss();
 
     var map = L.map(el, { scrollWheelZoom: false, zoomControl: true });
     // CARTO now watermarks unkeyed tiles, so use Esri's keyless light canvas
     L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19, attribution: 'Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
     }).addTo(map);
+
+    // A flat grey basemap under a single shape reads as nothing. Zoning and land
+    // use go in their own pane below the street labels, so the colour tells you
+    // what the blocks are while the street names stay readable on top of it.
+    function pane(name, z, noClick) {
+      if (!map.createPane) return null;
+      map.createPane(name);
+      var p = map.getPane(name);
+      if (p && p.style) {
+        p.style.zIndex = z;
+        if (noClick) p.style.pointerEvents = 'none';
+      }
+      return name;
+    }
+    var FILL_PANE = pane('pmapFills', 410);
+    var LABEL_PANE = pane('pmapLabels', 450, true);
+    var LINE_PANE = pane('pmapLine', 480);
+
     L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19, opacity: 0.9
+      maxZoom: 19, opacity: 0.9, pane: LABEL_PANE || undefined
     }).addTo(map);
 
     var homeBounds = null;
@@ -81,12 +128,24 @@
     var ownFile = bidSlug ? ('/data/districts/bid-' + bidSlug + '.geojson')
                           : ('/data/districts/' + self.folder + '-' + district + '.geojson');
     getJSON(ownFile).then(function (g) {
+      // The BID is a thin ribbon of frontage. A fill would hide the zoning
+      // underneath it, so it gets a white casing and a dark line instead.
+      if (bidSlug) {
+        L.geoJSON(g, {
+          pane: LINE_PANE || undefined,
+          style: { color: '#ffffff', weight: 4.5, opacity: 0.9, fill: false }
+        }).addTo(map);
+      }
       var own = L.geoJSON(g, {
-        style: { color: self.color, weight: 2.5, fillColor: '#f47920', fillOpacity: 0.14 }
+        pane: bidSlug ? (LINE_PANE || undefined) : undefined,
+        style: bidSlug
+          ? { color: BID_LINE, weight: 1.6, opacity: 1, fillColor: BID_LINE, fillOpacity: 0.12 }
+          : { color: self.color, weight: 2.5, fillColor: '#f47920', fillOpacity: 0.14 }
       }).addTo(map);
       homeBounds = own.getBounds();
       map.fitBounds(homeBounds, { padding: [14, 14] });
-      own.bringToBack();
+      if (!bidSlug) own.bringToBack();
+      if (bidSlug) startDefaults();
     }).catch(function () { map.setView([40.70, -73.95], 11); });
 
     // ---- overlapping districts from the other two chambers, faint ----
@@ -132,27 +191,36 @@
     });
 
     // ---- zoning, live from City Planning ----
+    // It queries whatever is in view, so once it is on it has to redraw as the
+    // map moves or it silently goes stale the first time somebody pans.
     layers.zoning = (function () {
       var group = L.layerGroup();
-      var done = false;
-      return {
-        group: group,
-        load: function () {
-          if (done) return Promise.resolve();
-          done = true;
-          say('Loading zoning\u2026');
-          return arcQuery('nyzd', 'ZONEDIST', map.getBounds(), 2000).then(function (g) {
-            L.geoJSON(g, {
-              style: function (f) {
-                var fam = zoneFamily(f.properties.ZONEDIST);
-                return { color: ZONE_FILL[fam], weight: 0.6, fillColor: ZONE_FILL[fam], fillOpacity: 0.42 };
-              },
-              onEachFeature: function (f, l) { l.bindTooltip(f.properties.ZONEDIST || 'Zoning', { sticky: true }); }
-            }).addTo(group);
-            say('');
-          }).catch(function () { say('Zoning did not load at this zoom.'); });
+      var busy = false;
+      function draw() {
+        if (busy) return Promise.resolve();
+        if (map.getZoom() < 13) {
+          group.clearLayers();
+          say('Zoom in to see zoning.');
+          return Promise.resolve();
         }
-      };
+        busy = true;
+        say('Loading zoning\u2026');
+        return arcQuery('nyzd', 'ZONEDIST', map.getBounds(), 2000).then(function (g) {
+          group.clearLayers();
+          L.geoJSON(g, {
+            pane: FILL_PANE || undefined,
+            style: function (f) {
+              var fam = zoneFamily(f.properties.ZONEDIST);
+              return { color: ZONE_FILL[fam], weight: 0.6, fillColor: ZONE_FILL[fam], fillOpacity: 0.42 };
+            },
+            onEachFeature: function (f, l) { l.bindTooltip(f.properties.ZONEDIST || 'Zoning', { sticky: true }); }
+          }).addTo(group);
+          say('');
+        }).catch(function () {
+          say('Zoning did not load at this zoom.');
+        }).then(function () { busy = false; });
+      }
+      return { group: group, load: draw, refresh: draw, legend: true };
     })();
 
     // ---- land use, live from MapPLUTO ----
@@ -178,6 +246,7 @@
           say('Loading land use\u2026');
           return arcQuery('MAPPLUTO', 'LandUse,Address,ZoneDist1', map.getBounds(), 1500).then(function (g) {
             L.geoJSON(g, {
+              pane: FILL_PANE || undefined,
               style: function (f) {
                 var k = String(f.properties.LandUse || '').padStart(2, '0');
                 var c = LU_HEX[k] || '#d9d6cf';
@@ -304,25 +373,80 @@
       };
     })();
 
+    // ---- legend, shown only while a layer that needs one is on ----
+    var legend = null;
+    function legendHtml() {
+      var h = '<div class="lt">Zoning</div>';
+      ZONE_LEGEND.forEach(function (z) {
+        h += '<div class="li"><span class="sw" style="background:' + ZONE_FILL[z[0]] + '"></span>' + z[1] + '</div>';
+      });
+      if (bidSlug) h += '<div class="li"><span class="ln"></span>BID boundary</div>';
+      return h;
+    }
+    function showLegend(on) {
+      if (!L.control || !L.DomUtil) return;
+      if (on && !legend) {
+        legend = L.control({ position: 'bottomright' });
+        legend.onAdd = function () {
+          var d = L.DomUtil.create('div', 'pmap-legend');
+          d.innerHTML = legendHtml();
+          return d;
+        };
+        legend.addTo(map);
+      } else if (!on && legend) {
+        try { map.removeControl(legend); } catch (e) {}
+        legend = null;
+      }
+    }
+
     // ---- toggles ----
     var toggleWrap = el.parentNode.querySelector('[data-map-toggles]');
+    var toggleBtn = {};
+    function setLayer(key, on) {
+      var b = toggleBtn[key];
+      if (b) b.classList.toggle('on', on);
+      if (on) {
+        return Promise.resolve(layers[key].load()).then(function () {
+          if (!b || b.classList.contains('on')) {
+            layers[key].group.addTo(map);
+            if (layers[key].legend) showLegend(true);
+          }
+        });
+      }
+      map.removeLayer(layers[key].group);
+      if (layers[key].legend) showLegend(false);
+      return Promise.resolve();
+    }
     function addToggle(key, label) {
       if (!toggleWrap || !layers[key]) return;
       var b = document.createElement('button');
       b.type = 'button';
       b.className = 'mtog';
       b.textContent = label;
+      toggleBtn[key] = b;
       b.addEventListener('click', function () {
-        var on = b.classList.toggle('on');
-        if (on) {
-          Promise.resolve(layers[key].load()).then(function () {
-            if (b.classList.contains('on')) layers[key].group.addTo(map);
-          });
-        } else {
-          map.removeLayer(layers[key].group);
-        }
+        setLayer(key, !b.classList.contains('on'));
       });
       toggleWrap.appendChild(b);
+    }
+
+    // a view-scoped layer goes stale the moment the map moves
+    var moveTimer = null;
+    map.on('moveend', function () {
+      clearTimeout(moveTimer);
+      moveTimer = setTimeout(function () {
+        Object.keys(layers).forEach(function (k) {
+          if (layers[k].refresh && map.hasLayer(layers[k].group)) layers[k].refresh();
+        });
+      }, 400);
+    });
+
+    // On a BID page the boundary is a thin ribbon of frontage. Alone on a grey
+    // basemap it says nothing, so the zoning underneath it starts switched on.
+    function startDefaults() {
+      if (!bidSlug || startDefaults.done) return;
+      startDefaults.done = true;
+      setLayer('zoning', true);
     }
     ['council', 'assembly', 'senate'].forEach(function (k) {
       if (!bidSlug && k === chamber) return;
