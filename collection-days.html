@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>When is my trash collected?</title>
+<meta name="description" content="Look up DSNY collection days anywhere in New York City. Search by address, block, sanitation district or section, or drop a pin on the map to see refuse, recycling, organics and bulk days.">
+<link rel="canonical" href="https://bkcb6.app/collection-days">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:type" content="website">
+<meta property="og:title" content="When is my trash collected?">
+<meta property="og:description" content="DSNY collection days anywhere in New York City. Search by address, block, district or section, or drop a pin.">
+<meta property="og:url" content="https://bkcb6.app/collection-days">
+<meta property="og:image" content="https://bkcb6.app/tiles/hub-sanitation-map.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,700;9..40,800;9..40,900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--navy:#0d1b4b;--orange:#f47920;--off:#f8f7f4;--border:#e5e2db;--muted:#6b6760;
+      --refuse:#3a3a3a;--rec:#1565c0;--org:#795548;--bulk:#6a1b9a}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:'DM Sans',system-ui,-apple-system,sans-serif;background:var(--off);color:var(--navy);font-size:16px;line-height:1.5}
+.wrap{max-width:760px;margin:0 auto;background:#fff;border-left:1px solid var(--border);border-right:1px solid var(--border);min-height:100vh}
+a{color:var(--navy)}
+.head{background:var(--navy);color:#fff;padding:18px 16px 20px;border-bottom:4px solid var(--orange)}
+.crumb{font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.55)}
+.crumb a{color:rgba(255,255,255,.55);text-decoration:none}
+.crumb a:hover{color:#fff}
+h1{font-size:1.85rem;font-weight:900;letter-spacing:-.02em;margin:6px 0 0;line-height:1.1}
+h1 span{color:var(--orange)}
+.sub{font-family:'DM Mono',monospace;font-size:.76rem;color:rgba(255,255,255,.62);margin-top:5px;line-height:1.5}
+.finder{padding:16px;border-bottom:1px solid var(--border);background:#fbfaf7}
+.ft{font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.11em;color:var(--muted);margin-bottom:9px}
+.frow{display:flex;gap:7px;flex-wrap:wrap;position:relative}
+.frow input{flex:1;min-width:180px;font-family:'DM Sans',sans-serif;font-size:.95rem;padding:12px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;color:#1b1b1b}
+.fbtn{font-family:'DM Mono',monospace;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;padding:12px 15px;border-radius:8px;border:0;background:var(--orange);color:#fff;font-weight:500;cursor:pointer;white-space:nowrap}
+.fbtn.alt{background:#fff;color:var(--navy);border:1px solid var(--border)}
+.fbtn:hover{filter:brightness(1.06)}
+.fbtn[aria-pressed="true"]{background:var(--navy);color:#fff;border-color:var(--navy)}
+input:focus-visible,button:focus-visible,a:focus-visible,select:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.hint{margin:9px 0 0;font-size:.78rem;color:var(--muted);line-height:1.6}
+.hint code{font-family:'DM Mono',monospace;font-size:.74rem;background:#f1efe9;padding:1px 5px;border-radius:4px}
+.ac{position:absolute;top:100%;left:0;right:0;z-index:1200;background:#fff;border:1px solid var(--border);border-top:0;border-radius:0 0 8px 8px;max-height:260px;overflow:auto;box-shadow:0 8px 22px rgba(13,27,75,.12)}
+.ac div{padding:10px 12px;font-size:.86rem;cursor:pointer;border-top:1px solid var(--border)}
+.ac div:first-child{border-top:0}
+.ac div:hover,.ac div[aria-selected="true"]{background:#fff5ec}
+.fmsg{margin:10px 0 0;font-size:.85rem;color:var(--muted);min-height:1.2em;line-height:1.55}
+.fmsg.err{color:#b42318}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.res{padding:16px;border-bottom:1px solid var(--border)}
+.res:empty{display:none;padding:0;border:0}
+.where{font-family:'DM Mono',monospace;font-size:.64rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.addr{font-size:1.15rem;font-weight:900;letter-spacing:-.01em;margin:5px 0 2px;line-height:1.25}
+.meta{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--muted);margin-bottom:12px}
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.c{border:1px solid var(--border);border-left:5px solid var(--muted);border-radius:9px;padding:11px 12px;background:#fff}
+.c.refuse{border-left-color:var(--refuse)}
+.c.rec{border-left-color:var(--rec)}
+.c.org{border-left-color:var(--org)}
+.c.bulk{border-left-color:var(--bulk)}
+.c .k{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.c .d{font-size:1rem;font-weight:800;margin-top:3px;line-height:1.25}
+.c .nx{font-size:.78rem;color:var(--orange);font-weight:800;margin-top:4px}
+.c .nx.today{color:#b42318}
+.warn{margin-top:12px;font-size:.79rem;color:var(--muted);line-height:1.6;border-top:1px solid var(--border);padding-top:10px}
+.warn b{color:var(--navy)}
+.mapsec{padding:16px;border-bottom:1px solid var(--border)}
+.maphead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.maphead h2{font-size:1.02rem;font-weight:800;margin:0;flex:1}
+#map{height:400px;border:1px solid var(--border);border-radius:10px;background:#eef0ec}
+#mapbox[hidden]{display:none}
+.leaflet-container{font-family:'DM Sans',sans-serif;cursor:crosshair}
+.pinmode #map{outline:3px solid var(--orange);outline-offset:-3px}
+table{width:100%;border-collapse:collapse;font-size:.84rem;margin-top:4px}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:500}
+td.s{font-family:'DM Mono',monospace;font-weight:500}
+tr.hit{background:#fff5ec}
+.btns{display:flex;flex-wrap:wrap;gap:6px}
+.b{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border:2px solid var(--navy);border-radius:22px;background:#fff;color:var(--navy);font-size:.82rem;font-weight:800;text-decoration:none;white-space:nowrap}
+.b:hover{background:#f2f4fb}
+.b.hot{background:var(--orange);border-color:var(--orange);color:#fff}
+.sec{padding:16px;border-bottom:1px solid var(--border)}
+.sect{font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.11em;color:var(--muted);margin-bottom:4px}
+.foot{padding:16px;font-family:'DM Mono',monospace;font-size:.66rem;color:var(--muted);line-height:1.6}
+.foot a{color:var(--muted)}
+@media (max-width:520px){h1{font-size:1.55rem}.cards{grid-template-columns:1fr}#map{height:320px}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="crumb"><a href="/">bkcb6.app</a> &middot; <a href="/sanitation-hub">Sanitation Hub</a></div>
+    <h1>When is my <span>trash</span> collected?</h1>
+    <div class="sub">Every block in New York City &middot; 610 DSNY sections</div>
+  </div>
+
+  <div class="finder">
+    <div class="ft">Search</div>
+    <div class="frow">
+      <input type="text" id="q" placeholder="Address, block, district or section" autocomplete="off" enterkeyhint="search" aria-label="Address, block, district or section" aria-autocomplete="list">
+      <button class="fbtn" type="button" id="goBtn">Look up</button>
+      <button class="fbtn alt" type="button" id="locBtn">&#9678; My location</button>
+      <div class="ac" id="ac" hidden></div>
+    </div>
+    <p class="hint">Try an address like <code>250 Baltic Street</code>, a block like <code>Baltic St &amp; Court St</code>, a district like <code>BKS06</code> or <code>Brooklyn CB6</code>, a section like <code>BKS064</code> or a schedule like <code>3064C</code>. Or open the map and drop a pin.</p>
+    <p class="fmsg" id="fmsg"></p>
+  </div>
+
+  <div class="res" id="res"></div>
+
+  <div class="mapsec">
+    <div class="maphead">
+      <h2>Map</h2>
+      <button class="fbtn alt" type="button" id="mapToggle" aria-expanded="false">Show map</button>
+      <button class="fbtn alt" type="button" id="pinBtn" aria-pressed="false" hidden>&#128205; Drop a pin</button>
+    </div>
+    <div id="mapbox" hidden><div id="map"></div>
+      <p class="hint" id="pinHint">Tap anywhere on the map to see that block&rsquo;s collection days. Shaded areas are DSNY sections; a single street can be split between two of them.</p>
+    </div>
+  </div>
+
+  <div class="res" id="dres"></div>
+
+  <div class="sec">
+    <div class="sect">Keep going</div>
+    <div class="btns">
+      <a class="b hot" href="/sanitation-hub">Sanitation Hub</a>
+      <a class="b" href="/sanitation-district.html?cd=bk-6">Sanitation in CB6</a>
+      <a class="b" href="/sanitation-citywide.html">Compare all 59</a>
+      <a class="b" href="/sanitation-map-cb6.html">CB6 section map</a>
+    </div>
+  </div>
+
+  <div class="foot">
+    Source: NYC Department of Sanitation, DSNY Sections and Frequencies (rv63-53db), via NYC Open Data. Section boundaries follow block faces, so a single street can be split between two schedules. Holiday suspensions and weather delays are not reflected here. Confirm at <a href="https://www.nyc.gov/assets/dsny/site/services/collection" target="_blank" rel="noopener">nyc.gov/dsny</a> or by calling 311.<br>
+    Brooklyn Community Board 6 &middot; <a href="/">bkcb6.app</a> &middot; <a href="/sanitation-hub">Sanitation Hub</a>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function(){
+'use strict';
+var DAYS = {Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6};
+var DAYNAME = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+var STREAMS = [
+  {k:'refuse', cls:'refuse', label:'Refuse'},
+  {k:'rec',    cls:'rec',    label:'Recycling'},
+  {k:'org',    cls:'org',    label:'Organics'},
+  {k:'bulk',   cls:'bulk',   label:'Bulk'}
+];
+var ZONE = {BKN:'Brooklyn North', BKS:'Brooklyn South', QE:'Queens East', QW:'Queens West',
+            BX:'the Bronx', MN:'Manhattan', SI:'Staten Island'};
+var BOROOF = {BKN:'Brooklyn', BKS:'Brooklyn', QE:'Queens', QW:'Queens', BX:'Bronx', MN:'Manhattan', SI:'Staten Island'};
+var CDOF = {'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
+
+function el(id){ return document.getElementById(id); }
+function scrollTo_(n){ try { if (n && n.scrollIntoView) n.scrollIntoView({behavior:'smooth', block:'nearest'}); } catch(e){} }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+
+var SECTIONS = null, MAP = null, secLayer = null, pin = null, pinMode = false, loading = null;
+
+function loadSections(){
+  if (SECTIONS) return Promise.resolve(SECTIONS);
+  if (loading) return loading;
+  loading = fetch('dsny-sections.geojson').then(function(r){
+    if (!r.ok) throw new Error('sections');
+    return r.json();
+  }).then(function(g){ SECTIONS = g; return g; });
+  return loading;
+}
+
+// --- geometry ---------------------------------------------------------------
+function pointIn(lng, lat, geom){
+  function ring(r){
+    var inside = false;
+    for (var i=0, j=r.length-1; i<r.length; j=i++){
+      var xi=r[i][0], yi=r[i][1], xj=r[j][0], yj=r[j][1];
+      if ((yi>lat)!==(yj>lat) && lng < (xj-xi)*(lat-yi)/(yj-yi)+xi) inside = !inside;
+    }
+    return inside;
+  }
+  var polys = geom.type === 'MultiPolygon' ? geom.coordinates : [geom.coordinates];
+  for (var p=0;p<polys.length;p++){
+    if (ring(polys[p][0])){
+      var hole = false;
+      for (var h=1;h<polys[p].length;h++){ if (ring(polys[p][h])) hole = true; }
+      if (!hole) return true;
+    }
+  }
+  return false;
+}
+function sectionAt(lng, lat){
+  if (!SECTIONS) return null;
+  for (var i=0;i<SECTIONS.features.length;i++){
+    if (pointIn(lng, lat, SECTIONS.features[i].geometry)) return SECTIONS.features[i];
+  }
+  return null;
+}
+
+// --- schedule ---------------------------------------------------------------
+function parseDays(str){
+  if (!str) return [];
+  return str.split(/[,/]/).map(function(s){ return s.trim().slice(0,3); })
+            .map(function(s){ return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase(); })
+            .filter(function(s){ return DAYS[s] !== undefined; });
+}
+function nextFor(days){
+  if (!days.length) return null;
+  var now = new Date(), today = now.getDay();
+  var best = null;
+  days.forEach(function(d){
+    var delta = (DAYS[d] - today + 7) % 7;
+    if (best === null || delta < best.delta) best = {delta: delta, day: DAYS[d]};
+  });
+  if (!best) return null;
+  var when = best.delta === 0 ? 'Today' : (best.delta === 1 ? 'Tomorrow' : DAYNAME[best.day]);
+  return {label: when, today: best.delta === 0};
+}
+function fullDays(str){
+  var d = parseDays(str);
+  if (!d.length) return 'Not collected';
+  return d.map(function(x){ return DAYNAME[DAYS[x]]; }).join(' and ');
+}
+
+function scheduleCards(p){
+  return '<div class="cards">' + STREAMS.map(function(st){
+    var raw = p[st.k], nx = nextFor(parseDays(raw));
+    return '<div class="c ' + st.cls + '">' +
+      '<div class="k">' + esc(st.label) + '</div>' +
+      '<div class="d">' + esc(fullDays(raw)) + '</div>' +
+      (nx ? '<div class="nx' + (nx.today ? ' today' : '') + '">Next: ' + esc(nx.label) + '</div>' : '') +
+    '</div>';
+  }).join('') + '</div>';
+}
+
+function showSection(feat, where, meta){
+  var p = feat.properties;
+  var zone = p.d.replace(/\d+$/, '');
+  el('res').innerHTML =
+    '<div class="where">Collection days</div>' +
+    '<div class="addr">' + esc(where) + '</div>' +
+    '<div class="meta">Schedule ' + esc(p.code) + ' &middot; section ' + esc(p.s) +
+      ' &middot; district ' + esc(p.d) + ' &middot; ' + esc(ZONE[zone] || '') + '</div>' +
+    scheduleCards(p) +
+    '<p class="warn">' + (meta ? esc(meta) + ' ' : '') +
+    '<b>Set-out times, holiday suspensions and weather delays are not shown here.</b> ' +
+    'Section boundaries follow block faces, so the other side of your street may be on a different ' +
+    'schedule. Confirm at <a href="https://www.nyc.gov/assets/dsny/site/services/collection" target="_blank" rel="noopener">nyc.gov/dsny</a> or by calling 311.</p>';
+  scrollTo_(el('res'));
+}
+
+function showDistrict(code){
+  var feats = SECTIONS.features.filter(function(f){ return f.properties.d === code; });
+  if (!feats.length) return false;
+  var zone = code.replace(/\d+$/, '');
+  el('dres').innerHTML =
+    '<div class="where">Every section in the district</div>' +
+    '<div class="addr">' + esc(code) + ' &middot; ' + esc(BOROOF[zone] || '') + '</div>' +
+    '<div class="meta">' + feats.length + ' schedule zones &middot; ' +
+      new Set(feats.map(function(f){ return f.properties.s; })).size + ' sections &middot; ' +
+      esc(ZONE[zone] || '') + '</div>' +
+    '<table><tr><th>Schedule</th><th>Section</th><th>Refuse</th><th>Recycling</th><th>Organics</th><th>Bulk</th></tr>' +
+    feats.map(function(f){
+      var p = f.properties;
+      return '<tr id="row-' + esc(p.code) + '"><td class="s">' + esc(p.code) + '</td><td class="s">' +
+        esc(p.s) + '</td><td>' + esc(p.refuse || '\u2014') +
+        '</td><td>' + esc(p.rec || '\u2014') + '</td><td>' + esc(p.org || '\u2014') +
+        '</td><td>' + esc(p.bulk || '\u2014') + '</td></tr>';
+    }).join('') + '</table>' +
+    '<p class="warn">Days as DSNY publishes them. Each section is split into schedule zones, so one section ' +
+    'number covers more than one set of days. Sections are block-face based: find yours with an address ' +
+    'search or a pin drop rather than guessing from the street name.</p>';
+  return true;
+}
+
+// --- query parsing ----------------------------------------------------------
+function asScheduleCode(q){
+  var m = /^([1-5])\s*0?(\d{1,2})\s*(\d)\s*([A-Ea-e])$/.exec(q.replace(/[\s-]/g,''));
+  if (!m) return null;
+  var d = m[2].length === 1 ? '0' + m[2] : m[2];
+  return m[1] + d + m[3] + m[4].toUpperCase();
+}
+function asSection(q){
+  var m = /^([A-Za-z]{2,3})\s*0?(\d{1,2})\s*(\d)$/.exec(q.replace(/[\s-]/g,''));
+  if (!m) return null;
+  var z = m[1].toUpperCase();
+  if (!ZONE[z]) return null;
+  return z + (m[2].length === 1 ? '0' + m[2] : m[2]) + m[3];
+}
+function asDistrict(q){
+  var t = q.trim();
+  var m = /^([A-Za-z]{2,3})\s*-?\s*0?(\d{1,2})$/.exec(t.replace(/\s+/g,' '));
+  if (m && ZONE[m[1].toUpperCase()]){
+    var z = m[1].toUpperCase(), n = m[2];
+    return z + (n.length === 1 ? '0' + n : n);
+  }
+  var b = /^(manhattan|bronx|the bronx|brooklyn|queens|staten island)\s*(?:cb|community board|cd|board)?\s*#?\s*(\d{1,2})$/i.exec(t);
+  if (b){
+    var boro = b[1].toLowerCase().replace('the ',''), num = parseInt(b[2],10);
+    var digit = {manhattan:'1', bronx:'2', brooklyn:'3', queens:'4', 'staten island':'5'}[boro];
+    if (!digit) return null;
+    var code = digit + (num<10 ? '0'+num : String(num));
+    var hit = SECTIONS && SECTIONS.features.filter(function(f){
+      return f.properties.code && f.properties.code.slice(0,3) === code;
+    })[0];
+    return hit ? hit.properties.d : null;
+  }
+  return null;
+}
+
+// --- actions ----------------------------------------------------------------
+function msg(t, err){
+  var m = el('fmsg');
+  m.className = err ? 'fmsg err' : 'fmsg';
+  if (t && t.indexOf('<') === 0) m.innerHTML = t; else m.textContent = t;
+}
+
+function resolvePoint(lat, lng, label, meta){
+  return loadSections().then(function(){
+    var f = sectionAt(lng, lat);
+    if (!f){
+      msg(label + ' is not inside a DSNY collection section. It may be a park, an airport, or outside the city.', true);
+      return null;
+    }
+    msg('');
+    found = true;
+    showSection(f, label, meta);
+    showDistrict(f.properties.d);
+    dropPin(lat, lng, label);
+    highlight(f.properties.code);
+    var row = el('row-' + f.properties.code);
+    if (row) row.className = 'hit';
+    return f;
+  });
+}
+
+var found = false;
+function go(){
+  found = false;
+  var q = el('q').value.trim();
+  hideAc();
+  if (!q){ msg('Type an address, block, district or section.'); return; }
+  msg('<span class="spin"></span>Looking up ' + esc(q));
+  loadSections().then(function(){
+    var sched = asScheduleCode(q);
+    if (sched){
+      var sf = SECTIONS.features.filter(function(x){ return x.properties.code === sched; })[0];
+      if (sf){
+        msg('');
+        found = true;
+        showSection(sf, 'Schedule zone ' + sched, 'Showing a whole schedule zone, not a single address.');
+        showDistrict(sf.properties.d);
+        zoomTo(sf);
+        highlight(sched);
+        return;
+      }
+    }
+    var sec = asSection(q);
+    if (sec){
+      var fs2 = SECTIONS.features.filter(function(x){ return x.properties.s === sec; });
+      if (fs2.length){
+        msg(fs2.length > 1
+          ? 'Section ' + sec + ' is split into ' + fs2.length + ' schedule zones with different days. Search an address or drop a pin to get the right one.'
+          : '');
+        found = true;
+        showSection(fs2[0], 'Section ' + sec,
+          fs2.length > 1 ? 'Showing the first of ' + fs2.length + ' schedule zones in this section.'
+                         : 'Showing the whole section, not a single address.');
+        showDistrict(fs2[0].properties.d);
+        zoomTo(fs2[0]);
+        highlight(fs2[0].properties.code);
+        return;
+      }
+    }
+    var dist = asDistrict(q);
+    if (dist){
+      if (showDistrict(dist)){
+        msg(''); found = true;
+        el('res').innerHTML = '';
+        scrollTo_(el('dres'));
+        zoomToDistrict(dist);
+        return;
+      }
+    }
+    return fetch('https://geosearch.planninglabs.nyc/v2/search?size=1&text=' + encodeURIComponent(q))
+      .then(function(r){ if (!r.ok) throw new Error('geo'); return r.json(); })
+      .then(function(g){
+        var feats = (g && g.features) || [];
+        if (!feats.length) throw new Error('none');
+        var pk = feats[0];
+        return resolvePoint(pk.geometry.coordinates[1], pk.geometry.coordinates[0],
+                            pk.properties.label || q, null);
+      });
+  }).catch(function(){
+    if (found) { msg(''); return; }
+    msg('No match. Try a full address with the borough, a district like BKS06, or drop a pin on the map.', true);
+  });
+}
+
+function useMyLocation(){
+  if (!navigator.geolocation){ msg('This browser cannot share a location. Type an address instead.', true); return; }
+  msg('<span class="spin"></span>Getting your location');
+  navigator.geolocation.getCurrentPosition(function(pos){
+    openMap();
+    resolvePoint(pos.coords.latitude, pos.coords.longitude, 'Your location', null);
+  }, function(err){
+    msg(err.code === 1 ? 'Location permission was denied. Type an address instead.'
+                       : 'Could not get your location. Type an address instead.', true);
+  }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
+}
+
+// --- map --------------------------------------------------------------------
+function openMap(){
+  el('mapbox').hidden = false;
+  el('mapToggle').textContent = 'Hide map';
+  el('mapToggle').setAttribute('aria-expanded','true');
+  el('pinBtn').hidden = false;
+  if (MAP){ setTimeout(function(){ MAP.invalidateSize(); }, 60); return; }
+  MAP = L.map('map', {scrollWheelZoom:false});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO', maxZoom: 19
+  }).addTo(MAP);
+  MAP.setView([40.6782, -73.9942], 12);
+  MAP.on('click', function(e){
+    resolvePoint(e.latlng.lat, e.latlng.lng, 'Dropped pin',
+      'This is the section under the pin, not a verified address.');
+  });
+  loadSections().then(function(g){
+    secLayer = L.geoJSON(g, {
+      style: {color:'#0d1b4b', weight:.7, fillColor:'#f47920', fillOpacity:.07},
+      onEachFeature: function(f, l){
+        l.on('click', function(e){
+          L.DomEvent.stopPropagation(e);
+          resolvePoint(e.latlng.lat, e.latlng.lng, 'Dropped pin',
+            'This is the section under the pin, not a verified address.');
+        });
+      }
+    }).addTo(MAP);
+  }).catch(function(){});
+  setTimeout(function(){ MAP.invalidateSize(); }, 60);
+}
+function closeMap(){
+  el('mapbox').hidden = true;
+  el('mapToggle').textContent = 'Show map';
+  el('mapToggle').setAttribute('aria-expanded','false');
+  el('pinBtn').hidden = true;
+}
+function dropPin(lat, lng, label){
+  if (!MAP) return;
+  if (pin) MAP.removeLayer(pin);
+  pin = L.circleMarker([lat,lng], {radius:8, color:'#fff', weight:3, fillColor:'#f47920', fillOpacity:1})
+        .bindPopup('<b>' + esc(label) + '</b>').addTo(MAP);
+  MAP.setView([lat,lng], Math.max(MAP.getZoom(), 15));
+}
+function highlight(scheduleCode){
+  if (!secLayer) return;
+  secLayer.eachLayer(function(l){
+    var on = l.feature && l.feature.properties.code === scheduleCode;
+    l.setStyle(on ? {color:'#f47920', weight:2.5, fillOpacity:.3}
+                  : {color:'#0d1b4b', weight:.7, fillColor:'#f47920', fillOpacity:.07});
+  });
+}
+function zoomTo(feat){
+  openMap();
+  loadSections().then(function(){
+    setTimeout(function(){
+      try { MAP.fitBounds(L.geoJSON(feat).getBounds(), {padding:[24,24]}); } catch(e){}
+    }, 120);
+  });
+}
+function zoomToDistrict(code){
+  openMap();
+  loadSections().then(function(g){
+    var fs = {type:'FeatureCollection', features: g.features.filter(function(f){ return f.properties.d === code; })};
+    setTimeout(function(){
+      try { MAP.fitBounds(L.geoJSON(fs).getBounds(), {padding:[20,20]}); } catch(e){}
+    }, 120);
+  });
+}
+
+// --- autocomplete -----------------------------------------------------------
+var acTimer = null;
+function hideAc(){ el('ac').hidden = true; el('ac').innerHTML = ''; }
+function autocomplete(){
+  var v = el('q').value.trim();
+  if (v.length < 3 || asSection(v) || /^[A-Za-z]{2,3}\s*-?\s*\d{1,2}$/.test(v)){ hideAc(); return; }
+  fetch('https://geosearch.planninglabs.nyc/v2/autocomplete?size=6&text=' + encodeURIComponent(v))
+    .then(function(r){ return r.json(); })
+    .then(function(g){
+      var fs = (g && g.features) || [];
+      if (!fs.length){ hideAc(); return; }
+      el('ac').innerHTML = fs.map(function(f, i){
+        return '<div data-i="' + i + '">' + esc(f.properties.label) + '</div>';
+      }).join('');
+      el('ac').hidden = false;
+      el('ac').onclick = function(e){
+        var t = e.target.closest('div[data-i]');
+        if (!t) return;
+        var f = fs[parseInt(t.getAttribute('data-i'),10)];
+        el('q').value = f.properties.label;
+        hideAc();
+        openMap();
+        resolvePoint(f.geometry.coordinates[1], f.geometry.coordinates[0], f.properties.label, null);
+      };
+    }).catch(hideAc);
+}
+
+el('goBtn').addEventListener('click', go);
+el('locBtn').addEventListener('click', useMyLocation);
+el('q').addEventListener('keydown', function(e){ if (e.key === 'Enter'){ go(); } if (e.key === 'Escape') hideAc(); });
+el('q').addEventListener('input', function(){ clearTimeout(acTimer); acTimer = setTimeout(autocomplete, 220); });
+el('q').addEventListener('blur', function(){ setTimeout(hideAc, 180); });
+el('mapToggle').addEventListener('click', function(){
+  if (el('mapbox').hidden) openMap(); else closeMap();
+});
+el('pinBtn').addEventListener('click', function(){
+  pinMode = !pinMode;
+  this.setAttribute('aria-pressed', String(pinMode));
+  document.body.classList.toggle('pinmode', pinMode);
+  el('pinHint').textContent = pinMode
+    ? 'Pin mode on. Tap the map and the section under your finger will load below.'
+    : 'Tap anywhere on the map to see that block\u2019s collection days. Shaded areas are DSNY sections; a single street can be split between two of them.';
+});
+
+// deep link: ?q=... or ?section=... or ?district=...
+(function(){
+  var u = new URLSearchParams(location.search);
+  var q = u.get('q') || u.get('section') || u.get('district');
+  if (q){ el('q').value = q; go(); }
+})();
+})();
+</script>
+</body>
+</html>
