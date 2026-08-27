@@ -332,9 +332,15 @@ function render(T, S, d, s){
     'None of this counts commercial waste, which private carters haul separately.');
 
   // map
-  var mapSec = block(body, 'Where', 'The district and its garages', null, null);
+  var mapSec = block(body, 'Where', 'Garages and food scrap drop-off', null,
+    'Two point layers, each toggleable in the top right of the map. Solid markers sit inside this ' +
+    'district; faded ones are the rest of the city, for context.');
   var mapDiv = document.createElement('div'); mapDiv.id = 'map';
   mapSec.insertBefore(mapDiv, mapSec.querySelector('.note'));
+  mapSec.insertBefore(legend([
+    {label:'DSNY garage', color:'#0d1b4b'},
+    {label:'Food scrap drop-off', color:'#795548'}
+  ]), mapSec.querySelector('.note'));
   buildMap(s);
 
   // stream split
@@ -412,6 +418,12 @@ function render(T, S, d, s){
     'A garage here with another district\u2019s name is housed in this district and works elsewhere.');
   fillGarages(s, gSec);
 
+  // food scrap drop-off
+  var fSec = block(body, 'Composting', 'Food scrap drop-off in this district', null,
+    'Drop-off sites take food scraps from anyone, whether or not a building has brown bin service. ' +
+    'Hours and open months are as DSNY publishes them; check the host\u2019s own page before a first trip.');
+  fillScraps(s, fSec);
+
   // links
   var links = document.createElement('div'); links.className = 'btns';
   links.innerHTML =
@@ -429,6 +441,13 @@ function buildMap(s){
   }).addTo(map);
   map.setView([40.6782, -73.9942], 12);
 
+  var garageLayer = L.layerGroup().addTo(map);
+  var scrapLayer  = L.layerGroup().addTo(map);
+  L.control.layers(null, {
+    'DSNY garages': garageLayer,
+    'Food scrap drop-off': scrapLayer
+  }, {collapsed:false}).addTo(map);
+
   fetch('dsny-districts.geojson').then(function(r){ return r.json(); }).then(function(g){
     var mine = {type:'FeatureCollection', features: g.features.filter(function(f){ return f.properties.code === s.code; })};
     var others = {type:'FeatureCollection', features: g.features.filter(function(f){ return f.properties.code !== s.code; })};
@@ -445,8 +464,53 @@ function buildMap(s){
         color: '#fff', weight: mine ? 2 : 1,
         fillColor: mine ? '#0d1b4b' : '#9c968a', fillOpacity: mine ? 1 : .7
       }).bindPopup('<b>' + esc(p.name) + '</b><br>' + esc(p.address) + '<br>' + esc(p.city) + ', NY ' + esc(p.zip))
-        .addTo(map);
+        .addTo(garageLayer);
     });
+  }).catch(function(){});
+
+  fetch('food-scrap-dropoffs.geojson').then(function(r){ return r.json(); }).then(function(g){
+    g.features.forEach(function(f){
+      var p = f.properties, mine = p.code === s.code;
+      L.circleMarker([f.geometry.coordinates[1], f.geometry.coordinates[0]], {
+        radius: mine ? 6 : 3.5,
+        color: '#fff', weight: mine ? 2 : 1,
+        fillColor: mine ? '#795548' : '#c3b5ad', fillOpacity: mine ? 1 : .7
+      }).bindPopup(scrapPopup(p)).addTo(scrapLayer);
+    });
+  }).catch(function(){});
+}
+
+function scrapPopup(p){
+  var h = '<b>' + esc(p.name) + '</b>';
+  if (p.addr)   h += '<br>' + esc(p.addr);
+  if (p.hours)  h += '<br>' + esc(p.hours);
+  if (p.months) h += '<br>' + esc(p.months);
+  if (p.host)   h += '<br>Hosted by ' + esc(p.host);
+  if (p.notes)  h += '<br>' + esc(p.notes);
+  if (p.web)    h += '<br><a href="' + esc(p.web) + '" target="_blank" rel="noopener">Site details &rarr;</a>';
+  return h;
+}
+
+function fillScraps(s, sec){
+  fetch('food-scrap-dropoffs.geojson').then(function(r){ return r.json(); }).then(function(g){
+    var here = g.features.filter(function(f){ return f.properties.code === s.code; });
+    var node;
+    if (!here.length){
+      node = document.createElement('p');
+      node.className = 'note';
+      node.textContent = 'DSNY lists no food scrap drop-off site in this district.';
+    } else {
+      node = document.createElement('table');
+      node.innerHTML = '<tr><th>Site</th><th>Where</th><th>When</th></tr>' + here.map(function(f){
+        var p = f.properties;
+        var nm = p.web
+          ? '<a href="' + esc(p.web) + '" target="_blank" rel="noopener">' + esc(p.name) + '</a>'
+          : esc(p.name);
+        return '<tr><td><b>' + nm + '</b></td><td>' + esc(p.addr) + '</td><td>' +
+               esc(p.hours) + (p.months ? '<br>' + esc(p.months) : '') + '</td></tr>';
+      }).join('');
+    }
+    sec.insertBefore(node, sec.querySelector('.note'));
   }).catch(function(){});
 }
 
