@@ -734,7 +734,7 @@
     var cards=mini(zones.length>1?'Zoning Districts':'Zoning District',zDisp)+useGroupMini(pluto.landuse,lUse)+(spDists.length?mini(spDists.length>1?'Special Districts':'Special District',spDisp):'')+mini('Land Use',lUse)+mini('Landmark Status',historic)+mini('Election District',Number.isFinite(ed)?ed:'—')+mini('Assembly',repLabel('state_assembly',ad,'Assembly District'))+mini('City Council',repLabel('city_council',council,'Council District'))+mini('State Senate',repLabel('state_senate',senate,'State Senate District'))+mini('Congress',repLabel('congress',cong,'Congressional District'))+mini('School District',school?'CSD '+school:'—')+mini('Police Precinct',police?police+' Precinct':'—')+miniTag('Zoning Code Explanation',zones.length?zones.map(function(z){return z+': '+zoningPlain(z);}).join(' / '):'Check ZoLa for exact district controls.','data-zoneexplain')+miniTag('Use Group Explanation',landUsePlain(pluto.landuse,lUse),'data-landuseexplain')+propertyMini('Owner',pluto.ownername||pluto.owner||a.ownerName||a.ownername)+mini('Community Board',cbLabel)+mini('Borough',pluto.borough||a.firstBoroughName||BOROUGH_NAMES[b]||'—')+propertyMini('Year Built',fmtYear(pluto.yearbuilt))+propertyMini('Building Class',pluto.bldgclass)+propertyMini('Lot Area',fmtNum(pluto.lotarea,' sq ft'))+propertyMini('Building Area',fmtNum(pluto.bldgarea,' sq ft'))+propertyMini('Residential Units',fmtNum(pluto.unitsres,''))+propertyMini('Total Units',fmtNum(pluto.unitstotal,'')); return '<div data-cardtop style="scroll-margin-top:12px;position:relative;background:#f0f8f4;border:1.5px solid #a7f3d0;border-radius:8px;padding:12px 14px;margin-top:4px"><div data-cardaddr style="font-size:1.15rem;font-weight:900;line-height:1.2;color:var(--navy,#0d1b4b)">'+esc(input)+'</div><div style="font-size:.95rem;font-weight:600;line-height:1.35;color:var(--navy,#0d1b4b);margin-top:3px">is in <strong style="font-weight:900">'+areaLabelHtml(cb||String(a.communityDistrict||pluto.cd||''),cbLabel)+'</strong></div>'+condoNote(input,pluto,bbl)+jointInterestNote(cb||String(a.communityDistrict||pluto.cd||''))+'<div style="display:flex;align-items:flex-start;gap:10px;margin:10px 0 9px"><div style="flex:1;min-width:0;background:'+zInk.bg+';border-radius:7px;padding:11px 13px;align-self:stretch"><div style="font-family:\'DM Mono\',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:'+zInk.sub+';font-weight:700">zoned</div><div style="font-size:1.9rem;font-weight:900;line-height:1.12;color:'+zInk.fg+';margin-top:3px;word-break:normal;overflow-wrap:break-word">'+esc(zones.length?zDisp:'Not available from PLUTO')+'</div>'+(zones.length?'<a href="#" data-zoomto="1" style="display:inline-block;margin-top:6px;font-size:.72rem;font-weight:700;color:'+zInk.fg+';opacity:.9;text-decoration:none;border-bottom:1px solid '+zInk.rule+'">See what this means &rarr;</a>':'')+(spDists.length?'<div style="font-family:\'DM Mono\',monospace;font-size:.66rem;color:'+zInk.sub+';margin-top:5px">in the '+esc(spDisp)+' special district</div>':'')+'</div>'+landUseHero(pluto.landuse)+'</div>'+cardLogo+bizBlock(input)+'<div style="font-size:.75rem;color:var(--muted,#6b6760);margin-bottom:8px">ED '+(Number.isFinite(ed)?ed:'—')+' &middot; AD '+(Number.isFinite(ad)?ad:'—')+(council?' &middot; Council District '+esc(council):'')+(senate?' &middot; State Senate District '+esc(senate):'')+(cong?' &middot; Congressional District '+esc(cong):'')+(school?' &middot; School District '+esc(school):'')+(police?' &middot; Police Precinct '+esc(police):'')+'</div>'+electedRow(council,ad,senate)+'<div class="citywide-result-map" data-lat="'+lat+'" data-lng="'+lng+'" data-label="'+esc(input)+'" data-owner="'+esc(pluto.ownername||pluto.owner||'')+'" style="height:240px;border-radius:8px;border:1px solid #a7f3d0;margin-bottom:10px;background:#eef2f7"></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:10px">'+cards+'</div><div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px;font-size:.73rem;line-height:1.45;color:var(--navy,#0d1b4b)"><div><strong>Zoning:</strong> '+(zones.length?zones.map(function(z){return '<strong>'+esc(z)+'</strong>: '+esc(zoningPlain(z));}).join('<br>'):'Zoning was not available from PLUTO for this address.')+'</div><div style="margin-top:5px"><strong>Land use:</strong> '+esc(landUsePlain(pluto.landuse,lUse))+'</div>'+(function(){var zn=zoneNote(input); if(!zn) return '';
       return '<div style="margin-top:6px;padding:7px 9px;background:#f6f7fb;border-left:3px solid #2145a8;border-radius:0 5px 5px 0"><strong>Worth knowing about the zoning:</strong> '+esc(zn)+'</div>';})()+(function(){var on=ownerNote(input,pluto.ownername||pluto.owner,pluto.ownertype); if(!on) return '';
       return '<div style="margin-top:6px;padding:7px 9px;background:#f6f7fb;border-left:3px solid #2145a8;border-radius:0 5px 5px 0"><strong>Who owns it:</strong> '+esc(on)+'</div>';})()+(function(){var g=zoneUseNote(zones[0],pluto.landuse); if(!g) return '';
-      return '<div style="margin-top:6px;padding:7px 9px;background:'+(g.ok?'#f4f8f4':'#fff8f2')+';border-left:3px solid '+(g.ok?'#2e6b30':'#f47920')+';border-radius:0 5px 5px 0"><strong>'+g.head+':</strong> '+esc(g.text)+'</div>';})()+''+(spDists.length?'<div style="margin-top:5px"><strong>Special district:</strong> '+esc(specialDistrictExplain(spDisp,[pluto.spdist1,pluto.spdist2,pluto.spdist3]))+'</div>':'')+(hd.length?'<div style="margin-top:5px"><strong>Historic district:</strong> This is in a historic district, so exterior changes usually need LPC review.</div>':'')+'</div>'+facilitiesHtml(facs,zones,pluto.overlay1||pluto.overlay2||'')+'<div data-usegrid="'+esc(baseDistricts(zones[0]).join(','))+'" data-zone="'+esc(zones[0]||'')+'" style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px"></div>'+nearbyHtml(n)+'<div id="dobnow-block" data-dobnow="'+esc(bbl)+'" data-dobbis="'+esc(dob)+'" style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px"></div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"><a href="'+dob+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">DOB BIS</a><a href="#dobnow-block" class="citywide-dobnow-jump" title="DOB NOW filings for this lot, shown on this card" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">DOB NOW</a><a href="'+zap+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">ZAP Projects</a><a href="'+acris+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">ACRIS Deeds</a><a href="'+zola+'" target="_blank" style="font-size:.73rem;font-weight:600;color:#2e7d32;text-decoration:none;padding:5px 10px;border:1px solid #a5d6a7;border-radius:5px;background:#f1f8f1">ZoLa Zoning</a><a href="https://maps.google.com/?q='+lat+','+lng+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">Map</a><button type="button" class="citywide-share-btn" data-share-address="'+esc(input)+'" style="font-size:.73rem;font-weight:700;color:#fff;cursor:pointer;padding:5px 12px;border:1px solid var(--orange,#FD890E);border-radius:5px;background:var(--orange,#FD890E)">Share card</button><button type="button" class="citywide-pdf-btn" style="font-size:.73rem;font-weight:700;color:var(--navy,#0d1b4b);cursor:pointer;padding:5px 12px;border:1px solid var(--navy,#0d1b4b);border-radius:5px;background:#fff">Download PDF</button></div><div style="border-top:1px solid #d1fae5;padding-top:8px;display:flex;flex-wrap:wrap;gap:12px"><a href="'+(boardSlug(cb)?boardSlug(cb)+'?addr='+enc+'#sec-map':'mydistricts.html?address='+enc)+'" style="font-size:.75rem;color:var(--navy,#0d1b4b);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy,#0d1b4b)">Open '+esc(cbLabel)+' district profile &rarr;</a></div></div>';}
+      return '<div style="margin-top:6px;padding:7px 9px;background:'+(g.ok?'#f4f8f4':'#fff8f2')+';border-left:3px solid '+(g.ok?'#2e6b30':'#f47920')+';border-radius:0 5px 5px 0"><strong>'+g.head+':</strong> '+esc(g.text)+'</div>';})()+''+(spDists.length?'<div style="margin-top:5px"><strong>Special district:</strong> '+esc(specialDistrictExplain(spDisp,[pluto.spdist1,pluto.spdist2,pluto.spdist3]))+'</div>':'')+(hd.length?'<div style="margin-top:5px"><strong>Historic district:</strong> This is in a historic district, so exterior changes usually need LPC review.</div>':'')+'</div>'+facilitiesHtml(facs,zones,pluto.overlay1||pluto.overlay2||'')+'<div data-usegrid="'+esc(baseDistricts(zones[0]).join(','))+'" data-zone="'+esc(zones[0]||'')+'" style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px"></div>'+nearbyHtml(n)+'<div data-bid-lat="'+esc(lat)+'" data-bid-lng="'+esc(lng)+'"></div><div id="dobnow-block" data-dobnow="'+esc(bbl)+'" data-dobbis="'+esc(dob)+'" style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:9px 10px;margin-bottom:10px"></div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"><a href="'+dob+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">DOB BIS</a><a href="#dobnow-block" class="citywide-dobnow-jump" title="DOB NOW filings for this lot, shown on this card" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">DOB NOW</a><a href="'+zap+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">ZAP Projects</a><a href="'+acris+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">ACRIS Deeds</a><a href="'+zola+'" target="_blank" style="font-size:.73rem;font-weight:600;color:#2e7d32;text-decoration:none;padding:5px 10px;border:1px solid #a5d6a7;border-radius:5px;background:#f1f8f1">ZoLa Zoning</a><a href="https://maps.google.com/?q='+lat+','+lng+'" target="_blank" style="font-size:.73rem;font-weight:600;color:var(--navy,#0d1b4b);text-decoration:none;padding:5px 10px;border:1px solid var(--border,#e5e2db);border-radius:5px;background:#fff">Map</a><button type="button" class="citywide-share-btn" data-share-address="'+esc(input)+'" style="font-size:.73rem;font-weight:700;color:#fff;cursor:pointer;padding:5px 12px;border:1px solid var(--orange,#FD890E);border-radius:5px;background:var(--orange,#FD890E)">Share card</button><button type="button" class="citywide-pdf-btn" style="font-size:.73rem;font-weight:700;color:var(--navy,#0d1b4b);cursor:pointer;padding:5px 12px;border:1px solid var(--navy,#0d1b4b);border-radius:5px;background:#fff">Download PDF</button></div><div style="border-top:1px solid #d1fae5;padding-top:8px;display:flex;flex-wrap:wrap;gap:12px"><a href="'+(boardSlug(cb)?boardSlug(cb)+'?addr='+enc+'#sec-map':'mydistricts.html?address='+enc)+'" style="font-size:.75rem;color:var(--navy,#0d1b4b);font-weight:700;text-decoration:none;border-bottom:1px solid var(--navy,#0d1b4b)">Open '+esc(cbLabel)+' district profile &rarr;</a></div></div>';}
   async function nyzdQuery(geomObj,geomType){
     var url='https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=ZONEDIST&returnGeometry=false&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(geomObj))+'&geometryType='+geomType+'&inSR=4326&spatialRel=esriSpatialRelIntersects&f=json&resultRecordCount=20';
     var d=await fetchJsonOptional(url);
@@ -832,6 +832,7 @@
       loadResultZoning(map,lat,lng);
       try{document.querySelectorAll('[data-usegrid]').forEach(function(el){paintUseGrid(el);});}catch(e){}
       try{document.querySelectorAll('[data-dobnow]').forEach(function(el){paintDobNow(el);});}catch(e){}
+      try{document.querySelectorAll('[data-bid-lat]').forEach(function(el){paintBid(el);});}catch(e){}
       var label=el.getAttribute('data-label')||'Searched address';
       var owner=el.getAttribute('data-owner')||'';
       var mi=markFor(label,owner);
@@ -1886,27 +1887,79 @@
     '291 VAN BRUNT ST':[{name:'Red Hook Art Project',kind:'Free after school arts program for young people',src:'/site-icons/red-hook-art-project.png',w:480,h:475,href:'https://www.redhookartproject.org',plate:'#ffffff',label:'Community based organization in this building',labelPlural:'Community based organizations in this building'}],
     '139 9 ST':[{name:'Principles Cafe',kind:'Coffee house',src:'/site-icons/principles-cafe.png',w:520,h:520,href:'https://principlesbk.nyc/',plate:'#3a3c3e'}]
   };
-  // Business improvement districts. A BID covers a stretch of street, so this is
-  // a district the address sits in, not a tenant of the building.
-  var BID_SITES={
-    '427 5 AVE':{name:'Park Slope Fifth Avenue BID',src:'/site-icons/bid-park-slope-fifth-ave.png',w:129,h:300,href:'https://parkslopefifthavenuebid.com',plate:'#ffffff'}
-  };
-  function bidBlock(input){
-    var d=BID_SITES[liftNorm(input)];
+  // Business improvement districts. Which BID a lot sits in is a question of
+  // geometry, so it is answered against the official boundaries rather than a
+  // hand kept list. Loaded once, lazily, and only when a card is drawn.
+  var BID_GEO=null, BID_PENDING=null;
+  function bidLoad(){
+    if(BID_GEO) return Promise.resolve(BID_GEO);
+    if(BID_PENDING) return BID_PENDING;
+    BID_PENDING=fetchJsonOptional('/data/bids.geojson').then(function(g){
+      BID_GEO=(g&&g.features)?g.features:[];
+      return BID_GEO;
+    }).catch(function(){ BID_GEO=[]; return BID_GEO; });
+    return BID_PENDING;
+  }
+  function ringHas(ring,x,y){
+    var inside=false;
+    for(var i=0,j=ring.length-1;i<ring.length;j=i++){
+      var xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];
+      if(((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/((yj-yi)||1e-12)+xi)) inside=!inside;
+    }
+    return inside;
+  }
+  function polyHas(coords,x,y){
+    if(!ringHas(coords[0],x,y)) return false;
+    for(var k=1;k<coords.length;k++){ if(ringHas(coords[k],x,y)) return false; }
+    return true;
+  }
+  function bidAt(lat,lng){
+    if(!BID_GEO||!isFinite(lat)||!isFinite(lng)) return null;
+    for(var i=0;i<BID_GEO.length;i++){
+      var f=BID_GEO[i], g=f.geometry;
+      if(!g) continue;
+      if(g.type==='Polygon'){ if(polyHas(g.coordinates,lng,lat)) return f.properties; }
+      else if(g.type==='MultiPolygon'){
+        for(var j=0;j<g.coordinates.length;j++){ if(polyHas(g.coordinates[j],lng,lat)) return f.properties; }
+      }
+    }
+    return null;
+  }
+  function bidBlockFor(d){
     if(!d) return '';
+    var page='/bids.html#'+encodeURIComponent(d.slug||'');
+    var logo=BID_LOGOS[d.slug]||'';
+    var mark=logo
+      ? '<span style="flex:none;width:34px;height:34px;border-radius:5px;background:#fff;border:1px solid #e5e2db;display:flex;align-items:center;justify-content:center;overflow:hidden">'
+        +'<img src="'+logo+'" alt="'+esc(d.name)+'" loading="lazy" style="max-width:28px;max-height:28px;width:auto;height:auto;display:block"></span>'
+      : '';
     return '<div style="margin:0 0 10px">'+
       '<div style="font-family:\'DM Mono\',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted,#6b6760);font-weight:700;margin-bottom:4px">In a business improvement district</div>'+
-      '<a href="'+d.href+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;text-decoration:none;background:#fff;border:1px solid #d1fae5;border-radius:7px;padding:6px 9px">'+
-        '<span style="flex:none;width:30px;height:30px;border-radius:5px;background:'+d.plate+';border:1px solid #e5e2db;display:flex;align-items:center;justify-content:center;overflow:hidden">'+
-          '<img src="'+d.src+'" alt="'+esc(d.name)+'" width="'+d.w+'" height="'+d.h+'" loading="lazy" style="max-width:24px;max-height:24px;width:auto;height:auto;display:block">'+
-        '</span>'+
-        '<span style="flex:1;min-width:0;font-size:.78rem;font-weight:700;color:var(--navy,#0d1b4b);line-height:1.3">'+esc(d.name)+'</span>'+
-        '<span style="flex:none;font-size:.68rem;font-weight:700;color:var(--orange,#f47920);white-space:nowrap">Visit site &#8599;</span>'+
+      '<a href="'+page+'" style="display:flex;align-items:center;gap:9px;text-decoration:none;background:#fff;border:1px solid #d1fae5;border-radius:7px;padding:7px 10px">'+
+        mark+
+        '<span style="flex:1;min-width:0"><span style="display:block;font-size:.78rem;font-weight:700;color:var(--navy,#0d1b4b);line-height:1.3">'+esc(d.name)+' BID</span>'+
+        '<span style="display:block;font-family:\'DM Mono\',monospace;font-size:.58rem;color:var(--muted,#6b6760);margin-top:1px">'+
+          (d.year?('Created '+esc(d.year)+' \u00b7 '):'')+'See it on the BID map</span></span>'+
+        '<span style="flex:none;font-size:.66rem;font-weight:800;color:var(--orange,#f47920);white-space:nowrap">Open &rarr;</span>'+
       '</a></div>';
   }
+  var BID_LOGOS={'park-slope-5th-avenue':'/site-icons/bid-park-slope-fifth-ave.png'};
+  function paintBid(el){
+    if(!el || el.dataset.bidReady==='true') return;
+    el.dataset.bidReady='true';
+    var lat=parseFloat(el.getAttribute('data-bid-lat')), lng=parseFloat(el.getAttribute('data-bid-lng'));
+    if(!isFinite(lat)||!isFinite(lng)){ el.style.display='none'; return; }
+    bidLoad().then(function(){
+      var d=bidAt(lat,lng);
+      if(!d){ el.style.display='none'; return; }
+      el.innerHTML=bidBlockFor(d);
+    });
+  }
+  function bidBlock(){ return ''; }
+
   function bizBlock(input){
     var list=BIZ_SITES[liftNorm(input)];
-    if(!list||!list.length) return bidBlock(input);
+    if(!list||!list.length) return '';
     var rows=list.map(function(b){
       return '<a href="'+b.href+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:14px;text-decoration:none;background:#fff;border:1.5px solid #a7f3d0;border-radius:10px;padding:14px 16px">'+
         '<span style="flex:none;width:92px;height:92px;border-radius:9px;background:'+b.plate+';border:1px solid #e5e2db;display:flex;align-items:center;justify-content:center;overflow:hidden">'+
@@ -1926,7 +1979,7 @@
               ? (list[0].labelPlural||'Businesses in this building')
               : 'In this building')
           : (list[0].label||'Business in this building'))+'</div>'+
-      rows+'</div>'+bidBlock(input);
+      rows+'</div>';
   }
   var SITE_ICON={
     '1 E 161 ST':{src:'/site-icons/yankee-stadium.png',alt:'Yankee Stadium',w:360,h:147},
