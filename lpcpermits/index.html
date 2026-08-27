@@ -51,6 +51,26 @@
 .wmk .a{font-size:1.4rem;display:block}
 .wmk .b{font-family:'DM Mono',monospace;font-size:.55rem;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:rgba(13,27,75,.42);display:block;margin-top:1px}
 .leaflet-tooltip.hdlab:before,.leaflet-tooltip.boro-lab:before{display:none}
+.maptoggle{display:block;width:100%;padding:12px 14px;background:var(--navy2);color:#fff;border:none;border-top:1px solid rgba(255,255,255,.12);font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer;text-align:left}
+.maptoggle:hover{background:var(--orange)}
+.blocks{background:#fff;border-bottom:1px solid var(--border)}
+.blocks .bh{padding:11px 14px 3px;font-size:.8rem;font-weight:900;color:var(--navy)}
+.blocks .bs{padding:0 14px 9px;font-size:.72rem;color:var(--muted);line-height:1.5}
+.blocks .strip{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 11px}
+.stbtn{padding:6px 12px;border:1.5px solid var(--border);border-radius:16px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:700;color:var(--navy);cursor:pointer}
+.stbtn.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.stbtn .n{font-family:'DM Mono',monospace;font-size:.66rem;color:var(--orange);margin-left:5px}
+.stbtn.on .n{color:#ffd9b8}
+.blocks select{margin:0 12px 11px;padding:9px 11px;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:700;border:2px solid var(--navy2);border-radius:9px;color:var(--navy);background:#fff;max-width:calc(100% - 24px)}
+.blkrow{display:flex;align-items:center;gap:9px;padding:10px 14px;border-top:1px solid var(--border);cursor:pointer;background:#fff;width:100%;text-align:left;border-left:none;border-right:none;border-bottom:none}
+.blkrow:hover{background:#fff8f2}
+.blkrow.on{background:#fff1e5}
+.blkrow .nm{flex:1;min-width:0;font-size:.8rem;font-weight:700;color:var(--navy);line-height:1.35}
+.blkrow .nm i{display:block;font-family:'DM Mono',monospace;font-size:.63rem;font-weight:500;color:var(--muted);font-style:normal;margin-top:2px;white-space:normal}
+.blkrow .ct{flex:0 0 auto;white-space:nowrap;text-align:right;font-family:'DM Mono',monospace;font-size:.78rem;font-weight:800;color:var(--orange);line-height:1.2}
+.blkrow .ct b{display:block;font-family:'DM Mono',monospace;font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.pickbar{padding:9px 14px;background:#fff1e5;border-bottom:1px solid var(--border);font-size:.76rem;color:var(--navy);line-height:1.5;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.pickbar b{font-weight:800}
 .loadbar{padding:8px 14px;background:#fff4ea;border-bottom:1px solid var(--border);font-family:'DM Mono',monospace;font-size:.66rem;color:#a65a00;line-height:1.5}
 .loadbar.done{background:var(--off);color:var(--muted)}
 .count{padding:9px 14px;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);background:var(--off);border-bottom:1px solid var(--border)}
@@ -135,6 +155,10 @@
     <button type="button" class="fb" id="clearBtn">Clear</button>
   </div>
 
+  <div class="blocks" id="blocks"></div>
+
+  <button type="button" class="maptoggle" id="mapToggle">Show the map</button>
+  <div id="mapwrap" style="display:none">
   <div class="maptools">
     <span class="tl">Show</span>
     <button type="button" class="tgl on" id="tHd">Historic districts</button>
@@ -144,6 +168,7 @@
   <div class="mapnote" id="mapnote">Loading the citywide record&hellip;</div>
   <div class="maphold"><div id="map"></div></div>
   <div class="legend2" id="legend"></div>
+  </div>
   <div class="loadbar" id="loadbar">Loading&hellip;</div>
 
   <div class="sharebar"><span class="sb-t" id="sbText"></span>
@@ -202,7 +227,7 @@ var view=[], shown=0, openSite=-1, refitNext=true;
 var map=null, canvas=null, dotLayer=null, hdLayer=null, cdLayer=null,
     leadLayer=null, wmkLayer=null, boroLayer=null;
 var hdPolys=[], hdOrder=[], shownDots=0, repaintTimer=null, shownHd=[];
-var showHd=true, showLab=true, showCd=true;
+var showHd=true, showLab=true, showCd=true, mapOpen=false;
 var scope={boro:'',cd:''};
 
 function el(id){return document.getElementById(id);}
@@ -246,7 +271,7 @@ Promise.all([
     .catch(function(){return null;})
 ]).then(function(res){
   CITY=res[0];BND=res[1];
-  readUrl();buildScope();buildFilters();ensureMap();drawBounds();applyFilters();
+  readUrl();buildScope();buildFilters();buildBlocks();renderBlocks();applyFilters();
   el('loadbar').textContent='Loading permit records so dockets and work types are searchable\u2026';
   return fetch(BASE+'city-permits.json');
 }).then(function(r){
@@ -289,7 +314,10 @@ function buildScope(){
     scope.boro='';scope.cd='';el('boroSel').value='';fillCds();rescope();};
 }
 function rescope(){
-  refitNext=true;openSite=-1;drawBounds();applyFilters();
+  refitNext=true;openSite=-1;pick={block:'',street:''};
+  buildBlocks();renderBlocks();
+  if(mapOpen)drawBounds();
+  applyFilters();
 }
 function fillCds(){
   var sel=el('cdSel');
@@ -356,6 +384,7 @@ function buildFilters(){
     openSite=-1;refitNext=true;applyFilters();};
   el('clearBtn').onclick=function(){
     el('q').value='';el('regSel').value='';el('yrSel').value='';
+    pick={block:'',street:''};renderBlocks();
     openSite=-1;refitNext=true;applyFilters();};
   el('tHd').onclick=function(){
     showHd=!showHd;this.className='tgl'+(showHd?' on':'');
@@ -368,6 +397,16 @@ function buildFilters(){
       if(l){if(showCd)l.addTo(map);else map.removeLayer(l);}});};
   el('tLab').onclick=function(){
     showLab=!showLab;this.className='tgl'+(showLab?' on':'');drawBounds();};
+  el('mapToggle').onclick=function(){
+    mapOpen=!mapOpen;
+    el('mapwrap').style.display=mapOpen?'':'none';
+    this.textContent=mapOpen?'Hide the map':'Show the map';
+    if(mapOpen){
+      ensureMap();
+      setTimeout(function(){map.invalidateSize();drawBounds();
+        refitNext=true;drawMap(true);},30);
+    }
+  };
   el('shareView').onclick=function(){
     var p=new URLSearchParams();
     if(scope.cd)p.set('cd',scope.cd.toLowerCase());
@@ -375,6 +414,7 @@ function buildFilters(){
     if(el('q').value)p.set('q',el('q').value);
     if(el('regSel').value)p.set('reg',el('regSel').value);
     if(el('yrSel').value)p.set('yr',el('yrSel').value);
+    if(pick.block)p.set('block',pick.block);
     var s=p.toString();
     var u=location.origin+location.pathname+(s?'?'+s:'');
     if(navigator.clipboard)navigator.clipboard.writeText(u);
@@ -383,6 +423,7 @@ function buildFilters(){
   var q=new URLSearchParams(location.search);
   if(q.get('reg'))el('regSel').value=q.get('reg');
   if(q.get('yr'))el('yrSel').value=q.get('yr');
+  if(q.get('block'))pick.block=q.get('block');
 }
 
 function yearHit(d,yr){
@@ -422,6 +463,7 @@ function applyFilters(){
   for(var i=0;i<CITY.sites.length;i++){
     var s=CITY.sites[i];
     if(!inScope(s))continue;
+    if(pick.block&&s[11]!==pick.block)continue;
     if(regBit&&!(s[9]&regBit))continue;
 
     var rows=null;
@@ -454,14 +496,119 @@ function applyFilters(){
   el('caBtn').className='fb'+(reg===CA_NAME?' on':'');
   var filtered=!!(qs||reg||yr);
   el('sbText').textContent=(filtered?'Filtered \u00b7 ':'')+scopeLabel();
+  var where=pick.block?
+    (pick.street?prettyStreet(pick.street)+', block '+pick.block:'Block '+pick.block)+
+      ', '+scopeLabel():scopeLabel();
   el('count').textContent=view.length?
     num(view.length)+' building'+(view.length===1?'':'s')+' \u00b7 '+
-      num(total)+' permit'+(total===1?'':'s')+' \u00b7 '+scopeLabel()+
+      num(total)+' permit'+(total===1?'':'s')+' \u00b7 '+where+
       (CP?'':' (refining as records load)'):
-    'Nothing matches that in '+scopeLabel()+'.';
+    'Nothing matches that in '+where+'.';
   shown=0;
-  drawMap(refitNext);refitNext=false;
+  if(mapOpen)drawMap(refitNext);
+  refitNext=false;
   renderList(true);renderHdPanel();updateFoot();
+}
+
+/* --------------------------------------------------------- browse by block */
+/* A tax block is bounded by streets, and the buildings on it carry addresses on
+   each of those streets. So the set of street names among a block's own
+   addresses is that block's cross streets, read straight out of the data rather
+   than guessed at. Block 291 in Cobble Hill comes back as Amity, Pacific,
+   Clinton and Henry, which is exactly its four sides. */
+var BLK=null, pick={block:'',street:''};
+
+function streetOf(a){
+  a=String(a||'').trim();
+  a=a.replace(/^\d+[A-Za-z]?(\s*-\s*\d+[A-Za-z]?)?\s+/,'');
+  a=a.replace(/\s*\(.*$/,'');
+  return a.trim().toUpperCase();
+}
+function houseNo(a){
+  var m=String(a||'').match(/^(\d+)/);
+  return m?parseInt(m[1],10):null;
+}
+function prettyStreet(t){return titleCase(t).replace(/\b(\d+)(St|Nd|Rd|Th)\b/g,
+  function(_,d,x){return d+x.toLowerCase();});}
+
+function buildBlocks(){
+  BLK=null;
+  if(!scope.cd)return;
+  var blocks={},streets={};
+  for(var i=0;i<CITY.sites.length;i++){
+    var s=CITY.sites[i];
+    if(!inScope(s)||!s[11])continue;
+    var st=streetOf(s[2]);
+    if(!st)continue;
+    var b=blocks[s[11]]||(blocks[s[11]]={block:s[11],n:0,p:0,streets:{}});
+    b.n++;b.p+=s[6];
+    var e=b.streets[st]||(b.streets[st]={n:0,p:0,lo:null,hi:null});
+    e.n++;e.p+=s[6];
+    var h=houseNo(s[2]);
+    if(h!==null){e.lo=(e.lo===null||h<e.lo)?h:e.lo;e.hi=(e.hi===null||h>e.hi)?h:e.hi;}
+    var g=streets[st]||(streets[st]={name:st,n:0,p:0,blocks:{}});
+    g.n++;g.p+=s[6];g.blocks[s[11]]=1;
+  }
+  BLK={blocks:blocks,streets:Object.keys(streets).map(function(k){return streets[k];})
+    .sort(function(a,b){return b.p-a.p||a.name.localeCompare(b.name);})};
+}
+function renderBlocks(){
+  var host=el('blocks');
+  if(!scope.cd||!BLK||!BLK.streets.length){
+    host.innerHTML=scope.boro?
+      '<div class="bh">Browse by block</div><div class="bs">Pick a community district '+
+      'above and every block in it is listed here, so you can find a street and its '+
+      'cross streets without touching the map.</div>':'';
+    return;
+  }
+  var h='<div class="bh">Browse by block</div>'+
+    '<div class="bs">Every street in '+esc(scopeLabel())+' with a landmarked building. '+
+    'Pick one, then pick a block to see everything filed on it. The cross streets come '+
+    'from the addresses on each block.</div>';
+  h+='<select id="stSel"><option value="">Choose a street\u2026</option>'+
+    BLK.streets.map(function(g){
+      return '<option value="'+esc(g.name)+'"'+(pick.street===g.name?' selected':'')+'>'+
+        esc(prettyStreet(g.name))+' \u00b7 '+num(g.p)+' permit'+(g.p===1?'':'s')+'</option>';
+    }).join('')+'</select>';
+  h+='<div class="strip">'+BLK.streets.slice(0,8).map(function(g){
+    return '<button type="button" class="stbtn'+(pick.street===g.name?' on':'')+
+      '" data-st="'+esc(g.name)+'">'+esc(prettyStreet(g.name))+
+      '<span class="n">'+num(g.p)+'</span></button>';}).join('')+'</div>';
+
+  if(pick.street){
+    var rows=[];
+    Object.keys(BLK.blocks).forEach(function(k){
+      var b=BLK.blocks[k],e=b.streets[pick.street];
+      if(!e)return;
+      rows.push({b:b,e:e});
+    });
+    rows.sort(function(x,y){return y.e.p-x.e.p||(x.e.lo||0)-(y.e.lo||0);});
+    h+=rows.map(function(r){
+      var others=Object.keys(r.b.streets).filter(function(x){return x!==pick.street;})
+        .sort(function(a,c){return r.b.streets[c].n-r.b.streets[a].n;})
+        .map(prettyStreet);
+      var rng=(r.e.lo!==null)?(r.e.lo===r.e.hi?String(r.e.lo):r.e.lo+' to '+r.e.hi):'';
+      return '<button type="button" class="blkrow'+(pick.block===r.b.block?' on':'')+
+        '" data-blk="'+esc(r.b.block)+'">'+
+        '<span class="nm">'+esc(prettyStreet(pick.street))+(rng?' '+esc(rng):'')+
+        '<i>Block '+esc(r.b.block)+' \u00b7 '+
+        (others.length?'cross streets '+esc(others.join(', ')):'no other street on this block')+
+        ' \u00b7 '+num(r.b.n)+' landmarked building'+(r.b.n===1?'':'s')+'</i></span>'+
+        '<span class="ct">'+num(r.b.p)+'<b>on the block</b></span></button>';
+    }).join('');
+  }
+  host.innerHTML=h;
+  var sel=el('stSel');
+  if(sel)sel.onchange=function(){
+    pick.street=this.value;pick.block='';renderBlocks();applyFilters();};
+  var bs=host.querySelectorAll('.stbtn');
+  for(var i=0;i<bs.length;i++)bs[i].onclick=function(){
+    var v=this.getAttribute('data-st');
+    pick.street=(pick.street===v)?'':v;pick.block='';renderBlocks();applyFilters();};
+  var rs=host.querySelectorAll('.blkrow');
+  for(var j=0;j<rs.length;j++)rs[j].onclick=function(){
+    var v=this.getAttribute('data-blk');
+    pick.block=(pick.block===v)?'':v;refitNext=true;renderBlocks();applyFilters();};
 }
 
 /* ------------------------------------------------------------------- map */
@@ -473,6 +620,7 @@ function ensureMap(){
     {maxZoom:19,attribution:'&copy; OpenStreetMap, &copy; CARTO'}).addTo(map);
   map.setView([40.7128,-73.96],11);
   map.on('moveend',function(){
+    if(!mapOpen)return;
     clearTimeout(repaintTimer);
     repaintTimer=setTimeout(function(){
       paintDots();styleHd();placeLabels();updateMapNote();},90);});
@@ -503,6 +651,7 @@ function scopedHd(){
     return true;});
 }
 function drawBounds(){
+  if(!mapOpen)return;
   ensureMap();
   [hdLayer,cdLayer,boroLayer,leadLayer,wmkLayer].forEach(function(l){
     if(l)map.removeLayer(l);});
@@ -653,6 +802,7 @@ function placeLabels(){
   if(leads.length)leadLayer=L.layerGroup(leads).addTo(map);
 }
 function drawMap(fit){
+  if(!mapOpen)return;
   ensureMap();
   if(fit!==false)fitToView();
   paintDots();styleHd();placeLabels();updateMapNote();
@@ -726,6 +876,7 @@ function updateMapNote(){
   }
 }
 function renderLegend(){
+  if(!mapOpen){el('legend').innerHTML='';return;}
   var h='<span class="l">Colour</span>';
   if(scope.cd&&hdOrder.length){
     hdOrder.slice(0,4).forEach(function(n){
@@ -782,6 +933,7 @@ function selectHd(name){
   openSite=-1;refitNext=true;applyFilters();
 }
 function renderHdPanel(){
+  if(!mapOpen)shownHd=scopedHd();
   if(!shownHd.length){el('hdpanel').innerHTML='';renderLegend();return;}
   var counts=hdCounts(),sel=selectedHd();
   var list=shownHd.slice().sort(function(a,b){
