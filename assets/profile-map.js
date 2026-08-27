@@ -73,9 +73,39 @@
       + '.pmap-legend .sw{width:13px;height:13px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.18)}'
       + '.pmap-legend .ln{width:13px;height:0;flex:none;border-top:3px solid ' + BID_LINE + ';'
       + 'box-shadow:0 0 0 1px #fff}'
+      + '.leaflet-tooltip.pmap-corridor{background:rgba(255,255,255,.92);border:1.5px solid '
+      + BID_LINE + ';border-radius:5px;padding:1px 6px;font-family:"DM Sans",sans-serif;'
+      + 'font-size:.6rem;font-weight:800;color:' + BID_LINE + ';white-space:nowrap;'
+      + 'box-shadow:0 1px 4px rgba(0,0,0,.22)}'
+      + '.leaflet-tooltip.pmap-corridor:before{display:none}'
       + '@media(max-width:480px){.pmap-legend{padding:6px 8px;max-width:138px}'
       + '.pmap-legend .li{font-size:.63rem}}';
     document.head.appendChild(s);
+  }
+
+  // The bounding box centre of a long diagonal ribbon is not on the ribbon, so
+  // a label placed there floats a few blocks off the street it is naming. Take
+  // the mean of the vertices and snap to the nearest real one.
+  function corridorPoint(g) {
+    var pts = [];
+    function walk(c) {
+      if (!c || !c.length) return;
+      if (typeof c[0] === 'number') { pts.push(c); return; }
+      for (var i = 0; i < c.length; i++) walk(c[i]);
+    }
+    ((g && g.features) || []).forEach(function (f) {
+      if (f.geometry && f.geometry.coordinates) walk(f.geometry.coordinates);
+    });
+    if (!pts.length) return null;
+    var sx = 0, sy = 0;
+    pts.forEach(function (q) { sx += q[0]; sy += q[1]; });
+    var mx = sx / pts.length, my = sy / pts.length;
+    var best = null, bd = Infinity;
+    pts.forEach(function (q) {
+      var d = (q[0] - mx) * (q[0] - mx) + (q[1] - my) * (q[1] - my);
+      if (d < bd) { bd = d; best = q; }
+    });
+    return best ? [best[1], best[0]] : null;
   }
 
   function init(el) {
@@ -110,11 +140,20 @@
       return name;
     }
     var FILL_PANE = pane('pmapFills', 410);
+    // the boundary goes above the fills but below the street names, so the name
+    // of the street the district runs along is not hidden by the district
+    var LINE_PANE = pane('pmapLine', 440);
     var LABEL_PANE = pane('pmapLabels', 450, true);
-    var LINE_PANE = pane('pmapLine', 480);
 
-    L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19, opacity: 0.9, pane: LABEL_PANE || undefined
+    // Esri's light grey reference carries almost no street names at the zoom a
+    // long thin corridor fits at, which left people no way to place the shape.
+    // World_Transportation labels the grid at that zoom, so BID pages use it.
+    // Chamber districts are borough-scale, where those labels are just noise.
+    var refTiles = bidSlug
+      ? 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}'
+      : 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}';
+    L.tileLayer(refTiles, {
+      maxZoom: 19, opacity: bidSlug ? 0.95 : 0.9, pane: LABEL_PANE || undefined
     }).addTo(map);
 
     var homeBounds = null;
@@ -145,7 +184,19 @@
       homeBounds = own.getBounds();
       map.fitBounds(homeBounds, { padding: [14, 14] });
       if (!bidSlug) own.bringToBack();
-      if (bidSlug) startDefaults();
+      if (bidSlug) {
+        var nm = (g.features && g.features[0] && g.features[0].properties
+          && g.features[0].properties.name) || '';
+        var mid = corridorPoint(g);
+        if (nm && mid) {
+          own.bindTooltip(nm + ' BID', {
+            permanent: true, direction: 'center', className: 'pmap-corridor'
+          });
+          var tt = own.getTooltip && own.getTooltip();
+          if (tt && tt.setLatLng) tt.setLatLng(mid);
+        }
+        startDefaults();
+      }
     }).catch(function () { map.setView([40.70, -73.95], 11); });
 
     // ---- overlapping districts from the other two chambers, faint ----
@@ -386,7 +437,7 @@
     function showLegend(on) {
       if (!L.control || !L.DomUtil) return;
       if (on && !legend) {
-        legend = L.control({ position: 'bottomright' });
+        legend = L.control({ position: 'topright' });
         legend.onAdd = function () {
           var d = L.DomUtil.create('div', 'pmap-legend');
           d.innerHTML = legendHtml();
