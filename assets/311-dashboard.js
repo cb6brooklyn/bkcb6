@@ -256,29 +256,119 @@
       '. The filled point is the year selected above.' + rollupNote() + '</div>';
   }
 
+  /* Categories view is a bar chart race over every year on file, the same shape
+     as the one on the CB6 311 page: the bars reorder as the years advance so the
+     leading complaint is obvious without reading a number. Rows keep their place
+     in the DOM and move by transform, which is what lets them slide rather than
+     jump. */
+  var race = { years: [], i: 0, playing: false, timer: null, ms: 900 };
+  var ROWH = 30;
+
+  function catRow(cats, year) {
+    var y = cats.years[year] || {};
+    return y[S.level === 'city' ? 'NYC' : S.key] || {};
+  }
+
   function drawCats(rank, cats) {
-    var y = cats.years[S.year] || {};
-    var row = y[S.level === 'city' ? 'NYC' : S.key] || {};
-    var totals = {};
-    CAT_ORDER.forEach(function (c) { totals[c] = row[c] || 0; });
-    var sum = CAT_ORDER.reduce(function (a, c) { return a + totals[c]; }, 0) || 1;
-    var max = Math.max.apply(null, CAT_ORDER.map(function (c) { return totals[c]; })) || 1;
-    var rows = CAT_ORDER.slice().sort(function (a, b) { return totals[b] - totals[a]; }).map(function (c) {
-      return '<div class="dsh-bar' + (S.cat === c ? ' on' : '') + '" data-c="' + c + '">' +
-        '<span class="bl">' + CAT_LABELS[c] + '</span>' +
-        '<span class="bt"><i style="width:' + (totals[c] / max * 100).toFixed(1) + '%;background:' + CAT_COLORS[c] + '"></i></span>' +
-        '<span class="bn">' + fmt(totals[c]) + '<em>' + (totals[c] / sum * 100).toFixed(1) + '%</em></span></div>';
-    }).join('');
-    el('dOut').innerHTML = headline(rank, cats) + '<div class="dsh-bars">' + rows + '</div>' +
-      '<div class="dsh-n">Tap a category to filter every view to it. The same eleven buckets are used across the site, so years and geographies compare.' + rollupNote() + '</div>';
-    Array.prototype.forEach.call(el('dOut').querySelectorAll('.dsh-bar'), function (b) {
-      b.addEventListener('click', function () {
-        var c = b.getAttribute('data-c');
+    race.years = yearsAvailable(rank);
+    race.i = Math.max(0, race.years.indexOf(S.year));
+    stopRace();
+
+    el('dOut').innerHTML = headline(rank, cats) +
+      '<div class="rc-top">' +
+        '<div><div class="rc-k">Bar chart race</div><div class="rc-y" id="rcYear">' + esc(S.year) + '</div></div>' +
+        '<div class="rc-ctl">' +
+          '<button type="button" id="rcPlay">&#9654; Play</button>' +
+          '<button type="button" id="rcBack" title="Start over">&#8634;</button>' +
+          '<span class="rc-sp">Speed<input type="range" id="rcSpeed" min="200" max="2000" step="100" value="1300"></span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="rc-lead" id="rcLead"></div>' +
+      '<div class="rc-scrub"><span id="rcMin">' + esc(race.years[0]) + '</span>' +
+        '<input type="range" id="rcScrub" min="0" max="' + (race.years.length - 1) + '" value="' + race.i + '">' +
+        '<span id="rcMax">' + esc(race.years[race.years.length - 1]) + '</span></div>' +
+      '<div class="rc-bars" id="rcBars" style="height:' + (CAT_ORDER.length * ROWH) + 'px">' +
+        CAT_ORDER.map(function (c) {
+          return '<div class="rc-row" data-c="' + c + '" id="rc-' + c + '">' +
+            '<span class="bl">' + CAT_LABELS[c] + '</span>' +
+            '<span class="bt"><i style="background:' + CAT_COLORS[c] + '"></i></span>' +
+            '<span class="bn"></span></div>';
+        }).join('') +
+      '</div>' +
+      '<div class="dsh-n">Press play to watch the order change year by year, or drag the slider to any year. ' +
+      'Tap a bar to filter every other view to that category. The same eleven buckets are used across the site, so years and geographies compare.' +
+      rollupNote() + '</div>';
+
+    el('rcPlay').addEventListener('click', function () { race.playing ? stopRace() : playRace(); });
+    el('rcBack').addEventListener('click', function () { stopRace(); frame(0, true); });
+    el('rcSpeed').addEventListener('input', function () { race.ms = 2200 - Number(this.value); });
+    el('rcScrub').addEventListener('input', function () { stopRace(); frame(Number(this.value), true); });
+    Array.prototype.forEach.call(el('rcBars').children, function (r) {
+      r.addEventListener('click', function () {
+        var c = r.getAttribute('data-c');
         S.cat = (S.cat === c) ? '' : c;
         el('dCat').value = S.cat;
         render();
       });
     });
+    frame(race.i, true);
+  }
+
+  function frame(i, syncYear) {
+    if (!el('rcBars')) return;
+    race.i = i;
+    var year = race.years[i];
+    el('rcYear').textContent = year;
+    el('rcScrub').value = i;
+
+    files().then(function (r) {
+      var row = catRow(r[1], year);
+      var vals = CAT_ORDER.map(function (c) { return { c: c, n: row[c] || 0 }; });
+      var sum = vals.reduce(function (a, v) { return a + v.n; }, 0) || 1;
+      var ranked = vals.slice().sort(function (a, b) { return b.n - a.n; });
+      var max = ranked[0].n || 1;
+      ranked.forEach(function (v, rank) {
+        var node = el('rc-' + v.c);
+        if (!node) return;
+        node.style.transform = 'translateY(' + (rank * ROWH) + 'px)';
+        node.className = 'rc-row' + (S.cat === v.c ? ' on' : '') + (rank === 0 ? ' first' : '');
+        node.querySelector('.bt i').style.width = Math.max(1.5, v.n / max * 100).toFixed(1) + '%';
+        node.querySelector('.bn').innerHTML = fmt(v.n) + '<em>' + (v.n / sum * 100).toFixed(1) + '%</em>';
+      });
+      var top = ranked[0];
+      el('rcLead').innerHTML = '<b>' + CAT_LABELS[top.c] + '</b> leads ' + esc(scopeLabel()) + ' in ' + year +
+        ', ' + fmt(top.n) + ' reports, ' + (top.n / sum * 100).toFixed(0) + '% of everything' +
+        (ranked[1] && ranked[1].n ? ', ' + (top.n / ranked[1].n).toFixed(1) + 'x the next category' : '') +
+        (row._t ? '<i>Most common single type: ' + esc(row._t) + ', ' + fmt(row._tn) + '</i>' : '');
+      if (syncYear && year !== S.year) { S.year = year; el('dYear').value = year; }
+    });
+  }
+
+  function playRace() {
+    if (race.i >= race.years.length - 1) race.i = 0;
+    race.playing = true;
+    el('rcPlay').innerHTML = '&#10073;&#10073; Pause';
+    stepRace();
+  }
+  // race.i always names the frame currently on screen, so pausing lands on the
+  // year the label is showing rather than the one queued next.
+  function stepRace() {
+    if (!race.playing) return;
+    frame(race.i, false);
+    race.timer = setTimeout(function () {
+      if (!race.playing) return;
+      if (race.i >= race.years.length - 1) { stopRace(); return; }
+      race.i++;
+      stepRace();
+    }, race.ms);
+  }
+  function stopRace() {
+    race.playing = false;
+    clearTimeout(race.timer);
+    var b = el('rcPlay');
+    if (b) b.innerHTML = '&#9654; Play';
+    var y = race.years[race.i];
+    if (y && y !== S.year) { S.year = y; if (el('dYear')) el('dYear').value = y; }
   }
 
   function drawRank(rank, cats) {
