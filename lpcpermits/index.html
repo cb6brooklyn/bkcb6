@@ -593,54 +593,61 @@ function styleHd(){
     }
   });
 }
+/* Citywide there are 159 districts. Naming them all at once is noise, so names
+   appear for a single district in scope, or once the map is close enough in. */
+function labelsWanted(){
+  if(!map)return false;
+  return !!scope.cd||map.getZoom()>=13;
+}
 function placeLabels(){
   if(!map||!hdPolys.length)return;
   if(leadLayer){map.removeLayer(leadLayer);leadLayer=null;}
-  if(!showLab||!showHd){
+  if(!showLab||!showHd||!labelsWanted()){
     hdPolys.forEach(function(o){
       var e=o.label&&o.label.getElement&&o.label.getElement();
       if(e)e.style.display='none';});
     return;
   }
+  /* A label may only sit on its district or just beside it. Letting tags search
+     outward for space is what turned the citywide view into a cat's cradle of
+     leader lines running clear across the map. A district that cannot be
+     labelled here is named in the panel below instead. */
+  var LEAD_MAX=48;
   var placed=[],leads=[];
-  hdPolys.forEach(function(o){
+  var order=hdPolys.slice().sort(function(a,b){
+    return hdOrder.indexOf(a.name)-hdOrder.indexOf(b.name);});
+  order.forEach(function(o){
     if(!o.label||!o.label.getElement)return;
     var e=o.label.getElement();
     if(!e)return;
-    e.style.display='';
+    e.style.display='none';
     var w=e.offsetWidth||90,h=e.offsetHeight||22;
     var p=map.latLngToLayerPoint(L.latLng(o.home[0],o.home[1]));
     var nw=map.latLngToLayerPoint(o.bounds.getNorthWest());
     var se=map.latLngToLayerPoint(o.bounds.getSouthEast());
     var pw=Math.abs(se.x-nw.x),ph=Math.abs(se.y-nw.y);
+    // Too small to be worth naming at this zoom.
+    if(pw<14&&ph<14)return;
     var cand=[];
     if(pw>=w*1.05&&ph>=h*1.8)cand.push({x:p.x,y:p.y});
-    var out=Math.max(ph/2,h/2)+h*0.75;
-    for(var ring=0;ring<7;ring++){
-      var d=out+ring*(h+5),sx=Math.max(pw/2,w/2)+w/2+8+ring*12;
-      cand.push({x:p.x,y:p.y-d},{x:p.x,y:p.y+d},{x:p.x+sx,y:p.y},{x:p.x-sx,y:p.y},
-                {x:p.x+sx*.72,y:p.y-d*.72},{x:p.x-sx*.72,y:p.y-d*.72},
-                {x:p.x+sx*.72,y:p.y+d*.72},{x:p.x-sx*.72,y:p.y+d*.72});
-    }
+    var dy=Math.min(LEAD_MAX,ph/2+h*0.8), dx=Math.min(LEAD_MAX,pw/2+w/2+8);
+    cand.push({x:p.x,y:p.y-dy},{x:p.x,y:p.y+dy},
+              {x:p.x+dx,y:p.y},{x:p.x-dx,y:p.y});
     var pick=null;
     for(var i=0;i<cand.length;i++){
       var c=cand[i];
       if(!placed.some(function(q){
-        return Math.abs(q.x-c.x)<(q.w+w)/2+5&&Math.abs(q.y-c.y)<(q.h+h)/2+5;})){
+        return Math.abs(q.x-c.x)<(q.w+w)/2+6&&Math.abs(q.y-c.y)<(q.h+h)/2+6;})){
         pick=c;break;}
     }
-    /* Stacking tags on each other is worse than leaving one to the panel
-       below, which names every district regardless. */
-    if(!pick){e.style.display='none';return;}
+    if(!pick)return;
     placed.push({x:pick.x,y:pick.y,w:w,h:h});
+    e.style.display='';
     o.label.setLatLng(map.layerPointToLatLng(L.point(pick.x,pick.y)));
     if(Math.abs(pick.x-p.x)>2||Math.abs(pick.y-p.y)>2){
       leads.push(L.polyline([map.layerPointToLatLng(L.point(p.x,p.y)),
                              map.layerPointToLatLng(L.point(pick.x,pick.y))],
-        {color:hdColor(o.name),weight:1.5,opacity:.75,interactive:false}));
-      leads.push(L.circleMarker(map.layerPointToLatLng(L.point(p.x,p.y)),
-        {renderer:canvas,radius:2.5,color:hdColor(o.name),weight:1.5,
-         fillColor:'#fff',fillOpacity:1,interactive:false}));
+        {color:hdColor(o.name),weight:1.5,opacity:.7,interactive:false}));
     }
   });
   if(leads.length)leadLayer=L.layerGroup(leads).addTo(map);
@@ -651,13 +658,28 @@ function drawMap(fit){
   paintDots();styleHd();placeLabels();updateMapNote();
 }
 function fitToView(){
-  var b=[],i;
-  for(i=0;i<view.length&&b.length<6000;i++){
+  var i,g=null;
+  var searching=!!(el('q').value.trim()||el('regSel').value||el('yrSel').value);
+  /* Unfiltered, fit the place that is in scope. Fitting a cloud of 48,000
+     points on a phone zooms out past New Jersey to make the width fit. */
+  if(!searching){
+    if(BND){
+      if(scope.cd){for(i=0;i<BND.outlines.length;i++)
+        if(BND.outlines[i].cd===scope.cd)g=BND.outlines[i].geometry;}
+      else if(scope.boro){for(i=0;i<BND.boroughs.length;i++)
+        if(BND.boroughs[i].boro===scope.boro)g=BND.boroughs[i].geometry;}
+    }
+    if(g){map.fitBounds(L.geoJSON({type:'Feature',geometry:g}).getBounds(),
+      {padding:[16,16]});return;}
+    map.fitBounds([[40.496,-74.256],[40.916,-73.700]],{padding:[8,8]});
+    return;
+  }
+  var b=[];
+  for(i=0;i<view.length&&b.length<4000;i++){
     var s=view[i].s;
     if(typeof s[0]==='number')b.push([s[0],s[1]]);
   }
   if(b.length){map.fitBounds(b,{padding:[24,24],maxZoom:16});return;}
-  var g=null;
   if(BND){
     if(scope.cd){for(i=0;i<BND.outlines.length;i++)
       if(BND.outlines[i].cd===scope.cd)g=BND.outlines[i].geometry;}
