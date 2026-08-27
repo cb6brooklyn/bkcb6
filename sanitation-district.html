@@ -332,14 +332,16 @@ function render(T, S, d, s){
     'None of this counts commercial waste, which private carters haul separately.');
 
   // map
-  var mapSec = block(body, 'Where', 'Garages and food scrap drop-off', null,
-    'Two point layers, each toggleable in the top right of the map. Solid markers sit inside this ' +
-    'district; faded ones are the rest of the city, for context.');
+  var mapSec = block(body, 'Where', 'Zone, garages and food scrap drop-off', null,
+    'Three layers, each toggleable in the top right of the map. Solid markers sit inside this ' +
+    'district; faded ones are the rest of the city, for context. The zone layer is off by default: ' +
+    'switch it on to see the operational region this district belongs to, ' + esc(section) + '.');
   var mapDiv = document.createElement('div'); mapDiv.id = 'map';
   mapSec.insertBefore(mapDiv, mapSec.querySelector('.note'));
   mapSec.insertBefore(legend([
     {label:'DSNY garage', color:'#0d1b4b'},
-    {label:'Food scrap drop-off', color:'#795548'}
+    {label:'Food scrap drop-off', color:'#795548'},
+    {label:'This DSNY zone', color:'#f47920'}
   ]), mapSec.querySelector('.note'));
   buildMap(s);
 
@@ -443,10 +445,26 @@ function buildMap(s){
 
   var garageLayer = L.layerGroup().addTo(map);
   var scrapLayer  = L.layerGroup().addTo(map);
+  var zoneLayer   = L.layerGroup();
   L.control.layers(null, {
+    'DSNY zone': zoneLayer,
     'DSNY garages': garageLayer,
     'Food scrap drop-off': scrapLayer
   }, {collapsed:false}).addTo(map);
+
+  fetch('dsny-zones.geojson').then(function(r){ return r.json(); }).then(function(g){
+    var mineZone = (s.dsny || '').replace(/\d+$/, '');
+    L.geoJSON(g, {
+      style: function(f){
+        var me = f.properties.zone === mineZone;
+        return {color: me ? '#f47920' : '#8d8577', weight: me ? 3 : 1.5,
+                fill: false, dashArray: me ? null : '4 4'};
+      },
+      onEachFeature: function(f, l){
+        l.bindPopup('<b>' + esc(f.properties.name) + '</b><br>DSNY zone ' + esc(f.properties.zone));
+      }
+    }).addTo(zoneLayer);
+  }).catch(function(){});
 
   fetch('dsny-districts.geojson').then(function(r){ return r.json(); }).then(function(g){
     var mine = {type:'FeatureCollection', features: g.features.filter(function(f){ return f.properties.code === s.code; })};
