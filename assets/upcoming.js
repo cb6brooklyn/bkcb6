@@ -21,7 +21,13 @@
       + '.upcoming .ud{font-family:"DM Mono",monospace;font-size:.63rem;color:#6b6760;'
       + 'display:block;margin-top:5px;line-height:1.55}'
       + '.upcoming .ug{font-size:.72rem;font-weight:800;color:#f47920;display:block;margin-top:7px}'
-      + '.upcoming + .upcoming{margin-top:-6px}';
+      + '.upcoming + .upcoming{margin-top:-6px}'
+      + '.upflyer{display:block;margin:12px 0 4px;text-decoration:none}'
+      + '.upflyer .fl{font-family:"DM Mono",monospace;font-size:.66rem;font-weight:700;'
+      + 'text-transform:uppercase;letter-spacing:.1em;color:#0d1b4b;display:block;margin-bottom:7px}'
+      + '.upflyer img{display:block;width:100%;max-width:420px;height:auto;border-radius:10px;'
+      + 'border:1.5px solid #e5e2db}'
+      + '.upflyer:hover img{border-color:#f47920}';
     document.head.appendChild(s);
   }
 
@@ -78,5 +84,57 @@
         slot.appendChild(a);
       });
     });
+    placeFlyers(owners);
   }).catch(function () { /* no banner rather than a broken one */ });
+
+  /* The flyer belongs under the business card inside the lot record, which the
+     citywide search renders after its own fetch. That card is not ours to
+     change, so watch for it and insert once it appears. */
+  function placeFlyers(owners) {
+    var hosts = [].slice.call(document.querySelectorAll('[data-flyer-after-biz]'));
+    if (!hosts.length) return;
+    hosts.forEach(function (host) {
+      var o = owners[host.getAttribute('data-flyer-after-biz')];
+      if (!o || !o.events) return;
+      var ev = null;
+      for (var i = 0; i < o.events.length; i++) {
+        if (o.events[i].flyer) { ev = o.events[i]; break; }
+      }
+      if (!ev) return;
+      var tries = 0;
+      (function wait() {
+        var card = bizCard();
+        if (card) { insert(card, ev); return; }
+        if (tries++ > 100) return;
+        setTimeout(wait, 150);
+      })();
+    });
+  }
+
+  function bizCard() {
+    var res = document.getElementById('citywide-borough-address-search-result');
+    if (!res || res.hidden) return null;
+    var divs = res.querySelectorAll('div'), best = null;
+    for (var i = 0; i < divs.length; i++) {
+      var t = (divs[i].firstChild && divs[i].firstChild.textContent || '').trim();
+      if (!/^(business(es)?\s+in\s+this\s+building|in\s+this\s+building)$/i.test(t)) continue;
+      // an outer wrapper matches this text too, so take the tightest one:
+      // the block that holds only the heading and the business rows
+      var block = divs[i].parentNode;
+      if (!best || block.children.length < best.children.length) best = block;
+    }
+    return best;
+  }
+
+  function insert(block, ev) {
+    if (document.querySelector('.upflyer')) return;
+    css();
+    var a = document.createElement('a');
+    a.className = 'upflyer';
+    a.href = ev.url;
+    a.innerHTML = '<span class="fl">' + esc(ev.label) + '</span>'
+      + '<img src="' + esc(ev.flyer) + '" alt="Flyer for ' + esc(ev.label) + '" loading="lazy">';
+    // straight after the business block, not at the end of the whole card
+    block.parentNode.insertBefore(a, block.nextSibling);
+  }
 })();
