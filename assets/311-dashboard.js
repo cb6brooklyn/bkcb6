@@ -22,8 +22,9 @@
   var FILL = ['#fdf3c8', '#fbe07a', '#f7c948', '#e8a020', '#c2410c', '#8a1c05'];
 
   var LEVELS = {
-    city:     { name: 'Citywide' },
-    boro:     { name: 'Borough' },
+    city:     { name: 'Citywide', rank: '/data/311-city-rank.json', cats: '/data/311-city-cats.json' },
+    boro:     { name: 'Borough', rank: '/data/311-city-rank.json', cats: '/data/311-city-cats.json',
+                geo: '/data/borough-boundaries.geojson', geoKey: function (p) { return p.boroname; } },
     cd:       { name: 'Community district', rank: '/33159by5-rank.json', cats: '/33159by5-cats.json',
                 geo: '/cd-boundaries-simple.geojson', geoKey: cdGeoKey },
     senate:   { name: 'Senate district', rank: '/data/senate-311-rank.json', cats: '/data/senate-311-cats.json',
@@ -52,31 +53,19 @@
     });
     return cache[url];
   }
-  // citywide and borough are rolled up from the community district file
-  function baseLevel() { return (S.level === 'city' || S.level === 'boro') ? 'cd' : S.level; }
+  function baseLevel() { return S.level; }
   function files() {
     var L = LEVELS[baseLevel()];
     return Promise.all([get(L.rank), get(L.cats)]);
   }
 
-  function inScope(k) {
-    if (S.level !== 'boro') return true;
-    return k.indexOf(S.key.toUpperCase()) !== -1;
-  }
   function yearsAvailable(rank) { return Object.keys(rank.years).sort(); }
 
   // total for the current selection in a given year
   function totalIn(rank, cats, year) {
     var t = rank.years[year]; if (!t) return null;
-    if (S.level === 'cd' || S.level === 'senate' || S.level === 'assembly') {
-      return S.cat ? catVal(cats, year, S.key) : (t[S.key] == null ? null : t[S.key]);
-    }
-    var sum = 0;
-    Object.keys(t).forEach(function (k) {
-      if (!inScope(k)) return;
-      sum += S.cat ? (catVal(cats, year, k) || 0) : t[k];
-    });
-    return sum;
+    var k = S.level === 'city' ? 'NYC' : S.key;
+    return S.cat ? catVal(cats, year, k) : (t[k] == null ? null : t[k]);
   }
   function catVal(cats, year, k) {
     var y = cats.years[year]; if (!y || !y[k]) return null;
@@ -86,12 +75,13 @@
   function unitsIn(rank, cats, year) {
     var t = rank.years[year] || {}, out = [];
     Object.keys(t).forEach(function (k) {
-      if (S.level === 'boro' && !inScope(k)) return;
+      if (k === 'NYC') return;                 // the citywide row is not a unit
       out.push({ key: k, n: S.cat ? (catVal(cats, year, k) || 0) : t[k] });
     });
     return out.sort(function (a, b) { return b.n - a.n; });
   }
   function unitLabel(k) {
+    if (S.level === 'boro' || S.level === 'city') return k === 'NYC' ? 'New York City' : k;
     if (baseLevel() === 'cd') {
       var p = k.split(' '), b = p.slice(1).join(' ');
       return b.charAt(0) + b.slice(1).toLowerCase() + ' CD ' + Number(p[0]);
@@ -176,12 +166,10 @@
       if (showUnit) {
         el('dUnitLbl').textContent = S.level === 'boro' ? 'Borough' : LEVELS[S.level].name;
         var opts;
-        if (S.level === 'boro') {
-          opts = BOROS.map(function (b) { return { v: b, t: b }; });
-        } else {
+        {
           opts = Object.keys(rank.years[S.year]).sort(function (a, b) {
-            return baseLevel() === 'cd' ? a.localeCompare(b) : Number(a) - Number(b);
-          }).map(function (k) { return { v: k, t: unitLabel(k) }; });
+            return (S.level === 'cd' || S.level === 'boro') ? a.localeCompare(b) : Number(a) - Number(b);
+          }).filter(function (k) { return k !== 'NYC'; }).map(function (k) { return { v: k, t: unitLabel(k) }; });
         }
         el('dUnit').innerHTML = opts.map(function (o) {
           return '<option value="' + esc(o.v) + '">' + esc(o.t) + '</option>';
@@ -209,13 +197,15 @@
     });
   }
 
-  // Citywide and borough figures are summed from the 59 community districts, so
-  // they run slightly under a true citywide count: reports the City left without
-  // a community board are in neither rollup.
+  /* Citywide is a straight count of every report. Boroughs take the ones the City
+     labelled, plus the unlabelled ones placed by their coordinates. What is left
+     over has neither a borough nor a location and cannot be placed by anyone. */
+  var cityRank = null;
   function rollupNote() {
-    return (S.level === 'city' || S.level === 'boro')
-      ? ' Summed from the 59 community districts; reports the City did not assign to one are not counted here.'
-      : '';
+    if (S.level !== 'city' && S.level !== 'boro') return '';
+    var u = cityRank && cityRank.unplaceable && cityRank.unplaceable[S.year];
+    return u ? ' Reports the City published with a borough are counted there; those it left blank are placed by their coordinates. ' +
+      fmt(u) + ' reports in ' + S.year + ' have neither and appear only in the citywide figure.' : '';
   }
 
   function headline(rank, cats) {
@@ -262,20 +252,15 @@
       grid + '<path d="' + area + '" fill="#f7c94833"/><path d="' + line + '" fill="none" stroke="#1b1b1a" stroke-width="2"/>' +
       dots + lab + '</svg>' +
       '<div class="dsh-n">Every year on file for this geography' +
-      (baseLevel() === 'cd' ? ', 2010 forward' : ', 2020 forward') +
+      (S.level === 'senate' || S.level === 'assembly' ? ', 2020 forward' : ', 2010 forward') +
       '. The filled point is the year selected above.' + rollupNote() + '</div>';
   }
 
   function drawCats(rank, cats) {
     var y = cats.years[S.year] || {};
+    var row = y[S.level === 'city' ? 'NYC' : S.key] || {};
     var totals = {};
-    CAT_ORDER.forEach(function (c) { totals[c] = 0; });
-    Object.keys(rank.years[S.year] || {}).forEach(function (k) {
-      if (S.level === 'boro' && !inScope(k)) return;
-      if ((S.level === 'cd' || S.level === 'senate' || S.level === 'assembly') && k !== S.key) return;
-      var row = y[k]; if (!row) return;
-      CAT_ORDER.forEach(function (c) { totals[c] += row[c] || 0; });
-    });
+    CAT_ORDER.forEach(function (c) { totals[c] = row[c] || 0; });
     var sum = CAT_ORDER.reduce(function (a, c) { return a + totals[c]; }, 0) || 1;
     var max = Math.max.apply(null, CAT_ORDER.map(function (c) { return totals[c]; })) || 1;
     var rows = CAT_ORDER.slice().sort(function (a, b) { return totals[b] - totals[a]; }).map(function (c) {
@@ -310,14 +295,14 @@
     el('dOut').innerHTML = headline(rank, cats) +
       '<div class="dsh-tw"><table class="dsh-tbl"><thead><tr><th></th><th>District</th><th class="r">Reports</th>' +
       '<th class="r">Share</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
-      '<div class="dsh-n">Share is of the total for every district shown, same year and category. The highlighted row is your selection.</div>';
+      '<div class="dsh-n">Share is of the total for every district shown, same year and category. The highlighted row is your selection.' + rollupNote() + '</div>';
   }
 
   function drawMap(rank, cats) {
     var L = LEVELS[baseLevel()];
     el('dOut').innerHTML = headline(rank, cats) + '<div class="dsh-legend" id="dLeg"></div>' +
       '<div class="dsh-map" id="dMap"></div>' +
-      '<div class="dsh-n">Shaded by report count for the year and category selected. Tap any district to switch to it.</div>';
+      '<div class="dsh-n">Shaded by report count for the year and category selected. Tap any district to switch to it.' + rollupNote() + '</div>';
     if (typeof L === 'undefined' || typeof window.L === 'undefined') {
       el('dOut').innerHTML = '<div class="dsh-err">The map needs Leaflet, which did not load.</div>';
       return;
@@ -372,5 +357,6 @@
   }
 
   get('/33159by5-pop.json').then(function (p) { pop = p; }).catch(function () { pop = null; });
+  get('/data/311-city-rank.json').then(function (r) { cityRank = r; }).catch(function () { cityRank = null; });
   boot();
 })();
