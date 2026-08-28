@@ -21,7 +21,37 @@
 .picker .pl{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.6);font-weight:700;margin-bottom:6px}
 .picker select{width:100%;padding:12px 13px;font-family:'DM Sans',sans-serif;font-size:.9rem;font-weight:800;border:none;border-radius:10px;color:var(--navy);background:#fff}
 .picker .row2{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.picker .row2[hidden]{display:none}
 .picker .row2 select{flex:1 1 150px;font-size:.8rem;font-weight:700;padding:10px 11px}
+.modebar{display:flex;gap:7px;padding:11px 12px;background:#fff;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.mb{font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:800;color:var(--navy);background:#fff;border:2px solid var(--navy);border-radius:999px;padding:9px 15px;cursor:pointer;text-decoration:none}
+.mb.on{background:var(--navy);color:#fff}
+.mb:hover{border-color:var(--orange)}
+.vsr{display:flex;gap:10px;align-items:baseline;padding:11px 14px;border-bottom:1px solid #f1efe9}
+.vsa,.vsb{flex:none;width:70px;text-align:right;font-size:1rem;font-weight:900;color:var(--navy)}
+.vsb{color:#6b6760}
+.vsn{flex:1;min-width:0}
+.vsn .t{font-size:.82rem;font-weight:700;color:var(--navy);line-height:1.3}
+.vsn .g{font-family:'DM Mono',monospace;font-size:.62rem;margin-top:2px}
+.vsn .g.up{color:#1B5E20}.vsn .g.dn{color:#8B0000}.vsn .g.same{color:var(--muted)}
+.vshead{display:flex;gap:10px;padding:9px 14px;background:var(--navy2);color:#fff;font-family:'DM Mono',monospace;font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.vshead .a,.vshead .b{flex:none;width:70px;text-align:right}
+.vshead .n{flex:1}
+.pfsec{background:#fff;border-bottom:1px solid var(--border)}
+.pfh{padding:9px 14px;background:var(--navy2);color:#fff;font-family:'DM Mono',monospace;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em}
+.pfr{display:flex;gap:12px;align-items:baseline;padding:11px 14px;border-bottom:1px solid #f1efe9}
+.pfr:last-child{border-bottom:0}
+.pfv{flex:none;min-width:74px;text-align:right}
+.pfv b{font-size:1.05rem;font-weight:900;color:var(--navy);line-height:1}
+.pfv span{display:block;font-family:'DM Mono',monospace;font-size:.55rem;color:var(--muted);margin-top:2px}
+.pfn{flex:1;min-width:0}
+.pfn .t{font-size:.83rem;font-weight:700;color:var(--navy);line-height:1.3}
+.pfn .c{font-size:.73rem;color:var(--muted);line-height:1.5;margin-top:3px}
+.pfn .c em{font-style:normal;font-weight:700}
+.pfn .c em.up{color:#1B5E20}.pfn .c em.dn{color:#8B0000}
+.pfd{font-size:.71rem;color:var(--muted);line-height:1.45;margin-top:3px}
+.geonote{padding:12px 15px;background:#fff7ed;border-bottom:1px solid var(--border);font-size:.79rem;line-height:1.6;color:#5a4a34}
+.geonote b{color:#8a5a00}
 .lebox{background:var(--navy);color:#fff;padding:16px 15px;border-bottom:3px solid var(--orange)}
 .lebox .lel{font-family:'DM Mono',monospace;font-size:.57rem;text-transform:uppercase;letter-spacing:.11em;color:var(--orange);font-weight:700}
 .lebox .lev{font-size:3rem;font-weight:900;line-height:1;margin-top:5px}
@@ -98,10 +128,18 @@ svg{display:block;width:100%;height:auto;overflow:visible}
     <b>The same data the Health Department publishes, cut by community district.</b> The Environment and Health Data Portal reports asthma, air quality, mortality, housing conditions, mental health and much else at several geographies. This page takes every measure it publishes at the community district level, so you can see one district's numbers against the other 58 and against itself over time.
   </div>
 
+  <div class="modebar">
+    <button type="button" class="mb on" data-mode="one">One place</button>
+    <button type="button" class="mb" data-mode="vs">Compare places</button>
+    <a class="mb" href="/health/compare">Compare measures</a>
+  </div>
+
   <div class="picker">
-    <div class="pl">Pick a district</div>
-    <select id="cdSel" aria-label="Community district"></select>
-    <div class="row2">
+    <div class="pl">Pick a place</div>
+    <select id="cdSel" aria-label="Place"></select>
+    <div class="pl" id="vsLabel" style="margin-top:9px" hidden>Compare it with</div>
+    <select id="vsSel" aria-label="Second place" hidden></select>
+    <div class="row2" id="deepPickers">
       <select id="topicSel" aria-label="Topic"></select>
       <select id="measSel" aria-label="Measure"></select>
     </div>
@@ -117,6 +155,9 @@ svg{display:block;width:100%;height:auto;overflow:visible}
     </a>
   </div>
 
+  <div id="profile"></div>
+
+  <div class="gh" id="deepHead">Every measure charted, district by district</div>
   <div class="hero" id="hero"></div>
 
   <div class="chartbox" id="trendBox">
@@ -182,7 +223,9 @@ svg{display:block;width:100%;height:auto;overflow:visible}
   };
 
   var p=new URLSearchParams(location.search);
-  var state={cd:p.get('cd')||'306', topic:p.get('topic')||'', meas:p.get('m')||'', q:''};
+  var state={cd:p.get('cd')||'306', vs:p.get('vs')||'city',
+             mode:(p.get('mode')==='vs'?'vs':'one'),
+             topic:p.get('topic')||'', meas:p.get('m')||'', q:''};
 
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
@@ -323,12 +366,100 @@ svg{display:block;width:100%;height:auto;overflow:visible}
   /* Life expectancy leads every district, because it is the one number that
      summarises the rest. The portal does not publish it, so it comes from the
      Community Health Profiles public use dataset instead. */
-  var life=null;
+  var life=null, chp=null;
+  var BORO_KEY={'1':'b1','2':'b2','3':'b3','4':'b4','5':'b5'};
+  function isCd(g){return /^\d{3}$/.test(g);}
+  function geoName(g){
+    if(g==='city') return 'New York City';
+    if(chp && chp.boroughs[g]) return chp.boroughs[g];
+    return (chp&&chp.names[g])||cbLabel(g);
+  }
+
+  /* The plain read: every published figure for one place, with the one
+     comparison that makes it mean something. No axes, no chart. */
+  function drawProfile(){
+    var box=document.getElementById('profile');
+    if(!chp){ box.innerHTML=''; return; }
+    var g=state.cd;
+    var secs={}, order=['Who We Are','Social and Economic Conditions',
+      'Housing and Neighborhood Conditions','Maternal and Child Health','Healthy Living',
+      'Health Care','Health Outcomes','Map and Contact Information','Other'];
+    Object.keys(chp.values).forEach(function(k){
+      var v=chp.values[k][g];
+      if(v==null) return;
+      var m=chp.meta[k];
+      (secs[m.section]=secs[m.section]||[]).push({k:k,v:v,m:m});
+    });
+    var html='';
+    order.forEach(function(sec){
+      var rows=secs[sec]; if(!rows) return;
+      if(sec==='Map and Contact Information') return;   // that is life expectancy, already above
+      html+='<div class="pfsec"><div class="pfh">'+esc(sec)+'</div>';
+      rows.sort(function(a,b){return a.m.label.localeCompare(b.m.label);});
+      rows.forEach(function(r){
+        var city=chp.values[r.k]['city'];
+        var cmp='';
+        if(city!=null && g!=='city'){
+          var d=r.v-city;
+          var pct=city?Math.abs(d)/Math.abs(city)*100:0;
+          if(Math.abs(d)<0.0005 || pct<1.5) cmp='about the same as the city';
+          else cmp='<em class="'+(d>0?'up':'dn')+'">'+fmt(Math.abs(d))+' '+esc(r.m.unit)
+            +(d>0?' more':' less')+'</em> than the city\u2019s '+fmt(city);
+        }
+        if(isCd(g)){
+          var all=Object.keys(chp.values[r.k]).filter(function(x){return /^\d{3}$/.test(x);})
+            .map(function(x){return chp.values[r.k][x];}).sort(function(a,b){return b-a;});
+          var rk=all.indexOf(r.v)+1;
+          if(rk>0) cmp+=(cmp?' \u00b7 ':'')+'ranks '+rk+' of '+all.length;
+          var bk=BORO_KEY[g.charAt(0)], bv=chp.values[r.k][bk];
+          if(bv!=null) cmp+=' \u00b7 '+esc(chp.boroughs[bk])+' is '+fmt(bv);
+        }
+        html+='<div class="pfr"><span class="pfv"><b>'+fmt(r.v)+'</b><span>'+esc(r.m.unit)+'</span></span>'
+          +'<span class="pfn"><span class="t">'+esc(r.m.label)+'</span>'
+          +(cmp?'<span class="c">'+cmp+'</span>':'')
+          +(r.m.def?'<span class="pfd">'+esc(r.m.def)+(r.m.years?' \u00b7 '+esc(r.m.years):'')+'</span>':'')
+          +'</span></div>';
+      });
+      html+='</div>';
+    });
+    box.innerHTML=html;
+  }
+  function leOf(g){
+    if(!life) return null;
+    if(g==='city') return life.city;
+    if(chp && chp.boroughs[g]) return life.boroughs[chp.boroughs[g]];
+    return life.cd[g];
+  }
   function drawLife(){
     var box=document.getElementById('lebox');
     if(!life){ box.innerHTML=''; return; }
-    var v=life.cd[state.cd];
+    if(state.mode==='vs'){
+      var a=leOf(state.cd), b=leOf(state.vs);
+      if(a==null||b==null){ box.innerHTML=''; return; }
+      var d=a-b;
+      box.innerHTML='<div class="lel">Life expectancy at birth</div>'
+        +'<div style="display:flex;gap:18px;align-items:flex-end;margin-top:6px;flex-wrap:wrap">'
+        +'<span><span class="lev" style="font-size:2.4rem">'+a.toFixed(1)+'</span>'
+        +'<span class="leu">'+esc(geoName(state.cd))+'</span></span>'
+        +'<span><span class="lev" style="font-size:2.4rem;color:rgba(255,255,255,.6)">'+b.toFixed(1)+'</span>'
+        +'<span class="leu">'+esc(geoName(state.vs))+'</span></span></div>'
+        +'<div class="lec">'+(Math.abs(d)<0.05?'The same in both.'
+          :('<b>'+Math.abs(d).toFixed(1)+' years '+(d>0?'longer':'shorter')+'</b> in '+esc(geoName(state.cd))+'.'))
+        +'</div><div class="lesrc">'+esc(life.measure)+'. '+esc(life.years)+'.</div>';
+      return;
+    }
+    var v=leOf(state.cd);
     if(v==null){ box.innerHTML=''; return; }
+    if(!isCd(state.cd)){
+      var cd2=v-life.city;
+      box.innerHTML='<div class="lel">Life expectancy at birth</div>'
+        +'<div class="lev">'+v.toFixed(1)+'</div>'
+        +'<div class="leu">years \u00b7 '+esc(geoName(state.cd))+'</div>'
+        +(state.cd==='city'?'':'<div class="lec">'+(Math.abs(cd2)<0.05?'Level with the city.'
+           :('<b>'+Math.abs(cd2).toFixed(1)+' years '+(cd2>0?'above':'below')+'</b> the citywide '+life.city.toFixed(1)+'.'))+'</div>')
+        +'<div class="lesrc">'+esc(life.measure)+'. '+esc(life.years)+'.</div>';
+      return;
+    }
     var rank=life.rank[state.cd], n=Object.keys(life.cd).length;
     var boro=CD_BORO[state.cd.charAt(0)], bv=life.boroughs[boro];
     var diff=v-life.city;
@@ -358,6 +489,46 @@ svg{display:block;width:100%;height:auto;overflow:visible}
       +'<div class="lebar"><div class="lbt">All '+n+' districts, highest first</div>'
       +'<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Life expectancy across all districts">'+g+'</svg></div>'
       +'<div class="lesrc">'+esc(life.measure)+'. '+esc(life.years)+'. Community Health Profiles.</div>';
+  }
+
+  /* Two places, same measures, side by side. */
+  function drawVs(){
+    var box=document.getElementById('profile');
+    if(!chp){ box.innerHTML=''; return; }
+    var A=state.cd, B=state.vs;
+    var order=['Who We Are','Social and Economic Conditions',
+      'Housing and Neighborhood Conditions','Maternal and Child Health','Healthy Living',
+      'Health Care','Health Outcomes','Map and Contact Information','Other'];
+    var secs={};
+    Object.keys(chp.values).forEach(function(k){
+      var a=chp.values[k][A], b=chp.values[k][B];
+      if(a==null&&b==null) return;
+      var m=chp.meta[k];
+      (secs[m.section]=secs[m.section]||[]).push({k:k,a:a,b:b,m:m});
+    });
+    var html='<div class="vshead"><span class="a">'+esc(geoName(A))+'</span>'
+      +'<span class="b">'+esc(geoName(B))+'</span><span class="n">Measure</span></div>';
+    order.forEach(function(sec){
+      var rows=secs[sec]; if(!rows||sec==='Other') return;
+      html+='<div class="pfsec"><div class="pfh">'+esc(sec)+'</div>';
+      rows.sort(function(x,y){return x.m.label.localeCompare(y.m.label);});
+      rows.forEach(function(r){
+        var g='', cls='same';
+        if(r.a!=null&&r.b!=null){
+          var d=r.a-r.b;
+          var pct=r.b?Math.abs(d)/Math.abs(r.b)*100:0;
+          if(Math.abs(d)<0.0005||pct<1.5) g='about the same';
+          else { cls=d>0?'up':'dn';
+                 g=fmt(Math.abs(d))+' '+r.m.unit+(d>0?' more':' less')+' in '+geoName(A); }
+        }
+        html+='<div class="vsr"><span class="vsa">'+fmt(r.a)+'</span>'
+          +'<span class="vsb">'+fmt(r.b)+'</span>'
+          +'<span class="vsn"><span class="t">'+esc(r.m.label)+'</span>'
+          +(g?'<span class="g '+cls+'">'+esc(g)+'</span>':'')+'</span></div>';
+      });
+      html+='</div>';
+    });
+    box.innerHTML=html;
   }
 
   function renderList(){
@@ -397,6 +568,8 @@ svg{display:block;width:100%;height:auto;overflow:visible}
 
   function sync(){
     var u=new URLSearchParams();
+    if(state.mode==='vs') u.set('mode','vs');
+    if(state.mode==='vs' && state.vs) u.set('vs',state.vs);
     if(state.cd) u.set('cd',state.cd);
     if(state.topic) u.set('topic',state.topic);
     if(state.meas) u.set('m',state.meas);
@@ -430,9 +603,75 @@ svg{display:block;width:100%;height:auto;overflow:visible}
     topicGrid(); sync(); draw();
   }
 
+  function buildGeo(){
+    if(!chp) return;
+    var cds=Object.keys(chp.names).sort(function(a,b){
+      var x=BORO_ORDER.indexOf(CD_BORO[a.charAt(0)])-BORO_ORDER.indexOf(CD_BORO[b.charAt(0)]);
+      return x||parseInt(a.slice(1),10)-parseInt(b.slice(1),10);
+    });
+    [el.cd,document.getElementById('vsSel')].forEach(function(sel){
+      if(!sel) return;
+      sel.innerHTML='';
+      var g0=document.createElement('optgroup'); g0.label='Citywide';
+      var o=document.createElement('option'); o.value='city'; o.textContent='New York City';
+      g0.appendChild(o); sel.appendChild(g0);
+      var g1=document.createElement('optgroup'); g1.label='Boroughs';
+      Object.keys(chp.boroughs).sort().forEach(function(b){
+        var e=document.createElement('option'); e.value=b; e.textContent=chp.boroughs[b];
+        g1.appendChild(e);
+      });
+      sel.appendChild(g1);
+      var g2=document.createElement('optgroup'); g2.label='Community districts';
+      cds.forEach(function(c){
+        var e=document.createElement('option'); e.value=c;
+        e.textContent=chp.names[c]+' \u00b7 '+cbLabel(c);
+        g2.appendChild(e);
+      });
+      sel.appendChild(g2);
+    });
+    el.cd.value=state.cd;
+    var vs=document.getElementById('vsSel'); if(vs) vs.value=state.vs;
+  }
+
+  function applyMode(){
+    var one=state.mode==='one';
+    document.querySelectorAll('.mb[data-mode]').forEach(function(b){
+      b.classList.toggle('on', b.getAttribute('data-mode')===state.mode);
+    });
+    document.getElementById('vsLabel').hidden=one;
+    document.getElementById('vsSel').hidden=one;
+    // the charted portion is community district only, so it goes away for a
+    // borough, for the city, and whenever two places are side by side
+    var deep=one && isCd(state.cd);
+    ['deepPickers','deepHead','hero','trendBox','rankBox','listHead','list']
+      .forEach(function(id){ var e=document.getElementById(id); if(e) e.hidden=!deep; });
+    var tp=document.querySelector('.topics'), sw=document.querySelector('.searchwrap');
+    if(tp) tp.hidden=!deep;
+    if(sw) sw.hidden=!deep;
+    var note=document.getElementById('geonote');
+    if(!note){
+      note=document.createElement('div'); note.className='geonote'; note.id='geonote';
+      document.getElementById('profile').parentNode.insertBefore(note, document.getElementById('deepHead'));
+    }
+    if(one && !isCd(state.cd)){
+      note.hidden=false;
+      note.innerHTML='<b>'+esc(geoName(state.cd))+' shows the Community Health Profiles figures only.</b> '
+        +'The 182 charted measures below them come from the Environment and Health Data Portal, which '
+        +'publishes at community district level, so pick a district to see those.';
+    } else if(!one){
+      note.hidden=false;
+      note.innerHTML='<b>Two places, the same measures.</b> The middle column is the second place. '
+        +'The line under each measure says how far apart they are.';
+    } else note.hidden=true;
+  }
+
   function switchCd(cd){
     state.cd=cd;
     drawLife();
+    applyMode();
+    if(state.mode==='vs'){ drawVs(); sync(); return; }
+    drawProfile();
+    if(!isCd(cd)){ sync(); return; }
     loadCd(cd).then(function(){ rebuild(); }).catch(function(){
       el.hero.innerHTML='<div class="hs">That district did not load.</div>';
     });
@@ -441,22 +680,25 @@ svg{display:block;width:100%;height:auto;overflow:visible}
   fetch('/data/health/life-expectancy.json').then(function(r){return r.json();})
     .then(function(d){ life=d; drawLife(); }).catch(function(){});
 
-  fetch('/data/health/index.json').then(function(r){return r.json();}).then(function(d){
+  Promise.all([
+    fetch('/data/health/chp.json').then(function(r){return r.json();}),
+    fetch('/data/health/index.json').then(function(r){return r.json();})
+  ]).then(function(a){
+    chp=a[0]; var d=a[1];
     idx=d;
-    var cds=Object.keys(
-      Object.keys(idx.latest).reduce(function(acc,mid){
-        Object.keys(idx.latest[mid]).forEach(function(cd){acc[cd]=1;}); return acc;},{})
-    ).sort(function(a,b){
-      var x=BORO_ORDER.indexOf(CD_BORO[a.charAt(0)])-BORO_ORDER.indexOf(CD_BORO[b.charAt(0)]);
-      return x||parseInt(a.slice(1),10)-parseInt(b.slice(1),10);
-    });
-    fillSelect(el.cd, cds.map(function(c){return {v:c,l:cbLabel(c)};}), state.cd, null);
+    buildGeo();
     switchCd(state.cd);
   }).catch(function(){
     el.hero.innerHTML='<div class="hs">The health data did not load.</div>';
   });
 
   el.cd.onchange=function(){ switchCd(el.cd.value); };
+  document.getElementById('vsSel').onchange=function(){
+    state.vs=this.value; switchCd(state.cd);
+  };
+  document.querySelectorAll('.mb[data-mode]').forEach(function(b){
+    b.onclick=function(){ state.mode=b.getAttribute('data-mode'); switchCd(state.cd); };
+  });
   el.topic.onchange=function(){ state.topic=el.topic.value; state.meas=''; rebuild(); };
   el.meas.onchange=function(){ state.meas=el.meas.value; sync(); draw(); };
   var t=null;
