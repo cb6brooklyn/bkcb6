@@ -53,6 +53,14 @@ body.embed .top,body.embed .intro,body.embed .foot,body.embed .expl,body.embed .
 .expl p{font-size:.83rem;line-height:1.6;color:#333;margin-bottom:9px}
 .foot{padding:14px 15px 34px;font-family:'DM Mono',monospace;font-size:.61rem;line-height:1.7;color:var(--muted);background:var(--off)}
 .foot a{color:var(--orange)}
+.leaflet-popup-content a.popl{display:block;text-decoration:none;color:var(--navy)}
+.leaflet-popup-content .ps{display:block;font-size:.95rem;font-weight:800;color:var(--navy);line-height:1.35}
+.leaflet-popup-content .pgo{display:block;font-size:.75rem;font-weight:800;color:var(--orange);margin-top:7px}
+.leaflet-popup-content a.popl:hover .pgo{text-decoration:underline}
+.leaflet-popup-content a.pl2{display:block;font-size:.72rem;font-weight:700;color:var(--navy);margin-top:8px;padding-top:7px;border-top:1px solid var(--border)}
+.cdtip{font-family:'DM Sans',sans-serif;font-size:.78rem;line-height:1.4;background:#0d1b4b;color:#fff;border:none;border-radius:8px;padding:7px 10px;box-shadow:0 3px 10px rgba(0,0,0,.3)}
+.cdtip b{font-weight:800}
+.cdtip:before{border-top-color:#0d1b4b!important}
 .leaflet-popup-content{font-family:'DM Sans',sans-serif;font-size:.8rem;line-height:1.5;margin:10px 12px}
 .leaflet-popup-content b{color:var(--navy);font-size:.86rem}
 .leaflet-popup-content .pl{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);display:block;margin-top:3px}
@@ -121,6 +129,7 @@ body.embed .top,body.embed .intro,body.embed .foot,body.embed .expl,body.embed .
   var NODATA='#d8d5cd';
 
   var chp=null, bounds=null, map=null, layer=null, labels=null, breaks=[], order=[];
+  var polys={};
   var el={m:document.getElementById('mSel'),scope:document.getElementById('scopeSel'),
           cd:document.getElementById('cdSel'),head:document.getElementById('mhead'),
           scale:document.getElementById('scale'),rlist:document.getElementById('rlist'),
@@ -170,14 +179,46 @@ body.embed .top,body.embed .intro,body.embed .foot,body.embed .expl,body.embed .
     return RAMP[RAMP.length-1-band];
   }
 
+  /* One plain sentence: the number, what it measures, where, and when. */
+  function sentence(cd){
+    var m=meta(), v=vals()[cd];
+    if(v==null) return 'No published figure for '+cbLabel(cd);
+    var unit=m.unit||'';
+    var measure=lower(m.label||state.m);
+    // some units already name the thing, so "bodegas per supermarket ratio of
+    // bodegas to supermarkets" would read twice. Drop the label when it does.
+    var uw=lower(unit).split(/[^a-z0-9]+/).filter(function(w){return w.length>4;});
+    var dup=uw.some(function(w){return measure.indexOf(w.replace(/s$/,''))>-1;});
+    return fmt(v)+' '+unit+(dup?'':' '+measure)+' in '+cbLabel(cd);
+  }
+  function lower(t){
+    // read it as a sentence, but keep anything the department wrote in caps
+    return String(t).split(' ').map(function(w){
+      return /^[A-Z0-9]{2,}$/.test(w.replace(/[^A-Za-z0-9]/g,'')) ? w : w.toLowerCase();
+    }).join(' ');
+  }
+  function years(){
+    var y=(meta().years||'').trim();
+    if(!y) return '';
+    // the department writes "2013-2022 (community district and borough), 2022 (NYC)"
+    var mm=y.match(/\d{4}(-\d{4})?/);
+    return mm?mm[0]:y;
+  }
+
+  function tip(cd){
+    var yr=years();
+    return '<b>'+esc(sentence(cd))+'</b>'+(yr?'<br><span style="opacity:.7">'+esc(yr)+'</span>':'');
+  }
+
   function popup(cd){
-    var V=vals(), m=meta(), v=V[cd], i=order.indexOf(cd);
-    return '<b>'+esc(nm(cd))+'</b><span class="pl">'+esc(cbLabel(cd))+'</span>'
-      +'<span class="pl" style="font-size:.9rem;color:#0d1b4b;font-weight:700;margin-top:5px">'
-      +fmt(v)+' '+esc(m.unit||'')+'</span>'
-      +(i>-1?'<span class="pl">ranks '+(i+1)+' of '+order.length+'</span>':'')
-      +'<span class="pl" style="margin-top:6px"><a href="/health?cd='+cd+'">All its figures &rarr;</a></span>'
-      +'<span class="pl"><a href="'+cbHref(cd)+'">The district profile &rarr;</a></span>';
+    var i=order.indexOf(cd), yr=years();
+    return '<a href="'+cbHref(cd)+'" class="popl">'
+      +'<span class="ps">'+esc(sentence(cd))+'</span>'
+      +(yr?'<span class="pl">'+esc(yr)+'</span>':'')
+      +'<span class="pl">'+esc(nm(cd))+'</span>'
+      +(i>-1?'<span class="pl">ranks '+(i+1)+' of '+order.length+' districts</span>':'')
+      +'<span class="pgo">Open the '+esc(cbLabel(cd))+' profile &rarr;</span></a>'
+      +'<a class="pl2" href="/health?cd='+cd+'">All its health figures &rarr;</a>';
   }
 
   function draw(){
@@ -185,7 +226,7 @@ body.embed .top,body.embed .intro,body.embed .foot,body.embed .expl,body.embed .
     classify();
     if(layer) map.removeLayer(layer);
     if(labels) map.removeLayer(labels);
-    layer=L.layerGroup(); labels=L.layerGroup();
+    layer=L.layerGroup(); labels=L.layerGroup(); polys={};
     var shown=[];
     bounds.districts.forEach(function(d){
       if(!inScope(d.cd)) return;
@@ -196,7 +237,9 @@ body.embed .top,body.embed .intro,body.embed .foot,body.embed .expl,body.embed .
       });
       if(d.cd===state.cd) poly.setStyle({color:'#f47920',weight:3,opacity:1});
       poly.bindPopup(popup(d.cd));
-      poly.on('click',function(){ state.cd=d.cd; sync(); refreshOutline(); });
+      poly.bindTooltip(tip(d.cd),{sticky:true,direction:'top',className:'cdtip'});
+      poly.on('click',function(){ select(d.cd); });
+      polys[d.cd]=poly;
       poly.addTo(layer);
       var v=vals()[d.cd];
       labels.addLayer(L.marker([d.lp[0],d.lp[1]],{
@@ -213,7 +256,14 @@ body.embed .top,body.embed .intro,body.embed .foot,body.embed .expl,body.embed .
     }catch(e){}
     header(); scale(); ranked();
   }
-  function refreshOutline(){ draw(); }
+  /* Restyle only the two polygons that changed, so an open popup survives. */
+  function select(cd){
+    var prev=state.cd;
+    state.cd=cd;
+    if(prev && polys[prev]) polys[prev].setStyle({color:'#fff',weight:1,opacity:.9});
+    if(polys[cd]) polys[cd].setStyle({color:'#f47920',weight:3,opacity:1}).bringToFront();
+    sync(); header(); ranked();
+  }
 
   function header(){
     var m=meta(), V=vals();
