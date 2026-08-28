@@ -38,7 +38,13 @@
       '.pref-p .n{font-size:.7rem;font-weight:800;color:' + NAVY + ';line-height:1.2}',
       '.pref-p .d{font-family:"DM Mono",monospace;font-size:.58rem;color:#888}',
       '.pref-more{margin-top:10px;font-family:"DM Mono",monospace;font-size:.68rem}',
-      '.pref-more a{color:' + NAVY + ';border-bottom:2px solid ' + ORANGE + ';text-decoration:none}'
+      '.pref-more a{color:' + NAVY + ';border-bottom:2px solid ' + ORANGE + ';text-decoration:none}',
+      '.pref-tabs{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}',
+      '.pref-tab{font-family:"DM Mono",monospace;font-size:.66rem;padding:5px 10px;cursor:pointer;',
+      'border:1px solid ' + BORDER + ';border-radius:20px;background:#fff;color:#333}',
+      '.pref-tab.on{background:' + NAVY + ';border-color:' + NAVY + ';color:#fff}',
+      '.pref-tab b{color:' + ORANGE + '}',
+      '.pref-tab.on b{color:' + ORANGE + '}'
     ].join('');
     document.head.appendChild(s);
   }
@@ -76,26 +82,76 @@
   function peers(spec) {
     var bits = spec.split(':'), kind = bits[0], me = bits.slice(1).join(':');
     fetch('/data/officials-roster.json').then(function (r) { return r.json(); }).then(function (d) {
-      var set = d[kind]; if (!set) return;
-      var keys = Object.keys(set);
-      if (kind === 'council') keys.sort(function (a, b) { return (+a) - (+b); });
+      var mine = (d[kind] || {})[me];
+      var myBoros = mine ? (mine.boro || []) : (kind === 'boroughs' ? [me] : []);
       var wrap = document.createElement('div');
       wrap.className = 'sec pref-peers';
       wrap.id = 'sec-others';
-      var title = kind === 'council' ? 'The other 50 council members' : 'The other borough presidents';
-      var sub = kind === 'council'
-        ? 'Every district, in order. Each one has the same page.'
-        : 'Each borough, with the same page.';
-      wrap.innerHTML = '<h2>' + title + '</h2><div class="sub">' + sub + '</div>' +
-        '<div class="pref-row">' + keys.map(function (k) {
-          var p = set[k], self = String(k) === String(me);
-          return '<a class="pref-p' + (self ? ' self' : '') + '" href="/' + esc(p.slug) + '/">' +
+
+      /* Facets: everyone in the same body first, then everyone else who
+         covers the same borough, then the boroughs themselves. */
+      var facets = [];
+      var order = ['council', 'assembly', 'senate', 'bp'];
+      order.forEach(function (fam) {
+        var set = d[fam]; if (!set) return;
+        var keys = Object.keys(set);
+        if (fam !== 'bp') keys.sort(function (a, b) { return (+a) - (+b); });
+        if (fam === kind) {
+          facets.push({ id: fam, label: d.labels[fam], fam: fam, keys: keys });
+        } else {
+          var shared = keys.filter(function (k) {
+            return (set[k].boro || []).some(function (b) { return myBoros.indexOf(b) > -1; });
+          });
+          if (shared.length) {
+            facets.push({ id: fam, label: d.labels[fam] + ' here', fam: fam, keys: shared });
+          }
+        }
+      });
+      facets.push({ id: 'boroughs', label: 'Boroughs', fam: 'boroughs', keys: Object.keys(d.boroughs) });
+      /* your own body leads, so the card for this page is on screen */
+      facets.sort(function (a, b) { return (b.fam === kind) - (a.fam === kind); });
+
+      function cards(f) {
+        var set = d[f.fam];
+        return f.keys.map(function (k) {
+          var p = set[k], self = f.fam === kind && String(k) === String(me);
+          var sub = f.fam === 'council' ? 'District ' + k
+            : f.fam === 'assembly' ? 'AD ' + k
+            : f.fam === 'senate' ? 'SD ' + k : k;
+          var href = f.fam === 'boroughs' ? '/' + p.slug : '/' + p.slug + '/';
+          return '<a class="pref-p' + (self ? ' self' : '') + '" href="' + esc(href) + '">' +
             (p.icon ? '<img src="' + esc(p.icon) + '" alt="" loading="lazy">' : '') +
             '<span class="n">' + esc(p.name) + '</span>' +
-            '<span class="d">' + esc(kind === 'council' ? 'District ' + k : k) + '</span></a>';
+            '<span class="d">' + esc(sub) + '</span></a>';
+        }).join('');
+      }
+
+      wrap.innerHTML = '<h2>Everyone else</h2>' +
+        '<div class="sub">The same page exists for every one of these. ' +
+        (myBoros.length ? 'Shown for ' + esc(myBoros.join(' and ')) + ' first.' : '') + '</div>' +
+        '<div class="pref-tabs">' + facets.map(function (f, i) {
+          return '<button type="button" class="pref-tab' + (i ? '' : ' on') + '" data-f="' + f.id + '">' +
+            esc(f.label) + ' <b>' + f.keys.length + '</b></button>';
         }).join('') + '</div>' +
+        facets.map(function (f, i) {
+          return '<div class="pref-row" data-pane="' + f.id + '"' + (i ? ' hidden' : '') + '>' +
+            cards(f) + '</div>';
+        }).join('') +
         '<div class="pref-more"><a href="/govhub.html">The Government Hub</a> &middot; ' +
-        '<a href="/directory">The Address Directory</a></div>';
+        '<a href="/directory">The Address Directory</a> &middot; ' +
+        '<a href="/electeds/">All elected officials</a></div>';
+
+      wrap.addEventListener('click', function (e) {
+        var b = e.target.closest('.pref-tab'); if (!b) return;
+        var id = b.getAttribute('data-f');
+        Array.prototype.forEach.call(wrap.querySelectorAll('.pref-tab'), function (x) {
+          x.classList.toggle('on', x === b);
+        });
+        Array.prototype.forEach.call(wrap.querySelectorAll('[data-pane]'), function (x) {
+          x.hidden = x.getAttribute('data-pane') !== id;
+        });
+      });
+
       var foot = document.querySelector('.pwrap .pfoot');
       if (foot) foot.parentNode.insertBefore(wrap, foot);
       else document.querySelector('.pwrap').appendChild(wrap);
