@@ -39,12 +39,11 @@
       '.pref-p .d{font-family:"DM Mono",monospace;font-size:.58rem;color:#888}',
       '.pref-more{margin-top:10px;font-family:"DM Mono",monospace;font-size:.68rem}',
       '.pref-more a{color:' + NAVY + ';border-bottom:2px solid ' + ORANGE + ';text-decoration:none}',
-      '.pref-tabs{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}',
-      '.pref-tab{font-family:"DM Mono",monospace;font-size:.66rem;padding:5px 10px;cursor:pointer;',
-      'border:1px solid ' + BORDER + ';border-radius:20px;background:#fff;color:#333}',
-      '.pref-tab.on{background:' + NAVY + ';border-color:' + NAVY + ';color:#fff}',
-      '.pref-tab b{color:' + ORANGE + '}',
-      '.pref-tab.on b{color:' + ORANGE + '}'
+      '.pref-h2{margin-top:20px}',
+      '.pref-find input{width:100%;padding:9px 11px;border:1px solid ' + BORDER + ';border-radius:9px;',
+      'font-family:inherit;font-size:.85rem;background:#faf9f6;box-sizing:border-box}',
+      '.pref-res{margin-top:9px}',
+      '.pref-none{font-family:"DM Mono",monospace;font-size:.7rem;color:#888;padding:6px 0}'
     ].join('');
     document.head.appendChild(s);
   }
@@ -84,73 +83,79 @@
     fetch('/data/officials-roster.json').then(function (r) { return r.json(); }).then(function (d) {
       var mine = (d[kind] || {})[me];
       var myBoros = mine ? (mine.boro || []) : (kind === 'boroughs' ? [me] : []);
+
+      /* Who actually shares this ground, read off the page's own overlap
+         section, so the list is the real neighbours and not a directory. */
+      var rel = [], seen = {};
+      function add(fam, key, why) {
+        var set = d[fam]; if (!set || !set[key]) return;
+        var id = fam + ':' + key;
+        if (seen[id] || (fam === kind && String(key) === String(me))) return;
+        seen[id] = 1;
+        rel.push({ p: set[key], fam: fam, key: key, why: why });
+      }
+      Array.prototype.forEach.call(document.querySelectorAll('#overlaps a[href], #overlaps .ovcard'), function (el) {
+        var h = el.getAttribute('href') || '';
+        var m = h.match(/[?&]ad=(\d+)/); if (m) add('assembly', m[1], 'Assembly');
+        m = h.match(/[?&]sd=(\d+)/); if (m) add('senate', m[1], 'Senate');
+      });
+      myBoros.forEach(function (b) { add('bp', b, 'Borough President'); });
+
+      /* A page with no overlap section still has direct peers: its own body. */
+      if (!rel.length) {
+        Object.keys(d[kind] || {}).forEach(function (k) { add(kind, k, ''); });
+      }
+
       var wrap = document.createElement('div');
       wrap.className = 'sec pref-peers';
       wrap.id = 'sec-others';
+      var famLabel = { council: 'District', assembly: 'AD', senate: 'SD', bp: '', boroughs: '' };
 
-      /* Facets: everyone in the same body first, then everyone else who
-         covers the same borough, then the boroughs themselves. */
-      var facets = [];
-      var order = ['council', 'assembly', 'senate', 'bp'];
-      order.forEach(function (fam) {
-        var set = d[fam]; if (!set) return;
-        var keys = Object.keys(set);
-        if (fam !== 'bp') keys.sort(function (a, b) { return (+a) - (+b); });
-        if (fam === kind) {
-          facets.push({ id: fam, label: d.labels[fam], fam: fam, keys: keys });
-        } else {
-          var shared = keys.filter(function (k) {
-            return (set[k].boro || []).some(function (b) { return myBoros.indexOf(b) > -1; });
-          });
-          if (shared.length) {
-            facets.push({ id: fam, label: d.labels[fam] + ' here', fam: fam, keys: shared });
-          }
-        }
-      });
-      facets.push({ id: 'boroughs', label: 'Boroughs', fam: 'boroughs', keys: Object.keys(d.boroughs) });
-      /* your own body leads, so the card for this page is on screen */
-      facets.sort(function (a, b) { return (b.fam === kind) - (a.fam === kind); });
-
-      function cards(f) {
-        var set = d[f.fam];
-        return f.keys.map(function (k) {
-          var p = set[k], self = f.fam === kind && String(k) === String(me);
-          var sub = f.fam === 'council' ? 'District ' + k
-            : f.fam === 'assembly' ? 'AD ' + k
-            : f.fam === 'senate' ? 'SD ' + k : k;
-          var href = f.fam === 'boroughs' ? '/' + p.slug : '/' + p.slug + '/';
-          return '<a class="pref-p' + (self ? ' self' : '') + '" href="' + esc(href) + '">' +
-            (p.icon ? '<img src="' + esc(p.icon) + '" alt="" loading="lazy">' : '') +
-            '<span class="n">' + esc(p.name) + '</span>' +
-            '<span class="d">' + esc(sub) + '</span></a>';
-        }).join('');
+      var html = '';
+      if (rel.length) {
+        html += '<h2>' + (rel[0].fam === kind ? 'The other ' + d.labels[kind].toLowerCase() : 'Who else represents this ground') + '</h2>' +
+          '<div class="sub">' + (rel[0].fam === kind ? 'Each has the same page.' : 'The other officials whose districts cross this one.') + '</div>' +
+          '<div class="pref-row">' + rel.map(function (r) {
+            var sub = famLabel[r.fam] ? famLabel[r.fam] + ' ' + r.key : r.key;
+            return '<a class="pref-p" href="/' + esc(r.p.slug) + '/">' +
+              (r.p.icon ? '<img src="' + esc(r.p.icon) + '" alt="" loading="lazy">' : '') +
+              '<span class="n">' + esc(r.p.name) + '</span>' +
+              '<span class="d">' + esc(sub) + '</span></a>';
+          }).join('') + '</div>';
       }
+      html += '<h2 class="pref-h2">Jump to any official</h2>' +
+        '<div class="pref-find"><input type="search" placeholder="Name, district number, or borough" ' +
+        'autocomplete="off" data-pq></div><div class="pref-res" data-pres></div>' +
+        '<div class="pref-more"><a href="/electeds/">All elected officials</a> &middot; ' +
+        '<a href="/govhub.html">The Government Hub</a> &middot; ' +
+        '<a href="/directory">The Address Directory</a></div>';
+      wrap.innerHTML = html;
 
-      wrap.innerHTML = '<h2>Everyone else</h2>' +
-        '<div class="sub">The same page exists for every one of these. ' +
-        (myBoros.length ? 'Shown for ' + esc(myBoros.join(' and ')) + ' first.' : '') + '</div>' +
-        '<div class="pref-tabs">' + facets.map(function (f, i) {
-          return '<button type="button" class="pref-tab' + (i ? '' : ' on') + '" data-f="' + f.id + '">' +
-            esc(f.label) + ' <b>' + f.keys.length + '</b></button>';
-        }).join('') + '</div>' +
-        facets.map(function (f, i) {
-          return '<div class="pref-row" data-pane="' + f.id + '"' + (i ? ' hidden' : '') + '>' +
-            cards(f) + '</div>';
-        }).join('') +
-        '<div class="pref-more"><a href="/govhub.html">The Government Hub</a> &middot; ' +
-        '<a href="/directory">The Address Directory</a> &middot; ' +
-        '<a href="/electeds/">All elected officials</a></div>';
-
-      wrap.addEventListener('click', function (e) {
-        var b = e.target.closest('.pref-tab'); if (!b) return;
-        var id = b.getAttribute('data-f');
-        Array.prototype.forEach.call(wrap.querySelectorAll('.pref-tab'), function (x) {
-          x.classList.toggle('on', x === b);
-        });
-        Array.prototype.forEach.call(wrap.querySelectorAll('[data-pane]'), function (x) {
-          x.hidden = x.getAttribute('data-pane') !== id;
+      var all = [];
+      ['council', 'assembly', 'senate', 'bp', 'boroughs'].forEach(function (fam) {
+        Object.keys(d[fam] || {}).forEach(function (k) {
+          var p = d[fam][k];
+          all.push({
+            fam: fam, key: k, p: p,
+            sub: fam === 'boroughs' ? 'Borough' : (famLabel[fam] ? famLabel[fam] + ' ' + k : k),
+            hay: (p.name + ' ' + k + ' ' + (p.boro || []).join(' ') + ' ' + fam).toLowerCase()
+          });
         });
       });
+      var qEl = wrap.querySelector('[data-pq]'), resEl = wrap.querySelector('[data-pres]');
+      function run() {
+        var q = (qEl.value || '').trim().toLowerCase();
+        if (q.length < 2) { resEl.innerHTML = ''; return; }
+        var hits = all.filter(function (x) { return x.hay.indexOf(q) > -1; }).slice(0, 12);
+        resEl.innerHTML = hits.length ? '<div class="pref-row">' + hits.map(function (x) {
+          var href = x.fam === 'boroughs' ? '/' + x.p.slug : '/' + x.p.slug + '/';
+          return '<a class="pref-p" href="' + esc(href) + '">' +
+            (x.p.icon ? '<img src="' + esc(x.p.icon) + '" alt="" loading="lazy">' : '') +
+            '<span class="n">' + esc(x.p.name) + '</span>' +
+            '<span class="d">' + esc(x.sub) + '</span></a>';
+        }).join('') + '</div>' : '<div class="pref-none">Nothing matches that.</div>';
+      }
+      qEl.addEventListener('input', run);
 
       var foot = document.querySelector('.pwrap .pfoot');
       if (foot) foot.parentNode.insertBefore(wrap, foot);
