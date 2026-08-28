@@ -88,10 +88,30 @@
       d.features.forEach(function (f) {
         f.properties.r.forEach(function (row) { use[row[0]] = (use[row[0]] || 0) + 1; });
       });
+      /* Local races first. A council or borough page should not open on the
+         mayor's race; it should open on the contest fought over this ground. */
+      function localness(i) {
+        var k = d.contests[i].k.slice(4);
+        if (/Assembly$/.test(k)) return 0;
+        if (/Senate$/.test(k)) return 1;
+        if (/Congress$/.test(k)) return 2;
+        if (/^Question/.test(k)) return 4;
+        return 3;
+      }
       contests = d.contests.map(function (c, i) { return i; })
         .filter(function (i) { return use[i]; })
-        .sort(function (a, b) { return use[b] - use[a]; });
+        .sort(function (a, b) {
+          var la = localness(a), lb = localness(b);
+          if (la !== lb) return la - lb;
+          return use[b] - use[a];
+        });
+      var want = host.getAttribute('data-default-contest');
       current = contests[0];
+      if (want) {
+        for (var ci = 0; ci < contests.length; ci++) {
+          if (d.contests[contests[ci]].k === want) { current = contests[ci]; break; }
+        }
+      }
       drawBar();
       layer = L.geoJSON(d, {
         style: styleFor,
