@@ -78,6 +78,10 @@
       + 'font-size:.6rem;font-weight:800;color:' + BID_LINE + ';white-space:nowrap;'
       + 'box-shadow:0 1px 4px rgba(0,0,0,.22)}'
       + '.leaflet-tooltip.pmap-corridor:before{display:none}'
+      + '.leaflet-tooltip.pmap-place{background:#0d1b4b;border:0;border-radius:5px;'
+      + 'padding:3px 8px;font-family:"DM Sans",sans-serif;font-size:.63rem;font-weight:800;'
+      + 'color:#fff;white-space:nowrap;box-shadow:0 2px 7px rgba(13,27,75,.35)}'
+      + '.leaflet-tooltip.pmap-place:before{border-top-color:#0d1b4b}'
       + '@media(max-width:480px){.pmap-legend{padding:6px 8px;max-width:138px}'
       + '.pmap-legend .li{font-size:.63rem}}';
     document.head.appendChild(s);
@@ -118,6 +122,13 @@
     var bidSlug = el.getAttribute('data-bid-slug') || '';
     var self = bidSlug ? { label: 'BID', folder: 'bid', color: BID_LINE } : CHAMBERS[chamber];
     if (!self) return;
+    // an address profile pins its own front door and opens on it, so the map
+    // reads as a place rather than as a district that happens to contain one
+    var ptLat = parseFloat(el.getAttribute('data-point-lat'));
+    var ptLng = parseFloat(el.getAttribute('data-point-lng'));
+    var ptZoom = parseInt(el.getAttribute('data-point-zoom') || '17', 10);
+    var ptLabel = el.getAttribute('data-point-label') || '';
+    var hasPoint = isFinite(ptLat) && isFinite(ptLng);
     injectCss();
 
     var map = L.map(el, { scrollWheelZoom: false, zoomControl: true });
@@ -156,6 +167,19 @@
       maxZoom: 19, opacity: bidSlug ? 0.6 : 0.9, pane: LABEL_PANE || undefined
     }).addTo(map);
 
+    if (hasPoint) {
+      var place = L.circleMarker([ptLat, ptLng], {
+        pane: LINE_PANE || undefined,
+        radius: 9, color: '#ffffff', weight: 3, opacity: 1,
+        fillColor: '#f47920', fillOpacity: 1
+      }).addTo(map);
+      if (ptLabel) {
+        place.bindTooltip(ptLabel, {
+          permanent: true, direction: 'top', offset: [0, -8], className: 'pmap-place'
+        });
+      }
+    }
+
     var homeBounds = null;
     var pin = null;
     var layers = {};
@@ -183,7 +207,8 @@
       }).addTo(map);
       homeBounds = own.getBounds();
       // a BID is a small shape in a small frame, so it can sit tighter
-      map.fitBounds(homeBounds, { padding: bidSlug ? [8, 8] : [14, 14] });
+      if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
+      else map.fitBounds(homeBounds, { padding: bidSlug ? [8, 8] : [14, 14] });
       if (!bidSlug) own.bringToBack();
       if (bidSlug) {
         var nm = (g.features && g.features[0] && g.features[0].properties
@@ -198,7 +223,9 @@
         }
         startDefaults();
       }
-    }).catch(function () { map.setView([40.70, -73.95], 11); });
+    }).catch(function () {
+      map.setView(hasPoint ? [ptLat, ptLng] : [40.70, -73.95], hasPoint ? ptZoom : 11);
+    });
 
     // ---- overlapping districts from the other two chambers, faint ----
     function overlapLayer(kind) {
@@ -594,7 +621,8 @@
         if (!fold.open) return;
         setTimeout(function () {
           map.invalidateSize();
-          if (homeBounds) map.fitBounds(homeBounds, { padding: [14, 14] });
+          if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
+          else if (homeBounds) map.fitBounds(homeBounds, { padding: [14, 14] });
         }, 60);
       });
     }
