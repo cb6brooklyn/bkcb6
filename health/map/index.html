@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Health Map by District &mdash; bkcb6.app</title>
+<meta name="description" content="Every community district shaded by any of 60 health and socioeconomic measures, with a colour scale, a ranked list and one district picked out.">
+<link rel="canonical" href="https://bkcb6.app/health/map">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Health map, district by district">
+<meta property="og:description" content="Every community district shaded by any of 60 health and socioeconomic measures.">
+<meta property="og:url" content="https://bkcb6.app/health/map">
+<meta property="og:image" content="https://bkcb6.app/icon-orgchart.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="/assets/cd-page.css">
+<style>
+body.embed .top,body.embed .intro,body.embed .foot,body.embed .expl,body.embed .ranked{display:none}
+.intro{background:#fff;padding:13px 15px;border-bottom:1px solid var(--border);font-size:.86rem;line-height:1.62;color:#333;max-width:76ch}
+.intro b{color:var(--navy)}
+.picker{background:var(--navy);padding:12px;border-bottom:2px solid var(--orange)}
+.picker .pl{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.6);font-weight:700;margin-bottom:5px}
+.picker select{width:100%;padding:11px 12px;font-family:'DM Sans',sans-serif;font-size:.85rem;font-weight:700;border:none;border-radius:9px;color:var(--navy);background:#fff}
+.picker .r2{display:flex;gap:8px;margin-top:8px}
+.picker .r2 select{flex:1 1 0;min-width:0;font-size:.8rem}
+#map{height:60vh;min-height:380px;background:#eef0f4}
+.mhead{padding:11px 14px;background:#fff;border-bottom:1px solid var(--border)}
+.mhead .mt{font-size:.95rem;font-weight:900;color:var(--navy);line-height:1.25}
+.mhead .ms{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);margin-top:3px;line-height:1.5}
+.scale{padding:10px 14px;background:#fff;border-bottom:1px solid var(--border)}
+.scale .sl{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin-bottom:6px}
+.sbar{display:flex;height:15px;border-radius:4px;overflow:hidden;border:1px solid var(--border)}
+.sbar i{flex:1}
+.sticks{display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:.58rem;color:var(--muted);margin-top:4px}
+.nodata{font-family:'DM Mono',monospace;font-size:.58rem;color:var(--muted);margin-top:6px;display:flex;align-items:center;gap:6px}
+.nodata i{width:13px;height:13px;border-radius:3px;background:#d8d5cd;border:1px solid var(--border);display:inline-block}
+.ranked{background:#fff}
+.rh{padding:8px 14px;background:var(--navy2);color:#fff;font-family:'DM Mono',monospace;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em}
+.rr{display:flex;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid #f1efe9;cursor:pointer}
+.rr:hover{background:#fff7ed}
+.rr.me{background:#fff7ed;border-left:4px solid var(--orange);padding-left:10px}
+.rr .rk{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);width:22px;flex:none}
+.rr .sw{width:14px;height:14px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.15)}
+.rr .rn{flex:1;min-width:0;font-size:.79rem;font-weight:700;color:var(--navy);line-height:1.3}
+.rr .rv{font-family:'DM Mono',monospace;font-size:.75rem;font-weight:700;color:var(--navy);flex:none}
+.expl{background:#fff;border-top:1px solid var(--border)}
+.expl>summary{list-style:none;padding:12px 14px;font-size:.85rem;font-weight:800;color:var(--navy);cursor:pointer;border-bottom:1px solid var(--border)}
+.expl>summary::-webkit-details-marker{display:none}
+.expl>summary:after{content:' \25be';color:var(--orange)}
+.expl[open]>summary:after{content:' \25b4'}
+.expl .eb{padding:14px 15px}
+.expl p{font-size:.83rem;line-height:1.6;color:#333;margin-bottom:9px}
+.foot{padding:14px 15px 34px;font-family:'DM Mono',monospace;font-size:.61rem;line-height:1.7;color:var(--muted);background:var(--off)}
+.foot a{color:var(--orange)}
+.leaflet-popup-content{font-family:'DM Sans',sans-serif;font-size:.8rem;line-height:1.5;margin:10px 12px}
+.leaflet-popup-content b{color:var(--navy);font-size:.86rem}
+.leaflet-popup-content .pl{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);display:block;margin-top:3px}
+.leaflet-popup-content a{color:var(--orange);font-weight:700}
+.cdlabel{font-family:'DM Mono',monospace;font-size:9px;font-weight:700;color:#0d1b4b;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap;pointer-events:none;background:none;border:none;box-shadow:none}
+</style>
+<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b6e9b47ba0cf416388d72db8edaf4198"}'></script><!-- End Cloudflare Web Analytics -->
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="crumb"><a href="/">CB6 &amp; Beyond</a> &rsaquo; <a href="/health">Health</a></div>
+    <h1>The Health Map <span>District by District</span></h1>
+    <div class="nbs">Every community district shaded by whichever measure you pick</div>
+  </div>
+
+  <div class="intro">
+    <b>The same numbers, laid over the city.</b> A list tells you a district's figure. A map tells you whether the districts around it look the same, and where the line between one pattern and another actually falls. Pick a measure and every district is shaded by it.
+  </div>
+
+  <div class="picker">
+    <div class="pl">Shade the map by</div>
+    <select id="mSel" aria-label="Measure"></select>
+    <div class="r2">
+      <select id="scopeSel" aria-label="Area"></select>
+      <select id="cdSel" aria-label="Highlight a district"></select>
+    </div>
+  </div>
+
+  <div class="mhead" id="mhead"></div>
+  <div class="scale" id="scale"></div>
+  <div id="map"></div>
+
+  <div class="ranked">
+    <div class="rh" id="rh">Every district, highest first</div>
+    <div id="rlist"></div>
+  </div>
+
+  <details class="expl">
+    <summary>How the shading works</summary>
+    <div class="eb">
+      <p>Colour is assigned by rank, not by value. The districts are sorted and split into seven equal groups, so each shade holds roughly the same number of districts. That keeps the map readable when a few districts sit far from the rest, which happens often here.</p>
+      <p>The consequence is that the colour steps are not evenly spaced in the units of the measure. The scale under the map shows the actual value at each break, so read those rather than assuming equal intervals.</p>
+      <p>Darker always means more of the thing being measured. For something like poverty that is worse, and for something like health insurance coverage it is better; the map does not judge which.</p>
+      <p>Districts with no published value for a measure are drawn in flat grey and excluded from the ranking.</p>
+    </div>
+  </details>
+
+  <div class="foot">
+    Boundaries from the Department of City Planning. Figures from the NYC Department of Health and Mental Hygiene, <a href="https://www.nyc.gov/site/doh/data/data-publications/profiles.page" target="_blank" rel="noopener">2026 Community Health Profiles</a>.<br>
+    <a href="/health">Health by district</a> &middot; <a href="/health/compare">What moves with what</a> &middot; <a href="mailto:Mike@bkcb6.org">Mike Racioppo</a>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var CD_BORO={'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
+  var CD_SLUG={'1':'mn','2':'bx','3':'bk','4':'qn','5':'si'};
+  var BKEY={'MN':'1','BX':'2','BK':'3','QN':'4','SI':'5'};
+  var BORO_ORDER=['Manhattan','Bronx','Brooklyn','Queens','Staten Island'];
+  /* sequential, colour-blind safe, dark = more of the measure */
+  var RAMP=['#f7f4ea','#dfe6dd','#bcd3d2','#93bcc9','#6a9fbd','#4b7aa8','#2f5185'];
+  var NODATA='#d8d5cd';
+
+  var chp=null, bounds=null, map=null, layer=null, labels=null, breaks=[], order=[];
+  var el={m:document.getElementById('mSel'),scope:document.getElementById('scopeSel'),
+          cd:document.getElementById('cdSel'),head:document.getElementById('mhead'),
+          scale:document.getElementById('scale'),rlist:document.getElementById('rlist'),
+          rh:document.getElementById('rh')};
+
+  var p=new URLSearchParams(location.search);
+  var state={m:p.get('m')||'Life_Expectancy', cd:p.get('cd')||'', scope:p.get('scope')||''};
+  if(p.get('embed')==='1') document.body.classList.add('embed');
+  // picking a district highlights it; narrowing to a borough is a separate choice
+
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function cbLabel(c){return (CD_BORO[c.charAt(0)]||'')+' CB'+parseInt(c.slice(1),10);}
+  function cbHref(c){return '/cb-'+CD_SLUG[c.charAt(0)]+'-'+parseInt(c.slice(1),10)+'.html';}
+  function nm(c){return (chp&&chp.names[c])||cbLabel(c);}
+  function fmt(v){
+    if(v==null) return '\u2014';
+    var a=Math.abs(v);
+    if(a>=10000) return Math.round(v).toLocaleString();
+    if(a>=100) return (Math.round(v*10)/10).toLocaleString();
+    return (Math.round(v*100)/100).toString();
+  }
+  function vals(){ return (chp&&chp.values[state.m])||{}; }
+  function meta(){ return (chp&&chp.meta[state.m])||{}; }
+
+  function inScope(cd){
+    if(!state.scope) return true;
+    return CD_BORO[cd.charAt(0)]===state.scope;
+  }
+
+  /* Colour by rank so a handful of outliers cannot flatten the whole map. */
+  function classify(){
+    var V=vals();
+    order=Object.keys(chp.names).filter(function(c){return V[c]!=null && inScope(c);})
+      .sort(function(a,b){return V[b]-V[a];});
+    breaks=[];
+    var n=order.length;
+    if(!n) return;
+    for(var i=1;i<RAMP.length;i++) breaks.push(V[order[Math.floor(n*i/RAMP.length)-1]]);
+  }
+  function shade(cd){
+    var v=vals()[cd];
+    if(v==null) return NODATA;
+    var i=order.indexOf(cd);
+    if(i<0) return NODATA;
+    var band=Math.min(RAMP.length-1, Math.floor(i*RAMP.length/order.length));
+    return RAMP[RAMP.length-1-band];
+  }
+
+  function popup(cd){
+    var V=vals(), m=meta(), v=V[cd], i=order.indexOf(cd);
+    return '<b>'+esc(nm(cd))+'</b><span class="pl">'+esc(cbLabel(cd))+'</span>'
+      +'<span class="pl" style="font-size:.9rem;color:#0d1b4b;font-weight:700;margin-top:5px">'
+      +fmt(v)+' '+esc(m.unit||'')+'</span>'
+      +(i>-1?'<span class="pl">ranks '+(i+1)+' of '+order.length+'</span>':'')
+      +'<span class="pl" style="margin-top:6px"><a href="/health?cd='+cd+'">All its figures &rarr;</a></span>'
+      +'<span class="pl"><a href="'+cbHref(cd)+'">The district profile &rarr;</a></span>';
+  }
+
+  function draw(){
+    if(!map||!bounds||!chp) return;
+    classify();
+    if(layer) map.removeLayer(layer);
+    if(labels) map.removeLayer(labels);
+    layer=L.layerGroup(); labels=L.layerGroup();
+    var shown=[];
+    bounds.districts.forEach(function(d){
+      if(!inScope(d.cd)) return;
+      shown.push(d);
+      var poly=L.geoJSON({type:'Feature',geometry:d.g},{
+        style:{color:'#fff',weight:1,fillColor:shade(d.cd),
+               fillOpacity:.88, opacity:.9}
+      });
+      if(d.cd===state.cd) poly.setStyle({color:'#f47920',weight:3,opacity:1});
+      poly.bindPopup(popup(d.cd));
+      poly.on('click',function(){ state.cd=d.cd; sync(); refreshOutline(); });
+      poly.addTo(layer);
+      var v=vals()[d.cd];
+      labels.addLayer(L.marker([d.lp[0],d.lp[1]],{
+        interactive:false,
+        icon:L.divIcon({className:'cdlabel',html:esc(cbLabel(d.cd).replace(/^\w+ /,''))
+          +(v!=null?'<br>'+fmt(v):''),iconSize:[46,22],iconAnchor:[23,11]})}));
+    });
+    layer.addTo(map);
+    if(map.getZoom()>=11) labels.addTo(map);
+    try{
+      var b=L.geoJSON({type:'FeatureCollection',features:shown.map(function(d){
+        return {type:'Feature',geometry:d.g};})}).getBounds();
+      map.fitBounds(b,{padding:[12,12]});
+    }catch(e){}
+    header(); scale(); ranked();
+  }
+  function refreshOutline(){ draw(); }
+
+  function header(){
+    var m=meta(), V=vals();
+    var n=order.length;
+    el.head.innerHTML='<div class="mt">'+esc(m.label||state.m)+'</div>'
+      +'<div class="ms">'+esc(m.unit||'')+(m.years?' \u00b7 '+esc(m.years):'')
+      +' \u00b7 '+n+' district'+(n===1?'':'s')+' shaded'
+      +(state.cd&&V[state.cd]!=null?' \u00b7 '+esc(nm(state.cd))+': '+fmt(V[state.cd]):'')+'</div>'
+      +(m.def?'<div class="ms">'+esc(m.def)+'</div>':'');
+  }
+
+  function scale(){
+    var V=vals();
+    if(!order.length){ el.scale.innerHTML=''; return; }
+    var hi=V[order[0]], lo=V[order[order.length-1]];
+    // ticks run low to high left to right, so the ramp must too
+    var bars=RAMP.map(function(c){return '<i style="background:'+c+'"></i>';}).join('');
+    var ticks='<span>'+fmt(lo)+'</span>';
+    var mid=breaks.slice().reverse();
+    ticks+= '<span>'+fmt(mid[Math.floor(mid.length/2)])+'</span>';
+    ticks+='<span>'+fmt(hi)+'</span>';
+    el.scale.innerHTML='<div class="sl">Less \u2192 more '+esc((meta().unit)||'')+'</div>'
+      +'<div class="sbar">'+bars+'</div><div class="sticks">'+ticks+'</div>'
+      +'<div class="nodata"><i></i>no published value</div>';
+  }
+
+  function ranked(){
+    var V=vals();
+    el.rh.textContent=(state.scope?state.scope+' districts':'Every district')+', highest first';
+    el.rlist.innerHTML='';
+    order.forEach(function(cd,i){
+      var d=document.createElement('div');
+      d.className='rr'+(cd===state.cd?' me':'');
+      d.innerHTML='<span class="rk">'+(i+1)+'</span>'
+        +'<span class="sw" style="background:'+shade(cd)+'"></span>'
+        +'<span class="rn">'+esc(nm(cd))+'</span>'
+        +'<span class="rv">'+fmt(V[cd])+'</span>';
+      d.onclick=function(){ state.cd=cd; sync(); draw(); window.scrollTo({top:0,behavior:'smooth'}); };
+      el.rlist.appendChild(d);
+    });
+  }
+
+  function sync(){
+    var u=new URLSearchParams();
+    u.set('m',state.m);
+    if(state.scope) u.set('scope',state.scope);
+    if(state.cd) u.set('cd',state.cd);
+    if(document.body.classList.contains('embed')) u.set('embed','1');
+    try{history.replaceState(null,'',location.pathname+'?'+u.toString());}catch(e){}
+    el.m.value=state.m; el.scope.value=state.scope; el.cd.value=state.cd;
+  }
+
+  map=L.map('map',{scrollWheelZoom:false}).setView([40.71,-73.94],10);
+  L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    {maxZoom:19,maxNativeZoom:16,attribution:'Esri, HERE, Garmin, &copy; OpenStreetMap contributors'}).addTo(map);
+  map.on('zoomend',function(){
+    if(!labels) return;
+    if(map.getZoom()>=11){ if(!map.hasLayer(labels)) labels.addTo(map); }
+    else if(map.hasLayer(labels)) map.removeLayer(labels);
+  });
+
+  Promise.all([
+    fetch('/data/health/chp.json').then(function(r){return r.json();}),
+    fetch('/data/health/bounds.json').then(function(r){return r.json();})
+  ]).then(function(a){
+    chp=a[0]; bounds=a[1];
+    var keys=Object.keys(chp.values).sort(function(x,y){
+      var A=chp.meta[x],B=chp.meta[y];
+      return (A.section+A.label).localeCompare(B.section+B.label);
+    });
+    el.m.innerHTML='';
+    var cur='';
+    keys.forEach(function(k){
+      var sec=chp.meta[k].section;
+      if(sec!==cur){cur=sec;var og=document.createElement('optgroup');og.label=sec;el.m.appendChild(og);}
+      var o=document.createElement('option');o.value=k;o.textContent=chp.meta[k].label;
+      el.m.lastChild.appendChild(o);
+    });
+    el.scope.innerHTML='<option value="">The whole city</option>';
+    BORO_ORDER.forEach(function(b){
+      var o=document.createElement('option');o.value=b;o.textContent=b;el.scope.appendChild(o);
+    });
+    el.cd.innerHTML='<option value="">No district picked out</option>';
+    Object.keys(chp.names).sort(function(a,b){
+      var x=BORO_ORDER.indexOf(CD_BORO[a.charAt(0)])-BORO_ORDER.indexOf(CD_BORO[b.charAt(0)]);
+      return x||parseInt(a.slice(1),10)-parseInt(b.slice(1),10);
+    }).forEach(function(c){
+      var o=document.createElement('option');o.value=c;
+      o.textContent=nm(c)+' \u00b7 '+cbLabel(c); el.cd.appendChild(o);
+    });
+    if(!chp.values[state.m]) state.m='Life_Expectancy';
+    sync(); draw();
+  }).catch(function(){
+    el.head.innerHTML='<div class="ms">The map data did not load.</div>';
+  });
+
+  el.m.onchange=function(){ state.m=el.m.value; sync(); draw(); };
+  el.scope.onchange=function(){
+    state.scope=el.scope.value;
+    if(state.cd && state.scope && CD_BORO[state.cd.charAt(0)]!==state.scope) state.cd='';
+    sync(); draw();
+  };
+  el.cd.onchange=function(){
+    state.cd=el.cd.value;
+    // if the pick sits outside the current borough view, widen rather than hide it
+    if(state.cd && state.scope && CD_BORO[state.cd.charAt(0)]!==state.scope) state.scope='';
+    sync(); draw();
+  };
+})();
+</script>
+</body>
+</html>
