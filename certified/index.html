@@ -18,6 +18,12 @@
 <style>
 .intro{background:#fff;padding:13px 15px;border-bottom:1px solid var(--border);font-size:.86rem;line-height:1.62;color:#333;max-width:76ch}
 .intro b{color:var(--navy)}
+.srcrow{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:11px 12px;background:#fff;border-bottom:1px solid var(--border)}
+.srl{font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700}
+.srcb{padding:9px 15px;border:2px solid var(--navy);border-radius:999px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:800;color:var(--navy);cursor:pointer}
+.srcb span{font-family:'DM Mono',monospace;font-size:.62rem;font-weight:500;color:var(--muted);margin-left:3px}
+.srcb.on{background:var(--navy);color:#fff}
+.srcb.on span{color:var(--orange)}
 .search{background:var(--navy);padding:12px;border-bottom:2px solid var(--orange)}
 .search input{width:100%;padding:13px 14px;font-family:'DM Sans',sans-serif;font-size:.92rem;font-weight:500;border:none;border-radius:10px;color:var(--navy)}
 .search .hint{font-family:'DM Mono',monospace;font-size:.6rem;color:rgba(255,255,255,.62);margin-top:7px;line-height:1.6}
@@ -99,8 +105,17 @@
     <div class="nbs">Every MBE, WBE, EBE and LBE the city has certified, with a New York City address</div>
   </div>
 
-  <div class="intro">
+  <div class="intro" id="introCert">
     <b>City certification is a procurement tool.</b> The Department of Small Business Services certifies firms as Minority-owned, Women-owned, Emerging or Locally Based Business Enterprises, and agencies then have targets for how much contract money goes to them. So this list is a map of where the businesses competing for city work actually are, which is a different question from where the money ends up.
+  </div>
+  <div class="intro" id="introFood" hidden>
+    <b>Where the groceries are.</b> Every licensed retail food store of 3,000 square feet or more, from the New York State Department of Agriculture and Markets, plus the city&rsquo;s greenmarkets. This is the buying-food map, where the certified vendor list is the selling-to-government map. The <a href="/food-map.html">food map</a> and <a href="/food-directory.html">food directory</a> cut this same data by need and by chain.
+  </div>
+
+  <div class="srcrow">
+    <span class="srl">Dataset</span>
+    <button type="button" class="srcb on" id="srcCert">Certified vendors <span>7,031</span></button>
+    <button type="button" class="srcb" id="srcFood">Retail food stores <span>1,056</span></button>
   </div>
 
   <div class="search">
@@ -182,8 +197,11 @@
       secSel=document.getElementById('secSel');
 
   var p=new URLSearchParams(location.search);
-  var state={boro:p.get('boro')||'', cb:p.get('cd')||'', cc:p.get('council')||'',
+  var state={src:(p.get('src')==='food'?'food':'cert'),
+             boro:p.get('boro')||'', cb:p.get('cd')||'', cc:p.get('council')||'',
              cert:p.get('cert')||'', sec:p.get('sector')||'', q:p.get('q')||''};
+  var FOOD_TYPES=['Supermarket','Greenmarket'];
+  var food=null;
   if(state.cb && CD_BORO[state.cb.charAt(0)]) state.boro=CD_BORO[state.cb.charAt(0)];
   qEl.value=state.q;
 
@@ -196,10 +214,22 @@
   function boroOf(r){return r.b||CD_BORO[r.cd.charAt(0)];}
 
   /* ---- loading: one borough at a time, or all five for a citywide view ---- */
+  function rows(){ return state.src==='food' ? (food||[]) : all; }
   function need(){
     return state.boro ? [state.boro] : BORO_ORDER;
   }
   function load(){
+    if(state.src==='food'){
+      if(food) return Promise.resolve();
+      countEl.textContent='Loading the food stores\u2026';
+      return fetch('/data/certified/food.json').then(function(r){
+        if(!r.ok) throw new Error(r.status);
+        return r.json();
+      }).then(function(d){
+        food=d.biz||[];
+        food.sort(function(a,b){return a.n.localeCompare(b.n);});
+      });
+    }
     var want=need().filter(function(b){return !loaded[b];});
     if(!want.length) return Promise.resolve();
     countEl.textContent='Loading '+(want.length>1?'the city':want[0])+'\u2026';
@@ -221,13 +251,24 @@
   function passBoro(r){return !state.boro || boroOf(r)===state.boro;}
   function passCb(r){return !state.cb || r.cd===state.cb;}
   function passCc(r){return !state.cc || String(r.cc)===String(state.cc);}
-  function passCert(r){return !state.cert || (r.ct||'').split(',').indexOf(state.cert)>-1;}
-  function passSec(r){return !state.sec || sectors[r.s]===state.sec;}
+  function passCert(r){
+    if(!state.cert) return true;
+    if(state.src==='food') return false;
+    return (r.ct||'').split(',').indexOf(state.cert)>-1;
+  }
+  function passSec(r){
+    if(!state.sec) return true;
+    if(state.src==='food') return FOOD_TYPES[r.ft]===state.sec
+      || (state.sec==='Chain'&&r.st==='chain')
+      || (state.sec==='Independent'&&r.st==='independent');
+    return sectors[r.s]===state.sec;
+  }
   function passQ(r){
     if(!state.q) return true;
     var q=state.q.toLowerCase();
     return (r.n||'').toLowerCase().indexOf(q)>-1
         || (r.fn||'').toLowerCase().indexOf(q)>-1
+        || (r.ch||'').toLowerCase().indexOf(q)>-1
         || (r.a||'').toLowerCase().indexOf(q)>-1
         || (titles[r.t]||'').toLowerCase().indexOf(q)>-1
         || (sectors[r.s]||'').toLowerCase().indexOf(q)>-1;
@@ -247,10 +288,11 @@
   }
 
   function options(){
+    var A=rows();
     var bo=BORO_ORDER.map(function(n){
-      var c=0; all.forEach(function(r){if(boroOf(r)===n&&passCb(r)&&passCc(r)&&passCert(r)&&passSec(r)&&passQ(r))c++;});
-      if(!c && !idx) return null;
-      return {v:n,l:n+' ('+(state.boro||loaded[n]?c:(idx.boroughs[n]||{}).count||0)+')'};
+      var c=0; A.forEach(function(r){if(boroOf(r)===n&&passCb(r)&&passCc(r)&&passCert(r)&&passSec(r)&&passQ(r))c++;});
+      if(!c) return null;
+      return {v:n,l:n+' ('+c+')'};
     }).filter(Boolean);
     fill(boroSel,bo,state.boro,'Any borough');
 
@@ -259,9 +301,9 @@
       if(state.boro && CD_BORO[c.charAt(0)]!==state.boro) return;
       cbc[c]=idx.byCd[c];
     });
-    if(all.length){
+    if(A.length){
       cbc={};
-      all.forEach(function(r){ if(passBoro(r)&&passCc(r)&&passCert(r)&&passSec(r)&&passQ(r))
+      A.forEach(function(r){ if(passBoro(r)&&passCc(r)&&passCert(r)&&passSec(r)&&passQ(r))
         cbc[r.cd]=(cbc[r.cd]||0)+1; });
     }
     var cbs=Object.keys(cbc).sort(function(a,b){
@@ -271,7 +313,7 @@
     fill(cbSel,cbs,state.cb,'Any community board');
 
     var ccc={};
-    if(all.length){ all.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passCert(r)&&passSec(r)&&passQ(r))
+    if(A.length){ A.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passCert(r)&&passSec(r)&&passQ(r))
       ccc[r.cc]=(ccc[r.cc]||0)+1; }); }
     else ccc=idx.byCouncil;
     var ccs=Object.keys(ccc).map(Number).sort(function(a,b){return a-b;})
@@ -279,14 +321,28 @@
     fill(ccSel,ccs,state.cc,'Any council district');
 
     var cec={};
-    all.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passCc(r)&&passSec(r)&&passQ(r))
+    A.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passCc(r)&&passSec(r)&&passQ(r))
       (r.ct||'').split(',').forEach(function(c){ if(c) cec[c]=(cec[c]||0)+1; }); });
+    certSel.hidden = state.src==='food';
     fill(certSel,CERTS.filter(function(c){return cec[c];})
       .map(function(c){return {v:c,l:c+' ('+cec[c]+')'};}), state.cert,'Any certification');
 
     var sc={};
-    all.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passCc(r)&&passCert(r)&&passQ(r) && r.s!=null)
+    A.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passCc(r)&&passCert(r)&&passQ(r) && r.s!=null)
       sc[r.s]=(sc[r.s]||0)+1; });
+    if(state.src==='food'){
+      var fc={};
+      A.forEach(function(r){
+        if(!(passBoro(r)&&passCb(r)&&passCc(r)&&passQ(r))) return;
+        fc[FOOD_TYPES[r.ft]]=(fc[FOOD_TYPES[r.ft]]||0)+1;
+        if(r.st==='chain') fc.Chain=(fc.Chain||0)+1;
+        if(r.st==='independent') fc.Independent=(fc.Independent||0)+1;
+      });
+      fill(secSel,['Supermarket','Greenmarket','Chain','Independent']
+        .filter(function(k){return fc[k];})
+        .map(function(k){return {v:k,l:k+' ('+fc[k]+')'};}), state.sec,'Any kind of store');
+      return;
+    }
     var ss=Object.keys(sc).sort(function(a,b){return sc[b]-sc[a];})
       .map(function(i){return {v:sectors[i],l:sectors[i]+' ('+sc[i]+')'};});
     fill(secSel,ss,state.sec,'Any industry');
@@ -300,6 +356,7 @@
     if(state.cert) t.push(['cert',state.cert]);
     if(state.sec) t.push(['sec',state.sec]);
     if(state.q) t.push(['q','\u201c'+state.q+'\u201d']);
+    if(state.src==='food') t.unshift(['','Retail food stores']);
     activeEl.classList.toggle('on',t.length>0);
     while(activeEl.childNodes.length>1) activeEl.removeChild(activeEl.lastChild);
     t.forEach(function(x){
@@ -315,6 +372,7 @@
 
   function syncUrl(){
     var u=new URLSearchParams();
+    if(state.src==='food') u.set('src','food');
     if(state.boro) u.set('boro',state.boro);
     if(state.cb) u.set('cd',state.cb);
     if(state.cc) u.set('council',state.cc);
@@ -327,9 +385,16 @@
 
   function row(r){
     var d=document.createElement('div'); d.className='row';
-    var chips=(r.ct||'').split(',').filter(Boolean)
-      .map(function(c){return '<span class="cc cert">'+esc(c)+'</span>';}).join('');
-    if(r.e && r.e!=='Non-Minority') chips+='<span class="cc eth">'+esc(r.e)+'</span>';
+    var chips='';
+    if(state.src==='food'){
+      chips+='<span class="cc cert">'+esc(FOOD_TYPES[r.ft])+'</span>';
+      if(r.ch) chips+='<span class="cc eth">'+esc(r.ch)+'</span>';
+      if(r.ebt) chips+='<span class="cc eth">Accepts EBT</span>';
+    } else {
+      chips+=(r.ct||'').split(',').filter(Boolean)
+        .map(function(c){return '<span class="cc cert">'+esc(c)+'</span>';}).join('');
+      if(r.e && r.e!=='Non-Minority') chips+='<span class="cc eth">'+esc(r.e)+'</span>';
+    }
     chips+='<a class="cc" href="'+cbHref(r.cd)+'">'+esc(cbLabel(r.cd))+'</a>';
     if(r.cc) chips+='<a class="cc" href="/council-district-'+r.cc+'">Council D'+r.cc+'</a>';
     if(r.ad) chips+='<a class="cc" href="/assembly-district-'+r.ad+'">AD '+r.ad+'</a>';
@@ -342,18 +407,23 @@
       +(r.fn?'<div class="fn">'+esc(r.fn)+'</div>':'')
       +'<div class="bm">'+esc(r.a||'No street address filed')
       +(r.z?' \u00b7 '+esc(r.z):'')
+      +(r.ap?' \u00b7 approximate location':'')
       +(r.p?' \u00b7 <a href="tel:'+esc(r.p.replace(/[^0-9]/g,''))+'">'+esc(r.p)+'</a>':'')+'</div>'
-      +(r.t!=null?'<div class="bt">'+esc(titles[r.t]||'')+'</div>':'')
+      +(state.src==='food'
+          ? (r.sq?'<div class="bt">'+r.sq.toLocaleString()+' sq ft</div>':'')
+            +(r.h?'<div class="bt">'+esc(r.h)+'</div>':'')
+          : (r.t!=null?'<div class="bt">'+esc(titles[r.t]||'')+'</div>':''))
       +'<div class="chips">'+chips+'</div>'
       +(acts?'<div class="acts">'+acts+'</div>':'');
     return d;
   }
 
   function render(){
-    var hits=all.filter(match);
-    countEl.textContent = hits.length===all.length && !state.boro
-      ? all.length.toLocaleString()+' certified businesses'
-      : hits.length.toLocaleString()+' of '+all.length.toLocaleString();
+    var A=rows(), hits=A.filter(match);
+    var noun=state.src==='food'?' food stores and greenmarkets':' certified businesses';
+    countEl.textContent = hits.length===A.length
+      ? A.length.toLocaleString()+noun
+      : hits.length.toLocaleString()+' of '+A.length.toLocaleString();
     listEl.innerHTML='';
     if(!hits.length){
       var n=document.createElement('div'); n.className='none';
@@ -392,11 +462,14 @@
 
   /* ---- map ---- */
   function popup(r){
+    var kind = state.src==='food'
+      ? FOOD_TYPES[r.ft]+(r.ch?' \u00b7 '+r.ch:'')
+      : (r.ct||'').split(',').join(' \u00b7 ');
     return '<b>'+esc(r.n)+'</b>'
       +'<span class="pl">'+esc(r.a||'')+'</span>'
-      +'<span class="pl">'+esc((r.ct||'').split(',').join(' \u00b7 '))
+      +'<span class="pl">'+esc(kind)
       +' \u00b7 '+esc(cbLabel(r.cd))+'</span>'
-      +(r.t!=null?'<span class="pl">'+esc(titles[r.t]||'')+'</span>':'')
+      +(state.src!=='food'&&r.t!=null?'<span class="pl">'+esc(titles[r.t]||'')+'</span>':'')
       +(r.w?'<a href="'+esc(r.w)+'" target="_blank" rel="noopener">Website &#8599;</a>':'');
   }
   function paint(hits){
@@ -405,7 +478,7 @@
     var use=hits.slice(0,MAP_CAP);
     use.forEach(function(r){
       L.circleMarker([r.y,r.x],{radius:4,color:'#fff',weight:1.2,
-        fillColor:'#ea580c',fillOpacity:.9})
+        fillColor:(state.src==='food'&&r.ft===1)?'#009E73':'#ea580c',fillOpacity:.9})
         .bindTooltip(r.n,{sticky:true}).bindPopup(popup(r)).addTo(group);
     });
     document.querySelector('.mapnote').textContent = hits.length>MAP_CAP
@@ -422,7 +495,9 @@
       {maxZoom:19,attribution:'Esri, HERE, Garmin, &copy; OpenStreetMap contributors'}).addTo(map);
     L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
       {maxZoom:19,opacity:.9}).addTo(map);
-    group=L.layerGroup().addTo(map); ready=true;
+    // featureGroup, not layerGroup: only featureGroup has getBounds, and the
+    // fit was silently failing into the catch below
+    group=L.featureGroup().addTo(map); ready=true;
   }
 
   function districts(){
@@ -438,6 +513,14 @@
     });
   }
 
+  if(state.src==='food'){
+    document.getElementById('srcCert').classList.remove('on');
+    document.getElementById('srcFood').classList.add('on');
+    document.getElementById('introCert').hidden=true;
+    document.getElementById('introFood').hidden=false;
+    document.getElementById('dtable').hidden=true;
+    qEl.placeholder='Search a store, chain or address\u2026';
+  }
   initMap();
   fetch('/data/certified/index.json').then(function(r){return r.json();}).then(function(d){
     idx=d; districts(); apply();
@@ -461,11 +544,34 @@
   certSel.onchange=function(){ state.cert=certSel.value; apply(); };
   secSel.onchange=function(){ state.sec=secSel.value; apply(); };
   resetEl.onclick=function(){
-    state={boro:'',cb:'',cc:'',cert:'',sec:'',q:''}; qEl.value=''; apply();
+    state={src:state.src,boro:'',cb:'',cc:'',cert:'',sec:'',q:''}; qEl.value=''; apply();
   };
+
+  function setSrc(which){
+    if(state.src===which) return;
+    // the two datasets have different filters, so switching clears them
+    state={src:which,boro:'',cb:'',cc:'',cert:'',sec:'',q:''};
+    qEl.value='';
+    document.getElementById('srcCert').classList.toggle('on',which==='cert');
+    document.getElementById('srcFood').classList.toggle('on',which==='food');
+    document.getElementById('introCert').hidden = which!=='cert';
+    document.getElementById('introFood').hidden = which!=='food';
+    qEl.placeholder = which==='food'
+      ? 'Search a store, chain or address\u2026'
+      : 'Search a business, trade or address\u2026';
+    dtable.hidden = which==='food';
+    apply();
+  }
+  document.getElementById('srcCert').onclick=function(){ setSrc('cert'); };
+  document.getElementById('srcFood').onclick=function(){ setSrc('food'); };
   mapsec.addEventListener('toggle',function(){
     if(!mapsec.open) return;
-    setTimeout(function(){ map.invalidateSize(); paint(all.filter(match)); },90);
+    // fitBounds against a container that has only just been given a size
+    // lands somewhere near Yonkers, so let the resize settle first
+    setTimeout(function(){
+      map.invalidateSize();
+      setTimeout(function(){ paint(rows().filter(match)); },120);
+    },90);
   });
 })();
 </script>
