@@ -28,7 +28,7 @@ GROUPED={
   'Race_Asian':'Asian','Race_Black':'Black','Race_Latino':'Latino',
   'Race_White':'White','Race_Other':'Other',
   'Age0to17':'under 18','Age18to24':'18 to 24','Age25to44':'25 to 44',
-  'Age45to64':'45 to 64','Age65plus':'65 and over',
+  'Age45to64':'45 to 64',
   'Edu_Did_Not_Complete_HS':'did not finish high school',
   'Edu_HSGrad_Some_College':'high school or some college',
   'Edu_College_Degree_And_Higher':'college degree or higher',
@@ -68,9 +68,17 @@ for i,h,n in cols:
     lab=m.get('name') or h.replace('_',' ')
     if h in GROUPED:
         lab=lab.rstrip()+': '+GROUPED[h]
+    sec=m.get('section') or 'Other'
+    # two variables land in the wrong bucket in the department's own metadata
+    if h=='Age65plus': lab, sec = 'Age: 65 and over', 'Who We Are'
+    if h=='Life_Expectancy': sec = 'Health Outcomes'
+    # the two premature mortality measures share a label; the unit tells them
+    # apart in a list but not in a dropdown
+    if h=='Premature_Mort_Number': lab='Premature Mortality (deaths)'
+    if h=='Premature_Mort_Rate': lab='Premature Mortality (rate)'
     vals[h]=series
     meta[h]={'label':lab,
-             'section':m.get('section') or 'Other',
+             'section':sec,
              'def':m.get('def',''),'src':m.get('src',''),'years':m.get('years',''),
              'unit':UNIT.get(h,'percent')}
 
