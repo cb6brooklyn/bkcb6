@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Liquor Licenses, District by District &mdash; bkcb6.app</title>
+<meta name="description" content="Every active and pending on-premises liquor licence in New York City, mapped and searchable by community board, council district, borough and licence class.">
+<link rel="canonical" href="https://bkcb6.app/liquor">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Liquor Licenses, district by district">
+<meta property="og:description" content="14,820 active and pending on-premises liquor licences across all 59 community districts and 51 council districts.">
+<meta property="og:url" content="https://bkcb6.app/liquor">
+<meta property="og:image" content="https://bkcb6.app/icon-orgchart.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="/assets/cd-page.css">
+<style>
+.intro{background:#fff;padding:13px 15px;border-bottom:1px solid var(--border);font-size:.86rem;line-height:1.62;color:#333;max-width:76ch}
+.intro b{color:var(--navy)}
+.intro a{color:var(--navy);font-weight:700}
+.search{background:var(--navy);padding:12px;border-bottom:2px solid var(--orange)}
+.search input{width:100%;padding:13px 14px;font-family:'DM Sans',sans-serif;font-size:.92rem;font-weight:500;border:none;border-radius:10px;color:var(--navy)}
+.search .hint{font-family:'DM Mono',monospace;font-size:.6rem;color:rgba(255,255,255,.62);margin-top:7px;line-height:1.6}
+.scope{display:flex;gap:7px;flex-wrap:wrap;align-items:center;padding:10px 12px;background:#fff;border-bottom:1px solid var(--border)}
+.scope .lab{font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;width:100%}
+.scope select{flex:1 1 150px;min-width:0;padding:9px 11px;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:700;border:2px solid var(--navy2);border-radius:9px;color:var(--navy);background:#fff}
+.scope select.set{border-color:var(--orange)}
+.fb{padding:7px 13px;border:1.5px solid var(--border);border-radius:17px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.74rem;font-weight:700;color:var(--navy);cursor:pointer;white-space:nowrap}
+.fb:disabled{opacity:.42;cursor:not-allowed}
+.active{padding:9px 12px;background:#fff7ed;border-bottom:1px solid var(--border);display:none;gap:6px;flex-wrap:wrap;align-items:center}
+.active.on{display:flex}
+.active .al{font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.09em;color:#a65a00;font-weight:700}
+.tag{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;background:#fff;border:1.5px solid var(--orange);border-radius:16px;font-size:.72rem;font-weight:700;color:var(--navy)}
+.tag button{border:none;background:none;color:var(--orange);font-weight:900;font-size:.9rem;line-height:1;cursor:pointer;padding:0 1px}
+.count{padding:9px 14px;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);background:var(--off);border-bottom:1px solid var(--border)}
+.gh{padding:7px 14px;background:var(--navy2);color:#fff;font-family:'DM Mono',monospace;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;display:flex;justify-content:space-between;gap:8px}
+.gh span{color:rgba(255,255,255,.5)}
+.row{padding:12px 14px;border-bottom:1px solid var(--border);background:#fff}
+.row .bn{font-size:.9rem;font-weight:800;color:var(--navy);line-height:1.3}
+.row .fn{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);margin-top:2px}
+.row .bm{font-family:'DM Mono',monospace;font-size:.63rem;color:var(--muted);margin-top:4px;line-height:1.6}
+.row .bt{font-size:.75rem;color:#3d3a35;margin-top:5px;line-height:1.45}
+.row .chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.cc{font-family:'DM Mono',monospace;font-size:.57rem;font-weight:700;letter-spacing:.05em;border-radius:14px;padding:4px 8px;border:1px solid var(--border);background:var(--off);color:var(--navy);text-decoration:none}
+a.cc:hover{border-color:var(--orange)}
+.cc.full{background:#8B0000;border-color:#8B0000;color:#fff}
+.cc.wine{background:#4B0082;border-color:#4B0082;color:#fff}
+.cc.spec{background:#1B5E20;border-color:#1B5E20;color:#fff}
+.cc.pend{background:#fff3cd;border-color:#e0b400;color:#6b5200}
+.row .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.row .acts a{font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:800;text-decoration:none;border:1.5px solid var(--border);background:#fff;color:var(--navy);border-radius:999px;padding:9px 14px;line-height:1}
+.row .acts a.hot{background:var(--orange);border-color:var(--orange);color:#fff}
+.none{padding:26px 16px;text-align:center;background:#fff;border-bottom:1px solid var(--border)}
+.none .n1{font-size:.9rem;font-weight:800}
+.none .n2{font-size:.79rem;color:var(--muted);margin-top:6px;line-height:1.55;max-width:52ch;margin-left:auto;margin-right:auto}
+.more{display:block;width:calc(100% - 28px);margin:12px 14px;padding:12px;border:1.5px solid var(--navy);border-radius:999px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:800;color:var(--navy);cursor:pointer}
+.mapsec{border-top:3px solid var(--orange)}
+.mapsec>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;background:var(--navy);color:#fff;font-size:.85rem;font-weight:800;cursor:pointer}
+.mapsec>summary::-webkit-details-marker{display:none}
+.mapsec>summary:after{content:'Show map';font-family:'DM Mono',monospace;font-size:.62rem;letter-spacing:.07em;text-transform:uppercase;color:var(--orange);border:1.5px solid var(--orange);border-radius:15px;padding:4px 10px;white-space:nowrap}
+.mapsec[open]>summary:after{content:'Hide map'}
+#map{height:56vh;min-height:340px;background:#eef0f4}
+.mapnote{padding:8px 14px;background:var(--navy2);color:rgba(255,255,255,.8);font-family:'DM Mono',monospace;font-size:.62rem;line-height:1.55}
+.legend{display:flex;gap:12px;flex-wrap:wrap;padding:9px 14px;background:#fff;border-bottom:1px solid var(--border);font-size:.72rem;font-weight:700;color:var(--navy)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:11px;height:11px;border-radius:50%;display:inline-block;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
+.dtable,.expl{background:#fff;border-top:1px solid var(--border)}
+.dtable>summary,.expl>summary{list-style:none;padding:12px 14px;font-size:.85rem;font-weight:800;color:var(--navy);cursor:pointer;border-bottom:1px solid var(--border)}
+.dtable>summary::-webkit-details-marker,.expl>summary::-webkit-details-marker{display:none}
+.dtable>summary:after,.expl>summary:after{content:' \25be';color:var(--orange)}
+.dtable[open]>summary:after,.expl[open]>summary:after{content:' \25b4'}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:7px;padding:12px 14px}
+.dcell{display:flex;align-items:baseline;gap:7px;border:1px solid var(--border);border-radius:9px;padding:8px 10px;background:#fff;text-decoration:none}
+.dcell:hover{border-color:var(--orange)}
+.dcell b{font-size:.95rem;font-weight:900;color:var(--navy)}
+.dcell span{font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.expl .eb{padding:14px 15px}
+.expl p,.expl li{font-size:.83rem;line-height:1.6;color:#333}
+.expl h4{font-size:.78rem;font-weight:800;margin:14px 0 5px}
+.expl h4:first-child{margin-top:0}
+.expl ul{margin-left:17px}
+.expl li{margin-bottom:5px}
+.foot{padding:14px 15px 34px;font-family:'DM Mono',monospace;font-size:.61rem;line-height:1.7;color:var(--muted);background:var(--off)}
+.foot a{color:var(--orange)}
+.leaflet-popup-content{font-family:'DM Sans',sans-serif;font-size:.79rem;line-height:1.5;margin:10px 12px}
+.leaflet-popup-content b{color:var(--navy);font-size:.85rem}
+.leaflet-popup-content .pl{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);display:block;margin-top:3px}
+.leaflet-popup-content a{color:var(--orange);font-weight:700}
+</style>
+<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b6e9b47ba0cf416388d72db8edaf4198"}'></script><!-- End Cloudflare Web Analytics -->
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="crumb"><a href="/">CB6 &amp; Beyond</a> &rsaquo; <a href="/govhub.html">Government</a></div>
+    <h1>Liquor Licenses <span>District by District</span></h1>
+    <div class="nbs">Every active and pending on-premises licence in the five boroughs</div>
+  </div>
+
+  <div class="intro">
+    <b>Community boards get a say on these.</b> Before the State Liquor Authority acts on a new or renewed on-premises licence, the applicant is expected to notify the community board, and the board can hold a hearing and send the SLA a recommendation. The SLA is not bound by it, but a board on record against an application matters. This is every licence the state currently lists, so you can see what is already on a block before the next application turns up. CB6&rsquo;s own detailed map is at <a href="/liquor-map-cb6.html">the CB6 liquor map</a>.
+  </div>
+
+  <div class="search">
+    <input id="q" type="search" autocomplete="off" placeholder="Search a bar, restaurant or address&hellip;">
+    <div class="hint">Every filter below combines. Search the trading name, the corporate name or the street.</div>
+  </div>
+
+  <div class="scope">
+    <span class="lab">Narrow it down</span>
+    <select id="boroSel" aria-label="Borough"></select>
+    <select id="cbSel" aria-label="Community board district"></select>
+    <select id="ccSel" aria-label="City Council district"></select>
+    <select id="bevSel" aria-label="Licence class"></select>
+    <select id="stSel" aria-label="Status"></select>
+    <button type="button" class="fb" id="reset">Whole city</button>
+  </div>
+
+  <div class="active" id="active"><span class="al">Showing</span></div>
+
+  <div class="legend">
+    <span><i style="background:#8B0000"></i>Full Liquor</span>
+    <span><i style="background:#4B0082"></i>Wine &amp; Beer</span>
+    <span><i style="background:#1B5E20"></i>Brewery / Special</span>
+  </div>
+
+  <div class="count" id="count">Loading&hellip;</div>
+  <div id="list"></div>
+
+  <details class="mapsec" id="mapsec">
+    <summary>See them on a map</summary>
+    <div id="map"></div>
+    <div class="mapnote">The map follows the filters. It draws up to 2,000 at a time.</div>
+  </details>
+
+  <details class="dtable" id="dtable">
+    <summary>Every community board, by count</summary>
+    <div class="dgrid" id="dgrid"></div>
+  </details>
+
+  <details class="expl">
+    <summary>What the classes mean, and what this list is not</summary>
+    <div class="eb">
+      <h4>The three groupings</h4>
+      <ul>
+        <li><b>Full Liquor</b>: restaurants, bars, clubs, hotels and caterers licensed to serve spirits as well as wine and beer.</li>
+        <li><b>Wine &amp; Beer</b>: the same kinds of premises limited to wine and beer, with no spirits.</li>
+        <li><b>Brewery / Special</b>: manufacturers with a licence to serve on site, so brewers, cideries, wineries and distilleries.</li>
+      </ul>
+      <h4>What this list is not</h4>
+      <p>These are <b>on-premises</b> licences only, places where you drink where you buy. Liquor stores, grocery beer licences and other off-premises classes are excluded, which is why the number here is a fraction of every SLA record in the city.</p>
+      <p>A licence is not a business. One address can hold several, an additional bar licence sits alongside the main one, and a licence can outlast the business that took it out. Pending means the application is filed, not granted.</p>
+      <p>The address is the premises as filed with the state, and a few hundred records statewide carry no usable coordinates and are therefore not shown.</p>
+    </div>
+  </details>
+
+  <div class="foot">
+    Source: New York State Liquor Authority, current active and pending licence lists, pulled 28 August 2026.<br>
+    Community board and council district computed by point in polygon against the Department of City Planning district files.<br>
+    A correction: <a href="mailto:Mike@bkcb6.org">Mike Racioppo</a>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  var BORO_ORDER=['Manhattan','Bronx','Brooklyn','Queens','Staten Island'];
+  var CD_BORO={'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
+  var CD_SLUG={'1':'mn','2':'bx','3':'bk','4':'qn','5':'si'};
+  var FILE={'Manhattan':'manhattan','Bronx':'bronx','Brooklyn':'brooklyn',
+            'Queens':'queens','Staten Island':'staten-island'};
+  var COLORS={'Full Liquor':'#8B0000','Wine & Beer':'#4B0082','Brewery / Special':'#1B5E20'};
+  var CHIP={'Full Liquor':'full','Wine & Beer':'wine','Brewery / Special':'spec'};
+  var MAP_CAP=2000, PAGE=40;
+
+  var idx=null, loaded={}, all=[], classes={}, shown=PAGE;
+  var map=null, group=null, ready=false;
+  var listEl=document.getElementById('list'), countEl=document.getElementById('count'),
+      activeEl=document.getElementById('active'), qEl=document.getElementById('q'),
+      resetEl=document.getElementById('reset'), mapsec=document.getElementById('mapsec');
+  var boroSel=document.getElementById('boroSel'), cbSel=document.getElementById('cbSel'),
+      ccSel=document.getElementById('ccSel'), bevSel=document.getElementById('bevSel'),
+      stSel=document.getElementById('stSel');
+
+  var p=new URLSearchParams(location.search);
+  var state={boro:p.get('boro')||'', cb:p.get('cd')||'', cc:p.get('council')||'',
+             bev:p.get('class')||'', st:p.get('status')||'', q:p.get('q')||''};
+  if(state.cb && CD_BORO[state.cb.charAt(0)]) state.boro=CD_BORO[state.cb.charAt(0)];
+  qEl.value=state.q;
+
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function cbLabel(c){var b=CD_BORO[String(c).charAt(0)]||'';
+    return b?b+' CB'+parseInt(String(c).slice(1),10):'CD '+c;}
+  function cbHref(c){var s=CD_SLUG[String(c).charAt(0)];
+    return s?'/cb-'+s+'-'+parseInt(String(c).slice(1),10)+'.html':'#';}
+  function boroOf(r){return CD_BORO[r.cd.charAt(0)];}
+  /* class code is the single source of truth; bev and detail come from it */
+  function bevOf(r){var c=classes[r.c]; return c?c[0]:'';}
+  function detailOf(r){var c=classes[r.c]; return c?c[1]:'';}
+  function statusOf(r){return r.s||'Active';}
+  function nameOf(r){
+    // the state's dba is sometimes only a parenthetical note about the space,
+    // which makes a useless heading and sorts to the top of the list
+    var d=(r.d||'').trim();
+    if(!d || d.charAt(0)==='(') return r.l||d||'';
+    return d;
+  }
+
+  function load(){
+    var want=(state.boro?[state.boro]:BORO_ORDER).filter(function(b){return !loaded[b];});
+    if(!want.length) return Promise.resolve();
+    countEl.textContent='Loading '+(want.length>1?'the city':want[0])+'\u2026';
+    return Promise.all(want.map(function(b){
+      return fetch('/data/liquor/'+FILE[b]+'.json').then(function(r){
+        if(!r.ok) throw new Error(r.status);
+        return r.json();
+      }).then(function(d){
+        loaded[b]=true;
+        if(d.classes) for(var k in d.classes) classes[k]=d.classes[k];
+        (d.recs||[]).forEach(function(r){all.push(r);});
+      });
+    })).then(function(){
+      all.sort(function(a,b){return nameOf(a).localeCompare(nameOf(b));});
+    });
+  }
+
+  function passBoro(r){return !state.boro || boroOf(r)===state.boro;}
+  function passCb(r){return !state.cb || r.cd===state.cb;}
+  function passCc(r){return !state.cc || String(r.cc)===String(state.cc);}
+  function passBev(r){return !state.bev || bevOf(r)===state.bev;}
+  function passSt(r){return !state.st || statusOf(r)===state.st;}
+  function passQ(r){
+    if(!state.q) return true;
+    var q=state.q.toLowerCase();
+    return (r.d||'').toLowerCase().indexOf(q)>-1
+        || (r.l||'').toLowerCase().indexOf(q)>-1
+        || (r.a||'').toLowerCase().indexOf(q)>-1
+        || detailOf(r).toLowerCase().indexOf(q)>-1;
+  }
+  function match(r){return passBoro(r)&&passCb(r)&&passCc(r)&&passBev(r)&&passSt(r)&&passQ(r);}
+
+  function fill(sel,opts,val,allLabel){
+    sel.innerHTML='';
+    var o=document.createElement('option'); o.value=''; o.textContent=allLabel; sel.appendChild(o);
+    var found=false;
+    opts.forEach(function(it){
+      var e=document.createElement('option'); e.value=it.v; e.textContent=it.l;
+      if(String(it.v)===String(val)){e.selected=true;found=true;}
+      sel.appendChild(e);
+    });
+    sel.classList.toggle('set',found);
+  }
+
+  function options(){
+    var bo=BORO_ORDER.map(function(n){
+      var c=0; all.forEach(function(r){if(boroOf(r)===n&&passCb(r)&&passCc(r)&&passBev(r)&&passSt(r)&&passQ(r))c++;});
+      if(!c) return null;
+      return {v:n,l:n+' ('+c.toLocaleString()+')'};
+    }).filter(Boolean);
+    fill(boroSel,bo,state.boro,'Any borough');
+
+    var cbc={};
+    if(all.length) all.forEach(function(r){ if(passBoro(r)&&passCc(r)&&passBev(r)&&passSt(r)&&passQ(r))
+      cbc[r.cd]=(cbc[r.cd]||0)+1; });
+    else cbc=idx.byCd;
+    var cbs=Object.keys(cbc).sort(function(a,b){
+      var d=BORO_ORDER.indexOf(CD_BORO[a.charAt(0)])-BORO_ORDER.indexOf(CD_BORO[b.charAt(0)]);
+      return d||parseInt(a.slice(1),10)-parseInt(b.slice(1),10);
+    }).map(function(c){return {v:c,l:cbLabel(c)+' ('+cbc[c]+')'};});
+    fill(cbSel,cbs,state.cb,'Any community board');
+
+    var ccc={};
+    if(all.length) all.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passBev(r)&&passSt(r)&&passQ(r))
+      ccc[r.cc]=(ccc[r.cc]||0)+1; });
+    else ccc=idx.byCouncil;
+    var ccs=Object.keys(ccc).map(Number).sort(function(a,b){return a-b;})
+      .map(function(n){return {v:n,l:'Council District '+n+' ('+ccc[n]+')'};});
+    fill(ccSel,ccs,state.cc,'Any council district');
+
+    var bc={};
+    all.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passCc(r)&&passSt(r)&&passQ(r))
+      bc[bevOf(r)]=(bc[bevOf(r)]||0)+1; });
+    fill(bevSel,['Full Liquor','Wine & Beer','Brewery / Special'].filter(function(k){return bc[k];})
+      .map(function(k){return {v:k,l:k+' ('+bc[k].toLocaleString()+')'};}), state.bev,'Any licence class');
+
+    var sc={};
+    all.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passCc(r)&&passBev(r)&&passQ(r))
+      sc[statusOf(r)]=(sc[statusOf(r)]||0)+1; });
+    fill(stSel,['Active','Pending'].filter(function(k){return sc[k];})
+      .map(function(k){return {v:k,l:k+' ('+sc[k].toLocaleString()+')'};}), state.st,'Active and pending');
+  }
+
+  function renderActive(){
+    var t=[];
+    if(state.boro) t.push(['boro',state.boro]);
+    if(state.cb) t.push(['cb',cbLabel(state.cb)]);
+    if(state.cc) t.push(['cc','Council District '+state.cc]);
+    if(state.bev) t.push(['bev',state.bev]);
+    if(state.st) t.push(['st',state.st]);
+    if(state.q) t.push(['q','\u201c'+state.q+'\u201d']);
+    activeEl.classList.toggle('on',t.length>0);
+    while(activeEl.childNodes.length>1) activeEl.removeChild(activeEl.lastChild);
+    t.forEach(function(x){
+      var s=document.createElement('span'); s.className='tag';
+      s.appendChild(document.createTextNode(x[1]));
+      var b=document.createElement('button'); b.type='button'; b.textContent='\u00d7';
+      b.setAttribute('aria-label','Remove this filter');
+      b.onclick=function(){ state[x[0]]=''; if(x[0]==='q') qEl.value=''; apply(); };
+      s.appendChild(b); activeEl.appendChild(s);
+    });
+    resetEl.disabled=t.length===0;
+  }
+
+  function syncUrl(){
+    var u=new URLSearchParams();
+    if(state.boro) u.set('boro',state.boro);
+    if(state.cb) u.set('cd',state.cb);
+    if(state.cc) u.set('council',state.cc);
+    if(state.bev) u.set('class',state.bev);
+    if(state.st) u.set('status',state.st);
+    if(state.q) u.set('q',state.q);
+    var s=u.toString();
+    try{history.replaceState(null,'',location.pathname+(s?'?'+s:''));}catch(e){}
+  }
+
+  function row(r){
+    var d=document.createElement('div'); d.className='row';
+    var bev=bevOf(r);
+    var chips='<span class="cc '+(CHIP[bev]||'')+'">'+esc(bev)+'</span>';
+    if(statusOf(r)==='Pending') chips+='<span class="cc pend">Pending</span>';
+    chips+='<a class="cc" href="'+cbHref(r.cd)+'">'+esc(cbLabel(r.cd))+'</a>';
+    if(r.cc) chips+='<a class="cc" href="/council-district-'+r.cc+'">Council D'+r.cc+'</a>';
+    var acts='';
+    if(r.a) acts+='<a class="hot" href="/citywide-search.html?address='
+      +encodeURIComponent(r.a+', '+boroOf(r)+', NY')+'">The lot record &rarr;</a>';
+    d.innerHTML='<div class="bn">'+esc(nameOf(r))+'</div>'
+      +(r.d&&r.l?'<div class="fn">'+esc(r.l)+'</div>':'')
+      +'<div class="bm">'+esc(r.a||'')+(r.z?' \u00b7 '+esc(r.z):'')
+      +(r.i?' \u00b7 '+esc(r.i):'')+'</div>'
+      +'<div class="bt">'+esc(detailOf(r))+'</div>'
+      +'<div class="chips">'+chips+'</div>'
+      +(acts?'<div class="acts">'+acts+'</div>':'');
+    return d;
+  }
+
+  function render(){
+    var hits=all.filter(match);
+    countEl.textContent = hits.length===all.length
+      ? all.length.toLocaleString()+' licences'
+      : hits.length.toLocaleString()+' of '+all.length.toLocaleString();
+    listEl.innerHTML='';
+    if(!hits.length){
+      var n=document.createElement('div'); n.className='none';
+      n.innerHTML='<div class="n1">Nothing matches that combination.</div>'
+        +'<div class="n2">Try widening the class or clearing the search.</div>';
+      listEl.appendChild(n); paint([]); return;
+    }
+    var groups={};
+    hits.forEach(function(r){ (groups[boroOf(r)]=groups[boroOf(r)]||[]).push(r); });
+    var n=0;
+    for(var i=0;i<BORO_ORDER.length;i++){
+      var g=groups[BORO_ORDER[i]]; if(!g) continue;
+      var h=document.createElement('div'); h.className='gh';
+      h.innerHTML=esc(BORO_ORDER[i])+'<span>'+g.length.toLocaleString()+'</span>';
+      listEl.appendChild(h);
+      for(var j=0;j<g.length && n<shown;j++,n++) listEl.appendChild(row(g[j]));
+      if(n>=shown) break;
+    }
+    if(hits.length>shown){
+      var m=document.createElement('button'); m.type='button'; m.className='more';
+      m.textContent='Show '+Math.min(PAGE*4,hits.length-shown).toLocaleString()+' more';
+      m.onclick=function(){ shown+=PAGE*4; render(); };
+      listEl.appendChild(m);
+    }
+    paint(hits);
+  }
+
+  function apply(){
+    load().then(function(){
+      options(); renderActive(); syncUrl(); shown=PAGE; render();
+    }).catch(function(){
+      countEl.textContent='The list did not load. Reload the page to try again.';
+    });
+  }
+
+  function popup(r){
+    return '<b>'+esc(nameOf(r))+'</b>'
+      +(r.d&&r.l?'<span class="pl">'+esc(r.l)+'</span>':'')
+      +'<span class="pl">'+esc(r.a||'')+'</span>'
+      +'<span class="pl">'+esc(detailOf(r))+' \u00b7 '+esc(statusOf(r))+'</span>'
+      +'<span class="pl">'+esc(cbLabel(r.cd))+(r.cc?' \u00b7 Council D'+r.cc:'')+'</span>'
+      +(r.a?'<a href="/citywide-search.html?address='
+        +encodeURIComponent(r.a+', '+boroOf(r)+', NY')+'">The lot record &rarr;</a>':'');
+  }
+  function paint(hits){
+    if(!ready||!group) return;
+    group.clearLayers();
+    var use=hits.slice(0,MAP_CAP);
+    use.forEach(function(r){
+      L.circleMarker([r.y,r.x],{radius:4,color:'#fff',weight:1.1,
+        fillColor:COLORS[bevOf(r)]||'#666',
+        fillOpacity:statusOf(r)==='Pending'?.55:.92})
+        .bindTooltip(nameOf(r),{sticky:true}).bindPopup(popup(r)).addTo(group);
+    });
+    document.querySelector('.mapnote').textContent = hits.length>MAP_CAP
+      ? 'Showing the first '+MAP_CAP.toLocaleString()+' of '+hits.length.toLocaleString()+'. Narrow the filters to see a block.'
+      : hits.length.toLocaleString()+' on the map. Pending licences are drawn faded.';
+    if(use.length && mapsec.open){
+      try{ map.fitBounds(group.getBounds(),{padding:[26,26],maxZoom:16}); }catch(e){}
+    }
+  }
+  function initMap(){
+    map=L.map('map',{scrollWheelZoom:false}).setView([40.71,-73.94],10);
+    L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+      {maxZoom:19,maxNativeZoom:16,attribution:'Esri, HERE, Garmin, &copy; OpenStreetMap contributors'}).addTo(map);
+    L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+      {maxZoom:19,maxNativeZoom:16,opacity:.9}).addTo(map);
+    // featureGroup, not layerGroup: only featureGroup has getBounds
+    group=L.featureGroup().addTo(map); ready=true;
+  }
+
+  function districts(){
+    var g=document.getElementById('dgrid'); g.innerHTML='';
+    Object.keys(idx.byCd).sort().forEach(function(c){
+      var a=document.createElement('a'); a.className='dcell'; a.href='/liquor?cd='+c;
+      a.innerHTML='<b>'+idx.byCd[c].toLocaleString()+'</b><span>'+esc(cbLabel(c))+'</span>';
+      a.onclick=function(ev){ ev.preventDefault(); state.cb=c;
+        state.boro=CD_BORO[c.charAt(0)]; apply();
+        countEl.scrollIntoView({behavior:'smooth',block:'start'}); };
+      g.appendChild(a);
+    });
+  }
+
+  initMap();
+  fetch('/data/liquor/index.json').then(function(r){return r.json();}).then(function(d){
+    idx=d; districts(); apply();
+  }).catch(function(){ countEl.textContent='The index did not load.'; });
+
+  var t=null;
+  qEl.addEventListener('input',function(){
+    clearTimeout(t); t=setTimeout(function(){ state.q=qEl.value.trim(); apply(); },160);
+  });
+  boroSel.onchange=function(){
+    state.boro=boroSel.value;
+    if(state.boro && state.cb && CD_BORO[state.cb.charAt(0)]!==state.boro) state.cb='';
+    apply();
+  };
+  cbSel.onchange=function(){
+    state.cb=cbSel.value;
+    if(state.cb) state.boro=CD_BORO[state.cb.charAt(0)]||state.boro;
+    apply();
+  };
+  ccSel.onchange=function(){ state.cc=ccSel.value; apply(); };
+  bevSel.onchange=function(){ state.bev=bevSel.value; apply(); };
+  stSel.onchange=function(){ state.st=stSel.value; apply(); };
+  resetEl.onclick=function(){
+    state={boro:'',cb:'',cc:'',bev:'',st:'',q:''}; qEl.value=''; apply();
+  };
+  mapsec.addEventListener('toggle',function(){
+    if(!mapsec.open) return;
+    // let the resize settle before fitting, or the fit measures a zero-size box
+    setTimeout(function(){
+      map.invalidateSize();
+      setTimeout(function(){ paint(all.filter(match)); },120);
+    },90);
+  });
+})();
+</script>
+</body>
+</html>
