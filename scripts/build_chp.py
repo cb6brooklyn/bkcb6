@@ -1,5 +1,9 @@
 import openpyxl, json, os, math
 R='/home/claude/repo/'
+# The department labels CD 306 "Park Slope and Carroll Gardens". CB6 is six
+# neighbourhoods and the short label has been wrong on this site before.
+CB6_FULL = 'Park Slope, Carroll Gardens, Cobble Hill, Red Hook, Gowanus and the Columbia Street Waterfront District'
+
 wb=openpyxl.load_workbook('/home/claude/chp.xlsx', read_only=True, data_only=True)
 
 # --- metadata sheet gives the human name, definition, source and years ---
@@ -73,6 +77,7 @@ for i,h,n in cols:
 for r in data:
     gid=int(r[0])
     if gid>=101: names[str(gid)]=str(r[2]).strip()
+    if str(gid)=="306": names["306"]=CB6_FULL
     elif 0<gid<10: boro['b'+str(gid)]=str(r[2]).strip()
 
 out={'source':'NYC Department of Health and Mental Hygiene, 2026 Community Health Profiles public use dataset',

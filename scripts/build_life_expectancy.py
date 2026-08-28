@@ -1,5 +1,9 @@
 import openpyxl, json, os
 R='/home/claude/repo/'
+# The department labels CD 306 "Park Slope and Carroll Gardens". CB6 is six
+# neighbourhoods and the short label has been wrong on this site before.
+CB6_FULL = 'Park Slope, Carroll Gardens, Cobble Hill, Red Hook, Gowanus and the Columbia Street Waterfront District'
+
 wb=openpyxl.load_workbook('/home/claude/chp.xlsx', read_only=True, data_only=True)
 ws=wb['CHP_all_data']
 rows=list(ws.iter_rows(values_only=True))
@@ -14,6 +18,7 @@ for r in rows[2:]:
     elif i<10: boro[str(r[2]).strip()]=v
     else:
         cd[str(i)]=v; names[str(i)]=str(r[2]).strip()
+        if str(i)=="306": names["306"]=CB6_FULL
 
 vals=sorted(cd.values(), reverse=True)
 rank={k:vals.index(v)+1 for k,v in cd.items()}
