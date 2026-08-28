@@ -105,7 +105,7 @@ a.cc:hover{border-color:var(--orange)}
 
   <div class="search">
     <input id="q" type="search" autocomplete="off" placeholder="Search a bar, restaurant or address&hellip;">
-    <div class="hint">Every filter below combines. Search the trading name, the corporate name or the street.</div>
+    <div class="hint">Every filter below combines. Search the trading name, the corporate name or the street. Licence numbers work too.</div>
   </div>
 
   <div class="scope">
@@ -115,6 +115,8 @@ a.cc:hover{border-color:var(--orange)}
     <select id="ccSel" aria-label="City Council district"></select>
     <select id="bevSel" aria-label="Licence class"></select>
     <select id="stSel" aria-label="Status"></select>
+    <select id="typeSel" aria-label="Premises type"></select>
+    <select id="zipSel" aria-label="ZIP code"></select>
     <button type="button" class="fb" id="reset">Whole city</button>
   </div>
 
@@ -184,11 +186,14 @@ a.cc:hover{border-color:var(--orange)}
       resetEl=document.getElementById('reset'), mapsec=document.getElementById('mapsec');
   var boroSel=document.getElementById('boroSel'), cbSel=document.getElementById('cbSel'),
       ccSel=document.getElementById('ccSel'), bevSel=document.getElementById('bevSel'),
-      stSel=document.getElementById('stSel');
+      stSel=document.getElementById('stSel'),
+      typeSel=document.getElementById('typeSel'),
+      zipSel=document.getElementById('zipSel');
 
   var p=new URLSearchParams(location.search);
   var state={boro:p.get('boro')||'', cb:p.get('cd')||'', cc:p.get('council')||'',
-             bev:p.get('class')||'', st:p.get('status')||'', q:p.get('q')||''};
+             bev:p.get('class')||'', st:p.get('status')||'',
+             type:p.get('type')||'', zip:p.get('zip')||'', q:p.get('q')||''};
   if(state.cb && CD_BORO[state.cb.charAt(0)]) state.boro=CD_BORO[state.cb.charAt(0)];
   qEl.value=state.q;
 
@@ -234,15 +239,19 @@ a.cc:hover{border-color:var(--orange)}
   function passCc(r){return !state.cc || String(r.cc)===String(state.cc);}
   function passBev(r){return !state.bev || bevOf(r)===state.bev;}
   function passSt(r){return !state.st || statusOf(r)===state.st;}
+  function passType(r){return !state.type || detailOf(r)===state.type;}
+  function passZip(r){return !state.zip || (r.z||'')===state.zip;}
   function passQ(r){
     if(!state.q) return true;
     var q=state.q.toLowerCase();
     return (r.d||'').toLowerCase().indexOf(q)>-1
         || (r.l||'').toLowerCase().indexOf(q)>-1
         || (r.a||'').toLowerCase().indexOf(q)>-1
+        || (r.i||'').toLowerCase().indexOf(q)>-1
+        || (r.z||'').indexOf(q)>-1
         || detailOf(r).toLowerCase().indexOf(q)>-1;
   }
-  function match(r){return passBoro(r)&&passCb(r)&&passCc(r)&&passBev(r)&&passSt(r)&&passQ(r);}
+  function match(r){return passBoro(r)&&passCb(r)&&passCc(r)&&passBev(r)&&passSt(r)&&passType(r)&&passZip(r)&&passQ(r);}
 
   function fill(sel,opts,val,allLabel){
     sel.innerHTML='';
@@ -258,14 +267,14 @@ a.cc:hover{border-color:var(--orange)}
 
   function options(){
     var bo=BORO_ORDER.map(function(n){
-      var c=0; all.forEach(function(r){if(boroOf(r)===n&&passCb(r)&&passCc(r)&&passBev(r)&&passSt(r)&&passQ(r))c++;});
+      var c=0; all.forEach(function(r){if(boroOf(r)===n&&passCb(r)&&passCc(r)&&passBev(r)&&passSt(r)&&passType(r)&&passZip(r)&&passQ(r))c++;});
       if(!c) return null;
       return {v:n,l:n+' ('+c.toLocaleString()+')'};
     }).filter(Boolean);
     fill(boroSel,bo,state.boro,'Any borough');
 
     var cbc={};
-    if(all.length) all.forEach(function(r){ if(passBoro(r)&&passCc(r)&&passBev(r)&&passSt(r)&&passQ(r))
+    if(all.length) all.forEach(function(r){ if(passBoro(r)&&passCc(r)&&passBev(r)&&passSt(r)&&passType(r)&&passZip(r)&&passQ(r))
       cbc[r.cd]=(cbc[r.cd]||0)+1; });
     else cbc=idx.byCd;
     var cbs=Object.keys(cbc).sort(function(a,b){
@@ -275,7 +284,7 @@ a.cc:hover{border-color:var(--orange)}
     fill(cbSel,cbs,state.cb,'Any community board');
 
     var ccc={};
-    if(all.length) all.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passBev(r)&&passSt(r)&&passQ(r))
+    if(all.length) all.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passBev(r)&&passSt(r)&&passType(r)&&passZip(r)&&passQ(r))
       ccc[r.cc]=(ccc[r.cc]||0)+1; });
     else ccc=idx.byCouncil;
     var ccs=Object.keys(ccc).map(Number).sort(function(a,b){return a-b;})
@@ -283,16 +292,28 @@ a.cc:hover{border-color:var(--orange)}
     fill(ccSel,ccs,state.cc,'Any council district');
 
     var bc={};
-    all.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passCc(r)&&passSt(r)&&passQ(r))
+    all.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passCc(r)&&passSt(r)&&passType(r)&&passZip(r)&&passQ(r))
       bc[bevOf(r)]=(bc[bevOf(r)]||0)+1; });
     fill(bevSel,['Full Liquor','Wine & Beer','Brewery / Special'].filter(function(k){return bc[k];})
       .map(function(k){return {v:k,l:k+' ('+bc[k].toLocaleString()+')'};}), state.bev,'Any licence class');
 
     var sc={};
-    all.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passCc(r)&&passBev(r)&&passQ(r))
+    all.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passCc(r)&&passBev(r)&&passType(r)&&passZip(r)&&passQ(r))
       sc[statusOf(r)]=(sc[statusOf(r)]||0)+1; });
     fill(stSel,['Active','Pending'].filter(function(k){return sc[k];})
       .map(function(k){return {v:k,l:k+' ('+sc[k].toLocaleString()+')'};}), state.st,'Active and pending');
+
+    var tc={};
+    all.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passCc(r)&&passBev(r)&&passSt(r)&&passZip(r)&&passQ(r))
+      tc[detailOf(r)]=(tc[detailOf(r)]||0)+1; });
+    fill(typeSel,Object.keys(tc).sort(function(a,b){return tc[b]-tc[a];})
+      .map(function(k){return {v:k,l:k+' ('+tc[k].toLocaleString()+')'};}), state.type,'Any premises type');
+
+    var zc={};
+    all.forEach(function(r){ if(passBoro(r)&&passCb(r)&&passCc(r)&&passBev(r)&&passSt(r)&&passType(r)&&passQ(r) && r.z)
+      zc[r.z]=(zc[r.z]||0)+1; });
+    fill(zipSel,Object.keys(zc).sort()
+      .map(function(k){return {v:k,l:k+' ('+zc[k].toLocaleString()+')'};}), state.zip,'Any ZIP code');
   }
 
   function renderActive(){
@@ -302,6 +323,8 @@ a.cc:hover{border-color:var(--orange)}
     if(state.cc) t.push(['cc','Council District '+state.cc]);
     if(state.bev) t.push(['bev',state.bev]);
     if(state.st) t.push(['st',state.st]);
+    if(state.type) t.push(['type',state.type]);
+    if(state.zip) t.push(['zip','ZIP '+state.zip]);
     if(state.q) t.push(['q','\u201c'+state.q+'\u201d']);
     activeEl.classList.toggle('on',t.length>0);
     while(activeEl.childNodes.length>1) activeEl.removeChild(activeEl.lastChild);
@@ -323,6 +346,8 @@ a.cc:hover{border-color:var(--orange)}
     if(state.cc) u.set('council',state.cc);
     if(state.bev) u.set('class',state.bev);
     if(state.st) u.set('status',state.st);
+    if(state.type) u.set('type',state.type);
+    if(state.zip) u.set('zip',state.zip);
     if(state.q) u.set('q',state.q);
     var s=u.toString();
     try{history.replaceState(null,'',location.pathname+(s?'?'+s:''));}catch(e){}
@@ -458,8 +483,10 @@ a.cc:hover{border-color:var(--orange)}
   ccSel.onchange=function(){ state.cc=ccSel.value; apply(); };
   bevSel.onchange=function(){ state.bev=bevSel.value; apply(); };
   stSel.onchange=function(){ state.st=stSel.value; apply(); };
+  typeSel.onchange=function(){ state.type=typeSel.value; apply(); };
+  zipSel.onchange=function(){ state.zip=zipSel.value; apply(); };
   resetEl.onclick=function(){
-    state={boro:'',cb:'',cc:'',bev:'',st:'',q:''}; qEl.value=''; apply();
+    state={boro:'',cb:'',cc:'',bev:'',st:'',type:'',zip:'',q:''}; qEl.value=''; apply();
   };
   mapsec.addEventListener('toggle',function(){
     if(!mapsec.open) return;
