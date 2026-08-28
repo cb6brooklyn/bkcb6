@@ -84,11 +84,13 @@
 
     fetch('/data/edresults/' + scope + '.json').then(function (r) { return r.json(); }).then(function (d) {
       data = d;
-      var seen = {};
+      var use = [];
       d.features.forEach(function (f) {
-        Object.keys(f.properties.r || {}).forEach(function (k) { seen[k] = (seen[k] || 0) + 1; });
+        f.properties.r.forEach(function (row) { use[row[0]] = (use[row[0]] || 0) + 1; });
       });
-      contests = Object.keys(seen).sort(function (a, b) { return seen[b] - seen[a]; });
+      contests = d.contests.map(function (c, i) { return i; })
+        .filter(function (i) { return use[i]; })
+        .sort(function (a, b) { return use[b] - use[a]; });
       current = contests[0];
       drawBar();
       layer = L.geoJSON(d, {
@@ -102,12 +104,24 @@
       render();
     }).catch(function () { noteEl.textContent = 'Results did not load.'; });
 
-    function group(k) {
+    /* rows are [contestIndex, total, votes in the contest's own candidate order] */
+    function rowFor(p, ci) {
+      for (var i = 0; i < p.r.length; i++) if (p.r[i][0] === ci) return p.r[i];
+      return null;
+    }
+    function cands(ci) { return data.contests[ci].c; }
+    function edLabel(p) {
+      return 'AD ' + p.e.slice(0, 2) + ' ED ' + p.e.slice(2);
+    }
+    function cbLabel(p) { return (data.cbs || [])[p.b] || ''; }
+
+    function group(ci) {
+      var k = data.contests[ci].k;
       return k.slice(0, 3) === 'g25' ? 'November 2025 general'
         : k.slice(0, 3) === 'p25' ? 'June 2025 Democratic primary'
         : 'June 2026 Democratic primary';
     }
-    function label(k) { return k.slice(4); }
+    function label(ci) { return data.contests[ci].k.slice(4); }
 
     function drawBar() {
       var groups = {};
@@ -120,49 +134,61 @@
       }).join('');
       barEl.addEventListener('click', function (e) {
         var b = e.target.closest('[data-c]'); if (!b) return;
-        current = b.getAttribute('data-c'); render();
+        current = parseInt(b.getAttribute('data-c'), 10); render();
       });
     }
 
+    var cache = {};
     function totals() {
-      var acc = {}, tot = 0, won = {}, n = 0;
+      if (cache[current]) return cache[current];
+      var acc = {}, tot = 0, won = {}, eds = 0, names = cands(current);
       data.features.forEach(function (f) {
-        var r = (f.properties.r || {})[current]; if (!r) return;
+        var row = rowFor(f.properties, current); if (!row) return;
         var w = f.properties.w == null ? 1 : f.properties.w;
-        tot += r.t * w; n += w;
-        Object.keys(r.c).forEach(function (c) { acc[c] = (acc[c] || 0) + r.c[c] * w; });
-        var lead = Object.keys(r.c).sort(function (a, b) { return r.c[b] - r.c[a]; })[0];
+        tot += row[1] * w; eds++;
+        var best = -1, lead = null;
+        for (var i = 0; i < names.length; i++) {
+          var v = row[i + 2] || 0;
+          acc[names[i]] = (acc[names[i]] || 0) + v * w;
+          if (v > best) { best = v; lead = names[i]; }
+        }
         if (lead) won[lead] = (won[lead] || 0) + 1;
       });
       var order = Object.keys(acc).sort(function (a, b) { return acc[b] - acc[a]; });
-      return { acc: acc, tot: tot, won: won, order: order, n: n };
+      return (cache[current] = { acc: acc, tot: tot, won: won, order: order, eds: eds });
     }
 
     function colorOf(name) {
-      var t = totals();
-      var i = t.order.indexOf(name);
+      var i = totals().order.indexOf(name);
       return i < 0 ? '#b8b2a4' : PAL[i % PAL.length];
     }
     function styleFor(f) {
-      var r = (f.properties.r || {})[current];
-      if (!r) return { color: '#fff', weight: .6, fillColor: '#ddd', fillOpacity: .35 };
-      var lead = Object.keys(r.c).sort(function (a, b) { return r.c[b] - r.c[a]; })[0];
+      var row = rowFor(f.properties, current);
+      if (!row) return { color: '#fff', weight: .6, fillColor: '#ddd', fillOpacity: .35 };
+      var names = cands(current), best = -1, lead = null;
+      for (var i = 0; i < names.length; i++) {
+        if ((row[i + 2] || 0) > best) { best = row[i + 2] || 0; lead = names[i]; }
+      }
       return { color: '#fff', weight: .7, fillColor: colorOf(lead), fillOpacity: .72 };
     }
 
     function popup(p) {
-      var groups = {}, r = p.r || {};
-      Object.keys(r).forEach(function (k) { (groups[group(k)] = groups[group(k)] || []).push(k); });
-      var h = '<div class="edrm-pop"><h4>' + esc(p.label) + '</h4><div class="sub">' + esc(p.cb) + '</div><table>';
+      var groups = {};
+      p.r.forEach(function (row) { (groups[group(row[0])] = groups[group(row[0])] || []).push(row); });
+      var h = '<div class="edrm-pop"><h4>' + esc(edLabel(p)) + '</h4><div class="sub">' +
+        esc(cbLabel(p)) + '</div><table>';
       Object.keys(groups).forEach(function (g) {
         h += '<tr><td colspan="3" class="gh">' + esc(g) + '</td></tr>';
-        groups[g].forEach(function (k) {
-          var x = r[k], names = Object.keys(x.c).sort(function (a, b) { return x.c[b] - x.c[a]; });
-          h += '<tr><td class="cn">' + esc(label(k)) + '</td><td>' +
-            names.map(function (nm) {
-              return esc(nm) + ' ' + fmt(x.c[nm]) + ' (' + (100 * x.c[nm] / x.t).toFixed(1) + '%)';
+        groups[g].forEach(function (row) {
+          var names = cands(row[0]), tot = row[1];
+          var pairs = names.map(function (nm, i) { return [nm, row[i + 2] || 0]; })
+            .filter(function (x) { return x[1]; })
+            .sort(function (a, b) { return b[1] - a[1]; });
+          h += '<tr><td class="cn">' + esc(label(row[0])) + '</td><td>' +
+            pairs.map(function (x) {
+              return esc(x[0]) + ' ' + fmt(x[1]) + ' (' + (100 * x[1] / tot).toFixed(1) + '%)';
             }).join('<br>') + '</td><td style="text-align:right;font-family:\'DM Mono\',monospace">' +
-            fmt(x.t) + '</td></tr>';
+            fmt(tot) + '</td></tr>';
         });
       });
       return h + '</table></div>';
@@ -170,11 +196,10 @@
 
     function render() {
       Array.prototype.forEach.call(barEl.querySelectorAll('[data-c]'), function (b) {
-        b.classList.toggle('on', b.getAttribute('data-c') === current);
+        b.classList.toggle('on', parseInt(b.getAttribute('data-c'), 10) === current);
       });
       var t = totals(), lead = t.order[0], second = t.order[1];
-      var leadWon = t.won[lead] || 0, edsWith = 0;
-      data.features.forEach(function (f) { if ((f.properties.r || {})[current]) edsWith++; });
+      var leadWon = t.won[lead] || 0, edsWith = t.eds;
       kEl.innerHTML =
         kpi('Contest', label(current), group(current)) +
         kpi('Votes cast', fmt(t.tot), edsWith + ' election districts') +
@@ -203,8 +228,8 @@
       var m = q.match(/^\s*(\d{1,2})\s*[\/\-\s]\s*(\d{1,3})\s*$/);
       if (m) {
         var want = m[1].padStart(2, '0') + m[2].padStart(3, '0');
-        var hit = data.features.filter(function (f) { return f.properties.ed === want; })[0];
-        if (hit) { openED(hit); noteEl.textContent = hit.properties.label; return; }
+        var hit = data.features.filter(function (f) { return f.properties.e === want; })[0];
+        if (hit) { openED(hit); noteEl.textContent = edLabel(hit.properties); return; }
         noteEl.textContent = 'No election district ' + q + ' in this view.';
         return;
       }
@@ -218,8 +243,8 @@
           pin = L.circleMarker(ll, { radius: 7, color: '#fff', weight: 3, fillColor: ORANGE, fillOpacity: 1 }).addTo(map);
           var hit = null;
           layer.eachLayer(function (l) { if (!hit && l.getBounds().contains(ll) && inside(ll, l)) hit = l.feature; });
-          if (hit) { openED(hit); noteEl.textContent = esc(ft.properties.label) + ' \u00b7 ' + hit.properties.label; }
-          else { map.setView(ll, 15); noteEl.textContent = esc(ft.properties.label) + ' is outside this view.'; }
+          if (hit) { openED(hit); noteEl.textContent = ft.properties.label + ' \u00b7 ' + edLabel(hit.properties); }
+          else { map.setView(ll, 15); noteEl.textContent = ft.properties.label + ' is outside this view.'; }
         }).catch(function () { noteEl.textContent = 'Address lookup failed.'; });
     }
     function inside(ll, l) {
