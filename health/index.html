@@ -22,6 +22,19 @@
 .picker select{width:100%;padding:12px 13px;font-family:'DM Sans',sans-serif;font-size:.9rem;font-weight:800;border:none;border-radius:10px;color:var(--navy);background:#fff}
 .picker .row2{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 .picker .row2 select{flex:1 1 150px;font-size:.8rem;font-weight:700;padding:10px 11px}
+.lebox{background:var(--navy);color:#fff;padding:16px 15px;border-bottom:3px solid var(--orange)}
+.lebox .lel{font-family:'DM Mono',monospace;font-size:.57rem;text-transform:uppercase;letter-spacing:.11em;color:var(--orange);font-weight:700}
+.lebox .lev{font-size:3rem;font-weight:900;line-height:1;margin-top:5px}
+.lebox .leu{font-size:.85rem;font-weight:700;color:rgba(255,255,255,.75);margin-top:3px}
+.lebox .lec{font-size:.8rem;line-height:1.6;color:rgba(255,255,255,.9);margin-top:10px}
+.lebox .lec b{color:#fff}
+.lebar{margin-top:12px}
+.lebar .lbt{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.55);margin-bottom:6px}
+.lebar svg{width:100%;height:auto}
+.leb{fill:rgba(255,255,255,.28)}
+.leb.me{fill:#f47920}
+.lets{font-family:'DM Mono',monospace;font-size:8px;fill:rgba(255,255,255,.7)}
+.lesrc{font-family:'DM Mono',monospace;font-size:.57rem;color:rgba(255,255,255,.5);margin-top:10px;line-height:1.5}
 .hero{background:#fff;border-bottom:1px solid var(--border);padding:14px 15px}
 .hero h2{font-size:1.05rem;font-weight:900;color:var(--navy);margin:0 0 3px}
 .hero .hs{font-family:'DM Mono',monospace;font-size:.63rem;color:var(--muted);line-height:1.5}
@@ -78,7 +91,7 @@ svg{display:block;width:100%;height:auto;overflow:visible}
   <div class="top">
     <div class="crumb"><a href="/">CB6 &amp; Beyond</a> &rsaquo; <a href="/govhub.html">Government</a></div>
     <h1>Health <span>by Community District</span></h1>
-    <div class="nbs">182 measures for all 59 districts, from the city Health Department</div>
+    <div class="nbs">Life expectancy and 182 other measures, for all 59 districts</div>
   </div>
 
   <div class="intro">
@@ -94,6 +107,8 @@ svg{display:block;width:100%;height:auto;overflow:visible}
     </div>
   </div>
 
+  <div class="lebox" id="lebox"></div>
+
   <div class="hero" id="hero"></div>
 
   <div class="chartbox" id="trendBox">
@@ -108,9 +123,7 @@ svg{display:block;width:100%;height:auto;overflow:visible}
     <svg id="rank" viewBox="0 0 340 200" role="img" aria-label="District comparison chart"></svg>
   </div>
 
-  <div class="note" id="lifeNote">
-    <b>On life expectancy.</b> The Health Department does not publish life expectancy at the community district level, so it is not here and nothing on this page is a substitute for it. The closest measure it does publish by district is <b>premature mortality</b>, death before the age of 65, which is in the Mortality topic below.
-  </div>
+
 
   <div class="topics">
     <div class="tl">Jump to a topic</div>
@@ -131,6 +144,7 @@ svg{display:block;width:100%;height:auto;overflow:visible}
       <p>Community districts are not how health data is usually collected. Many of these measures are surveyed or modelled at neighbourhood level and published to districts, so treat a single district figure as an estimate with real uncertainty around it, especially for smaller districts and rarer outcomes. The portal publishes confidence intervals; where a measure has one, this page shows the point estimate only.</p>
       <p>Different measures cover different years, and the periods are not aligned. The year shown next to each value is the latest period the department has published for that measure, which for some is a single year and for others a multi-year average.</p>
       <p>Rank is a plain ordering of the 59 districts on the latest value. It says nothing about whether a difference is statistically meaningful.</p>
+      <p>Life expectancy comes from a different publication to everything else on this page. It is from the Health Department's 2026 Community Health Profiles, covering 2013 to 2022 for districts and boroughs and 2022 for the city, because the Environment and Health Data Portal does not publish life expectancy at any geography. Everything below the banner comes from the portal.</p>
     </div>
   </details>
 
@@ -298,6 +312,46 @@ svg{display:block;width:100%;height:auto;overflow:visible}
     el.hero.innerHTML=h;
   }
 
+  /* Life expectancy leads every district, because it is the one number that
+     summarises the rest. The portal does not publish it, so it comes from the
+     Community Health Profiles public use dataset instead. */
+  var life=null;
+  function drawLife(){
+    var box=document.getElementById('lebox');
+    if(!life){ box.innerHTML=''; return; }
+    var v=life.cd[state.cd];
+    if(v==null){ box.innerHTML=''; return; }
+    var rank=life.rank[state.cd], n=Object.keys(life.cd).length;
+    var boro=CD_BORO[state.cd.charAt(0)], bv=life.boroughs[boro];
+    var diff=v-life.city;
+    var word=Math.abs(diff)<0.05?'the same as':(diff>0?(Math.abs(diff).toFixed(1)+' years above'):(Math.abs(diff).toFixed(1)+' years below'));
+
+    var rows=Object.keys(life.cd).map(function(c){return {c:c,v:life.cd[c]};})
+      .sort(function(a,b){return b.v-a.v;});
+    var W=340,BH=3.4,GAP=1,PT=2,H=PT+rows.length*(BH+GAP)+14;
+    var lo=Math.min.apply(null,rows.map(function(r){return r.v;}))-1;
+    var hi=Math.max.apply(null,rows.map(function(r){return r.v;}));
+    var g='';
+    rows.forEach(function(r,i){
+      var w=(W-2)*(r.v-lo)/((hi-lo)||1);
+      g+='<rect class="leb'+(r.c===state.cd?' me':'')+'" x="1" y="'+(PT+i*(BH+GAP)).toFixed(1)
+        +'" width="'+Math.max(0.8,w).toFixed(1)+'" height="'+BH+'" rx="1"><title>'
+        +esc(life.names[r.c]||cbLabel(r.c))+': '+r.v+' years</title></rect>';
+    });
+    g+='<text class="lets" x="1" y="'+(H-3)+'">'+esc(life.names[rows[0].c])+' '+rows[0].v
+      +' at the top, '+esc(life.names[rows[rows.length-1].c])+' '+rows[rows.length-1].v+' at the bottom</text>';
+
+    box.innerHTML='<div class="lel">Life expectancy at birth</div>'
+      +'<div class="lev">'+v.toFixed(1)+'</div>'
+      +'<div class="leu">years \u00b7 '+esc(life.names[state.cd]||cbLabel(state.cd))+'</div>'
+      +'<div class="lec">'+word+' the citywide '+life.city.toFixed(1)
+      +(bv!=null?', and '+(v>bv?(v-bv).toFixed(1)+' above':(v<bv?(bv-v).toFixed(1)+' below':'level with'))+' '+esc(boro)+' at '+bv.toFixed(1):'')
+      +'. It ranks <b>'+rank+' of '+n+'</b> districts.</div>'
+      +'<div class="lebar"><div class="lbt">All '+n+' districts, highest first</div>'
+      +'<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Life expectancy across all districts">'+g+'</svg></div>'
+      +'<div class="lesrc">'+esc(life.measure)+'. '+esc(life.years)+'. Community Health Profiles.</div>';
+  }
+
   function renderList(){
     var ids=measList();
     el.listHead.textContent = ids.length+' measure'+(ids.length===1?'':'s')
@@ -343,7 +397,14 @@ svg{display:block;width:100%;height:auto;overflow:visible}
 
   function draw(){
     if(!state.meas || !series.m[state.meas]){
-      var av=measList(); state.meas=av.length?av[0]:'';
+      var av=measList();
+      // premature mortality is the meaningful default, not whichever measure
+      // happens to have the lowest ID
+      var pref=av.filter(function(id){
+        var m=idx.measures[id];
+        return m.indName==='Premature mortality' && m.name.indexOf('Age-adjusted')>-1;
+      });
+      state.meas=pref.length?pref[0]:(av.length?av[0]:'');
     }
     if(!state.meas){ el.hero.innerHTML='<div class="hs">No published measure for this selection.</div>';
       el.trendBox.hidden=true; el.rankBox.hidden=true; return; }
@@ -363,10 +424,14 @@ svg{display:block;width:100%;height:auto;overflow:visible}
 
   function switchCd(cd){
     state.cd=cd;
+    drawLife();
     loadCd(cd).then(function(){ rebuild(); }).catch(function(){
       el.hero.innerHTML='<div class="hs">That district did not load.</div>';
     });
   }
+
+  fetch('/data/health/life-expectancy.json').then(function(r){return r.json();})
+    .then(function(d){ life=d; drawLife(); }).catch(function(){});
 
   fetch('/data/health/index.json').then(function(r){return r.json();}).then(function(d){
     idx=d;
