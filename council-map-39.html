@@ -412,15 +412,14 @@ var BORO_ABBR2 = {'1':'MN','2':'BX','3':'BK','4':'QNS','5':'SI'};
 var BORO_PROFILE = {'1':'manhattan','2':'bronx','3':'brooklyn','4':'queens','5':'statenisland'};
 var BORO_CB_PROFILE_KEY = {'1':'mn','2':'bx','3':'bk','4':'qn','5':'si'};
 function showBorough(){
+  if(!window._showBoroughCBs) return;
   var SEAL_COLORS = {'1':'#2a52a0','2':'#e87722','3':'#1a3a6b','4':'#7a5c2e','5':'#6b8e7f'};
   var SEAL_ACCENT = {'1':'#2a52a0','2':'#4a8b3a','3':'#f2c84b','4':'#8a9a6b','5':'#6b8e7f'};
   var boroColor = SEAL_COLORS[_boroCode] || '#f47920';
   var boroAccent = SEAL_ACCENT[_boroCode] || boroColor;
   var boroName = BORO_NAMES_FULL[_boroCode] || '';
   window._districtLabel = (BORO_ABBR2[_boroCode]||'') + ' Borough';
-  var _titleEl = document.getElementById('map-title');
-  if(_titleEl) _titleEl.innerHTML = boroName + ' \u2014 Community Districts';
-  document.title = boroName + ' Borough Map';
+  // This page is a council district map; the borough is context, not the subject.
 
   // All CBs in this borough
   var cbFeatures = (cdsData&&cdsData.features||[]).filter(function(f){
@@ -2182,33 +2181,64 @@ function bkcb6CopyEmbed(type){
 </script>
 
 <script>
-/* Council District 39 drawn over the borough map: the seat this page is about,
-   in the colour of its own banner, above every overlay. */
+/* The subject of this page: Council District 39. Drawn above every overlay,
+   labelled inside its own boundary. */
 (function(){
+  window._showBoroughCBs = false;
   function draw(){
     if(!window.map || !window.L){ return setTimeout(draw,120); }
     fetch('data/districts/council-39.geojson').then(function(r){return r.json();}).then(function(d){
       var lyr = L.geoJSON(d, {
-        pane: 'markerPane',
-        style: { color: '#2d0333', weight: 3, opacity: 1,
-                 fillColor: '#2d0333', fillOpacity: .22, lineJoin: 'round' }
+        pane:'markerPane',
+        style:{ color:'#2d0333', weight:3, opacity:1,
+                fillColor:'#2d0333', fillOpacity:.18, lineJoin:'round' }
       }).addTo(map);
       lyr.bringToFront();
       var b = lyr.getBounds();
-      map.fitBounds(b, { padding: [18,18] });
-      var c = b.getCenter();
-      L.marker([c.lat, c.lng], {
+      map.fitBounds(b, { padding:[16,16] });
+
+      /* Sit the label inside the shape, not at the bounding-box centre, so it
+         cannot fall outside a district this narrow. */
+      var g = d.features[0].geometry;
+      var ring = g.type === 'Polygon' ? g.coordinates[0] : g.coordinates[0][0];
+      var sx=0, sy=0;
+      ring.forEach(function(c){ sx+=c[0]; sy+=c[1]; });
+      var pt = [sy/ring.length, sx/ring.length];
+      if(!b.contains(pt)) pt = [b.getCenter().lat, b.getCenter().lng];
+
+      var OUT = '-1.5px -1.5px 0 #fff,1.5px -1.5px 0 #fff,-1.5px 1.5px 0 #fff,1.5px 1.5px 0 #fff,'
+              + '0 -1.5px 0 #fff,0 1.5px 0 #fff,-1.5px 0 0 #fff,1.5px 0 0 #fff';
+      L.marker(pt, {
         interactive:false, zIndexOffset:3000,
-        icon: L.divIcon({ className:'cd39-label', iconSize:null, iconAnchor:[86,20],
-          html:'<div style="color:#fff;background:#2d0333;padding:6px 12px;border-radius:8px;'
-             + 'font-family:\'DM Sans\',sans-serif;font-weight:800;font-size:.86rem;'
-             + 'white-space:nowrap;box-shadow:0 3px 12px rgba(0,0,0,.35)">'
-             + '39th CD &middot; Shahana Hanif</div>' })
+        icon: L.divIcon({ className:'cd39-label', iconSize:null, iconAnchor:[78,22],
+          html:'<div style="color:#77c6c2;font-family:\'DM Sans\',sans-serif;font-weight:900;'
+             + 'font-size:1.05rem;line-height:1.15;text-align:center;white-space:nowrap;'
+             + 'text-shadow:'+OUT+'">39th CD<br>'
+             + '<span style="font-size:.82rem">Shahana Hanif</span></div>' })
       }).addTo(map);
       window._cd39Layer = lyr;
     }).catch(function(){});
   }
   draw();
+
+  /* Brooklyn is one toggle among the rest, not the base map. */
+  function addBoroToggle(){
+    var sub = document.getElementById('sub-row');
+    if(!sub || !sub.children.length) return setTimeout(addBoroToggle,200);
+    if(document.getElementById('boro-cb-toggle')) return;
+    var btn = document.createElement('button');
+    btn.id='boro-cb-toggle'; btn.type='button'; btn.className='plyr-sub overlay-control';
+    btn.style.setProperty('--sc','#1a3a6b'); btn.style.setProperty('--stc','#fff');
+    btn.textContent='\uD83D\uDDFA Brooklyn CBs';
+    btn.onclick=function(){
+      window._showBoroughCBs = !window._showBoroughCBs;
+      btn.classList.toggle('on', window._showBoroughCBs);
+      if(window._showBoroughCBs){ if(typeof loadCDs==='function') loadCDs(); }
+      else { location.reload(); }
+    };
+    sub.appendChild(btn);
+  }
+  addBoroToggle();
 })();
 </script>
 </body>
