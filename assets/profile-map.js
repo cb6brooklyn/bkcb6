@@ -136,8 +136,12 @@
 
     var map = L.map(el, { scrollWheelZoom: false, zoomControl: true });
     // CARTO now watermarks unkeyed tiles, so use Esri's keyless light canvas
+    // The light grey canvas has no cached tiles past z16, and past it Esri
+    // serves a "Map data not yet available" placeholder rather than nothing.
+    // maxNativeZoom stops at the last real tile and scales it up instead.
     L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19, attribution: 'Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
+      maxZoom: 19, maxNativeZoom: 16,
+      attribution: 'Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
     }).addTo(map);
 
     // A flat grey basemap under a single shape reads as nothing. Zoning and land
