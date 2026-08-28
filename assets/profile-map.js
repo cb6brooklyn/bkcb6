@@ -128,6 +128,9 @@
     var ptLng = parseFloat(el.getAttribute('data-point-lng'));
     var ptZoom = parseInt(el.getAttribute('data-point-zoom') || '17', 10);
     var ptLabel = el.getAttribute('data-point-label') || '';
+    var ptIcon = el.getAttribute('data-point-icon') || '';
+    var ptIconW = parseInt(el.getAttribute('data-point-icon-w') || '200', 10);
+    var ptIconH = parseInt(el.getAttribute('data-point-icon-h') || '200', 10);
     var hasPoint = isFinite(ptLat) && isFinite(ptLng);
     injectCss();
 
@@ -168,14 +171,34 @@
     }).addTo(map);
 
     if (hasPoint) {
-      var place = L.circleMarker([ptLat, ptLng], {
-        pane: LINE_PANE || undefined,
-        radius: 9, color: '#ffffff', weight: 3, opacity: 1,
-        fillColor: '#f47920', fillOpacity: 1
-      }).addTo(map);
-      if (ptLabel) {
+      var place;
+      if (ptIcon && L.divIcon) {
+        // the logo in a white plate on a navy tail, the same pin the lot card
+        // drops, so a place reads as itself rather than as a generic dot
+        var iw = 58, ih = Math.round(iw * (ptIconH / ptIconW)) || 58;
+        place = L.marker([ptLat, ptLng], {
+          pane: LINE_PANE || undefined,
+          icon: L.divIcon({
+            className: '', iconSize: [iw, ih + 10], iconAnchor: [iw / 2, ih + 10],
+            html: '<div style="text-align:center">'
+              + '<img src="' + ptIcon + '" alt="" style="width:' + iw + 'px;height:' + ih
+              + 'px;display:block;background:#fff;border:2px solid #0d1b4b;border-radius:7px;'
+              + 'box-shadow:0 2px 6px rgba(0,0,0,.28)">'
+              + '<div style="width:0;height:0;margin:0 auto;border-left:6px solid transparent;'
+              + 'border-right:6px solid transparent;border-top:9px solid #0d1b4b"></div></div>'
+          })
+        }).addTo(map);
+      } else {
+        place = L.circleMarker([ptLat, ptLng], {
+          pane: LINE_PANE || undefined,
+          radius: 9, color: '#ffffff', weight: 3, opacity: 1,
+          fillColor: '#f47920', fillOpacity: 1
+        }).addTo(map);
+      }
+      if (ptLabel && place.bindTooltip) {
         place.bindTooltip(ptLabel, {
-          permanent: true, direction: 'top', offset: [0, -8], className: 'pmap-place'
+          permanent: true, direction: 'top',
+          offset: ptIcon ? [0, -6] : [0, -8], className: 'pmap-place'
         });
       }
     }
