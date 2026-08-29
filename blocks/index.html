@@ -42,6 +42,13 @@
 .below{background:#fff;border-bottom:1px solid var(--border);padding:10px 12px}
 .below .bh{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin-bottom:7px}
 .below .row2{display:flex;gap:6px;flex-wrap:wrap}
+.dates{background:var(--off);border-bottom:1px solid var(--border);padding:10px 12px}
+.dates .bh{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin-bottom:7px}
+.dates .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.dates .row3{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dates input{width:100%;padding:9px 10px;font-family:'DM Mono',monospace;font-size:.78rem;border:1.5px solid var(--border);border-radius:9px;color:var(--navy);background:#fff}
+.dates .lab{font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin-bottom:3px}
+.dates .dn{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);margin-top:7px;line-height:1.5}
 .below .tgl{color:var(--navy);border-color:var(--border);background:#fff}
 .below .tgl.on{background:var(--navy);border-color:var(--navy);color:#fff}
 .office{background:transparent;border:none;box-shadow:none}
@@ -138,6 +145,21 @@
   <div class="mapnote" id="mapnote">Choose a stretch above, or tap the map to drop a pin.</div>
   <div id="map"></div>
   <div class="below"><div class="bh">Add to the map</div><div class="row2" id="mapToolsBottom"></div></div>
+  <div class="dates">
+    <div class="bh">Permits and work by date</div>
+    <div class="chips">
+      <button type="button" class="tgl on" data-dq="all">All dates</button>
+      <button type="button" class="tgl" data-dq="active">Active today</button>
+      <button type="button" class="tgl" data-dq="next30">Next 30 days</button>
+      <button type="button" class="tgl" data-dq="last90">Last 90 days</button>
+      <button type="button" class="tgl" data-dq="year">This year</button>
+    </div>
+    <div class="row3">
+      <div><div class="lab">From</div><input type="date" id="dFrom"></div>
+      <div><div class="lab">To</div><input type="date" id="dTo"></div>
+    </div>
+    <div class="dn" id="dNote">Applies to street work, building permits, landmark permits, resurfacing and permitted events, on the map and in the results below. A permit counts if any part of its work window falls inside the range.</div>
+  </div>
   <div id="results"></div>
   <div class="regkey">
     <b>How to read this.</b>
@@ -283,6 +305,33 @@ var OVDEF=[
   {id:'records',label:'Records found',sw:'#f47920',on:true,custom:true}
 ];
 var nbLayer=null,CB6RING=null,nbPending=null;
+var DATED={dot:1,dob:1,lpc:1,resurf:1,events:1};
+var dq='all',dFrom='',dTo='';
+function ymd(d){return d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();}
+function dateRange(){
+  var t=new Date();var today=ymd(t);
+  if(dq==='active')return [today,today];
+  if(dq==='next30'){var e=new Date(t);e.setDate(e.getDate()+30);return [today,ymd(e)];}
+  if(dq==='last90'){var b=new Date(t);b.setDate(b.getDate()-90);return [ymd(b),today];}
+  if(dq==='year')return [t.getFullYear()*10000+101,t.getFullYear()*10000+1231];
+  if(dq==='custom'){var a=dFrom?parseInt(dFrom.replace(/-/g,''),10):0,z=dTo?parseInt(dTo.replace(/-/g,''),10):99999999;return [a,z];}
+  return null;
+}
+function inDate(it,rng){
+  if(!rng)return true;
+  if(it.ds&&it.ds.length){for(var i=0;i<it.ds.length;i++){var v=parseInt(it.ds[i],10);if(v>=rng[0]&&v<=rng[1])return true;}return false;}
+  var a=parseInt(it.d1,10)||0,z=parseInt(it.d2,10)||a||0;if(!a&&!z)return false;if(!a)a=z;
+  return a<=rng[1]&&z>=rng[0];
+}
+function refillPermitLayers(){
+  OVDEF.forEach(function(d){if(d.layer&&d.filled){d.filled=false;OV[d.id].clearLayers();if(d.on)fillLayer(d);}});
+}
+function dateLabel(){var r=dateRange();if(!r)return 'all dates';function f(v){var s=String(v);return s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8);}var lab={active:'active today',next30:'the next 30 days',last90:'the last 90 days',year:'this year'}[dq];return lab||(f(r[0])+' to '+(r[1]>99999990?'any date':f(r[1])));}
+function setDateQuick(q){
+  dq=q;Array.prototype.forEach.call(document.querySelectorAll('[data-dq]'),function(b){b.classList.toggle('on',b.getAttribute('data-dq')===q);});
+  if(q!=='custom'){$('dFrom').value='';$('dTo').value='';}
+  refillPermitLayers();if(sel)run();
+}
 function inCb6(lon,lat){var poly=CB6RING;if(!poly)return true;var inside=false,n=poly.length,j=n-1;for(var i=0;i<n;i++){var xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];if(((yi>lat)!==(yj>lat))&&(lon<(xj-xi)*(lat-yi)/(yj-yi)+xi))inside=!inside;j=i;}return inside;}
 function placeNbhd(list){list.forEach(function(n){if(n.b!=='Brooklyn'||!inCb6(n.x,n.y))return;
   nbLayer.addLayer(L.tooltip({permanent:true,direction:'center',className:'nbl',interactive:false}).setLatLng([n.y,n.x]).setContent(n.n));});}
@@ -318,12 +367,15 @@ function renderToggles(){
 function toggleOverlay(id){
   var d=OVDEF.filter(function(x){return x.id===id;})[0];d.on=!d.on;
   var g=OV[id];
-  if(d.layer&&g&&!d.filled&&LAY){d.filled=true;var L0=LAY.layers.filter(function(x){return x.id===d.layer;})[0];
-    if(L0)L0.items.forEach(function(it){var pop='<div class="pop"><div class="pt">'+esc(it.t)+'</div><div class="ps">'+esc(it.s)+'</div><div class="pl">'+esc(L0.label)+'</div></div>';
-      if(it.g&&it.g.length>1)g.addLayer(L.polyline(it.g.map(function(p){return [p[1],p[0]];}),{color:d.sw,weight:3,opacity:.7}).bindPopup(pop));
-      else{var c=it.g?it.g[0]:[it.x,it.y];g.addLayer(L.circleMarker([c[1],c[0]],{radius:3.5,color:'#fff',weight:.8,fillColor:d.sw,fillOpacity:.75}).bindPopup(pop));}});}
+  if(d.layer&&g&&!d.filled&&LAY)fillLayer(d);
   if(g){if(d.on)g.addTo(map);else map.removeLayer(g);}
   Array.prototype.forEach.call(document.querySelectorAll('[data-ov="'+id+'"]'),function(b){b.classList.toggle('on',d.on);});
+}
+function fillLayer(d){
+  var g=OV[d.id];d.filled=true;var L0=LAY.layers.filter(function(x){return x.id===d.layer;})[0];var rng=dateRange();
+    if(L0)L0.items.forEach(function(it){if(!inDate(it,rng))return;var pop='<div class="pop"><div class="pt">'+esc(it.t)+'</div><div class="ps">'+esc(it.s)+'</div><div class="pl">'+esc(L0.label)+'</div></div>';
+      if(it.g&&it.g.length>1)g.addLayer(L.polyline(it.g.map(function(p){return [p[1],p[0]];}),{color:d.sw,weight:3,opacity:.7}).bindPopup(pop));
+      else{var c=it.g?it.g[0]:[it.x,it.y];g.addLayer(L.circleMarker([c[1],c[0]],{radius:3.5,color:'#fff',weight:.8,fillColor:d.sw,fillOpacity:.75}).bindPopup(pop));}});
 }
 function addOffice(){
   var ic=L.divIcon({className:'office',iconSize:[44,66],iconAnchor:[22,22],popupAnchor:[0,-18],html:'<img class="oi" src="/cb6-logo-square.png" alt="CB6"><span class="ol">CB6 office</span>'});
@@ -378,11 +430,12 @@ function run(){
     var pl=L.polyline(ll,{pane:'hi',color:'#f47920',weight:6,opacity:.95,lineCap:'round'});hiLayer.addLayer(pl);
     map.fitBounds(pl.getBounds().pad(.35));
   }
-  var found={},total=0;
+  var found={},total=0,rng=dateRange();
   LAY.layers.forEach(function(L0){
     var hits=[];
     L0.items.forEach(function(it){
       var d;
+      if(DATED[L0.id]&&!inDate(it,rng))return;
       if(L0.kind==='ln'&&it.g&&it.g.length>1){
         var gM=it.g.map(toM);var best=Infinity;
         gM.forEach(function(p){var dd=distToPath(p,linesM);if(dd<best)best=dd;});
@@ -453,6 +506,7 @@ function render(found){
     var rows=found[L0.id];
     h+='<div class="sec'+(openSecs[L0.id]?' open':'')+'" id="sec-'+L0.id+'"><button type="button" class="sh" data-sec="'+L0.id+'"><span class="t">'+esc(L0.label)+'</span><span class="c">'+fmt(rows.length)+'</span><span class="ar">'+(openSecs[L0.id]?'&#9650;':'&#9660;')+'</span></button><div class="sb">';
     if(L0.note)h+='<div class="note">'+esc(L0.note)+'</div>';
+    if(DATED[L0.id]&&dateRange())h+='<div class="note">Filtered to '+esc(dateLabel())+'.</div>';
     if(!rows.length)h+='<div class="note">None within reach.</div>';
     h+=itemList(L0.id,rows.map(function(it){return {t:it.t,s:it.s,u:it.u};}));
     h+='</div></div>';
@@ -563,6 +617,8 @@ function wire(){
   $('addrQ').addEventListener('input',addrInput);
   $('addrQ').addEventListener('keydown',function(e){if(e.key==='Enter'){var b=$('sugg').querySelector('button');if(b)b.click();}});
   $('clearPin').addEventListener('click',clearPin);
+  Array.prototype.forEach.call(document.querySelectorAll('[data-dq]'),function(b){b.addEventListener('click',function(){setDateQuick(b.getAttribute('data-dq'));});});
+  ['dFrom','dTo'].forEach(function(id){$(id).addEventListener('change',function(){dFrom=$('dFrom').value;dTo=$('dTo').value;dq=(dFrom||dTo)?'custom':'all';Array.prototype.forEach.call(document.querySelectorAll('[data-dq]'),function(b){b.classList.toggle('on',b.getAttribute('data-dq')===dq);});refillPermitLayers();if(sel)run();});});
   var prs=[90,150,260];
   Array.prototype.forEach.call(document.querySelectorAll('#reach .tgl'),function(b,i){
     b.setAttribute('data-pr',prs[i]);
