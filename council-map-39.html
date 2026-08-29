@@ -1530,7 +1530,7 @@ function toggleSingleDistrict(type, num, on){
       if(type==='nypd') return String(raw).padStart(3,'0')===String(num).padStart(3,'0');
       return parseInt(raw)===parseInt(num);
     });
-    features = filteredBySelectedDistricts(features, true);
+    features = keepOverlappingWhole(features);
     if(!features.length) return;
     var target = features.length===1 ? features[0] : {type:'FeatureCollection',features:features};
     var displayNum = cfg.labelNum ? cfg.labelNum(num) : num;
@@ -1646,6 +1646,7 @@ function buildLegislative(type, data, key, label, layerVar) {
       style: f => {
       var num = f.properties[key];
       var color = distinctDistrictColor(type, num);
+      if(cd39Hidden(type, num)) return {opacity:0, fillOpacity:0, weight:0, interactive:false};
       return templateAwareDistrictStyle(f, type, num, {color:color, weight:3.2, fillOpacity:type === 'senate' && activeMain === 'cb6' ? .46 : .28, dashArray:null});
     },
     onEachFeature: (f,l) => {
@@ -2276,6 +2277,80 @@ function bkcb6CopyEmbed(type){
   draw();
 
   /* Brooklyn is one toggle among the rest, not the base map. */
+  /* Which individual districts are switched off inside a group. */
+  window._cd39Hidden = {};
+  window.cd39Hidden = function(type, num){
+    var set = window._cd39Hidden[type];
+    return !!(set && set[String(parseInt(num,10))]);
+  };
+
+  /* Community boards that overlap the district, as their own group toggle. */
+  var CD39_CBS = ['306','355','312','307','302','314'];
+  var cbLyr = null;
+  function toggleCBs(on){
+    if(!on){ if(cbLyr){ map.removeLayer(cbLyr); cbLyr=null; } return; }
+    fetch('community-district-boundaries.geojson').then(function(r){return r.json();}).then(function(d){
+      var feats = (d.features||[]).filter(function(f){
+        return CD39_CBS.indexOf(String(f.properties.boro_cd)) > -1;
+      });
+      if(cbLyr) map.removeLayer(cbLyr);
+      cbLyr = L.geoJSON({type:'FeatureCollection',features:feats}, {
+        style:function(f){
+          var n = String(f.properties.boro_cd);
+          if(cd39Hidden('cb', n.slice(1))) return {opacity:0, fillOpacity:0, weight:0};
+          var c = distinctDistrictColor('cb', n.slice(1));
+          return {color:c, weight:3, opacity:.95, fillColor:c, fillOpacity:.16};
+        },
+        onEachFeature:function(f,l){
+          var n = String(f.properties.boro_cd), num = n.slice(1).replace(/^0+/,'');
+          var c = distinctDistrictColor('cb', n.slice(1));
+          l.bindPopup('<strong>Brooklyn CB '+num+'</strong>');
+          l.bindTooltip('<span style="color:'+c+'">CB '+num+'</span>',
+            {permanent:true, direction:'center', className:'district-map-label cb', opacity:1, interactive:false});
+        }
+      }).addTo(map);
+      chips('cb', CD39_CBS.map(function(x){return x.slice(1);}), 'CB');
+    }).catch(function(){});
+  }
+
+  /* One chip per overlapping district, so a group can be narrowed to one. */
+  function chipHost(){
+    var h = document.getElementById('cd39-chips');
+    if(h) return h;
+    h = document.createElement('div');
+    h.id = 'cd39-chips';
+    h.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;padding:7px 14px;background:#fff;'
+      + 'border-bottom:1px solid #e5e2db;align-items:center;flex-shrink:0';
+    var sub = document.getElementById('sub-row');
+    sub.parentNode.insertBefore(h, sub.nextSibling);
+    return h;
+  }
+  function chips(type, nums, prefix){
+    var h = chipHost();
+    [].slice.call(h.querySelectorAll('[data-ct="'+type+'"]')).forEach(function(x){ x.remove(); });
+    nums.forEach(function(n){
+      var num = String(parseInt(n,10));
+      var c = distinctDistrictColor(type, num);
+      var b = document.createElement('button');
+      b.type='button'; b.setAttribute('data-ct',type); b.setAttribute('data-cn',num);
+      b.style.cssText='font-family:"DM Mono",monospace;font-size:.72rem;padding:4px 10px;cursor:pointer;'
+        + 'border:2px solid '+c+';border-radius:20px;background:'+c+';color:#fff;font-weight:700';
+      b.textContent = prefix+' '+num;
+      b.onclick = function(){
+        var set = window._cd39Hidden[type] = window._cd39Hidden[type] || {};
+        var off = !set[num];
+        set[num] = off;
+        b.style.background = off ? '#fff' : c;
+        b.style.color = off ? c : '#fff';
+        if(type==='cb'){ if(cbLyr) cbLyr.setStyle(cbLyr.options.style); }
+        else if(typeof refreshLegislativeLayers === 'function') refreshLegislativeLayers();
+      };
+      h.appendChild(b);
+    });
+    h.style.display = h.children.length ? 'flex' : 'none';
+  }
+  window._cd39Chips = chips;
+
   function addBoroToggle(){
     var sub = document.getElementById('sub-row');
     if(!sub || !sub.children.length) return setTimeout(addBoroToggle,200);
@@ -2291,8 +2366,33 @@ function bkcb6CopyEmbed(type){
       else { location.reload(); }
     };
     sub.appendChild(btn);
+
+    var cb = document.createElement('button');
+    cb.type='button'; cb.className='plyr-sub overlay-control';
+    cb.style.setProperty('--sc','#f47920'); cb.style.setProperty('--stc','#fff');
+    cb.textContent='\uD83D\uDCCB Overlapping CBs';
+    cb.onclick=function(){
+      var on = !cb.classList.contains('on');
+      cb.classList.toggle('on', on);
+      toggleCBs(on);
+      if(!on) chips('cb', [], 'CB');
+    };
+    sub.appendChild(cb);
   }
   addBoroToggle();
+
+  /* When a legislative group is switched on, list its districts as chips. */
+  var GROUPS = {cc:['39'], assembly:['44','52','51','48'],
+                senate:['20','26','17','22','21','25'], congress:['10','9']};
+  var PREFIX = {cc:'CD', assembly:'AD', senate:'SD', congress:'NY-'};
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('.district-control'); if(!b) return;
+    setTimeout(function(){
+      Object.keys(GROUPS).forEach(function(t){
+        chips(t, (window.subState && subState[t]) ? GROUPS[t] : [], PREFIX[t]);
+      });
+    }, 60);
+  });
 })();
 </script>
 </body>
