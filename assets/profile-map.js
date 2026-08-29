@@ -9,8 +9,13 @@
   var CHAMBERS = {
     council: { label: 'Council districts', folder: 'council', color: '#0d1b4b', count: 51 },
     assembly: { label: 'Assembly districts', folder: 'assembly', color: '#7c3aed', count: 65 },
-    senate: { label: 'Senate districts', folder: 'senate', color: '#0f766e', count: 28 }
+    senate: { label: 'Senate districts', folder: 'senate', color: '#0f766e', count: 28 },
+    congress: { label: 'Congressional districts', folder: 'congress', color: '#b45309', count: 13 },
+    cb: { label: 'Community boards', folder: 'cb', color: '#be185d', count: 18 },
+    borough: { label: 'Borough', folder: 'borough', color: '#0d1b4b', count: 1 }
   };
+  // the chambers offered as overlays on any district page
+  var OVERLAPS = ['council', 'assembly', 'senate', 'congress', 'cb'];
   var ZONE_FILL = {
     R: '#56B4E9', C: '#E69F00', M: '#D55E00', P: '#009E73', X: '#CC79A7', O: '#999999'
   };
@@ -282,7 +287,7 @@
                 if (homeBounds && !homeBounds.intersects(lyr.getBounds())) return;
               } catch (e) { return; }
               var num = g.features[0].properties.district;
-              lyr.bindTooltip(c.label.replace(' districts', '') + ' District ' + num, { sticky: true });
+              lyr.bindTooltip(k === 'cb' ? 'Brooklyn CB' + num : k === 'congress' ? 'NY-' + num : c.label.replace(' districts', '') + ' District ' + num, { sticky: true });
               group.addLayer(lyr);
             });
             say('');
@@ -291,7 +296,7 @@
       };
     }
 
-    ['council', 'assembly', 'senate'].forEach(function (k) {
+    OVERLAPS.forEach(function (k) {
       if (!bidSlug && k === chamber) return;
       layers['overlap-' + k] = overlapLayer(k);
     });
@@ -560,7 +565,7 @@
       startDefaults.done = true;
       setLayer('zoning', true);
     }
-    ['council', 'assembly', 'senate'].forEach(function (k) {
+    OVERLAPS.forEach(function (k) {
       if (!bidSlug && k === chamber) return;
       addToggle('overlap-' + k, 'Overlapping ' + CHAMBERS[k].label.toLowerCase());
     });
