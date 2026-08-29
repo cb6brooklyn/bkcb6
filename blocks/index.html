@@ -153,12 +153,15 @@
       <button type="button" class="tgl" data-dq="next30">Next 30 days</button>
       <button type="button" class="tgl" data-dq="last90">Last 90 days</button>
       <button type="button" class="tgl" data-dq="year">This year</button>
+      <button type="button" class="tgl" data-dq="past5">Past 5 years</button>
+      <button type="button" class="tgl" data-dq="past10">Past 10 years</button>
+      <button type="button" class="tgl" data-dq="since2007">Since 2007</button>
     </div>
     <div class="row3">
       <div><div class="lab">From</div><input type="date" id="dFrom"></div>
       <div><div class="lab">To</div><input type="date" id="dTo"></div>
     </div>
-    <div class="dn" id="dNote">Applies to street work, building permits, landmark permits, resurfacing and permitted events, on the map and in the results below. A permit counts if any part of its work window falls inside the range.</div>
+    <div class="dn" id="dNote">Applies to street work, building permits, landmark permits, resurfacing and permitted events, on the map and in the results below. A permit counts if any part of its work window falls inside the range. Looking back past the last year also pulls the Department of Buildings permit history for every lot on the stretch, live from NYC Open Data (2007 onward).</div>
   </div>
   <div id="results"></div>
   <div class="regkey">
@@ -192,13 +195,14 @@ var NET=null, LAY=null, map=null, base=null;
 var stLayer=null, hiLayer=null, bufLayer=null, ptLayer=null, pin=null, cbLayer=null;
 var mode='street', reach=75, pinReach=150;
 var sel=null; // {kind:'street'|'addr'|'pin', geom:[[lon,lat]...] or point, label, sub}
-var live={n311:null,crime:null,lots:null};
+var live={n311:null,crime:null,lots:null,hist:null};
 var liveReq=0;
-var openSecs={};
+var openSecs={},lastFound={};
 var COLORS={liquor:'#8c2f6b',health:'#2e6b30',culture:'#6b3fa0',food:'#0f7b6c',biz:'#b3541e',dob:'#2145a8',dot:'#e0473c',resurf:'#7a7a7a',events:'#c98b1a',parties:'#f47920',lpc:'#0d1b4b',lift:'#9b2226',citibike:'#1f5fd6',subway:'#111',schools:'#ff8c00',library:'#5a3e1b',fdny:'#d0021b',polls:'#3a3a9c',parks:'#2a8a3a',markets:'#5e9c2a',n311:'#f47920',crime:'#b00020',lots:'#6b6760'};
 var LIVEDEF=[
   {id:'n311',label:'311 reports (12 months)',note:'Service requests to 311 in the last 12 months, placed by the coordinates on each report.',u:'/311.html'},
   {id:'crime',label:'Crime complaints (this year)',note:'NYPD complaint records, year to date, placed by the coordinates on each complaint. NYPD offsets some sensitive locations.',u:'/publicsafety/'},
+  {id:'hist',label:'Building permit history (DOB)',note:'Every Department of Buildings permit on record for the lots on this stretch, 2007 onward, from the DOB permit issuance file and DOB NOW. Filtered to the date range you chose.',u:'/permits-archive.html',hist:true},
   {id:'lots',label:'Lots and zoning',note:'Every tax lot from PLUTO with its zoning district, land use, owner of record, year built and floors.',u:'/landuse-zoning.html'}
 ];
 var LU={'01':'One and two family','02':'Multi-family walk-up','03':'Multi-family elevator','04':'Mixed residential and commercial','05':'Commercial and office','06':'Industrial and manufacturing','07':'Transportation and utility','08':'Public facilities and institutions','09':'Open space and recreation','10':'Parking','11':'Vacant land'};
@@ -314,6 +318,9 @@ function dateRange(){
   if(dq==='next30'){var e=new Date(t);e.setDate(e.getDate()+30);return [today,ymd(e)];}
   if(dq==='last90'){var b=new Date(t);b.setDate(b.getDate()-90);return [ymd(b),today];}
   if(dq==='year')return [t.getFullYear()*10000+101,t.getFullYear()*10000+1231];
+  if(dq==='past5')return [(t.getFullYear()-5)*10000+101,today];
+  if(dq==='past10')return [(t.getFullYear()-10)*10000+101,today];
+  if(dq==='since2007')return [20070101,today];
   if(dq==='custom'){var a=dFrom?parseInt(dFrom.replace(/-/g,''),10):0,z=dTo?parseInt(dTo.replace(/-/g,''),10):99999999;return [a,z];}
   return null;
 }
@@ -326,7 +333,8 @@ function inDate(it,rng){
 function refillPermitLayers(){
   OVDEF.forEach(function(d){if(d.layer&&d.filled){d.filled=false;OV[d.id].clearLayers();if(d.on)fillLayer(d);}});
 }
-function dateLabel(){var r=dateRange();if(!r)return 'all dates';function f(v){var s=String(v);return s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8);}var lab={active:'active today',next30:'the next 30 days',last90:'the last 90 days',year:'this year'}[dq];return lab||(f(r[0])+' to '+(r[1]>99999990?'any date':f(r[1])));}
+function lookback(){var r=dateRange();if(!r)return false;var t=new Date();t.setFullYear(t.getFullYear()-1);return r[0]<ymd(t);}
+function dateLabel(){var r=dateRange();if(!r)return 'all dates';function f(v){var s=String(v);return s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8);}var lab={active:'active today',next30:'the next 30 days',last90:'the last 90 days',year:'this year',past5:'the past 5 years',past10:'the past 10 years',since2007:'2007 to today'}[dq];return lab||(f(r[0])+' to '+(r[1]>99999990?'any date':f(r[1])));}
 function setDateQuick(q){
   dq=q;Array.prototype.forEach.call(document.querySelectorAll('[data-dq]'),function(b){b.classList.toggle('on',b.getAttribute('data-dq')===q);});
   if(q!=='custom'){$('dFrom').value='';$('dTo').value='';}
@@ -456,8 +464,8 @@ function run(){
     });
   });
   $('mapnote').innerHTML='<b>'+esc(sel.label)+'</b>. '+fmt(total)+' records in the site\'s own data within '+R+' m'+(sel.sub?'. '+esc(sel.sub):'')+'. Loading live 311, crime and lots&hellip;';
-  live={n311:null,crime:null,lots:null};
-  render(found);
+  live={n311:null,crime:null,lots:null,hist:null};
+  lastFound=found;render(found);
   writeHash();
   loadLive(linesM,R,found);
 }
@@ -477,6 +485,7 @@ function loadLive(linesM,R,found){
   ]).then(function(res){
     if(my!==liveReq)return;
     live.n311=clip(res[0]);live.crime=clip(res[1]);live.lots=clip(res[2]);
+    if(lookback())loadHist(my,linesM,R,q,clip);
     live.lots.forEach(function(r){var c=[r.latitude,r.longitude];ptLayer.addLayer(L.circleMarker([parseFloat(r.latitude),parseFloat(r.longitude)],{radius:3.5,color:'#fff',weight:1,fillColor:COLORS.lots,fillOpacity:.8}).bindPopup(lotPop(r)));});
     live.crime.forEach(function(r){ptLayer.addLayer(L.circleMarker([parseFloat(r.latitude),parseFloat(r.longitude)],{radius:5,color:'#fff',weight:1,fillColor:COLORS.crime,fillOpacity:.9}).bindPopup('<div class="pop"><div class="pt">'+esc(title(r.ofns_desc))+'</div><div class="ps">'+esc(title(r.pd_desc))+' · '+esc(title(r.law_cat_cd))+' · '+esc(String(r.cmplnt_fr_dt||'').slice(0,10))+'</div><div class="pl">Crime complaint</div></div>'));});
     var total=0;Object.keys(found).forEach(function(k){total+=found[k].length;});
@@ -485,6 +494,33 @@ function loadLive(linesM,R,found){
     render(found);
   });
 }
+function loadHist(my,linesM,R,q,clip){
+  var blocks={};live.lots.forEach(function(r){if(r.block)blocks[String(parseInt(r.block,10))]=1;});
+  var bl=Object.keys(blocks);if(!bl.length){live.hist=[];return;}
+  var pad=bl.map(function(b){return "'"+('00000'+b).slice(-5)+"'";}).join(',');var raw=bl.map(function(b){return "'"+b+"'";}).join(',');
+  var rng=dateRange();
+  Promise.all([
+    q('ipu4-2q9a',{'$where':"borough='BROOKLYN' AND block IN ("+pad+")",'$select':'job__,house__,street_name,job_type,work_type,permit_type,permit_subtype,filing_status,permit_status,issuance_date,expiration_date,permittee_s_business_name,owner_s_business_name,gis_latitude,gis_longitude,block,lot','$limit':'6000'}),
+    q('rbx6-tga4',{'$where':"borough='BROOKLYN' AND block IN ("+raw+")",'$select':'job_filing_number,work_permit,house_no,street_name,work_type,filing_reason,permit_status,issued_date,expired_date,job_description,estimated_job_costs,applicant_business_name,owner_name,latitude,longitude,block,lot','$limit':'6000'})
+  ]).then(function(res){
+    if(my!==liveReq)return;
+    function nd(v){if(!v)return '';v=String(v);var m=v.match(/^(\d{2})\/(\d{2})\/(\d{4})/);if(m)return m[3]+m[1]+m[2];return v.slice(0,10).replace(/-/g,'');}
+    var rows=[];
+    res[0].forEach(function(r){r.latitude=r.gis_latitude;r.longitude=r.gis_longitude;var d1=nd(r.issuance_date),d2=nd(r.expiration_date);
+      rows.push({latitude:r.latitude,longitude:r.longitude,d1:d1,d2:d2,key:'A'+r.job__+'-'+r.permit_type+'-'+d1,t:title(String(r.house__||'')+' '+String(r.street_name||''))+' · '+esc(r.permit_type||'')+(r.work_type?'/'+esc(r.work_type):''),
+        s:[jobType(r.job_type),r.filing_status?title(r.filing_status):'',r.permit_status?title(r.permit_status):'',d1?'issued '+fdate(d1):'',d2?'expires '+fdate(d2):'',r.permittee_s_business_name?title(r.permittee_s_business_name):'',r.owner_s_business_name?'owner '+title(r.owner_s_business_name):'','Block '+parseInt(r.block,10)+' Lot '+parseInt(r.lot,10)].filter(Boolean).join(' · ')});});
+    res[1].forEach(function(r){var d1=nd(r.issued_date),d2=nd(r.expired_date);
+      rows.push({latitude:r.latitude,longitude:r.longitude,d1:d1,d2:d2,key:'B'+r.work_permit+'-'+d1,t:title(String(r.house_no||'')+' '+String(r.street_name||''))+' · '+esc(r.work_type||''),
+        s:[r.filing_reason,r.permit_status,d1?'issued '+fdate(d1):'',d2?'expires '+fdate(d2):'',r.estimated_job_costs?'est. $'+fmt(Math.round(parseFloat(r.estimated_job_costs))):'',r.applicant_business_name,r.owner_name?'owner '+title(r.owner_name):'',r.job_description?String(r.job_description).slice(0,160):'','Block '+r.block+' Lot '+r.lot].filter(Boolean).join(' · ')});});
+    var seen={};rows=rows.filter(function(r){if(seen[r.key])return false;seen[r.key]=1;return inDate(r,rng);});
+    rows=clip(rows);rows.sort(function(a,b){return (b.d1||'')<(a.d1||'')?-1:1;});
+    live.hist=rows;
+    rows.forEach(function(r){ptLayer.addLayer(L.circleMarker([parseFloat(r.latitude),parseFloat(r.longitude)],{radius:4,color:'#fff',weight:1,fillColor:'#2145a8',fillOpacity:.8}).bindPopup('<div class="pop"><div class="pt">'+esc(r.t)+'</div><div class="ps">'+esc(r.s)+'</div><div class="pl">DOB permit history</div></div>'));});
+    render(lastFound);
+  });
+}
+function fdate(d){return d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8);}
+function jobType(j){return {A1:'Alteration type 1',A2:'Alteration type 2',A3:'Alteration type 3',NB:'New building',DM:'Demolition',SG:'Sign'}[j]||j||'';}
 function lotPop(r){
   return '<div class="pop"><div class="pt">'+esc(title(r.address))+'</div><div class="ps">'+esc(r.zonedist1||'')+(r.zonedist2?'/'+esc(r.zonedist2):'')+(r.overlay1?' '+esc(r.overlay1):'')+(r.spdist1?' · '+esc(r.spdist1):'')+' · '+esc(LU[r.landuse]||'Land use '+r.landuse)+'<br>'+(r.yearbuilt&&r.yearbuilt!=='0'?'Built '+esc(r.yearbuilt)+' · ':'')+esc(String(parseFloat(r.numfloors)||0))+' floors · '+esc(r.unitsres||'0')+' res. units · owner '+esc(title(r.ownername))+(r.histdist?'<br>'+esc(r.histdist):'')+(r.landmark?'<br>Landmark: '+esc(r.landmark):'')+'</div><div class="pl">Block '+esc(r.block)+' Lot '+esc(r.lot)+'</div></div>';
 }
@@ -496,11 +532,12 @@ function render(found){
   h+='<div class="sel"><div class="st">'+esc(sel.label)+'</div><div class="sl">'+(sel.sub?esc(sel.sub)+' · ':'')+'Reach '+currentReach()+' m from the '+(sel.geomKind==='point'?'point':'centerline')+'.</div></div>';
   h+='<div class="sharebar"><span class="sb-t" id="sbText">'+esc(location.href)+'</span><button type="button" class="lnk" id="shareView">Copy link to this view</button></div>';
   var kp='';
-  LIVEDEF.forEach(function(d){var v=live[d.id];kp+='<button type="button" class="kpi2'+(v&&!v.length?' zero':'')+'" data-sec="'+d.id+'"><div class="n">'+(v==null?'&hellip;':fmt(v.length))+'</div><div class="l">'+esc(d.label)+'</div></button>';});
+  LIVEDEF.forEach(function(d){if(d.hist&&!lookback())return;var v=live[d.id];kp+='<button type="button" class="kpi2'+(v&&!v.length?' zero':'')+'" data-sec="'+d.id+'"><div class="n">'+(v==null?'&hellip;':fmt(v.length))+'</div><div class="l">'+esc(d.label)+'</div></button>';});
   LAY.layers.forEach(function(L0){var n=found[L0.id].length;kp+='<button type="button" class="kpi2'+(n?'':' zero')+'" data-sec="'+L0.id+'"><div class="n">'+fmt(n)+'</div><div class="l">'+esc(L0.label)+'</div></button>';});
   h+='<div class="kpis2">'+kp+'</div>';
   h+=liveSec('n311',live.n311,function(r){return {t:title(r.complaint_type)+(r.descriptor?': '+title(r.descriptor):''),s:[title(r.incident_address),r.agency,String(r.created_date||'').slice(0,10),r.status].filter(Boolean).join(' · ')};},function(rows){return topCats(rows,function(r){return r.complaint_type;});});
   h+=liveSec('crime',live.crime,function(r){return {t:title(r.ofns_desc),s:[title(r.pd_desc),title(r.law_cat_cd),title(r.prem_typ_desc),String(r.cmplnt_fr_dt||'').slice(0,10)].filter(Boolean).join(' · ')};},function(rows){return topCats(rows,function(r){return r.law_cat_cd;})+topCats(rows,function(r){return r.ofns_desc;});});
+  if(lookback())h+=liveSec('hist',live.hist,function(r){return {t:r.t,s:r.s};},function(rows){return topCats(rows,function(r){return String(r.d1||'').slice(0,4);})+topCats(rows,function(r){return r.t.split(' · ')[1]||'';});});
   h+=liveSec('lots',live.lots,function(r){return {t:title(r.address),s:[(r.zonedist1||'')+(r.zonedist2?'/'+r.zonedist2:'')+(r.overlay1?' '+r.overlay1:''),LU[r.landuse]||'',(r.yearbuilt&&r.yearbuilt!=='0'?'built '+r.yearbuilt:''),(parseFloat(r.numfloors)||0)+' fl',(r.unitsres||'0')+' res. units','owner '+title(r.ownername),r.histdist||'',r.landmark?'landmark: '+r.landmark:'','Block '+r.block+' Lot '+r.lot].filter(Boolean).join(' · '),u:'/citywide-search.html?q='+encodeURIComponent(title(r.address)+', Brooklyn')};},function(rows){return topCats(rows,function(r){return r.zonedist1;})+topCats(rows,function(r){return LU[r.landuse]||'Other';});});
   LAY.layers.forEach(function(L0){
     var rows=found[L0.id];
