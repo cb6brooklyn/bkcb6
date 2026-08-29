@@ -313,7 +313,7 @@ body.embed .embed-title a{margin-left:auto;font-size:.76rem;font-weight:700;colo
 
 <script>
 // Build stamp so a parent page can tell whether it got a stale cached copy.
-window.BKCB6_BUILD='797';
+window.BKCB6_BUILD='798';
 var map=L.map('map',{scrollWheelZoom:true,preferCanvas:true}).setView([40.706,-73.94],11);
 // In an iframe the container can still be sizing when the first fit runs, which
 // makes Leaflet pick a near-minimum zoom. Keep the last fit and re-apply it.
@@ -335,6 +335,26 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{at
 
 var ACT_LABELS={'BKB':'Basketball','HDB':'Handball','TNS':'Tennis','PKB':'Pickleball','VLB':'Volleyball','BOC':'Bocce','HKY':'Hockey','BSB':'Baseball','SFB':'Softball','SCR':'Soccer','FTB':'Football','CRK':'Cricket','RGB':'Rugby','LAX':'Lacrosse','KCK':'Kickball','NET':'Netball','FRS':'Frisbee','TRK':'Running Track','MPP':'Multi-Purpose','SWM':'Lap Swimming','WAD':'Wading Pool','SKT':'Skateboarding','DOG':'Dog Run'};
 var BORO_NAMES={'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
+// District mode: dist=cd33 | ad44 | sd20 | ny10 scopes everything to that district's
+// boundary from the Department of City Planning, by point in polygon.
+var DIST=null;
+var DIST_SRC={cd:['data/city-council-districts-wgs84.geojson','CounDist','Council District %n'],ad:['data/assembly-districts.geojson','ad','Assembly District %n'],sd:['data/senate-districts.geojson','sd','Senate District %n'],ny:['data/congressional-districts.geojson','cong_dist','NY-%n']};
+function pipRing(pt,ring){var x=pt[0],y=pt[1],ins=false;for(var i=0,j=ring.length-1;i<ring.length;j=i++){var xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))ins=!ins;}return ins;}
+function pipGeom(pt,g){var polys=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];for(var p=0;p<polys.length;p++){if(!pipRing(pt,polys[p][0]))continue;var hole=false;for(var h=1;h<polys[p].length;h++)if(pipRing(pt,polys[p][h])){hole=true;break;}if(!hole)return true;}return false;}
+function inDist(lat,lng){return !!(DIST&&pipGeom([+lng,+lat],DIST.geom));}
+function inBoro(r,boro){if(DIST)return !!r._in;return String(r.c).charAt(0)===boro;}
+function loadDist(){
+  var v=new URLSearchParams(window.location.search).get('dist')||'';
+  var m=v.match(/^(cd|ad|sd|ny)(\d+)$/);
+  if(!m)return Promise.resolve(null);
+  var src=DIST_SRC[m[1]],num=parseInt(m[2],10);
+  return fetch(src[0]).then(function(r){return r.json();}).then(function(g){
+    var f=g.features.filter(function(x){return parseInt(x.properties[src[1]],10)===num;})[0];
+    if(!f)return null;
+    DIST={key:v,type:m[1],num:num,label:src[2].replace('%n',num),geom:f.geometry};
+    return DIST;
+  }).catch(function(){return null;});
+}
 var BORO_KEY={'1':'MN','2':'BX','3':'BK','4':'QN','5':'SI'};
 // One flat color per borough, matching the palette used elsewhere on the site
 var BORO_COLORS={'1':'#027539','2':'#c62828','3':'#0a8f49','4':'#2e9e6b','5':'#7e57c2'};
@@ -529,6 +549,7 @@ function marketsInScope(){
   var cd=document.getElementById('s-cd').value;
   var boro=document.getElementById('s-boro').value;
   return mktData.filter(function(m){
+    if(DIST)return !!m._in;
     if(cd)return m.c===cd;
     if(boro)return String(m.c).charAt(0)===boro;
     return true;
@@ -726,6 +747,7 @@ function actListLabel(codes){
 // under CB2. Both border the district, so CB6 counts them.
 var CD_INCLUDE={'306':[['355','Prospect Park'],['302','Brooklyn Bridge Park']]};
 function inCd(r,cd){
+  if(DIST)return !!r._in;
   if(r.c===cd)return true;
   var ex=CD_INCLUDE[cd];
   if(!ex)return false;
@@ -736,7 +758,7 @@ function inCd(r,cd){
 }
 function inFilter(r,cd,boro){
   if(cd)return inCd(r,cd);
-  if(boro)return String(r.c).charAt(0)===boro;
+  if(boro)return inBoro(r,boro);
   return true;
 }
 function scopedRows(codes){
@@ -747,7 +769,7 @@ function scopedRows(codes){
     return false;
   });
   if(cd)return {rows:rows.filter(function(r){return inCd(r,cd);}),all:rows};
-  if(boro)return {rows:rows.filter(function(r){return String(r.c).charAt(0)===boro;}),all:rows};
+  if(boro)return {rows:rows.filter(function(r){return inBoro(r,boro);}),all:rows};
   return {rows:rows,all:rows};
 }
 
@@ -785,7 +807,7 @@ function runActivities(origin,originLabel){
   // everything citywide by distance so a closer court one district over is not
   // hidden behind a filter.
   if(!origin&&(cd||boro)&&!inScope.length){
-    var near=recData.filter(function(r){return cd?inCd(r,cd):String(r.c).charAt(0)===boro;});
+    var near=recData.filter(function(r){return cd?inCd(r,cd):inBoro(r,boro);});
     if(near.length){
       var sy=0,sx=0;near.forEach(function(r){sy+=r.y;sx+=r.x;});
       origin=[sy/near.length,sx/near.length];originLabel='the middle of '+where;
@@ -905,7 +927,7 @@ function updateBrowsePins(){
 // map of that place: every facility in it, listed by site.
 function showScopeAll(cd,boro){
   var where=cd?cdLabel(cd):BORO_NAMES[boro];
-  var rows=recData.filter(function(r){return cd?inCd(r,cd):String(r.c).charAt(0)===boro;});
+  var rows=recData.filter(function(r){return cd?inCd(r,cd):inBoro(r,boro);});
   if(!rows.length){
     showResult('No recorded courts, fields, pools, skateparks, or dog runs in '+escH(where)+'.');
     document.getElementById('act-panel').classList.remove('open');
@@ -1045,7 +1067,7 @@ function showScopeBar(cd,boro){
   var d=document.getElementById('sc-district');
   if(!HOME_CD){d.style.display='none';}
   else{d.textContent=cdLabel(HOME_CD).replace(/^.*? (CB\d+)$/,'$1')||'District';}
-  document.getElementById('sc-borough').textContent=BORO_NAMES[HOME_BORO]||'Borough';
+  document.getElementById('sc-borough').textContent=DIST?DIST.label:(BORO_NAMES[HOME_BORO]||'Borough');
   document.getElementById('sc-district').classList.toggle('on',!!HOME_CD);
   document.getElementById('sc-borough').classList.toggle('on',!HOME_CD);
 }
@@ -1063,7 +1085,13 @@ function useAt(at,haveActs){
 function applyUrlParams(){
   var p=new URLSearchParams(window.location.search);
   var cd=p.get('cd'),act=p.get('a'),boro=p.get('boro');
-  if(!cd&&boro&&/^[1-5]$/.test(boro)){
+  if(DIST){
+    cd='';var first=recData.filter(function(r){return r._in;})[0];boro=first?String(first.c).charAt(0):'3';
+    document.getElementById('s-boro').value=boro;fillDistricts();
+    try{fitTo(DIST.layer.getBounds().pad(0.08),{padding:[10,10]});}catch(e){}
+    if(EMBED)document.body.classList.add('boro');
+  }
+  if(!DIST&&!cd&&boro&&/^[1-5]$/.test(boro)){
     document.getElementById('s-boro').value=boro;
     fillDistricts();
     var bb=boroBounds(boro);
@@ -1103,9 +1131,9 @@ function applyUrlParams(){
   if(EMBED){
     var m=document.getElementById('more-filters');
     if(m)m.open=true;
-    var lbl=cd?cdLabel(cd):(boro?BORO_NAMES[boro]:'');
+    var lbl=DIST?DIST.label:(cd?cdLabel(cd):(boro?BORO_NAMES[boro]:''));
     document.getElementById('embed-heading').textContent=lbl?('Parks and activities in '+lbl):'Parks and activities';
-    document.getElementById('embed-full').href='activities.html'+(cd?'?cd='+cd:(boro?'?boro='+boro:''));
+    document.getElementById('embed-full').href='activities.html'+(DIST?'?dist='+DIST.key:(cd?'?cd='+cd:(boro?'?boro='+boro:'')));
   }
 }
 
@@ -1124,7 +1152,15 @@ Promise.all([
   fetch('data/farmers-markets.json').then(function(r){return r.ok?r.json():null;})
     .catch(function(){return null;})
 ]).then(function(res){
+  return loadDist().then(function(){return res;});
+}).then(function(res){
   recData=res[0];cdLookup=res[1]||{};
+  if(DIST){
+    recData.forEach(function(r){r._in=inDist(r.y,r.x);});
+    if(res[4]&&res[4].markets)res[4].markets.forEach(function(m){m._in=inDist(m.y,m.x);});
+    var dl=L.geoJSON({type:'Feature',geometry:DIST.geom},{style:{color:'#0d1b4b',weight:3,opacity:.9,fill:false},interactive:false}).addTo(map);
+    DIST.layer=dl;
+  }
   drawParks(res[3]);
   if(res[4]&&res[4].markets)drawMarkets(res[4].markets);
   drawDistricts(res[2]);
