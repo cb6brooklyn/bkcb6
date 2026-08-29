@@ -70,6 +70,9 @@
     s.id = 'rcm-css';
     s.textContent = [
       '.rcm{margin-top:8px}',
+      '.rcm-sw{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}',
+      '.rcm-sw button{font:inherit;font-size:.78rem;font-weight:800;padding:8px 12px;border-radius:999px;border:1.5px solid ' + NAVY + ';background:#fff;color:' + NAVY + ';cursor:pointer}',
+      '.rcm-sw button.on{background:' + NAVY + ';color:#fff}',
       '.rcm-card{background:#fff;border:1px solid ' + BORDER + ';border-radius:12px;padding:14px 14px 12px;margin:0 0 12px;box-shadow:0 2px 10px rgba(13,27,75,.05)}',
       '.rcm-card h3{margin:0 0 6px;color:' + NAVY + ';font-size:1.02rem;line-height:1.3}',
       '.rcm-card p{margin:0 0 12px;color:#4b5563;font-size:.84rem;line-height:1.6}',
@@ -168,7 +171,7 @@
       '<div class="rcm-map" data-map></div><div class="rcm-note" data-note></div><div class="rcm-key" data-key></div></div>' +
       '<div class="rcm-card"><div class="rcm-eye">Election districts carried</div><div class="rcm-dn" data-dn></div>' +
       '<div class="rcm-eye" style="margin-top:16px">By community board</div><div class="rcm-brk" data-brk></div><div class="rcm-chips" data-chips></div></div>' +
-      '<div class="rcm-card"><div class="rcm-eye">First-choice results</div><div class="rcm-res" data-res></div><div class="rcm-tot" data-tot></div></div>' +
+      '<div class="rcm-card"><div class="rcm-eye" data-reseye>First-choice results</div><div class="rcm-res" data-res></div><div class="rcm-tot" data-tot></div></div>' +
       '<details class="rcm-dir" data-dir><summary><span data-dirttl>See how every election district voted</span><span class="arr">&#9660;</span></summary>' +
       '<div class="ctl"><input type="search" placeholder="Filter by ED, e.g. 017/44, or a community board" autocomplete="off" data-flt>' +
       '<select data-ad><option value="">All Assembly Districts</option></select><span class="cnt" data-cnt></span></div>' +
@@ -190,7 +193,12 @@
 
     var data, ci = -1, names = [], eds = [], layer = null, pin = null, home = null, byE = {}, lyrByE = {}, maxM = 0, edLabels = null;
 
-    function colorOf(i) { return colors[i] || GREY; }
+    var colormap = {};
+    try { colormap = JSON.parse(host.getAttribute('data-colormap') || '{}'); } catch (e) { colormap = {}; }
+    function colorOf(i) { return colormap[names[i]] || colors[i] || GREY; }
+    var colorNameMap = {};
+    try { colorNameMap = JSON.parse(host.getAttribute('data-colornames') || '{}'); } catch (e) { colorNameMap = {}; }
+    function colorNameOf(i) { return colorNameMap[names[i]] || colorNames[i] || ''; }
     function edLabel(e) { return 'AD ' + e.slice(0, 2) + ' ED ' + parseInt(e.slice(2), 10); }
     function edShort(e) { return e.slice(2) + '/' + e.slice(0, 2); }
     function cbLabel(p) { return (data.cbs || [])[p.b] || ''; }
@@ -236,11 +244,65 @@
       if (edLabels) { if (show) edLabels.addTo(map); else map.removeLayer(edLabels); }
     }
 
+    var keys = (host.getAttribute('data-contests') || want || '').split('|').filter(Boolean);
+    var titles = {};
+    try { titles = JSON.parse(host.getAttribute('data-titles') || '{}'); } catch (e) { titles = {}; }
+    var chipsRow = null;
+
     fetch('/data/edresults/' + scope + '.json').then(function (r) { return r.json(); }).then(function (d) {
       data = d;
-      for (var i = 0; i < d.contests.length; i++) if (d.contests[i].k === want) ci = i;
-      if (ci < 0) { blurbEl.textContent = 'That contest is not in this file.'; return; }
-      names = d.contests[ci].c;
+      var idx = [];
+      keys.forEach(function (k) { for (var i = 0; i < d.contests.length; i++) if (d.contests[i].k === k) idx.push(i); });
+      if (!idx.length) { blurbEl.textContent = 'That contest is not in this file.'; return; }
+      if (idx.length > 1) {
+        chipsRow = document.createElement('div'); chipsRow.className = 'rcm-sw';
+        chipsRow.innerHTML = idx.map(function (i) {
+          return '<button type="button" data-ci="' + i + '">' + esc(d.contests[i].k.slice(4)) + '</button>';
+        }).join('');
+        host.insertBefore(chipsRow, host.firstChild);
+        chipsRow.addEventListener('click', function (ev) {
+          var b = ev.target.closest('[data-ci]'); if (!b) return;
+          build(parseInt(b.getAttribute('data-ci'), 10));
+        });
+      }
+      labels.forEach(function (lb) {
+        L.marker([lb[1], lb[2]], { icon: L.divIcon({ className: 'nbhd', html: esc(lb[0]), iconSize: null }), interactive: false }).addTo(map);
+      });
+      map.on('zoomend', drawEdLabels);
+      rowsEl.addEventListener('click', function (ev) {
+        var tr = ev.target.closest('tr[data-e]'); if (!tr) return;
+        var x = byE[tr.getAttribute('data-e')]; if (!x) return;
+        openED(x);
+        host.querySelector('[data-map]').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      fltEl.addEventListener('input', applyFilter);
+      adEl.addEventListener('change', applyFilter);
+      dirEl.addEventListener('toggle', function () { if (dirEl.open) setTimeout(function () { map.invalidateSize(); }, 50); });
+      build(idx[0]);
+    }).catch(function () { blurbEl.textContent = 'Results did not load.'; });
+
+    function applyFilter() {
+      var q = fltEl.value.trim().toLowerCase().replace(/\s+/g, ' '), ad = adEl.value, n = 0;
+      Array.prototype.forEach.call(rowsEl.querySelectorAll('tr'), function (tr) {
+        var ok = (!q || tr.getAttribute('data-s').indexOf(q) !== -1) && (!ad || tr.getAttribute('data-ad') === ad);
+        tr.style.display = ok ? '' : 'none'; if (ok) n++;
+      });
+      cntEl.textContent = n + ' EDs';
+    }
+
+    function build(which) {
+      var d = data; ci = which;
+      names = d.contests[ci].c; eds = []; byE = {}; lyrByE = {}; maxM = 0;
+      if (layer) { map.removeLayer(layer); layer = null; }
+      if (edLabels) { map.removeLayer(edLabels); edLabels = null; }
+      if (pin) { map.removeLayer(pin); pin = null; }
+      map.closePopup();
+      if (chipsRow) Array.prototype.forEach.call(chipsRow.querySelectorAll('[data-ci]'), function (b) {
+        b.classList.toggle('on', parseInt(b.getAttribute('data-ci'), 10) === ci);
+      });
+      var h3 = host.querySelector('.rcm-card h3');
+      if (h3 && titles[d.contests[ci].k]) h3.textContent = titles[d.contests[ci].k];
+      var ballot = /Question/.test(d.contests[ci].k);
       var totals = names.map(function () { return 0; }), won = names.map(function () { return 0; }), cast = 0, byCB = {};
       d.features.forEach(function (f) {
         var p = f.properties, row = null;
@@ -252,8 +314,11 @@
         var margin = tot ? 100 * (v[win] - (second == null ? 0 : v[second])) / tot : 0;
         var e = { e: p.e, p: p, v: v, tot: tot, win: win, order: order, margin: margin };
         byE[p.e] = e; eds.push(e);
-        for (var j = 0; j < v.length; j++) totals[j] += v[j];
-        won[win]++; cast += tot; if (margin > maxM) maxM = margin;
+        /* a contest fought only inside this district counts every ballot whole;
+           a citywide question shares a boundary ED's votes across the line */
+        var w = (d.contests[ci].own || p.w == null) ? 1 : p.w;
+        for (var j = 0; j < v.length; j++) totals[j] += v[j] * w;
+        won[win]++; cast += tot * w; if (margin > maxM) maxM = margin;
         var cb = cbLabel(p); byCB[cb] = byCB[cb] || { n: 0, w: {} }; byCB[cb].n++; byCB[cb].w[win] = (byCB[cb].w[win] || 0) + 1;
       });
       var order = names.map(function (_, j) { return j; }).sort(function (a, b) { return totals[b] - totals[a]; });
@@ -261,9 +326,9 @@
       maxM = Math.ceil(maxM / 5) * 5;
 
       /* blurb */
-      blurbEl.innerHTML = 'This map shows the winning candidate\u2019s percentage margin in each of the ' + eds.length + ' election districts in ' + esc(areaName) + '. ' +
-        (colorNames[lead] ? esc(colorNames[lead].charAt(0).toUpperCase() + colorNames[lead].slice(1)) + ' marks a ' + esc(last(names[lead])) + ' win' : '') +
-        (colorNames[second] ? ' and ' + esc(colorNames[second]) + ' marks a ' + esc(last(names[second])) + ' win' : '') + '. Tap any election district for its result, or enter an address to find yours.';
+      blurbEl.innerHTML = 'This map shows the winning ' + (ballot ? 'side' : 'candidate') + '\u2019s percentage margin in each of the ' + eds.length + ' election districts in ' + esc(areaName) + '. ' +
+        (colorNameOf(lead) ? esc(colorNameOf(lead).charAt(0).toUpperCase() + colorNameOf(lead).slice(1)) + ' marks a' + (ballot ? 'n ' : ' ') + esc(last(names[lead])) + (ballot ? ' majority' : ' win') : '') +
+        (colorNameOf(second) ? ' and ' + esc(colorNameOf(second)) + ' marks a' + (ballot ? ' ' : ' ') + esc(last(names[second])) + (ballot ? ' majority' : ' win') : '') + '. Tap any election district for its result, or enter an address to find yours.';
 
       /* key */
       var mid = (maxM / 2) + '%';
@@ -285,13 +350,9 @@
           l.on('click', function () { if (x) openED(x); });
         }
       }).addTo(map);
-      refLayer.addTo(map);
-      labels.forEach(function (lb) {
-        L.marker([lb[1], lb[2]], { icon: L.divIcon({ className: 'nbhd', html: esc(lb[0]), iconSize: null }), interactive: false }).addTo(map);
-      });
+      if (!map.hasLayer(refLayer)) refLayer.addTo(map);
       home = layer.getBounds();
       map.fitBounds(home, { padding: [6, 6] });
-      map.on('zoomend', drawEdLabels);
       noteEl.textContent = 'Zoom in to see each election district\u2019s number.';
 
       /* donut: EDs carried */
@@ -319,21 +380,23 @@
         (otherWon > 0 ? '<span><i style="background:' + GREY + '"></i>Others</span>' : '');
 
       /* first-choice results */
+      host.querySelector('[data-reseye]').textContent = ballot ? 'How ' + areaName.charAt(0).toUpperCase() + areaName.slice(1) + ' voted' : 'First-choice results';
       resEl.innerHTML = order.filter(function (i) { return totals[i]; }).map(function (i) {
         var share = 100 * totals[i] / cast, txt = fmt(totals[i]) + ' &middot; ' + share.toFixed(1) + '%';
         return '<div class="n">' + esc(/write/i.test(names[i]) ? 'Write-in' : last(names[i])) + '</div><div class="tr">' +
           '<i style="width:' + Math.max(share, 1.2).toFixed(1) + '%;background:' + colorOf(i) + '">' + (share >= 30 ? txt : '') + '</i>' +
           (share < 30 ? '<b style="left:' + Math.max(share, 1.2).toFixed(1) + '%">' + txt + '</b>' : '') + '</div>';
       }).join('');
-      totEl.textContent = fmt(cast) + ' ballots with a first choice \u00b7 ' + eds.length + ' election districts';
+      totEl.textContent = fmt(cast) + (ballot ? ' votes on this question' : ' ballots with a first choice') + ' \u00b7 ' + eds.length + ' election districts';
 
       /* directory */
       for (var t = 0; t < 3; t++) {
         var th = host.querySelector('[data-th' + t + ']');
-        if (th) th.textContent = order[t] != null ? last(names[order[t]]) : '';
+        if (th) { th.textContent = order[t] != null ? last(names[order[t]]) : ''; th.style.display = order[t] != null ? '' : 'none'; }
       }
       var ads = {};
       eds.forEach(function (x) { ads[x.e.slice(0, 2)] = 1; });
+      while (adEl.options.length > 1) adEl.remove(1);
       Object.keys(ads).sort().forEach(function (ad) {
         var o = document.createElement('option'); o.value = ad; o.textContent = 'AD ' + parseInt(ad, 10); adEl.appendChild(o);
       });
@@ -342,7 +405,8 @@
         var cells = '';
         for (var t = 0; t < 3; t++) {
           var i = order[t];
-          cells += '<td class="r">' + (i == null ? '' : '<span class="v" style="color:' + colorOf(i) + '">' + fmt(x.v[i]) + '</span><span class="p">(' + pct(x.v[i], x.tot) + ')</span>') + '</td>';
+          if (i == null) continue;
+          cells += '<td class="r"><span class="v" style="color:' + colorOf(i) + '">' + fmt(x.v[i]) + '</span><span class="p">(' + pct(x.v[i], x.tot) + ')</span></td>';
         }
         var srch = (edShort(x.e) + ' ' + edLabel(x.e) + ' ' + x.e.slice(0, 2) + '/' + parseInt(x.e.slice(2), 10) + ' ' + cbLabel(x.p) + ' ' + cbLabel(x.p).replace(/cb\s*(\d)/i, 'cb $1')).toLowerCase();
         return '<tr data-e="' + esc(x.e) + '" data-ad="' + x.e.slice(0, 2) + '" data-s="' + esc(srch) + '">' +
@@ -350,25 +414,8 @@
           '<td class="r bl">' + fmt(x.tot) + '</td>' +
           '<td><span class="chip" style="background:' + colorOf(x.win) + '">' + esc(last(names[x.win]).toUpperCase()) + ' +' + x.margin.toFixed(1) + '</span></td></tr>';
       }).join('');
-      function applyFilter() {
-        var q = fltEl.value.trim().toLowerCase().replace(/\s+/g, ' '), ad = adEl.value, n = 0;
-        Array.prototype.forEach.call(rowsEl.querySelectorAll('tr'), function (tr) {
-          var ok = (!q || tr.getAttribute('data-s').indexOf(q) !== -1) && (!ad || tr.getAttribute('data-ad') === ad);
-          tr.style.display = ok ? '' : 'none'; if (ok) n++;
-        });
-        cntEl.textContent = n + ' EDs';
-      }
       applyFilter();
-      rowsEl.addEventListener('click', function (ev) {
-        var tr = ev.target.closest('tr[data-e]'); if (!tr) return;
-        var x = byE[tr.getAttribute('data-e')]; if (!x) return;
-        openED(x);
-        host.querySelector('[data-map]').scrollIntoView({ behavior: 'smooth', block: 'center' });
-      });
-      fltEl.addEventListener('input', applyFilter);
-      adEl.addEventListener('change', applyFilter);
-      dirEl.addEventListener('toggle', function () { if (dirEl.open) setTimeout(function () { map.invalidateSize(); }, 50); });
-    }).catch(function () { blurbEl.textContent = 'Results did not load.'; });
+    }
 
     function showRow(e) {
       dirEl.open = true;
