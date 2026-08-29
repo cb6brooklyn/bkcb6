@@ -36,6 +36,19 @@
 .tgl{padding:5px 11px;border:1.5px solid rgba(255,255,255,.3);border-radius:16px;background:transparent;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:#fff;cursor:pointer}
 .tgl.on{background:var(--orange);border-color:var(--orange)}
 #map{height:54vh;min-height:340px;background:#eef0f4}
+.maptools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 12px;background:var(--navy2);border-bottom:1px solid rgba(255,255,255,.12)}
+.maptools .tl{font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.6);font-weight:700}
+.maptools .tgl .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.below{background:#fff;border-bottom:1px solid var(--border);padding:10px 12px}
+.below .bh{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin-bottom:7px}
+.below .row2{display:flex;gap:6px;flex-wrap:wrap}
+.below .tgl{color:var(--navy);border-color:var(--border);background:#fff}
+.below .tgl.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.office{background:transparent;border:none;box-shadow:none}
+.office .oi{width:44px;height:44px;border-radius:9px;border:2.5px solid #f47920;box-shadow:0 2px 8px rgba(13,27,75,.35);background:#fff;display:block}
+.office .ol{position:absolute;left:50%;transform:translateX(-50%);top:46px;white-space:nowrap;font-family:'DM Sans',sans-serif;font-size:.66rem;font-weight:900;color:#0d1b4b;background:#fff;padding:2px 7px;border-radius:10px;border:1.5px solid #f47920;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.nbl{background:transparent;border:none;box-shadow:none;font-family:'DM Sans',sans-serif;font-size:.74rem;font-weight:900;color:rgba(13,27,75,.62);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;text-shadow:0 1px 0 #fff,0 0 8px #fff,0 0 8px #fff}
+.nbl:before{display:none}
 .mapnote{padding:8px 14px;background:var(--navy);color:rgba(255,255,255,.85);font-size:.76rem;line-height:1.5;border-bottom:2px solid var(--orange)}
 .mapnote b{color:var(--orange)}
 .sel{background:#fff;padding:12px 14px;border-bottom:1px solid var(--border)}
@@ -121,8 +134,10 @@
     <button type="button" class="tgl on" data-r="75">Both sides of the block</button>
     <button type="button" class="tgl" data-r="130">A block either way</button>
   </div>
+  <div class="maptools" id="mapToolsTop"><span class="tl">On the map</span></div>
   <div class="mapnote" id="mapnote">Choose a stretch above, or tap the map to drop a pin.</div>
   <div id="map"></div>
+  <div class="below"><div class="bh">Add to the map</div><div class="row2" id="mapToolsBottom"></div></div>
   <div id="results"></div>
   <div class="regkey">
     <b>How to read this.</b>
@@ -251,14 +266,70 @@ function selectStretch(sti,fromName,toName){
 }
 
 // ---------- map ----------
+var OV={};
+var OVDEF=[
+  {id:'zoning',label:'Zoning',sw:'#f59e0b',on:true,src:'/data/cb6-zoning.geojson',style:function(f){var c=f.properties.color||'#999';return {color:c,weight:.8,opacity:.6,fillColor:c,fillOpacity:.16};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.zone)+'</div><div class="ps">'+esc(p.family_label||'')+(p.description?'. '+esc(p.description):'')+'</div><div class="pl">Zoning district</div></div>';}},
+  {id:'historic',label:'Historic districts',sw:'#9b2226',on:true,src:'/data/historic-districts.geojson',filter:function(f){return f.properties.borough==='BK';},style:function(){return {color:'#9b2226',weight:1.5,dashArray:'5 3',fillColor:'#9b2226',fillOpacity:.10};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.area_name)+'</div><div class="ps">'+esc(p.lp_number||'')+' · '+esc(p.status_of_||'')+'</div><div class="pl">LPC historic district</div></div>';}},
+  {id:'parks',label:'Parks',sw:'#2a8a3a',on:true,src:'/data/bkcb6-parks.geojson',style:function(){return {color:'#2a8a3a',weight:1,opacity:.7,fillColor:'#3fb35a',fillOpacity:.35};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.sign_name||p.name)+'</div><div class="ps">'+esc(p.type_category||'')+(p.acres?' · '+esc(p.acres)+' acres':'')+'</div><div class="pl">NYC Parks</div></div>';}},
+  {id:'subway',label:'Subway lines',sw:'#EE352E',on:true,src:'/data/cb6-subway-routes.geojson',style:function(f){return {color:f.properties.color||'#333',weight:5,opacity:.85};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.name)+'</div><div class="pl">Subway route</div></div>';}},
+  {id:'bike',label:'Bike lanes',sw:'#ff8c00',on:false,src:'/data/cb6-bike-routes.geojson',style:function(f){return {color:f.properties.line_color||'#ff8800',weight:3,opacity:.85};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.name)+'</div><div class="ps">'+esc(p.lane_type||'')+'</div><div class="pl">Bike route</div></div>';}},
+  {id:'bids',label:'Business districts',sw:'#b3541e',on:false,src:'/data/bids.geojson',filter:function(f){return String(f.properties.cds||'').indexOf('306')>=0;},style:function(){return {color:'#b3541e',weight:2,fillColor:'#b3541e',fillOpacity:.12};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.name)+' BID</div><div class="ps">Since '+esc(p.year||'')+'</div><div class="pl">Business improvement district</div></div>';}},
+  {id:'nycha',label:'NYCHA',sw:'#1f5fd6',on:false,src:'/data/CB6-NYCHA.geojson',point:function(f,ll){return L.circleMarker(ll,{radius:8,color:'#fff',weight:2,fillColor:'#1f5fd6',fillOpacity:.95});},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.Name)+'</div><div class="ps">'+esc(p.Type||'')+'</div><div class="pl">NYCHA</div></div>';}},
+  {id:'nbhd',label:'Neighborhood names',sw:'#0d1b4b',on:true,custom:true},
+  {id:'records',label:'Records found',sw:'#f47920',on:true,custom:true}
+];
+var nbLayer=null;
+function buildOverlays(){
+  OVDEF.forEach(function(d){
+    if(d.custom){
+      if(d.id==='records'){OV[d.id]=ptLayer;return;}
+      if(d.id==='nbhd'){
+        nbLayer=L.layerGroup();OV[d.id]=nbLayer;
+        fetch('/data/neighborhood-labels.json').then(function(r){return r.json();}).then(function(list){
+          var bb=[-74.022,-73.968,40.659,40.694];
+          list.forEach(function(n){if(n.b!=='Brooklyn'||n.x<bb[0]||n.x>bb[1]||n.y<bb[2]||n.y>bb[3])return;
+            nbLayer.addLayer(L.tooltip({permanent:true,direction:'center',className:'nbl',interactive:false}).setLatLng([n.y,n.x]).setContent(n.n));});
+        });
+        if(d.on)nbLayer.addTo(map);return;
+      }
+    }
+    var g=L.layerGroup();OV[d.id]=g;if(d.on)g.addTo(map);
+    fetch(d.src).then(function(r){return r.json();}).then(function(gj){
+      var lyr=L.geoJSON(gj,{filter:d.filter||function(){return true;},style:d.style,pointToLayer:d.point,onEachFeature:function(f,l){if(d.pop)l.bindPopup(d.pop(f.properties||{}));}});
+      g.addLayer(lyr);
+    }).catch(function(){});
+  });
+}
+function renderToggles(){
+  ['mapToolsTop','mapToolsBottom'].forEach(function(id){
+    var box=$(id);
+    OVDEF.forEach(function(d){
+      var b=document.createElement('button');b.type='button';b.className='tgl'+(d.on?' on':'');b.setAttribute('data-ov',d.id);
+      b.innerHTML='<span class="sw" style="background:'+d.sw+'"></span>'+esc(d.label);
+      b.addEventListener('click',function(){toggleOverlay(d.id);});
+      box.appendChild(b);
+    });
+  });
+}
+function toggleOverlay(id){
+  var d=OVDEF.filter(function(x){return x.id===id;})[0];d.on=!d.on;
+  var g=OV[id];if(g){if(d.on)g.addTo(map);else map.removeLayer(g);}
+  Array.prototype.forEach.call(document.querySelectorAll('[data-ov="'+id+'"]'),function(b){b.classList.toggle('on',d.on);});
+}
+function addOffice(){
+  var ic=L.divIcon({className:'office',iconSize:[44,66],iconAnchor:[22,22],popupAnchor:[0,-18],html:'<img class="oi" src="/cb6-logo-square.png" alt="CB6"><span class="ol">CB6 office</span>'});
+  L.marker([40.686131,-73.994761],{icon:ic,zIndexOffset:900}).addTo(map).bindPopup('<div class="pop"><div class="pt">Brooklyn Community Board 6</div><div class="ps">250 Baltic Street, Brooklyn</div><div class="pl"><a href="/250baltic/">About the office &rarr;</a></div></div>');
+}
 function initMap(){
   map=L.map('map',{scrollWheelZoom:false}).setView([40.677,-73.995],13);
   base=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:19}).addTo(map);
   fetch('/data/cb6_boundary_exact.geojson').then(function(r){return r.json();}).then(function(g){
-    cbLayer=L.geoJSON(g,{style:{color:'#0d1b4b',weight:2,fill:false,dashArray:'4 3',opacity:.7}}).addTo(map);
+    cbLayer=L.geoJSON(g,{style:{color:'#0d1b4b',weight:3,fill:false,opacity:.85}}).addTo(map);
   });
   map.on('click',function(e){if(mode==='pin')setPin(e.latlng);});
   hiLayer=L.layerGroup().addTo(map);bufLayer=L.layerGroup().addTo(map);ptLayer=L.layerGroup().addTo(map);
+  buildOverlays();renderToggles();addOffice();
+  map.createPane('hi');map.getPane('hi').style.zIndex=450;
 }
 function setPin(latlng){
   if(!pin){pin=L.marker(latlng,{draggable:true}).addTo(map);pin.on('dragend',function(){applyPin(pin.getLatLng());});}
@@ -281,13 +352,13 @@ function run(){
   hiLayer.clearLayers();bufLayer.clearLayers();ptLayer.clearLayers();
   if(isPt){
     var c=sel.lines[0][0];
-    bufLayer.addLayer(L.circle([c[1],c[0]],{radius:R,color:'#f47920',weight:2,fillColor:'#f47920',fillOpacity:.12}));
+    bufLayer.addLayer(L.circle([c[1],c[0]],{pane:'hi',radius:R,color:'#f47920',weight:2,fillColor:'#f47920',fillOpacity:.12}));
     if(sel.kind!=='pin')hiLayer.addLayer(L.circleMarker([c[1],c[0]],{radius:7,color:'#fff',weight:2,fillColor:'#f47920',fillOpacity:1}));
     map.fitBounds(L.latLng(c[1],c[0]).toBounds(R*2.6));
   } else {
     var ll=sel.lines.map(function(ln){return ln.map(function(p){return [p[1],p[0]];});});
-    bufLayer.addLayer(L.polyline(ll,{color:'#f47920',weight:Math.max(14,R/2.2),opacity:.16,lineCap:'round',lineJoin:'round'}));
-    var pl=L.polyline(ll,{color:'#f47920',weight:6,opacity:.95,lineCap:'round'});hiLayer.addLayer(pl);
+    bufLayer.addLayer(L.polyline(ll,{pane:'hi',color:'#f47920',weight:Math.max(14,R/2.2),opacity:.16,lineCap:'round',lineJoin:'round'}));
+    var pl=L.polyline(ll,{pane:'hi',color:'#f47920',weight:6,opacity:.95,lineCap:'round'});hiLayer.addLayer(pl);
     map.fitBounds(pl.getBounds().pad(.35));
   }
   var found={},total=0;
