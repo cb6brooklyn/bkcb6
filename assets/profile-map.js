@@ -125,6 +125,11 @@
   }
   function init(el) {
     if (typeof L === 'undefined' || !el || el.dataset.profileMapReady === 'true') return;
+    var fold = el.closest('details:not([open])');
+    if (fold) {
+      if (!el.dataset.profileMapWait) { el.dataset.profileMapWait = '1'; fold.addEventListener('toggle', function () { if (fold.open) init(el); }); }
+      return;
+    }
     el.dataset.profileMapReady = 'true';
 
     var chamber = el.getAttribute('data-chamber') || 'council';
