@@ -92,6 +92,7 @@
          mayor's race; it should open on the contest fought over this ground. */
       function localness(i) {
         var k = d.contests[i].k.slice(4);
+        if (/^Council/.test(k)) return -1;
         if (/Assembly$/.test(k)) return 0;
         if (/Senate$/.test(k)) return 1;
         if (/Congress$/.test(k)) return 2;
@@ -164,7 +165,8 @@
       var acc = {}, tot = 0, won = {}, eds = 0, names = cands(current);
       data.features.forEach(function (f) {
         var row = rowFor(f.properties, current); if (!row) return;
-        var w = f.properties.w == null ? 1 : f.properties.w;
+        /* a contest fought only inside this district counts every one of its ballots whole */
+        var w = (data.contests[current].own || f.properties.w == null) ? 1 : f.properties.w;
         tot += row[1] * w; eds++;
         var best = -1, lead = null;
         for (var i = 0; i < names.length; i++) {
