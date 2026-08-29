@@ -153,6 +153,12 @@
     document.head.appendChild(s);
   }
 
+  function withLabels(fn) {
+    if (window.MapLabels) return fn(window.MapLabels);
+    var s = document.querySelector('script[data-maplabels]');
+    if (!s) { s = document.createElement('script'); s.src = '/assets/map-labels.js?v=20260829a'; s.setAttribute('data-maplabels', '1'); document.head.appendChild(s); }
+    s.addEventListener('load', function () { if (window.MapLabels) fn(window.MapLabels); });
+  }
   function init(host) {
     if (host.dataset.rcmReady || !window.L) return;
     host.dataset.rcmReady = '1';
@@ -387,6 +393,11 @@
       if (!map.hasLayer(refLayer)) refLayer.addTo(map);
       home = layer.getBounds();
       map.fitBounds(home, { padding: [6, 6] });
+      if (!host.dataset.rcmLabels) {
+        host.dataset.rcmLabels = '1';
+        var dl = host.getAttribute('data-district-label') || (areaName === 'Brooklyn' ? '' : areaName);
+        withLabels(function (ML) { ML.add(map, { bounds: home, district: dl }); });
+      }
       noteEl.textContent = 'Zoom in to see each election district\u2019s number.';
 
       /* donut: EDs carried */

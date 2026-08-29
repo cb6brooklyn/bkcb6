@@ -54,6 +54,12 @@
     document.head.appendChild(s);
   }
 
+  function withLabels(fn) {
+    if (window.MapLabels) return fn(window.MapLabels);
+    var s = document.querySelector('script[data-maplabels]');
+    if (!s) { s = document.createElement('script'); s.src = '/assets/map-labels.js?v=20260829a'; s.setAttribute('data-maplabels', '1'); document.head.appendChild(s); }
+    s.addEventListener('load', function () { if (window.MapLabels) fn(window.MapLabels); });
+  }
   function init(host) {
     if (host.dataset.edrmReady) return;
     /* inside a closed fold: wait for it to open so the map gets a real size */
@@ -130,6 +136,7 @@
         }
       }).addTo(map);
       home = layer.getBounds();
+      withLabels(function (ML) { ML.add(map, { bounds: home, district: host.getAttribute('data-district-label') || '' }); });
       map.fitBounds(home, { padding: [12, 12] });
       render();
     }).catch(function () { noteEl.textContent = 'Results did not load.'; });
