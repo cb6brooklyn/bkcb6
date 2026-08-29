@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Block Finder, Brooklyn Community Board 6">
+<meta property="og:description" content="Pick a street and two cross streets, search an address, or drop a pin, and see everything on that stretch: permits, 311, crime, liquor licenses, landmarks, lots, businesses, block parties, and more.">
+<meta property="og:url" content="https://bkcb6.app/blocks/">
+<meta property="og:image" content="https://bkcb6.app/cb6-logo.png">
+<meta name="twitter:card" content="summary">
+<meta name="description" content="Pick a street and two cross streets, search an address, or drop a pin, and see everything on that stretch of Brooklyn Community Board 6: permits, 311, crime, liquor licenses, landmarks, lots, businesses, block parties, and more.">
+<title>Block Finder &mdash; Brooklyn CB6 &mdash; bkcb6.app</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="/assets/cd-page.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+.intro{background:#fff;padding:13px 15px;border-bottom:1px solid var(--border);font-size:.86rem;line-height:1.62;color:#333;max-width:76ch}
+.intro b{color:var(--navy)}
+.modes{display:flex;background:var(--navy);border-bottom:2px solid var(--orange)}
+.modes button{flex:1;padding:11px 6px;background:transparent;border:none;border-bottom:3px solid transparent;color:rgba(255,255,255,.7);font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:800;cursor:pointer}
+.modes button.on{color:#fff;border-bottom-color:var(--orange)}
+.pane{display:none;background:var(--navy);padding:12px}
+.pane.on{display:block}
+.pane .lab{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.62);font-weight:700;margin:6px 0 4px}
+.pane select,.pane input{width:100%;padding:12px 13px;font-family:'DM Sans',sans-serif;font-size:.92rem;font-weight:600;border:none;border-radius:10px;color:var(--navy);background:#fff}
+.pane .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pane .hint{font-family:'DM Mono',monospace;font-size:.6rem;color:rgba(255,255,255,.62);margin-top:8px;line-height:1.6}
+.pane .go{margin-top:9px;width:100%;padding:12px;background:var(--orange);color:#fff;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.88rem;font-weight:800;cursor:pointer}
+.sugg{background:#fff;border-radius:10px;margin-top:6px;overflow:hidden}
+.sugg button{display:block;width:100%;text-align:left;padding:10px 13px;border:none;border-bottom:1px solid var(--border);background:#fff;font-family:'DM Sans',sans-serif;font-size:.84rem;color:var(--navy);cursor:pointer}
+.sugg button:hover{background:#fff4ea}
+.reach{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:9px 12px;background:var(--navy2);border-bottom:1px solid rgba(255,255,255,.12)}
+.reach .tl{font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.6);font-weight:700;width:100%}
+.tgl{padding:5px 11px;border:1.5px solid rgba(255,255,255,.3);border-radius:16px;background:transparent;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:#fff;cursor:pointer}
+.tgl.on{background:var(--orange);border-color:var(--orange)}
+#map{height:54vh;min-height:340px;background:#eef0f4}
+.mapnote{padding:8px 14px;background:var(--navy);color:rgba(255,255,255,.85);font-size:.76rem;line-height:1.5;border-bottom:2px solid var(--orange)}
+.mapnote b{color:var(--orange)}
+.sel{background:#fff;padding:12px 14px;border-bottom:1px solid var(--border)}
+.sel .st{font-size:1.05rem;font-weight:900;color:var(--navy);line-height:1.25}
+.sel .sl{font-family:'DM Mono',monospace;font-size:.64rem;color:var(--muted);margin-top:4px;line-height:1.6}
+.sharebar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:9px 14px;background:#fff;border-bottom:1px solid var(--border)}
+.sharebar .sb-t{font-family:'DM Mono',monospace;font-size:.64rem;color:var(--muted);flex:1 1 auto}
+.lnk{padding:6px 13px;border:1.5px solid var(--navy2);border-radius:16px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:var(--navy);cursor:pointer}
+.kpis2{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:1px;background:var(--border);border-bottom:1px solid var(--border)}
+.kpi2{background:#fff;padding:10px 8px;text-align:left;border:none;border-left:3px solid transparent;cursor:pointer;font-family:'DM Sans',sans-serif}
+.kpi2:hover{background:#fff8f2}
+.kpi2 .n{font-family:'DM Mono',monospace;font-size:1.15rem;font-weight:800;color:var(--navy);line-height:1.1}
+.kpi2 .l{font-size:.62rem;font-weight:700;color:var(--muted);margin-top:3px;line-height:1.3}
+.kpi2.zero .n{color:#c8c4bb}
+.sec{background:#fff;border-bottom:1px solid var(--border)}
+.sec .sh{display:flex;align-items:center;gap:9px;width:100%;padding:12px 14px;background:#fff;border:none;border-left:4px solid var(--navy);text-align:left;cursor:pointer;font-family:'DM Sans',sans-serif}
+.sec .sh .t{flex:1;font-size:.86rem;font-weight:900;color:var(--navy)}
+.sec .sh .c{font-family:'DM Mono',monospace;font-size:.72rem;font-weight:800;color:var(--orange)}
+.sec .sh .ar{font-size:.7rem;color:var(--muted)}
+.sec .sb{display:none;padding:0 14px 6px}
+.sec.open .sb{display:block}
+.sec .note{font-size:.72rem;color:var(--muted);line-height:1.5;padding:2px 0 8px}
+.item{padding:8px 0 8px 11px;border-left:3px solid var(--orange);border-bottom:1px solid #f0ede8;margin-bottom:6px;background:#fbfaf8}
+.item .it{font-size:.82rem;font-weight:700;color:var(--navy);line-height:1.35}
+.item .is{font-family:'DM Mono',monospace;font-size:.63rem;color:#6b6760;margin-top:3px;line-height:1.55}
+.item a{color:var(--navy);text-decoration:none;border-bottom:1px solid var(--orange)}
+.cats{display:flex;gap:5px;flex-wrap:wrap;padding:0 0 9px}
+.cat{font-family:'DM Mono',monospace;font-size:.58rem;padding:3px 8px;border-radius:12px;background:#eef0f4;color:var(--navy);font-weight:700}
+.cat b{color:var(--orange)}
+.more{display:block;width:100%;margin:6px 0 10px;padding:10px;background:#fff;border:2px solid var(--navy2);border-radius:20px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:800;color:var(--navy);cursor:pointer}
+.loadbar{padding:8px 14px;background:#fff4ea;border-bottom:1px solid var(--border);font-family:'DM Mono',monospace;font-size:.66rem;color:#a65a00;line-height:1.5}
+.loadbar.done{background:var(--off);color:var(--muted)}
+.empty{padding:22px 14px;font-size:.84rem;color:#555;line-height:1.6;background:#fff;border-bottom:1px solid var(--border)}
+.regkey{padding:11px 14px;background:var(--off);border-bottom:1px solid var(--border);font-size:.77rem;line-height:1.6;color:#444}
+.regkey b{color:var(--navy);display:block;margin-bottom:5px}
+.regkey dt{font-family:'DM Mono',monospace;font-size:.63rem;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);font-weight:700;margin-top:7px}
+.regkey dd{font-size:.75rem;color:#555;line-height:1.55}
+.foot a{color:#6b6760;border-bottom:1px solid var(--orange);text-decoration:none}
+.leaflet-container{font-family:'DM Sans',sans-serif}
+.pop .pt{font-weight:800;color:#0d1b4b;font-size:.84rem;line-height:1.3}
+.pop .ps{font-family:'DM Mono',monospace;font-size:.62rem;color:#555;margin-top:3px;line-height:1.5}
+.pop .pl{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.06em;color:#f47920;font-weight:700;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="crumb"><a href="/">CB6 &amp; Beyond</a></div>
+    <h1>Block Finder <span>Brooklyn CB6</span></h1>
+    <div class="nbs">Park Slope, Carroll Gardens, Cobble Hill, Red Hook, Gowanus, and the Columbia Street Waterfront District</div>
+  </div>
+  <div class="intro">
+    <b>Pick any stretch of any street in the district and see everything on it.</b> Choose a street and the two cross streets that bound the part you care about, or search an address, or drop a pin on the map. The block lights up, and every record the site holds for that stretch comes back: street work and building permits, 311 reports, crime complaints, liquor licenses, landmarked buildings, every lot with its zoning, businesses, block parties, schools, parks, and the rest.
+  </div>
+  <div class="modes">
+    <button type="button" class="on" id="mStreet">Pick a street</button>
+    <button type="button" id="mAddr">Search an address</button>
+    <button type="button" id="mPin">Drop a pin</button>
+  </div>
+  <div class="pane on" id="pStreet">
+    <div class="lab">Street</div>
+    <select id="stSel"><option value="">Choose a street&hellip;</option></select>
+    <div class="row">
+      <div><div class="lab">From</div><select id="fromSel" disabled><option value="">Cross street</option></select></div>
+      <div><div class="lab">To</div><select id="toSel" disabled><option value="">Cross street</option></select></div>
+    </div>
+    <button type="button" class="go" id="goStreet">Show this stretch</button>
+    <div class="hint">Example: 14th Street, from 4th Avenue to 8th Avenue. Pick the same cross street twice for a single corner. Leave To on "end of street" for everything from the From street onward.</div>
+  </div>
+  <div class="pane" id="pAddr">
+    <div class="lab">Address or place</div>
+    <input id="addrQ" type="search" autocomplete="off" placeholder="e.g. 250 Baltic Street">
+    <div class="sugg" id="sugg" style="display:none"></div>
+    <div class="hint">Type a house number and street. The search is biased to Brooklyn CB6 but will find any NYC address.</div>
+  </div>
+  <div class="pane" id="pPin">
+    <div class="hint" style="margin-top:0">Tap anywhere on the map below to drop a pin. Drag the pin to move it. Everything within the radius comes back.</div>
+    <button type="button" class="go" id="clearPin">Clear pin</button>
+  </div>
+  <div class="reach" id="reach">
+    <span class="tl" id="reachLab">Reach from the street</span>
+    <button type="button" class="tgl" data-r="45">Just the roadway and frontage</button>
+    <button type="button" class="tgl on" data-r="75">Both sides of the block</button>
+    <button type="button" class="tgl" data-r="130">A block either way</button>
+  </div>
+  <div class="mapnote" id="mapnote">Choose a stretch above, or tap the map to drop a pin.</div>
+  <div id="map"></div>
+  <div id="results"></div>
+  <div class="regkey">
+    <b>How to read this.</b>
+    <dl>
+      <dt>The stretch</dt>
+      <dd>Streets and cross streets come from the Department of Transportation street centerline. When you pick From and To, the tool walks the centerline between those two intersections and highlights it in orange. Everything within the reach you chose of that line is counted.</dd>
+      <dt>Reach</dt>
+      <dd>A Brooklyn block is roughly 60 to 80 meters deep from the street to the middle of the block. "Both sides of the block" catches the buildings fronting the street on both sides. "A block either way" reaches into the neighboring blocks too.</dd>
+      <dt>Live records</dt>
+      <dd>311 reports (last 12 months), NYPD crime complaints (this year to date), and lots with zoning are pulled live from NYC Open Data each time you pick a stretch. Everything else is from this site's own data files, refreshed nightly.</dd>
+      <dt>Placement</dt>
+      <dd>Every record is placed by its own coordinates. Nothing here is summed from precinct or district totals.</dd>
+    </dl>
+  </div>
+  <div class="nav">
+    <a href="/citywide-search.html">&#128269; Address search</a>
+    <a href="/permits-cb6.html">&#128679; Street work</a>
+    <a href="/landmarks-cb6.html">&#127963; Landmarks</a>
+    <a href="/311.html">&#128222; 311</a>
+    <a href="/publicsafety/">&#128737; Public safety</a>
+  </div>
+  <div class="foot" id="foot"></div>
+</div>
+<script>
+(function(){
+'use strict';
+var TOKEN='HvFoIfzodzpRML7a1104Ca2tM';
+var MPD_LAT=111320, MPD_LON=84400;
+var NET=null, LAY=null, map=null, base=null;
+var stLayer=null, hiLayer=null, bufLayer=null, ptLayer=null, pin=null, cbLayer=null;
+var mode='street', reach=75, pinReach=150;
+var sel=null; // {kind:'street'|'addr'|'pin', geom:[[lon,lat]...] or point, label, sub}
+var live={n311:null,crime:null,lots:null};
+var liveReq=0;
+var openSecs={};
+var COLORS={liquor:'#8c2f6b',health:'#2e6b30',culture:'#6b3fa0',food:'#0f7b6c',biz:'#b3541e',dob:'#2145a8',dot:'#e0473c',resurf:'#7a7a7a',events:'#c98b1a',parties:'#f47920',lpc:'#0d1b4b',lift:'#9b2226',citibike:'#1f5fd6',subway:'#111',schools:'#ff8c00',library:'#5a3e1b',fdny:'#d0021b',polls:'#3a3a9c',parks:'#2a8a3a',markets:'#5e9c2a',n311:'#f47920',crime:'#b00020',lots:'#6b6760'};
+var LIVEDEF=[
+  {id:'n311',label:'311 reports (12 months)',note:'Service requests to 311 in the last 12 months, placed by the coordinates on each report.',u:'/311.html'},
+  {id:'crime',label:'Crime complaints (this year)',note:'NYPD complaint records, year to date, placed by the coordinates on each complaint. NYPD offsets some sensitive locations.',u:'/publicsafety/'},
+  {id:'lots',label:'Lots and zoning',note:'Every tax lot from PLUTO with its zoning district, land use, owner of record, year built and floors.',u:'/landuse-zoning.html'}
+];
+var LU={'01':'One and two family','02':'Multi-family walk-up','03':'Multi-family elevator','04':'Mixed residential and commercial','05':'Commercial and office','06':'Industrial and manufacturing','07':'Transportation and utility','08':'Public facilities and institutions','09':'Open space and recreation','10':'Parking','11':'Vacant land'};
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function fmt(n){return Number(n).toLocaleString('en-US');}
+function title(s){return String(s||'').toLowerCase().replace(/\b[a-z]/g,function(c){return c.toUpperCase();}).replace(/\b(\d+)(St|Nd|Rd|Th)\b/g,function(m,a,b){return a+b.toLowerCase();});}
+
+// ---------- geometry ----------
+function toM(p){return [ (p[0]+73.99)*MPD_LON, (p[1]-40.68)*MPD_LAT ];}
+function distPtSeg(p,a,b){
+  var px=p[0],py=p[1],ax=a[0],ay=a[1],bx=b[0],by=b[1];
+  var dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy,t=0;
+  if(l2>0){t=((px-ax)*dx+(py-ay)*dy)/l2;t=Math.max(0,Math.min(1,t));}
+  var x=ax+t*dx,y=ay+t*dy;return Math.hypot(px-x,py-y);
+}
+function distToPath(p,pathM){
+  var best=Infinity;
+  for(var i=0;i<pathM.length;i++){var ln=pathM[i];for(var j=0;j<ln.length-1;j++){var d=distPtSeg(p,ln[j],ln[j+1]);if(d<best)best=d;}}
+  return best;
+}
+function bboxOf(lines,padM){
+  var w=Infinity,e=-Infinity,s=Infinity,n=-Infinity;
+  lines.forEach(function(ln){ln.forEach(function(p){if(p[0]<w)w=p[0];if(p[0]>e)e=p[0];if(p[1]<s)s=p[1];if(p[1]>n)n=p[1];});});
+  return {w:w-padM/MPD_LON,e:e+padM/MPD_LON,s:s-padM/MPD_LAT,n:n+padM/MPD_LAT};
+}
+
+// ---------- street network ----------
+var stSegs={}, stAxis={};
+function buildIndex(){
+  NET.segs.forEach(function(s,i){s.i=i;(stSegs[s.st]=stSegs[s.st]||[]).push(s);});
+}
+function axisFor(sti){
+  if(stAxis[sti])return stAxis[sti];
+  var pts=[];stSegs[sti].forEach(function(s){pts.push(toM(s.g[0]));pts.push(toM(s.g[s.g.length-1]));});
+  var mx=0,my=0;pts.forEach(function(p){mx+=p[0];my+=p[1];});mx/=pts.length;my/=pts.length;
+  var sxx=0,sxy=0,syy=0;pts.forEach(function(p){var dx=p[0]-mx,dy=p[1]-my;sxx+=dx*dx;sxy+=dx*dy;syy+=dy*dy;});
+  var th=0.5*Math.atan2(2*sxy,sxx-syy);var ax=[Math.cos(th),Math.sin(th)];
+  stAxis[sti]={m:[mx,my],a:ax};return stAxis[sti];
+}
+function proj(sti,pLL){var A=axisFor(sti),p=toM(pLL);return (p[0]-A.m[0])*A.a[0]+(p[1]-A.m[1])*A.a[1];}
+function crossStreets(sti){
+  var name=NET.streets[sti],seen={},out=[];
+  stSegs[sti].forEach(function(s){[s.a,s.b].forEach(function(n){
+    (NET.cross[n]||[]).forEach(function(c){if(c===name)return;var k=c;if(!seen[k]){seen[k]={name:c,p:[],nodes:[]};out.push(seen[k]);}
+      seen[k].p.push(proj(sti,NET.nodes[n]));seen[k].nodes.push(n);});
+  });});
+  out.forEach(function(c){c.pm=c.p.reduce(function(a,b){return a+b;},0)/c.p.length;});
+  out.sort(function(a,b){return a.pm-b.pm;});
+  return out;
+}
+function pathBetween(sti,fromNodes,toNodes){
+  var segs=stSegs[sti],adj={};
+  segs.forEach(function(s){(adj[s.a]=adj[s.a]||[]).push([s.b,s]);(adj[s.b]=adj[s.b]||[]).push([s.a,s]);});
+  var toSet={};toNodes.forEach(function(n){toSet[n]=1;});
+  var prev={},q=[];fromNodes.forEach(function(n){prev[n]=null;q.push(n);});
+  while(q.length){var n=q.shift();if(toSet[n]){var path=[],x=n;while(prev[x]){path.push(prev[x][1]);x=prev[x][0];}return path;}
+    (adj[n]||[]).forEach(function(e){if(!(e[0] in prev)){prev[e[0]]=[n,e[1]];q.push(e[0]);}});}
+  return null;
+}
+function segsInRange(sti,lo,hi){
+  var tol=25;return stSegs[sti].filter(function(s){var pa=proj(sti,s.g[0]),pb=proj(sti,s.g[s.g.length-1]);return Math.min(pa,pb)>=lo-tol&&Math.max(pa,pb)<=hi+tol;});
+}
+function selectStretch(sti,fromName,toName){
+  var cs=crossStreets(sti),byName={};cs.forEach(function(c){byName[c.name]=c;});
+  var f=byName[fromName];if(!f)return null;
+  var t=toName?byName[toName]:null;
+  var segs=[];
+  if(t&&t.name!==f.name){
+    var p=pathBetween(sti,f.nodes,t.nodes);
+    var lo=Math.min(f.pm,t.pm),hi=Math.max(f.pm,t.pm);
+    var rng=segsInRange(sti,lo,hi);
+    var seen={};(p||[]).concat(rng).forEach(function(s){if(!seen[s.i]){seen[s.i]=1;segs.push(s);}});
+  } else if(t&&t.name===f.name){
+    segs=[];
+  } else {
+    var lo2=f.pm;segs=segsInRange(sti,lo2,Infinity);
+  }
+  var lines=segs.map(function(s){return s.g;});
+  var geomKind='line';
+  if(!lines.length){lines=[[NET.nodes[f.nodes[0]]]];geomKind='point';}
+  var hn=[];segs.forEach(function(s){(s.hn||[]).forEach(function(h){var v=parseInt(h,10);if(v)hn.push(v);});});
+  var hnTxt=hn.length?('House numbers '+Math.min.apply(null,hn)+' to '+Math.max.apply(null,hn)):'';
+  return {kind:'street',lines:lines,geomKind:geomKind,label:NET.streets[sti]+(t&&t.name!==f.name?' from '+f.name+' to '+t.name:(t?' at '+f.name:' from '+f.name+' to the end')),
+    sub:(segs.length?segs.length+' centerline segment'+(segs.length!==1?'s':'')+'. ':'')+hnTxt,
+    st:sti,from:fromName,to:toName||''};
+}
+
+// ---------- map ----------
+function initMap(){
+  map=L.map('map',{scrollWheelZoom:false}).setView([40.677,-73.995],13);
+  base=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:19}).addTo(map);
+  fetch('/data/cb6_boundary_exact.geojson').then(function(r){return r.json();}).then(function(g){
+    cbLayer=L.geoJSON(g,{style:{color:'#0d1b4b',weight:2,fill:false,dashArray:'4 3',opacity:.7}}).addTo(map);
+  });
+  map.on('click',function(e){if(mode==='pin')setPin(e.latlng);});
+  hiLayer=L.layerGroup().addTo(map);bufLayer=L.layerGroup().addTo(map);ptLayer=L.layerGroup().addTo(map);
+}
+function setPin(latlng){
+  if(!pin){pin=L.marker(latlng,{draggable:true}).addTo(map);pin.on('dragend',function(){applyPin(pin.getLatLng());});}
+  else pin.setLatLng(latlng);
+  applyPin(latlng);
+}
+function applyPin(ll){
+  sel={kind:'pin',lines:[[[ll.lng,ll.lat]]],geomKind:'point',label:'Pin at '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5),sub:'',lat:ll.lat,lng:ll.lng};
+  run();
+}
+function clearPin(){if(pin){map.removeLayer(pin);pin=null;}sel=null;hiLayer.clearLayers();bufLayer.clearLayers();ptLayer.clearLayers();$('results').innerHTML='';$('mapnote').innerHTML='Tap the map to drop a pin.';}
+
+// ---------- run ----------
+function currentReach(){return sel&&sel.kind==='street'?reach:pinReach;}
+function run(){
+  if(!sel||!LAY)return;
+  var R=currentReach();
+  var linesM=sel.lines.map(function(ln){return ln.map(toM);});
+  var isPt=sel.geomKind==='point';
+  hiLayer.clearLayers();bufLayer.clearLayers();ptLayer.clearLayers();
+  if(isPt){
+    var c=sel.lines[0][0];
+    bufLayer.addLayer(L.circle([c[1],c[0]],{radius:R,color:'#f47920',weight:2,fillColor:'#f47920',fillOpacity:.12}));
+    if(sel.kind!=='pin')hiLayer.addLayer(L.circleMarker([c[1],c[0]],{radius:7,color:'#fff',weight:2,fillColor:'#f47920',fillOpacity:1}));
+    map.fitBounds(L.latLng(c[1],c[0]).toBounds(R*2.6));
+  } else {
+    var ll=sel.lines.map(function(ln){return ln.map(function(p){return [p[1],p[0]];});});
+    bufLayer.addLayer(L.polyline(ll,{color:'#f47920',weight:Math.max(14,R/2.2),opacity:.16,lineCap:'round',lineJoin:'round'}));
+    var pl=L.polyline(ll,{color:'#f47920',weight:6,opacity:.95,lineCap:'round'});hiLayer.addLayer(pl);
+    map.fitBounds(pl.getBounds().pad(.35));
+  }
+  var found={},total=0;
+  LAY.layers.forEach(function(L0){
+    var hits=[];
+    L0.items.forEach(function(it){
+      var d;
+      if(L0.kind==='ln'&&it.g&&it.g.length>1){
+        var gM=it.g.map(toM);var best=Infinity;
+        gM.forEach(function(p){var dd=distToPath(p,linesM);if(dd<best)best=dd;});
+        linesM.forEach(function(ln){ln.forEach(function(p){var dd=distToPath(p,[gM]);if(dd<best)best=dd;});});
+        d=best;
+      } else {
+        var p=toM(it.g?it.g[0]:[it.x,it.y]);d=distToPath(p,linesM);
+      }
+      if(d<=R){it._d=d;hits.push(it);}
+    });
+    hits.sort(function(a,b){return a._d-b._d;});
+    found[L0.id]=hits;total+=hits.length;
+    hits.forEach(function(it){
+      var c=it.g&&it.g.length>1?null:(it.g?it.g[0]:[it.x,it.y]);
+      var pop='<div class="pop"><div class="pt">'+esc(it.t)+'</div><div class="ps">'+esc(it.s)+'</div><div class="pl">'+esc(L0.label)+'</div></div>';
+      if(c){ptLayer.addLayer(L.circleMarker([c[1],c[0]],{radius:5,color:'#fff',weight:1,fillColor:COLORS[L0.id]||'#333',fillOpacity:.9}).bindPopup(pop));}
+      else{ptLayer.addLayer(L.polyline(it.g.map(function(p){return [p[1],p[0]];}),{color:COLORS[L0.id]||'#333',weight:4,opacity:.8}).bindPopup(pop));}
+    });
+  });
+  $('mapnote').innerHTML='<b>'+esc(sel.label)+'</b>. '+fmt(total)+' records in the site\'s own data within '+R+' m'+(sel.sub?'. '+esc(sel.sub):'')+'. Loading live 311, crime and lots&hellip;';
+  live={n311:null,crime:null,lots:null};
+  render(found);
+  writeHash();
+  loadLive(linesM,R,found);
+}
+
+function loadLive(linesM,R,found){
+  var my=++liveReq;
+  var bb=bboxOf(sel.lines,R+5);
+  var w="latitude > "+bb.s.toFixed(6)+" AND latitude < "+bb.n.toFixed(6)+" AND longitude > "+bb.w.toFixed(6)+" AND longitude < "+bb.e.toFixed(6);
+  var since=new Date();since.setFullYear(since.getFullYear()-1);var sinceIso=since.toISOString().slice(0,19);
+  function q(ds,params){params.$$app_token=TOKEN;var qs=Object.keys(params).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);}).join('&');
+    return fetch('https://data.cityofnewyork.us/resource/'+ds+'.json?'+qs).then(function(r){return r.ok?r.json():[];}).catch(function(){return [];});}
+  function clip(rows){return rows.filter(function(r){var lat=parseFloat(r.latitude),lon=parseFloat(r.longitude);if(isNaN(lat))return false;var d=distToPath(toM([lon,lat]),linesM);if(d<=R){r._d=d;return true;}return false;}).sort(function(a,b){return a._d-b._d;});}
+  Promise.all([
+    q('erm2-nwe9',{'$where':w+" AND created_date > '"+sinceIso+"'",'$select':'unique_key,created_date,complaint_type,descriptor,incident_address,status,agency,latitude,longitude','$order':'created_date DESC','$limit':'8000'}),
+    q('5uac-w243',{'$where':w,'$select':'cmplnt_num,cmplnt_fr_dt,ofns_desc,pd_desc,law_cat_cd,prem_typ_desc,latitude,longitude','$order':'cmplnt_fr_dt DESC','$limit':'4000'}),
+    q('64uk-42ks',{'$where':w,'$select':'address,bbl,block,lot,zonedist1,zonedist2,overlay1,spdist1,landuse,ownername,yearbuilt,numfloors,unitsres,unitstotal,bldgclass,lotarea,bldgarea,builtfar,residfar,commfar,histdist,landmark,latitude,longitude','$limit':'3000'})
+  ]).then(function(res){
+    if(my!==liveReq)return;
+    live.n311=clip(res[0]);live.crime=clip(res[1]);live.lots=clip(res[2]);
+    live.lots.forEach(function(r){var c=[r.latitude,r.longitude];ptLayer.addLayer(L.circleMarker([parseFloat(r.latitude),parseFloat(r.longitude)],{radius:3.5,color:'#fff',weight:1,fillColor:COLORS.lots,fillOpacity:.8}).bindPopup(lotPop(r)));});
+    live.crime.forEach(function(r){ptLayer.addLayer(L.circleMarker([parseFloat(r.latitude),parseFloat(r.longitude)],{radius:5,color:'#fff',weight:1,fillColor:COLORS.crime,fillOpacity:.9}).bindPopup('<div class="pop"><div class="pt">'+esc(title(r.ofns_desc))+'</div><div class="ps">'+esc(title(r.pd_desc))+' · '+esc(title(r.law_cat_cd))+' · '+esc(String(r.cmplnt_fr_dt||'').slice(0,10))+'</div><div class="pl">Crime complaint</div></div>'));});
+    var total=0;Object.keys(found).forEach(function(k){total+=found[k].length;});
+    total+=live.n311.length+live.crime.length+live.lots.length;
+    $('mapnote').innerHTML='<b>'+esc(sel.label)+'</b>. '+fmt(total)+' records within '+R+' m: '+fmt(live.lots.length)+' lots, '+fmt(live.n311.length)+' 311 reports in 12 months, '+fmt(live.crime.length)+' crime complaints this year, and '+fmt(total-live.n311.length-live.crime.length-live.lots.length)+' from the site\'s own layers.'+(sel.sub?' '+esc(sel.sub):'');
+    render(found);
+  });
+}
+function lotPop(r){
+  return '<div class="pop"><div class="pt">'+esc(title(r.address))+'</div><div class="ps">'+esc(r.zonedist1||'')+(r.zonedist2?'/'+esc(r.zonedist2):'')+(r.overlay1?' '+esc(r.overlay1):'')+(r.spdist1?' · '+esc(r.spdist1):'')+' · '+esc(LU[r.landuse]||'Land use '+r.landuse)+'<br>'+(r.yearbuilt&&r.yearbuilt!=='0'?'Built '+esc(r.yearbuilt)+' · ':'')+esc(String(parseFloat(r.numfloors)||0))+' floors · '+esc(r.unitsres||'0')+' res. units · owner '+esc(title(r.ownername))+(r.histdist?'<br>'+esc(r.histdist):'')+(r.landmark?'<br>Landmark: '+esc(r.landmark):'')+'</div><div class="pl">Block '+esc(r.block)+' Lot '+esc(r.lot)+'</div></div>';
+}
+
+// ---------- results ----------
+var PAGE=30;
+function render(found){
+  var h='';
+  h+='<div class="sel"><div class="st">'+esc(sel.label)+'</div><div class="sl">'+(sel.sub?esc(sel.sub)+' · ':'')+'Reach '+currentReach()+' m from the '+(sel.geomKind==='point'?'point':'centerline')+'.</div></div>';
+  h+='<div class="sharebar"><span class="sb-t" id="sbText">'+esc(location.href)+'</span><button type="button" class="lnk" id="shareView">Copy link to this view</button></div>';
+  var kp='';
+  LIVEDEF.forEach(function(d){var v=live[d.id];kp+='<button type="button" class="kpi2'+(v&&!v.length?' zero':'')+'" data-sec="'+d.id+'"><div class="n">'+(v==null?'&hellip;':fmt(v.length))+'</div><div class="l">'+esc(d.label)+'</div></button>';});
+  LAY.layers.forEach(function(L0){var n=found[L0.id].length;kp+='<button type="button" class="kpi2'+(n?'':' zero')+'" data-sec="'+L0.id+'"><div class="n">'+fmt(n)+'</div><div class="l">'+esc(L0.label)+'</div></button>';});
+  h+='<div class="kpis2">'+kp+'</div>';
+  h+=liveSec('n311',live.n311,function(r){return {t:title(r.complaint_type)+(r.descriptor?': '+title(r.descriptor):''),s:[title(r.incident_address),r.agency,String(r.created_date||'').slice(0,10),r.status].filter(Boolean).join(' · ')};},function(rows){return topCats(rows,function(r){return r.complaint_type;});});
+  h+=liveSec('crime',live.crime,function(r){return {t:title(r.ofns_desc),s:[title(r.pd_desc),title(r.law_cat_cd),title(r.prem_typ_desc),String(r.cmplnt_fr_dt||'').slice(0,10)].filter(Boolean).join(' · ')};},function(rows){return topCats(rows,function(r){return r.law_cat_cd;})+topCats(rows,function(r){return r.ofns_desc;});});
+  h+=liveSec('lots',live.lots,function(r){return {t:title(r.address),s:[(r.zonedist1||'')+(r.zonedist2?'/'+r.zonedist2:'')+(r.overlay1?' '+r.overlay1:''),LU[r.landuse]||'',(r.yearbuilt&&r.yearbuilt!=='0'?'built '+r.yearbuilt:''),(parseFloat(r.numfloors)||0)+' fl',(r.unitsres||'0')+' res. units','owner '+title(r.ownername),r.histdist||'',r.landmark?'landmark: '+r.landmark:'','Block '+r.block+' Lot '+r.lot].filter(Boolean).join(' · '),u:'/citywide-search.html?q='+encodeURIComponent(title(r.address)+', Brooklyn')};},function(rows){return topCats(rows,function(r){return r.zonedist1;})+topCats(rows,function(r){return LU[r.landuse]||'Other';});});
+  LAY.layers.forEach(function(L0){
+    var rows=found[L0.id];
+    h+='<div class="sec'+(openSecs[L0.id]?' open':'')+'" id="sec-'+L0.id+'"><button type="button" class="sh" data-sec="'+L0.id+'"><span class="t">'+esc(L0.label)+'</span><span class="c">'+fmt(rows.length)+'</span><span class="ar">'+(openSecs[L0.id]?'&#9650;':'&#9660;')+'</span></button><div class="sb">';
+    if(L0.note)h+='<div class="note">'+esc(L0.note)+'</div>';
+    if(!rows.length)h+='<div class="note">None within reach.</div>';
+    h+=itemList(L0.id,rows.map(function(it){return {t:it.t,s:it.s,u:it.u};}));
+    h+='</div></div>';
+  });
+  $('results').innerHTML=h;
+  Array.prototype.forEach.call(document.querySelectorAll('.kpi2,.sh'),function(b){b.addEventListener('click',function(){var id=b.getAttribute('data-sec');var s=$('sec-'+id);if(!s)return;
+    if(b.classList.contains('kpi2')){openSecs[id]=true;s.classList.add('open');s.scrollIntoView({behavior:'smooth',block:'start'});}
+    else{openSecs[id]=!openSecs[id];s.classList.toggle('open',openSecs[id]);}
+    var ar=s.querySelector('.ar');if(ar)ar.innerHTML=openSecs[id]?'&#9650;':'&#9660;';});});
+  Array.prototype.forEach.call(document.querySelectorAll('.more'),function(b){b.addEventListener('click',function(){var box=b.parentNode;Array.prototype.forEach.call(box.querySelectorAll('.item[data-hidden]'),function(it){it.removeAttribute('data-hidden');it.style.display='';});b.remove();});});
+  $('shareView').addEventListener('click',function(){var u=location.href;if(navigator.clipboard)navigator.clipboard.writeText(u).then(function(){$('shareView').textContent='Copied';setTimeout(function(){$('shareView').textContent='Copy link to this view';},1600);});});
+}
+function liveSec(id,rows,mapFn,catsFn){
+  var d=LIVEDEF.filter(function(x){return x.id===id;})[0];
+  var h='<div class="sec'+(openSecs[id]?' open':'')+'" id="sec-'+id+'"><button type="button" class="sh" data-sec="'+id+'"><span class="t">'+esc(d.label)+'</span><span class="c">'+(rows==null?'&hellip;':fmt(rows.length))+'</span><span class="ar">'+(openSecs[id]?'&#9650;':'&#9660;')+'</span></button><div class="sb">';
+  h+='<div class="note">'+esc(d.note)+' <a href="'+d.u+'">More &rarr;</a></div>';
+  if(rows==null)h+='<div class="note">Loading from NYC Open Data&hellip;</div>';
+  else if(!rows.length)h+='<div class="note">None within reach.</div>';
+  else{h+=catsFn(rows);h+=itemList(id,rows.map(mapFn));}
+  return h+'</div></div>';
+}
+function topCats(rows,fn){
+  var c={};rows.forEach(function(r){var k=title(fn(r)||'Unknown');c[k]=(c[k]||0)+1;});
+  var ks=Object.keys(c).sort(function(a,b){return c[b]-c[a];}).slice(0,8);
+  return '<div class="cats">'+ks.map(function(k){return '<span class="cat"><b>'+fmt(c[k])+'</b> '+esc(k)+'</span>';}).join('')+'</div>';
+}
+function itemList(id,items){
+  var h='';items.forEach(function(it,i){
+    var hid=i>=PAGE;
+    h+='<div class="item"'+(hid?' data-hidden="1" style="display:none"':'')+'><div class="it">'+(it.u?'<a href="'+esc(it.u)+'">'+esc(it.t)+'</a>':esc(it.t))+'</div>'+(it.s?'<div class="is">'+esc(it.s)+'</div>':'')+'</div>';
+  });
+  if(items.length>PAGE)h+='<button type="button" class="more">Show all '+fmt(items.length)+'</button>';
+  return h;
+}
+
+// ---------- UI ----------
+function setMode(m){
+  mode=m;['Street','Addr','Pin'].forEach(function(k){$('m'+k).classList.toggle('on',m===k.toLowerCase());$('p'+k).classList.toggle('on',m===k.toLowerCase());});
+  var isSt=m==='street';
+  $('reachLab').textContent=isSt?'Reach from the street':'Radius around the point';
+  Array.prototype.forEach.call(document.querySelectorAll('#reach .tgl'),function(b){
+    var r=isSt?parseInt(b.getAttribute('data-r'),10):parseInt(b.getAttribute('data-pr'),10);
+    b.classList.toggle('on',r===(isSt?reach:pinReach));
+  });
+  if(m==='pin')$('mapnote').innerHTML='Tap the map to drop a pin.';
+}
+function fillStreets(){
+  var s=$('stSel');NET.streets.forEach(function(n,i){var o=document.createElement('option');o.value=i;o.textContent=n;s.appendChild(o);});
+}
+function fillCross(){
+  var sti=parseInt($('stSel').value,10);var f=$('fromSel'),t=$('toSel');
+  f.innerHTML='<option value="">Cross street</option>';t.innerHTML='<option value="">End of street</option>';
+  if(isNaN(sti)){f.disabled=t.disabled=true;return;}
+  var cs=crossStreets(sti);
+  cs.forEach(function(c){var o=document.createElement('option');o.value=c.name;o.textContent=c.name;f.appendChild(o);var o2=o.cloneNode(true);t.appendChild(o2);});
+  f.disabled=t.disabled=false;
+}
+function goStreet(){
+  var sti=parseInt($('stSel').value,10);if(isNaN(sti))return;
+  var from=$('fromSel').value;if(!from){var cs=crossStreets(sti);if(cs.length){$('fromSel').value=cs[0].name;from=cs[0].name;}else return;}
+  var to=$('toSel').value;
+  var s=selectStretch(sti,from,to);if(!s)return;sel=s;setMode('street');run();
+  $('map').scrollIntoView({behavior:'smooth',block:'start'});
+}
+var suggT=null;
+function addrInput(){
+  var q=$('addrQ').value.trim();clearTimeout(suggT);
+  if(q.length<3){$('sugg').style.display='none';return;}
+  suggT=setTimeout(function(){
+    fetch('https://geosearch.planninglabs.nyc/v2/autocomplete?text='+encodeURIComponent(q)+'&focus.point.lat=40.677&focus.point.lon=-73.995&size=6').then(function(r){return r.json();}).then(function(j){
+      var fs=(j.features||[]);var box=$('sugg');box.innerHTML='';
+      if(!fs.length){box.style.display='none';return;}
+      fs.forEach(function(f){var b=document.createElement('button');b.type='button';var p=f.properties;b.textContent=(p.label||p.name||'').replace(', New York, NY, USA','');b.addEventListener('click',function(){pickAddr(f);});box.appendChild(b);});
+      box.style.display='block';
+    }).catch(function(){});
+  },220);
+}
+function pickAddr(f){
+  var c=f.geometry.coordinates,p=f.properties;var lab=(p.label||p.name||'').replace(', New York, NY, USA','');
+  $('addrQ').value=lab;$('sugg').style.display='none';
+  var inCb6=(p.pad_bbl||'').indexOf('3')===0;
+  sel={kind:'addr',lines:[[[c[0],c[1]]]],geomKind:'point',label:lab,sub:(p.pad_bbl?'BBL '+p.pad_bbl+'. ':'')+(p.pad_bin?'BIN '+p.pad_bin+'. ':''),lat:c[1],lng:c[0],q:lab};
+  setMode('addr');run();$('map').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function writeHash(){
+  if(!sel)return;var h='';
+  if(sel.kind==='street')h='st='+encodeURIComponent(NET.streets[sel.st])+'&from='+encodeURIComponent(sel.from)+(sel.to?'&to='+encodeURIComponent(sel.to):'')+'&r='+reach;
+  else if(sel.kind==='addr')h='q='+encodeURIComponent(sel.q)+'&pin='+sel.lat.toFixed(6)+','+sel.lng.toFixed(6)+'&r='+pinReach;
+  else h='pin='+sel.lat.toFixed(6)+','+sel.lng.toFixed(6)+'&r='+pinReach;
+  history.replaceState(null,'','#'+h);var t=$('sbText');if(t)t.textContent=location.href;
+}
+function readHash(){
+  var h=location.hash.replace(/^#/,'');if(!h)return false;var o={};h.split('&').forEach(function(kv){var i=kv.indexOf('=');if(i>0)o[decodeURIComponent(kv.slice(0,i))]=decodeURIComponent(kv.slice(i+1));});
+  if(o.st){var sti=NET.streets.indexOf(o.st);if(sti<0)return false;if(o.r)reach=parseInt(o.r,10)||reach;$('stSel').value=sti;fillCross();$('fromSel').value=o.from||'';$('toSel').value=o.to||'';goStreet();return true;}
+  if(o.pin){var a=o.pin.split(',');var lat=parseFloat(a[0]),lng=parseFloat(a[1]);if(isNaN(lat))return false;if(o.r)pinReach=parseInt(o.r,10)||pinReach;
+    if(o.q){$('addrQ').value=o.q;sel={kind:'addr',lines:[[[lng,lat]]],geomKind:'point',label:o.q,sub:'',lat:lat,lng:lng,q:o.q};setMode('addr');run();}
+    else{setMode('pin');setPin(L.latLng(lat,lng));}
+    return true;}
+  return false;
+}
+function wire(){
+  $('mStreet').addEventListener('click',function(){setMode('street');});
+  $('mAddr').addEventListener('click',function(){setMode('addr');setTimeout(function(){$('addrQ').focus();},50);});
+  $('mPin').addEventListener('click',function(){setMode('pin');});
+  $('stSel').addEventListener('change',fillCross);
+  $('goStreet').addEventListener('click',goStreet);
+  $('toSel').addEventListener('change',function(){if($('fromSel').value)goStreet();});
+  $('addrQ').addEventListener('input',addrInput);
+  $('addrQ').addEventListener('keydown',function(e){if(e.key==='Enter'){var b=$('sugg').querySelector('button');if(b)b.click();}});
+  $('clearPin').addEventListener('click',clearPin);
+  var prs=[90,150,260];
+  Array.prototype.forEach.call(document.querySelectorAll('#reach .tgl'),function(b,i){
+    b.setAttribute('data-pr',prs[i]);
+    b.addEventListener('click',function(){
+      if(mode==='street')reach=parseInt(b.getAttribute('data-r'),10);else pinReach=prs[i];
+      Array.prototype.forEach.call(document.querySelectorAll('#reach .tgl'),function(x){x.classList.remove('on');});b.classList.add('on');
+      if(sel)run();
+    });
+  });
+}
+function load(){
+  initMap();wire();
+  Promise.all([fetch('/assets/blocks/cb6-streets.json').then(function(r){return r.json();}),fetch('/assets/blocks/cb6-layers.json').then(function(r){return r.json();})]).then(function(res){
+    NET=res[0];LAY=res[1];buildIndex();fillStreets();
+    var n=0;LAY.layers.forEach(function(l){n+=l.n;});
+    $('foot').innerHTML='Street centerline and cross streets from the NYC Department of Transportation centerline file ('+NET.streets.length+' streets in and around the district). '+
+      'Site layers ('+fmt(n)+' records, rebuilt '+esc(LAY.generated)+'): liquor licenses, DOB NOW permits, DOT street work permits, DOT resurfacing history, permitted events, block parties, LPC landmark sites and permits, LIFT housing sites, health services, culture, food access, Park Slope 5th Avenue BID businesses, Citi Bike, subway, schools, libraries, firehouses, poll sites, parks and farmers markets. '+
+      '311, NYPD complaints and PLUTO lots are queried live from NYC Open Data for the chosen stretch.<br>'+
+      'Questions or a correction: <a href="mailto:Mike@bkcb6.org">Mike Racioppo</a>';
+    if(!readHash())setMode('street');
+  });
+}
+load();
+})();
+</script>
+<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b6e9b47ba0cf416388d72db8edaf4198"}'></script><!-- End Cloudflare Web Analytics -->
+</body>
+</html>
