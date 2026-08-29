@@ -117,6 +117,12 @@
     return best ? [best[1], best[0]] : null;
   }
 
+  function withLabels(fn) {
+    if (window.MapLabels) return fn(window.MapLabels);
+    var s = document.querySelector('script[data-maplabels]');
+    if (!s) { s = document.createElement('script'); s.src = '/assets/map-labels.js?v=20260829a'; s.setAttribute('data-maplabels', '1'); document.head.appendChild(s); }
+    s.addEventListener('load', function () { if (window.MapLabels) fn(window.MapLabels); });
+  }
   function init(el) {
     if (typeof L === 'undefined' || !el || el.dataset.profileMapReady === 'true') return;
     el.dataset.profileMapReady = 'true';
@@ -238,6 +244,10 @@
           : { color: self.color, weight: 2.5, fillColor: '#f47920', fillOpacity: 0.14 }
       }).addTo(map);
       homeBounds = own.getBounds();
+      // neighborhoods, the district and the borough, so the map reads at a glance
+      var dl = bidSlug ? '' : chamber === 'council' ? 'Council District ' + district : chamber === 'assembly' ? 'Assembly District ' + district
+        : chamber === 'senate' ? 'Senate District ' + district : chamber === 'congress' ? 'NY-' + district : chamber === 'cb' ? 'Brooklyn CB' + district : chamber === 'borough' ? '' : '';
+      withLabels(function (ML) { ML.add(map, { bounds: homeBounds, district: dl, boroughs: chamber === 'borough' ? ['Brooklyn'] : undefined }); });
       // a BID is a small shape in a small frame, so it can sit tighter
       if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
       else map.fitBounds(homeBounds, { padding: bidSlug ? [8, 8] : [14, 14] });
