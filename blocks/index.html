@@ -278,18 +278,17 @@ var OVDEF=[
   {id:'nbhd',label:'Neighborhood names',sw:'#0d1b4b',on:true,custom:true},
   {id:'records',label:'Records found',sw:'#f47920',on:true,custom:true}
 ];
-var nbLayer=null;
+var nbLayer=null,CB6RING=null,nbPending=null;
+function inCb6(lon,lat){var poly=CB6RING;if(!poly)return true;var inside=false,n=poly.length,j=n-1;for(var i=0;i<n;i++){var xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];if(((yi>lat)!==(yj>lat))&&(lon<(xj-xi)*(lat-yi)/(yj-yi)+xi))inside=!inside;j=i;}return inside;}
+function placeNbhd(list){list.forEach(function(n){if(n.b!=='Brooklyn'||!inCb6(n.x,n.y))return;
+  nbLayer.addLayer(L.tooltip({permanent:true,direction:'center',className:'nbl',interactive:false}).setLatLng([n.y,n.x]).setContent(n.n));});}
 function buildOverlays(){
   OVDEF.forEach(function(d){
     if(d.custom){
       if(d.id==='records'){OV[d.id]=ptLayer;return;}
       if(d.id==='nbhd'){
         nbLayer=L.layerGroup();OV[d.id]=nbLayer;
-        fetch('/data/neighborhood-labels.json').then(function(r){return r.json();}).then(function(list){
-          var bb=[-74.022,-73.968,40.659,40.694];
-          list.forEach(function(n){if(n.b!=='Brooklyn'||n.x<bb[0]||n.x>bb[1]||n.y<bb[2]||n.y>bb[3])return;
-            nbLayer.addLayer(L.tooltip({permanent:true,direction:'center',className:'nbl',interactive:false}).setLatLng([n.y,n.x]).setContent(n.n));});
-        });
+        fetch('/data/neighborhood-labels.json').then(function(r){return r.json();}).then(function(list){if(CB6RING)placeNbhd(list);else nbPending=list;});
         if(d.on)nbLayer.addTo(map);return;
       }
     }
@@ -323,8 +322,16 @@ function addOffice(){
 function initMap(){
   map=L.map('map',{scrollWheelZoom:false}).setView([40.677,-73.995],13);
   base=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:19}).addTo(map);
+  map.createPane('mask');map.getPane('mask').style.zIndex=420;map.getPane('mask').style.pointerEvents='none';
   fetch('/data/cb6_boundary_exact.geojson').then(function(r){return r.json();}).then(function(g){
-    cbLayer=L.geoJSON(g,{style:{color:'#0d1b4b',weight:3,fill:false,opacity:.85}}).addTo(map);
+    var f=g.features?g.features[0]:g;var ring=f.geometry.coordinates[0];
+    CB6RING=ring;
+    var world=[[-90,-180],[-90,180],[90,180],[90,-180]];
+    var hole=ring.map(function(c){return [c[1],c[0]];});
+    L.polygon([world,hole],{pane:'mask',stroke:false,fillColor:'#f8f7f4',fillOpacity:.82,interactive:false}).addTo(map);
+    cbLayer=L.geoJSON(g,{style:{color:'#0d1b4b',weight:3,fill:false,opacity:.9}}).addTo(map);
+    map.fitBounds(cbLayer.getBounds().pad(.02));
+    if(nbPending){placeNbhd(nbPending);nbPending=null;}
   });
   map.on('click',function(e){if(mode==='pin')setPin(e.latlng);});
   hiLayer=L.layerGroup().addTo(map);bufLayer=L.layerGroup().addTo(map);ptLayer=L.layerGroup().addTo(map);
