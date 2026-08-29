@@ -303,6 +303,7 @@
       var h3 = host.querySelector('.rcm-card h3');
       if (h3 && titles[d.contests[ci].k]) h3.textContent = titles[d.contests[ci].k];
       var ballot = /Question/.test(d.contests[ci].k);
+      var rcv = /^p25:/.test(d.contests[ci].k) && !ballot;
       var totals = names.map(function () { return 0; }), won = names.map(function () { return 0; }), cast = 0, byCB = {};
       d.features.forEach(function (f) {
         var p = f.properties, row = null;
@@ -380,14 +381,14 @@
         (otherWon > 0 ? '<span><i style="background:' + GREY + '"></i>Others</span>' : '');
 
       /* first-choice results */
-      host.querySelector('[data-reseye]').textContent = ballot ? 'How ' + areaName.charAt(0).toUpperCase() + areaName.slice(1) + ' voted' : 'First-choice results';
+      host.querySelector('[data-reseye]').textContent = rcv ? 'First-choice results' : 'How ' + areaName.charAt(0).toUpperCase() + areaName.slice(1) + ' voted';
       resEl.innerHTML = order.filter(function (i) { return totals[i]; }).map(function (i) {
         var share = 100 * totals[i] / cast, txt = fmt(totals[i]) + ' &middot; ' + share.toFixed(1) + '%';
         return '<div class="n">' + esc(/write/i.test(names[i]) ? 'Write-in' : last(names[i])) + '</div><div class="tr">' +
           '<i style="width:' + Math.max(share, 1.2).toFixed(1) + '%;background:' + colorOf(i) + '">' + (share >= 30 ? txt : '') + '</i>' +
           (share < 30 ? '<b style="left:' + Math.max(share, 1.2).toFixed(1) + '%">' + txt + '</b>' : '') + '</div>';
       }).join('');
-      totEl.textContent = fmt(cast) + (ballot ? ' votes on this question' : ' ballots with a first choice') + ' \u00b7 ' + eds.length + ' election districts';
+      totEl.textContent = fmt(cast) + (ballot ? ' votes on this question' : rcv ? ' ballots with a first choice' : ' votes') + ' \u00b7 ' + eds.length + ' election districts';
 
       /* directory */
       for (var t = 0; t < 3; t++) {
