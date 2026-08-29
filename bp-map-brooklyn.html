@@ -921,7 +921,7 @@ function removeOverlayLayer(name){
     if(bikeRoutesLayer) map.removeLayer(bikeRoutesLayer);
     return;
   }
-  var lyrMap = {nypd:nypdLayer,fire:fireLayer,subway:subwayLayer,citibike:citibikeLayer,busroutes:busRoutesLayer,busstops:busStopsLayer,speedlimits:speedLimitsLayer,landuse:landUseLotsLayer,zoning:zoningLayer,parks:parksLayer,schools:schoolsLayer,childcare:childcareLayer,libraries:librariesLayer,schooldistricts:schoolDistrictsLayer,gowanus:gowanusLayer,rents:rentsLayer,cc:ccLayer,assembly:assemblyLayer,senate:senateLayer,congress:congressLayer,historic:window._historicLayer};
+  var lyrMap = {hospitals:window.hospitalsLayer,health:window.healthLayer,nypd:nypdLayer,fire:fireLayer,subway:subwayLayer,citibike:citibikeLayer,busroutes:busRoutesLayer,busstops:busStopsLayer,speedlimits:speedLimitsLayer,landuse:landUseLotsLayer,zoning:zoningLayer,parks:parksLayer,schools:schoolsLayer,childcare:childcareLayer,libraries:librariesLayer,schooldistricts:schoolDistrictsLayer,gowanus:gowanusLayer,rents:rentsLayer,cc:ccLayer,assembly:assemblyLayer,senate:senateLayer,congress:congressLayer,historic:window._historicLayer};
   if(lyrMap[name]) map.removeLayer(lyrMap[name]);
   if(name==='cc'){ ccLayer=null; window.ccLayer=null; }
   if(name==='assembly'){ assemblyLayer=null; window.assemblyLayer=null; }
@@ -1218,6 +1218,24 @@ function buildChildcare(d){ buildResourcePoints(d,'childcare','childcareLayer');
 
 /* Citywide schools and childcare: data/eduhub/all.json carries 3,003 schools
    and 4,267 childcare sites with coordinates. Both toggles were empty stubs. */
+/* NYS Health Facility General Information, Kings County: 673 sites with
+   coordinates, of which 129 are hospitals, extension clinics or satellites. */
+function loadHealthFacilities(hospOnly){
+  var name = hospOnly ? 'hospitals' : 'health';
+  var layerVar = hospOnly ? 'hospitalsLayer' : 'healthLayer';
+  function build(){
+    var rows = (window._healthFac||[]).filter(function(x){
+      return hospOnly ? /^HOSP/.test(x.kind) : true;
+    });
+    window['_overlayData_'+name] = rows;
+    buildResourcePoints(rows, name, layerVar);
+  }
+  if(window._healthFac){ build(); return; }
+  fetch('/data/health-facilities-brooklyn.json').then(function(r){return r.json();}).then(function(d){
+    window._healthFac = d; build();
+  }).catch(function(){});
+}
+
 function loadEduhub(cat, name, layerVar){
   function build(){
     var rows = (window._eduhubAll||[]).filter(function(x){ return x.c===cat && x.lat && x.lon; })
@@ -1856,6 +1874,8 @@ function toggleOverlay(name, on){
     landuse:()=>{ if(window._overlayData_landuse) buildLandUsePolys(window._overlayData_landuse); else loadLandUseArcGIS(); },
     zoning:()=>{ loadZoningArcGIS(); },
     parks:()=>loadOverlay('parks','data/topmap-parks-'+_boroKey+'.geojson',buildParks),
+    hospitals:()=>loadHealthFacilities(true),
+    health:()=>loadHealthFacilities(false),
     schools:()=>loadEduhub('school','schools','schoolsLayer'),
     childcare:()=>loadEduhub('childcare','childcare','childcareLayer'),
     libraries:()=>buildLibraries(),
@@ -1966,6 +1986,8 @@ function buildSubToggles(){
     {k:'citibike',c:'#0d9488',tc:'#fff',l:'🚲 Citi Bike'},
     {k:'rents',c:'#be123c',tc:'#fff',l:'🏠 Rents'},
     {k:'gowanus',c:'#65a30d',tc:'#fff',l:'🏗 Gowanus Rezoning'},
+    {k:'hospitals',c:'#b91c1c',tc:'#fff',l:'🏥 Hospitals'},
+    {k:'health',c:'#0891b2',tc:'#fff',l:'⚕️ Health Facilities'},
   ];
   var overlayLabel=document.createElement('span');
   overlayLabel.style.cssText='font-size:.58rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#777;margin:0 2px 0 0;flex-shrink:0';
