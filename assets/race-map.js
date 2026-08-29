@@ -39,7 +39,7 @@
   }
 
   function donut(slices, big, small) {
-    var R = 60, r = 40, C = 75, tot = 0, i;
+    var R = 66, r = 50, C = 75, tot = 0, i;
     for (i = 0; i < slices.length; i++) tot += slices[i].v;
     var h = '<svg viewBox="0 0 150 150" role="img">', a0 = -Math.PI / 2;
     for (i = 0; i < slices.length; i++) {
@@ -55,8 +55,8 @@
       }
       a0 = a1;
     }
-    h += '<text x="' + C + '" y="' + (C + 4) + '" text-anchor="middle" class="big">' + esc(big) + '</text>';
-    h += '<text x="' + C + '" y="' + (C + 20) + '" text-anchor="middle" class="sm">' + esc(small) + '</text>';
+    h += '<text x="' + C + '" y="' + (C + 6) + '" text-anchor="middle" class="big">' + esc(big) + '</text>';
+    h += '<text x="' + C + '" y="' + (C + 22) + '" text-anchor="middle" class="sm">' + esc(small) + '</text>';
     return h + '</svg>';
   }
 
@@ -109,8 +109,8 @@
       '.rcm-dn{display:grid;grid-template-columns:150px minmax(0,1fr);gap:14px;align-items:center;margin-top:12px}',
       '@media(max-width:400px){.rcm-dn{grid-template-columns:1fr}}',
       '.rcm-dn svg{width:150px;height:150px;display:block}',
-      '.rcm-dn .big{font-family:"DM Mono",monospace;font-weight:700;font-size:1.3rem;fill:' + NAVY + '}',
-      '.rcm-dn .sm{font-family:"DM Mono",monospace;font-size:.5rem;fill:#374151;text-transform:uppercase;letter-spacing:.08em}',
+      '.rcm-dn .big{font-family:"DM Mono",monospace;font-weight:700;font-size:34px;fill:' + NAVY + '}',
+      '.rcm-dn .sm{font-family:"DM Mono",monospace;font-size:9px;fill:#374151;text-transform:uppercase;letter-spacing:.06em}',
       '.rcm-dn .lg{display:flex;flex-direction:column;gap:8px;font-size:.9rem;color:' + NAVY + '}',
       '.rcm-dn .lg i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:8px;vertical-align:-1px}',
       '.rcm-dn .lg b{font-family:"DM Mono",monospace;font-size:1rem}',
@@ -298,7 +298,7 @@
       var otherWon = eds.length - won[lead] - won[second];
       var sl = [{ v: won[lead], c: colorOf(lead) }, { v: won[second], c: colorOf(second) }];
       if (otherWon > 0) sl.push({ v: otherWon, c: GREY });
-      dnEl.innerHTML = donut(sl, won[lead] + ' of ' + eds.length, last(names[lead])) +
+      dnEl.innerHTML = donut(sl, String(won[lead]), 'of ' + eds.length + ' \u00b7 ' + last(names[lead])) +
         '<div class="lg"><span><i style="background:' + colorOf(lead) + '"></i>' + esc(names[lead]) + ' <b>' + won[lead] + '</b></span>' +
         '<span><i style="background:' + colorOf(second) + '"></i>' + esc(names[second]) + ' <b>' + won[second] + '</b></span>' +
         (otherWon > 0 ? '<span><i style="background:' + GREY + '"></i>Others <b>' + otherWon + '</b></span>' : '') + '</div>';
