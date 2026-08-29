@@ -313,7 +313,6 @@ var OVDEF=[
   {id:'all-lpc',label:'All landmark permits',sw:'#0d1b4b',on:false,custom:true,layer:'lpc'},
   {id:'all-resurf',label:'All resurfacing',sw:'#7a7a7a',on:false,custom:true,layer:'resurf'},
   {id:'gov',label:'Elected officials\' offices',sw:'#0d1b4b',on:false,custom:true},
-  {id:'nbhd',label:'Neighborhood names',sw:'#0d1b4b',on:true,custom:true},
   {id:'records',label:'Records found',sw:'#f47920',on:true,custom:true}
 ];
 var GOV=[
@@ -364,6 +363,8 @@ function inCb6(lon,lat){var poly=CB6RING;if(!poly)return true;var inside=false,n
 function placeNbhd(list){list.forEach(function(n){if(n.b!=='Brooklyn'||!inCb6(n.x,n.y))return;
   nbLayer.addLayer(L.tooltip({permanent:true,direction:'center',className:'nbl',interactive:false}).setLatLng([n.y,n.x]).setContent(n.n));});}
 function buildOverlays(){
+  nbLayer=L.layerGroup().addTo(map);
+  fetch('/data/neighborhood-labels.json').then(function(r){return r.json();}).then(function(list){if(CB6RING)placeNbhd(list);else nbPending=list;});
   OVDEF.forEach(function(d){
     if(d.custom){
       if(d.id==='records'){OV[d.id]=ptLayer;return;}
@@ -372,11 +373,7 @@ function buildOverlays(){
         var ic=L.divIcon({className:'gov',iconSize:[30,30],iconAnchor:[15,15],popupAnchor:[0,-14],html:'<img class="oi" src="'+o.icon+'" alt="">'});
         gg.addLayer(L.marker([o.lat,o.lng],{icon:ic,pane:'hi',zIndexOffset:800}).bindPopup('<div class="pop"><div class="pt">'+esc(o.name)+'</div><div class="ps">'+esc(o.title)+'<br>'+esc(o.addr)+(o.share?'<br>Represents about '+o.share+' of CB6':'')+'</div><div class="pl"><a href="/'+o.slug+'/">Profile &rarr;</a></div></div>'));});
         return;}
-      if(d.id==='nbhd'){
-        nbLayer=L.layerGroup();OV[d.id]=nbLayer;
-        fetch('/data/neighborhood-labels.json').then(function(r){return r.json();}).then(function(list){if(CB6RING)placeNbhd(list);else nbPending=list;});
-        if(d.on)nbLayer.addTo(map);return;
-      }
+
     }
     var g=L.layerGroup();OV[d.id]=g;if(d.on)g.addTo(map);
     fetch(d.src).then(function(r){return r.json();}).then(function(gj){
@@ -406,7 +403,7 @@ function toggleOverlay(id){
 }
 function fillLayer(d){
   var g=OV[d.id];d.filled=true;var L0=LAY.layers.filter(function(x){return x.id===d.layer;})[0];var rng=dateRange();
-    if(L0)L0.items.forEach(function(it){if(!inDate(it,rng))return;var pop='<div class="pop"><div class="pt">'+esc(it.t)+'</div><div class="ps">'+esc(it.s)+'</div><div class="pl">'+esc(L0.label)+'</div></div>';
+    if(L0)L0.items.forEach(function(it){if(DATED[d.layer]&&!inDate(it,rng))return;var pop='<div class="pop"><div class="pt">'+esc(it.t)+'</div><div class="ps">'+esc(it.s)+'</div><div class="pl">'+esc(L0.label)+'</div></div>';
       if(it.g&&it.g.length>1)g.addLayer(L.polyline(it.g.map(function(p){return [p[1],p[0]];}),{color:it.c||d.sw,weight:3,opacity:.7}).bindPopup(pop));
       else{var c=it.g?it.g[0]:[it.x,it.y];g.addLayer(L.circleMarker([c[1],c[0]],{radius:3.5,color:'#fff',weight:.8,fillColor:d.sw,fillOpacity:.75}).bindPopup(pop));}});
 }
