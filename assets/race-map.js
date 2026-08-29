@@ -73,6 +73,7 @@
       '.rcm-sw{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}',
       '.rcm-sw button{font:inherit;font-size:.78rem;font-weight:800;padding:8px 12px;border-radius:999px;border:1.5px solid ' + NAVY + ';background:#fff;color:' + NAVY + ';cursor:pointer}',
       '.rcm-sw button.on{background:' + NAVY + ';color:#fff}',
+      '.rcm-sw button small{font-family:"DM Mono",monospace;font-size:.6rem;font-weight:500;opacity:.75}',
       '.rcm-card{background:#fff;border:1px solid ' + BORDER + ';border-radius:12px;padding:14px 14px 12px;margin:0 0 12px;box-shadow:0 2px 10px rgba(13,27,75,.05)}',
       '.rcm-card h3{margin:0 0 6px;color:' + NAVY + ';font-size:1.02rem;line-height:1.3}',
       '.rcm-card p{margin:0 0 12px;color:#4b5563;font-size:.84rem;line-height:1.6}',
@@ -259,8 +260,11 @@
       if (!idx.length) { blurbEl.textContent = 'That contest is not in this file.'; return; }
       if (idx.length > 1) {
         chipsRow = document.createElement('div'); chipsRow.className = 'rcm-sw';
+        var grps = {}; idx.forEach(function (i) { grps[d.contests[i].k.slice(0, 3)] = 1; });
+        var many = Object.keys(grps).length > 1, GN = { p25: 'June \u201925', g25: 'Nov \u201925', p26: 'June \u201926' };
         chipsRow.innerHTML = idx.map(function (i) {
-          return '<button type="button" data-ci="' + i + '">' + esc(d.contests[i].k.slice(4)) + '</button>';
+          var k = d.contests[i].k;
+          return '<button type="button" data-ci="' + i + '">' + (many ? '<small>' + GN[k.slice(0, 3)] + '</small> ' : '') + esc(k.slice(4)) + '</button>';
         }).join('');
         host.insertBefore(chipsRow, host.firstChild);
         chipsRow.addEventListener('click', function (ev) {
@@ -312,6 +316,10 @@
       cntEl.textContent = n + ' EDs';
     }
 
+    host.rcmSelect = function (key) {
+      if (!data) return;
+      for (var i = 0; i < data.contests.length; i++) if (data.contests[i].k === key && i !== ci) build(i);
+    };
     function build(which) {
       var d = data; ci = which;
       names = d.contests[ci].c; eds = []; byE = {}; lyrByE = {}; maxM = 0;
@@ -324,6 +332,7 @@
       });
       var h3 = host.querySelector('.rcm-card h3');
       if (h3 && titles[d.contests[ci].k]) h3.textContent = titles[d.contests[ci].k];
+      host.dispatchEvent(new CustomEvent('rcm:contest', { bubbles: true, detail: { key: d.contests[ci].k } }));
       var ballot = /Question/.test(d.contests[ci].k);
       var rcv = /^p25:/.test(d.contests[ci].k) && !ballot;
       var totals = names.map(function () { return 0; }), won = names.map(function () { return 0; }), cast = 0, byCB = {};
@@ -514,6 +523,7 @@
     if (!window.L) return;
     Array.prototype.forEach.call(document.querySelectorAll('[data-race-map]'), init);
   }
+  window.RaceMap = { init: init, boot: boot };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();
