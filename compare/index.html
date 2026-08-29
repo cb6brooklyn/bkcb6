@@ -1,0 +1,191 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Compare districts — crime, arrests, tickets, cameras &amp; 311 | bkcb6.app</title>
+<meta name="description" content="Search every district data page and compare reported crime, arrests, parking tickets, camera violations, moving violations and 311 reports across any combination of districts and boroughs.">
+<link rel="canonical" href="https://bkcb6.app/compare/">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,700;9..40,900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#0d1b4b;--orange:#f47920;--border:#e5e2db;--muted:#6b6862;--bg:#f8f7f4}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#1b1b1a;font-family:'DM Sans',sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:22px 16px 70px}
+h1{font-size:1.9rem;margin:0 0 4px}
+.sub{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--muted)}
+.card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:16px}
+h2{font-size:1.05rem;margin:0 0 10px}
+select,button,input{font:inherit}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+select{padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-size:.88rem;max-width:100%}
+.pick{padding:9px 12px;border:1.5px solid var(--navy);border-radius:8px;background:var(--navy);color:var(--orange);font-weight:800;cursor:pointer}
+.chips{margin-top:10px;line-height:2.3}
+.chip{display:inline-block;padding:5px 10px;border:1px solid var(--border);border-radius:99px;background:#fff8d6;font-size:.78rem;font-weight:700;margin:2px}
+.chip i{font-style:normal;cursor:pointer;margin-left:6px;color:var(--muted)}
+.tblwrap{overflow-x:auto;margin-top:12px}
+table{width:100%;border-collapse:collapse;font-size:.82rem;min-width:680px}
+th{text-align:right;font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 8px;border-bottom:2px solid var(--navy);white-space:nowrap}
+th:first-child{text-align:left}
+td{padding:8px;border-bottom:1px solid var(--border);vertical-align:top}
+td.n{font-family:'DM Mono',monospace;text-align:right;white-space:nowrap}
+td.n em{display:block;font-style:normal;font-size:.6rem;color:var(--muted)}
+td .lk{font-size:.66rem;font-family:'DM Mono',monospace;display:block;margin-top:2px}
+.note{font-family:'DM Mono',monospace;font-size:.64rem;color:var(--muted);line-height:1.7;margin-top:10px}
+.q{width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-size:.95rem}
+#results a{display:block;padding:8px 10px;border-bottom:1px solid var(--border);text-decoration:none;color:inherit}
+#results a:hover{background:#faf9f2}
+#results .k{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);display:block}
+.err{color:#a33;font-size:.85rem}
+</style></head><body>
+<div class="wrap">
+<div class="head"><div class="sub"><a href="/">bkcb6.app</a> &middot; <a href="/safety-districts.html">safety pages</a> &middot; <a href="/311-districts.html">311 pages</a></div>
+<h1>Compare districts</h1>
+<div class="sub">Crime &middot; arrests &middot; tickets &middot; cameras &middot; moving violations &middot; 311 &middot; any combination of districts and boroughs</div></div>
+
+<div class="card">
+<h2>All six datasets, side by side</h2>
+<div class="row">
+<select id="lay"></select>
+<select id="who"></select>
+<button class="pick" id="add">Add district</button>
+<select id="yr"></select>
+</div>
+<div class="chips" id="chips"></div>
+<div class="tblwrap" id="cmp"></div>
+<p class="note">Each record is placed by its own location. Corridor cameras and house-numberless tickets are spread along their street by length, so those figures include fractional shares. 311 reports are counted by the location the City mapped, not by a text label. 311 by police precinct and patrol sector is not published; those cells show a dash. Each district&rsquo;s own pages carry sources and remainders.</p>
+</div>
+
+<div class="card">
+<h2>Find a district data page</h2>
+<input class="q" type="search" id="q" placeholder="Type a district: 78th precinct, sector 76a, council 39, brooklyn cb 6, senate 26&hellip;" autocomplete="off">
+<div id="results"></div>
+</div>
+
+<div class="foot sub" style="margin-top:26px">Built by <a href="mailto:Mike@bkcb6.org">Mike Racioppo</a>, District Manager, Brooklyn Community Board 6.</div>
+</div>
+<script>
+var BORO={'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
+var LAYERS=[['boro','Borough'],['cd','Community district'],['council','Council district'],
+            ['senate','Senate district'],['assembly','Assembly district'],['precinct','Police precinct'],['sector','Patrol sector']];
+var DS=[['crime','Crime','/data/crime-rank.json'],['arrest','Arrests','/data/arrest-rank.json'],
+        ['ticket','Tickets','/data/ticket-rank.json'],['camera','Cameras','/data/camera-rank.json'],
+        ['mv','Moving viol.','/data/mv-rank.json'],['t11','311 reports',null]];
+var T11={city:'/data/311-city-rank.json',boro:'/data/311-city-rank.json',cd:'/33159by5-rank.json',
+         council:'/data/council-311-rank.json',senate:'/data/senate-311-rank.json',assembly:'/data/assembly-311-rank.json'};
+var CACHE={}, picked=[];
+function el(i){return document.getElementById(i)}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function fmt(n){return Math.round(n).toLocaleString('en-US')}
+function getJ(u){ if(CACHE[u]) return CACHE[u]; CACHE[u]=fetch(u).then(function(r){return r.json()}); return CACHE[u]; }
+function labelFor(layer,key){
+  if(layer==='boro') return BORO[key]||key;
+  if(layer==='cd'){var n=+key.slice(1);return (n<=18?BORO[key[0]]+' CB '+n:BORO[key[0]]+' area '+key)}
+  if(layer==='council') return 'Council '+key;
+  if(layer==='senate') return 'Senate '+key;
+  if(layer==='assembly') return 'Assembly '+key;
+  if(layer==='precinct') return key+' Pct';
+  if(layer==='sector') return 'Sector '+key;
+  return key;
+}
+/* 311 key translation per layer */
+function t11key(layer,key){
+  if(layer==='boro') return BORO[key];
+  if(layer==='cd'){var n=+key.slice(1);if(n>18)return null;
+    return ('0'+n).slice(-2)+' '+BORO[key[0]].toUpperCase();}
+  return String(+key);
+}
+function t11get(layer,key,y){
+  var f=T11[layer==='boro'?'boro':layer];
+  if(!f) return Promise.resolve(null);
+  return getJ(f).then(function(j){
+    var yr=j.years[y]; if(!yr) return null;
+    if(layer==='boro'||false){ return yr[t11key(layer,key)] != null ? yr[t11key(layer,key)] : null; }
+    var k=t11key(layer,key);
+    return k!=null && yr[k]!=null ? yr[k] : null;
+  }).catch(function(){return null});
+}
+LAYERS.forEach(function(l){var o=document.createElement('option');o.value=l[0];o.textContent=l[1];el('lay').appendChild(o)});
+function fillWho(){
+  getJ('/data/crime-rank.json').then(function(j){
+    var layer=el('lay').value;
+    var keys=Object.keys(j.years[layer]['2025']||{});
+    keys.sort(function(a,b){
+      if(layer==='cd'&&a[0]!==b[0]) return a.localeCompare(b);
+      var na=parseInt(a.replace(/\D/g,''),10)||0, nb=parseInt(b.replace(/\D/g,''),10)||0;
+      return (na-nb)||a.localeCompare(b);
+    });
+    el('who').innerHTML=keys.map(function(k){return '<option value="'+esc(k)+'">'+esc(labelFor(layer,k))+'</option>'}).join('');
+    if(!el('yr').options.length){
+      var ys=Object.keys(j.years.cd).filter(function(y){return +y>=2020}).sort();
+      el('yr').innerHTML=ys.map(function(y){return '<option'+(y==='2025'?' selected':'')+'>'+y+'</option>'}).join('');
+    }
+  });
+}
+el('lay').addEventListener('change',fillWho);
+el('yr').addEventListener('change',render);
+el('add').addEventListener('click',function(){
+  var layer=el('lay').value,key=el('who').value;
+  if(!key) return;
+  for(var i=0;i<picked.length;i++) if(picked[i][0]===layer&&picked[i][1]===key) return;
+  picked.push([layer,key]); drawChips(); render();
+});
+function drawChips(){
+  el('chips').innerHTML=picked.map(function(p,i){
+    return '<span class="chip">'+esc(labelFor(p[0],p[1]))+'<i data-i="'+i+'">&times;</i></span>';
+  }).join('');
+  Array.prototype.forEach.call(el('chips').querySelectorAll('i'),function(x){
+    x.addEventListener('click',function(){picked.splice(+x.getAttribute('data-i'),1);drawChips();render()});
+  });
+}
+function safetyLink(layer,key){
+  if(layer==='boro') return '/safety/borough/'+(BORO[key]||'').toLowerCase().replace(' ','')+'/';
+  if(layer==='cd') return '/safety/community-board/'+key+'/';
+  if(layer==='council') return '/safety/council/'+key+'/';
+  if(layer==='senate') return '/safety/senate/'+key+'/';
+  if(layer==='assembly') return '/safety/assembly/'+key+'/';
+  if(layer==='precinct') return '/precinct/'+String(parseInt(key,10))+'/';
+  if(layer==='sector') return '/sector/'+key.toLowerCase()+'/';
+  return null;
+}
+function render(){
+  if(!picked.length){el('cmp').innerHTML='';return}
+  var y=el('yr').value;
+  Promise.all(DS.slice(0,5).map(function(d){return getJ(d[2])})).then(function(js){
+    Promise.all(picked.map(function(p){return t11get(p[0],p[1],y)})).then(function(t11s){
+      var head='<tr><th>District</th>'+DS.map(function(d){return '<th>'+esc(d[1])+' '+esc(y)+'</th>'}).join('')+'</tr>';
+      var body=picked.map(function(p,pi){
+        var layer=p[0],key=p[1];
+        var cells=js.map(function(j){
+          var v=(j.years[layer]&&j.years[layer][y]&&j.years[layer][y][key]);
+          var pv=(j.years[layer]&&j.years[layer][String(+y-1)]&&j.years[layer][String(+y-1)][key]);
+          var dtxt=(v!=null&&pv)?((v-pv)/pv*100):null;
+          return '<td class="n">'+(v==null?'&ndash;':fmt(v)+(dtxt==null?'':'<em>'+(dtxt>0?'+':'')+dtxt.toFixed(1)+'%</em>'))+'</td>';
+        }).join('');
+        var t=t11s[pi];
+        cells+='<td class="n">'+(t==null?'&ndash;':fmt(t))+'</td>';
+        var s=safetyLink(layer,key);
+        return '<tr><td><b>'+esc(labelFor(layer,key))+'</b>'+(s?'<a class="lk" href="'+s+'">open pages &rarr;</a>':'')+'</td>'+cells+'</tr>';
+      }).join('');
+      el('cmp').innerHTML='<table>'+head+'</table>'.replace('</table>',body+'</table>');
+    });
+  }).catch(function(){el('cmp').innerHTML='<p class="err">A dataset failed to load.</p>'});
+}
+/* directory of the district data pages */
+var IDX=null;
+fetch('/data/site-directory.json').then(function(r){return r.json()}).then(function(d){
+  IDX=d.filter(function(p){return ['311 by district','Safety by district','NYPD sector','NYPD precinct','Public safety'].indexOf(p.k)>=0});
+});
+el('q').addEventListener('input',function(){
+  if(!IDX) return;
+  var q=el('q').value.trim().toLowerCase();
+  if(!q){el('results').innerHTML='';return}
+  var toks=q.split(/\s+/), out=[];
+  for(var i=0;i<IDX.length;i++){
+    var hay=(IDX[i].t+' '+IDX[i].u).toLowerCase(), ok=true;
+    for(var j=0;j<toks.length;j++){ if(hay.indexOf(toks[j])<0){ok=false;break} }
+    if(ok){ out.push(IDX[i]); if(out.length>=40) break; }
+  }
+  el('results').innerHTML=out.map(function(p){
+    return '<a href="'+esc(p.u)+'"><b>'+esc(p.t)+'</b><span class="k">'+esc(p.k)+' &middot; '+esc(p.u)+'</span></a>';
+  }).join('');
+});
+fillWho();
+</script>
+</body></html>
