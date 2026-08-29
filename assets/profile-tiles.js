@@ -16,6 +16,7 @@
       '.ptile.go{background:' + c0 + ';border-color:' + c0 + '}.ptile.go .t{color:#fff}.ptile.go .d{color:rgba(255,255,255,.75)}.ptile .k{font-family:"DM Mono",monospace;font-size:.5rem;letter-spacing:.09em;text-transform:uppercase;color:#6b6760}.ptile.go .k{color:' + c1 + '}' +
       '.ptile.cb{border-top-color:' + c0 + ';background:#f4f6fb}.ptile.cb .k{color:' + c0 + '}' +
       '.ptiles .pn{font-size:.76rem;color:#6b6760;margin-top:6px;min-height:1em}' +
+      '.pbrief{padding:14px 18px 2px;font-size:.92rem;line-height:1.6;color:#1f2937}.pbrief p{margin:0 0 8px}.pbrief .bio p{margin:0 0 8px}.pbrief b{color:' + c0 + '}' +
       'details.pfold{border-top:1px solid #e5e2db}details.pfold>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:13px 18px;font-family:"DM Mono",monospace;font-size:.63rem;text-transform:uppercase;letter-spacing:.11em;color:' + c0 + ';font-weight:700}' +
       'details.pfold>summary::-webkit-details-marker{display:none}details.pfold>summary .arr{margin-left:auto;font-size:.7rem;transition:transform .15s}details.pfold[open]>summary .arr{transform:rotate(180deg)}details.pfold>summary+.sec{border-top:0;padding-top:4px}details.pfold>summary+.sec>h2{display:none}' +
       '.phead{background:' + c0 + '!important}.btn.hot{background:' + c1 + '!important;border-color:' + c1 + '!important}';
@@ -34,6 +35,13 @@
     el.className = 'ptiles';
     el.innerHTML = '<div class="ps"><input type="search" placeholder="Search this page" autocomplete="off" data-pq></div><div class="pn" data-pn></div><div class="pg" data-pg></div>';
     var grid = el.querySelector('[data-pg]'), q = el.querySelector('[data-pq]'), note = el.querySelector('[data-pn]');
+    // the short bio comes up top, under the banner and before the tiles
+    var brief = null;
+    Array.prototype.forEach.call(document.querySelectorAll('.sec'), function (sec) { var h = sec.querySelector('h2'); if (h && /^in brief$/i.test(h.textContent.trim())) brief = sec; });
+    var bio = brief ? brief.querySelector('.bio') : null;
+    if (bio) { var bx = document.createElement('div'); bx.className = 'pbrief'; bx.appendChild(bio); el.parentNode.insertBefore(bx, el); }
+    var cbd = document.querySelector('.cd-description');
+    if (cbd && !bio) { var ps = cbd.querySelectorAll('p'); var bx2 = document.createElement('div'); bx2.className = 'pbrief'; var txt = ''; Array.prototype.forEach.call(ps, function (pp, i) { if (i < 2) txt += '<p>' + pp.innerHTML + '</p>'; }); if (txt) { bx2.innerHTML = txt; el.parentNode.insertBefore(bx2, el); } }
     var entries = [];
     // quick links to the district's own pages
     [['elections', 'Election results', 'Every contest since 2025, by election district'], ['parks', 'Parks and activities', 'Every park, court, field, pool and market'], ['zoning', 'Land use, zoning and housing', 'Every tax lot, and the district map']].forEach(function (x) {
