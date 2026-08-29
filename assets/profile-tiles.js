@@ -56,7 +56,8 @@
     var secs = [];
     var n = el.nextElementSibling;
     while (n) { var nx = n.nextElementSibling; if (n.classList && n.classList.contains('sec') && n.querySelector('h2')) secs.push(n); n = nx; }
-    secs.forEach(function (sec) {
+    function foldSec(sec) {
+      if (sec.dataset.ptFolded) return; sec.dataset.ptFolded = '1';
       var h = sec.querySelector('h2'), title = h.textContent.trim();
       var d = document.createElement('details'); d.className = 'pfold';
       var sm = document.createElement('summary'); sm.innerHTML = esc(title) + '<span class="arr">&#9660;</span>';
@@ -65,6 +66,20 @@
       var b = document.createElement('button'); b.type = 'button'; b.className = 'ptile'; b.innerHTML = '<span class="k">Section</span><span class="t">' + esc(title) + '</span><span class="d">' + esc(tz) + '</span>';
       b.addEventListener('click', function () { d.open = true; setTimeout(function () { d.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60); });
       grid.appendChild(b); entries.push({ el: b, text: (title + ' ' + (sec.textContent || '')).replace(/\s+/g, ' ').toLowerCase(), fold: d });
+    }
+    secs.forEach(foldSec);
+    // sections other scripts add later (the related-officials block) get folded and tiled too
+    var wrap = el.closest('.pwrap') || document.body;
+    if (window.MutationObserver) new MutationObserver(function (ms) {
+      ms.forEach(function (m) { Array.prototype.forEach.call(m.addedNodes, function (nd) {
+        if (nd.nodeType === 1 && nd.classList && nd.classList.contains('sec') && nd.querySelector('h2') && !nd.closest('details.pfold')) { foldSec(nd); search(); }
+      }); });
+    }).observe(wrap, { childList: true });
+    // in-page anchors (the jump nav) open the fold they point at
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest('a[href^="#"]'); if (!a) return;
+      var t = document.getElementById(a.getAttribute('href').slice(1)); if (!t) return;
+      var d = t.closest('details.pfold'); if (d) d.open = true;
     });
     // community board pages fold their own sections already
     Array.prototype.forEach.call(document.querySelectorAll('.drop-section'), function (ds) {
