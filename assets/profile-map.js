@@ -11,7 +11,7 @@
     assembly: { label: 'Assembly districts', folder: 'assembly', color: '#7c3aed', count: 65 },
     senate: { label: 'Senate districts', folder: 'senate', color: '#0f766e', count: 28 },
     congress: { label: 'Congressional districts', folder: 'congress', color: '#b45309', count: 13 },
-    cb: { label: 'Community boards', folder: 'cb', color: '#be185d', count: 18 },
+    cb: { label: 'Community boards', folder: 'cb', color: '#be185d', count: 0, codes: ["101", "102", "103", "104", "105", "106", "107", "108", "109", "110", "111", "112", "201", "202", "203", "204", "205", "206", "207", "208", "209", "210", "211", "212", "301", "302", "303", "304", "305", "306", "307", "308", "309", "310", "311", "312", "313", "314", "315", "316", "317", "318", "401", "402", "403", "404", "405", "406", "407", "408", "409", "410", "411", "412", "413", "414", "501", "502", "503"] },
     borough: { label: 'Borough', folder: 'borough', color: '#0d1b4b', count: 1 }
   };
   // the chambers offered as overlays on any district page
@@ -251,7 +251,7 @@
       homeBounds = own.getBounds();
       // neighborhoods, the district and the borough, so the map reads at a glance
       var dl = bidSlug ? '' : chamber === 'council' ? 'Council District ' + district : chamber === 'assembly' ? 'Assembly District ' + district
-        : chamber === 'senate' ? 'Senate District ' + district : chamber === 'congress' ? 'NY-' + district : chamber === 'cb' ? 'Brooklyn CB' + district : chamber === 'borough' ? '' : '';
+        : chamber === 'senate' ? 'Senate District ' + district : chamber === 'congress' ? 'NY-' + district : chamber === 'cb' ? (district.length === 3 ? ({ '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island' })[district.charAt(0)] + ' CB' + parseInt(district.slice(1), 10) : 'Brooklyn CB' + district) : chamber === 'borough' ? '' : '';
       withLabels(function (ML) { ML.add(map, { bounds: homeBounds, district: dl, boroughs: chamber === 'borough' ? ['Brooklyn'] : undefined }); });
       // a BID is a small shape in a small frame, so it can sit tighter
       if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
@@ -286,10 +286,10 @@
           loaded = true;
           if (!homeBounds) return Promise.resolve();
           var jobs = [];
-          for (var i = 1; i <= c.count; i++) {
+          (c.codes || (function () { var r = []; for (var i = 1; i <= c.count; i++) r.push(i); return r; })()).forEach(function (i) {
             jobs.push(getJSON('/data/districts/' + c.folder + '-' + i + '.geojson')
               .catch(function () { return null; }));
-          }
+          });
           say('Loading ' + c.label.toLowerCase() + '\u2026');
           return Promise.all(jobs).then(function (all) {
             all.forEach(function (g) {
@@ -302,7 +302,8 @@
                 if (homeBounds && !homeBounds.intersects(lyr.getBounds())) return;
               } catch (e) { return; }
               var num = g.features[0].properties.district;
-              lyr.bindTooltip(k === 'cb' ? 'Brooklyn CB' + num : k === 'congress' ? 'NY-' + num : c.label.replace(' districts', '') + ' District ' + num, { sticky: true });
+              var BN = { '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island' };
+              lyr.bindTooltip(k === 'cb' ? (String(num).length === 3 ? BN[String(num).charAt(0)] + ' CB' + parseInt(String(num).slice(1), 10) : 'Brooklyn CB' + num) : k === 'congress' ? 'NY-' + num : c.label.replace(' districts', '') + ' District ' + num, { sticky: true });
               group.addLayer(lyr);
             });
             say('');
