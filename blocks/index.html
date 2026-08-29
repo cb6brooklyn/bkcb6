@@ -52,8 +52,8 @@
 .below .tgl{color:var(--navy);border-color:var(--border);background:#fff}
 .below .tgl.on{background:var(--navy);border-color:var(--navy);color:#fff}
 .office{background:transparent;border:none;box-shadow:none}
-.office .oi{width:44px;height:44px;border-radius:9px;border:2.5px solid #f47920;box-shadow:0 2px 8px rgba(13,27,75,.35);background:#fff;display:block}
-.office .ol{position:absolute;left:50%;transform:translateX(-50%);top:46px;white-space:nowrap;font-family:'DM Sans',sans-serif;font-size:.66rem;font-weight:900;color:#0d1b4b;background:#fff;padding:2px 7px;border-radius:10px;border:1.5px solid #f47920;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.office .oi{width:30px;height:30px;border-radius:7px;border:2px solid #f47920;box-shadow:0 2px 6px rgba(13,27,75,.35);background:#fff;display:block;object-fit:cover}
+.gov .oi{width:30px;height:30px;border-radius:50%;border:2px solid #0d1b4b;box-shadow:0 2px 6px rgba(13,27,75,.35);background:#fff;display:block;object-fit:cover}
 .nbl{background:transparent;border:none;box-shadow:none;font-family:'DM Sans',sans-serif;font-size:.74rem;font-weight:900;color:rgba(13,27,75,.62);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;text-shadow:0 1px 0 #fff,0 0 8px #fff,0 0 8px #fff}
 .nbl:before{display:none}
 .mapnote{padding:8px 14px;background:var(--navy);color:rgba(255,255,255,.85);font-size:.76rem;line-height:1.5;border-bottom:2px solid var(--orange)}
@@ -312,8 +312,20 @@ var OVDEF=[
   {id:'all-dob',label:'All building permits',sw:'#2145a8',on:false,custom:true,layer:'dob'},
   {id:'all-lpc',label:'All landmark permits',sw:'#0d1b4b',on:false,custom:true,layer:'lpc'},
   {id:'all-resurf',label:'All resurfacing',sw:'#7a7a7a',on:false,custom:true,layer:'resurf'},
+  {id:'gov',label:'Elected officials\' offices',sw:'#0d1b4b',on:false,custom:true},
   {id:'nbhd',label:'Neighborhood names',sw:'#0d1b4b',on:true,custom:true},
   {id:'records',label:'Records found',sw:'#f47920',on:true,custom:true}
+];
+var GOV=[
+  {name:'Shahana Hanif',title:'Council Member, District 39',addr:'197 Bond Street',lat:40.683471,lng:-73.986888,icon:'/site-icons/hanif-district-39.png',slug:'cmhanif',share:'65%'},
+  {name:'Alexa Avil\u00e9s',title:'Council Member, District 38',addr:'4417 4th Avenue',lat:40.64931,lng:-74.009233,icon:'/site-icons/council/cd38.png',slug:'cmaviles',share:'33%'},
+  {name:'Jo Anne Simon',title:'Assembly Member, District 52',addr:'341 Smith Street',lat:40.68031,lng:-73.994547,icon:'/site-icons/assembly/ad52.png',slug:'amsimon',share:'50%'},
+  {name:'Marcela Mitaynes',title:'Assembly Member, District 51',addr:'4907 4th Avenue',lat:40.646638,lng:-74.011975,icon:'/site-icons/assembly/ad51.png',slug:'ammitaynes',share:'34%'},
+  {name:'Robert C. Carroll',title:'Assembly Member, District 44',addr:'416 7th Avenue',lat:40.664232,lng:-73.984088,icon:'/site-icons/assembly/ad44.png',slug:'amcarroll',share:'15%'},
+  {name:'Andrew Gounardes',title:'State Senator, District 26',addr:'497 Carroll Street',lat:40.67704,lng:-73.98556,icon:'/site-icons/senate/sd26.png',slug:'sengounardes',share:'82%'},
+  {name:'Zellnor Myrie',title:'State Senator, District 20',addr:'1077 Nostrand Avenue',lat:40.661766,lng:-73.950502,icon:'/site-icons/senate/sd20.png',slug:'senmyrie',share:'17%'},
+  {name:'Dan Goldman',title:'U.S. Representative, NY-10',addr:'Industry City, 254 36th Street',lat:40.65623,lng:-74.007951,icon:'/site-icons/congress/cd10.png',slug:'congressional-district-10',share:'100%'},
+  {name:'Antonio Reynoso',title:'Brooklyn Borough President',addr:'209 Joralemon Street',lat:40.692768,lng:-73.990298,icon:'/site-icons/citywide/bpbrooklyn.png',slug:'bpbrooklyn',share:''}
 ];
 var nbLayer=null,CB6RING=null,nbPending=null;
 var DATED={dot:1,dob:1,lpc:1,resurf:1,events:1};
@@ -356,6 +368,10 @@ function buildOverlays(){
     if(d.custom){
       if(d.id==='records'){OV[d.id]=ptLayer;return;}
       if(d.layer){OV[d.id]=L.layerGroup();return;}
+      if(d.id==='gov'){var gg=L.layerGroup();OV[d.id]=gg;GOV.forEach(function(o){
+        var ic=L.divIcon({className:'gov',iconSize:[30,30],iconAnchor:[15,15],popupAnchor:[0,-14],html:'<img class="oi" src="'+o.icon+'" alt="">'});
+        gg.addLayer(L.marker([o.lat,o.lng],{icon:ic,pane:'hi',zIndexOffset:800}).bindPopup('<div class="pop"><div class="pt">'+esc(o.name)+'</div><div class="ps">'+esc(o.title)+'<br>'+esc(o.addr)+(o.share?'<br>Represents about '+o.share+' of CB6':'')+'</div><div class="pl"><a href="/'+o.slug+'/">Profile &rarr;</a></div></div>'));});
+        return;}
       if(d.id==='nbhd'){
         nbLayer=L.layerGroup();OV[d.id]=nbLayer;
         fetch('/data/neighborhood-labels.json').then(function(r){return r.json();}).then(function(list){if(CB6RING)placeNbhd(list);else nbPending=list;});
@@ -385,6 +401,7 @@ function toggleOverlay(id){
   var g=OV[id];
   if(d.layer&&g&&!d.filled&&LAY)fillLayer(d);
   if(g){if(d.on)g.addTo(map);else map.removeLayer(g);}
+  if(id==='gov'&&d.on){var b=L.latLngBounds(GOV.map(function(o){return [o.lat,o.lng];}));if(cbLayer)b.extend(cbLayer.getBounds());map.fitBounds(b.pad(.05));}
   Array.prototype.forEach.call(document.querySelectorAll('[data-ov="'+id+'"]'),function(b){b.classList.toggle('on',d.on);});
 }
 function fillLayer(d){
@@ -394,8 +411,8 @@ function fillLayer(d){
       else{var c=it.g?it.g[0]:[it.x,it.y];g.addLayer(L.circleMarker([c[1],c[0]],{radius:3.5,color:'#fff',weight:.8,fillColor:d.sw,fillOpacity:.75}).bindPopup(pop));}});
 }
 function addOffice(){
-  var ic=L.divIcon({className:'office',iconSize:[44,66],iconAnchor:[22,22],popupAnchor:[0,-18],html:'<img class="oi" src="/cb6-logo-square.png" alt="CB6"><span class="ol">CB6 office</span>'});
-  L.marker([40.686131,-73.994761],{icon:ic,zIndexOffset:900}).addTo(map).bindPopup('<div class="pop"><div class="pt">Brooklyn Community Board 6</div><div class="ps">250 Baltic Street, Brooklyn</div><div class="pl"><a href="/250baltic/">About the office &rarr;</a></div></div>');
+  var ic=L.divIcon({className:'office',iconSize:[30,30],iconAnchor:[15,15],popupAnchor:[0,-14],html:'<img class="oi" src="/cb6-logo-square.png" alt="CB6">'});
+  L.marker([40.686131,-73.994761],{icon:ic,zIndexOffset:900,pane:'hi'}).addTo(map).bindPopup('<div class="pop"><div class="pt">Brooklyn Community Board 6</div><div class="ps">250 Baltic Street, Brooklyn</div><div class="pl"><a href="/250baltic/">About the office &rarr;</a></div></div>');
 }
 function initMap(){
   map=L.map('map',{scrollWheelZoom:false}).setView([40.677,-73.995],13);
