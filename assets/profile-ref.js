@@ -94,12 +94,28 @@
         seen[id] = 1;
         rel.push({ p: set[key], fam: fam, key: key, why: why });
       }
-      Array.prototype.forEach.call(document.querySelectorAll('#overlaps a[href], #overlaps .ovcard'), function (el) {
+      /* The overlaps are stamped on the page from the election district data:
+         every other district sharing an ED, with the count, and every board. */
+      var stamp = document.querySelector('[data-profile-tiles]');
+      var slugOf = {};
+      ['council', 'assembly', 'senate'].forEach(function (fam) { Object.keys(d[fam] || {}).forEach(function (k) { slugOf['/' + d[fam][k].slug + '/'] = [fam, k]; }); });
+      var extra = [];
+      (stamp ? stamp.getAttribute('data-dists') || '' : '').split('|').filter(Boolean).forEach(function (x) {
+        var p = x.split(';'), hit = slugOf[p[1]];
+        if (hit) { add(hit[0], hit[1], p[3] + ' EDs'); }
+        else extra.push({ name: p[2], sub: p[0] + ' \u00b7 ' + p[3] + ' EDs', href: p[1], icon: (p[0].indexOf('NY-') === 0 ? '/site-icons/congress/cd' + p[0].slice(3) + '.png' : '') });
+      });
+      if (!rel.length) Array.prototype.forEach.call(document.querySelectorAll('#overlaps a[href], #overlaps .ovcard'), function (el) {
         var h = el.getAttribute('href') || '';
         var m = h.match(/[?&]ad=(\d+)/); if (m) add('assembly', m[1], 'Assembly');
         m = h.match(/[?&]sd=(\d+)/); if (m) add('senate', m[1], 'Senate');
       });
       myBoros.forEach(function (b) { add('bp', b, 'Borough President'); });
+      var BC = { 'Brooklyn': ['bk', '3'], 'Manhattan': ['mn', '1'], 'Bronx': ['bx', '2'], 'Queens': ['qn', '4'], 'Staten Island': ['si', '5'] };
+      var boards = (stamp ? stamp.getAttribute('data-cbs') || '' : '').split('|').filter(Boolean).map(function (x) {
+        var p = x.split(';'), bn = p[0].split(' CB'), bc = BC[bn[0]] || ['bk', '3'];
+        return { name: p[0], sub: p[2] + ' EDs of this district', href: p[1], icon: '/site-icons/cb/' + bc[1] + ('0' + bn[1]).slice(-2) + '.png' };
+      });
 
       /* A page with no overlap section still has direct peers: its own body. */
       if (!rel.length) {
@@ -116,12 +132,19 @@
         html += '<h2>' + (rel[0].fam === kind ? 'The other ' + d.labels[kind].toLowerCase() : 'Who else represents this ground') + '</h2>' +
           '<div class="sub">' + (rel[0].fam === kind ? 'Each has the same page.' : 'The other officials whose districts cross this one.') + '</div>' +
           '<div class="pref-row">' + rel.map(function (r) {
-            var sub = famLabel[r.fam] ? famLabel[r.fam] + ' ' + r.key : r.key;
+            var sub = (famLabel[r.fam] ? famLabel[r.fam] + ' ' + r.key : r.key) + (r.why && /EDs$/.test(r.why) ? ' \u00b7 ' + r.why : '');
             return '<a class="pref-p" href="/' + esc(r.p.slug) + '/">' +
               (r.p.icon ? '<img src="' + esc(r.p.icon) + '" alt="" loading="lazy">' : '') +
               '<span class="n">' + esc(r.p.name) + '</span>' +
               '<span class="d">' + esc(sub) + '</span></a>';
+          }).join('') + extra.map(function (r) {
+            return '<a class="pref-p" href="' + esc(r.href) + '">' + (r.icon ? '<img src="' + esc(r.icon) + '" alt="" loading="lazy">' : '') + '<span class="n">' + esc(r.name) + '</span><span class="d">' + esc(r.sub) + '</span></a>';
           }).join('') + '</div>';
+      }
+      if (boards.length) {
+        html += '<h2 class="pref-h2">The community boards this district overlaps</h2><div class="sub">Each board has its own page, laid out the same way.</div><div class="pref-row">' + boards.map(function (r) {
+          return '<a class="pref-p" href="' + esc(r.href) + '"><img src="' + esc(r.icon) + '" alt="" loading="lazy"><span class="n">' + esc(r.name) + '</span><span class="d">' + esc(r.sub) + '</span></a>';
+        }).join('') + '</div>';
       }
       html += '<h2 class="pref-h2">Jump to any official</h2>' +
         '<div class="pref-find"><input type="search" placeholder="Name, district number, or borough" ' +
