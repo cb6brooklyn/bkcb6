@@ -1216,6 +1216,25 @@ function buildResourcePoints(data, category, layerVar) {
 }
 function buildSchools(d){ buildResourcePoints(d,'schools','schoolsLayer'); schoolsLayer=window.schoolsLayer; }
 function buildChildcare(d){ buildResourcePoints(d,'childcare','childcareLayer'); childcareLayer=window.childcareLayer; }
+
+/* Citywide schools and childcare: data/eduhub/all.json carries 3,003 schools
+   and 4,267 childcare sites with coordinates. Both toggles were empty stubs. */
+function loadEduhub(cat, name, layerVar){
+  function build(){
+    var rows = (window._eduhubAll||[]).filter(function(x){ return x.c===cat && x.lat && x.lon; })
+      .map(function(x){
+        return {name:x.n, address:x.a||'', lat:x.lat, lon:x.lon, category:name,
+                program_type:(x.s||'')+(x.lvl?' \u00b7 '+x.lvl:'')};
+      });
+    window['_overlayData_'+name] = rows;
+    buildResourcePoints(rows, name, layerVar);
+    window[layerVar] = window[layerVar] || window[layerVar];
+  }
+  if(window._eduhubAll){ build(); return; }
+  fetch('/data/eduhub/all.json').then(function(r){return r.json();}).then(function(d){
+    window._eduhubAll = d; build();
+  }).catch(function(){});
+}
 function buildLibraries(){
   /* All 66 Brooklyn Public Library branches, not the 9 that were hardcoded. */
   if(window._bplBranches){
@@ -1818,8 +1837,8 @@ function toggleOverlay(name, on){
     landuse:()=>{ if(window._overlayData_landuse) buildLandUsePolys(window._overlayData_landuse); else loadLandUseArcGIS(); },
     zoning:()=>{ loadZoningArcGIS(); },
     parks:()=>loadOverlay('parks','data/topmap-parks-'+_boroKey+'.geojson',buildParks),
-    schools:()=>{ /* schools: no citywide file available */ },
-    childcare:()=>{ /* childcare: no citywide file available */ },
+    schools:()=>loadEduhub('school','schools','schoolsLayer'),
+    childcare:()=>loadEduhub('childcare','childcare','childcareLayer'),
     libraries:()=>buildLibraries(),
     schooldistricts:()=>loadOverlay('schooldistricts','data/school-districts-'+_boroKey+'.geojson',buildSchoolDistricts),
     gowanus:()=>loadOverlay('gowanus','data/Gowanus-Rezoning-Boundary-2.geojson',buildGowanus),
