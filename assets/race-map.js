@@ -170,7 +170,9 @@
       '<button type="button" data-go>Find ED</button><button type="button" class="gh" data-rs>Reset</button></div>' +
       '<div class="rcm-map" data-map></div><div class="rcm-note" data-note></div><div class="rcm-key" data-key></div></div>' +
       '<div class="rcm-card"><div class="rcm-eye">Election districts carried</div><div class="rcm-dn" data-dn></div>' +
-      '<div class="rcm-eye" style="margin-top:16px">By community board</div><div class="rcm-brk" data-brk></div><div class="rcm-chips" data-chips></div></div>' +
+      '<div class="rcm-eye" style="margin-top:16px">By community board</div><div class="rcm-brk" data-brk></div><div class="rcm-chips" data-chips></div>' +
+      '<details class="rcm-dir" style="margin-top:14px" data-cbd><summary>Votes by community board<span class="arr">&#9660;</span></summary>' +
+      '<div class="rcm-tw"><table class="rcm-t"><thead><tr><th>Community board</th><th class="r" data-cth0></th><th class="r" data-cth1></th><th class="r">Ballots</th><th>EDs carried</th></tr></thead><tbody data-cbrows></tbody></table></div></details></div>' +
       '<div class="rcm-card"><div class="rcm-eye" data-reseye>First-choice results</div><div class="rcm-res" data-res></div><div class="rcm-tot" data-tot></div></div>' +
       '<details class="rcm-dir" data-dir><summary><span data-dirttl>See how every election district voted</span><span class="arr">&#9660;</span></summary>' +
       '<div class="ctl"><input type="search" placeholder="Filter by ED, e.g. 017/44, or a community board" autocomplete="off" data-flt>' +
@@ -181,6 +183,7 @@
         noteEl = host.querySelector('[data-note]'), dnEl = host.querySelector('[data-dn]'),
         brkEl = host.querySelector('[data-brk]'), chipsEl = host.querySelector('[data-chips]'),
         resEl = host.querySelector('[data-res]'), totEl = host.querySelector('[data-tot]'),
+        cbRowsEl = host.querySelector('[data-cbrows]'),
         qEl = host.querySelector('[data-q]'), rowsEl = host.querySelector('[data-rows]'),
         fltEl = host.querySelector('[data-flt]'), adEl = host.querySelector('[data-ad]'),
         cntEl = host.querySelector('[data-cnt]'), dirEl = host.querySelector('[data-dir]');
@@ -202,12 +205,12 @@
     function edLabel(e) { return 'AD ' + e.slice(0, 2) + ' ED ' + parseInt(e.slice(2), 10); }
     function edShort(e) { return e.slice(2) + '/' + e.slice(0, 2); }
     function cbLabel(p) { return (data.cbs || [])[p.b] || ''; }
-    function last(n) { return n.split(' ').pop(); }
+    function last(n) { var w = n.replace(/,?\s+(Jr\.?|Sr\.?|II|III|IV)$/i, '').split(' '); return w[w.length - 1]; }
     function tint(i, m) { var t = maxM ? Math.max(0, Math.min(1, m / maxM)) : 1; return mix(colorOf(i), .28 + t * .72); }
 
     function styleFor(f) {
       var d = byE[f.properties.e];
-      if (!d) return { color: '#fff', weight: .6, fillColor: '#ddd', fillOpacity: .25 };
+      if (!d) return { color: '#fff', weight: 0, fillColor: '#ddd', fillOpacity: 0, interactive: false };
       return { color: '#fff', weight: 1, fillColor: tint(d.win, d.margin), fillOpacity: .92 };
     }
 
@@ -265,6 +268,19 @@
           build(parseInt(b.getAttribute('data-ci'), 10));
         });
       }
+      if (host.getAttribute('data-cb-labels')) {
+        var acc = {};
+        d.features.forEach(function (f) {
+          var g = f.geometry, ring = g.type === 'Polygon' ? g.coordinates[0] : g.coordinates[0][0], sx = 0, sy = 0;
+          ring.forEach(function (pt) { sx += pt[0]; sy += pt[1]; });
+          var k = f.properties.b; acc[k] = acc[k] || { x: 0, y: 0, n: 0 };
+          acc[k].x += sx / ring.length; acc[k].y += sy / ring.length; acc[k].n++;
+        });
+        Object.keys(acc).forEach(function (k) {
+          var nm = ((d.cbs || [])[k] || '').replace(/^.*CB\s*/, 'CB ');
+          labels.push([nm, acc[k].y / acc[k].n, acc[k].x / acc[k].n]);
+        });
+      }
       labels.forEach(function (lb) {
         L.marker([lb[1], lb[2]], { icon: L.divIcon({ className: 'nbhd', html: esc(lb[0]), iconSize: null }), interactive: false }).addTo(map);
       });
@@ -320,7 +336,9 @@
         var w = (d.contests[ci].own || p.w == null) ? 1 : p.w;
         for (var j = 0; j < v.length; j++) totals[j] += v[j] * w;
         won[win]++; cast += tot * w; if (margin > maxM) maxM = margin;
-        var cb = cbLabel(p); byCB[cb] = byCB[cb] || { n: 0, w: {} }; byCB[cb].n++; byCB[cb].w[win] = (byCB[cb].w[win] || 0) + 1;
+        var cb = cbLabel(p); byCB[cb] = byCB[cb] || { n: 0, w: {}, v: names.map(function () { return 0; }), t: 0 };
+        byCB[cb].n++; byCB[cb].w[win] = (byCB[cb].w[win] || 0) + 1; byCB[cb].t += tot * w;
+        for (var q = 0; q < v.length; q++) byCB[cb].v[q] += v[q] * w;
       });
       var order = names.map(function (_, j) { return j; }).sort(function (a, b) { return totals[b] - totals[a]; });
       var lead = order[0], second = order[1];
@@ -379,6 +397,21 @@
       brkEl.innerHTML = cbs.map(function (cb) { return stack(cb, byCB[cb].n, byCB[cb].w, false); }).join('') + stack(areaName.charAt(0).toUpperCase() + areaName.slice(1), eds.length, totW, true);
       chipsEl.innerHTML = '<span><i style="background:' + colorOf(lead) + '"></i>' + esc(last(names[lead])) + '</span><span><i style="background:' + colorOf(second) + '"></i>' + esc(last(names[second])) + '</span>' +
         (otherWon > 0 ? '<span><i style="background:' + GREY + '"></i>Others</span>' : '');
+      host.querySelector('[data-cth0]').textContent = last(names[lead]);
+      host.querySelector('[data-cth1]').textContent = last(names[second]);
+      cbRowsEl.innerHTML = cbs.map(function (cb) {
+        var x = byCB[cb], top = (x.v[lead] || 0) >= (x.v[second] || 0) ? lead : second;
+        var carried = Object.keys(x.w).sort(function (a, b) { return x.w[b] - x.w[a]; })[0];
+        return '<tr><td class="ed">' + esc(cb) + '</td>' +
+          '<td class="r"><span class="v" style="color:' + colorOf(lead) + '">' + fmt(x.v[lead]) + '</span><span class="p">(' + pct(x.v[lead], x.t) + ')</span></td>' +
+          '<td class="r"><span class="v" style="color:' + colorOf(second) + '">' + fmt(x.v[second]) + '</span><span class="p">(' + pct(x.v[second], x.t) + ')</span></td>' +
+          '<td class="r bl">' + fmt(x.t) + '</td>' +
+          '<td><span class="chip" style="background:' + colorOf(parseInt(carried, 10)) + '">' + esc(last(names[parseInt(carried, 10)]).toUpperCase()) + ' ' + x.w[carried] + '/' + x.n + '</span></td></tr>';
+      }).join('') +
+        '<tr><td class="ed">' + esc(areaName.charAt(0).toUpperCase() + areaName.slice(1)) + '</td>' +
+        '<td class="r"><span class="v" style="color:' + colorOf(lead) + '">' + fmt(totals[lead]) + '</span><span class="p">(' + pct(totals[lead], cast) + ')</span></td>' +
+        '<td class="r"><span class="v" style="color:' + colorOf(second) + '">' + fmt(totals[second]) + '</span><span class="p">(' + pct(totals[second], cast) + ')</span></td>' +
+        '<td class="r bl">' + fmt(cast) + '</td><td><span class="chip" style="background:' + colorOf(lead) + '">' + esc(last(names[lead]).toUpperCase()) + ' ' + won[lead] + '/' + eds.length + '</span></td></tr>';
 
       /* first-choice results */
       host.querySelector('[data-reseye]').textContent = rcv ? 'First-choice results' : 'How ' + areaName.charAt(0).toUpperCase() + areaName.slice(1) + ' voted';
