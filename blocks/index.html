@@ -148,20 +148,26 @@
   <div class="dates">
     <div class="bh">Permits and work by date</div>
     <div class="chips">
-      <button type="button" class="tgl on" data-dq="all">All dates</button>
+      <button type="button" class="tgl on" data-dq="window">A month behind and ahead</button>
       <button type="button" class="tgl" data-dq="active">Active today</button>
       <button type="button" class="tgl" data-dq="next30">Next 30 days</button>
+      <button type="button" class="tgl" id="lookBack">Look further back &#9660;</button>
+    </div>
+    <div id="lookBackPanel" style="display:none">
+    <div class="chips">
       <button type="button" class="tgl" data-dq="last90">Last 90 days</button>
       <button type="button" class="tgl" data-dq="year">This year</button>
       <button type="button" class="tgl" data-dq="past5">Past 5 years</button>
       <button type="button" class="tgl" data-dq="past10">Past 10 years</button>
       <button type="button" class="tgl" data-dq="since2007">Since 2007</button>
+      <button type="button" class="tgl" data-dq="all">All dates</button>
     </div>
     <div class="row3">
       <div><div class="lab">From</div><input type="date" id="dFrom"></div>
       <div><div class="lab">To</div><input type="date" id="dTo"></div>
     </div>
-    <div class="dn" id="dNote">Applies to street work, building permits, landmark permits, resurfacing and permitted events, on the map and in the results below. A permit counts if any part of its work window falls inside the range. Looking back past the last year also pulls the Department of Buildings permit history for every lot on the stretch, live from NYC Open Data (2007 onward).</div>
+    </div>
+    <div class="dn" id="dNote">By default you see permits and work from 30 days ago through 30 days from now. Applies to street work, building permits, landmark permits, resurfacing and permitted events, on the map and in the results below. A permit counts if any part of its work window falls inside the range. Looking back past the last year also pulls the Department of Buildings permit history for every lot on the stretch, live from NYC Open Data (2007 onward).</div>
   </div>
   <div id="results"></div>
   <div class="regkey">
@@ -198,7 +204,7 @@ var sel=null; // {kind:'street'|'addr'|'pin', geom:[[lon,lat]...] or point, labe
 var live={n311:null,crime:null,lots:null,hist:null};
 var liveReq=0;
 var openSecs={},lastFound={};
-var COLORS={liquor:'#8c2f6b',health:'#2e6b30',culture:'#6b3fa0',food:'#0f7b6c',biz:'#b3541e',dob:'#2145a8',dot:'#e0473c',resurf:'#7a7a7a',events:'#c98b1a',parties:'#f47920',lpc:'#0d1b4b',lift:'#9b2226',citibike:'#1f5fd6',subway:'#111',schools:'#ff8c00',library:'#5a3e1b',fdny:'#d0021b',polls:'#3a3a9c',parks:'#2a8a3a',markets:'#5e9c2a',n311:'#f47920',crime:'#b00020',lots:'#6b6760'};
+var COLORS={liquor:'#8c2f6b',health:'#2e6b30',culture:'#6b3fa0',food:'#0f7b6c',biz:'#b3541e',dob:'#2145a8',dot:'#e0473c',resurf:'#7a7a7a',events:'#c98b1a',parties:'#f47920',lpc:'#0d1b4b',lift:'#9b2226',citibike:'#1f5fd6',subway:'#111',schools:'#ff8c00',library:'#5a3e1b',fdny:'#d0021b',polls:'#3a3a9c',parks:'#2a8a3a',markets:'#5e9c2a',n311:'#f47920',crime:'#b00020',lots:'#6b6760',asp:'#2145a8'};
 var LIVEDEF=[
   {id:'n311',label:'311 reports (12 months)',note:'Service requests to 311 in the last 12 months, placed by the coordinates on each report.',u:'/311.html'},
   {id:'crime',label:'Crime complaints (this year)',note:'NYPD complaint records, year to date, placed by the coordinates on each complaint. NYPD offsets some sensitive locations.',u:'/publicsafety/'},
@@ -301,6 +307,7 @@ var OVDEF=[
   {id:'bike',label:'Bike lanes',sw:'#ff8c00',on:false,src:'/data/cb6-bike-routes.geojson',style:function(f){return {color:f.properties.line_color||'#ff8800',weight:3,opacity:.85};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.name)+'</div><div class="ps">'+esc(p.lane_type||'')+'</div><div class="pl">Bike route</div></div>';}},
   {id:'bids',label:'Business districts',sw:'#b3541e',on:false,src:'/data/bids.geojson',filter:function(f){return String(f.properties.cds||'').indexOf('306')>=0;},style:function(){return {color:'#b3541e',weight:2,fillColor:'#b3541e',fillOpacity:.12};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.name)+' BID</div><div class="ps">Since '+esc(p.year||'')+'</div><div class="pl">Business improvement district</div></div>';}},
   {id:'nycha',label:'NYCHA',sw:'#1f5fd6',on:false,src:'/data/CB6-NYCHA.geojson',point:function(f,ll){return L.circleMarker(ll,{radius:8,color:'#fff',weight:2,fillColor:'#1f5fd6',fillOpacity:.95});},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.Name)+'</div><div class="ps">'+esc(p.Type||'')+'</div><div class="pl">NYCHA</div></div>';}},
+  {id:'all-asp',label:'Alternate side parking, every block',sw:'#2145a8',on:false,custom:true,layer:'asp'},
   {id:'all-dot',label:'All street work permits',sw:'#e0473c',on:false,custom:true,layer:'dot'},
   {id:'all-dob',label:'All building permits',sw:'#2145a8',on:false,custom:true,layer:'dob'},
   {id:'all-lpc',label:'All landmark permits',sw:'#0d1b4b',on:false,custom:true,layer:'lpc'},
@@ -310,11 +317,12 @@ var OVDEF=[
 ];
 var nbLayer=null,CB6RING=null,nbPending=null;
 var DATED={dot:1,dob:1,lpc:1,resurf:1,events:1};
-var dq='all',dFrom='',dTo='';
+var dq='window',dFrom='',dTo='';
 function ymd(d){return d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();}
 function dateRange(){
   var t=new Date();var today=ymd(t);
   if(dq==='active')return [today,today];
+  if(dq==='window'){var b0=new Date(t);b0.setDate(b0.getDate()-30);var e0=new Date(t);e0.setDate(e0.getDate()+30);return [ymd(b0),ymd(e0)];}
   if(dq==='next30'){var e=new Date(t);e.setDate(e.getDate()+30);return [today,ymd(e)];}
   if(dq==='last90'){var b=new Date(t);b.setDate(b.getDate()-90);return [ymd(b),today];}
   if(dq==='year')return [t.getFullYear()*10000+101,t.getFullYear()*10000+1231];
@@ -334,7 +342,7 @@ function refillPermitLayers(){
   OVDEF.forEach(function(d){if(d.layer&&d.filled){d.filled=false;OV[d.id].clearLayers();if(d.on)fillLayer(d);}});
 }
 function lookback(){var r=dateRange();if(!r)return false;var t=new Date();t.setFullYear(t.getFullYear()-1);return r[0]<ymd(t);}
-function dateLabel(){var r=dateRange();if(!r)return 'all dates';function f(v){var s=String(v);return s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8);}var lab={active:'active today',next30:'the next 30 days',last90:'the last 90 days',year:'this year',past5:'the past 5 years',past10:'the past 10 years',since2007:'2007 to today'}[dq];return lab||(f(r[0])+' to '+(r[1]>99999990?'any date':f(r[1])));}
+function dateLabel(){var r=dateRange();if(!r)return 'all dates';function f(v){var s=String(v);return s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8);}var lab={window:'30 days behind to 30 days ahead',active:'active today',next30:'the next 30 days',last90:'the last 90 days',year:'this year',past5:'the past 5 years',past10:'the past 10 years',since2007:'2007 to today'}[dq];return lab||(f(r[0])+' to '+(r[1]>99999990?'any date':f(r[1])));}
 function setDateQuick(q){
   dq=q;Array.prototype.forEach.call(document.querySelectorAll('[data-dq]'),function(b){b.classList.toggle('on',b.getAttribute('data-dq')===q);});
   if(q!=='custom'){$('dFrom').value='';$('dTo').value='';}
@@ -382,7 +390,7 @@ function toggleOverlay(id){
 function fillLayer(d){
   var g=OV[d.id];d.filled=true;var L0=LAY.layers.filter(function(x){return x.id===d.layer;})[0];var rng=dateRange();
     if(L0)L0.items.forEach(function(it){if(!inDate(it,rng))return;var pop='<div class="pop"><div class="pt">'+esc(it.t)+'</div><div class="ps">'+esc(it.s)+'</div><div class="pl">'+esc(L0.label)+'</div></div>';
-      if(it.g&&it.g.length>1)g.addLayer(L.polyline(it.g.map(function(p){return [p[1],p[0]];}),{color:d.sw,weight:3,opacity:.7}).bindPopup(pop));
+      if(it.g&&it.g.length>1)g.addLayer(L.polyline(it.g.map(function(p){return [p[1],p[0]];}),{color:it.c||d.sw,weight:3,opacity:.7}).bindPopup(pop));
       else{var c=it.g?it.g[0]:[it.x,it.y];g.addLayer(L.circleMarker([c[1],c[0]],{radius:3.5,color:'#fff',weight:.8,fillColor:d.sw,fillOpacity:.75}).bindPopup(pop));}});
 }
 function addOffice(){
@@ -459,8 +467,8 @@ function run(){
     hits.forEach(function(it){
       var c=it.g&&it.g.length>1?null:(it.g?it.g[0]:[it.x,it.y]);
       var pop='<div class="pop"><div class="pt">'+esc(it.t)+'</div><div class="ps">'+esc(it.s)+'</div><div class="pl">'+esc(L0.label)+'</div></div>';
-      if(c){ptLayer.addLayer(L.circleMarker([c[1],c[0]],{radius:5,color:'#fff',weight:1,fillColor:COLORS[L0.id]||'#333',fillOpacity:.9}).bindPopup(pop));}
-      else{ptLayer.addLayer(L.polyline(it.g.map(function(p){return [p[1],p[0]];}),{color:COLORS[L0.id]||'#333',weight:4,opacity:.8}).bindPopup(pop));}
+      if(c){ptLayer.addLayer(L.circleMarker([c[1],c[0]],{radius:5,color:'#fff',weight:1,fillColor:it.c||COLORS[L0.id]||'#333',fillOpacity:.9}).bindPopup(pop));}
+      else{ptLayer.addLayer(L.polyline(it.g.map(function(p){return [p[1],p[0]];}),{color:it.c||COLORS[L0.id]||'#333',weight:4,opacity:.8}).bindPopup(pop));}
     });
   });
   $('mapnote').innerHTML='<b>'+esc(sel.label)+'</b>. '+fmt(total)+' records in the site\'s own data within '+R+' m'+(sel.sub?'. '+esc(sel.sub):'')+'. Loading live 311, crime and lots&hellip;';
@@ -543,6 +551,7 @@ function render(found){
     var rows=found[L0.id];
     h+='<div class="sec'+(openSecs[L0.id]?' open':'')+'" id="sec-'+L0.id+'"><button type="button" class="sh" data-sec="'+L0.id+'"><span class="t">'+esc(L0.label)+'</span><span class="c">'+fmt(rows.length)+'</span><span class="ar">'+(openSecs[L0.id]?'&#9650;':'&#9660;')+'</span></button><div class="sb">';
     if(L0.note)h+='<div class="note">'+esc(L0.note)+'</div>';
+    if(L0.id==='asp'&&rows.length)h+=topCats(rows,function(r){return {Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday',Sun:'Sunday'}[r.day]||r.day;});
     if(DATED[L0.id]&&dateRange())h+='<div class="note">Filtered to '+esc(dateLabel())+'.</div>';
     if(!rows.length)h+='<div class="note">None within reach.</div>';
     h+=itemList(L0.id,rows.map(function(it){return {t:it.t,s:it.s,u:it.u};}));
@@ -655,6 +664,7 @@ function wire(){
   $('addrQ').addEventListener('keydown',function(e){if(e.key==='Enter'){var b=$('sugg').querySelector('button');if(b)b.click();}});
   $('clearPin').addEventListener('click',clearPin);
   Array.prototype.forEach.call(document.querySelectorAll('[data-dq]'),function(b){b.addEventListener('click',function(){setDateQuick(b.getAttribute('data-dq'));});});
+  $('lookBack').addEventListener('click',function(){var p=$('lookBackPanel');var open=p.style.display==='none';p.style.display=open?'block':'none';$('lookBack').classList.toggle('on',open);$('lookBack').innerHTML=open?'Look further back &#9650;':'Look further back &#9660;';});
   ['dFrom','dTo'].forEach(function(id){$(id).addEventListener('change',function(){dFrom=$('dFrom').value;dTo=$('dTo').value;dq=(dFrom||dTo)?'custom':'all';Array.prototype.forEach.call(document.querySelectorAll('[data-dq]'),function(b){b.classList.toggle('on',b.getAttribute('data-dq')===dq);});refillPermitLayers();if(sel)run();});});
   var prs=[90,150,260];
   Array.prototype.forEach.call(document.querySelectorAll('#reach .tgl'),function(b,i){
