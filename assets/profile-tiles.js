@@ -14,6 +14,7 @@
       '.ptile{aspect-ratio:1/1;display:flex;flex-direction:column;justify-content:space-between;text-align:left;font:inherit;cursor:pointer;border:1.5px solid #e5e2db;border-top:4px solid ' + c1 + ';border-radius:11px;background:#fff;padding:9px 9px 8px;color:#0d1b4b;text-decoration:none;min-width:0;overflow:hidden;transition:transform .1s}' +
       '.ptile:active{transform:scale(.98)}.ptile.hide{display:none}.ptile .t{font-size:.76rem;font-weight:900;line-height:1.15;color:' + c0 + ';display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.ptile .d{font-size:.64rem;color:#6b6760;line-height:1.3;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}' +
       '.ptile.go{background:' + c0 + ';border-color:' + c0 + '}.ptile.go .t{color:#fff}.ptile.go .d{color:rgba(255,255,255,.75)}.ptile .k{font-family:"DM Mono",monospace;font-size:.5rem;letter-spacing:.09em;text-transform:uppercase;color:#6b6760}.ptile.go .k{color:' + c1 + '}' +
+      '.ptile.cb{border-top-color:' + c0 + ';background:#f4f6fb}.ptile.cb .k{color:' + c0 + '}' +
       '.ptiles .pn{font-size:.76rem;color:#6b6760;margin-top:6px;min-height:1em}' +
       'details.pfold{border-top:1px solid #e5e2db}details.pfold>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:13px 18px;font-family:"DM Mono",monospace;font-size:.63rem;text-transform:uppercase;letter-spacing:.11em;color:' + c0 + ';font-weight:700}' +
       'details.pfold>summary::-webkit-details-marker{display:none}details.pfold>summary .arr{margin-left:auto;font-size:.7rem;transition:transform .15s}details.pfold[open]>summary .arr{transform:rotate(180deg)}details.pfold>summary+.sec{border-top:0;padding-top:4px}details.pfold>summary+.sec>h2{display:none}' +
@@ -39,6 +40,17 @@
       var href = el.getAttribute('data-' + x[0]); if (!href) return;
       var a = document.createElement('a'); a.className = 'ptile go'; a.href = href; a.innerHTML = '<span class="k">Own page</span><span class="t">' + esc(x[1]) + '</span><span class="d">' + esc(x[2]) + '</span>';
       grid.appendChild(a); entries.push({ el: a, text: (x[1] + ' ' + x[2]).toLowerCase() });
+    });
+    // the community boards this district overlaps, and for a board the districts that overlap it
+    (el.getAttribute('data-cbs') || '').split('|').filter(Boolean).forEach(function (x) {
+      var p = x.split(';'); var a = document.createElement('a'); a.className = 'ptile cb'; a.href = p[1];
+      a.innerHTML = '<span class="k">Community board</span><span class="t">' + esc(p[0]) + '</span><span class="d">' + esc(p[2] + ' election district' + (p[2] === '1' ? '' : 's') + ' of this district') + '</span>';
+      grid.appendChild(a); entries.push({ el: a, text: (p[0] + ' community board').toLowerCase() });
+    });
+    (el.getAttribute('data-dists') || '').split('|').filter(Boolean).forEach(function (x) {
+      var p = x.split(';'); var a = document.createElement('a'); a.className = 'ptile cb'; a.href = p[1];
+      a.innerHTML = '<span class="k">' + esc(p[0].indexOf('NY-') === 0 ? 'Congress' : p[0].split(' District')[0]) + '</span><span class="t">' + esc(p[2] || p[0]) + '</span><span class="d">' + esc(p[0] + ' \u00b7 ' + p[3] + ' election district' + (p[3] === '1' ? '' : 's') + ' in this board') + '</span>';
+      grid.appendChild(a); entries.push({ el: a, text: (p[0] + ' ' + p[2]).toLowerCase() });
     });
     // fold every section after this block, one tile each
     var secs = [];
