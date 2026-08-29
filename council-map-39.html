@@ -1743,6 +1743,7 @@ function luLoadParcels(){
 function buildLandUsePolys(d){
   if(landUseLotsLayer) map.removeLayer(landUseLotsLayer);
   var feats=((d&&d.features)||[]).filter(function(f){ return f&&f.geometry; });
+  feats = filteredBySelectedDistricts(feats, true);
   landUseLotsLayer = L.geoJSON({type:'FeatureCollection',features:feats},{
     style:function(f){var p=f.properties||{};var c=luNorm(p.LandUse||p.landuse||p.LANDUSE);return{fillColor:LANDUSE_COLORS[c]||'#9aa0a6',fillOpacity:.72,color:'#fff',weight:.4};},
     onEachFeature:function(f,l){var p=f.properties||{},c=luNorm(p.LandUse||p.landuse||p.LANDUSE);l.bindPopup('<strong>'+(LANDUSE_LABELS[c]||'Unknown')+'</strong><br>'+escH(p.Address||'')+(p.ZoneDist1?'<br>Zoning: '+escH(p.ZoneDist1):''));}
@@ -1777,6 +1778,8 @@ function zoneFamily(z){z=String(z||'').toUpperCase();if(/^R/.test(z))return['Res
 function buildZoningPolys(d){
   if(zoningLayer) map.removeLayer(zoningLayer);
   var feats = ((d&&d.features)||[]).filter(function(f){return f&&f.geometry;});
+  // Viewport loads square tiles of lots; clip them to the district line.
+  feats = filteredBySelectedDistricts(feats, true);
   zoningLayer = L.geoJSON({type:'FeatureCollection',features:feats},{
     style:function(f){var z=(f.properties||{}).ZONEDIST||(f.properties||{}).Zonedist||'';var fam=zoneFamily(z);return{color:fam[1],weight:1,opacity:.85,fillColor:fam[1],fillOpacity:.42};},
     onEachFeature:function(f,l){var p=f.properties||{};var z=p.ZONEDIST||p.Zonedist||'Zoning';var fam=zoneFamily(z);l.bindPopup('<strong>'+escH(z)+'</strong><br>'+fam[0]);}
@@ -2219,6 +2222,12 @@ function bkcb6CopyEmbed(type){
              + '<span style="font-size:.95rem">Shahana Hanif</span></div>' })
       }).addTo(map);
       window._cd39Layer = lyr;
+
+      /* Every overlay clips to window._selectedCBFeature. showBorough used to
+         set it to the whole borough; on a district page it is the district. */
+      window._selectedCBFeature = d.features[0];
+      if (typeof refreshDistrictFilteredOverlays === 'function') refreshDistrictFilteredOverlays();
+      if (typeof refreshCBOverlapLayer === 'function') refreshCBOverlapLayer();
 
       /* District office. 197 Bond Street is the address the council office,
          her own channels and CB14's directory all publish. */
