@@ -211,10 +211,8 @@ var COLORS=['#1D48A4','#f47920','#2e7d32','#8e24aa','#c62828','#00838f','#6d4c41
 var chart=null; var drawSeq=0;
 var POLY={}, PSRC={boro:'/data/boro-311-polygons.json',cd:'/data/cd-311-polygons.json',
   council:'/data/council-311-polygons.json',senate:'/data/senate-311-polygons.json',assembly:'/data/assembly-311-polygons.json'};
-var MSETS={crime:[['qgea-i56i','lat_lon','cmplnt_fr_dt'],['5uac-w243','geocoded_column','cmplnt_fr_dt']],
-           arrest:[['8h9b-rp9u','lon_lat','arrest_date'],['uip8-fykc','geocoded_column','arrest_date']],
-           mv:[['bme5-7ty4','location','violation_date'],['57p3-pdcj','location_point','violation_date']],
-           t11:[['erm2-nwe9','location','created_date']]};
+var MSETS={t11:[['erm2-nwe9','location','created_date']]};
+var MLOCAL={crime:'/data/crime-monthly.json',arrest:'/data/arrest-monthly.json',mv:'/data/mv-monthly.json'};
 var MCACHE={};
 function poly(layer){ if(POLY[layer]) return POLY[layer];
   POLY[layer]=PSRC[layer]?fetch(PSRC[layer]).then(function(r){return r.json()}):Promise.resolve(null);
@@ -222,6 +220,23 @@ function poly(layer){ if(POLY[layer]) return POLY[layer];
 function monthSeries(ds,layer,key,y){
   var ck=ds+'|'+layer+'|'+key+'|'+y;
   if(MCACHE[ck]) return MCACHE[ck];
+  if(MLOCAL[ds]){
+    /* crime, arrests and moving violations come from the placed monthly files,
+       the same records as the yearly table, so months sum exactly to it. */
+    MCACHE[ck]=getJ(MLOCAL[ds]).then(function(j){
+      var mo=j.months[layer==='city'?'boro':layer];
+      if(!mo) return null;
+      var out=new Array(12).fill(0), any=false;
+      for(var m=1;m<=12;m++){
+        var ym=y+'-'+('0'+m).slice(-2), row=mo[ym];
+        if(!row) continue;
+        if(layer==='city'){ var t=0; for(var k in row) t+=row[k]; out[m-1]=t; any=true; }
+        else if(row[key]!=null){ out[m-1]=row[key]; any=true; }
+      }
+      return any?out:null;
+    }).catch(function(){return null});
+    return MCACHE[ck];
+  }
   MCACHE[ck]=poly(layer).then(function(pj){
     if(layer!=='city' && !pj) return null;
     var wkt=layer==='city'?null:(pj[key]&&pj[key].wkt);
@@ -269,7 +284,7 @@ function drawChart(){
     }
     Promise.all(picked.map(function(p){
       var layer=p[0]==='boro'?'boro':p[0];
-      if(p[0]==='precinct'||p[0]==='sector') return Promise.resolve(null);
+      if((p[0]==='precinct'||p[0]==='sector') && !MLOCAL[ds]) return Promise.resolve(null);
       return monthSeries(ds, layer, p[1], y);
     })).then(function(series){
       if(seq===drawSeq) paint(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'], series, ' by month, '+y);
@@ -294,7 +309,7 @@ function paint(labels, series, suffix){
   }});
   el('cnote').textContent = missing.length
     ? 'No published series for: '+missing.join(', ')+'. Precincts and sectors have no district-level 311 or live monthly polygons here.'
-    : 'Monthly series query the City\u2019s datasets live with each district\u2019s boundary, exactly as the 311 pages do. The yearly table above uses the placed harvest, which catches boundary-edge records the live query\u2019s simplified outline can miss, so a year of chart months can run one to three percent under the table\u2019s figure.';
+    : 'Crime, arrest and moving-violation months come from the same placed records as the yearly table, so twelve months sum exactly to the year. 311 months are queried live with the district boundary, the way the 311 pages count.';
 }
 (function(){
   var ys=yearsAxis();
