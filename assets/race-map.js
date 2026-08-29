@@ -276,8 +276,14 @@
           var k = f.properties.b; acc[k] = acc[k] || { x: 0, y: 0, n: 0 };
           acc[k].x += sx / ring.length; acc[k].y += sy / ring.length; acc[k].n++;
         });
+        var boros = {};
+        (d.cbs || []).forEach(function (c) { boros[c.replace(/\s*CB.*$/, '')] = 1; });
+        var multi = Object.keys(boros).length > 1;
+        var ABBR = { 'Brooklyn': 'Bklyn', 'Manhattan': 'Mnhtn', 'Queens': 'Qns', 'Staten Island': 'SI', 'Bronx': 'Bx' };
         Object.keys(acc).forEach(function (k) {
-          var nm = ((d.cbs || [])[k] || '').replace(/^.*CB\s*/, 'CB ');
+          var full = (d.cbs || [])[k] || '', boro = full.replace(/\s*CB.*$/, '');
+          var nm = full.replace(/^.*CB\s*/, 'CB ');
+          if (multi) nm = (ABBR[boro] || boro) + ' ' + nm;
           labels.push([nm, acc[k].y / acc[k].n, acc[k].x / acc[k].n]);
         });
       }
