@@ -161,6 +161,15 @@
   }
   function init(host) {
     if (host.dataset.rcmReady || !window.L) return;
+    /* inside a closed fold: wait for it to open so the map gets a real size */
+    var fold = host.closest('details:not([open])');
+    if (fold) {
+      if (!host.dataset.rcmWait) {
+        host.dataset.rcmWait = '1';
+        fold.addEventListener('toggle', function () { if (fold.open) init(host); });
+      }
+      return;
+    }
     host.dataset.rcmReady = '1';
     css();
     var scope = host.getAttribute('data-race-map'), want = host.getAttribute('data-contest');
