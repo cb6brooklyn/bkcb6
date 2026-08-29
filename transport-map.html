@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Transportation Map — NYC</title>
-<meta name="description" content="Speed limits, bike routes, bus routes and stops, subway, truck routes and Citi Bike for New York City, any borough, or any of the 59 community districts.">
+<meta name="description" content="Speed limits, bike routes, bus routes and stops, subway, truck routes and Citi Bike for New York City, any borough, any of the 59 community districts, or any City Council, State Senate, State Assembly or Congressional district.">
 <link rel="canonical" href="https://bkcb6.app/transport-map.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Brooklyn Community Board 6">
@@ -94,6 +94,23 @@ if(cdParam&&/^[a-z]{2}-\d+$/.test(cdParam)){
   if(!bb)BOROS.forEach(function(b){if(b.n.toLowerCase().replace(/[^a-z]/g,'')===boroParam)bb=b;});
   if(bb)scope={level:'boro',boro:bb,label:bb.n,short:bb.s,file:'/transport-data/'+bb.file+'.json'};
 }
+var DKINDS={
+  council:{geo:'/data/council-districts.geojson',prop:'cc',name:'City Council District',max:51,profile:function(n){return'/safety/council/'+n+'/';}},
+  senate:{geo:'/data/senate-districts.geojson',prop:'sd',name:'State Senate District',max:63,profile:function(n){return'/safety/senate/'+n+'/';}},
+  assembly:{geo:'/data/assembly-districts.geojson',prop:'ad',name:'State Assembly District',max:150,profile:function(n){return'/safety/assembly/'+n+'/';}},
+  congress:{geo:'/data/congress-districts-simple.geojson',prop:'cong_dist',name:'Congressional District',max:26,profile:function(n){return'/congressional-district-'+n+'/elections/';}}
+};
+var DBOROS={"council":{"42":["brooklyn"],"45":["brooklyn"],"30":["queens"],"29":["queens"],"51":["statenisland"],"6":["manhattan"],"7":["manhattan"],"48":["brooklyn"],"46":["brooklyn"],"36":["brooklyn"],"41":["brooklyn"],"38":["brooklyn"],"47":["brooklyn"],"43":["brooklyn"],"2":["manhattan"],"3":["manhattan"],"25":["queens"],"35":["brooklyn"],"34":["brooklyn","queens"],"9":["manhattan"],"49":["statenisland"],"26":["queens"],"31":["queens"],"27":["queens"],"28":["queens"],"15":["bronx"],"1":["manhattan"],"33":["brooklyn"],"4":["manhattan"],"5":["manhattan"],"14":["bronx"],"32":["queens"],"37":["brooklyn"],"16":["bronx"],"44":["brooklyn"],"39":["brooklyn"],"40":["brooklyn"],"22":["queens","bronx"],"21":["queens"],"24":["queens"],"19":["queens"],"18":["bronx"],"20":["queens"],"23":["queens"],"8":["manhattan","bronx"],"17":["bronx"],"10":["manhattan"],"11":["bronx"],"12":["bronx"],"13":["bronx"],"50":["statenisland","brooklyn"]},"senate":{"17":["brooklyn"],"16":["queens"],"20":["brooklyn"],"26":["brooklyn","manhattan"],"28":["manhattan"],"10":["queens"],"22":["brooklyn"],"23":["statenisland","brooklyn"],"25":["brooklyn"],"15":["queens"],"18":["brooklyn","queens"],"19":["brooklyn","queens"],"21":["brooklyn"],"13":["queens"],"14":["queens"],"11":["queens","bronx"],"32":["bronx"],"33":["bronx"],"29":["bronx","manhattan"],"31":["manhattan","bronx"],"30":["manhattan"],"47":["manhattan"],"34":["bronx"],"36":["bronx"],"24":["statenisland"],"27":["manhattan"],"12":["queens"],"59":["queens","brooklyn","manhattan"]},"assembly":{"23":["queens"],"24":["queens"],"25":["queens"],"26":["queens"],"27":["queens"],"28":["queens"],"29":["queens"],"30":["queens"],"31":["queens"],"32":["queens"],"33":["queens"],"34":["queens"],"35":["queens"],"36":["queens"],"37":["queens"],"38":["queens"],"39":["queens"],"40":["queens"],"41":["brooklyn"],"42":["brooklyn"],"43":["brooklyn"],"44":["brooklyn"],"45":["brooklyn"],"46":["brooklyn"],"47":["brooklyn"],"48":["brooklyn"],"49":["brooklyn"],"50":["brooklyn"],"51":["brooklyn"],"52":["brooklyn"],"53":["brooklyn"],"54":["brooklyn"],"55":["brooklyn"],"56":["brooklyn"],"57":["brooklyn"],"58":["brooklyn"],"59":["brooklyn"],"60":["brooklyn"],"61":["statenisland","manhattan"],"62":["statenisland"],"63":["statenisland"],"64":["statenisland","brooklyn"],"65":["manhattan"],"66":["manhattan"],"67":["manhattan"],"68":["manhattan"],"69":["manhattan"],"70":["manhattan"],"71":["manhattan"],"72":["manhattan"],"73":["manhattan"],"74":["manhattan"],"75":["manhattan"],"76":["manhattan"],"77":["bronx"],"78":["bronx"],"79":["bronx"],"80":["bronx"],"81":["bronx"],"82":["bronx"],"83":["bronx"],"84":["bronx"],"85":["bronx"],"86":["bronx"],"87":["bronx"]},"congress":{"3":["queens"],"16":["bronx"],"11":["statenisland","brooklyn"],"5":["queens"],"12":["manhattan"],"6":["queens"],"13":["manhattan","bronx"],"14":["bronx","queens"],"15":["bronx"],"10":["brooklyn","manhattan"],"9":["brooklyn"],"7":["queens","brooklyn"],"8":["brooklyn"]}};
+if(scope.level==='city'){
+  for(var dk in DKINDS){
+    var dv=parseInt(qs.get(dk)||'',10);
+    if(dv&&DBOROS[dk]&&DBOROS[dk][String(dv)]){
+      var files=DBOROS[dk][String(dv)].map(function(f){return'/transport-data/'+f+'.json';});
+      scope={level:'dist',kind:dk,num:dv,label:DKINDS[dk].name+' '+dv,files:files,heavy:true};
+      break;
+    }
+  }
+}
 
 /* ---------- layers ---------- */
 var LAYERS=[
@@ -120,7 +137,7 @@ var LEGENDS={
   sammys:[{c:'#27ae60',l:'15 mph school zone',t:'line'}],
   asp:[{c:'#e41a1c',l:'Mon',t:'line'},{c:'#377eb8',l:'Tue',t:'line'},{c:'#4daf4a',l:'Wed',t:'line'},{c:'#984ea3',l:'Thu',t:'line'},{c:'#ff7f00',l:'Fri',t:'line'},{c:'#a65628',l:'Sat',t:'line'},{c:'#999999',l:'Sun',t:'line'}]
 };
-var isCB6=(scope.level==='cd'&&scope.short==='bk'&&scope.num===6);
+var isCB6=(scope.level==='cd'&&scope.short==='bk'&&scope.num===6);var hasStreets=(scope.level!=='city');
 var SCOPED=['speed','bike','bus','busstops','truck'];
 
 /* ---------- map ---------- */
@@ -135,7 +152,47 @@ function escH(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 function status(msg){var s=el('status');if(!msg){s.style.display='none';return;}s.textContent=msg;s.style.display='block';}
 
 /* ---------- boundary ---------- */
+var scopeRings=null;
+function collectRings(geom){
+  var out=[];
+  function polys(c,t){if(t==='Polygon')out.push(c);else if(t==='MultiPolygon')c.forEach(function(p){out.push(p);});}
+  polys(geom.coordinates,geom.type);
+  return out;
+}
+function pointInRings(lat,lng){
+  if(!scopeRings)return true;
+  for(var p=0;p<scopeRings.length;p++){
+    var poly=scopeRings[p],inOuter=false;
+    for(var r=0;r<poly.length;r++){
+      var ring=poly[r],hit=false;
+      for(var i=0,j=ring.length-1;i<ring.length;j=i++){
+        var xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];
+        if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))hit=!hit;
+      }
+      if(r===0)inOuter=hit;else if(hit){inOuter=false;break;}
+    }
+    if(inOuter)return true;
+  }
+  return false;
+}
+function loadDistBoundary(){
+  var dk=DKINDS[scope.kind];
+  return fetch(dk.geo).then(function(r){return r.json();}).then(function(g){
+    var feats=g.features.filter(function(f){return parseInt(f.properties[dk.prop],10)===scope.num;});
+    if(!feats.length)throw new Error('district not found');
+    scopeRings=[];
+    feats.forEach(function(f){scopeRings=scopeRings.concat(collectRings(f.geometry));});
+    var fc={type:'FeatureCollection',features:feats};
+    var lyr=L.geoJSON(fc,{style:function(){return{color:'#f47920',weight:2.5,opacity:1,fill:false};},
+      onEachFeature:function(f,l){l.bindTooltip('<strong>'+escH(scope.label)+'</strong>',{sticky:true,opacity:1});}}).addTo(map);
+    scopeBounds=lyr.getBounds();
+    map.fitBounds(scopeBounds,{padding:[14,14]});
+    scopeRing=fc;
+    return fc;
+  });
+}
 function loadBoundary(){
+  if(scope.level==='dist')return loadDistBoundary();
   return fetch('/cd-boundaries-simple.geojson').then(function(r){return r.json();}).then(function(g){
     var feats=g.features;
     if(scope.level==='cd')feats=feats.filter(function(f){return String(f.properties.cd)===scope.code;});
@@ -163,7 +220,18 @@ function loadBoundary(){
 function inScope(lat,lng){
   if(!scopeBounds)return true;
   var pad=scope.level==='cd'?0.006:0.02;
-  return lat>=scopeBounds.getSouth()-pad&&lat<=scopeBounds.getNorth()+pad&&lng>=scopeBounds.getWest()-pad&&lng<=scopeBounds.getEast()+pad;
+  var inBox=lat>=scopeBounds.getSouth()-pad&&lat<=scopeBounds.getNorth()+pad&&lng>=scopeBounds.getWest()-pad&&lng<=scopeBounds.getEast()+pad;
+  if(!inBox)return false;
+  if(scope.level==='dist')return pointInRings(lat,lng);
+  return true;
+}
+function featureInDist(f){
+  var g=f.geometry;
+  if(g.type==='Point')return pointInRings(g.coordinates[1],g.coordinates[0]);
+  var c=g.coordinates,arr=g.type==='MultiLineString'?c.reduce(function(a,b){return a.concat(b);},[]):c;
+  var step=Math.max(1,Math.floor(arr.length/24));
+  for(var i=0;i<arr.length;i+=step){if(pointInRings(arr[i][1],arr[i][0]))return true;}
+  return pointInRings(arr[arr.length-1][1],arr[arr.length-1][0]);
 }
 function lineInScope(f){
   if(scope.level==='city'||!scopeBounds)return true;
@@ -201,6 +269,24 @@ function buildScopedLayer(k,gj){
 function loadScoped(){
   if(scopedPromise)return scopedPromise;
   if(scope.level==='city')return Promise.reject(new Error('no citywide street file'));
+  if(scope.level==='dist'){
+    status('Loading street data for '+scope.label+'. This one is large.');
+    scopedPromise=Promise.all(scope.files.map(function(u){
+      return fetch(u).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();});
+    })).then(function(parts){
+      var out={};
+      SCOPED.forEach(function(k){
+        var feats=[];
+        parts.forEach(function(p){if(p[k]&&p[k].features)feats=feats.concat(p[k].features);});
+        out[k]={type:'FeatureCollection',features:feats.filter(featureInDist)};
+      });
+      var sub=[];
+      parts.forEach(function(p){if(p.subway&&p.subway.features)sub=sub.concat(p.subway.features);});
+      out.subway={type:'FeatureCollection',features:sub.filter(featureInDist)};
+      scopedData=out;status('');return out;
+    }).catch(function(e){status('Could not load '+scope.label+' street data.');setTimeout(function(){status('');},4000);throw e;});
+    return scopedPromise;
+  }
   var heavy=scope.level==='boro';
   if(heavy)status('Loading '+scope.label+' street data. This one is large.');
   scopedPromise=fetch(scope.file).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){scopedData=d;status('');return d;}).catch(function(e){status('Could not load '+scope.label+' street data.');setTimeout(function(){status('');},4000);throw e;});
@@ -326,6 +412,7 @@ function syncUrl(){
   var p=[];
   if(scope.level==='cd')p.push('cd='+scope.short+'-'+scope.num);
   else if(scope.level==='boro')p.push('boro='+scope.boro.file);
+  else if(scope.level==='dist')p.push(scope.kind+'='+scope.num);
   var a=activeKeys();
   if(a.length)p.push('layers='+a.join(','));
   history.replaceState(null,'','/transport-map.html'+(p.length?'?'+p.join('&'):''));
@@ -340,11 +427,18 @@ function renderScopePicker(){
     for(var i=1;i<=b.cds;i++)h+='<option value="cd:'+b.s+'-'+i+'">'+b.n+' Community Board '+i+'</option>';
     h+='</optgroup>';
   });
+  [['council','City Council'],['senate','State Senate'],['assembly','State Assembly'],['congress','Congressional']].forEach(function(kk){
+    var ks=Object.keys(DBOROS[kk[0]]||{}).map(Number).sort(function(a,b){return a-b;});
+    if(!ks.length)return;
+    h+='<optgroup label="'+kk[1]+' Districts">';
+    ks.forEach(function(n){h+='<option value="'+kk[0]+':'+n+'">'+DKINDS[kk[0]].name+' '+n+'</option>';});
+    h+='</optgroup>';
+  });
   sel.innerHTML=h;
-  sel.value=scope.level==='cd'?('cd:'+scope.short+'-'+scope.num):(scope.level==='boro'?('boro:'+scope.boro.file):'city');
+  sel.value=scope.level==='dist'?(scope.kind+':'+scope.num):scope.level==='cd'?('cd:'+scope.short+'-'+scope.num):(scope.level==='boro'?('boro:'+scope.boro.file):'city');
   sel.addEventListener('change',function(){
     var v=this.value,a=activeKeys().filter(function(k){return k!=='asp'&&k!=='sammys';});
-    var q=v==='city'?'':(v.indexOf('cd:')===0?'?cd='+v.slice(3):'?boro='+v.slice(5));
+    var q=v==='city'?'':(v.indexOf('cd:')===0?'?cd='+v.slice(3):v.indexOf('boro:')===0?'?boro='+v.slice(5):'?'+v.split(':')[0]+'='+v.split(':')[1]);
     if(a.length)q+=(q?'&':'?')+'layers='+a.join(',');
     location.href='/transport-map.html'+q;
   });
@@ -400,14 +494,21 @@ if(scope.level==='cd'){
   pl.href='/cb-'+scope.short+'-'+scope.num+'.html#sec-transport';
   pl.textContent='CB'+scope.num+' profile ↗';
   pl.style.display='';
+}else if(scope.level==='dist'){
+  var pl2=el('profile-link');
+  pl2.href=DKINDS[scope.kind].profile(scope.num);
+  pl2.textContent='District profile ↗';
+  pl2.style.display='';
 }
 renderScopePicker();
 renderToggles();
 updateLegend();
+window.__tm={get scope(){return scope;},get scopedData(){return scopedData;},get rings(){return scopeRings;},pointInRings:pointInRings,loadBoundary:loadBoundary,loadScoped:loadScoped};
 
 loadBoundary().then(function(){
   var want=(qs.get('layers')||qs.get('l')||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
   if(!want.length)want=scope.level==='city'?['subrt','subway']:['speed'];
+  if(scope.level==='dist'&&!(qs.get('layers')||qs.get('l')))want=['speed'];
   want.forEach(function(k){
     var btn=el('btn-'+k);
     if(btn&&!btn.hasAttribute('disabled')&&!visible[k])toggle(k,btn);
