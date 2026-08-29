@@ -275,6 +275,10 @@ var OVDEF=[
   {id:'bike',label:'Bike lanes',sw:'#ff8c00',on:false,src:'/data/cb6-bike-routes.geojson',style:function(f){return {color:f.properties.line_color||'#ff8800',weight:3,opacity:.85};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.name)+'</div><div class="ps">'+esc(p.lane_type||'')+'</div><div class="pl">Bike route</div></div>';}},
   {id:'bids',label:'Business districts',sw:'#b3541e',on:false,src:'/data/bids.geojson',filter:function(f){return String(f.properties.cds||'').indexOf('306')>=0;},style:function(){return {color:'#b3541e',weight:2,fillColor:'#b3541e',fillOpacity:.12};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.name)+' BID</div><div class="ps">Since '+esc(p.year||'')+'</div><div class="pl">Business improvement district</div></div>';}},
   {id:'nycha',label:'NYCHA',sw:'#1f5fd6',on:false,src:'/data/CB6-NYCHA.geojson',point:function(f,ll){return L.circleMarker(ll,{radius:8,color:'#fff',weight:2,fillColor:'#1f5fd6',fillOpacity:.95});},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.Name)+'</div><div class="ps">'+esc(p.Type||'')+'</div><div class="pl">NYCHA</div></div>';}},
+  {id:'all-dot',label:'All street work permits',sw:'#e0473c',on:false,custom:true,layer:'dot'},
+  {id:'all-dob',label:'All building permits',sw:'#2145a8',on:false,custom:true,layer:'dob'},
+  {id:'all-lpc',label:'All landmark permits',sw:'#0d1b4b',on:false,custom:true,layer:'lpc'},
+  {id:'all-resurf',label:'All resurfacing',sw:'#7a7a7a',on:false,custom:true,layer:'resurf'},
   {id:'nbhd',label:'Neighborhood names',sw:'#0d1b4b',on:true,custom:true},
   {id:'records',label:'Records found',sw:'#f47920',on:true,custom:true}
 ];
@@ -286,6 +290,7 @@ function buildOverlays(){
   OVDEF.forEach(function(d){
     if(d.custom){
       if(d.id==='records'){OV[d.id]=ptLayer;return;}
+      if(d.layer){OV[d.id]=L.layerGroup();return;}
       if(d.id==='nbhd'){
         nbLayer=L.layerGroup();OV[d.id]=nbLayer;
         fetch('/data/neighborhood-labels.json').then(function(r){return r.json();}).then(function(list){if(CB6RING)placeNbhd(list);else nbPending=list;});
@@ -312,7 +317,12 @@ function renderToggles(){
 }
 function toggleOverlay(id){
   var d=OVDEF.filter(function(x){return x.id===id;})[0];d.on=!d.on;
-  var g=OV[id];if(g){if(d.on)g.addTo(map);else map.removeLayer(g);}
+  var g=OV[id];
+  if(d.layer&&g&&!d.filled&&LAY){d.filled=true;var L0=LAY.layers.filter(function(x){return x.id===d.layer;})[0];
+    if(L0)L0.items.forEach(function(it){var pop='<div class="pop"><div class="pt">'+esc(it.t)+'</div><div class="ps">'+esc(it.s)+'</div><div class="pl">'+esc(L0.label)+'</div></div>';
+      if(it.g&&it.g.length>1)g.addLayer(L.polyline(it.g.map(function(p){return [p[1],p[0]];}),{color:d.sw,weight:3,opacity:.7}).bindPopup(pop));
+      else{var c=it.g?it.g[0]:[it.x,it.y];g.addLayer(L.circleMarker([c[1],c[0]],{radius:3.5,color:'#fff',weight:.8,fillColor:d.sw,fillOpacity:.75}).bindPopup(pop));}});}
+  if(g){if(d.on)g.addTo(map);else map.removeLayer(g);}
   Array.prototype.forEach.call(document.querySelectorAll('[data-ov="'+id+'"]'),function(b){b.classList.toggle('on',d.on);});
 }
 function addOffice(){
