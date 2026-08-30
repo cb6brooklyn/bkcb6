@@ -93,8 +93,7 @@ function build(){
     function wrap(t,w){return doc.splitTextToSize(String(t||''),w);}
     // header band
     doc.setFillColor(NAVY);doc.rect(0,0,W,110,'F');doc.setFillColor(ORANGE);doc.rect(0,110,W,3,'F');
-    if(logo)doc.addImage(logo.data,'PNG',M,18,74,74);
-    var tx=logo?M+88:M;
+    var tx=M;
     mono(7,'#ffffff');doc.text('BKCB6.APP  \u00b7  BLOCK CARD  \u00b7  BROOKLYN COMMUNITY BOARD 6',tx,30);
     var tsz=D.st.length>22?24:30;sans(tsz,'#ffffff');doc.text(D.st,tx,tsz>24?61:58);
     sans(15,'#ffd9b8');doc.text('between '+D.from+' and '+D.to,tx,82);
