@@ -9,8 +9,12 @@ if(el){
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:19}).addTo(map);
     var ll=lines.map(function(ln){return ln.map(function(p){return [p[1],p[0]];});});
     L.polyline(ll,{color:'#f47920',weight:16,opacity:.22,lineCap:'round'}).addTo(map);
-    var pl=L.polyline(ll,{color:'#f47920',weight:6,opacity:.95,lineCap:'round'}).addTo(map);
-    map.fitBounds(pl.getBounds().pad(.6));
+    var pl=L.polyline(ll,{color:'#f47920',weight:8,opacity:.95,lineCap:'round'}).addTo(map);
+    map.fitBounds(pl.getBounds().pad(.45),{maxZoom:18});
+    var lg=ll.reduce(function(a,b){return b.length>a.length?b:a;},ll[0]);var A=lg[0],B=lg[lg.length-1];var mid=[(A[0]+B[0])/2,(A[1]+B[1])/2];
+    L.tooltip({permanent:true,direction:'top',className:'blk',offset:[0,-10],interactive:false}).setLatLng(mid).setContent(el.getAttribute('data-st')).addTo(map);
+    L.tooltip({permanent:true,direction:'center',className:'xst',interactive:false}).setLatLng(A).setContent(el.getAttribute('data-from')).addTo(map);
+    L.tooltip({permanent:true,direction:'center',className:'xst',interactive:false}).setLatLng(B).setContent(el.getAttribute('data-to')).addTo(map);
   };document.head.appendChild(js);
 }
 var b=document.getElementById('shareBtn');
@@ -96,7 +100,7 @@ function build(){
     mono(7.5,'#c9cfe0');doc.text((D.hn?D.hn+'  \u00b7  ':'')+(D.zones.length?'Zoning '+D.zones.join(', ')+'  \u00b7  ':'')+'bkcb6.app/block/'+D.slug,tx,99);
     // ---- grid: two columns of equal width, everything snapped to it ----
     var G=12,colW=(W-2*M-G)/2,colL=M,colR=M+colW+G;
-    var y=126,rowH=118;
+    var y=126,rowH=108;
     // left half: 2x2 pickup tiles
     var dsn=D.dsny[0]||{};
     var dt=[{k:'Trash',v:dsn.refuse||'n/a',n:dsn.refuse_d,im:ic[0]},{k:'Recycling',v:dsn.recycling||'n/a',n:dsn.recycling_d,im:ic[1]},{k:'Compost',v:dsn.organics||'n/a',n:dsn.organics_d||dsn.recycling_d,im:ic[2]},{k:'Bulk items',v:dsn.bulk||'none',n:'',im:ic[3]}];
@@ -122,22 +126,22 @@ function build(){
     else{doc.setFillColor('#ffffff');doc.setDrawColor('#e5e2db');doc.roundedRect(colR,y,colW,rowH,4,4,'FD');label('Alternate side parking',colR+9,y+16);sans(10,NAVY);doc.text('No rules on file for this block',colR+9,y+34);}
     y+=rowH+G;
     // ---- second row: map + chips + voting on the left, representatives on the right ----
-    var mh=colW*0.66;if(map)doc.addImage(map.data,'JPEG',colL,y,colW,mh,undefined,'FAST');doc.setDrawColor(NAVY);doc.setLineWidth(1.2);doc.rect(colL,y,colW,mh);
+    var mh=colW*0.5;if(map)doc.addImage(map.data,'JPEG',colL,y,colW,mh,undefined,'FAST');doc.setDrawColor(NAVY);doc.setLineWidth(1.2);doc.rect(colL,y,colW,mh);
     var ly=y+mh+G;
     // logo buttons: zoning, precinct, school district, landmarks
     var btns=[];
     if(D.zones.length)btns.push({k:'Zoning',v:D.zones.join(' \u00b7 '),im:ag[0],col:NAVY});
-    D.precinct.forEach(function(pc,i){btns.push({k:'Police precinct',v:pc+' Precinct'+(D.sector.length&&i===0?' \u00b7 Sector '+D.sector.join(', '):''),im:pcl[i]||null,col:NAVY});});
-    D.school.forEach(function(sd){btns.push({k:'School district',v:'District '+sd,im:ag[1],col:NAVY});});
+    D.precinct.forEach(function(pc,i){var pi=(D.pct_info||[])[i]||{};btns.push({k:'Police precinct'+(D.sector.length&&i===0?' \u00b7 sector '+D.sector.join(', '):''),v:pc+' Precinct',s:[pi.addr,pi.phone].filter(Boolean).join(' \u00b7 '),im:pcl[i]||null,col:NAVY});});
+    D.school.forEach(function(sd,i){var ci=(D.csd_info||[])[i]||{};btns.push({k:'School district',v:'District '+sd,s:[ci.office,ci.phone].filter(Boolean).join(' \u00b7 '),im:ag[1],col:NAVY});});
     D.hist.forEach(function(hd,i){btns.push({k:'Historic district'+(D.hist_side&&D.hist_side[i]?', '+D.hist_side[i]:''),v:hd.replace(' Historic District',''),im:ic[4],col:'#8b1a1a'});});
-    var per=2,bw=(colW-(per-1)*4)/per,bh=40;
+    var per=1,bw=colW,bh=42;
     btns.forEach(function(t,i){var x=colL+(i%per)*(bw+4),yy=ly+Math.floor(i/per)*(bh+4);doc.setFillColor('#ffffff');doc.setDrawColor(t.col);doc.setLineWidth(1.3);doc.roundedRect(x,yy,bw,bh,6,6,'FD');
-      if(t.im)doc.addImage(t.im.data,'PNG',x+5,yy+5,30,30,undefined,'FAST');
-      var tx0=x+41,tw0=bw-46;mono(5.8,MUTED);doc.text(wrap(t.k.toUpperCase(),tw0)[0],tx0,yy+13);sans(8.6,t.col);var vl=wrap(t.v,tw0).slice(0,2);vl.forEach(function(l,j){doc.text(l,tx0,yy+25+j*9.5);});});
-    ly+=Math.ceil(btns.length/per)*(bh+4)-4+G;doc.setLineWidth(1);
-    if(ag[2])doc.addImage(ag[2].data,'PNG',colL,ly,28,28,undefined,'FAST');sans(9,ORANGE);doc.text('VOTING',colL+34,ly+10);sans(11,NAVY);doc.text('Next election: Tuesday, November 3, 2026',colL+34,ly+23);ly+=38;
+      if(t.im)doc.addImage(t.im.data,'PNG',x+4,yy+4,34,34,undefined,'FAST');
+      var tx0=x+46,tw0=bw-52;mono(5.8,MUTED);doc.text(wrap(t.k.toUpperCase(),tw0)[0],tx0,yy+11);sans(9.5,t.col);doc.text(wrap(t.v,tw0)[0],tx0,yy+23);if(t.s){body(6.8,'#444');doc.text(wrap(t.s,tw0)[0],tx0,yy+34);}});
+    ly+=Math.ceil(btns.length/per)*(bh+4)-4+8;doc.setLineWidth(1);
+    if(ag[2])doc.addImage(ag[2].data,'PNG',colL,ly,24,24,undefined,'FAST');sans(8.5,ORANGE);doc.text('VOTING',colL+30,ly+9);sans(10.5,NAVY);doc.text('Next election: Tuesday, November 3, 2026',colL+30,ly+21);ly+=32;
     body(8,'#333');wrap('Early voting Oct 24 to Nov 1; Election Day polls 6 AM to 9 PM. On this block\u2019s ballot: '+D.ballot26.map(function(x){return x.replace(/\s*\(.*\)/,'').replace('State Senate District','Senate').replace('Assembly District','Assembly').replace('Congress, ','');}).join('; ')+'; Governor, Lt. Governor, Attorney General, State Comptroller. City offices next in 2029.',colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});
-    D.eds.slice(0,3).forEach(function(e,i){ly+=4;label('Election district AD '+e.ad+', ED '+e.ed+(D.eds.length>1?' (this block spans '+D.eds.length+')':''),colL,ly);ly+=10;
+    D.eds.slice(0,1).forEach(function(e,i){ly+=4;label('Election district AD '+e.ad+', ED '+e.ed+(D.eds.length>1?' (this block spans '+D.eds.length+'; all on the web card)':''),colL,ly);ly+=10;
       if(i===0){if(e.site){sans(9,NAVY);doc.text('Election Day: '+e.site[0],colL,ly);ly+=10;body(8,'#333');doc.text(e.site[1]+(e.site[4]?' \u00b7 '+e.site[4]:''),colL,ly);ly+=10;}
         if(e.early){sans(9,NAVY);doc.text('Early voting: '+e.early[0],colL,ly);ly+=10;body(8,'#333');doc.text(e.early[1],colL,ly);ly+=10;}}
       else{body(8,'#333');if(e.site)wrap('Election Day: '+e.site[0]+', '+e.site[1].replace(/, Brooklyn.*$/,''),colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});if(e.early)wrap('Early voting: '+e.early[0],colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});}});
@@ -147,7 +151,7 @@ function build(){
     var prim=all.filter(function(o){return /Council/.test(o.title);}).concat([{name:D.cb6.name,title:D.cb6.title,office:D.cb6.office,phone:D.cb6.phone,email:D.cb6.email,img:cbsq}]);
     var rest=all.filter(function(o){return !/Council/.test(o.title);});
     var reps=prim;
-    var IC=34,IX=colR,TX=colR+IC+8,TW=colW-IC-8;
+    var IC=46,IX=colR,TX=colR+IC+9,TW=colW-IC-9;
     reps.forEach(function(o){ry+=6;doc.setDrawColor('#e5e2db');doc.line(colR,ry-3,colR+colW,ry-3);var top=ry-1;
       if(o.img){doc.addImage(o.img.data,'PNG',IX,top+1,IC,IC,undefined,'FAST');doc.setDrawColor(NAVY);doc.setLineWidth(.6);doc.rect(IX,top+1,IC,IC);doc.setLineWidth(1);}
       label(o.title,TX,ry+3);ry+=12;sans(10.5,NAVY);doc.text(o.name,TX,ry);ry+=9;
@@ -155,7 +159,7 @@ function build(){
       body(7,'#444');var ct=cw?[[o.office,o.phone,o.email].filter(Boolean).join('  \u00b7  ')]:[o.office,[o.phone,o.email].filter(Boolean).join('  \u00b7  ')].filter(Boolean);ct.forEach(function(l){wrap(l,TW).slice(0,2).forEach(function(w){doc.text(w,TX,ry);ry+=8;});});
       if(ry<top+IC+3)ry=top+IC+3;});
     ry+=10;sans(9,ORANGE);doc.text('ALSO REPRESENTS THIS BLOCK',colR,ry);ry+=4;
-    rest.forEach(function(o){ry+=9;if(o.img){doc.addImage(o.img.data,'PNG',colR,ry-4,24,24,undefined,'FAST');doc.setDrawColor('#e5e2db');doc.setLineWidth(.5);doc.rect(colR,ry-4,24,24);}sans(9,NAVY);doc.text(o.name,colR+30,ry+4);mono(5.8,MUTED);doc.text(o.title.toUpperCase(),colR+30,ry+12);body(7,'#444');doc.text((o.phone||'')+(o.email?'  \u00b7  '+o.email:''),colR+30,ry+20);ry+=24;});
+    rest.forEach(function(o){ry+=9;if(o.img){doc.addImage(o.img.data,'PNG',colR,ry-4,28,28,undefined,'FAST');doc.setDrawColor('#e5e2db');doc.setLineWidth(.5);doc.rect(colR,ry-4,28,28);}sans(9,NAVY);doc.text(o.name,colR+34,ry+4);mono(5.8,MUTED);doc.text(o.title.toUpperCase(),colR+34,ry+12);body(7,'#444');doc.text((o.phone||'')+(o.email?'  \u00b7  '+o.email:''),colR+34,ry+20);ry+=26;});
     // services line under reps
     ry+=12;if(ag[4])doc.addImage(ag[4].data,'PNG',colR,ry-9,26,26,undefined,'FAST');sans(9,NAVY);doc.text('Call 311',colR+32,ry+1);body(7.4,'#444');doc.text('Noise, sanitation, streets, heat and hot water.',colR+32,ry+11);ry+=22;
     // footer band with QR
