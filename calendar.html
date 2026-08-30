@@ -124,6 +124,8 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 .share-btn.on-dark:hover{border-color:#fff;color:#fff}
 .share-btn.on-dark.copied{background:var(--orange);border-color:var(--orange);color:#fff}
 .lcb-share{margin-top:6px}
+.civic-btn{border-color:var(--navy);color:var(--navy);font-weight:700}
+.civic-btn.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 .org-logo-link{cursor:pointer;display:inline-flex;align-items:center;flex-shrink:0;border-radius:6px;transition:box-shadow .15s,transform .15s}
 .org-logo-link:hover{box-shadow:0 0 0 2px var(--orange);transform:scale(1.06)}
 .past-toggle-wrap{max-width:960px;margin:14px auto 24px;padding:0 16px;display:flex;justify-content:center}
@@ -345,6 +347,9 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
       <option value="aviles">CM Alexa Aviles (CD38)</option>
       <option value="gounardes">Senator Andrew Gounardes (SD26)</option>
       <option value="simon">AM Jo Anne Simon (AD52)</option>
+      <option value="nyccouncil">NYC Council</option>
+      <option value="bkcbs">Brooklyn Community Boards</option>
+      <option value="hearing">City Agency Hearings</option>
       <option value="bkbp">Brooklyn Borough President</option>
       <option value="whynotart">Why Not Art</option>
       <option value="fofa">Forth on Fourth Avenue</option>
@@ -407,6 +412,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     </select>
     <button class="share-btn" id="share-org-btn" style="display:none" onclick="copyShare(shareUrlForOrg(document.getElementById('list-org-filter').value), this)" title="Copy a link to this organization&#39;s events">&#128279; <span id="share-org-label">Share org</span></button>
     <span class="list-count" id="list-count"></span>
+    <button class="share-btn civic-btn" id="civic-toggle" onclick="toggleCivic()" title="Add NYC Council, all 18 Brooklyn community boards, and city agency hearings">Show citywide meetings</button>
     <button class="share-btn" id="share-view-btn" onclick="copyShare(shareUrlForView(), this)" title="Copy a link to this filtered view">&#128279; Share view</button>
     <button class="share-btn" id="share-week-btn" onclick="copyShare(shareUrlForWeek(todayKey()), this)" title="Copy a link to this week">&#128279; Share week</button>
   </div>
@@ -1776,6 +1782,9 @@ const TYPES = {
   dep:       { bg:"#005ca8", color:"#fff", icon:"💧" },
   gounardes: { bg:"#1a2a4a", color:"#fff", icon:"🏛" },
   simon:     { bg:"#4b2e83", color:"#fff", icon:"🏛" },
+  nyccouncil:{ bg:"#0b3d2e", color:"#fff", icon:"🏛" },
+  bkcbs:     { bg:"#5a3210", color:"#fff", icon:"📋" },
+  hearing:   { bg:"#4a4a52", color:"#fff", icon:"⚖" },
   wytchonymous: { bg:"#6b4a8f", color:"#fff", icon:"🧚" },
   psccivic:     { bg:"#1f5fa9", color:"#fff", icon:"🏘" },
   pacemakers:   { bg:"#005596", color:"#fff", icon:"💃" },
@@ -1949,6 +1958,7 @@ function shareUrlForView(){
   if(rangeFilter && rangeFilter.kind === 'week')  parts.push('week=' + rangeFilter.start);
   if(rangeFilter && rangeFilter.kind === 'month') parts.push('month=' + rangeFilter.start.slice(0,7));
   if(showPast) parts.push('past=1');
+  if(civicOn) parts.push('civic=1');
   return shareBase() + (parts.length ? '?' + parts.join('&') : '');
 }
 function copyShare(url, btn){
@@ -2140,7 +2150,7 @@ function renderList(){
     cb6:       new Set(['board','committee']),
     arts:      new Set(['bkcm','powerhouse','bric','bricarts','artsgowanus','vanalen','jalopy','osh','bkpride','sss','nitehawk','rhba','rhap','whynotart','dredgers','pioneer works','pioneerworks','porchstomp','booksaremagic','wytchonymous','hookarts','portside','recordshop','rooftopfilms','fortdefiance']),
     food:      new Set(['dte','rhlp','principles','green615','strongrope','housepepper']),
-    civic:     new Set(['lpc','dcp','nyccouncil','aviles','gounardes','simon','bkbp','nycvotes','hpd','rgb','pct76','pct78','fac','rhjc','gcc','cobblehill','cga','aaldc','ps5bid','psos','swbtu','rhi','fofa','cec15','dsny','niyn','rrh','nycdot','dep','cuffh','cswa','mta','bmtdc','mayorsoffice','psccivic','sbdsa','duboisbunche']),
+    civic:     new Set(['lpc','dcp','nyccouncil','aviles','gounardes','simon','bkcbs','hearing','bkbp','nycvotes','hpd','rgb','pct76','pct78','fac','rhjc','gcc','cobblehill','cga','aaldc','ps5bid','psos','swbtu','rhi','fofa','cec15','dsny','niyn','rrh','nycdot','dep','cuffh','cswa','mta','bmtdc','mayorsoffice','psccivic','sbdsa','duboisbunche']),
     parks:     new Set(['prospect','bbp','nycparks','bbg','birdcollective']),
     community: new Set(['bpl','psos','barkslope','school','ps15','bikebus','bergenbikebus','secretgarden','brooklynpopup','soccer','altside','ulurp','fof','niyn','rrh','dsny','rhba','pacemakers','streetlab']),
   };
@@ -2148,6 +2158,7 @@ function renderList(){
   Object.entries(EVENTS).forEach(([dateKey, evs])=>{
     evs.forEach(ev=>{
       if(hiddenTypes.has(ev.type)) return;
+      if(ev._civic && !civicOn) return;
       if(org && ev.type !== org) return;
       if(cat && CAT_TYPES[cat] && !CAT_TYPES[cat].has(ev.type)) return;
       if(q && !ev.label.toLowerCase().includes(q) &&
@@ -2497,6 +2508,7 @@ function cell(d, key, other, today, weekend){
   }
   const dedupedEvs = evs.filter(ev => {
     if(hiddenTypes.has(ev.type)) return false;
+    if(ev._civic && !civicOn) return false;
     return true;
   });
   const pills = dedupedEvs.map(ev=>{
@@ -2713,6 +2725,7 @@ function selectDay(key, d){
     evs.find(e => e.label===label);
   const uniqEvs = evs.filter(ev => {
     if(hiddenTypes.has(ev.type)) return false;
+    if(ev._civic && !civicOn) return false;
     if(crossLabels.has(ev.label) && crossKeeper(ev.label) !== ev) return false;
     const k = ev.type + '|' + ev.label;
     if(seen.has(k)) return false;
@@ -2902,6 +2915,104 @@ function parseICS(text){
   return events;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+//  CITYWIDE CIVIC LAYER
+//  data/civic-calendar/*.json is rebuilt daily by the civic-calendar Action:
+//  NYC Council (Legistar), all 18 Brooklyn community boards, and city agency
+//  public hearings (City Record). It is OFF by default so the page behaves
+//  exactly as before until someone asks for it, via the toggle or ?civic=1.
+// ═══════════════════════════════════════════════════════════════════════
+let civicLoaded = false;
+let civicOn = false;
+
+async function loadCivicLayer(){
+  if(civicLoaded) return true;
+  const bust = '?_=' + Math.floor(Date.now()/3600000);
+  const add = (dateKey, ev) => {
+    if(!EVENTS[dateKey]) EVENTS[dateKey] = [];
+    const norm = t => (t||'').replace(/\s+/g,' ').trim().toLowerCase();
+    if(EVENTS[dateKey].some(e => norm(e.label) === norm(ev.label) && e.type === ev.type)) return;
+    EVENTS[dateKey].push(ev);
+  };
+
+  try {
+    const [council, boards, hearings] = await Promise.all(
+      ['council','brooklyn-cbs','hearings'].map(n =>
+        fetch('data/civic-calendar/' + n + '.json' + bust)
+          .then(r => r.ok ? r.json() : null).catch(() => null)));
+
+    if(council && council.events){
+      Object.entries(council.events).forEach(([dateKey, list]) => {
+        list.forEach(e => add(dateKey, {
+          type: 'nyccouncil',
+          label: 'NYC Council: ' + e.label,
+          time: e.time || null,
+          location: e.location || null,
+          href: e.href || null,
+          linkText: e.href ? 'Meeting details \u2197' : null,
+          desc: e.status ? ('Status: ' + e.status + '.') : null,
+          _civic: true
+        }));
+      });
+    }
+
+    if(boards && boards.boards){
+      Object.values(boards.boards).forEach(b => {
+        (b.events || []).forEach(e => add(e.date, {
+          type: 'bkcbs',
+          label: 'Brooklyn CB' + b.cb + ': ' + e.label,
+          time: e.time || null,
+          location: e.location || null,
+          href: e.href || null,
+          linkText: e.linkText || null,
+          desc: e.source === 'standing'
+            ? ('Standing schedule: ' + e.rule + '. Confirm with the board before attending.')
+            : null,
+          _civic: true,
+          _standing: e.source === 'standing'
+        }));
+      });
+    }
+
+    if(hearings && hearings.events){
+      Object.entries(hearings.events).forEach(([dateKey, list]) => {
+        list.forEach(e => add(dateKey, {
+          type: 'hearing',
+          label: e.agency + ': ' + e.label,
+          time: e.time || null,
+          href: e.href || null,
+          linkText: e.linkText || 'Notice \u2197',
+          desc: e.section || null,
+          _civic: true
+        }));
+      });
+    }
+
+    civicLoaded = true;
+    return true;
+  } catch(e){
+    console.warn('civic calendar layer unavailable', e);
+    return false;
+  }
+}
+
+async function toggleCivic(on){
+  civicOn = (on === undefined) ? !civicOn : !!on;
+  const btn = document.getElementById('civic-toggle');
+  if(civicOn){
+    if(btn) btn.textContent = 'Loading citywide\u2026';
+    const ok = await loadCivicLayer();
+    if(!ok) civicOn = false;
+  }
+  if(btn){
+    btn.textContent = civicOn ? 'Hide citywide meetings' : 'Show citywide meetings';
+    btn.classList.toggle('on', civicOn);
+  }
+  renderMonth();
+  renderList();
+  buildTodayFlyers();
+}
+
 async function loadLiveEvents(){
   const mergeEntry = (ev) => {
     // Skip the live-feed "Early Voting — ... Primary/General Election" rows:
@@ -2982,6 +3093,9 @@ function applyUrlDate(){
   try {
     const p = new URLSearchParams(window.location.search);
     const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+    // ?civic=1 opens with the citywide layer already loaded
+    if(p.get('civic') === '1'){ toggleCivic(true); }
 
     // ?past=1 opens the list with past events already revealed
     if(p.get('past') === '1'){ showPast = true; setView('list'); renderList(); }
