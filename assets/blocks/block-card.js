@@ -104,13 +104,11 @@ function build(){
     var y=126,rowH=108;
     // left half: 2x2 pickup tiles
     var dsn=D.dsny[0]||{};
-    doc.setFillColor('#ffffff');doc.setDrawColor('#e5e2db');doc.setLineWidth(.8);doc.roundedRect(colL,y,colW,rowH,4,4,'FD');
-    if(ag[3])doc.addImage(ag[3].data,'PNG',colL+8,y+8,30,30,undefined,'FAST');
-    mono(6.5,MUTED);doc.text('TRASH, RECYCLING, COMPOST, BULK',colL+46,y+16);sans(9,NAVY);doc.text('Pickup days on this block',colL+46,y+29);
-    var ICM={'Trash':ic[0],'Recycling':ic[1],'Compost':ic[2],'Bulk items':ic[3]};
-    var by=D.byday||[];var yy=y+44;var rh=Math.min(19,(rowH-50)/Math.max(by.length,1));
-    by.forEach(function(r){sans(10,NAVY);doc.text(r[0],colL+12,yy+9);var x=colL+70,row=0;r[1].forEach(function(it){var lab=it==='Bulk items'?'Bulk':it;body(7.5,'#333');var w=17+doc.getTextWidth(lab)+8;if(x+w>colL+colW-6){x=colL+70;row++;}var im=ICM[it];if(im)doc.addImage(im.data,'PNG',x,yy-2+row*13,14,14,undefined,'FAST');doc.text(lab,x+17,yy+8+row*13);x+=w;});yy+=rh+row*13;});
-    if(!by.length){body(8,'#444');doc.text('No DSNY residential schedule on file here.',colL+12,y+60);}
+    var dt=[{k:'Trash',v:dsn.refuse||'n/a',im:ic[0]},{k:'Recycling',v:dsn.recycling||'n/a',im:ic[1]},{k:'Compost',v:dsn.organics||'n/a',im:ic[2]},{k:'Bulk items',v:dsn.bulk||'none',im:ic[3]}];
+    var gw=(colW-4)/2,gh=(rowH-4)/2;
+    dt.forEach(function(t,i){var x=colL+(i%2)*(gw+4),yy=y+Math.floor(i/2)*(gh+4);doc.setFillColor('#ffffff');doc.setDrawColor('#e5e2db');doc.setLineWidth(.8);doc.roundedRect(x,yy,gw,gh,4,4,'FD');
+      var isz=34;if(t.im)doc.addImage(t.im.data,'PNG',x+8,yy+(gh-isz)/2,isz,isz);
+      var tx0=x+isz+16;label(t.k,tx0,yy+18);sans(9.5,NAVY);wrap(t.v,gw-isz-24).slice(0,2).forEach(function(l,j){doc.text(l,tx0,yy+32+j*10.5);});});
     // right half: parking signs, one per side, in matching tiles
     function sign(x,yy,w,a){
       var h=w*376/573;doc.setFillColor('#ffffff');doc.setDrawColor(RED);doc.setLineWidth(2);doc.roundedRect(x,yy,w,h,3,3,'FD');doc.setLineWidth(1);
