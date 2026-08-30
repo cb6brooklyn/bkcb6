@@ -41,7 +41,6 @@ function render(D){
   h+='<section class="card"><h2><img class="h2i" src="/site-icons/agencies/boe.png" alt="">Voting</h2>';
   h+='<div class="row"><div class="k">Next election</div><div class="v"><b>Tuesday, November 3, 2026</b><div class="sm">Early voting October 24 to November 1. Election Day polls open 6 AM to 9 PM.</div></div></div>';
   h+='<div class="row"><div class="k">On that ballot for this block</div><div class="v"><div class="sm">'+esc(D.ballot26.join('; '))+'. Plus statewide: Governor, Lieutenant Governor, Attorney General, State Comptroller.</div></div></div>';
-  h+='<div class="row"><div class="k">City offices</div><div class="v"><b>2029</b><div class="sm">Primary in June 2029, general on November 6, 2029: '+esc(D.ballot29.join('; '))+'.</div></div></div>';
   D.eds.forEach(function(e){h+='<div class="row"><div class="k">Election district</div><div class="v"><b>AD '+e.ad+', ED '+e.ed+'</b>'+(D.eds.length>1?' <span class="sm">(this block spans more than one)</span>':'')+'</div></div>';
     if(e.site)h+='<div class="row"><div class="k">Election Day poll site</div><div class="v"><b>'+esc(e.site[0])+'</b><div class="sm">'+esc(e.site[1])+(e.site[4]?' &middot; '+esc(e.site[4]):'')+'</div></div></div>';
     if(e.early)h+='<div class="row"><div class="k">Early voting site</div><div class="v"><b>'+esc(e.early[0])+'</b><div class="sm">'+esc(e.early[1])+'</div></div></div>';});
