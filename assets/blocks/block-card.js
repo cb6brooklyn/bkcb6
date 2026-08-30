@@ -89,6 +89,7 @@ function build(){
     function mono(sz,col){doc.setFont(haveF?'DMMono':'courier',haveF?'normal':'normal');doc.setFontSize(sz);doc.setTextColor(col||MUTED);}
     function body(sz,col){doc.setFont('helvetica','normal');doc.setFontSize(sz);doc.setTextColor(col||NAVY);}
     function label(t,x,y,o){mono(6.5,MUTED);doc.text(String(t).toUpperCase(),x,y,o||{});}
+
     function wrap(t,w){return doc.splitTextToSize(String(t||''),w);}
     // header band
     doc.setFillColor(NAVY);doc.rect(0,0,W,110,'F');doc.setFillColor(ORANGE);doc.rect(0,110,W,3,'F');
@@ -103,12 +104,13 @@ function build(){
     var y=126,rowH=108;
     // left half: 2x2 pickup tiles
     var dsn=D.dsny[0]||{};
-    var dt=[{k:'Trash',v:dsn.refuse||'n/a',n:dsn.refuse_d,im:ic[0]},{k:'Recycling',v:dsn.recycling||'n/a',n:dsn.recycling_d,im:ic[1]},{k:'Compost',v:dsn.organics||'n/a',n:dsn.organics_d||dsn.recycling_d,im:ic[2]},{k:'Bulk items',v:dsn.bulk||'none',n:'',im:ic[3]}];
-    var gw=(colW-4)/2,gh=(rowH-4)/2;
-    dt.forEach(function(t,i){var x=colL+(i%2)*(gw+4),yy=y+Math.floor(i/2)*(gh+4);doc.setFillColor('#ffffff');doc.setDrawColor('#e5e2db');doc.setLineWidth(.8);doc.roundedRect(x,yy,gw,gh,4,4,'FD');
-      var isz=34;if(t.im)doc.addImage(t.im.data,'PNG',x+8,yy+(gh-isz)/2,isz,isz);
-      var tx0=x+isz+16;label(t.k,tx0,yy+16);sans(9.5,NAVY);var vl=wrap(t.v,gw-isz-24).slice(0,2);vl.forEach(function(l,j){doc.text(l,tx0,yy+29+j*10.5);});
-      if(t.n){body(6.8,'#444');doc.text(wrap('next '+nextOf(t.n).replace(/^(\w{3})\w*,/,'$1'),gw-isz-24)[0]||'',tx0,yy+gh-8);}});
+    doc.setFillColor('#ffffff');doc.setDrawColor('#e5e2db');doc.setLineWidth(.8);doc.roundedRect(colL,y,colW,rowH,4,4,'FD');
+    if(ag[3])doc.addImage(ag[3].data,'PNG',colL+8,y+8,30,30,undefined,'FAST');
+    mono(6.5,MUTED);doc.text('TRASH, RECYCLING, COMPOST, BULK',colL+46,y+16);sans(9,NAVY);doc.text('Pickup days on this block',colL+46,y+29);
+    var ICM={'Trash':ic[0],'Recycling':ic[1],'Compost':ic[2],'Bulk items':ic[3]};
+    var by=D.byday||[];var yy=y+44;var rh=Math.min(19,(rowH-50)/Math.max(by.length,1));
+    by.forEach(function(r){sans(10,NAVY);doc.text(r[0],colL+12,yy+9);var x=colL+70,row=0;r[1].forEach(function(it){var lab=it==='Bulk items'?'Bulk':it;body(7.5,'#333');var w=17+doc.getTextWidth(lab)+8;if(x+w>colL+colW-6){x=colL+70;row++;}var im=ICM[it];if(im)doc.addImage(im.data,'PNG',x,yy-2+row*13,14,14,undefined,'FAST');doc.text(lab,x+17,yy+8+row*13);x+=w;});yy+=rh+row*13;});
+    if(!by.length){body(8,'#444');doc.text('No DSNY residential schedule on file here.',colL+12,y+60);}
     // right half: parking signs, one per side, in matching tiles
     function sign(x,yy,w,a){
       var h=w*376/573;doc.setFillColor('#ffffff');doc.setDrawColor(RED);doc.setLineWidth(2);doc.roundedRect(x,yy,w,h,3,3,'FD');doc.setLineWidth(1);
@@ -126,7 +128,30 @@ function build(){
     else{doc.setFillColor('#ffffff');doc.setDrawColor('#e5e2db');doc.roundedRect(colR,y,colW,rowH,4,4,'FD');label('Alternate side parking',colR+9,y+16);sans(10,NAVY);doc.text('No rules on file for this block',colR+9,y+34);}
     y+=rowH+G;
     // ---- second row: map + chips + voting on the left, representatives on the right ----
-    var mh=colW*0.5;if(map)doc.addImage(map.data,'JPEG',colL,y,colW,mh,undefined,'FAST');doc.setDrawColor(NAVY);doc.setLineWidth(1.2);doc.rect(colL,y,colW,mh);
+    var mh=colW*0.52;
+    doc.setFillColor('#fbfaf7');doc.setDrawColor(NAVY);doc.setLineWidth(1.2);doc.rect(colL,y,colW,mh,'FD');
+    (function(){
+      var MLAT=111320,MLON=84400;function tm(p){return [(p[0]-D.mid[1])*MLON,(p[1]-D.mid[0])*MLAT];}
+      var lg=D.lines.reduce(function(a2,b2){return b2.length>a2.length?b2:a2;},D.lines[0]);var A=tm(lg[0]),B=tm(lg[lg.length-1]);
+      var bl=0;D.lines.forEach(function(ln){for(var i=0;i<ln.length-1;i++){var p1=tm(ln[i]),p2=tm(ln[i+1]);bl+=Math.hypot(p2[0]-p1[0],p2[1]-p1[1]);}});bl=bl||80;var sc=Math.min(colW,mh)*0.5/bl;sc=Math.max(0.2,Math.min(sc,0.55));
+      var cx=colL+colW/2,cy=y+mh/2;function px(p){var m=tm(p);return [cx+m[0]*sc,cy-m[1]*sc];}
+      function inside(q){return q[0]>colL+2&&q[0]<colL+colW-2&&q[1]>y+2&&q[1]<y+mh-2;}
+      // clip to the box
+      // clip lines manually to the box (Liang-Barsky) so nothing spills outside
+      function clipSeg(a2,b2){var x0=colL+1,y0=y+1,x1=colL+colW-1,y1=y+mh-1;var t0=0,t1=1,dx=b2[0]-a2[0],dy=b2[1]-a2[1];var p=[-dx,dx,-dy,dy],q=[a2[0]-x0,x1-a2[0],a2[1]-y0,y1-a2[1]];for(var i=0;i<4;i++){if(p[i]===0){if(q[i]<0)return null;}else{var t=q[i]/p[i];if(p[i]<0){if(t>t1)return null;if(t>t0)t0=t;}else{if(t<t0)return null;if(t<t1)t1=t;}}}return [[a2[0]+t0*dx,a2[1]+t0*dy],[a2[0]+t1*dx,a2[1]+t1*dy]];}
+      function drawLines(pts){for(var i=0;i<pts.length-1;i++){var c=clipSeg(pts[i],pts[i+1]);if(c)doc.line(c[0][0],c[0][1],c[1][0],c[1][1]);}}
+      doc.setDrawColor('#c9c5bc');doc.setLineWidth(2.2);
+      (D.near||[]).forEach(function(seg){drawLines(seg[1].map(px));});
+      doc.setDrawColor(ORANGE);doc.setLineWidth(7);
+      D.lines.forEach(function(ln){drawLines(ln.map(px));});
+      // labels: other nearby street names at their segment midpoints (light), then the block's own
+      var done={};doc.setFontSize(6);
+      (D.near||[]).forEach(function(seg){var n=seg[0];if(n===D.st||done[n]||D.from.indexOf(n)>=0||D.to.indexOf(n)>=0)return;var g=seg[1];var m=px(g[Math.floor(g.length/2)]);if(m[0]<colL+30||m[0]>colL+colW-30||m[1]<y+10||m[1]>y+mh-10)return;var a2=px(g[0]),b2=px(g[g.length-1]);var ang=-Math.atan2(b2[1]-a2[1],b2[0]-a2[0])*180/Math.PI;if(ang>90)ang-=180;if(ang<-90)ang+=180;mono(5.5,'#8a867d');doc.text(n,m[0],m[1]-2,{align:'center',angle:ang});done[n]=1;});
+      function tagBox(t,x0,y0,fill,col,sz){sans(sz,col);var w=doc.getTextWidth(t)+10,h=sz+6;x0=Math.max(colL+w/2+2,Math.min(colL+colW-w/2-2,x0));y0=Math.max(y+h/2+2,Math.min(y+mh-h/2-2,y0));doc.setFillColor(fill);doc.setDrawColor(col);doc.setLineWidth(1);doc.roundedRect(x0-w/2,y0-h/2,w,h,3,3,'FD');doc.setTextColor(col);doc.text(t,x0,y0+sz*0.35,{align:'center'});}
+      var pa=px(lg[0]),pb=px(lg[lg.length-1]),pm=[(pa[0]+pb[0])/2,(pa[1]+pb[1])/2];var dx=pb[0]-pa[0],dy=pb[1]-pa[1],L=Math.hypot(dx,dy)||1;var nx=-dy/L,ny=dx/L;
+      tagBox(D.st,pm[0]+nx*16,pm[1]+ny*16,NAVY,'#ffffff',8);
+      tagBox(D.from.split(' & ')[0],pa[0]-dx/L*14,pa[1]-dy/L*14,'#ffffff',NAVY,7);tagBox(D.to.split(' & ')[0],pb[0]+dx/L*14,pb[1]+dy/L*14,'#ffffff',NAVY,7);
+    })();
     var ly=y+mh+G;
     // logo buttons: zoning, precinct, school district, landmarks
     var btns=[];
@@ -136,30 +161,30 @@ function build(){
     D.hist.forEach(function(hd,i){btns.push({k:'Historic district'+(D.hist_side&&D.hist_side[i]?', '+D.hist_side[i]:''),v:hd.replace(' Historic District',''),im:ic[4],col:'#8b1a1a'});});
     var per=1,bw=colW,bh=42;
     btns.forEach(function(t,i){var x=colL+(i%per)*(bw+4),yy=ly+Math.floor(i/per)*(bh+4);doc.setFillColor('#ffffff');doc.setDrawColor(t.col);doc.setLineWidth(1.3);doc.roundedRect(x,yy,bw,bh,6,6,'FD');
-      if(t.im)doc.addImage(t.im.data,'PNG',x+4,yy+4,34,34,undefined,'FAST');
-      var tx0=x+46,tw0=bw-52;mono(5.8,MUTED);doc.text(wrap(t.k.toUpperCase(),tw0)[0],tx0,yy+11);sans(9.5,t.col);doc.text(wrap(t.v,tw0)[0],tx0,yy+23);if(t.s){body(6.8,'#444');doc.text(wrap(t.s,tw0)[0],tx0,yy+34);}});
+      if(t.im)doc.addImage(t.im.data,'PNG',x+4,yy+4,38,38,undefined,'FAST');
+      var tx0=x+50,tw0=bw-56;mono(5.8,MUTED);doc.text(wrap(t.k.toUpperCase(),tw0)[0],tx0,yy+11);sans(9.5,t.col);doc.text(wrap(t.v,tw0)[0],tx0,yy+23);if(t.s){body(6.8,'#444');doc.text(wrap(t.s,tw0)[0],tx0,yy+34);}});
     ly+=Math.ceil(btns.length/per)*(bh+4)-4+8;doc.setLineWidth(1);
-    if(ag[2])doc.addImage(ag[2].data,'PNG',colL,ly,24,24,undefined,'FAST');sans(8.5,ORANGE);doc.text('VOTING',colL+30,ly+9);sans(10.5,NAVY);doc.text('Next election: Tuesday, November 3, 2026',colL+30,ly+21);ly+=32;
+    if(ag[2])doc.addImage(ag[2].data,'PNG',colL,ly,30,30,undefined,'FAST');sans(8.5,ORANGE);doc.text('THIS BLOCK\u2019S POLL SITE',colL+36,ly+10);sans(10.5,NAVY);doc.text('Next election: Tuesday, November 3, 2026',colL+36,ly+23);ly+=36;
     body(8,'#333');wrap('Early voting Oct 24 to Nov 1; Election Day polls 6 AM to 9 PM. On this block\u2019s ballot: '+D.ballot26.map(function(x){return x.replace(/\s*\(.*\)/,'').replace('State Senate District','Senate').replace('Assembly District','Assembly').replace('Congress, ','');}).join('; ')+'; Governor, Lt. Governor, Attorney General, State Comptroller. City offices next in 2029.',colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});
     D.eds.slice(0,1).forEach(function(e,i){ly+=4;label('Election district AD '+e.ad+', ED '+e.ed+(D.eds.length>1?' (this block spans '+D.eds.length+'; all on the web card)':''),colL,ly);ly+=10;
       if(i===0){if(e.site){sans(9,NAVY);doc.text('Election Day: '+e.site[0],colL,ly);ly+=10;body(8,'#333');doc.text(e.site[1]+(e.site[4]?' \u00b7 '+e.site[4]:''),colL,ly);ly+=10;}
         if(e.early){sans(9,NAVY);doc.text('Early voting: '+e.early[0],colL,ly);ly+=10;body(8,'#333');doc.text(e.early[1],colL,ly);ly+=10;}}
       else{body(8,'#333');if(e.site)wrap('Election Day: '+e.site[0]+', '+e.site[1].replace(/, Brooklyn.*$/,''),colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});if(e.early)wrap('Early voting: '+e.early[0],colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});}});
     // right: reps
-    var ry=y+8;sans(9,ORANGE);doc.text('WHO REPRESENTS THIS BLOCK',colR,ry);ry+=6;
+    var ry=y+8;sans(9,ORANGE);doc.text('THIS BLOCK\u2019S COUNCIL MEMBER AND COMMUNITY BOARD',colR,ry);ry+=6;
     var all=D.reps.map(function(o,i){o=Object.assign({},o);o.img=icons[i];return o;});
     var prim=all.filter(function(o){return /Council/.test(o.title);}).concat([{name:D.cb6.name,title:D.cb6.title,office:D.cb6.office,phone:D.cb6.phone,email:D.cb6.email,img:cbsq}]);
     var rest=all.filter(function(o){return !/Council/.test(o.title);});
     var reps=prim;
-    var IC=46,IX=colR,TX=colR+IC+9,TW=colW-IC-9;
+    var IC=50,IX=colR,TX=colR+IC+9,TW=colW-IC-9;
     reps.forEach(function(o){ry+=6;doc.setDrawColor('#e5e2db');doc.line(colR,ry-3,colR+colW,ry-3);var top=ry-1;
       if(o.img){doc.addImage(o.img.data,'PNG',IX,top+1,IC,IC,undefined,'FAST');doc.setDrawColor(NAVY);doc.setLineWidth(.6);doc.rect(IX,top+1,IC,IC);doc.setLineWidth(1);}
-      label(o.title,TX,ry+3);ry+=12;sans(10.5,NAVY);doc.text(o.name,TX,ry);ry+=9;
+      label(o.title.replace('Council Member','This block\u2019s council member').replace(/District Manager.*/,'This block\u2019s community board'),TX,ry+3);ry+=12;sans(11,NAVY);doc.text(o.name,TX,ry);ry+=9.5;
       var cw=/Mayor|Comptroller|Public Advocate/.test(o.title);
       body(7,'#444');var ct=cw?[[o.office,o.phone,o.email].filter(Boolean).join('  \u00b7  ')]:[o.office,[o.phone,o.email].filter(Boolean).join('  \u00b7  ')].filter(Boolean);ct.forEach(function(l){wrap(l,TW).slice(0,2).forEach(function(w){doc.text(w,TX,ry);ry+=8;});});
       if(ry<top+IC+3)ry=top+IC+3;});
-    ry+=10;sans(9,ORANGE);doc.text('ALSO REPRESENTS THIS BLOCK',colR,ry);ry+=4;
-    rest.forEach(function(o){ry+=9;if(o.img){doc.addImage(o.img.data,'PNG',colR,ry-4,28,28,undefined,'FAST');doc.setDrawColor('#e5e2db');doc.setLineWidth(.5);doc.rect(colR,ry-4,28,28);}sans(9,NAVY);doc.text(o.name,colR+34,ry+4);mono(5.8,MUTED);doc.text(o.title.toUpperCase(),colR+34,ry+12);body(7,'#444');doc.text((o.phone||'')+(o.email?'  \u00b7  '+o.email:''),colR+34,ry+20);ry+=26;});
+    ry+=10;sans(8,ORANGE);wrap('THIS BLOCK\u2019S ASSEMBLY MEMBER, STATE SENATOR, MEMBER OF CONGRESS AND CITYWIDE OFFICIALS',colW).forEach(function(l){doc.text(l,colR,ry);ry+=9;});ry-=9;ry+=4;
+    rest.forEach(function(o){ry+=9;if(o.img){doc.addImage(o.img.data,'PNG',colR,ry-4,30,30,undefined,'FAST');doc.setDrawColor('#e5e2db');doc.setLineWidth(.5);doc.rect(colR,ry-4,30,30);}sans(9,NAVY);doc.text(o.name,colR+36,ry+4);mono(5.8,MUTED);doc.text(o.title.toUpperCase(),colR+36,ry+12);body(7,'#444');doc.text((o.phone||'')+(o.email?'  \u00b7  '+o.email:''),colR+36,ry+20);ry+=27;});
     // services line under reps
     ry+=12;if(ag[4])doc.addImage(ag[4].data,'PNG',colR,ry-9,26,26,undefined,'FAST');sans(9,NAVY);doc.text('Call 311',colR+32,ry+1);body(7.4,'#444');doc.text('Noise, sanitation, streets, heat and hot water.',colR+32,ry+11);ry+=22;
     // footer band with QR
