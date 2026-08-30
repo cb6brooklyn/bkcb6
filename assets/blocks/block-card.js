@@ -46,17 +46,20 @@ function load(src){return new Promise(function(res,rej){var s=document.createEle
 function img(src){return new Promise(function(res){var i=new Image();i.crossOrigin='anonymous';i.onload=function(){try{var c=document.createElement('canvas');c.width=i.naturalWidth;c.height=i.naturalHeight;c.getContext('2d').drawImage(i,0,0);res({data:c.toDataURL('image/png'),w:i.naturalWidth,h:i.naturalHeight});}catch(e){res(null);}};i.onerror=function(){res(null);};i.src=src;});}
 function tileMap(lat,lng,zoom,tw,th,lines,labels){return new Promise(function(res){
   var n=Math.pow(2,zoom),xf=(lng+180)/360*n,yf=(1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*n;
+  var SC=1;if(labels&&labels.line){var l0=labels.line,pa=[(l0[0][0]+180)/360*n,(1-Math.log(Math.tan(l0[0][1]*Math.PI/180)+1/Math.cos(l0[0][1]*Math.PI/180))/Math.PI)/2*n],pb=[(l0[l0.length-1][0]+180)/360*n,(1-Math.log(Math.tan(l0[l0.length-1][1]*Math.PI/180)+1/Math.cos(l0[l0.length-1][1]*Math.PI/180))/Math.PI)/2*n];var bl=Math.hypot(pb[0]-pa[0],pb[1]-pa[1])*256;SC=Math.max(1,Math.min(3,(Math.min(tw,th)*0.62)/Math.max(bl,40)));}
+  var TS=256*SC;
   var c=document.createElement('canvas');c.width=tw;c.height=th;var ctx=c.getContext('2d');ctx.fillStyle='#eef2f7';ctx.fillRect(0,0,tw,th);
-  var cx=tw/2,cy=th/2,pending=0,fin=false;var x0=Math.floor(xf-cx/256)-1,x1=Math.floor(xf+cx/256)+1,y0=Math.floor(yf-cy/256)-1,y1=Math.floor(yf+cy/256)+1;
-  function px(p){var X=(p[0]+180)/360*n,Y=(1-Math.log(Math.tan(p[1]*Math.PI/180)+1/Math.cos(p[1]*Math.PI/180))/Math.PI)/2*n;return [cx+(X-xf)*256,cy+(Y-yf)*256];}
-  function done(){if(fin)return;fin=true;ctx.lineCap='round';ctx.lineJoin='round';[[18,'rgba(244,121,32,.25)'],[7,ORANGE]].forEach(function(st){ctx.lineWidth=st[0];ctx.strokeStyle=st[1];lines.forEach(function(ln){ctx.beginPath();ln.forEach(function(p,i){var q=px(p);if(i)ctx.lineTo(q[0],q[1]);else ctx.moveTo(q[0],q[1]);});ctx.stroke();});});
+  var cx=tw/2,cy=th/2,pending=0,fin=false;var x0=Math.floor(xf-cx/TS)-1,x1=Math.floor(xf+cx/TS)+1,y0=Math.floor(yf-cy/TS)-1,y1=Math.floor(yf+cy/TS)+1;
+  function px(p){var X=(p[0]+180)/360*n,Y=(1-Math.log(Math.tan(p[1]*Math.PI/180)+1/Math.cos(p[1]*Math.PI/180))/Math.PI)/2*n;return [cx+(X-xf)*TS,cy+(Y-yf)*TS];}
+  function done(){if(fin)return;fin=true;ctx.lineCap='round';ctx.lineJoin='round';[[26,'rgba(244,121,32,.28)'],[9,ORANGE]].forEach(function(st){ctx.lineWidth=st[0];ctx.strokeStyle=st[1];lines.forEach(function(ln){ctx.beginPath();ln.forEach(function(p,i){var q=px(p);if(i)ctx.lineTo(q[0],q[1]);else ctx.moveTo(q[0],q[1]);});ctx.stroke();});});
     if(labels){var ln=labels.line;var A=px(ln[0]),B=px(ln[ln.length-1]),mid=px(ln[Math.floor(ln.length/2)]);var ang=Math.atan2(B[1]-A[1],B[0]-A[0]);if(ang>Math.PI/2)ang-=Math.PI;if(ang<-Math.PI/2)ang+=Math.PI;
       function tag(t,x0,y0,sz,fill,col){ctx.font='bold '+sz+'px DM Sans, Helvetica, Arial';var w=ctx.measureText(t).width+18;ctx.fillStyle=fill;ctx.beginPath();ctx.roundRect?ctx.roundRect(x0-w/2,y0-sz*0.75-6,w,sz+12,7):ctx.rect(x0-w/2,y0-sz*0.75-6,w,sz+12);ctx.fill();ctx.fillStyle=col;ctx.textAlign='center';ctx.fillText(t,x0,y0);}
-      ctx.save();ctx.translate(mid[0],mid[1]);ctx.rotate(ang);tag(labels.st,0,-30,24,'#0d1b4b','#ffffff');ctx.restore();
-      var dx=B[0]-A[0],dy=B[1]-A[1],L=Math.hypot(dx,dy)||1;function cl(v,lo,hi){return Math.max(lo,Math.min(hi,v));}tag(labels.from,cl(A[0]-dx/L*28,80,tw-80),cl(A[1]-dy/L*28+8,28,th-14),20,'#ffffff','#0d1b4b');tag(labels.to,cl(B[0]+dx/L*28,80,tw-80),cl(B[1]+dy/L*28+8,28,th-14),20,'#ffffff','#0d1b4b');}
+      if(Math.abs(ang)>Math.PI/3){tag(labels.st,mid[0]+(mid[0]<tw/2?120:-120),mid[1]+8,26,'#0d1b4b','#ffffff');}else{ctx.save();ctx.translate(mid[0],mid[1]);ctx.rotate(ang);tag(labels.st,0,-34,26,'#0d1b4b','#ffffff');ctx.restore();}
+      var dx=B[0]-A[0],dy=B[1]-A[1],L=Math.hypot(dx,dy)||1;function cl(v,lo,hi){return Math.max(lo,Math.min(hi,v));}function tag2(t,x0,y0){tag(t,x0,y0,24,'#ffffff','#0d1b4b');ctx.strokeStyle='#0d1b4b';ctx.lineWidth=3;var w=ctx.measureText(t).width+18;ctx.beginPath();ctx.roundRect?ctx.roundRect(x0-w/2,y0-24*0.75-6,w,36,7):ctx.rect(x0-w/2,y0-24*0.75-6,w,36);ctx.stroke();}
+      tag2(labels.from,cl(A[0]-dx/L*30,100,tw-100),cl(A[1]-dy/L*30+8,30,th-14));tag2(labels.to,cl(B[0]+dx/L*30,100,tw-100),cl(B[1]+dy/L*30+8,30,th-14));}
     var u=null;try{u=c.toDataURL('image/jpeg',.88);}catch(e){}res(u?{data:u,w:tw,h:th}:null);}
   var timer=setTimeout(done,3000);
-  for(var x=x0;x<=x1;x++)for(var y=y0;y<=y1;y++){if(y<0||y>=n)continue;pending++;(function(tx,ty){var im=new Image();im.crossOrigin='anonymous';im.onload=function(){ctx.drawImage(im,cx+(tx-xf)*256,cy+(ty-yf)*256,256,256);if(--pending===0){clearTimeout(timer);done();}};im.onerror=function(){if(--pending===0){clearTimeout(timer);done();}};im.src='https://a.basemaps.cartocdn.com/light_all/'+zoom+'/'+(((tx%n)+n)%n)+'/'+ty+'.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e';})(x,y);}
+  for(var x=x0;x<=x1;x++)for(var y=y0;y<=y1;y++){if(y<0||y>=n)continue;pending++;(function(tx,ty){var im=new Image();im.crossOrigin='anonymous';im.onload=function(){ctx.imageSmoothingEnabled=true;ctx.drawImage(im,cx+(tx-xf)*TS,cy+(ty-yf)*TS,TS+0.5,TS+0.5);if(--pending===0){clearTimeout(timer);done();}};im.onerror=function(){if(--pending===0){clearTimeout(timer);done();}};im.src='https://a.basemaps.cartocdn.com/light_all/'+zoom+'/'+(((tx%n)+n)%n)+'/'+ty+'.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e';})(x,y);}
   if(!pending){clearTimeout(timer);done();}
 });}
 var DAY={Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6},DN=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -69,7 +72,7 @@ function build(){
   Promise.all([
     load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'),
     fetch('/assets/pdf-fonts.json').then(function(r){return r.json();}).then(function(j){fonts=j;}).catch(function(){}),
-    img('/cb6-logo-card.png'),img('/block/'+D.slug+'/qr.png'),tileMap(D.mid[0],D.mid[1],18,900,620,D.lines,{st:D.st,from:D.from,to:D.to,line:D.lines.reduce(function(a,b){return b.length>a.length?b:a;},D.lines[0])}),img('/assets/blocks/asp-symbol.png'),img('/cb6-logo-square.png'),
+    img('/cb6-logo-card.png'),img('/block/'+D.slug+'/qr.png'),tileMap(D.mid[0],D.mid[1],18,900,558,D.lines,{st:D.st,from:D.from,to:D.to,line:D.lines.reduce(function(a,b){return b.length>a.length?b:a;},D.lines[0])}),img('/assets/blocks/asp-symbol.png'),img('/cb6-logo-square.png'),
     Promise.all(D.reps.map(function(o){return o.icon?img(o.icon):Promise.resolve(null);})),
     Promise.all(['dsny-trash','dsny-recycle','dsny-compost','dsny-truck','lpc-seal'].map(function(n){return img('/assets/blocks/'+n+'.png');}))
   ]).then(function(r){
@@ -114,25 +117,27 @@ function build(){
     // two columns
     var colL=M,colW=(W-2*M-14)/2,colR=M+colW+14;
     // left: map + voting
-    var mh=colW*620/900;if(map)doc.addImage(map.data,'JPEG',colL,y,colW,mh,undefined,'FAST');doc.setDrawColor(NAVY);doc.setLineWidth(1.2);doc.rect(colL,y,colW,mh);
+    var mh=colW*0.62;if(map)doc.addImage(map.data,'JPEG',colL,y,colW,mh,undefined,'FAST');doc.setDrawColor(NAVY);doc.setLineWidth(1.2);doc.rect(colL,y,colW,mh);
     var ly=y+mh+10;var cx0=colL;
-    D.zones.forEach(function(z){var cw=doc.getTextWidth(z)*1.6+18;doc.setDrawColor(NAVY);doc.setFillColor('#ffffff');doc.setLineWidth(1.2);doc.roundedRect(cx0,ly,cw,18,9,9,'FD');mono(8,NAVY);doc.text(z,cx0+cw/2,ly+12,{align:'center'});cx0+=cw+5;});
-    if(D.hist.length){var hw=Math.min(colW-(cx0-colL),doc.getTextWidth(D.hist[0])*0.9+34);doc.setDrawColor('#8b1a1a');doc.setFillColor('#ffffff');doc.roundedRect(cx0,ly,hw,18,9,9,'FD');if(ic[4])doc.addImage(ic[4].data,'PNG',cx0+2,ly+1,16,16);sans(7,'#8b1a1a');doc.text(wrap(D.hist[0],hw-24)[0],cx0+21,ly+12);}
+    function chip(t,col,icon){mono(8,col);var cw=doc.getTextWidth(t)+18+(icon?18:0);if(cx0+cw>colL+colW){cx0=colL;ly+=23;}doc.setDrawColor(col);doc.setFillColor('#ffffff');doc.setLineWidth(1.2);doc.roundedRect(cx0,ly,cw,18,9,9,'FD');if(icon)doc.addImage(icon.data,'PNG',cx0+2,ly+1,16,16);doc.setTextColor(col);doc.text(t,cx0+(icon?21:9),ly+12);cx0+=cw+5;}
+    if(D.zones.length)chip('ZONING '+D.zones.join(' \u00b7 '),NAVY);
+    D.precinct.forEach(function(pc){chip(pc.toUpperCase()+' PRECINCT'+(D.sector.length?' \u00b7 SECTOR '+D.sector.join(', '):''),NAVY);});
+    D.school.forEach(function(sd){chip('SCHOOL DISTRICT '+sd,NAVY);});
+    D.hist.forEach(function(hd,i){var t=hd.toUpperCase()+(D.hist_side&&D.hist_side[i]?' \u00b7 '+D.hist_side[i].toUpperCase():'');mono(8,'#8b1a1a');var cw=doc.getTextWidth(t)+36;if(cw>colW){t=hd.toUpperCase();}chip(t,'#8b1a1a',ic[4]);});
     doc.setLineWidth(1);ly+=18+12;
     sans(9,ORANGE);doc.text('VOTING',colL,ly);ly+=12;
     sans(11,NAVY);doc.text('Next election: Tuesday, November 3, 2026',colL,ly);ly+=11;
-    body(8,'#333');wrap('Early voting Oct 24 to Nov 1. Election Day polls open 6 AM to 9 PM.',colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});
-    ly+=3;label('On this block\u2019s ballot',colL,ly);ly+=10;
-    body(8,'#333');wrap(D.ballot26.join('; ')+'. Plus Governor, Lt. Governor, Attorney General, State Comptroller.',colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});
-    ly+=3;label('City offices next on the ballot in 2029',colL,ly);ly+=10;
-    body(8,'#333');wrap(D.ballot29.join('; ')+'.',colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});
-    D.eds.slice(0,2).forEach(function(e){ly+=4;label('Election district AD '+e.ad+', ED '+e.ed,colL,ly);ly+=10;
-      if(e.site){sans(9,NAVY);doc.text('Election Day: '+e.site[0],colL,ly);ly+=10;body(8,'#333');doc.text(e.site[1]+(e.site[4]?' \u00b7 '+e.site[4]:''),colL,ly);ly+=10;}
-      if(e.early){sans(9,NAVY);doc.text('Early voting: '+e.early[0],colL,ly);ly+=10;body(8,'#333');doc.text(e.early[1],colL,ly);ly+=10;}});
-    if(D.eds.length>2){body(7.5,MUTED);doc.text('This block spans '+D.eds.length+' election districts; see the web card for all of them.',colL,ly);ly+=10;}
+    body(8,'#333');wrap('Early voting Oct 24 to Nov 1. Election Day polls open 6 AM to 9 PM. On this block\u2019s ballot: '+D.ballot26.map(function(x){return x.replace(/\s*\(.*\)/,'');}).join('; ')+', plus Governor, Lt. Governor, Attorney General and State Comptroller. City Council, Mayor, Comptroller, Public Advocate and Borough President are next on the ballot in 2029.',colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});
+    D.eds.slice(0,3).forEach(function(e,i){ly+=4;label('Election district AD '+e.ad+', ED '+e.ed+(D.eds.length>1?' (this block spans '+D.eds.length+')':''),colL,ly);ly+=10;
+      if(i===0){if(e.site){sans(9,NAVY);doc.text('Election Day: '+e.site[0],colL,ly);ly+=10;body(8,'#333');doc.text(e.site[1]+(e.site[4]?' \u00b7 '+e.site[4]:''),colL,ly);ly+=10;}
+        if(e.early){sans(9,NAVY);doc.text('Early voting: '+e.early[0],colL,ly);ly+=10;body(8,'#333');doc.text(e.early[1],colL,ly);ly+=10;}}
+      else{body(8,'#333');if(e.site)wrap('Election Day: '+e.site[0]+', '+e.site[1].replace(/, Brooklyn.*$/,''),colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});if(e.early)wrap('Early voting: '+e.early[0],colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});}});
     // right: reps
     var ry=y;sans(9,ORANGE);doc.text('WHO REPRESENTS THIS BLOCK',colR,ry);ry+=6;
-    var reps=D.reps.map(function(o,i){o=Object.assign({},o);o.img=icons[i];return o;}).concat([{name:D.cb6.name,title:D.cb6.title,office:D.cb6.office,phone:D.cb6.phone,email:D.cb6.email,img:cbsq}]);
+    var all=D.reps.map(function(o,i){o=Object.assign({},o);o.img=icons[i];return o;});
+    var prim=all.filter(function(o){return /Council/.test(o.title);}).concat([{name:D.cb6.name,title:D.cb6.title,office:D.cb6.office,phone:D.cb6.phone,email:D.cb6.email,img:cbsq}]);
+    var rest=all.filter(function(o){return !/Council/.test(o.title);});
+    var reps=prim;
     var IC=27,IX=colR,TX=colR+IC+7,TW=colW-IC-7;
     reps.forEach(function(o){ry+=6;doc.setDrawColor('#e5e2db');doc.line(colR,ry-3,colR+colW,ry-3);var top=ry-1;
       if(o.img){doc.addImage(o.img.data,'PNG',IX,top+1,IC,IC,undefined,'FAST');doc.setDrawColor(NAVY);doc.setLineWidth(.6);doc.rect(IX,top+1,IC,IC);doc.setLineWidth(1);}
@@ -140,10 +145,10 @@ function build(){
       var cw=/Mayor|Comptroller|Public Advocate/.test(o.title);
       body(7,'#444');var ct=cw?[[o.office,o.phone,o.email].filter(Boolean).join('  \u00b7  ')]:[o.office,[o.phone,o.email].filter(Boolean).join('  \u00b7  ')].filter(Boolean);ct.forEach(function(l){wrap(l,TW).slice(0,2).forEach(function(w){doc.text(w,TX,ry);ry+=8;});});
       if(ry<top+IC+3)ry=top+IC+3;});
+    ry+=10;sans(9,ORANGE);doc.text('ALSO REPRESENTS THIS BLOCK',colR,ry);ry+=4;
+    rest.forEach(function(o){ry+=9;if(o.img){doc.addImage(o.img.data,'PNG',colR,ry-7,14,14,undefined,'FAST');}sans(8.5,NAVY);doc.text(o.name,colR+19,ry+3);mono(5.8,MUTED);doc.text(o.title.toUpperCase(),colR+19,ry+11);body(6.8,'#444');doc.text((o.phone||'')+(o.email?'  \u00b7  '+o.email:''),colR+19,ry+19);ry+=18;});
     // services line under reps
-    ry+=7;sans(9,ORANGE);doc.text('SERVICES',colR,ry);ry+=11;body(7.6,'#333');
-    var sv=[];if(D.precinct.length)sv.push('Police: '+D.precinct.join(' and ')+' Precinct'+(D.sector.length?', sector '+D.sector.join(', '):''));if(D.school.length)sv.push('Community School District '+D.school.join(' and '));sv.push('311 for noise, sanitation, streets, heat and hot water');
-    sv.forEach(function(l){wrap(l,colW).forEach(function(w){doc.text(w,colR,ry);ry+=9;});});
+    ry+=12;body(7.6,'#333');doc.text('311 for noise, sanitation, streets, heat and hot water.',colR,ry);
     // footer band with QR
     var fy=H-92;doc.setFillColor(CREAM);doc.rect(0,fy,W,92,'F');doc.setFillColor(ORANGE);doc.rect(0,fy,W,2,'F');
     if(qr)doc.addImage(qr.data,'PNG',M,fy+11,70,70);
