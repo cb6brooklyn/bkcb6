@@ -123,7 +123,7 @@
   /* ---------- map ---------- */
   function initMap(center, zoom) {
     map = L.map('map', { scrollWheelZoom: false, zoomControl: true }).setView(center, zoom);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e', {
       attribution: '&copy; OpenStreetMap contributors, &copy; CARTO', maxZoom: 19, subdomains: 'abcd'
     }).addTo(map);
     shapeLayer = L.layerGroup().addTo(map);

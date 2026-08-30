@@ -271,7 +271,7 @@
   function boot(){
     map=L.map('map',{scrollWheelZoom:true,preferCanvas:true}).setView([40.68,-73.97],12);
     window.__lotCanvas=L.canvas({padding:.4});
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:17,attribution:'&copy; CARTO'}).addTo(map);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{maxZoom:17,attribution:'&copy; CARTO'}).addTo(map);
     map.createPane('nbNames'); map.getPane('nbNames').style.zIndex=640; map.getPane('nbNames').style.pointerEvents='none';
 
     $('legend').innerHTML='<span class="l">Rent tier within this district</span>'+

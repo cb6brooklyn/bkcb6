@@ -200,7 +200,7 @@
     var el = document.getElementById('zmap');
     if (el && window.L) {
       map = L.map('zmap', { scrollWheelZoom: false });
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e', {
         attribution: '&copy; OpenStreetMap &copy; CARTO &middot; zoning from NYC DCP', maxZoom: 19
       }).addTo(map);
       map.on('moveend', loadZoning);

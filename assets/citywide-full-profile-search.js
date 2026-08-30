@@ -877,7 +877,7 @@
     ensureZoneLabelCss();
     try{
       var map=L.map(el,{scrollWheelZoom:false}).setView([lat,lng],16);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
       loadResultZoning(map,lat,lng);
       try{document.querySelectorAll('[data-usegrid]').forEach(function(el){paintUseGrid(el);});}catch(e){}
       try{document.querySelectorAll('[data-dobnow]').forEach(function(el){paintDobNow(el);});}catch(e){}
@@ -2711,7 +2711,7 @@
                 if(--pending===0){ clearTimeout(timer); done(); }
               };
               img.onerror=function(){ if(--pending===0){ clearTimeout(timer); done(); } };
-              img.src='https://a.basemaps.cartocdn.com/light_all/'+zoom+'/'+((tx%n)+n)%n+'/'+ty+'.png';
+              img.src='https://a.basemaps.cartocdn.com/light_all/'+zoom+'/'+((tx%n)+n)%n+'/'+ty+'.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e';
             })(x,y);
           }
         }

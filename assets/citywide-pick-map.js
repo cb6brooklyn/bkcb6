@@ -96,7 +96,7 @@
     host.dataset.ready='true';
 
     var map=L.map(host,{scrollWheelZoom:true}).setView(NYC,11);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{
       maxZoom:19, attribution:'&copy; OpenStreetMap &copy; CARTO'
     }).addTo(map);
 
