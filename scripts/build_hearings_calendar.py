@@ -59,6 +59,13 @@ WEEKDAY_NEAR = re.compile(
     r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I)
 # A later notice often cancels or moves an earlier one. Publishing a dead
 # hearing is worse than publishing nothing, so those records are dropped.
+# "Comments must be submitted before 2:00 P.M. on Monday, August 31" is a filing
+# deadline, not a meeting anyone attends. Those are kept but labelled as
+# deadlines so they can never be mistaken for a hearing on the calendar.
+DEADLINE = re.compile(
+    r"\bcomments?\s+(must|should|may)\s+be\s+(submitted|received|sent)\b"
+    r"|\bdeadline\s+for\s+comments?\b"
+    r"|\bsubmit\s+comments?\s+(by|before)\b", re.I)
 CANCELLED = re.compile(
     r"\b(has been|is|was)\s+(cancell?ed|postponed|adjourned|rescheduled)\b"
     r"|\bcancell?ation of\b|\bnotice of cancell?ation\b", re.I)
@@ -101,6 +108,26 @@ def time_after(text, pos):
     return "%d:%s %s" % (hour, minute, ampm)
 
 
+def time_before(text, pos):
+    """Notices often read 'at 6:00 PM on Wednesday, July 8, 2026'.
+
+    The clock time sits just before the date there, so look back a short way
+    and take the last time that ends close enough to be part of that phrase.
+    """
+    window_start = max(0, pos - 60)
+    last = None
+    for m in TIME.finditer(text, window_start, pos):
+        last = m
+    if not last or pos - last.end() > 25:
+        return None
+    hour = int(last.group(1))
+    if hour == 0 or hour > 12:
+        return None
+    minute = last.group(2) or "00"
+    return "%d:%s %s" % (hour, minute,
+                         "AM" if last.group(3).lower() == "a" else "PM")
+
+
 def weekday_ok(text, start, parsed):
     """If a weekday is named just before the date, it has to match."""
     window = text[max(0, start - 40):start]
@@ -120,7 +147,7 @@ def extract(text, notice_date, today):
             continue
         if not weekday_ok(text, start, parsed):
             continue
-        clock = time_after(text, end)
+        clock = time_after(text, end) or time_before(text, start)
         if not clock:
             continue
         return parsed, clock
@@ -163,17 +190,24 @@ def main():
         if when < today:
             continue
         agency = plain(row.get("agency_name")) or "City of New York"
+        section = row.get("section_name") or ""
+        is_deadline = (section == "Public Comment on Contract Awards"
+                       or bool(DEADLINE.search(text)))
+        kind = "comment-deadline" if is_deadline else "hearing"
         label = title or ("%s public hearing" % agency)
+        if is_deadline:
+            label = "Comment deadline: " + label
         key = (when.isoformat(), agency, label.lower())
         if key in seen:
             continue
         seen.add(key)
         by_date.setdefault(when.isoformat(), []).append({
             "type": "hearing",
+            "kind": kind,
             "label": label[:160],
             "time": clock,
             "agency": agency,
-            "section": row.get("section_name"),
+            "section": section,
             "source": "city-record",
             "notice_date": notice_raw,
             "href": "https://a856-cityrecord.nyc.gov/RequestDetail/%s"
@@ -198,7 +232,10 @@ def main():
         json.dump(payload, fh, indent=1, ensure_ascii=False)
 
     kept = sum(len(v) for v in by_date.values())
-    print("hearings kept: %d across %d dates" % (kept, len(by_date)))
+    hearings = sum(1 for v in by_date.values() for e in v if e["kind"] == "hearing")
+    print("records kept: %d across %d dates" % (kept, len(by_date)))
+    print("  real hearings:     %d" % hearings)
+    print("  comment deadlines: %d" % (kept - hearings))
     print("notices with no unambiguous date/time: %d" % skipped)
     print("notices dropped as cancelled or postponed: %d" % cancelled)
     for day in list(by_date)[:5]:
