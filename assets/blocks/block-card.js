@@ -22,7 +22,7 @@ if(el){
           var t=L.tooltip({permanent:true,direction:cands[i][0],className:cls,offset:cands[i][1],interactive:false}).setLatLng(latlng).setContent(text).addTo(map);
           var r=box(t),score=0;
           for(var k=0;k<placed.length;k++) if(hit(r,placed[k])) score++;
-          if(score===0){placed.push(r);return t;}
+          if(score===0){if(bestT)map.removeLayer(bestT);placed.push(r);return t;}
           if(score<bestScore){if(bestT)map.removeLayer(bestT);bestScore=score;bestT=t;best=r;}
           else map.removeLayer(t);
         }
