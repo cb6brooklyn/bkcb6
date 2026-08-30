@@ -68,6 +68,9 @@
 .aspcard .as{font-size:.78rem;line-height:1.55;color:rgba(255,255,255,.85);margin-top:5px}
 .aspcard .as i{font-style:normal;color:#ffd9b8}
 .aspcard .ao{margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.15);font-size:.74rem;color:rgba(255,255,255,.8);line-height:1.5}
+.bklinks{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.bklinks .bl{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.bklinks a{padding:5px 11px;border:1.5px solid var(--navy);border-radius:16px;color:var(--navy);text-decoration:none;font-size:.72rem;font-weight:700}
 .sharebar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:9px 14px;background:#fff;border-bottom:1px solid var(--border)}
 .sharebar .sb-t{font-family:'DM Mono',monospace;font-size:.64rem;color:var(--muted);flex:1 1 auto}
 .lnk{padding:6px 13px;border:1.5px solid var(--navy2);border-radius:16px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:var(--navy);cursor:pointer}
@@ -193,6 +196,7 @@
   </div>
   <div class="nav">
     <a href="/citywide-search.html">&#128269; Address search</a>
+    <a href="/block/">&#128203; Block cards</a>
     <a href="/permits-cb6.html">&#128679; Street work</a>
     <a href="/landmarks-cb6.html">&#127963; Landmarks</a>
     <a href="/311.html">&#128222; 311</a>
@@ -205,6 +209,7 @@
 'use strict';
 var TOKEN='HvFoIfzodzpRML7a1104Ca2tM';
 var MPD_LAT=111320, MPD_LON=84400;
+var BKIDX=null;
 var NET=null, LAY=null, map=null, base=null;
 var stLayer=null, hiLayer=null, bufLayer=null, ptLayer=null, pin=null, cbLayer=null;
 var mode='street', reach=75, pinReach=150;
@@ -302,7 +307,14 @@ function selectStretch(sti,fromName,toName){
   var hnTxt=hn.length?('House numbers '+Math.min.apply(null,hn)+' to '+Math.max.apply(null,hn)):'';
   return {kind:'street',lines:lines,geomKind:geomKind,label:NET.streets[sti]+(t&&t.name!==f.name?' from '+f.name+' to '+t.name:(t?' at '+f.name:' from '+f.name+' to the end')),
     sub:(segs.length?segs.length+' centerline segment'+(segs.length!==1?'s':'')+'. ':'')+hnTxt,
-    st:sti,from:fromName,to:toName||''};
+    st:sti,from:fromName,to:toName||'',bks:segs.map(function(x){return x.bk;}).filter(function(x,i,a){return x&&a.indexOf(x)===i;})};
+}
+function nearestBlock(pt){var pM=toM(pt),best=null,bd=45;NET.segs.forEach(function(s){if(!s.bk)return;var d=distToPath(pM,[s.g.map(toM)]);if(d<bd){bd=d;best=s.bk;}});return best;}
+function blockLinks(){
+  if(!sel||!NET)return '';var bks=sel.kind==='street'?(sel.bks||[]):[nearestBlock(sel.lines[0][0])].filter(Boolean);
+  if(!bks.length)return '';
+  var idx=BKIDX||{};
+  return '<div class="bklinks"><span class="bl">Block card'+(bks.length>1?'s':'')+'</span>'+bks.map(function(b){var v=idx[b];var lab=v?(v.from+' to '+v.to):b;return '<a href="/block/'+b+'/">'+esc(lab)+'</a>';}).join('')+'</div>';
 }
 
 // ---------- map ----------
@@ -635,7 +647,7 @@ function lotPop(r){
 var PAGE=30;
 function render(found){
   var h='';
-  h+='<div class="sel"><div class="st">'+esc(sel.label)+'</div><div class="sl">'+(sel.sub?esc(sel.sub)+' · ':'')+'Reach '+currentReach()+' m from the '+(sel.geomKind==='point'?'point':'centerline')+'.</div></div>';
+  h+='<div class="sel"><div class="st">'+esc(sel.label)+'</div><div class="sl">'+(sel.sub?esc(sel.sub)+' · ':'')+'Reach '+currentReach()+' m from the '+(sel.geomKind==='point'?'point':'centerline')+'.</div>'+blockLinks()+'</div>';
   h+=aspCard();
   h+=serviceCard();
   h+='<div class="sharebar"><span class="sb-t" id="sbText">'+esc(location.href)+'</span><button type="button" class="lnk" id="shareView">Copy link to this view</button></div>';
@@ -779,6 +791,7 @@ function wire(){
 }
 function load(){
   initMap();wire();
+  fetch('/assets/blocks/block-index.json').then(function(r){return r.json();}).then(function(j){BKIDX=j.blocks;if(sel)render(lastFound);}).catch(function(){});
   Promise.all([fetch('/assets/blocks/cb6-streets.json').then(function(r){return r.json();}),fetch('/assets/blocks/cb6-layers.json').then(function(r){return r.json();})]).then(function(res){
     NET=res[0];LAY=res[1];buildIndex();fillStreets();
     var n=0;LAY.layers.forEach(function(l){n+=l.n;});
