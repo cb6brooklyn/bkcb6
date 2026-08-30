@@ -74,9 +74,11 @@ function build(){
     fetch('/assets/pdf-fonts.json').then(function(r){return r.json();}).then(function(j){fonts=j;}).catch(function(){}),
     img('/cb6-logo-card.png'),img('/block/'+D.slug+'/qr.png'),tileMap(D.mid[0],D.mid[1],18,900,558,D.lines,{st:D.st,from:D.from,to:D.to,line:D.lines.reduce(function(a,b){return b.length>a.length?b:a;},D.lines[0])}),img('/assets/blocks/asp-symbol.png'),img('/cb6-logo-square.png'),
     Promise.all(D.reps.map(function(o){return o.icon?img(o.icon):Promise.resolve(null);})),
-    Promise.all(['dsny-trash','dsny-recycle','dsny-compost','dsny-truck','lpc-seal'].map(function(n){return img('/assets/blocks/'+n+'.png');}))
+    Promise.all(['dsny-trash','dsny-recycle','dsny-compost','dsny-truck','lpc-seal'].map(function(n){return img('/assets/blocks/'+n+'.png');})),
+    Promise.all(['dcp','nycps','boe','dsny','311','lpc'].map(function(n){return img('/site-icons/agencies/'+n+'.png');})),
+    Promise.all(D.precinct.map(function(pc){return img('/elected/precinct/'+parseInt(pc,10)+'.png');}))
   ]).then(function(r){
-    var logo=r[2],qr=r[3],map=r[4],sym=r[5],cbsq=r[6],icons=r[7],ic=r[8];var RED='#95262e',GREEN='#1c3d3a';var jsPDF=window.jspdf.jsPDF;var doc=new jsPDF({unit:'pt',format:'letter'});
+    var logo=r[2],qr=r[3],map=r[4],sym=r[5],cbsq=r[6],icons=r[7],ic=r[8],ag=r[9],pcl=r[10];var RED='#95262e',GREEN='#1c3d3a';var jsPDF=window.jspdf.jsPDF;var doc=new jsPDF({unit:'pt',format:'letter'});
     var W=612,H=792,M=30;var haveF=false;
     try{if(fonts){doc.addFileToVFS('DMSans-Bold.ttf',fonts['DMSans-Bold']);doc.addFont('DMSans-Bold.ttf','DMSans','bold');doc.addFileToVFS('DMMono-Medium.ttf',fonts['DMMono-Medium']);doc.addFont('DMMono-Medium.ttf','DMMono','normal');haveF=true;}}catch(e){}
     function sans(sz,col,bold){doc.setFont(haveF?'DMSans':'helvetica',haveF?'bold':(bold?'bold':'normal'));doc.setFontSize(sz);doc.setTextColor(col||NAVY);}
@@ -92,63 +94,70 @@ function build(){
     var tsz=D.st.length>22?24:30;sans(tsz,'#ffffff');doc.text(D.st,tx,tsz>24?61:58);
     sans(15,'#ffd9b8');doc.text('between '+D.from+' and '+D.to,tx,82);
     mono(7.5,'#c9cfe0');doc.text((D.hn?D.hn+'  \u00b7  ':'')+(D.zones.length?'Zoning '+D.zones.join(', ')+'  \u00b7  ':'')+'bkcb6.app/block/'+D.slug,tx,99);
-    // big points row: two tiles, then the two parking signs
-    var y=126,tot=W-2*M-9,tw=tot*0.21,sw=tot*0.29,th=sw*376/573+18;
+    // ---- grid: two columns of equal width, everything snapped to it ----
+    var G=12,colW=(W-2*M-G)/2,colL=M,colR=M+colW+G;
+    var y=126,rowH=118;
+    // left half: 2x2 pickup tiles
     var dsn=D.dsny[0]||{};
     var dt=[{k:'Trash',v:dsn.refuse||'n/a',n:dsn.refuse_d,im:ic[0]},{k:'Recycling',v:dsn.recycling||'n/a',n:dsn.recycling_d,im:ic[1]},{k:'Compost',v:dsn.organics||'n/a',n:dsn.organics_d||dsn.recycling_d,im:ic[2]},{k:'Bulk items',v:dsn.bulk||'none',n:'',im:ic[3]}];
-    var gw=tw,gh=(th-3)/2;
-    dt.forEach(function(t,i){var x=M+(i%2)*(gw+3),yy=y+Math.floor(i/2)*(gh+3);doc.setFillColor('#ffffff');doc.setDrawColor('#e5e2db');doc.roundedRect(x,yy,gw,gh,4,4,'FD');
-      var isz=gh-14;if(t.im)doc.addImage(t.im.data,'PNG',x+6,yy+7,isz,isz);
-      label(t.k,x+isz+12,yy+15);sans(9,NAVY);wrap(t.v,gw-isz-18).slice(0,2).forEach(function(l,j){doc.text(l,x+isz+12,yy+27+j*10);});
-      if(t.n){body(6.5,'#444');doc.text(wrap('next '+nextOf(t.n).replace(/^(\w{3})\w*,/,'$1'),gw-isz-18)[0]||'',x+isz+12,yy+gh-6);}});
+    var gw=(colW-4)/2,gh=(rowH-4)/2;
+    dt.forEach(function(t,i){var x=colL+(i%2)*(gw+4),yy=y+Math.floor(i/2)*(gh+4);doc.setFillColor('#ffffff');doc.setDrawColor('#e5e2db');doc.setLineWidth(.8);doc.roundedRect(x,yy,gw,gh,4,4,'FD');
+      var isz=34;if(t.im)doc.addImage(t.im.data,'PNG',x+8,yy+(gh-isz)/2,isz,isz);
+      var tx0=x+isz+16;label(t.k,tx0,yy+16);sans(9.5,NAVY);var vl=wrap(t.v,gw-isz-24).slice(0,2);vl.forEach(function(l,j){doc.text(l,tx0,yy+29+j*10.5);});
+      if(t.n){body(6.8,'#444');doc.text(wrap('next '+nextOf(t.n).replace(/^(\w{3})\w*,/,'$1'),gw-isz-24)[0]||'',tx0,yy+gh-8);}});
+    // right half: parking signs, one per side, in matching tiles
     function sign(x,yy,w,a){
-      var h=w*376/573;doc.setFillColor('#ffffff');doc.setDrawColor(RED);doc.setLineWidth(2.2);doc.roundedRect(x,yy,w,h,3,3,'FD');doc.setLineWidth(1);
-      var ss=h*0.66;if(sym)doc.addImage(sym.data,'PNG',x+6,yy+(h-ss)/2-2,ss,ss);
+      var h=w*376/573;doc.setFillColor('#ffffff');doc.setDrawColor(RED);doc.setLineWidth(2);doc.roundedRect(x,yy,w,h,3,3,'FD');doc.setLineWidth(1);
+      var ss=h*0.64;if(sym)doc.addImage(sym.data,'PNG',x+7,yy+(h-ss)/2-1,ss,ss);
       var m=(a.sched||'').match(/^(.*?),\s*(.*)$/);var day=(m?m[1]:a.sched||'').toUpperCase(),time=(m?m[2]:'').replace(/\s+to\s+/,' - ').replace(/:00/g,'').replace(/ (AM|PM)/g,'$1');
-      var tx0=x+ss+9,tw0=w-ss-15;sans(8.2,RED);doc.text(time,tx0+tw0/2,yy+h*0.28,{align:'center'});
-      var dsz=day.length>8?10:(day.length>6?12:14);sans(dsz,RED);doc.text(day,tx0+tw0/2,yy+h*0.58,{align:'center'});
-      var ax=tx0+tw0/2,ay=yy+h*0.80;doc.setDrawColor(RED);doc.setFillColor(RED);doc.setLineWidth(3);doc.line(ax-14,ay,ax+16,ay);doc.triangle(ax-22,ay,ax-12,ay-6,ax-12,ay+6,'F');doc.setLineWidth(1);
-      mono(4.2,RED);doc.text('DEPT OF TRANSPORTATION',x+w/2,yy+h-6,{align:'center'});
-      doc.setFillColor(RED);doc.roundedRect(x+w-52,yy+3,49,11,2,2,'F');sans(6.5,'#ffffff');doc.text(String(a.side||'').toUpperCase(),x+w-27.5,yy+11,{align:'center'});
+      var tx0=x+ss+10,tw0=w-ss-16,cx=tx0+tw0/2;sans(8,RED);doc.text(time,cx,yy+h*0.30,{align:'center'});
+      var dsz=day.length>8?9.5:(day.length>6?11.5:13.5);sans(dsz,RED);doc.text(day,cx,yy+h*0.58,{align:'center'});
+      var ay=yy+h*0.79;doc.setDrawColor(RED);doc.setFillColor(RED);doc.setLineWidth(2.6);doc.line(cx-12,ay,cx+15,ay);doc.triangle(cx-20,ay,cx-10,ay-5.5,cx-10,ay+5.5,'F');doc.setLineWidth(1);
+      mono(4,RED);doc.text('DEPT OF TRANSPORTATION',x+w/2,yy+h-5,{align:'center'});
+      doc.setFillColor(RED);doc.roundedRect(x+w-50,yy+3,47,10,2,2,'F');sans(6,'#ffffff');doc.text(String(a.side||'').toUpperCase(),x+w-26.5,yy+10.3,{align:'center'});
     }
-    D.asp.slice(0,2).forEach(function(a,i){var x=M+2*(tw+3)+i*(sw+3);sign(x,y,sw,a);body(7.2,'#333');doc.text(wrap(a.side+' \u00b7 next '+nextOf(a.days,a.susp),sw)[0]||'',x+1,y+sw*376/573+13);});
-    if(!D.asp.length){var x=M+2*(tw+3);doc.setFillColor('#ffffff');doc.setDrawColor('#e5e2db');doc.roundedRect(x,y,sw*2+3,th,4,4,'FD');label('Alternate side parking',x+9,y+14);sans(11,NAVY);doc.text('No rules on file for this block',x+9,y+36);}
-    y+=th+12;
-    // two columns
-    var colL=M,colW=(W-2*M-14)/2,colR=M+colW+14;
-    // left: map + voting
-    var mh=colW*0.62;if(map)doc.addImage(map.data,'JPEG',colL,y,colW,mh,undefined,'FAST');doc.setDrawColor(NAVY);doc.setLineWidth(1.2);doc.rect(colL,y,colW,mh);
-    var ly=y+mh+10;var cx0=colL;
-    function chip(t,col,icon){mono(8,col);var cw=doc.getTextWidth(t)+18+(icon?18:0);if(cx0+cw>colL+colW){cx0=colL;ly+=23;}doc.setDrawColor(col);doc.setFillColor('#ffffff');doc.setLineWidth(1.2);doc.roundedRect(cx0,ly,cw,18,9,9,'FD');if(icon)doc.addImage(icon.data,'PNG',cx0+2,ly+1,16,16);doc.setTextColor(col);doc.text(t,cx0+(icon?21:9),ly+12);cx0+=cw+5;}
-    if(D.zones.length)chip('ZONING '+D.zones.join(' \u00b7 '),NAVY);
-    D.precinct.forEach(function(pc){chip(pc.toUpperCase()+' PRECINCT'+(D.sector.length?' \u00b7 SECTOR '+D.sector.join(', '):''),NAVY);});
-    D.school.forEach(function(sd){chip('SCHOOL DISTRICT '+sd,NAVY);});
-    D.hist.forEach(function(hd,i){var t=hd.toUpperCase()+(D.hist_side&&D.hist_side[i]?' \u00b7 '+D.hist_side[i].toUpperCase():'');mono(8,'#8b1a1a');var cw=doc.getTextWidth(t)+36;if(cw>colW){t=hd.toUpperCase();}chip(t,'#8b1a1a',ic[4]);});
-    doc.setLineWidth(1);ly+=18+12;
-    sans(9,ORANGE);doc.text('VOTING',colL,ly);ly+=12;
-    sans(11,NAVY);doc.text('Next election: Tuesday, November 3, 2026',colL,ly);ly+=11;
-    body(8,'#333');wrap('Early voting Oct 24 to Nov 1. Election Day polls open 6 AM to 9 PM. On this block\u2019s ballot: '+D.ballot26.map(function(x){return x.replace(/\s*\(.*\)/,'');}).join('; ')+', plus Governor, Lt. Governor, Attorney General and State Comptroller. City Council, Mayor, Comptroller, Public Advocate and Borough President are next on the ballot in 2029.',colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});
+    var sw=(colW-4)/2;
+    if(D.asp.length){D.asp.slice(0,2).forEach(function(a,i){var x=colR+i*(sw+4);doc.setFillColor('#ffffff');doc.setDrawColor('#e5e2db');doc.setLineWidth(.8);doc.roundedRect(x,y,sw,rowH,4,4,'FD');
+      var iw=sw-12,ih=iw*376/573;sign(x+6,y+6,iw,a);label('Alternate side, '+a.side.toLowerCase(),x+6,y+ih+18);body(6.8,'#444');doc.text('next '+nextOf(a.days,a.susp),x+6,y+ih+27);});}
+    else{doc.setFillColor('#ffffff');doc.setDrawColor('#e5e2db');doc.roundedRect(colR,y,colW,rowH,4,4,'FD');label('Alternate side parking',colR+9,y+16);sans(10,NAVY);doc.text('No rules on file for this block',colR+9,y+34);}
+    y+=rowH+G;
+    // ---- second row: map + chips + voting on the left, representatives on the right ----
+    var mh=colW*0.66;if(map)doc.addImage(map.data,'JPEG',colL,y,colW,mh,undefined,'FAST');doc.setDrawColor(NAVY);doc.setLineWidth(1.2);doc.rect(colL,y,colW,mh);
+    var ly=y+mh+G;
+    // logo buttons: zoning, precinct, school district, landmarks
+    var btns=[];
+    if(D.zones.length)btns.push({k:'Zoning',v:D.zones.join(' \u00b7 '),im:ag[0],col:NAVY});
+    D.precinct.forEach(function(pc,i){btns.push({k:'Police precinct',v:pc+' Precinct'+(D.sector.length&&i===0?' \u00b7 Sector '+D.sector.join(', '):''),im:pcl[i]||null,col:NAVY});});
+    D.school.forEach(function(sd){btns.push({k:'School district',v:'District '+sd,im:ag[1],col:NAVY});});
+    D.hist.forEach(function(hd,i){btns.push({k:'Historic district'+(D.hist_side&&D.hist_side[i]?', '+D.hist_side[i]:''),v:hd.replace(' Historic District',''),im:ic[4],col:'#8b1a1a'});});
+    var per=2,bw=(colW-(per-1)*4)/per,bh=40;
+    btns.forEach(function(t,i){var x=colL+(i%per)*(bw+4),yy=ly+Math.floor(i/per)*(bh+4);doc.setFillColor('#ffffff');doc.setDrawColor(t.col);doc.setLineWidth(1.3);doc.roundedRect(x,yy,bw,bh,6,6,'FD');
+      if(t.im)doc.addImage(t.im.data,'PNG',x+5,yy+5,30,30,undefined,'FAST');
+      var tx0=x+41,tw0=bw-46;mono(5.8,MUTED);doc.text(wrap(t.k.toUpperCase(),tw0)[0],tx0,yy+13);sans(8.6,t.col);var vl=wrap(t.v,tw0).slice(0,2);vl.forEach(function(l,j){doc.text(l,tx0,yy+25+j*9.5);});});
+    ly+=Math.ceil(btns.length/per)*(bh+4)-4+G;doc.setLineWidth(1);
+    if(ag[2])doc.addImage(ag[2].data,'PNG',colL,ly,28,28,undefined,'FAST');sans(9,ORANGE);doc.text('VOTING',colL+34,ly+10);sans(11,NAVY);doc.text('Next election: Tuesday, November 3, 2026',colL+34,ly+23);ly+=38;
+    body(8,'#333');wrap('Early voting Oct 24 to Nov 1; Election Day polls 6 AM to 9 PM. On this block\u2019s ballot: '+D.ballot26.map(function(x){return x.replace(/\s*\(.*\)/,'').replace('State Senate District','Senate').replace('Assembly District','Assembly').replace('Congress, ','');}).join('; ')+'; Governor, Lt. Governor, Attorney General, State Comptroller. City offices next in 2029.',colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});
     D.eds.slice(0,3).forEach(function(e,i){ly+=4;label('Election district AD '+e.ad+', ED '+e.ed+(D.eds.length>1?' (this block spans '+D.eds.length+')':''),colL,ly);ly+=10;
       if(i===0){if(e.site){sans(9,NAVY);doc.text('Election Day: '+e.site[0],colL,ly);ly+=10;body(8,'#333');doc.text(e.site[1]+(e.site[4]?' \u00b7 '+e.site[4]:''),colL,ly);ly+=10;}
         if(e.early){sans(9,NAVY);doc.text('Early voting: '+e.early[0],colL,ly);ly+=10;body(8,'#333');doc.text(e.early[1],colL,ly);ly+=10;}}
       else{body(8,'#333');if(e.site)wrap('Election Day: '+e.site[0]+', '+e.site[1].replace(/, Brooklyn.*$/,''),colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});if(e.early)wrap('Early voting: '+e.early[0],colW).forEach(function(l){doc.text(l,colL,ly);ly+=9.5;});}});
     // right: reps
-    var ry=y;sans(9,ORANGE);doc.text('WHO REPRESENTS THIS BLOCK',colR,ry);ry+=6;
+    var ry=y+8;sans(9,ORANGE);doc.text('WHO REPRESENTS THIS BLOCK',colR,ry);ry+=6;
     var all=D.reps.map(function(o,i){o=Object.assign({},o);o.img=icons[i];return o;});
     var prim=all.filter(function(o){return /Council/.test(o.title);}).concat([{name:D.cb6.name,title:D.cb6.title,office:D.cb6.office,phone:D.cb6.phone,email:D.cb6.email,img:cbsq}]);
     var rest=all.filter(function(o){return !/Council/.test(o.title);});
     var reps=prim;
-    var IC=27,IX=colR,TX=colR+IC+7,TW=colW-IC-7;
+    var IC=34,IX=colR,TX=colR+IC+8,TW=colW-IC-8;
     reps.forEach(function(o){ry+=6;doc.setDrawColor('#e5e2db');doc.line(colR,ry-3,colR+colW,ry-3);var top=ry-1;
       if(o.img){doc.addImage(o.img.data,'PNG',IX,top+1,IC,IC,undefined,'FAST');doc.setDrawColor(NAVY);doc.setLineWidth(.6);doc.rect(IX,top+1,IC,IC);doc.setLineWidth(1);}
-      label(o.title,TX,ry+3);ry+=11;sans(9.5,NAVY);doc.text(o.name,TX,ry);ry+=8.5;
+      label(o.title,TX,ry+3);ry+=12;sans(10.5,NAVY);doc.text(o.name,TX,ry);ry+=9;
       var cw=/Mayor|Comptroller|Public Advocate/.test(o.title);
       body(7,'#444');var ct=cw?[[o.office,o.phone,o.email].filter(Boolean).join('  \u00b7  ')]:[o.office,[o.phone,o.email].filter(Boolean).join('  \u00b7  ')].filter(Boolean);ct.forEach(function(l){wrap(l,TW).slice(0,2).forEach(function(w){doc.text(w,TX,ry);ry+=8;});});
       if(ry<top+IC+3)ry=top+IC+3;});
     ry+=10;sans(9,ORANGE);doc.text('ALSO REPRESENTS THIS BLOCK',colR,ry);ry+=4;
-    rest.forEach(function(o){ry+=9;if(o.img){doc.addImage(o.img.data,'PNG',colR,ry-7,14,14,undefined,'FAST');}sans(8.5,NAVY);doc.text(o.name,colR+19,ry+3);mono(5.8,MUTED);doc.text(o.title.toUpperCase(),colR+19,ry+11);body(6.8,'#444');doc.text((o.phone||'')+(o.email?'  \u00b7  '+o.email:''),colR+19,ry+19);ry+=18;});
+    rest.forEach(function(o){ry+=9;if(o.img){doc.addImage(o.img.data,'PNG',colR,ry-4,24,24,undefined,'FAST');doc.setDrawColor('#e5e2db');doc.setLineWidth(.5);doc.rect(colR,ry-4,24,24);}sans(9,NAVY);doc.text(o.name,colR+30,ry+4);mono(5.8,MUTED);doc.text(o.title.toUpperCase(),colR+30,ry+12);body(7,'#444');doc.text((o.phone||'')+(o.email?'  \u00b7  '+o.email:''),colR+30,ry+20);ry+=24;});
     // services line under reps
-    ry+=12;body(7.6,'#333');doc.text('311 for noise, sanitation, streets, heat and hot water.',colR,ry);
+    ry+=12;if(ag[4])doc.addImage(ag[4].data,'PNG',colR,ry-9,26,26,undefined,'FAST');sans(9,NAVY);doc.text('Call 311',colR+32,ry+1);body(7.4,'#444');doc.text('Noise, sanitation, streets, heat and hot water.',colR+32,ry+11);ry+=22;
     // footer band with QR
     var fy=H-92;doc.setFillColor(CREAM);doc.rect(0,fy,W,92,'F');doc.setFillColor(ORANGE);doc.rect(0,fy,W,2,'F');
     if(qr)doc.addImage(qr.data,'PNG',M,fy+11,70,70);
