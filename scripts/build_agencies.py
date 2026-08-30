@@ -178,7 +178,32 @@ def fit(d, text, path, maxw, maxh, start, minsz, maxlines):
             return f, lines, lh
     f = ImageFont.truetype(path, minsz); return f, wrap(d, text, f, maxw)[:maxlines], int(minsz * 1.08)
 
+LOGO_DIR = os.path.join(ROOT, 'assets/agency-logos')
+
+def logo_tile(a):
+    """Official agency logo (from the agency's own site, see assets/agency-logos/sources.json) on a 700x700 tile."""
+    p = os.path.join(LOGO_DIR, a['slug'] + '.png')
+    if not os.path.exists(p): return False
+    lg = Image.open(p).convert('RGBA')
+    bbox = lg.getbbox()
+    if bbox: lg = lg.crop(bbox)
+    px = [q for q in lg.getdata() if q[3] > 30]
+    if not px: return False
+    bright = sum(sum(q[:3]) / 3 for q in px) / len(px)
+    bg = NAVY if bright > 225 else (255, 255, 255)
+    im = Image.new('RGB', (W, W), bg); d = ImageDraw.Draw(im)
+    pad = 70; maxw = W - 2 * pad; maxh = W - 2 * pad - 40
+    sc = min(maxw / lg.width, maxh / lg.height)
+    lg = lg.resize((max(1, int(lg.width * sc)), max(1, int(lg.height * sc))), Image.LANCZOS)
+    im.paste(lg, ((W - lg.width) // 2, (W - 28 - lg.height) // 2), lg)
+    d.rectangle([0, W - 28, W, W], fill=ORANGE)
+    if bg != NAVY: d.rectangle([0, 0, W - 1, W - 1], outline=LINE, width=2)
+    im = im.convert('P', palette=Image.ADAPTIVE, colors=128)
+    im.save(os.path.join(ICON_DIR, a['slug'] + '.png'), optimize=True)
+    return True
+
 def tile(a):
+    if logo_tile(a): return
     im = Image.new('RGB', (W, W), (255, 255, 255)); d = ImageDraw.Draw(im)
     top = 118
     d.rectangle([0, 0, W, top], fill=NAVY)
