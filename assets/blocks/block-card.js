@@ -12,7 +12,7 @@ if(el){
     var pl=L.polyline(ll,{color:'#f47920',weight:8,opacity:.95,lineCap:'round'}).addTo(map);
     map.fitBounds(pl.getBounds().pad(.45),{maxZoom:18});
     var lg=ll.reduce(function(a,b){return b.length>a.length?b:a;},ll[0]);var A=lg[0],B=lg[lg.length-1];var mid=[(A[0]+B[0])/2,(A[1]+B[1])/2];
-    L.tooltip({permanent:true,direction:'top',className:'blk',offset:[0,-10],interactive:false}).setLatLng(mid).setContent(el.getAttribute('data-st')).addTo(map);
+    var steep=Math.abs(A[1]-B[1])<Math.abs(A[0]-B[0])*0.6;L.tooltip({permanent:true,direction:steep?'right':'top',className:'blk',offset:steep?[14,0]:[0,-12],interactive:false}).setLatLng(mid).setContent(el.getAttribute('data-st')).addTo(map);
     L.tooltip({permanent:true,direction:'center',className:'xst',interactive:false}).setLatLng(A).setContent(el.getAttribute('data-from')).addTo(map);
     L.tooltip({permanent:true,direction:'center',className:'xst',interactive:false}).setLatLng(B).setContent(el.getAttribute('data-to')).addTo(map);
   };document.head.appendChild(js);
