@@ -1,0 +1,36 @@
+name: Civic calendar
+
+on:
+  schedule:
+    - cron: '30 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Probe Brooklyn community board calendar feeds
+        run: python scripts/probe_civic_calendars.py
+
+      - name: Build NYC Council calendar
+        run: python scripts/build_council_calendar.py
+
+      - name: Commit updated civic calendar data
+        run: |
+          git config user.email "mracioppo@cb.nyc.gov"
+          git config user.name "Mike Racioppo"
+          git add data/civic-calendar
+          git diff --cached --quiet || git commit -m "Auto-refresh civic calendar $(date -u +%Y-%m-%d)"
+          git push
