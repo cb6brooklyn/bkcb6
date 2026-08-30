@@ -398,24 +398,30 @@
       + '<figcaption style="font-family:\'DM Mono\',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted,#6b6760);margin-top:4px;text-align:center">'+esc(caption)+'</figcaption>'
       + '</figure>';
   }
-  function imgTile(src,caption){
+  function imgTile(src,caption,href){
     if(!src) return '';
-    return '<figure style="margin:0;flex:0 0 auto;width:92px">'
+    var fig='<figure style="margin:0;flex:0 0 auto;width:92px">'
       + '<img src="'+src+'" alt="'+esc(caption)+'" loading="lazy" '
-      + 'onerror="var f=this.parentNode; if(f) f.style.display=\'none\'" '
+      + 'onerror="var f=this.parentNode; while(f&&f.tagName!==\'FIGURE\'&&f.tagName!==\'A\') f=f.parentNode; if(f) f.style.display=\'none\'" '
       + 'style="display:block;width:92px;height:92px;object-fit:cover;border-radius:7px;border:1.5px solid #e5e2db;background:#fff">'
       + '<figcaption style="font-family:\'DM Mono\',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted,#6b6760);margin-top:4px;text-align:center">'+esc(caption)+'</figcaption>'
       + '</figure>';
+    return href?'<a href="'+esc(href)+'" style="text-decoration:none;flex:0 0 auto">'+fig+'</a>':fig;
   }
-  var BP_LOGO={'1':'manhattan','2':'the-bronx','3':'brooklyn','4':'queens','5':'staten-island'};
+  var BP_TILE={'1':['/site-icons/agencies/office-of-the-borough-president-of-manhattan.png','/agencies/office-of-the-borough-president-of-manhattan/'],'2':['/site-icons/agencies/office-of-the-borough-president-of-the-bronx.png','/agencies/office-of-the-borough-president-of-the-bronx/'],'3':['/elected/BP3.png','/agencies/office-of-the-borough-president-of-brooklyn/'],'4':['/site-icons/agencies/office-of-the-borough-president-of-queens.png','/agencies/office-of-the-borough-president-of-queens/'],'5':['/site-icons/agencies/office-of-the-borough-president-of-staten-island.png','/agencies/office-of-the-borough-president-of-staten-island/']};
+  var CM_PAGE={'1':'cmmarte','2':'cmepstein','3':'cmwilson','4':'cmmaloney','5':'cmmenin','6':'cmbrewer','7':'cmabreu','8':'cmencarnacion','9':'cmsalaam','10':'cmrosa','11':'cmdinowitz','12':'cmriley','13':'cmaldebol','14':'cmpierinasanchez','15':'cmfeliz','16':'cmstevens','17':'cmjustinsanchez','18':'cmfarias','19':'cmpaladino','20':'cmung','21':'cmthomashenry','22':'cmcaban','23':'cmlee','24':'cmgennaro','25':'cmkrishnan','26':'cmwon','27':'cmwilliams','28':'cmhankerson','29':'cmschulman','30':'cmwong','31':'cmbrookspowers','32':'cmariola','33':'cmrestler','34':'cmgutierrez','35':'cmhudson','36':'cmosse','37':'cmnurse','38':'cmaviles','39':'cmhanif','40':'cmjoseph','41':'cmmealy','42':'cmbanks','43':'cmzhuang','44':'cmfelder','45':'cmlouis','46':'cmnarcisse','47':'cmsantosuosso','48':'cmvernikov','49':'cmhanks','50':'cmcarr','51':'cmmorano'};
+  var SD_NO_PAGE=[35,36];
+  var PRECINCT_PAGES=[1,5,6,7,9,10,13,14,17,18,19,20,22,23,24,25,26,28,30,32,33,34,40,41,42,43,44,45,46,47,48,49,50,52,60,61,62,63,66,67,68,69,70,71,72,73,75,76,77,78,79,81,83,84,88,90,94,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,120,121,122,123];
   function electedRow(b,council,assembly,senate,school,police){
-    var t=imgTile(BP_LOGO[String(b)]?'site-icons/agencies/office-of-the-borough-president-of-'+BP_LOGO[String(b)]+'.png':'','Borough President')
-        + electedTile('CD',council,'Council '+council)
-        + electedTile('AD',assembly,'Assembly '+assembly)
-        + electedTile('SD',senate,'Senate '+senate);
+    var bp=BP_TILE[String(b)];
+    var cn=parseInt(council,10), an=parseInt(assembly,10), stn=parseInt(senate,10);
+    var t=(bp?imgTile(bp[0],'Borough President',bp[1]):'')
+        + (Number.isFinite(cn)&&ELECTED_HAVE.CD.indexOf(cn)!==-1?imgTile('/elected/CD'+cn+'.png','Council '+cn,CM_PAGE[String(cn)]?'/'+CM_PAGE[String(cn)]+'/':''):'')
+        + (Number.isFinite(an)&&ELECTED_HAVE.AD.indexOf(an)!==-1?imgTile('/elected/AD'+an+'.png','Assembly '+an,'/assembly-district-'+an+'/'):'')
+        + (Number.isFinite(stn)&&ELECTED_HAVE.SD.indexOf(stn)!==-1?imgTile('/elected/SD'+stn+'.png','Senate '+stn,SD_NO_PAGE.indexOf(stn)===-1?'/senate-district-'+stn+'/':''):'');
     var sn=parseInt(school,10), pn=parseInt(police,10);
-    var t2=(Number.isFinite(sn)&&sn>=1&&sn<=32?imgTile('elected/school/'+sn+'.png','School District '+sn):'')
-        + (Number.isFinite(pn)&&pn>=1?imgTile('elected/precinct/'+pn+'.png','Precinct '+pn):'');
+    var t2=(Number.isFinite(sn)&&sn>=1&&sn<=32?imgTile('/elected/school/'+sn+'.png','School District '+sn,'/eduhub-csd-'+sn+'.html'):'')
+        + (Number.isFinite(pn)&&pn>=1?imgTile('/elected/precinct/'+pn+'.png','Precinct '+pn,PRECINCT_PAGES.indexOf(pn)!==-1?'/precinct/'+pn+'/':''):'');
     var out='';
     if(t) out+='<div style="display:flex;flex-wrap:wrap;gap:9px;margin:0 0 10px">'+t+'</div>';
     if(t2) out+='<div style="display:flex;flex-wrap:wrap;gap:9px;margin:0 0 10px">'+t2+'</div>';
