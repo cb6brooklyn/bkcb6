@@ -43,11 +43,12 @@ Array.prototype.forEach.call(els,function(el){
 (function(){
 'use strict';
 var btn=document.getElementById('pdfBtn'),dataEl=document.getElementById('blockdata');
-if(!btn||!dataEl)return;
-var D=JSON.parse(dataEl.textContent);
+if(!btn)return;
+var D=dataEl?JSON.parse(dataEl.textContent):window.BLOCK;if(!D)return;
 var NAVY='#0d1b4b',ORANGE='#f47920',MUTED='#6b6760',CREAM='#f8f7f4';
 function load(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
 function img(src){return new Promise(function(res){var i=new Image();i.crossOrigin='anonymous';i.onload=function(){try{var c=document.createElement('canvas');c.width=i.naturalWidth;c.height=i.naturalHeight;c.getContext('2d').drawImage(i,0,0);res({data:c.toDataURL('image/png'),w:i.naturalWidth,h:i.naturalHeight});}catch(e){res(null);}};i.onerror=function(){res(null);};i.src=src;});}
+function qrImg(url){return load('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js').then(function(){var q=window.qrcode(0,'M');q.addData(url);q.make();var n=q.getModuleCount(),sz=6,c=document.createElement('canvas');c.width=c.height=n*sz+2*sz;var ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle='#0d1b4b';for(var r=0;r<n;r++)for(var cc=0;cc<n;cc++)if(q.isDark(r,cc))ctx.fillRect(sz+cc*sz,sz+r*sz,sz,sz);return {data:c.toDataURL('image/png'),w:c.width,h:c.height};}).catch(function(){return null;});}
 function tileMap(lat,lng,zoom,tw,th,lines,labels){return new Promise(function(res){
   var n=Math.pow(2,zoom),xf=(lng+180)/360*n,yf=(1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*n;
   var SC=1;if(labels&&labels.line){var l0=labels.line,pa=[(l0[0][0]+180)/360*n,(1-Math.log(Math.tan(l0[0][1]*Math.PI/180)+1/Math.cos(l0[0][1]*Math.PI/180))/Math.PI)/2*n],pb=[(l0[l0.length-1][0]+180)/360*n,(1-Math.log(Math.tan(l0[l0.length-1][1]*Math.PI/180)+1/Math.cos(l0[l0.length-1][1]*Math.PI/180))/Math.PI)/2*n];var bl=Math.hypot(pb[0]-pa[0],pb[1]-pa[1])*256;SC=Math.max(1,Math.min(3,(Math.min(tw,th)*0.62)/Math.max(bl,40)));}
@@ -76,7 +77,7 @@ function build(){
   Promise.all([
     load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'),
     fetch('/assets/pdf-fonts.json').then(function(r){return r.json();}).then(function(j){fonts=j;}).catch(function(){}),
-    img('/cb6-logo-card.png'),img('/block/'+D.slug+'/qr.png'),tileMap(D.mid[0],D.mid[1],18,900,558,D.lines,{st:D.st,from:D.from,to:D.to,line:D.lines.reduce(function(a,b){return b.length>a.length?b:a;},D.lines[0])}),img('/assets/blocks/asp-symbol.png'),img('/cb6-logo-square.png'),
+    img('/cb6-logo-card.png'),qrImg('https://bkcb6.app/block/'+D.slug+'/'),tileMap(D.mid[0],D.mid[1],18,900,558,D.lines,{st:D.st,from:D.from,to:D.to,line:D.lines.reduce(function(a,b){return b.length>a.length?b:a;},D.lines[0])}),img('/assets/blocks/asp-symbol.png'),img('/cb6-logo-square.png'),
     Promise.all((D.ents||[]).map(function(o){return o.logo?img(o.logo):Promise.resolve(null);})),
     Promise.all(['dsny-trash','dsny-recycle','dsny-compost','dsny-truck','lpc-seal'].map(function(n){return img('/assets/blocks/'+n+'.png');})),
     Promise.all(['dcp','nycps','boe','dsny','311','lpc'].map(function(n){return img('/site-icons/agencies/'+n+'.png');})),
@@ -107,7 +108,7 @@ function build(){
     var gw=(colW-4)/2,gh=(rowH-4)/2;
     dt.forEach(function(t,i){var x=colL+(i%2)*(gw+4),yy=y+Math.floor(i/2)*(gh+4);doc.setFillColor('#ffffff');doc.setDrawColor('#e5e2db');doc.setLineWidth(.8);doc.roundedRect(x,yy,gw,gh,4,4,'FD');
       var isz=44;if(t.im)doc.addImage(t.im.data,'PNG',x+8,yy+(gh-isz)/2,isz,isz);
-      var tx0=x+isz+16;label(t.k,tx0,yy+20);sans(11.5,NAVY);wrap(t.v,gw-isz-24).slice(0,2).forEach(function(l,j){doc.text(l,tx0,yy+36+j*12.5);});});
+      var tx0=x+isz+16;label(t.k,tx0,yy+20);var vl=wrap(t.v,gw-isz-24);var fs=vl.length>2?8.5:(vl.length>1?10:11.5);sans(fs,NAVY);vl=wrap(t.v,gw-isz-24).slice(0,3);vl.forEach(function(l,j){doc.text(l,tx0,yy+34+j*(fs+2));});});
     // right half: parking signs, one per side, in matching tiles
     function sign(x,yy,w,a){
       var h=w*376/573;doc.setFillColor('#ffffff');doc.setDrawColor(RED);doc.setLineWidth(2);doc.roundedRect(x,yy,w,h,3,3,'FD');doc.setLineWidth(1);
