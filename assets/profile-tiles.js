@@ -43,6 +43,13 @@
     var cbd = document.querySelector('.cd-description');
     if (cbd && !bio) { var ps = cbd.querySelectorAll('p'); var bx2 = document.createElement('div'); bx2.className = 'pbrief'; var txt = ''; Array.prototype.forEach.call(ps, function (pp, i) { if (i < 2) txt += '<p>' + pp.innerHTML + '</p>'; }); if (txt) { bx2.innerHTML = txt; el.parentNode.insertBefore(bx2, el); } }
     var entries = [];
+    // page-specific lead tiles, first in the grid: data-own="Title;href;desc;kicker|..."
+    (el.getAttribute('data-own') || '').split('|').filter(Boolean).forEach(function (x) {
+      var p = x.split(';'); var a = document.createElement('a'); a.className = 'ptile go'; a.href = p[1];
+      if (/^https?:/.test(p[1])) { a.target = '_blank'; a.rel = 'noopener'; }
+      a.innerHTML = '<span class="k">' + esc(p[3] || 'Own page') + '</span><span class="t">' + esc(p[0]) + '</span><span class="d">' + esc(p[2] || '') + '</span>';
+      grid.appendChild(a); entries.push({ el: a, text: (p[0] + ' ' + (p[2] || '')).toLowerCase() });
+    });
     // quick links to the district's own pages
     [['elections', 'Election results', 'Every contest since 2025, by election district'], ['parks', 'Parks and activities', 'Every park, court, field, pool and market'], ['zoning', 'Land use, zoning and housing', 'Every tax lot, and the district map']].forEach(function (x) {
       var href = el.getAttribute('data-' + x[0]); if (!href) return;
