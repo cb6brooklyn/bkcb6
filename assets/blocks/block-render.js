@@ -1,15 +1,17 @@
 (function(){
 'use strict';
 var root=document.getElementById('card');if(!root)return;
-var slug=root.getAttribute('data-slug'),cd=root.getAttribute('data-cd');
+var slug=root.getAttribute('data-slug'),cd=root.getAttribute('data-cd'),pfx=root.getAttribute('data-pfx')||'bk';
+var BNAMES={mn:'Manhattan',bx:'Bronx',bk:'Brooklyn',qn:'Queens',si:'Staten Island'};
+var BPATH=(pfx==='bk'?'/block/':'/block/'+pfx+'/');
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 var DAY={Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6},DN=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function nextDay(daysTxt){var days=(daysTxt||'').split(/[,\/]/).map(function(x){return x.trim();}).filter(function(x){return DAY[x]!=null;});if(!days.length)return '';var t=new Date();t.setHours(0,0,0,0);
   for(var i=0;i<14;i++){var d=new Date(t.getFullYear(),t.getMonth(),t.getDate()+i);if(days.indexOf(DN[d.getDay()].slice(0,3))<0)continue;return i===0?'today':(i===1?'tomorrow':DN[d.getDay()]+', '+MO[d.getMonth()]+' '+d.getDate());}return '';}
 function render(D){
   window.BLOCK=D;document.title=D.title+' \u2014 Block Card \u2014 bkcb6.app';
-  var cbn=D.cd-300;var h='';
-  h+='<div class="top"><div class="crumb"><a href="/">CB6 &amp; Beyond</a> &rsaquo; <a href="/block/">Block cards</a> &rsaquo; <a href="/block/?cd='+D.cd+'">Brooklyn CB'+cbn+'</a></div><h1>'+esc(D.st)+' <span>between '+esc(D.from)+' and '+esc(D.to)+'</span></h1><div class="nbs">Block card &middot; Brooklyn Community Board '+cbn+(D.hn?' &middot; '+esc(D.hn):'')+'</div></div>';
+  var cbn=D.cd%100;var BNM=BNAMES[pfx];var h='';
+  h+='<div class="top"><div class="crumb"><a href="/">CB6 &amp; Beyond</a> &rsaquo; <a href="/block/">Block cards</a> &rsaquo; <a href="/block/?cd='+D.cd+'">'+BNM+' CB'+cbn+'</a></div><h1>'+esc(D.st)+' <span>between '+esc(D.from)+' and '+esc(D.to)+'</span></h1><div class="nbs">Block card &middot; '+BNM+' Community Board '+cbn+(D.hn?' &middot; '+esc(D.hn):'')+'</div></div>';
   h+='<div class="share"><button type="button" class="sb" id="shareBtn">Share this block</button><button type="button" class="sb alt" id="pdfBtn">One-page PDF</button>'+(D.cd===306?'<a class="sb alt" href="/blocks/#st='+encodeURIComponent(D.st)+'&from='+encodeURIComponent(D.from.split(' & ')[0])+'&to='+encodeURIComponent(D.to.split(' & ')[0])+'&r=75">Everything on this block &rarr;</a>':'')+'</div>';
   h+='<div id="map" data-lines=\''+JSON.stringify(D.lines).replace(/'/g,'&#39;')+'\' data-mid="'+D.mid[0]+','+D.mid[1]+'" data-st="'+esc(D.st)+'" data-from="'+esc(D.from)+'" data-to="'+esc(D.to)+'"></div>';
   // zoning + LPC
@@ -55,5 +57,5 @@ function render(D){
   root.innerHTML=h;
   var s=document.createElement('script');s.src='/assets/blocks/block-card.js';document.body.appendChild(s);
 }
-fetch('/assets/blocks/bk/'+cd+'.json').then(function(r){return r.json();}).then(function(j){var D=j.blocks[slug];if(!D){root.innerHTML='<div class="empty">No card for this block.</div>';return;}D.near=(D.near||[]).map(function(i){return j.segs[i];});render(D);}).catch(function(){root.innerHTML='<div class="empty">Could not load this block.</div>';});
+fetch('/assets/blocks/'+pfx+'/'+cd+'.json').then(function(r){return r.json();}).then(function(j){var D=j.blocks[slug];if(!D){root.innerHTML='<div class="empty">No card for this block.</div>';return;}D.near=(D.near||[]).map(function(i){return j.segs[i];});render(D);}).catch(function(){root.innerHTML='<div class="empty">Could not load this block.</div>';});
 })();
