@@ -40,6 +40,7 @@ Array.prototype.forEach.call(els,function(el){
   if(future.length){var s=document.createElement('span');s.textContent=' Suspended '+future.slice(0,3).join('; ')+'.';el.parentNode.appendChild(s);}
 });
 })();
+(function(){var ORD=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],DNF=['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'];window.__compactDays=function(txt){var ds=(txt||'').split(/[,\/]/).map(function(x){return x.trim();}).filter(function(x){return ORD.indexOf(x)>=0;});ds=ORD.filter(function(x){return ds.indexOf(x)>=0;});if(!ds.length)return '';if(ds.length===1)return DNF[ORD.indexOf(ds[0])];if(ds.length===2)return ds.map(function(x){return x.toUpperCase();}).join(' ');var ix=ds.map(function(x){return ORD.indexOf(x);});var run=ix.every(function(v,i){return i===0||v===ix[i-1]+1;});if(run)return ds[0].toUpperCase()+' - '+ds[ds.length-1].toUpperCase();if(ds.length===6)return 'EXCEPT '+ORD.filter(function(x){return ds.indexOf(x)<0;})[0].toUpperCase();return ds.map(function(x){return x.toUpperCase();}).join(' ');};})();
 (function(){
 'use strict';
 var btn=document.getElementById('pdfBtn'),dataEl=document.getElementById('blockdata');
@@ -113,7 +114,7 @@ function build(){
     function sign(x,yy,w,a){
       var h=w*376/573;doc.setFillColor('#ffffff');doc.setDrawColor(RED);doc.setLineWidth(2);doc.roundedRect(x,yy,w,h,3,3,'FD');doc.setLineWidth(1);
       var ss=h*0.64;if(sym)doc.addImage(sym.data,'PNG',x+7,yy+(h-ss)/2-1,ss,ss);
-      var m=(a.sched||'').match(/^(.*?),\s*(.*)$/);var day=(m?m[1]:a.sched||'').toUpperCase(),time=(m?m[2]:'').replace(/\s+to\s+/,' - ').replace(/:00/g,'').replace(/ (AM|PM)/g,'$1');
+      var m=(a.sched||'').match(/^(.*?),\s*(.*)$/);var day=(window.__compactDays?window.__compactDays(a.days):'')||(m?m[1]:a.sched||'').toUpperCase(),time=(m?m[2]:'').replace(/\s+to\s+/,' - ').replace(/:00/g,'').replace(/ (AM|PM)/g,'$1');
       var tx0=x+ss+10,tw0=w-ss-16,cx=tx0+tw0/2;sans(8,RED);doc.text(time,cx,yy+h*0.30,{align:'center'});
       var dsz=day.length>8?9.5:(day.length>6?11.5:13.5);sans(dsz,RED);doc.text(day,cx,yy+h*0.58,{align:'center'});
       var ay=yy+h*0.79;doc.setDrawColor(RED);doc.setFillColor(RED);doc.setLineWidth(2.6);doc.line(cx-12,ay,cx+15,ay);doc.triangle(cx-20,ay,cx-10,ay-5.5,cx-10,ay+5.5,'F');doc.setLineWidth(1);
