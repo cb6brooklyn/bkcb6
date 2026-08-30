@@ -13,35 +13,35 @@ if(el){
     map.fitBounds(pl.getBounds().pad(.45),{maxZoom:18});
     var lg=ll.reduce(function(a,b){return b.length>a.length?b:a;},ll[0]);var A=lg[0],B=lg[lg.length-1];var mid=[(A[0]+B[0])/2,(A[1]+B[1])/2];
     (function(){
-      function box(t){var r=t.getElement();return r?r.getBoundingClientRect():null;}
-      function hit(a,b){return a&&b&&!(a.right<b.left-3||b.right<a.left-3||a.bottom<b.top-3||b.bottom<a.top-3);}
+      // place the three labels geometrically so none overlap
+      var sz=map.getSize();
+      function pt(ll){var q=map.latLngToContainerPoint(ll);return [q.x,q.y];}
+      function rect(c,w,h){return [c[0]-w/2,c[1]-h/2,c[0]+w/2,c[1]+h/2];}
+      function hit(a,b){return !(a[2]<b[0]-3||b[2]<a[0]-3||a[3]<b[1]-3||b[3]<a[1]-3);}
+      function inside(r){return r[0]>=2&&r[1]>=2&&r[2]<=sz.x-2&&r[3]<=sz.y-2;}
       var placed=[];
-      function place(latlng,text,cls,cands){
-        var best=null,bestScore=1e9,bestT=null;
-        for(var i=0;i<cands.length;i++){
-          var t=L.tooltip({permanent:true,direction:cands[i][0],className:cls,offset:cands[i][1],interactive:false}).setLatLng(latlng).setContent(text).addTo(map);
-          var r=box(t),score=0;
-          for(var k=0;k<placed.length;k++) if(hit(r,placed[k])) score++;
-          if(score===0){if(bestT)map.removeLayer(bestT);placed.push(r);return t;}
-          if(score<bestScore){if(bestT)map.removeLayer(bestT);bestScore=score;bestT=t;best=r;}
-          else map.removeLayer(t);
+      function put(ll,text,cls){
+        var w=text.length*(cls==='blk'?7.6:6.9)+20,h=cls==='blk'?27:25;
+        var c0=pt(ll);
+        var best=null,bestOff=[0,0],bestScore=1e9;
+        var rads=[0,18,32,48,66,86,108];
+        var dirs=[[0,0],[0,-1],[0,1],[1,0],[-1,0],[-0.75,-0.75],[0.75,-0.75],[-0.75,0.75],[0.75,0.75]];
+        for(var ri=0;ri<rads.length;ri++)for(var di=0;di<dirs.length;di++){
+          if(rads[ri]===0&&di>0)continue;
+          var off=[dirs[di][0]*rads[ri],dirs[di][1]*rads[ri]];
+          var r=rect([c0[0]+off[0],c0[1]+off[1]],w,h);
+          var sc=(inside(r)?0:100);
+          for(var k=0;k<placed.length;k++) if(hit(r,placed[k])) sc+=10;
+          sc+=rads[ri]*0.02;
+          if(sc<bestScore){bestScore=sc;best=r;bestOff=off;}
+          if(sc<0.5)break;
         }
-        if(bestT){placed.push(best);return bestT;}
-        return null;
+        placed.push(best);
+        L.tooltip({permanent:true,direction:'center',className:cls,offset:bestOff,interactive:false}).setLatLng(ll).setContent(text).addTo(map);
       }
-      function ringFor(base){
-        var out=[];var rads=[0,16,30,46,64,84];
-        var dirs=[['center',0,0],['top',0,-1],['bottom',0,1],['right',1,0],['left',-1,0],['top',-0.8,-0.8],['top',0.8,-0.8],['bottom',-0.8,0.8],['bottom',0.8,0.8]];
-        for(var r=0;r<rads.length;r++) for(var k=0;k<dirs.length;k++){
-          if(rads[r]===0&&k>0) continue;
-          out.push([dirs[k][0],[dirs[k][1]*rads[r],dirs[k][2]*rads[r]]]);
-        }
-        return out;
-      }
-      var ring=ringFor();
-      place(A,el.getAttribute('data-from'),'xst',ring);
-      place(B,el.getAttribute('data-to'),'xst',ring);
-      place(mid,el.getAttribute('data-st'),'blk',ring.slice(1).concat(ring));
+      put(A,el.getAttribute('data-from'),'xst');
+      put(B,el.getAttribute('data-to'),'xst');
+      put(mid,el.getAttribute('data-st'),'blk');
     })();
   };document.head.appendChild(js);
 }
