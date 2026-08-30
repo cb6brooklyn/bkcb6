@@ -282,12 +282,12 @@ directory = (head('NYC Agency Directory', f'Every one of the {n} agencies, offic
     '  <div class="crumb"><a href="/">CB6 &amp; Beyond</a> &middot; <a href="/government/">Government</a></div>\n'
     '  <h1>NYC Agency <span>Directory</span></h1>\n'
     f'  <div class="sub">{n} agencies, offices, boards and commissions, as listed by nyc.gov</div>\n</header>\n'
-    '<div class="intro"><p>Search an agency, an acronym, a commissioner or a deputy mayor and every match opens at once. Or open a section to read the full list. Every entry has its own page.</p></div>\n'
+    '<div class="intro"><p>Search an agency, an acronym, a commissioner or a deputy mayor and every match opens at once. Or open a section to read the full list. Every entry has its own page. State agencies are in the <a href="/agencies/nys/">New York State Agency Directory</a>.</p></div>\n'
     '<div class="tools"><input id="q" type="search" placeholder="Search an agency, acronym or name" autocomplete="off"></div>\n'
     '<div class="none" id="none" hidden>Nothing matches that.</div>\n'
     f'<section class="lvl" id="city"><div class="lhead"><span class="lname">City of New York</span><span class="lcount">{n}</span></div>{"".join(secs)}</section>\n'
     '<div class="foot">\n  Names, titles, reporting lines and links from the official nyc.gov agency directory feed, read the day this page was built. What each agency does is written here on bkcb6.app or taken from the agency&rsquo;s own site.<br>\n'
-    '  <a href="/electeds">Who Represents You</a> &middot; <a href="/govhub.html">City government org chart</a> &middot; <a href="/directory">The Address Directory</a>\n</div>\n</div>\n'
+    '  <a href="/agencies/nys/">New York State Agency Directory</a> &middot; <a href="/electeds">Who Represents You</a> &middot; <a href="/govhub.html">City government org chart</a> &middot; <a href="/directory">The Address Directory</a>\n</div>\n</div>\n'
     + DIR_JS + '\n</body></html>\n')
 os.makedirs(os.path.join(ROOT, 'agencies'), exist_ok=True)
 open(os.path.join(ROOT, 'agencies/index.html'), 'w').write(directory)
