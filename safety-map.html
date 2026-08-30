@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NYC Public Safety Map &mdash; crime, arrests, tickets and camera violations by district</title>
+<meta name="description" content="Interactive map and dashboard: crime complaints, arrests, parking tickets and camera violations for every borough, community district, City Council, State Senate, State Assembly and Congressional district, and police precinct, 2020 to 2026.">
+<link rel="canonical" href="https://bkcb6.app/safety-map.html">
+<meta property="og:title" content="NYC Public Safety Map">
+<meta property="og:description" content="Crime, arrests, parking tickets and camera violations, mapped for every district in New York City.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "b6e9b47ba0cf416388d72db8edaf4198"}'></script>
+<style>
+:root{--navy:#0d1b4b;--orange:#f47920;--cream:#f8f7f4;--line:#e5e2db}
+*{box-sizing:border-box}
+body{margin:0;font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--navy)}
+.top{background:var(--navy);color:#fff;padding:14px 16px}
+.top .crumb{font-size:13px;opacity:.85}.top .crumb a{color:#fff;text-decoration:none}
+.top h1{margin:4px 0 2px;font-size:22px;line-height:1.2}
+.top p{margin:0;font-size:13px;opacity:.85;max-width:860px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 16px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:1001}
+.bar label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.bar select{font-family:'DM Sans',sans-serif;font-size:14px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--navy)}
+.wrapmain{display:flex;gap:0;min-height:520px}
+#map{flex:1;min-height:520px;background:#eef0f4}
+.side{width:340px;max-width:44vw;background:#fff;border-left:1px solid var(--line);padding:14px;overflow:auto;max-height:78vh}
+.side h2{margin:0 0 2px;font-size:17px;line-height:1.25}
+.side .sub{font-size:12px;color:#5a6285}
+.big{font-family:'DM Mono',monospace;font-size:26px;font-weight:500;margin:8px 0 2px}
+.unit{font-size:12px;color:#5a6285}
+.bars{margin:10px 0 4px}
+.brow{display:flex;align-items:center;gap:8px;margin:3px 0;font-size:12px}
+.brow .y{width:34px;font-family:'DM Mono',monospace;color:#5a6285}
+.brow .tr{flex:1;background:#f1efe9;border-radius:4px;height:14px;position:relative}
+.brow .fl{position:absolute;left:0;top:0;bottom:0;background:var(--orange);border-radius:4px}
+.brow .v{width:74px;text-align:right;font-family:'DM Mono',monospace}
+.mini{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px 0 4px}
+.mini a{display:block;background:var(--cream);border:1px solid var(--line);border-radius:8px;padding:8px;text-decoration:none;color:var(--navy)}
+.mini .k{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#5a6285}
+.mini .n{font-family:'DM Mono',monospace;font-size:15px}
+.plink{display:inline-block;margin-top:10px;font-weight:700;color:var(--orange);text-decoration:none}
+.rank{background:#fff;border-top:1px solid var(--line);padding:12px 16px 24px}
+.rank h2{font-size:16px;margin:0 0 8px}
+.rk{display:flex;align-items:center;gap:10px;padding:6px 4px;border-bottom:1px solid #f1efe9;font-size:14px;cursor:pointer}
+.rk:hover{background:var(--cream)}
+.rk .i{width:22px;font-family:'DM Mono',monospace;color:#5a6285;font-size:12px}
+.rk .nm{flex:1}
+.rk .vv{font-family:'DM Mono',monospace}
+.legend{position:absolute;bottom:18px;left:12px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:11px;z-index:1000}
+.legend .sw{display:inline-block;width:14px;height:10px;margin-right:4px;vertical-align:middle;border-radius:2px}
+.note{font-size:12px;color:#5a6285;padding:8px 16px;background:#fff}
+.note a{color:var(--orange)}
+.foot{padding:14px 16px 30px;font-size:13px;color:#5a6285}
+.foot a{color:var(--orange)}
+@media(max-width:760px){.wrapmain{flex-direction:column}.side{width:auto;max-width:none;border-left:0;border-top:1px solid var(--line);max-height:none}#map{min-height:54vh}}
+</style></head>
+<body>
+<div class="top">
+  <div class="crumb"><a href="/">bkcb6.app</a> &middot; <a href="/safety-districts.html">Safety by district</a> &middot; Interactive map</div>
+  <h1>NYC Public Safety Map</h1>
+  <p>Crime complaints, arrests, parking tickets and camera violations for every district in the city, 2020 to 2026. Pick a dataset, a year and a district layer; tap any district for its trend and profile. Every record is placed by its own location, never summed from precinct totals.</p>
+</div>
+<div class="bar">
+  <label for="sel-data">Data</label>
+  <select id="sel-data">
+    <option value="crime">Crime complaints</option>
+    <option value="arrests">Arrests</option>
+    <option value="tickets">Parking tickets</option>
+    <option value="cameras">Camera violations</option>
+  </select>
+  <label for="sel-year">Year</label>
+  <select id="sel-year"></select>
+  <label for="sel-layer">Districts</label>
+  <select id="sel-layer">
+    <option value="cd">Community districts</option>
+    <option value="council">City Council</option>
+    <option value="senate">State Senate</option>
+    <option value="assembly">State Assembly</option>
+    <option value="congress">Congressional</option>
+    <option value="precinct">Police precincts</option>
+    <option value="boro">Boroughs</option>
+  </select>
+</div>
+<div class="wrapmain">
+  <div id="map" style="position:relative"><div class="legend" id="legend"></div></div>
+  <div class="side" id="side">
+    <h2>Pick a district</h2>
+    <div class="sub">Tap any district on the map, or a row in the ranking below, to see its year-by-year trend, all four datasets, and the link to its full profile.</div>
+  </div>
+</div>
+<div class="note" id="note"></div>
+<div class="rank" id="rank"></div>
+<div class="foot">Sources: NYPD complaint and arrest data, DOF parking violations (camera codes split out per the DOF code table), each record placed by its own coordinates or exact street address into the district it falls in; details and remainders on every district&rsquo;s <a href="/safety-districts.html">profile page</a>. Fiscal-source parking data is shown by calendar year. Built by <a href="mailto:Mike@bkcb6.org">Mike Racioppo</a>, District Manager, Brooklyn Community Board 6.</div>
+<script>
+(function(){
+var $=function(id){return document.getElementById(id);};
+var DATA={crime:'/data/crime-rank.json',arrests:'/data/arrest-rank.json',tickets:'/data/ticket-rank.json',cameras:'/data/camera-rank.json'};
+var DLABEL={crime:'crime complaints',arrests:'arrests',tickets:'parking tickets',cameras:'camera violations'};
+var LAYER={
+ cd:{geo:'/cd-boundaries-simple.geojson',prop:'cd',label:'Community districts'},
+ council:{geo:'/data/council-districts.geojson',prop:'cc',label:'City Council'},
+ senate:{geo:'/data/senate-districts.geojson',prop:'sd',label:'State Senate'},
+ assembly:{geo:'/data/assembly-districts.geojson',prop:'ad',label:'State Assembly'},
+ congress:{geo:'/data/congress-districts-simple.geojson',prop:'cong_dist',label:'Congressional'},
+ precinct:{geo:'/data/precincts-simple.geojson',prop:'precinct',label:'Police precincts'},
+ boro:{geo:'/data/boro-simple.geojson',prop:'borocode',label:'Boroughs'}
+};
+var BORONAME={1:'Manhattan',2:'Bronx',3:'Brooklyn',4:'Queens',5:'Staten Island'};
+var CB6NAME='Park Slope, Carroll Gardens, Cobble Hill, Red Hook, Gowanus, and the Columbia Street Waterfront District';
+var R={}, NAMES=null, geoCache={}, layerObj=null, selKey=null;
+var state={data:'crime',year:'2025',layer:'cd'};
+var qs=new URLSearchParams(location.search);
+if(DATA[qs.get('data')])state.data=qs.get('data');
+if(LAYER[qs.get('layer')])state.layer=qs.get('layer');
+if(/^20(2[0-6])$/.test(qs.get('year')||''))state.year=qs.get('year');
+function fmt(n){return n==null?'\u2013':Number(n).toLocaleString('en-US');}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+function cdName(code){
+  if(!NAMES)return null;
+  var b=['','BRONX','BROOKLYN','MANHATTAN','QUEENS','STATEN ISLAND'][{2:1,3:2,1:3,4:4,5:5}[code[0]]]; // placeholder, replaced below
+  return null;
+}
+// cd code '306' -> pop-file key '06 BROOKLYN'
+var CDB={'1':'MANHATTAN','2':'BRONX','3':'BROOKLYN','4':'QUEENS','5':'STATEN ISLAND'};
+function cdKey(code){code=String(code);return code.slice(1)+' '+CDB[code[0]];}
+function distName(layer,key){
+  key=String(key);
+  if(layer==='cd'){
+    if(key==='306')return 'Brooklyn CD 6 \u2014 '+CB6NAME;
+    var e=NAMES&&NAMES[cdKey(key)];
+    var boro=CDB[key[0]];boro=boro?boro[0]+boro.slice(1).toLowerCase():'';
+    if(boro==='Staten island')boro='Staten Island';
+    return boro+' CD '+parseInt(key.slice(1),10)+(e&&e.name?' \u2014 '+e.name:'');
+  }
+  if(layer==='council')return 'City Council District '+key;
+  if(layer==='senate')return 'State Senate District '+key;
+  if(layer==='assembly')return 'State Assembly District '+key;
+  if(layer==='congress')return 'Congressional District '+key+' (NY-'+key+')';
+  if(layer==='precinct')return 'Precinct '+key;
+  if(layer==='boro')return BORONAME[key]||key;
+  return key;
+}
+function profileUrl(layer,key){
+  key=String(key);
+  if(layer==='cd'){var n=parseInt(key.slice(1),10);return n>18?null:'/safety/community-board/'+key+'/';}
+  if(layer==='boro')return '/safety/borough/'+(BORONAME[key]||'').toLowerCase().replace(/ /g,'')+'/';
+  if(layer==='precinct')return '/precinct/'+key+'/';
+  return '/safety/'+layer+'/'+key+'/';
+}
+function vals(){ // district -> value for current data/year/layer
+  var d=R[state.data];if(!d)return {};
+  return (d.years[state.layer]||{})[state.year]||{};
+}
+function ramp(t){ // cream -> orange -> navy
+  var stops=[[248,247,244],[250,213,180],[244,121,32],[150,73,49],[13,27,75]];
+  var x=Math.max(0,Math.min(1,t))*(stops.length-1),i=Math.floor(x),f=x-i;
+  var a=stops[i],b=stops[Math.min(i+1,stops.length-1)];
+  return 'rgb('+Math.round(a[0]+(b[0]-a[0])*f)+','+Math.round(a[1]+(b[1]-a[1])*f)+','+Math.round(a[2]+(b[2]-a[2])*f)+')';
+}
+var map=L.map('map',{scrollWheelZoom:true,zoomSnap:0.25}).setView([40.71,-73.98],10);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap, &copy; CARTO',maxZoom:18}).addTo(map);
+function quant(sorted,t){return sorted.length?sorted[Math.min(sorted.length-1,Math.floor(t*sorted.length))]:0;}
+function draw(){
+  var cfg=LAYER[state.layer];
+  var V=vals();
+  var keys=Object.keys(V);
+  var sorted=keys.map(function(k){return V[k];}).sort(function(a,b){return a-b;});
+  function shade(v){
+    if(v==null)return '#f1efe9';
+    var i=0;while(i<sorted.length&&sorted[i]<v)i++;
+    return ramp(sorted.length>1?i/(sorted.length-1):0.5);
+  }
+  if(layerObj){map.removeLayer(layerObj);layerObj=null;}
+  layerObj=L.geoJSON(geoCache[state.layer],{
+    style:function(f){
+      var k=String(f.properties[cfg.prop]);
+      var v=V[k]!=null?V[k]:V[String(parseInt(k,10))];
+      return {color:'#fff',weight:1,fillColor:shade(v),fillOpacity:0.82};
+    },
+    onEachFeature:function(f,l){
+      var k=String(parseInt(f.properties[cfg.prop],10));
+      if(state.layer==='cd')k=String(f.properties[cfg.prop]);
+      var v=V[k];
+      l.bindTooltip('<strong>'+esc(distName(state.layer,k))+'</strong><br>'+fmt(v)+' '+DLABEL[state.data]+' in '+state.year,{sticky:true});
+      l.on('click',function(){select(k,true);});
+      l.on('mouseover',function(){l.setStyle({weight:2.5,color:'#0d1b4b'});});
+      l.on('mouseout',function(){if(selKey!==k)layerObj.resetStyle(l);});
+    }
+  }).addTo(map);
+  legend(sorted);rankList();
+  if(selKey!=null)select(selKey,false);
+  syncUrl();
+}
+function legend(sorted){
+  var el=$('legend');
+  if(!sorted.length){el.innerHTML='';return;}
+  var h='<b>'+DLABEL[state.data]+' '+state.year+'</b><br>';
+  [0,.25,.5,.75,.999].forEach(function(t){
+    h+='<span class="sw" style="background:'+ramp(t)+'"></span>'+fmt(Math.round(quant(sorted,t)))+'<br>';
+  });
+  el.innerHTML=h;
+}
+function yearsOf(layer,key){
+  var out={};
+  Object.keys(DATA).forEach(function(ds){
+    var d=R[ds];if(!d)return;
+    var L2=d.years[layer]||{};
+    Object.keys(L2).forEach(function(y){
+      if(L2[y][key]!=null){out[y]=out[y]||{};out[y][ds]=L2[y][key];}
+    });
+  });
+  return out;
+}
+function select(key,zoom){
+  selKey=key;
+  var Y=yearsOf(state.layer,key);
+  var yrs=Object.keys(Y).filter(function(y){return +y>=2020&&+y<=2026;}).sort();
+  var cur=(Y[state.year]||{});
+  var series=yrs.map(function(y){return (Y[y]||{})[state.data];});
+  var mx=Math.max.apply(null,series.filter(function(v){return v!=null;}).concat([1]));
+  var h='<h2>'+esc(distName(state.layer,key))+'</h2>';
+  h+='<div class="big">'+fmt(cur[state.data])+'</div><div class="unit">'+DLABEL[state.data]+' in '+state.year+'</div>';
+  h+='<div class="bars">';
+  yrs.forEach(function(y){
+    var v=(Y[y]||{})[state.data];
+    h+='<div class="brow"><span class="y">'+y+'</span><span class="tr"><span class="fl" style="width:'+(v?Math.max(2,100*v/mx):0)+'%"></span></span><span class="v">'+fmt(v)+'</span></div>';
+  });
+  h+='</div><div class="mini">';
+  Object.keys(DATA).forEach(function(ds){
+    h+='<a href="#" data-ds="'+ds+'"><div class="k">'+DLABEL[ds]+' '+state.year+'</div><div class="n">'+fmt(cur[ds])+'</div></a>';
+  });
+  h+='</div>';
+  var pu=profileUrl(state.layer,key);
+  if(pu)h+='<a class="plink" href="'+pu+'">Full district profile &rarr;</a>';
+  $('side').innerHTML=h;
+  Array.prototype.forEach.call($('side').querySelectorAll('.mini a'),function(a){
+    a.addEventListener('click',function(e){e.preventDefault();$('sel-data').value=a.getAttribute('data-ds');state.data=a.getAttribute('data-ds');draw();});
+  });
+  if(zoom&&layerObj){
+    layerObj.eachLayer(function(l){
+      var cfg=LAYER[state.layer];
+      var k=state.layer==='cd'?String(l.feature.properties[cfg.prop]):String(parseInt(l.feature.properties[cfg.prop],10));
+      if(k===String(key)){try{map.fitBounds(l.getBounds(),{padding:[30,30],maxZoom:13});}catch(e){}l.setStyle({weight:3,color:'#0d1b4b'});}
+    });
+  }
+}
+function rankList(){
+  var V=vals();
+  var rows=Object.keys(V).map(function(k){return [k,V[k]];}).sort(function(a,b){return b[1]-a[1];});
+  var h='<h2>'+LAYER[state.layer].label+' ranked by '+DLABEL[state.data]+', '+state.year+'</h2>';
+  rows.forEach(function(r,i){
+    h+='<div class="rk" data-k="'+esc(r[0])+'"><span class="i">'+(i+1)+'</span><span class="nm">'+esc(distName(state.layer,r[0]))+'</span><span class="vv">'+fmt(r[1])+'</span></div>';
+  });
+  $('rank').innerHTML=h;
+  Array.prototype.forEach.call($('rank').querySelectorAll('.rk'),function(el){
+    el.addEventListener('click',function(){select(el.getAttribute('data-k'),true);window.scrollTo({top:0,behavior:'smooth'});});
+  });
+}
+function note(){
+  var d=R[state.data];
+  var un=(d&&d.unplaced&&d.unplaced[state.layer])?d.unplaced[state.layer]:null;
+  var u=0;
+  if(un){if(state.data==='cameras'){Object.keys(un).forEach(function(k){if(k.indexOf('|'+state.year)>0)u+=un[k];});}else u=un[state.year]||0;}
+  var placed=Object.keys(vals()).reduce(function(s,k){return s+vals()[k];},0);
+  var t='';
+  if(u>0)t='* '+fmt(placed)+' '+DLABEL[state.data]+' placed in '+state.year+' at this layer; '+fmt(u)+' more ('+(100*u/(u+placed)).toFixed(1)+'%) could not be placed to a district from the published records. Full method notes on each district profile.';
+  else if(placed>0)t=fmt(placed)+' '+DLABEL[state.data]+' placed in '+state.year+' at this layer.';
+  $('note').textContent=t;
+}
+function syncUrl(){
+  var p='?data='+state.data+'&year='+state.year+'&layer='+state.layer;
+  try{history.replaceState(null,'',p);}catch(e){}
+}
+function loadLayer(){
+  if(geoCache[state.layer])return Promise.resolve();
+  return fetch(LAYER[state.layer].geo).then(function(r){return r.json();}).then(function(g){geoCache[state.layer]=g;});
+}
+function refresh(){loadLayer().then(function(){draw();note();});}
+var ysel=$('sel-year');
+for(var y=2026;y>=2020;y--){var o=document.createElement('option');o.value=String(y);o.textContent=String(y);ysel.appendChild(o);}
+ysel.value=state.year;$('sel-data').value=state.data;$('sel-layer').value=state.layer;
+ysel.addEventListener('change',function(){state.year=ysel.value;draw();note();});
+$('sel-data').addEventListener('change',function(){state.data=$('sel-data').value;draw();note();});
+$('sel-layer').addEventListener('change',function(){state.layer=$('sel-layer').value;selKey=null;refresh();});
+Promise.all(Object.keys(DATA).map(function(k){
+  return fetch(DATA[k]).then(function(r){return r.json();}).then(function(d){R[k]=d;});
+}).concat([fetch('/33159by5-pop.json').then(function(r){return r.json();}).then(function(d){NAMES=d.districts;}).catch(function(){})]))
+.then(refresh);
+window.__sm={get state(){return state;},get R(){return R;},vals:vals,distName:distName,profileUrl:profileUrl,select:select,get geo(){return geoCache;}};
+})();
+</script>
+</body></html>
