@@ -12,9 +12,21 @@ if(el){
     var pl=L.polyline(ll,{color:'#f47920',weight:8,opacity:.95,lineCap:'round'}).addTo(map);
     map.fitBounds(pl.getBounds().pad(.45),{maxZoom:18});
     var lg=ll.reduce(function(a,b){return b.length>a.length?b:a;},ll[0]);var A=lg[0],B=lg[lg.length-1];var mid=[(A[0]+B[0])/2,(A[1]+B[1])/2];
-    var steep=Math.abs(A[1]-B[1])<Math.abs(A[0]-B[0])*0.6;L.tooltip({permanent:true,direction:steep?'right':'top',className:'blk',offset:steep?[14,0]:[0,-12],interactive:false}).setLatLng(mid).setContent(el.getAttribute('data-st')).addTo(map);
-    L.tooltip({permanent:true,direction:'center',className:'xst',interactive:false}).setLatLng(A).setContent(el.getAttribute('data-from')).addTo(map);
-    L.tooltip({permanent:true,direction:'center',className:'xst',interactive:false}).setLatLng(B).setContent(el.getAttribute('data-to')).addTo(map);
+    (function(){
+      function box(t){var r=t.getElement();return r?r.getBoundingClientRect():null;}
+      function hit(a,b){return a&&b&&!(a.right<b.left-4||b.right<a.left-4||a.bottom<b.top-4||b.bottom<a.top-4);}
+      var t1=L.tooltip({permanent:true,direction:'center',className:'xst',interactive:false}).setLatLng(A).setContent(el.getAttribute('data-from')).addTo(map);
+      var t2=L.tooltip({permanent:true,direction:'center',className:'xst',interactive:false}).setLatLng(B).setContent(el.getAttribute('data-to')).addTo(map);
+      var steep=Math.abs(A[1]-B[1])<Math.abs(A[0]-B[0])*0.6;
+      var dirs=steep?[['right',[18,0]],['left',[-18,0]],['top',[0,-16]],['bottom',[0,16]]]:[['top',[0,-16]],['bottom',[0,16]],['right',[18,0]],['left',[-18,0]]];
+      var t3=null;
+      for(var i=0;i<dirs.length;i++){
+        if(t3)map.removeLayer(t3);
+        t3=L.tooltip({permanent:true,direction:dirs[i][0],className:'blk',offset:dirs[i][1],interactive:false}).setLatLng(mid).setContent(el.getAttribute('data-st')).addTo(map);
+        var b3=box(t3);
+        if(!hit(b3,box(t1))&&!hit(b3,box(t2)))break;
+      }
+    })();
   };document.head.appendChild(js);
 }
 var b=document.getElementById('shareBtn');
