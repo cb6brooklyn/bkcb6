@@ -194,7 +194,7 @@
       var boundary = data.boundary;
       var map = L.map(mapEl, {scrollWheelZoom:false});
       state.maps[kind] = map;
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',maxZoom:19}).addTo(map);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'© OpenStreetMap © CARTO',maxZoom:19}).addTo(map);
       var boundaryLayer = L.geoJSON(boundary,{style:function(){return {color:'#0d1b4b',weight:2,fill:false,opacity:0.95};}}).addTo(map);
       if (kind === 'subway' || kind === 'busstops'){
         var layer = L.geoJSON(section,{pointToLayer:function(feature, latlng){var p = feature.properties || {}; return L.circleMarker(latlng,{radius:kind === 'busstops' ? (String(p.timepoint || '').toLowerCase()==='true' ? 6 : 5) : 6,color:'#ffffff',weight:1,fillColor:kind === 'busstops' ? busStopColor(p) : subwayColor(p),fillOpacity:0.95});},onEachFeature:function(feature, layer){var p = feature.properties || {}; if (kind === 'subway') layer.bindPopup('<strong>'+escapeHtml(p.stop_name || 'Station')+'</strong>'+(isSI ? '<br><span style="font-size:.7rem;font-weight:700;color:#0d1b4b">SIR — Staten Island Railway</span>' : '')+'<br><span style="font-size:.8rem;color:#666">'+escapeHtml([p.line, p.daytime_routes, p.structure].filter(Boolean).join(' · '))+'</span>'); else layer.bindPopup(linePopup(kind, p));}}).addTo(map);

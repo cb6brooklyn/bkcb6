@@ -283,7 +283,7 @@
         zoomControl: true,
         minZoom: context.type === 'cb' ? 11 : 9
       });
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e', {
         attribution: '© OpenStreetMap © CARTO',
         maxZoom: 20
       }).addTo(map);

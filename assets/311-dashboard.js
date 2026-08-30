@@ -408,7 +408,7 @@
       }
       var node = el('dMap');
       map = window.L.map(node, { scrollWheelZoom: false });
-      window.L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      window.L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',
         { maxZoom: 19, attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(map);
       var keyOf = LEVELS[baseLevel()].geoKey;
       var feats = geo.features.filter(function (f) {

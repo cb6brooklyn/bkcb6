@@ -205,9 +205,9 @@
         cntEl = host.querySelector('[data-cnt]'), dirEl = host.querySelector('[data-dir]');
 
     var map = L.map(host.querySelector('[data-map]'), { scrollWheelZoom: false });
-    L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 19, maxNativeZoom: 16, attribution: 'Esri, HERE, Garmin, &copy; OpenStreetMap contributors' }).addTo(map);
-    var refLayer = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',
+      { maxZoom: 19, maxNativeZoom: 16, attribution: '&copy; OpenStreetMap contributors &copy; CARTO' }).addTo(map);
+    var refLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',
       { maxZoom: 19, maxNativeZoom: 16, opacity: .55 });
 
     var data, ci = -1, names = [], eds = [], layer = null, pin = null, home = null, byE = {}, lyrByE = {}, maxM = 0, edLabels = null;

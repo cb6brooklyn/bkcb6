@@ -155,9 +155,9 @@
     // The light grey canvas has no cached tiles past z16, and past it Esri
     // serves a "Map data not yet available" placeholder rather than nothing.
     // maxNativeZoom stops at the last real tile and scales it up instead.
-    L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e', {
       maxZoom: 19, maxNativeZoom: 16,
-      attribution: 'Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
     }).addTo(map);
 
     // A flat grey basemap under a single shape reads as nothing. Zoning and land
@@ -184,8 +184,8 @@
     // World_Transportation labels the grid at that zoom, so BID pages use it.
     // Chamber districts are borough-scale, where those labels are just noise.
     var refTiles = bidSlug
-      ? 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}'
-      : 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}';
+      ? 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e'
+      : 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e';
     L.tileLayer(refTiles, {
       maxZoom: 19, opacity: bidSlug ? 0.6 : 0.9, pane: LABEL_PANE || undefined
     }).addTo(map);
