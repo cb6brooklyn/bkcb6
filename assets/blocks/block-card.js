@@ -13,35 +13,39 @@ if(el){
     map.fitBounds(pl.getBounds().pad(.45),{maxZoom:18});
     var lg=ll.reduce(function(a,b){return b.length>a.length?b:a;},ll[0]);var A=lg[0],B=lg[lg.length-1];var mid=[(A[0]+B[0])/2,(A[1]+B[1])/2];
     (function(){
-      // place the three labels geometrically so none overlap
-      var sz=map.getSize();
-      function pt(ll){var q=map.latLngToContainerPoint(ll);return [q.x,q.y];}
-      function rect(c,w,h){return [c[0]-w/2,c[1]-h/2,c[0]+w/2,c[1]+h/2];}
-      function hit(a,b){return !(a[2]<b[0]-3||b[2]<a[0]-3||a[3]<b[1]-3||b[3]<a[1]-3);}
-      function inside(r){return r[0]>=2&&r[1]>=2&&r[2]<=sz.x-2&&r[3]<=sz.y-2;}
-      var placed=[];
-      function put(ll,text,cls){
-        var w=text.length*(cls==='blk'?7.6:6.9)+20,h=cls==='blk'?27:25;
-        var c0=pt(ll);
-        var best=null,bestOff=[0,0],bestScore=1e9;
-        var rads=[0,18,32,48,66,86,108];
-        var dirs=[[0,0],[0,-1],[0,1],[1,0],[-1,0],[-0.75,-0.75],[0.75,-0.75],[-0.75,0.75],[0.75,0.75]];
-        for(var ri=0;ri<rads.length;ri++)for(var di=0;di<dirs.length;di++){
-          if(rads[ri]===0&&di>0)continue;
-          var off=[dirs[di][0]*rads[ri],dirs[di][1]*rads[ri]];
-          var r=rect([c0[0]+off[0],c0[1]+off[1]],w,h);
-          var sc=(inside(r)?0:100);
-          for(var k=0;k<placed.length;k++) if(hit(r,placed[k])) sc+=10;
-          sc+=rads[ri]*0.02;
-          if(sc<bestScore){bestScore=sc;best=r;bestOff=off;}
-          if(sc<0.5)break;
+      var tips=[];
+      function draw(){
+        tips.forEach(function(t){map.removeLayer(t);});tips=[];
+        var sz=map.getSize();if(!sz.x||!sz.y)return;
+        function pt(ll){var q=map.latLngToContainerPoint(ll);return [q.x,q.y];}
+        function rect(c,w,h){return [c[0]-w/2,c[1]-h/2,c[0]+w/2,c[1]+h/2];}
+        function hit(a,b){return !(a[2]<b[0]-3||b[2]<a[0]-3||a[3]<b[1]-3||b[3]<a[1]-3);}
+        function inside(r){return r[0]>=2&&r[1]>=2&&r[2]<=sz.x-2&&r[3]<=sz.y-2;}
+        var placed=[];
+        function put(ll,text,cls){
+          var w=text.length*(cls==='blk'?7.7:7.0)+22,h=cls==='blk'?30:29;
+          var c0=pt(ll),best=null,bestOff=[0,0],bestScore=1e9;
+          var rads=[0,20,34,50,68,88,110,134];
+          var dirs=[[0,0],[0,-1],[0,1],[1,0],[-1,0],[-0.75,-0.75],[0.75,-0.75],[-0.75,0.75],[0.75,0.75]];
+          for(var ri=0;ri<rads.length;ri++)for(var di=0;di<dirs.length;di++){
+            if(rads[ri]===0&&di>0)continue;
+            var off=[dirs[di][0]*rads[ri],dirs[di][1]*rads[ri]];
+            var r=rect([c0[0]+off[0],c0[1]+off[1]],w,h);
+            var sc=(inside(r)?0:60);
+            for(var k=0;k<placed.length;k++) if(hit(r,placed[k])) sc+=40;
+            sc+=rads[ri]*0.02;
+            if(sc<bestScore){bestScore=sc;best=r;bestOff=off;}
+            if(bestScore<0.5)break;
+          }
+          placed.push(best);
+          tips.push(L.tooltip({permanent:true,direction:'center',className:cls,offset:bestOff,interactive:false}).setLatLng(ll).setContent(text).addTo(map));
         }
-        placed.push(best);
-        L.tooltip({permanent:true,direction:'center',className:cls,offset:bestOff,interactive:false}).setLatLng(ll).setContent(text).addTo(map);
+        put(A,el.getAttribute('data-from'),'xst');
+        put(B,el.getAttribute('data-to'),'xst');
+        put(mid,el.getAttribute('data-st'),'blk');
       }
-      put(A,el.getAttribute('data-from'),'xst');
-      put(B,el.getAttribute('data-to'),'xst');
-      put(mid,el.getAttribute('data-st'),'blk');
+      map.on('moveend zoomend resize',draw);
+      map.whenReady(function(){setTimeout(draw,60);setTimeout(draw,500);});
     })();
   };document.head.appendChild(js);
 }
