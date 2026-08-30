@@ -29,12 +29,19 @@ if(el){
         if(bestT){placed.push(best);return bestT;}
         return null;
       }
-      var ring=[['center',[0,0]],['top',[0,-14]],['bottom',[0,14]],['right',[16,0]],['left',[-16,0]],['top',[0,-28]],['bottom',[0,28]],['right',[34,0]],['left',[-34,0]],['top',[0,-42]],['bottom',[0,42]],['right',[52,0]],['left',[-52,0]]];
+      function ringFor(base){
+        var out=[];var rads=[0,16,30,46,64,84];
+        var dirs=[['center',0,0],['top',0,-1],['bottom',0,1],['right',1,0],['left',-1,0],['top',-0.8,-0.8],['top',0.8,-0.8],['bottom',-0.8,0.8],['bottom',0.8,0.8]];
+        for(var r=0;r<rads.length;r++) for(var k=0;k<dirs.length;k++){
+          if(rads[r]===0&&k>0) continue;
+          out.push([dirs[k][0],[dirs[k][1]*rads[r],dirs[k][2]*rads[r]]]);
+        }
+        return out;
+      }
+      var ring=ringFor();
       place(A,el.getAttribute('data-from'),'xst',ring);
       place(B,el.getAttribute('data-to'),'xst',ring);
-      var steep=Math.abs(A[1]-B[1])<Math.abs(A[0]-B[0])*0.6;
-      var mring=steep?[['right',[18,0]],['left',[-18,0]],['top',[0,-16]],['bottom',[0,16]],['right',[34,0]],['left',[-34,0]],['top',[0,-30]],['bottom',[0,30]]]:[['top',[0,-16]],['bottom',[0,16]],['right',[18,0]],['left',[-18,0]],['top',[0,-30]],['bottom',[0,30]],['right',[34,0]],['left',[-34,0]]];
-      place(mid,el.getAttribute('data-st'),'blk',mring);
+      place(mid,el.getAttribute('data-st'),'blk',ring.slice(1).concat(ring));
     })();
   };document.head.appendChild(js);
 }
