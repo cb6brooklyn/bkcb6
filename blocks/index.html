@@ -211,7 +211,7 @@ var sel=null; // {kind:'street'|'addr'|'pin', geom:[[lon,lat]...] or point, labe
 var live={n311:null,crime:null,lots:null,hist:null};
 var liveReq=0;
 var openSecs={},lastFound={};
-var COLORS={liquor:'#8c2f6b',health:'#2e6b30',culture:'#6b3fa0',food:'#0f7b6c',biz:'#b3541e',dob:'#2145a8',dot:'#e0473c',resurf:'#7a7a7a',events:'#c98b1a',parties:'#f47920',lpc:'#0d1b4b',lift:'#9b2226',citibike:'#1f5fd6',subway:'#111',schools:'#ff8c00',library:'#5a3e1b',fdny:'#d0021b',polls:'#3a3a9c',parks:'#2a8a3a',markets:'#5e9c2a',n311:'#f47920',crime:'#b00020',lots:'#6b6760',asp:'#2145a8'};
+var COLORS={liquor:'#8c2f6b',health:'#2e6b30',culture:'#6b3fa0',food:'#0f7b6c',biz:'#b3541e',dob:'#2145a8',dot:'#e0473c',resurf:'#7a7a7a',events:'#c98b1a',parties:'#f47920',lpc:'#0d1b4b',lift:'#9b2226',citibike:'#1f5fd6',subway:'#111',schools:'#ff8c00',library:'#5a3e1b',fdny:'#d0021b',polls:'#3a3a9c',parks:'#2a8a3a',markets:'#5e9c2a',n311:'#f47920',crime:'#b00020',lots:'#6b6760',asp:'#2145a8',childcare:'#c98b1a'};
 var LIVEDEF=[
   {id:'n311',label:'311 reports (12 months)',note:'Service requests to 311 in the last 12 months, placed by the coordinates on each report.',u:'/311.html'},
   {id:'crime',label:'Crime complaints (this year)',note:'NYPD complaint records, year to date, placed by the coordinates on each complaint. NYPD offsets some sensitive locations.',u:'/publicsafety/'},
@@ -313,6 +313,9 @@ var OVDEF=[
   {id:'subway',label:'Subway lines',sw:'#EE352E',on:true,src:'/data/cb6-subway-routes.geojson',style:function(f){return {color:f.properties.color||'#333',weight:5,opacity:.85};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.name)+'</div><div class="pl">Subway route</div></div>';}},
   {id:'bike',label:'Bike lanes',sw:'#ff8c00',on:false,src:'/data/cb6-bike-routes.geojson',style:function(f){return {color:f.properties.line_color||'#ff8800',weight:3,opacity:.85};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.name)+'</div><div class="ps">'+esc(p.lane_type||'')+'</div><div class="pl">Bike route</div></div>';}},
   {id:'bids',label:'Business districts',sw:'#b3541e',on:false,src:'/data/bids.geojson',filter:function(f){return String(f.properties.cds||'').indexOf('306')>=0;},style:function(){return {color:'#b3541e',weight:2,fillColor:'#b3541e',fillOpacity:.12};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.name)+' BID</div><div class="ps">Since '+esc(p.year||'')+'</div><div class="pl">Business improvement district</div></div>';}},
+  {id:'schooldist',label:'School districts',sw:'#1f5fd6',on:false,src:'/data/school-districts-brooklyn.geojson',filter:function(f){return ['13','15'].indexOf(String(f.properties.schooldist))>=0;},style:function(){return {color:'#1f5fd6',weight:3,dashArray:'8 5',fillColor:'#1f5fd6',fillOpacity:.06};},label2:function(f){return 'District '+f.properties.schooldist;},pop:function(p){return '<div class="pop"><div class="pt">Community School District '+esc(p.schooldist)+'</div><div class="pl"><a href="/eduhub-csd-'+esc(p.schooldist)+'.html">Schools in this district &rarr;</a></div></div>';}},
+  {id:'all-schools',label:'All schools',sw:'#0d1b4b',on:false,custom:true,layer:'schools'},
+  {id:'all-childcare',label:'All childcare and pre-K',sw:'#c98b1a',on:false,custom:true,layer:'childcare'},
   {id:'nycha',label:'NYCHA',sw:'#1f5fd6',on:false,src:'/data/CB6-NYCHA.geojson',point:function(f,ll){return L.circleMarker(ll,{radius:8,color:'#fff',weight:2,fillColor:'#1f5fd6',fillOpacity:.95});},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.Name)+'</div><div class="ps">'+esc(p.Type||'')+'</div><div class="pl">NYCHA</div></div>';}},
   {id:'all-asp',label:'Alternate side parking, every block',sw:'#2145a8',on:false,custom:true,layer:'asp'},
   {id:'all-dot',label:'All street work permits',sw:'#e0473c',on:false,custom:true,layer:'dot'},
@@ -384,7 +387,7 @@ function buildOverlays(){
     }
     var g=L.layerGroup();OV[d.id]=g;if(d.on)g.addTo(map);
     fetch(d.src).then(function(r){return r.json();}).then(function(gj){
-      var lyr=L.geoJSON(gj,{filter:d.filter||function(){return true;},style:d.style,pointToLayer:d.point,onEachFeature:function(f,l){if(d.pop)l.bindPopup(d.pop(f.properties||{}));}});
+      var lyr=L.geoJSON(gj,{filter:d.filter||function(){return true;},style:d.style,pointToLayer:d.point,onEachFeature:function(f,l){if(d.pop)l.bindPopup(d.pop(f.properties||{}));if(d.label2)l.bindTooltip(d.label2(f),{permanent:true,direction:'center',className:'nbl'});}});
       g.addLayer(lyr);
     }).catch(function(){});
   });
@@ -619,6 +622,7 @@ function render(found){
     h+='<div class="sec'+(openSecs[L0.id]?' open':'')+'" id="sec-'+L0.id+'"><button type="button" class="sh" data-sec="'+L0.id+'"><span class="t">'+esc(L0.label)+'</span><span class="c">'+fmt(rows.length)+'</span><span class="ar">'+(openSecs[L0.id]?'&#9650;':'&#9660;')+'</span></button><div class="sb">';
     if(L0.note)h+='<div class="note">'+esc(L0.note)+'</div>';
     if(L0.id==='asp'&&rows.length)h+=topCats(rows,function(r){return {Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday',Sun:'Sunday'}[r.day]||r.day;});
+    if((L0.id==='schools'||L0.id==='childcare')&&rows.length)h+=topCats(rows,function(r){return r.k;});
     if(DATED[L0.id]&&dateRange())h+='<div class="note">Filtered to '+esc(dateLabel())+'.</div>';
     if(!rows.length)h+='<div class="note">None within reach.</div>';
     h+=itemList(L0.id,rows.map(function(it){return {t:it.t,s:it.s,u:it.u};}));
@@ -749,7 +753,7 @@ function load(){
     NET=res[0];LAY=res[1];buildIndex();fillStreets();
     var n=0;LAY.layers.forEach(function(l){n+=l.n;});
     $('foot').innerHTML='Street centerline and cross streets from the NYC Department of Transportation centerline file ('+NET.streets.length+' streets in and around the district). '+
-      'Site layers ('+fmt(n)+' records, rebuilt '+esc(LAY.generated)+'): liquor licenses, DOB NOW permits, DOT street work permits, DOT resurfacing history, permitted events, block parties, LPC landmark sites and permits, LIFT housing sites, health services, culture, food access, Park Slope 5th Avenue BID businesses, Citi Bike, subway, schools, libraries, firehouses, poll sites, parks and farmers markets. '+
+      'Site layers ('+fmt(n)+' records, rebuilt '+esc(LAY.generated)+'): liquor licenses, DOB NOW permits, DOT street work permits, DOT resurfacing history, permitted events, block parties, LPC landmark sites and permits, LIFT housing sites, health services, culture, food access, Park Slope 5th Avenue BID businesses, Citi Bike, subway, schools, childcare and pre-K, libraries, firehouses, poll sites, parks and farmers markets. '+
       '311, NYPD complaints and PLUTO lots are queried live from NYC Open Data for the chosen stretch.<br>'+
       'Questions or a correction: <a href="mailto:Mike@bkcb6.org">Mike Racioppo</a>';
     if(!readHash())setMode('street');
