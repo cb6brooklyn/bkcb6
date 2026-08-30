@@ -29,7 +29,7 @@ if(el){
         if(bestT){placed.push(best);return bestT;}
         return null;
       }
-      var ring=[['center',[0,0]],['top',[0,-14]],['bottom',[0,14]],['right',[16,0]],['left',[-16,0]],['top',[0,-26]],['bottom',[0,26]],['right',[30,0]],['left',[-30,0]]];
+      var ring=[['center',[0,0]],['top',[0,-14]],['bottom',[0,14]],['right',[16,0]],['left',[-16,0]],['top',[0,-28]],['bottom',[0,28]],['right',[34,0]],['left',[-34,0]],['top',[0,-42]],['bottom',[0,42]],['right',[52,0]],['left',[-52,0]]];
       place(A,el.getAttribute('data-from'),'xst',ring);
       place(B,el.getAttribute('data-to'),'xst',ring);
       var steep=Math.abs(A[1]-B[1])<Math.abs(A[0]-B[0])*0.6;
