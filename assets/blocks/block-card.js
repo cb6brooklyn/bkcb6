@@ -14,18 +14,27 @@ if(el){
     var lg=ll.reduce(function(a,b){return b.length>a.length?b:a;},ll[0]);var A=lg[0],B=lg[lg.length-1];var mid=[(A[0]+B[0])/2,(A[1]+B[1])/2];
     (function(){
       function box(t){var r=t.getElement();return r?r.getBoundingClientRect():null;}
-      function hit(a,b){return a&&b&&!(a.right<b.left-4||b.right<a.left-4||a.bottom<b.top-4||b.bottom<a.top-4);}
-      var t1=L.tooltip({permanent:true,direction:'center',className:'xst',interactive:false}).setLatLng(A).setContent(el.getAttribute('data-from')).addTo(map);
-      var t2=L.tooltip({permanent:true,direction:'center',className:'xst',interactive:false}).setLatLng(B).setContent(el.getAttribute('data-to')).addTo(map);
-      var steep=Math.abs(A[1]-B[1])<Math.abs(A[0]-B[0])*0.6;
-      var dirs=steep?[['right',[18,0]],['left',[-18,0]],['top',[0,-16]],['bottom',[0,16]]]:[['top',[0,-16]],['bottom',[0,16]],['right',[18,0]],['left',[-18,0]]];
-      var t3=null;
-      for(var i=0;i<dirs.length;i++){
-        if(t3)map.removeLayer(t3);
-        t3=L.tooltip({permanent:true,direction:dirs[i][0],className:'blk',offset:dirs[i][1],interactive:false}).setLatLng(mid).setContent(el.getAttribute('data-st')).addTo(map);
-        var b3=box(t3);
-        if(!hit(b3,box(t1))&&!hit(b3,box(t2)))break;
+      function hit(a,b){return a&&b&&!(a.right<b.left-3||b.right<a.left-3||a.bottom<b.top-3||b.bottom<a.top-3);}
+      var placed=[];
+      function place(latlng,text,cls,cands){
+        var best=null,bestScore=1e9,bestT=null;
+        for(var i=0;i<cands.length;i++){
+          var t=L.tooltip({permanent:true,direction:cands[i][0],className:cls,offset:cands[i][1],interactive:false}).setLatLng(latlng).setContent(text).addTo(map);
+          var r=box(t),score=0;
+          for(var k=0;k<placed.length;k++) if(hit(r,placed[k])) score++;
+          if(score===0){placed.push(r);return t;}
+          if(score<bestScore){if(bestT)map.removeLayer(bestT);bestScore=score;bestT=t;best=r;}
+          else map.removeLayer(t);
+        }
+        if(bestT){placed.push(best);return bestT;}
+        return null;
       }
+      var ring=[['center',[0,0]],['top',[0,-14]],['bottom',[0,14]],['right',[16,0]],['left',[-16,0]],['top',[0,-26]],['bottom',[0,26]],['right',[30,0]],['left',[-30,0]]];
+      place(A,el.getAttribute('data-from'),'xst',ring);
+      place(B,el.getAttribute('data-to'),'xst',ring);
+      var steep=Math.abs(A[1]-B[1])<Math.abs(A[0]-B[0])*0.6;
+      var mring=steep?[['right',[18,0]],['left',[-18,0]],['top',[0,-16]],['bottom',[0,16]],['right',[34,0]],['left',[-34,0]],['top',[0,-30]],['bottom',[0,30]]]:[['top',[0,-16]],['bottom',[0,16]],['right',[18,0]],['left',[-18,0]],['top',[0,-30]],['bottom',[0,30]],['right',[34,0]],['left',[-34,0]]];
+      place(mid,el.getAttribute('data-st'),'blk',mring);
     })();
   };document.head.appendChild(js);
 }
