@@ -316,6 +316,9 @@ var OVDEF=[
   {id:'schooldist',label:'School districts',sw:'#1f5fd6',on:false,src:'/data/school-districts-brooklyn.geojson',filter:function(f){return ['13','15'].indexOf(String(f.properties.schooldist))>=0;},style:function(){return {color:'#1f5fd6',weight:3,dashArray:'8 5',fillColor:'#1f5fd6',fillOpacity:.06};},label2:function(f){return 'District '+f.properties.schooldist;},pop:function(p){return '<div class="pop"><div class="pt">Community School District '+esc(p.schooldist)+'</div><div class="pl"><a href="/eduhub-csd-'+esc(p.schooldist)+'.html">Schools in this district &rarr;</a></div></div>';}},
   {id:'all-schools',label:'All schools',sw:'#0d1b4b',on:false,custom:true,layer:'schools'},
   {id:'all-childcare',label:'All childcare and pre-K',sw:'#c98b1a',on:false,custom:true,layer:'childcare'},
+  {id:'dsny',label:'Sanitation pickup days',sw:'#2e6b30',on:false,src:'/assets/blocks/dsny-freq.geojson',style:function(f){var c={C:'#2e6b30',D:'#2145a8',E:'#b3541e'}[f.properties.days]||'#666';return {color:c,weight:1.5,fillColor:c,fillOpacity:.14};},label2:function(f){return f.properties.refuse||'';},pop:function(p){return '<div class="pop"><div class="pt">Trash '+esc(p.refuse||'')+'</div><div class="ps">Recycling '+esc(p.recycling||'')+' · Compost '+esc(p.organics||'')+' · Bulk '+esc(p.bulk||'none')+'<br>DSNY section '+esc(p.section)+'</div><div class="pl"><a href="/sanitation-hub.html">Sanitation hub &rarr;</a></div></div>';}},
+  {id:'precincts',label:'Police precincts',sw:'#1a3a8f',on:false,src:'/data/police-precincts-citywide.geojson',filter:function(f){return ['72','76','78','84','88'].indexOf(String(f.properties.precinct))>=0;},style:function(){return {color:'#1a3a8f',weight:3,fillColor:'#1a3a8f',fillOpacity:.05};},label2:function(f){return ord(f.properties.precinct)+' Precinct';},pop:function(p){return '<div class="pop"><div class="pt">'+ord(p.precinct)+' Precinct</div><div class="pl"><a href="/precincts.html">Precincts &rarr;</a></div></div>';}},
+  {id:'sectors',label:'Police sectors',sw:'#5a7bd6',on:false,src:'/data/nypd_sectors_cb6.geojson',style:function(){return {color:'#5a7bd6',weight:1.5,dashArray:'4 3',fillColor:'#5a7bd6',fillOpacity:.06};},label2:function(f){return f.properties.pct.replace(/^0+/,'')+f.properties.sector.replace(/^\d+/,'');},pop:function(p){var pc=String(p.pct).replace(/^0+/,'');return '<div class="pop"><div class="pt">Sector '+esc(String(p.sector).replace(/^\d+/,''))+', '+ord(pc)+' Precinct</div><div class="pl"><a href="/sector/'+esc(pc)+String(p.sector).replace(/^\d+/,'').toLowerCase()+'/">Sector page &rarr;</a></div></div>';}},
   {id:'nycha',label:'NYCHA',sw:'#1f5fd6',on:false,src:'/data/CB6-NYCHA.geojson',point:function(f,ll){return L.circleMarker(ll,{radius:8,color:'#fff',weight:2,fillColor:'#1f5fd6',fillOpacity:.95});},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.Name)+'</div><div class="ps">'+esc(p.Type||'')+'</div><div class="pl">NYCHA</div></div>';}},
   {id:'all-asp',label:'Alternate side parking, every block',sw:'#2145a8',on:false,custom:true,layer:'asp'},
   {id:'all-dot',label:'All street work permits',sw:'#e0473c',on:false,custom:true,layer:'dot'},
@@ -438,7 +441,7 @@ function initMap(){
   map.on('click',function(e){if(mode==='pin')setPin(e.latlng);});
   hiLayer=L.layerGroup().addTo(map);bufLayer=L.layerGroup().addTo(map);ptLayer=L.layerGroup().addTo(map);
   map.createPane('hi');map.getPane('hi').style.zIndex=450;
-  buildOverlays();renderToggles();addOffice();
+  buildOverlays();renderToggles();addOffice();loadGeo();
 }
 function setPin(latlng){
   if(!pin){pin=L.marker(latlng,{draggable:true}).addTo(map);pin.on('dragend',function(){applyPin(pin.getLatLng());});}
@@ -586,6 +589,30 @@ function aspForPoint(pt){
   var other=pair.filter(function(n){return n!==mine;})[0];
   return {side:side,block:k0,mine:mine.it,other:other?other.it:null,sideName:{N:'north',S:'south',E:'east',W:'west'}[side]};
 }
+function ord(n){n=parseInt(n,10);var s='th';if(n%100<11||n%100>13)s={1:'st',2:'nd',3:'rd'}[n%10]||'th';return n+s;}
+var DSNY=null,PCT=null,SEC=null;
+function loadGeo(){
+  fetch('/assets/blocks/dsny-freq.geojson').then(function(r){return r.json();}).then(function(g){DSNY=g;if(sel)render(lastFound);});
+  fetch('/data/police-precincts-citywide.geojson').then(function(r){return r.json();}).then(function(g){PCT=g;if(sel)render(lastFound);});
+  fetch('/data/nypd_sectors_cb6.geojson').then(function(r){return r.json();}).then(function(g){SEC=g;if(sel)render(lastFound);});
+}
+function pipRing(lon,lat,ring){var inside=false,n=ring.length,j=n-1;for(var i=0;i<n;i++){var xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];if(((yi>lat)!==(yj>lat))&&(lon<(xj-xi)*(lat-yi)/(yj-yi)+xi))inside=!inside;j=i;}return inside;}
+function pipFeat(lon,lat,f){var g=f.geometry;var polys=g.type==='Polygon'?[g.coordinates]:g.coordinates;for(var i=0;i<polys.length;i++){if(pipRing(lon,lat,polys[i][0])){var hole=false;for(var h=1;h<polys[i].length;h++)if(pipRing(lon,lat,polys[i][h]))hole=true;if(!hole)return true;}}return false;}
+function featsAt(gj,pts){var out=[],seen={};if(!gj)return out;pts.forEach(function(p){gj.features.forEach(function(f){var k=JSON.stringify(f.properties);if(seen[k])return;if(pipFeat(p[0],p[1],f)){seen[k]=1;out.push(f.properties);}});});return out;}
+function samplePts(){if(!sel)return [];var pts=[];sel.lines.forEach(function(ln){ln.forEach(function(p){pts.push(p);});if(ln.length>1)for(var i=0;i<ln.length-1;i++)pts.push([(ln[i][0]+ln[i+1][0])/2,(ln[i][1]+ln[i+1][1])/2]);});return pts;}
+function nextDay(daysTxt){var days=String(daysTxt||'').split(',').map(function(x){return x.trim();}).filter(function(x){return DAYIDX[x]!=null;});if(!days.length)return '';var now=new Date();for(var i=0;i<8;i++){var d=new Date(now.getFullYear(),now.getMonth(),now.getDate()+i);if(days.indexOf(DAYNAME[d.getDay()].slice(0,3))>=0)return i===0?'today':(i===1?'tomorrow':DAYNAME[d.getDay()]+' '+MON[d.getMonth()]+' '+d.getDate());}return '';}
+function serviceCard(){
+  if(!sel)return '';var pts=samplePts();var h='';
+  var ds=featsAt(DSNY,pts),pc=featsAt(PCT,pts),sc=featsAt(SEC,pts);
+  h+='<div class="aspcard" style="background:#1c3d24"><div class="ah">Trash and recycling on this block</div>';
+  if(!DSNY)h+='<div class="as">Loading pickup schedule&hellip;</div>';
+  else if(!ds.length)h+='<div class="as">No DSNY residential schedule on file here.</div>';
+  else ds.forEach(function(d){h+='<div class="an">Trash <b>'+esc(d.refuse||'')+'</b>'+(ds.length>1?' <span style="font-size:.7rem;font-weight:600;color:rgba(255,255,255,.7)">section '+esc(d.section)+'</span>':'')+'</div><div class="as">Recycling <i>'+esc(d.recycling||'')+'</i> · Compost <i>'+esc(d.organics||'')+'</i> · Bulk items <i>'+esc(d.bulk||'none scheduled')+'</i>.'+(nextDay(d.refuse)?' Next trash pickup <i>'+esc(nextDay(d.refuse))+'</i>, next recycling <i>'+esc(nextDay(d.recycling))+'</i>.':'')+'</div>';});
+  if(ds.length>1)h+='<div class="ao">This stretch crosses more than one sanitation section, so the schedule changes partway along it. Turn on "Sanitation pickup days" to see where.</div>';
+  h+='<div class="ao">Set out after 6 PM the evening before (or 8 PM in bins). Bins are required for trash. Holiday suspensions are not reflected. <a href="/sanitation-hub.html" style="color:#ffd9b8">Sanitation hub &rarr;</a></div></div>';
+  if(pc.length||sc.length){h+='<div class="aspcard" style="background:#1a3a8f"><div class="ah">Police</div><div class="an">'+pc.map(function(p){return ord(p.precinct)+' Precinct';}).join(' and ')+'</div><div class="as">'+(sc.length?'Sector '+sc.map(function(p){return String(p.sector).replace(/^\d+/,'');}).join(', '):'')+'. <a href="/precincts.html" style="color:#ffd9b8">Precincts and sectors &rarr;</a></div></div>';}
+  return h;
+}
 function suspText(it){var su=suspSet(it.ns),ks=Object.keys(su).sort();if(!ks.length)return '';return ' Upcoming suspensions on this side: '+ks.map(function(k){return k.slice(4,6).replace(/^0/,'')+'/'+k.slice(6,8).replace(/^0/,'')+' ('+su[k]+')';}).join(', ')+'.';}
 function fmtNext(n){if(!n)return 'no upcoming date found';var d=n.date;var when=n.inDays===0?'Today':(n.inDays===1?'Tomorrow':DAYNAME[d.getDay()]+', '+MON[d.getMonth()]+' '+d.getDate());return when+', '+n.time.replace('-',' to ')+(n.inDays>1?' ('+n.inDays+' days from now)':'');}
 function aspCard(){
@@ -608,6 +635,7 @@ function render(found){
   var h='';
   h+='<div class="sel"><div class="st">'+esc(sel.label)+'</div><div class="sl">'+(sel.sub?esc(sel.sub)+' · ':'')+'Reach '+currentReach()+' m from the '+(sel.geomKind==='point'?'point':'centerline')+'.</div></div>';
   h+=aspCard();
+  h+=serviceCard();
   h+='<div class="sharebar"><span class="sb-t" id="sbText">'+esc(location.href)+'</span><button type="button" class="lnk" id="shareView">Copy link to this view</button></div>';
   var kp='';
   LIVEDEF.forEach(function(d){if(d.hist&&!lookback())return;var v=live[d.id];kp+='<button type="button" class="kpi2'+(v&&!v.length?' zero':'')+'" data-sec="'+d.id+'"><div class="n">'+(v==null?'&hellip;':fmt(v.length))+'</div><div class="l">'+esc(d.label)+'</div></button>';});
