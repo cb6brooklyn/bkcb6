@@ -4,7 +4,7 @@
    borough's seal. Reads <div data-profile-tiles data-boro=".." data-elections=".."
    data-parks=".." data-zoning=".."> and builds around it. */
 (function () {
-  var PAL = { 'Brooklyn': ['#003060', '#f2c94c'], 'Manhattan': ['#0c549c', '#0c306c'], 'Bronx': ['#3054a8', '#f06c0c'], 'Queens': ['#8a7440', '#b85040'], 'Staten Island': ['#486c60', '#a6c4b8'] };
+  var PAL = { 'New York City': ['#0d1b4b', '#f47920'], 'Brooklyn': ['#003060', '#f2c94c'], 'Manhattan': ['#0c549c', '#0c306c'], 'Bronx': ['#3054a8', '#f06c0c'], 'Queens': ['#8a7440', '#b85040'], 'Staten Island': ['#486c60', '#a6c4b8'] };
   function esc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
   function css(c0, c1) {
     if (document.getElementById('ptiles-css')) return;
