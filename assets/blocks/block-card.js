@@ -209,5 +209,5 @@ function build(){
     doc.save('block-card-'+D.slug+'.pdf');
   }).catch(function(e){console.error(e);}).then(function(){btn.textContent='One-page PDF';btn.disabled=false;});
 }
-btn.addEventListener('click',build);
+
 })();
