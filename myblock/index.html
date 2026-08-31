@@ -52,6 +52,17 @@
 .below .tgl{color:var(--navy);border-color:var(--border);background:#fff}
 .below .tgl.on{background:var(--navy);border-color:var(--navy);color:#fff}
 .office{background:transparent;border:none;box-shadow:none}
+#edPick{width:100%;padding:11px 12px;font-family:'DM Sans',sans-serif;font-size:.88rem;font-weight:700;color:var(--navy);border:2px solid var(--border);border-radius:10px;background:#fff}
+.edlegend{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
+.edk{display:inline-flex;align-items:center;gap:5px;font-family:'DM Sans',sans-serif;font-size:.74rem;font-weight:600;color:var(--navy)}
+.edk i{width:11px;height:11px;border-radius:3px;display:inline-block}
+.edk b{font-family:'DM Mono',monospace;font-size:.66rem;color:var(--muted)}
+.ednote{margin-top:9px;font-size:.74rem;line-height:1.55;color:var(--muted)}
+.edt{margin:6px 0}
+.edr{display:flex;align-items:baseline;gap:6px;font-size:.78rem;padding:2px 0;border-bottom:1px solid var(--border)}
+.edr span{flex:1;min-width:0;color:var(--navy)}
+.edr b{font-family:'DM Mono',monospace;font-weight:700}
+.edr i{font-style:normal;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);width:42px;text-align:right}
 .ovgrp{margin:0 0 12px}
 .ovgh{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:0 0 6px}
 .ovgr{display:flex;gap:6px;flex-wrap:wrap}
@@ -161,7 +172,7 @@
   <div class="maptools" id="mapToolsTop"><span class="tl">On the map</span></div>
   <div class="mapnote" id="mapnote">Choose a stretch above, or tap the map to drop a pin.</div>
   <div id="map"></div>
-  <div class="below"><div class="bh">Add to the map</div><div class="row2" id="mapToolsBottom"></div></div>
+  <div class="below" id="edWrap" style="display:none"><div class="bh">Election results by election district</div><select id="edPick"></select><div class="edlegend" id="edLegend"></div><div class="ednote">Every election district in CB6, coloured by who carried it. Tap an ED for the full count. Shading gets darker as the winner's share rises. Source: NYC Board of Elections certified results.</div></div><div class="below"><div class="bh">Add to the map</div><div class="row2" id="mapToolsBottom"></div></div>
   <div class="dates">
     <div class="bh">Permits and work by date</div>
     <div class="chips">
@@ -345,6 +356,7 @@ var OVDEF=[
   {id:'all-dob',label:'All building permits',sw:'#2145a8',on:false,custom:true,layer:'dob'},
   {id:'all-lpc',label:'All landmark permits',sw:'#0d1b4b',on:false,custom:true,layer:'lpc'},
   {id:'all-resurf',label:'All resurfacing',sw:'#7a7a7a',on:false,custom:true,layer:'resurf'},
+  {id:'edresults',label:'Election results by ED',sw:'#5b3fa8',on:false,custom:true},
   {id:'all-subway',label:'Subway stations',sw:'#0039A6',on:true,custom:true,layer:'subway'},
   {id:'all-citibike',label:'Citi Bike stations',sw:'#0a7cbf',on:false,custom:true,layer:'citibike'},
   {id:'all-library',label:'Libraries',sw:'#7048a8',on:false,custom:true,layer:'library'},
@@ -418,6 +430,12 @@ function buildOverlays(){
     if(d.custom){
       if(d.id==='records'){OV[d.id]=ptLayer;return;}
       if(d.layer){OV[d.id]=L.layerGroup();return;}
+      if(d.id==='edresults'){
+        var eg=L.layerGroup();OV[d.id]=eg;
+        fetch('/data/cb6-ed-elections.geojson').then(function(r){return r.json();}).then(function(gj){
+          EDDATA=gj;buildEdPicker();drawEd();
+        }).catch(function(){});
+        return;}
       if(d.id==='gov'){var gg=L.layerGroup();OV[d.id]=gg;GOV.forEach(function(o){
         var ic=L.divIcon({className:'gov',iconSize:[30,30],iconAnchor:[15,15],popupAnchor:[0,-14],html:'<img class="oi" src="'+o.icon+'" alt="">'});
         gg.addLayer(L.marker([o.lat,o.lng],{icon:ic,pane:'hi',zIndexOffset:800}).bindPopup('<div class="pop"><div class="pt">'+esc(o.name)+'</div><div class="ps">'+esc(o.title)+'<br>'+esc(o.addr)+(o.share?'<br>Represents about '+o.share+' of CB6':'')+'</div><div class="pl"><a href="/'+o.slug+'/">Profile &rarr;</a></div></div>'));});
@@ -432,6 +450,7 @@ function buildOverlays(){
   });
 }
 var OVGROUP={
+  edresults:'Elections',
   zoning:'Boundaries and land',historic:'Boundaries and land',parks:'Boundaries and land',
   nycha:'Boundaries and land','park-sites':'Boundaries and land',
   subway:'Getting around',bike:'Getting around','all-subway':'Getting around',
@@ -446,7 +465,87 @@ var OVGROUP={
   'all-dot':'Permits and work','all-dob':'Permits and work','all-lpc':'Permits and work',
   'all-resurf':'Permits and work',records:'Permits and work'
 };
-var OVORDER=['Boundaries and land','Getting around','Safety and services','Places','Business and events','Permits and work'];
+var OVORDER=['Elections','Boundaries and land','Getting around','Safety and services','Places','Business and events','Permits and work'];
+var EDDATA=null,EDC=0,EDLYR=null;
+var EDPARTY={'Democratic':'#2166ac','Republican':'#b2182b','Approve':'#2a8a3a','Disapprove':'#b2182b'};
+var EDRAMP=['#5b3fa8','#2166ac','#2a8a3a','#e08214','#b2182b','#7a6636','#a8437a','#0f8a7d'];
+function edLabel(k){
+  var era=k.split(':')[0],name=k.split(':').slice(1).join(':');
+  var m={p25:'June 2025 primary',g25:'November 2025 general',p26:'June 2026 primary'};
+  return name+' \u2014 '+(m[era]||era);
+}
+function buildEdPicker(){
+  var box=document.getElementById('edPick');if(!box||!EDDATA)return;
+  var groups={};
+  EDDATA.contests.forEach(function(c,i){var e=c.k.split(':')[0];(groups[e]=groups[e]||[]).push({i:i,k:c.k});});
+  var order=['p25','g25','p26'];
+  var names={p25:'June 2025 primary',g25:'November 2025 general',p26:'June 2026 primary'};
+  var h='';
+  order.forEach(function(e){
+    if(!groups[e])return;
+    h+='<optgroup label="'+esc(names[e])+'">';
+    groups[e].forEach(function(o){h+='<option value="'+o.i+'">'+esc(o.k.split(':').slice(1).join(':'))+'</option>';});
+    h+='</optgroup>';
+  });
+  box.innerHTML=h;
+  box.value=String(EDC);
+  box.onchange=function(){EDC=parseInt(box.value,10)||0;drawEd();};
+  var wrap=document.getElementById('edWrap');if(wrap)wrap.style.display='block';
+}
+function edWinner(row,cands){
+  var best=-1,bi=-1,second=0;
+  for(var i=0;i<cands.length;i++){
+    var v=row[2+i]||0;
+    if(v>best){second=best;best=v;bi=i;}
+    else if(v>second)second=v;
+  }
+  return {name:bi>=0?cands[bi]:'\u2014',votes:best,second:second,total:row[1]||0,idx:bi};
+}
+function drawEd(){
+  var g=OV['edresults'];if(!g||!EDDATA)return;
+  g.clearLayers();
+  var c=EDDATA.contests[EDC];if(!c)return;
+  var winners={};
+  EDDATA.features.forEach(function(f){
+    var row=null;
+    for(var i=0;i<f.properties.r.length;i++){if(f.properties.r[i][0]===EDC){row=f.properties.r[i];break;}}
+    if(!row)return;
+    var w=edWinner(row,c.c);
+    winners[w.name]=(winners[w.name]||0)+1;
+  });
+  var names=Object.keys(winners).sort(function(a,b){return winners[b]-winners[a];});
+  var col={};names.forEach(function(n,i){col[n]=EDPARTY[n]||EDRAMP[i%EDRAMP.length];});
+  EDDATA.features.forEach(function(f){
+    var row=null;
+    for(var i=0;i<f.properties.r.length;i++){if(f.properties.r[i][0]===EDC){row=f.properties.r[i];break;}}
+    var ed=f.properties.e;
+    if(!row){
+      g.addLayer(L.geoJSON(f,{style:{color:'#999',weight:.7,fillColor:'#e8e8e8',fillOpacity:.35}})
+        .bindPopup('<div class="pop"><div class="pt">AD '+esc(ed.slice(0,2))+' ED '+esc(ed.slice(2))+'</div><div class="ps">No ballots cast in this contest here.</div></div>'));
+      return;
+    }
+    var w=edWinner(row,c.c);
+    var share=w.total?Math.round(w.votes/w.total*1000)/10:0;
+    var margin=w.total?Math.round((w.votes-w.second)/w.total*1000)/10:0;
+    var op=Math.max(.28,Math.min(.82,.28+(share/100)*.6));
+    var rows=c.c.map(function(n,i){return {n:n,v:row[2+i]||0};}).filter(function(x){return x.v>0;})
+      .sort(function(a,b){return b.v-a.v;});
+    var tbl=rows.map(function(x){
+      return '<div class="edr"><span>'+esc(x.n)+'</span><b>'+x.v.toLocaleString()+'</b><i>'+(w.total?(Math.round(x.v/w.total*1000)/10):0)+'%</i></div>';
+    }).join('');
+    var pop='<div class="pop"><div class="pt">AD '+esc(ed.slice(0,2))+' ED '+esc(ed.slice(2))+'</div>'+
+            '<div class="pl">'+esc(edLabel(c.k))+'</div>'+
+            '<div class="edt">'+tbl+'</div>'+
+            '<div class="ps">'+w.total.toLocaleString()+' votes cast &middot; winner by '+margin+' points</div></div>';
+    g.addLayer(L.geoJSON(f,{style:{color:'#fff',weight:.9,fillColor:col[w.name]||'#5b3fa8',fillOpacity:op}}).bindPopup(pop));
+  });
+  var lg=document.getElementById('edLegend');
+  if(lg){
+    lg.innerHTML=names.map(function(n){
+      return '<span class="edk"><i style="background:'+(col[n]||'#5b3fa8')+'"></i>'+esc(n)+' <b>'+winners[n]+'</b></span>';
+    }).join('');
+  }
+}
 function renderToggles(){
   var bottom=$('mapToolsBottom');
   if(bottom){
@@ -483,6 +582,7 @@ function toggleOverlay(id){
   var d=OVDEF.filter(function(x){return x.id===id;})[0];d.on=!d.on;
   var g=OV[id];
   if(d.layer&&g&&!d.filled&&LAY)fillLayer(d);
+  if(id==='edresults'&&d.on&&EDDATA)drawEd();
   if(g){if(d.on)g.addTo(map);else map.removeLayer(g);}
   if(id==='gov'&&d.on){var b=L.latLngBounds(GOV.map(function(o){return [o.lat,o.lng];}));if(cbLayer)b.extend(cbLayer.getBounds());map.fitBounds(b.pad(.05));}
   Array.prototype.forEach.call(document.querySelectorAll('[data-ov="'+id+'"]'),function(b){b.classList.toggle('on',d.on);});
