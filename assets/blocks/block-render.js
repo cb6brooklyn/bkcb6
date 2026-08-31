@@ -28,9 +28,16 @@ function render(D){
   // pickup
   h+='<section class="card"><h2><img class="h2i" src="/site-icons/agencies/dsny.png" alt="">Trash and recycling</h2>';
   if(!D.dsny.length)h+='<p class="muted">No DSNY residential schedule on file here.</p>';
-  D.dsny.forEach(function(d,i){h+='<div class="pick">';
-    [['dsny-trash','Trash',d.refuse,d.refuse_d],['dsny-recycle','Recycling',d.recycling,d.recycling_d],['dsny-compost','Compost',d.organics,d.organics_d],['dsny-truck','Bulk items',d.bulk,'']].forEach(function(t){h+='<div class="pk"><img src="/assets/blocks/'+t[0]+'.png" alt=""><i>'+t[1]+'</i><b>'+esc(t[2])+'</b>'+(t[3]?'<em>next '+esc(nextDay(t[3]))+'</em>':'')+'</div>';});
-    h+='</div><p class="muted">DSNY section '+esc(d.section)+'. Set out after 6 PM the evening before, or 8 PM in a bin. Bins are required for trash.'+(D.dsny.length>1&&i===0?' This block crosses two sanitation sections; the second schedule follows.':'')+'</p>';});
+  if(D.dsny.length){
+    var d0=D.dsny[0];
+    h+='<div class="pick">';
+    [['dsny-trash','Trash',d0.refuse,d0.refuse_d],['dsny-recycle','Recycling',d0.recycling,d0.recycling_d],['dsny-compost','Compost',d0.organics,d0.organics_d],['dsny-truck','Bulk items',d0.bulk,'']].forEach(function(t){h+='<div class="pk"><img src="/assets/blocks/'+t[0]+'.png" alt=""><i>'+t[1]+'</i><b>'+esc(t[2]||'not on this route yet')+'</b>'+(t[3]?'<em>next '+esc(nextDay(t[3]))+'</em>':'')+'</div>';});
+    h+='</div><p class="muted">DSNY section '+esc(d0.section)+'. Set out after 6 PM the evening before, or 8 PM in a bin. Bins are required for trash.';
+    if(D.dsny.length>1){
+      h+=' Part of this block sits in '+(D.dsny.length>2?'other sanitation sections':'another sanitation section')+' ('+D.dsny.slice(1).map(function(d){return esc(d.section)+': trash '+esc(d.refuse||'n/a')+', recycling '+esc(d.recycling||'n/a');}).join('; ')+').';
+    }
+    h+='</p>';
+  }
   h+='</section>';
   // voting
   h+='<section class="card"><h2><img class="h2i" src="/site-icons/agencies/boe.png" alt="">Voting</h2>';
