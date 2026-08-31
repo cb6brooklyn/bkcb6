@@ -15,9 +15,9 @@
       '.ptile:active{transform:scale(.98)}.ptile.hide{display:none}.ptile .t{font-size:.76rem;font-weight:900;line-height:1.15;color:' + c0 + ';display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.ptile .d{font-size:.64rem;color:#6b6760;line-height:1.3;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}' +
       '.ptile.go{background:' + c0 + ';border-color:' + c0 + '}.ptile.go .t{color:#fff}.ptile.go .d{color:rgba(255,255,255,.75)}.ptile .k{font-family:"DM Mono",monospace;font-size:.5rem;letter-spacing:.09em;text-transform:uppercase;color:#6b6760}.ptile.go .k{color:' + c1 + '}' +
       '.ptile.cb{border-top-color:' + c0 + ';background:#f4f6fb}.ptile.cb .k{color:' + c0 + '}' +
-      '.ptile.art{grid-column:span 2;aspect-ratio:auto;padding:0;background:#fff;border-color:#e5e2db;border-top-color:' + c1 + ';overflow:hidden}' +
-      '.ptile.art .ai{display:block;width:100%;aspect-ratio:1/1;overflow:hidden;background:#f4f2ec}.ptile.art .ai img{width:100%;height:100%;object-fit:cover;display:block}' +
-      '.ptile.art .al{display:block;padding:9px 11px 10px}.ptile.art .t{font-size:.8rem;color:' + c0 + '}.ptile.art .d{color:#6b6760;margin-top:3px}' +
+      '.ptile.art{grid-column:span 2;aspect-ratio:auto;padding:0;background:#fff;border-color:#e5e2db;border-top-color:' + c1 + ';overflow:hidden;display:flex;flex-direction:column}' +
+      '.ptile.art .ai{display:block;width:100%;aspect-ratio:1/1;overflow:hidden;background:#f4f2ec;border-bottom:1.5px solid #e5e2db;flex:none}.ptile.art .ai img{width:100%;height:100%;object-fit:cover;display:block}' +
+      '.ptile.art .al{display:flex;flex-direction:column;justify-content:flex-start;flex:1;padding:9px 11px 10px;background:#fff}.ptile.art .t{font-size:.8rem;color:' + c0 + ';-webkit-line-clamp:2}.ptile.art .d{color:#6b6760;margin-top:3px;-webkit-line-clamp:2}' +
       '.ptiles .pn{font-size:.76rem;color:#6b6760;margin-top:6px;min-height:1em}' +
       '.pbrief{padding:14px 18px 2px;font-size:.92rem;line-height:1.6;color:#1f2937}.pbrief p{margin:0 0 8px}.pbrief .bio p{margin:0 0 8px}.pbrief b{color:' + c0 + '}' +
       'details.pfold{border-top:1px solid #e5e2db}details.pfold>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:13px 18px;font-family:"DM Mono",monospace;font-size:.63rem;text-transform:uppercase;letter-spacing:.11em;color:' + c0 + ';font-weight:700}' +
