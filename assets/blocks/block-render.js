@@ -12,7 +12,7 @@ function render(D){
   window.BLOCK=D;document.title=D.title+' \u2014 Block Card \u2014 bkcb6.app';
   var cbn=D.cd%100;var BNM=BNAMES[pfx];var h='';
   h+='<div class="top"><div class="crumb"><a href="/">CB6 &amp; Beyond</a> &rsaquo; <a href="/block/">Block cards</a> &rsaquo; <a href="/block/?cd='+D.cd+'">'+BNM+' CB'+cbn+'</a></div><h1>'+esc(D.st)+' <span>between '+esc(D.from)+' and '+esc(D.to)+'</span></h1><div class="nbs">Block card &middot; '+BNM+' Community Board '+cbn+(D.hn?' &middot; '+esc(D.hn):'')+'</div></div>';
-  h+='<div class="share"><button type="button" class="sb" id="shareBtn">Share this block</button><button type="button" class="sb alt" id="pdfBtn">One-page PDF</button>'+(D.cd===306?'<a class="sb alt" href="/blocks/#st='+encodeURIComponent(D.st)+'&from='+encodeURIComponent(D.from.split(' & ')[0])+'&to='+encodeURIComponent(D.to.split(' & ')[0])+'&r=75">Everything on this block &rarr;</a>':'')+'</div>';
+  h+='<div class="share"><button type="button" class="sb" id="shareBtn">Share this block</button><button type="button" class="sb alt" id="pdfBtn">One-page PDF</button><button type="button" class="sb alt" id="fridgeBtn">Fridge card</button>'+(D.cd===306?'<a class="sb alt" href="/blocks/#st='+encodeURIComponent(D.st)+'&from='+encodeURIComponent(D.from.split(' & ')[0])+'&to='+encodeURIComponent(D.to.split(' & ')[0])+'&r=75">Everything on this block &rarr;</a>':'')+'</div>';
   h+='<div id="map" data-lines=\''+JSON.stringify(D.lines).replace(/'/g,'&#39;')+'\' data-mid="'+D.mid[0]+','+D.mid[1]+'" data-st="'+esc(D.st)+'" data-from="'+esc(D.from)+'" data-to="'+esc(D.to)+'"></div>';
   // zoning + LPC
   h+='<section class="card"><h2>This block</h2><div class="btns">';
@@ -55,7 +55,7 @@ function render(D){
   h+='<div class="foot">Built from the DOT street centerline, DOT parking signs, DSNY collection frequencies, NYC Board of Elections poll sites, PLUTO zoning, and the district boundary files on this site. Every fact here is placed by this block\u2019s own coordinates. Rebuilt '+esc(D.built)+'. Questions or a correction: <a href="mailto:Mike@bkcb6.org">Mike Racioppo</a></div>';
   h+='<div class="nav"><a href="/block/">&#128203; All block cards</a><a href="/november2026.html">&#128499; Where do I vote</a><a href="/sanitation-hub.html">&#128465; Sanitation</a>'+(D.cd===306?'<a href="/blocks/">&#128205; Block Finder</a>':'')+'</div>';
   root.innerHTML=h;
-  var s=document.createElement('script');s.src='/assets/blocks/block-card.js';document.body.appendChild(s);
+  ['/assets/blocks/block-card.js','/assets/blocks/block-pdf.js'].forEach(function(src){var s=document.createElement('script');s.src=src;document.body.appendChild(s);});
 }
 fetch('/assets/blocks/'+pfx+'/'+cd+'.json').then(function(r){return r.json();}).then(function(j){var D=j.blocks[slug];if(!D){root.innerHTML='<div class="empty">No card for this block.</div>';return;}D.near=(D.near||[]).map(function(i){return j.segs[i];});render(D);}).catch(function(){root.innerHTML='<div class="empty">Could not load this block.</div>';});
 })();
