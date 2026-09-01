@@ -146,6 +146,9 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 .past-divider:after{content:"";flex:1;height:1px;background:var(--border)}
 .list-card.is-past{opacity:.72}
 .det-ev-share{margin-top:8px}
+#entity-banner{display:none;max-width:960px;margin:10px auto 0;padding:9px 14px;background:#0b3d2e;color:#fff;border-radius:8px;border-left:4px solid var(--orange);font-size:.78rem;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#entity-banner.on{display:flex}
+#entity-banner button{background:var(--orange);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:.7rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif}
 #range-banner{display:none;max-width:960px;margin:10px auto 0;padding:9px 14px;background:var(--navy);color:#fff;border-radius:8px;border-left:4px solid var(--orange);font-size:.78rem;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 #range-banner.on{display:flex}
 #range-banner .rb-label{font-weight:700}
@@ -429,6 +432,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     <button class="share-btn" id="share-view-btn" onclick="copyShare(shareUrlForView(), this)" title="Copy a link to this filtered view">&#128279; Share view</button>
     <button class="share-btn" id="share-week-btn" onclick="copyShare(shareUrlForWeek(todayKey()), this)" title="Copy a link to this week">&#128279; Share week</button>
   </div>
+  <div id="entity-banner"><span class="rb-label" id="eb-label"></span><button onclick="clearEntity()">Show everything</button></div>
   <div id="range-banner"><span class="rb-label" id="rb-label"></span><button onclick="clearRange()">Show all upcoming</button></div>
   <div class="list-wrap" id="list-body"></div>
 </div><!-- /list-view -->
@@ -1975,6 +1979,7 @@ function shareUrlForView(){
   if(rangeFilter && rangeFilter.kind === 'month') parts.push('month=' + rangeFilter.start.slice(0,7));
   if(showPast) parts.push('past=1');
   if(civicOn.size) parts.push('civic=' + [...civicOn].join(','));
+  if(entityFilter) parts.push('entity=' + encodeURIComponent(entityFilter));
   return shareBase() + (parts.length ? '?' + parts.join('&') : '');
 }
 function copyShare(url, btn){
@@ -2175,6 +2180,7 @@ function renderList(){
     evs.forEach(ev=>{
       if(hiddenTypes.has(ev.type)) return;
       if(ev._civic && !civicOn.has(ev._civic)) return;
+      if(entityFilter && ev._entity !== entityFilter) return;
       if(org && ev.type !== org) return;
       if(cat && CAT_TYPES[cat] && !CAT_TYPES[cat].has(ev.type)) return;
       if(q && !ev.label.toLowerCase().includes(q) &&
@@ -2525,6 +2531,7 @@ function cell(d, key, other, today, weekend){
   const dedupedEvs = evs.filter(ev => {
     if(hiddenTypes.has(ev.type)) return false;
     if(ev._civic && !civicOn.has(ev._civic)) return false;
+    if(entityFilter && ev._entity !== entityFilter) return false;
     return true;
   });
   const pills = dedupedEvs.map(ev=>{
@@ -2742,6 +2749,7 @@ function selectDay(key, d){
   const uniqEvs = evs.filter(ev => {
     if(hiddenTypes.has(ev.type)) return false;
     if(ev._civic && !civicOn.has(ev._civic)) return false;
+    if(entityFilter && ev._entity !== entityFilter) return false;
     if(crossLabels.has(ev.label) && crossKeeper(ev.label) !== ev) return false;
     const k = ev.type + '|' + ev.label;
     if(seen.has(k)) return false;
@@ -2951,6 +2959,17 @@ const CIVIC_SOURCES = [
     note:'Last day to comment on contract awards' },
 ];
 const CIVIC_STORE = 'bkcb6-civic-sources';
+// Every civic event also carries an entity key, so a single board, committee,
+// borough president or agency can be filtered and linked on its own:
+//   ?entity=bkcb14   ?entity=council-committee-on-land-use   ?entity=bp-queens
+let entityFilter = null;
+function entitySlug(str){
+  return String(str||'').toLowerCase()
+    .replace(/[\u2018\u2019']/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'')
+    .slice(0,60);
+}
 let civicOn = new Set();
 const civicFetched = {};
 const civicDone = new Set();
@@ -2999,7 +3018,8 @@ async function civicLoad(key){
       type:'nyccouncil', label:'NYC Council: ' + e.label, time:e.time || null,
       location:e.location || null, href:e.href || null,
       linkText:e.href ? 'Meeting details \u2197' : null,
-      desc:e.status ? ('Status: ' + e.status + '.') : null, _civic:'council' })));
+      desc:e.status ? ('Status: ' + e.status + '.') : null, _civic:'council',
+      _entity:'council-' + entitySlug(e.label), _entityName:'NYC Council \u2014 ' + e.label })));
   } else if(key === 'bkcbs' && data.boards){
     Object.values(data.boards).forEach(b => (b.events||[]).forEach(e => civicAdd(e.date, {
       type:'bkcbs', label:'Brooklyn CB' + b.cb + ': ' + e.label, time:e.time || null,
@@ -3007,11 +3027,12 @@ async function civicLoad(key){
       desc:e.source === 'standing'
         ? ('Standing schedule: ' + e.rule + '. Confirm with the board before attending.')
         : null,
-      _civic:'bkcbs' })));
+      _civic:'bkcbs', _entity:'bkcb' + b.cb, _entityName:'Brooklyn Community Board ' + b.cb })));
   } else if(key === 'bp' && data.boroughs){
     Object.values(data.boroughs).forEach(b => (b.events||[]).forEach(e => civicAdd(e.date, {
       type:'bpall', label:e.borough + ' BP: ' + e.label, time:e.time || null,
-      href:e.href || null, linkText:e.linkText || 'Notice \u2197', _civic:'bp' })));
+      href:e.href || null, linkText:e.linkText || 'Notice \u2197', _civic:'bp',
+      _entity:'bp-' + entitySlug(e.borough), _entityName:e.borough + ' Borough President' })));
   } else if((key === 'hearing' || key === 'deadline') && data.events){
     const want = (key === 'hearing') ? 'hearing' : 'comment-deadline';
     Object.entries(data.events).forEach(([d, list]) => list.forEach(e => {
@@ -3019,7 +3040,8 @@ async function civicLoad(key){
       civicAdd(d, {
         type: key, label:e.agency + ': ' + e.label, time:e.time || null,
         href:e.href || null, linkText:e.linkText || 'Notice \u2197',
-        desc:e.section || null, _civic:key });
+        desc:e.section || null, _civic:key,
+        _entity:'agency-' + entitySlug(e.agency), _entityName:e.agency });
     }));
   }
   civicDone.add(key);
@@ -3038,6 +3060,43 @@ async function civicApply(keys){
   }
   civicPersist(); civicSyncUI();
   renderMonth(); renderList(); buildTodayFlyers();
+}
+
+// Focus the whole calendar on one entity. Turns on whichever source supplies
+// it, so a shared link works even if the person has that calendar switched off.
+async function setEntity(entity, sourceKey){
+  if(sourceKey) await civicToggle(sourceKey, true);
+  entityFilter = entity || null;
+  entityBanner();
+  setView('list');
+  renderMonth(); renderList(); buildTodayFlyers();
+}
+function clearEntity(){
+  entityFilter = null;
+  entityBanner();
+  renderMonth(); renderList(); buildTodayFlyers();
+}
+function entityName(entity){
+  for(const list of Object.values(EVENTS)){
+    for(const ev of list){ if(ev._entity === entity && ev._entityName) return ev._entityName; }
+  }
+  // An entity with nothing upcoming has no event to read a name off, so build
+  // a readable one from the slug rather than showing the slug itself.
+  const words = t => t.split('-').filter(Boolean)
+    .map(x => x.charAt(0).toUpperCase() + x.slice(1)).join(' ');
+  let m = entity.match(/^bkcb(\d+)$/);
+  if(m) return 'Brooklyn Community Board ' + m[1];
+  if(entity.startsWith('bp-')) return words(entity.slice(3)) + ' Borough President';
+  if(entity.startsWith('council-')) return 'NYC Council \u2014 ' + words(entity.slice(8));
+  if(entity.startsWith('agency-')) return words(entity.slice(7));
+  return words(entity);
+}
+function entityBanner(){
+  const b = document.getElementById('entity-banner');
+  if(!b) return;
+  if(!entityFilter){ b.classList.remove('on'); return; }
+  document.getElementById('eb-label').textContent = 'Showing only ' + entityName(entityFilter);
+  b.classList.add('on');
 }
 
 function civicClear(){
@@ -3175,6 +3234,16 @@ function applyUrlDate(){
         ? CIVIC_SOURCES.map(x => x.key)
         : civicParam.split(',').map(x => x.trim()).filter(Boolean);
       civicApply(keys);
+    }
+
+    // ?entity=bkcb14 focuses one board, committee, borough president or agency
+    const ent = p.get('entity');
+    if(ent){
+      const src = ent.startsWith('bkcb') ? 'bkcbs'
+                : ent.startsWith('bp-') ? 'bp'
+                : ent.startsWith('council-') ? 'council'
+                : ent.startsWith('agency-') ? 'hearing' : null;
+      setEntity(ent, src);
     }
 
     // ?past=1 opens the list with past events already revealed
