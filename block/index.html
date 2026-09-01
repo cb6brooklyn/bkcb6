@@ -14,6 +14,9 @@
 .hic img{height:40px;width:auto}
 .hic i{font-style:normal;font-family:'DM Mono',monospace;font-size:.5rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:#0d1b4b}
 @keyframes hicin{from{opacity:0;transform:translateY(8px) scale(.7)}to{opacity:1;transform:none}}
+.zoomhint{background:rgba(13,27,75,.92);color:#fff;border-radius:8px;padding:6px 11px;font-family:'DM Sans',sans-serif;font-size:.7rem;font-weight:700;box-shadow:0 2px 6px rgba(13,27,75,.3)}
+.blkt2{background:#0d1b4b;color:#fff;border:none;border-radius:7px;padding:4px 10px;font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:700}
+.blkt2:before{display:none}
 .addrRow{display:flex;gap:7px}
 .addrRow input{flex:1;min-width:0}
 #locBtn{flex:0 0 46px;border:none;border-radius:10px;background:#f47920;color:#fff;font-size:1.15rem;cursor:pointer;transform:rotate(-45deg);transition:background .15s}
@@ -115,7 +118,39 @@ if(el&&window.L){
       fit();setTimeout(fit,350);
     }
     draw();
+    window._redrawCds=draw;
   }).catch(function(){});
+  // zoom in far enough and every block becomes tappable
+  var segLayer=L.layerGroup().addTo(map);
+  var zoomHint=L.control({position:'topright'});
+  zoomHint.onAdd=function(){var d=L.DomUtil.create('div','zoomhint');d.textContent='Zoom in to tap a block';return d;};
+  zoomHint.addTo(map);
+  var hintEl=null;
+  function drawSegs(){
+    var z=map.getZoom();
+    var he=document.querySelector('.zoomhint');
+    if(z<15.5){segLayer.clearLayers();if(he)he.style.display='block';return;}
+    if(he)he.style.display='none';
+    var load=GEO?Promise.resolve():fetch('/assets/blocks/'+boro+'-geo.json').then(function(r){return r.json();}).then(function(j){GEO=j;});
+    load.then(function(){
+      segLayer.clearLayers();
+      var b=map.getBounds(),drawn=0;
+      for(var i=0;i<GEO.length&&drawn<700;i++){
+        var r=GEO[i];
+        var la1=r[2],lo1=r[3],la2=r[4],lo2=r[5];
+        if(Math.max(la1,la2)<b.getSouth()||Math.min(la1,la2)>b.getNorth()||Math.max(lo1,lo2)<b.getWest()||Math.min(lo1,lo2)>b.getEast())continue;
+        (function(r){
+          var pl=L.polyline([[r[2],r[3]],[r[4],r[5]]],{color:'#0d1b4b',weight:4,opacity:.45});
+          pl.on('mouseover',function(){pl.setStyle({color:'#f47920',weight:7,opacity:.95});pl.bindTooltip(r[6]+' between '+r[7]+' and '+r[8],{sticky:true,className:'blkt2'}).openTooltip();});
+          pl.on('mouseout',function(){pl.setStyle({color:'#0d1b4b',weight:4,opacity:.45});pl.closeTooltip();});
+          pl.on('click',function(){location.href=path(boro,r[0]);});
+          segLayer.addLayer(pl);
+        })(r);
+        drawn++;
+      }
+    });
+  }
+  map.on('zoomend moveend',drawSegs);
 }
 // ---- address search ----
 var t=null,inp=document.getElementById('addr'),out=document.getElementById('addrOut');
