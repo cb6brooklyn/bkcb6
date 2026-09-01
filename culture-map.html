@@ -98,7 +98,11 @@
       box-shadow:0 1px 5px rgba(13,27,75,.3);opacity:.85}
     .leaflet-cluster-anim .leaflet-marker-icon{transition:transform .25s ease-out,opacity .25s ease-in}
     #map{height:74vh;min-height:460px;width:100%}
-    .notice{padding:9px 14px;background:var(--navy);font:.68rem 'DM Mono',monospace;color:rgba(255,255,255,.45);line-height:1.6}
+    .notice{padding:9px 14px;background:var(--navy);font:.68rem 'DM Mono',monospace;color:rgba(255,255,255,.45);line-height:1.6;border-top:1.5px solid var(--border)}
+    .here{margin-top:7px;padding:7px 12px;border:1.5px solid var(--orange);background:#fff;color:#8a4310;
+      border-radius:6px;font:700 .78rem 'DM Sans',sans-serif;cursor:pointer}
+    .here:hover{background:var(--orange);color:#fff}
+    .here[disabled]{opacity:.6;cursor:default}
     .side-head{padding:12px 14px;border-bottom:1.5px solid var(--border);display:flex;justify-content:space-between;gap:10px;align-items:flex-start;background:#fff}
     .side-head h2{margin:0 0 5px;color:var(--navy);font-size:1.02rem;font-weight:700}
     .side-head p{margin:0;color:#4a453e;font-size:.88rem;line-height:1.5}
@@ -188,11 +192,11 @@
         <label for="addrInput">Find what is nearest an address</label>
         <input id="addrInput" type="text" placeholder="250 Baltic Street, Brooklyn" autocomplete="off">
         <div class="ac" id="addrAC"></div>
+        <button type="button" id="hereBtn" class="here">Use my location</button>
       </div>
     </div>
     <div class="origin" id="origin"></div>
     <div id="map"></div>
-    <div class="notice">Sources: NYC Open Data museum directory, the NYPL, Brooklyn Public Library and Queens Public Library branch directories, NYC Geoclient and Department of City Planning MapPLUTO for the tax lot records, DCP community district boundaries, the Broadway theatre list from broadway.org, and OpenStreetMap for the movie theaters. Places drawn from the lot records carry zoning, ownership, land use and year built. Places on piers, islands, or inside Central Park and Flushing Meadows fall outside any community district; those are assigned to the nearest one and flagged. Owner of record is the tax roll owner, which is often not the operator. Confirm hours and admission directly. <a href="mailto:Mike@bkcb6.org" style="color:#f47920">Mike Racioppo</a>, Brooklyn Community Board 6.</div>
 
     <div class="side-head">
       <div>
@@ -202,6 +206,7 @@
       <div class="count" id="count"></div>
     </div>
     <div id="list"></div>
+    <div class="notice">Sources: NYC Open Data museum directory, the NYPL, Brooklyn Public Library and Queens Public Library branch directories, NYC Geoclient and Department of City Planning MapPLUTO for the tax lot records, DCP community district boundaries, the Broadway theatre list from broadway.org, and OpenStreetMap for the movie theaters. Places drawn from the lot records carry zoning, ownership, land use and year built. Places on piers, islands, or inside Central Park and Flushing Meadows fall outside any community district; those are assigned to the nearest one and flagged. Owner of record is the tax roll owner, which is often not the operator. Confirm hours and admission directly. <a href="mailto:Mike@bkcb6.org" style="color:#f47920">Mike Racioppo</a>, Brooklyn Community Board 6.</div>
   </div>
 </div>
 
@@ -742,6 +747,31 @@
     draw(false);
     map.setView([lat, lng], 14);
   }
+  // "Use my location" reuses the same nearest-first ranking as an address
+  var hereBtn = document.getElementById('hereBtn');
+  hereBtn.addEventListener('click', function(){
+    if(!navigator.geolocation){
+      hereBtn.textContent = 'Location is not available on this browser';
+      hereBtn.disabled = true;
+      return;
+    }
+    var label = hereBtn.textContent;
+    hereBtn.disabled = true;
+    hereBtn.textContent = 'Finding you...';
+    navigator.geolocation.getCurrentPosition(function(pos){
+      hereBtn.disabled = false;
+      hereBtn.textContent = label;
+      setOrigin(pos.coords.latitude, pos.coords.longitude, 'My location');
+    }, function(err){
+      hereBtn.disabled = false;
+      hereBtn.textContent = label;
+      originEl.className = 'origin on';
+      originEl.innerHTML = (err && err.code === 1)
+        ? 'Location permission was declined. Type an address instead.'
+        : 'Your location could not be found. Type an address instead.';
+    }, {enableHighAccuracy: true, timeout: 10000, maximumAge: 60000});
+  });
+
   function clearOrigin(){
     origin = null;
     addrInput.value = '';
