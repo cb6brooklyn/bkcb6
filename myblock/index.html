@@ -203,7 +203,7 @@
   <div class="maptools" id="mapToolsTop"><span class="tl">On the map</span></div>
   <div class="mapnote" id="mapnote">Choose a stretch above, or tap the map to drop a pin.</div>
   <div id="map"><div class="mapkey" id="mapKey"></div><div class="itemspanel" id="itemsPanel" style="display:none"><div class="iph" id="ipTitle"></div><div class="ipall"><button type="button" id="ipAll">All</button><button type="button" id="ipNone">None</button><input type="search" id="ipQ" placeholder="Filter"></div><div class="ipbody" id="ipBody"></div><button type="button" class="ipclose" id="ipClose">Hide list</button></div></div>
-  <div class="below" id="edWrap" style="display:none"><div class="bh">Election results by election district</div><select id="edPick"></select><div class="edlegend" id="edLegend"></div><div class="ednote">Every election district in CB6, coloured by who carried it. Tap an ED for the full count. Shading gets darker as the winner's share rises. Source: NYC Board of Elections certified results.</div></div><div class="below"><div class="bh">Add to the map</div><div class="row2" id="mapToolsBottom"></div></div>
+  <div class="below" id="edWrap" style="display:none"><div class="bh">Election results by election district</div><select id="edPick"></select><div class="edlegend" id="edLegend"></div><div class="ednote">Every election district in CB6, coloured by who carried it. Tap an ED for the full count. Shading gets darker as the winner's share rises. Source: NYC Board of Elections certified results. Contests marked * reached only a corner of CB6.</div></div><div class="below"><div class="bh">Add to the map</div><div class="row2" id="mapToolsBottom"></div></div>
   <div class="dates">
     <div class="bh">Permits and work by date</div>
     <div class="chips">
@@ -400,6 +400,7 @@ var OVDEF=[
   {id:'park-sites',label:'Parks and playgrounds',sw:'#3fb35a',on:false,custom:true,layer:'parks'},
   {id:'all-parties',label:'Block parties',sw:'#f47920',on:false,custom:true,layer:'parties'},
   {id:'all-events',label:'Permitted events',sw:'#d4a017',on:false,custom:true,layer:'events'},
+  {id:'all-cbo',label:'Community organizations',sw:'#8a437a',on:false,custom:true,layer:'cbo'},
   {id:'all-lift',label:'LIFT housing sites',sw:'#5b6abf',on:false,custom:true,layer:'lift'},
   {id:'all-liquor',label:'Liquor licenses',sw:'#8a6d3b',on:false,custom:true,layer:'liquor'},
   {id:'all-biz',label:'5th Avenue BID businesses',sw:'#b5651d',on:false,custom:true,layer:'biz'},
@@ -530,7 +531,7 @@ var OVGROUP={
   'all-health':'Safety and services','all-polls':'Safety and services',gov:'Safety and services',
   schooldist:'Places',
   'all-schools':'Places','all-childcare':'Places','all-library':'Places','all-culture':'Places',
-  'all-markets':'Places','all-food':'Places','all-lift':'Places',
+  'all-markets':'Places','all-food':'Places','all-lift':'Places','all-cbo':'Places',
   bids:'Business and events','all-biz':'Business and events','all-liquor':'Business and events',
   'all-parties':'Business and events','all-events':'Business and events',
   'all-dot':'Permits and work','all-dob':'Permits and work','all-lpc':'Permits and work',
@@ -552,7 +553,6 @@ function buildEdPicker(){
   EDDATA.features.forEach(function(f){f.properties.r.forEach(function(row){cov[row[0]]=(cov[row[0]]||0)+1;});});
   var groups={};
   EDDATA.contests.forEach(function(c,i){
-    if(/Council District 35$/.test(c.k))return; // covers 2 of 84 EDs, dropped per the district manager
     var e=c.k.split(':')[0];(groups[e]=groups[e]||[]).push({i:i,k:c.k,n:cov[i]||0});
   });
   var order=['p25','g25','p26'];
@@ -564,7 +564,7 @@ function buildEdPicker(){
     h+='<optgroup label="'+esc(names[e])+'">';
     groups[e].forEach(function(o){
       if(first===null)first=o.i;
-      h+='<option value="'+o.i+'">'+esc(o.k.split(':').slice(1).join(':'))+'</option>';
+      h+='<option value="'+o.i+'">'+esc(o.k.split(':').slice(1).join(':'))+(o.n<10?' *':'')+'</option>';
     });
     h+='</optgroup>';
   });
@@ -941,7 +941,11 @@ function fillLayer(d){
     if(L0)L0.items.forEach(function(it){if(DATED[d.layer]&&!inDate(it,rng))return;var pop='<div class="pop"><div class="pt">'+esc(it.t)+'</div><div class="ps">'+esc(it.s)+'</div><div class="pl">'+esc(L0.label)+'</div></div>';
       if(it.g&&it.g.length>1){var ll=it.g.map(function(p){return [p[1],p[0]];});g.addLayer(L.polyline(ll,{pane:'hi',color:'#fff',weight:7,opacity:.9,interactive:false}));g.addLayer(L.polyline(ll,{pane:'hi',color:it.c||d.sw,weight:4,opacity:.95}).bindPopup(pop));}
       else{var c=it.g?it.g[0]:[it.x,it.y];
-        if(d.layer==='parks'){
+        if(d.layer==='cbo'){
+          var co={'Old Stone House and Washington Park':'cbo-old-stone-house','Van Alen Institute':'cbo-van-alen','Fifth Avenue Committee':'cbo-fac','Brooklyn Conservatory of Music':'cbo-bkcm'}[it.t];
+          if(co)g.addLayer(L.marker([c[1],c[0]],{icon:logoIcon('/assets/map-icons/'+co+'.png'),pane:'hi'}).bindPopup(pop));
+          else g.addLayer(L.circleMarker([c[1],c[0]],{pane:'hi',radius:4.5,color:'#fff',weight:1.2,fillColor:d.sw,fillOpacity:.95}).bindPopup(pop));
+        } else if(d.layer==='parks'){
           var pk=/^prospect park$/i.test(it.t||'')?'/assets/map-icons/prospect-park-alliance.png'
                 :/^brooklyn bridge park$/i.test(it.t||'')?'/assets/map-icons/brooklyn-bridge-park.png'
                 :/^carroll park$/i.test(it.t||'')?'/assets/map-icons/carroll-park.png'
