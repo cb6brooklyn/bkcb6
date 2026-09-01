@@ -437,6 +437,7 @@ function inCb6(lon,lat){var poly=CB6RING;if(!poly)return true;var inside=false,n
 function placeNbhd(list){list.forEach(function(n){if(n.b!=='Brooklyn'||!inCb6(n.x,n.y))return;
   nbLayer.addLayer(L.tooltip({permanent:true,direction:'center',className:'nbl',interactive:false}).setLatLng([n.y,n.x]).setContent(n.n));});}
 function buildOverlays(){
+  fetch('/data/precinct-directory.json').then(function(r){return r.json();}).then(function(j){window.PCTDIR=j;}).catch(function(){});
   nbLayer=L.layerGroup().addTo(map);
   fetch('/data/neighborhood-labels.json').then(function(r){return r.json();}).then(function(list){if(CB6RING)placeNbhd(list);else nbPending=list;});
   OVDEF.forEach(function(d){
@@ -454,6 +455,23 @@ function buildOverlays(){
         gg.addLayer(L.marker([o.lat,o.lng],{icon:ic,pane:'hi',zIndexOffset:800}).bindPopup('<div class="pop"><div class="pt">'+esc(o.name)+'</div><div class="ps">'+esc(o.title)+'<br>'+esc(o.addr)+(o.share?'<br>Represents about '+o.share+' of CB6':'')+'</div><div class="pl"><a href="/'+o.slug+'/">Profile &rarr;</a></div></div>'));});
         return;}
 
+    }
+    if(d.id==='precincts'){
+      var pg=L.layerGroup();OV[d.id]=pg;if(d.on)pg.addTo(map);
+      fetch(d.src).then(function(r){return r.json();}).then(function(gj){
+        pg.addLayer(L.geoJSON(gj,{filter:d.filter,style:d.style,
+          onEachFeature:function(f,l){if(d.pop)l.bindPopup(d.pop(f.properties||{}));
+            if(d.label2)l.bindTooltip(d.label2(f),{permanent:true,direction:'center',className:'nbl'});}}));
+        PCTHOUSE.forEach(function(h){
+          var dir=(window.PCTDIR||{})[h.p]||{};
+          var pop='<div class="pop"><div class="pt">'+ord(h.p)+' Precinct station house</div>'+
+            '<div class="ps">'+esc(h.addr)+(dir.co?'<br>'+esc(dir.co):'')+
+            (dir.ph&&dir.ph.main?'<br><a href="tel:'+esc(String(dir.ph.main).replace(/[^0-9]/g,''))+'">'+esc(dir.ph.main)+'</a>':'')+'</div>'+
+            '<div class="pl"><a href="/precinct/'+esc(h.p)+'/">Precinct crime and safety data &rarr;</a></div></div>';
+          pg.addLayer(L.marker([h.lat,h.lng],{pane:'hi',icon:logoIcon('/assets/map-icons/pct'+h.p+'.png',26),zIndexOffset:620}).bindPopup(pop));
+        });
+      }).catch(function(){});
+      return;
     }
     if(d.id==='schooldist'){
       var sg=L.layerGroup();OV[d.id]=sg;if(d.on)sg.addTo(map);
@@ -660,6 +678,13 @@ function subBullets(routes,sz){
     return '<span class="mtab" style="width:'+sz+'px;height:'+sz+'px;background:'+bg+';color:'+fg+';font-size:'+(sz*0.62)+'px">'+esc(r.toUpperCase())+'</span>';
   }).join('');
 }
+var PCTHOUSE=[
+  {p:'72',lat:40.658199,lng:-74.001074,addr:'830 4th Avenue, Brooklyn, NY 11232'},
+  {p:'76',lat:40.683856,lng:-74.000247,addr:'191 Union Street, Brooklyn, NY 11231'},
+  {p:'78',lat:40.680901,lng:-73.974145,addr:'65 6th Avenue, Brooklyn, NY 11217'},
+  {p:'84',lat:40.695495,lng:-73.982842,addr:'301 Gold Street, Brooklyn, NY 11201'},
+  {p:'88',lat:40.690091,lng:-73.960499,addr:'298 Classon Avenue, Brooklyn, NY 11205'}
+];
 var CSDCOL={'13':{main:'#6599cd',accent:'#7eb24c'},'15':{main:'#4a5dc2',accent:'#1b237e'}};
 var CSD=[
   {d:'15',logo:'/assets/map-icons/csd15.png',
