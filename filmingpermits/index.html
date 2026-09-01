@@ -46,6 +46,8 @@
     .pin-s{display:block;width:52px;height:39px;background:#fff;border:1.5px solid #000;box-shadow:0 1px 5px rgba(13,27,75,.45);transition:transform .13s ease}
     .pin-s img{display:block;width:100%;height:100%;object-fit:cover}
     .pin:hover .pin-s{transform:scale(2.6);z-index:1000}
+    .cdl{background:none;border:none}
+    .cdl-b{display:block;text-align:center;font:600 .6rem 'DM Mono',monospace;letter-spacing:.03em;color:#5b6478;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap;pointer-events:none}
     .pin:hover{z-index:1000!important}
     .pin:hover .pin-l{transform:scale(1.6)}
     .leaflet-popup-content{font-family:'DM Sans',sans-serif;font-size:.85rem;line-height:1.45;margin:12px 14px}
@@ -95,18 +97,28 @@
   </div>
   <div class="legend" id="legend"></div>
 
-  <div id="map"></div>
-  <div class="notice">Source: NYC Mayor's Office of Media &amp; Entertainment (film office) event notifications emailed to the CB6 District Office, July 1 – September 1, 2026. Locations geocoded via NYC Planning geosearch and NYC Geoclient; parks placed from the NYC Parks properties dataset. One held block (Plaza St E at Eastern Pkwy, permit 961720) could not be resolved to a single node and is listed in text only. Duplicate notices for the same permit number are shown once, using the latest notice.</div>
-
   <div class="side-head"><h2>Permits</h2><div class="count" id="cnt"></div></div>
   <div id="list"></div>
+
+  <div id="map"></div>
+  <div class="notice">Source: NYC Mayor's Office of Media &amp; Entertainment (film office) event notifications emailed to the CB6 District Office, July 1 – September 1, 2026. Locations geocoded via NYC Planning geosearch and NYC Geoclient; parks placed from the NYC Parks properties dataset. One held block (Plaza St E at Eastern Pkwy, permit 961720) could not be resolved to a single node and is listed in text only. Duplicate notices for the same permit number are shown once, using the latest notice.</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script>
   (function(){
     var TYPE_COLORS={"Television":"#b3121d","Film":"#0d1b4b","Commercial":"#f47920","Still Photography":"#0e7490","Theater":"#6d28d9","Student":"#15803d","WEB":"#475569"};
     var map=L.map('map',{scrollWheelZoom:true}).setView([40.679,-73.99],13);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'&copy; OpenStreetMap contributors &copy; CARTO',maxZoom:19}).addTo(map);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'&copy; OpenStreetMap contributors &copy; CARTO',maxZoom:19}).addTo(map);
+    fetch('/cd-boundaries-simple.geojson').then(function(r){return r.json();}).then(function(gj){
+      L.geoJSON(gj,{style:{color:'#0d1b4b',weight:1.2,opacity:.45,dashArray:'4 4',fill:false}}).addTo(map);
+      gj.features.forEach(function(f){
+        var pr=f.properties||{};
+        if(pr.lx!=null&&pr.ly!=null)L.marker([pr.ly,pr.lx],{interactive:false,icon:L.divIcon({className:'cdl',html:'<span class="cdl-b">'+String(pr.cd||'')+'</span>',iconSize:[40,12],iconAnchor:[20,6]})}).addTo(map);
+      });
+    }).catch(function(){});
+    fetch('/cb6_boundary.geojson').then(function(r){return r.json();}).then(function(gj){
+      L.geoJSON(gj,{style:{color:'#f47920',weight:3,opacity:.9,fill:false}}).addTo(map);
+    }).catch(function(){});
     var markerLayer=L.layerGroup().addTo(map);
     var holdLayer=L.layerGroup().addTo(map);
     var PERMITS=[];
@@ -183,7 +195,7 @@
         card.addEventListener('click',function(){
           var pts=p.locations.filter(function(l){return l.lat!=null;}).map(function(l){return [l.lat,l.lng];});
           p.locations.forEach(function(l){l.parking.forEach(function(s){if(s.a)pts.push(s.a);if(s.b)pts.push(s.b);});});
-          if(pts.length){map.fitBounds(L.latLngBounds(pts).pad(0.25));window.scrollTo({top:0,behavior:'smooth'});}
+          if(pts.length){map.fitBounds(L.latLngBounds(pts).pad(0.25));document.getElementById('map').scrollIntoView({behavior:'smooth'});}
         });
         list.appendChild(card);
       });
