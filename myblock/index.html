@@ -263,13 +263,15 @@ var NET=null, LAY=null, map=null, base=null;
 var stLayer=null, hiLayer=null, bufLayer=null, ptLayer=null, pin=null, cbLayer=null;
 var mode='street', reach=75, pinReach=150;
 var sel=null; // {kind:'street'|'addr'|'pin', geom:[[lon,lat]...] or point, label, sub}
-var live={n311:null,crime:null,lots:null,hist:null};
+var live={n311:null,crime:null,arrests:null,tix:null,lots:null,hist:null};
 var liveReq=0;
 var openSecs={},lastFound={};
-var COLORS={liquor:'#8c2f6b',health:'#2e6b30',culture:'#6b3fa0',food:'#0f7b6c',biz:'#b3541e',dob:'#2145a8',dot:'#e0473c',resurf:'#7a7a7a',events:'#c98b1a',parties:'#f47920',lpc:'#0d1b4b',lift:'#9b2226',citibike:'#1f5fd6',subway:'#111',schools:'#ff8c00',library:'#5a3e1b',fdny:'#d0021b',polls:'#3a3a9c',parks:'#2a8a3a',markets:'#5e9c2a',n311:'#f47920',crime:'#b00020',lots:'#6b6760',asp:'#2145a8',childcare:'#c98b1a'};
+var COLORS={liquor:'#8c2f6b',health:'#2e6b30',culture:'#6b3fa0',food:'#0f7b6c',biz:'#b3541e',dob:'#2145a8',dot:'#e0473c',resurf:'#7a7a7a',events:'#c98b1a',parties:'#f47920',lpc:'#0d1b4b',lift:'#9b2226',citibike:'#1f5fd6',subway:'#111',schools:'#ff8c00',library:'#5a3e1b',fdny:'#d0021b',polls:'#3a3a9c',parks:'#2a8a3a',markets:'#5e9c2a',n311:'#f47920',crime:'#b00020',arrests:'#7a1fa2',tix:'#0b6e7f',lots:'#6b6760',asp:'#2145a8',childcare:'#c98b1a'};
 var LIVEDEF=[
   {id:'n311',label:'311 reports (12 months)',note:'Service requests to 311 in the last 12 months, placed by the coordinates on each report.',u:'/311.html'},
   {id:'crime',label:'Crime complaints (this year)',note:'NYPD complaint records, year to date, placed by the coordinates on each complaint. NYPD offsets some sensitive locations.',u:'/publicsafety/'},
+  {id:'arrests',label:'NYPD arrests (this year)',note:'NYPD arrest records, year to date, placed by the coordinates on each arrest. NYPD offsets some sensitive locations.',u:'/publicsafety/'},
+  {id:'tix',label:'Criminal court summonses (latest year on file)',note:'NYPD criminal court summonses, the ticket book, from the most recent year NYPD has published, placed by the coordinates on each summons.',u:'/publicsafety/'},
   {id:'hist',label:'Building permit history (DOB)',note:'Every Department of Buildings permit on record for the lots on this stretch, 2007 onward, from the DOB permit issuance file and DOB NOW. Filtered to the date range you chose.',u:'/permits-archive.html',hist:true},
   {id:'lots',label:'Lots and zoning',note:'Every tax lot from PLUTO with its zoning district, land use, owner of record, year built and floors.',u:'/landuse-zoning.html'}
 ];
@@ -1068,16 +1070,20 @@ function loadLive(linesM,R,found){
   Promise.all([
     q('erm2-nwe9',{'$where':w+" AND created_date > '"+sinceIso+"'",'$select':'unique_key,created_date,complaint_type,descriptor,incident_address,status,agency,latitude,longitude','$order':'created_date DESC','$limit':'8000'}),
     q('5uac-w243',{'$where':w,'$select':'cmplnt_num,cmplnt_fr_dt,ofns_desc,pd_desc,law_cat_cd,prem_typ_desc,latitude,longitude','$order':'cmplnt_fr_dt DESC','$limit':'4000'}),
-    q('64uk-42ks',{'$where':w,'$select':'address,bbl,block,lot,zonedist1,zonedist2,overlay1,spdist1,landuse,ownername,yearbuilt,numfloors,unitsres,unitstotal,bldgclass,lotarea,bldgarea,builtfar,residfar,commfar,histdist,landmark,latitude,longitude','$limit':'3000'})
+    q('64uk-42ks',{'$where':w,'$select':'address,bbl,block,lot,zonedist1,zonedist2,overlay1,spdist1,landuse,ownername,yearbuilt,numfloors,unitsres,unitstotal,bldgclass,lotarea,bldgarea,builtfar,residfar,commfar,histdist,landmark,latitude,longitude','$limit':'3000'}),
+    q('uip8-fykc',{'$where':w,'$select':'arrest_key,arrest_date,ofns_desc,pd_desc,law_cat_cd,latitude,longitude','$order':'arrest_date DESC','$limit':'4000'}),
+    q('sv2w-rv3k',{'$where':w,'$select':'summons_key,summons_date,offense_description,summons_category_type,law_description,latitude,longitude','$order':'summons_date DESC','$limit':'4000'})
   ]).then(function(res){
     if(my!==liveReq)return;
-    live.n311=clip(res[0]);live.crime=clip(res[1]);live.lots=clip(res[2]);
+    live.n311=clip(res[0]);live.crime=clip(res[1]);live.lots=clip(res[2]);live.arrests=clip(res[3]);live.tix=clip(res[4]);
     if(lookback())loadHist(my,linesM,R,q,clip);
     live.lots.forEach(function(r){var c=[r.latitude,r.longitude];ptLayer.addLayer(L.circleMarker([parseFloat(r.latitude),parseFloat(r.longitude)],{radius:3.5,color:'#fff',weight:1,fillColor:COLORS.lots,fillOpacity:.8}).bindPopup(lotPop(r)));});
     live.crime.forEach(function(r){ptLayer.addLayer(L.circleMarker([parseFloat(r.latitude),parseFloat(r.longitude)],{radius:5,color:'#fff',weight:1,fillColor:COLORS.crime,fillOpacity:.9}).bindPopup('<div class="pop"><div class="pt">'+esc(title(r.ofns_desc))+'</div><div class="ps">'+esc(title(r.pd_desc))+' · '+esc(title(r.law_cat_cd))+' · '+esc(String(r.cmplnt_fr_dt||'').slice(0,10))+'</div><div class="pl">Crime complaint</div></div>'));});
+    live.arrests.forEach(function(r){ptLayer.addLayer(L.circleMarker([parseFloat(r.latitude),parseFloat(r.longitude)],{radius:5,color:'#fff',weight:1,fillColor:COLORS.arrests,fillOpacity:.9}).bindPopup('<div class="pop"><div class="pt">'+esc(title(r.ofns_desc||r.pd_desc))+'</div><div class="ps">'+[title(r.pd_desc),title(r.law_cat_cd),String(r.arrest_date||'').slice(0,10)].filter(Boolean).join(' &middot; ')+'</div><div class="pl">NYPD arrest</div></div>'));});
+    live.tix.forEach(function(r){ptLayer.addLayer(L.circleMarker([parseFloat(r.latitude),parseFloat(r.longitude)],{radius:5,color:'#fff',weight:1,fillColor:COLORS.tix,fillOpacity:.9}).bindPopup('<div class="pop"><div class="pt">'+esc(title(r.offense_description||r.law_description))+'</div><div class="ps">'+[title(r.summons_category_type),String(r.summons_date||'').slice(0,10)].filter(Boolean).join(' &middot; ')+'</div><div class="pl">Criminal court summons</div></div>'));});
     var total=0;Object.keys(found).forEach(function(k){total+=found[k].length;});
-    total+=live.n311.length+live.crime.length+live.lots.length;
-    $('mapnote').innerHTML='<b>'+esc(sel.label)+'</b>. '+fmt(total)+' records within '+R+' m: '+fmt(live.lots.length)+' lots, '+fmt(live.n311.length)+' 311 reports in 12 months, '+fmt(live.crime.length)+' crime complaints this year, and '+fmt(total-live.n311.length-live.crime.length-live.lots.length)+' from the site\'s own layers.'+(sel.sub?' '+esc(sel.sub):'');
+    total+=live.n311.length+live.crime.length+live.arrests.length+live.tix.length+live.lots.length;
+    $('mapnote').innerHTML='<b>'+esc(sel.label)+'</b>. '+fmt(total)+' records within '+R+' m: '+fmt(live.lots.length)+' lots, '+fmt(live.n311.length)+' 311 reports in 12 months, '+fmt(live.crime.length)+' crime complaints and '+fmt(live.arrests.length)+' arrests this year, '+fmt(live.tix.length)+' criminal summonses on file, and '+fmt(total-live.n311.length-live.crime.length-live.arrests.length-live.tix.length-live.lots.length)+' from the site\'s own layers.'+(sel.sub?' '+esc(sel.sub):'');
     render(found);
   });
 }
@@ -1195,6 +1201,8 @@ function render(found){
   h+='<div class="kpis2">'+kp+'</div>';
   h+=liveSec('n311',live.n311,function(r){return {t:title(r.complaint_type)+(r.descriptor?': '+title(r.descriptor):''),s:[title(r.incident_address),r.agency,String(r.created_date||'').slice(0,10),r.status].filter(Boolean).join(' · ')};},function(rows){return topCats(rows,function(r){return r.complaint_type;});});
   h+=liveSec('crime',live.crime,function(r){return {t:title(r.ofns_desc),s:[title(r.pd_desc),title(r.law_cat_cd),title(r.prem_typ_desc),String(r.cmplnt_fr_dt||'').slice(0,10)].filter(Boolean).join(' · ')};},function(rows){return topCats(rows,function(r){return r.law_cat_cd;})+topCats(rows,function(r){return r.ofns_desc;});});
+  h+=liveSec('arrests',live.arrests,function(r){return {t:title(r.ofns_desc||r.pd_desc),s:[title(r.pd_desc),title(r.law_cat_cd),String(r.arrest_date||'').slice(0,10)].filter(Boolean).join(' · ')};},function(rows){return topCats(rows,function(r){return r.law_cat_cd;})+topCats(rows,function(r){return r.ofns_desc;});});
+  h+=liveSec('tix',live.tix,function(r){return {t:title(r.offense_description||r.law_description),s:[title(r.summons_category_type),String(r.summons_date||'').slice(0,10)].filter(Boolean).join(' · ')};},function(rows){return topCats(rows,function(r){return r.offense_description;});});
   if(lookback())h+=liveSec('hist',live.hist,function(r){return {t:r.t,s:r.s};},function(rows){return topCats(rows,function(r){return String(r.d1||'').slice(0,4);})+topCats(rows,function(r){return r.t.split(' · ')[1]||'';});});
   h+=liveSec('lots',live.lots,function(r){return {t:title(r.address),s:[(r.zonedist1||'')+(r.zonedist2?'/'+r.zonedist2:'')+(r.overlay1?' '+r.overlay1:''),LU[r.landuse]||'',(r.yearbuilt&&r.yearbuilt!=='0'?'built '+r.yearbuilt:''),(parseFloat(r.numfloors)||0)+' fl',(r.unitsres||'0')+' res. units','owner '+title(r.ownername),r.histdist||'',r.landmark?'landmark: '+r.landmark:'','Block '+r.block+' Lot '+r.lot].filter(Boolean).join(' · '),u:'/citywide-search.html?q='+encodeURIComponent(title(r.address)+', Brooklyn')};},function(rows){return topCats(rows,function(r){return r.zonedist1;})+topCats(rows,function(r){return LU[r.landuse]||'Other';});});
   LAY.layers.forEach(function(L0){
