@@ -14,6 +14,12 @@
 .hic img{height:40px;width:auto}
 .hic i{font-style:normal;font-family:'DM Mono',monospace;font-size:.5rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:#0d1b4b}
 @keyframes hicin{from{opacity:0;transform:translateY(8px) scale(.7)}to{opacity:1;transform:none}}
+.addrRow{display:flex;gap:7px}
+.addrRow input{flex:1;min-width:0}
+#locBtn{flex:0 0 46px;border:none;border-radius:10px;background:#f47920;color:#fff;font-size:1.15rem;cursor:pointer;transform:rotate(-45deg);transition:background .15s}
+#locBtn:hover{background:#ff8f3d}
+#addrStat{font-family:'DM Sans',sans-serif;font-size:.72rem;color:#c9cfe0;margin-top:6px;min-height:1em}
+@media(max-width:640px){.boro a{padding:12px 10px}#addr{font-size:1rem;padding:12px}}
 .heroP{color:#c9cfe0;font-size:.78rem;line-height:1.5;margin:10px 0 0}
 #bmap{width:100%;height:100%;min-height:300px;background:#dfe6ef}
 .boro{display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px;background:#fff;border-bottom:1px solid var(--border)}
@@ -38,7 +44,7 @@ details.fold[open]>summary:after{content:'\25b2'}
 <div class="top"><div class="crumb"><a href="/">CB6 &amp; Beyond</a></div><h1>Block cards <span>82,658 blocks in New York City</span></h1></div>
 <div class="hero"><div class="heroL">
 <div class="lab">Find your block by address</div>
-<input id="addr" type="search" placeholder="e.g. 250 Baltic Street" autocomplete="off"><div id="addrOut"></div>
+<div class="addrRow"><input id="addr" type="search" placeholder="e.g. 250 Baltic Street" autocomplete="off"><button type="button" id="locBtn" title="Use my location">&#10148;</button></div><div id="addrStat"></div><div id="addrOut"></div>
 <div class="heroicons"><span class="hic"><img src="/assets/blocks/asp-symbol.png" alt="Alternate side parking"><i>Parking</i></span><span class="hic"><img src="/assets/blocks/dsny-truck.png" alt="Sanitation"><i>Pickup</i></span><span class="hic"><img src="/assets/blocks/dsny-trash.png" alt="Trash"><i>Trash</i></span><span class="hic"><img src="/assets/blocks/dsny-compost.png" alt="Compost"><i>Compost</i></span><span class="hic"><img src="/assets/blocks/dsny-recycle.png" alt="Recycling"><i>Recycling</i></span><span class="hic"><img src="/assets/blocks/mailbox.png" alt="Mail collection box"><i>Mailbox</i></span></div>
 <p class="heroP">Every block in the city: alternate side parking by side of the street, trash, recycling and compost days, zoning and historic district, the closest mail box and library, where to vote, and who represents the block.</p>
 </div><div class="heroR"><div id="bmap"></div></div></div>
@@ -121,10 +127,38 @@ function find(lat,lng){
   if(!res.length){out.innerHTML='<a href="#">No block found near that address in '+BN[boro]+'. Try another borough above.</a>';return;}
   out.innerHTML=res.map(function(x){var r=x[1];return '<a href="'+path(boro,r[0])+'">'+r[6]+' between '+r[7]+' and '+r[8]+'<span>'+BN[boro]+' CB'+(r[1]%100)+' \u00b7 '+Math.round(x[0])+' m from the address</span></a>';}).join('');
 }
-inp.addEventListener('input',function(){clearTimeout(t);var q=inp.value.trim();if(q.length<4){out.innerHTML='';return;}
+var stat=document.getElementById('addrStat');
+function say(m){if(stat)stat.textContent=m||'';}
+inp.addEventListener('input',function(){clearTimeout(t);var q=inp.value.trim();if(q.length<4){out.innerHTML='';say('');return;}
+  say('Searching\u2026');
   t=setTimeout(function(){
     var load=GEO?Promise.resolve():fetch('/assets/blocks/'+boro+'-geo.json').then(function(r){return r.json();}).then(function(j){GEO=j;});
     load.then(function(){return fetch('https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(q+(/(brooklyn|manhattan|bronx|queens|staten)/i.test(q)?'':' '+BN[boro]))+'&size=1').then(function(r){return r.json();});})
-    .then(function(j){var f=(j.features||[])[0];if(!f){out.innerHTML='';return;}find(f.geometry.coordinates[1],f.geometry.coordinates[0]);}).catch(function(){});
+    .then(function(j){var f=(j.features||[])[0];if(!f){out.innerHTML='';say('No address match. Check the spelling or add the borough.');return;}say('');find(f.geometry.coordinates[1],f.geometry.coordinates[0]);}).catch(function(){say('Search is unavailable right now.');});
   },350);});
+var locBtn=document.getElementById('locBtn');
+if(locBtn)locBtn.addEventListener('click',function(){
+  if(!navigator.geolocation){say('Location is not available in this browser.');return;}
+  say('Finding your location\u2026');
+  navigator.geolocation.getCurrentPosition(function(pos){
+    var lat=pos.coords.latitude,lng=pos.coords.longitude;
+    fetch('https://geosearch.planninglabs.nyc/v2/reverse?point.lat='+lat+'&point.lon='+lng+'&size=1')
+      .then(function(r){return r.json();})
+      .then(function(j){
+        var f=(j.features||[])[0];
+        var bname=f&&f.properties&&(f.properties.borough||'');
+        var code={'Brooklyn':'bk','Manhattan':'mn','Bronx':'bx','Queens':'qn','Staten Island':'si'}[bname];
+        if(!code){say('You do not appear to be in New York City.');return;}
+        var go=function(){say('');find(lat,lng);};
+        if(code!==boro){
+          boro=code;
+          document.querySelectorAll('#boro a').forEach(function(a){a.classList.toggle('on',a.getAttribute('data-b')===boro);});
+          GEO=null;
+          fetch('/assets/blocks/'+boro+'-geo.json').then(function(r){return r.json();}).then(function(j2){GEO=j2;go();});
+        } else if(!GEO){
+          fetch('/assets/blocks/'+boro+'-geo.json').then(function(r){return r.json();}).then(function(j2){GEO=j2;go();});
+        } else go();
+      }).catch(function(){say('Could not look up that location.');});
+  },function(){say('Location was blocked. Type an address instead.');},{enableHighAccuracy:true,timeout:12000});
+});
 })();</script></body></html>
