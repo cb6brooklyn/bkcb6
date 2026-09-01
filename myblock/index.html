@@ -547,18 +547,29 @@ function edLabel(k){
 }
 function buildEdPicker(){
   var box=document.getElementById('edPick');if(!box||!EDDATA)return;
+  // how many EDs actually have a result for each contest
+  var cov={};
+  EDDATA.features.forEach(function(f){f.properties.r.forEach(function(row){cov[row[0]]=(cov[row[0]]||0)+1;});});
   var groups={};
-  EDDATA.contests.forEach(function(c,i){var e=c.k.split(':')[0];(groups[e]=groups[e]||[]).push({i:i,k:c.k});});
+  EDDATA.contests.forEach(function(c,i){
+    if(/Council District 35$/.test(c.k))return; // covers 2 of 84 EDs, dropped per the district manager
+    var e=c.k.split(':')[0];(groups[e]=groups[e]||[]).push({i:i,k:c.k,n:cov[i]||0});
+  });
   var order=['p25','g25','p26'];
   var names={p25:'June 2025 primary',g25:'November 2025 general',p26:'June 2026 primary'};
-  var h='';
+  var h='';var first=null;
   order.forEach(function(e){
     if(!groups[e])return;
+    groups[e].sort(function(a,b){return b.n-a.n;}); // widest coverage first
     h+='<optgroup label="'+esc(names[e])+'">';
-    groups[e].forEach(function(o){h+='<option value="'+o.i+'">'+esc(o.k.split(':').slice(1).join(':'))+'</option>';});
+    groups[e].forEach(function(o){
+      if(first===null)first=o.i;
+      h+='<option value="'+o.i+'">'+esc(o.k.split(':').slice(1).join(':'))+'</option>';
+    });
     h+='</optgroup>';
   });
   box.innerHTML=h;
+  if(first!==null&&(EDC===0||/Council District 35$/.test((EDDATA.contests[EDC]||{}).k||'')))EDC=first;
   box.value=String(EDC);
   box.onchange=function(){EDC=parseInt(box.value,10)||0;drawEd();};
   var wrap=document.getElementById('edWrap');if(wrap)wrap.style.display='block';
