@@ -693,7 +693,9 @@ var IP={ov:null,layer:null,items:[],marks:{},on:{},grp:null};
 function ipMarker(it,d){
   var pop='<div class="pop"><div class="pt">'+esc(it.t)+'</div><div class="ps">'+esc(it.s||'')+'</div>'+(it.u?'<div class="pl"><a href="'+esc(it.u)+'">More &rarr;</a></div>':'')+'</div>';
   var sw=(d&&d.sw)||'#0d1b4b';
-  var ico=LAYERICON[(ITEMSETS[IP.ov]||{}).layer];
+  var lay=(ITEMSETS[IP.ov]||{}).layer;
+  var ico=lay==='schools'?schoolIcon(it):LAYERICON[lay];
+  if(lay==='schools'&&!ico)sw=it.c||sw;
   return ico?L.marker([it.y,it.x],{pane:'hi',icon:logoIcon(ico,16)}).bindPopup(pop)
             :L.circleMarker([it.y,it.x],{pane:'hi',radius:4.5,color:'#fff',weight:1.2,fillColor:sw,fillOpacity:.95}).bindPopup(pop);
 }
@@ -811,6 +813,18 @@ function csdPopup(c){
     ' &middot; <a href="/eduhub-csd-'+esc(c.d)+'.html">Schools in this district &rarr;</a></div></div>';
 }
 var OVICON={nycha:'/assets/map-icons/nycha.png',schooldist:'/assets/map-icons/csd15.png'};
+var SCHOOLLOGO=[
+  [/^basis independent brooklyn/i,'/assets/map-icons/school-basis.png'],
+  [/^berkeley-?carroll/i,'/assets/map-icons/school-berkeley-carroll.png'],
+  [/^international school of brooklyn/i,'/assets/map-icons/school-isb.png'],
+  [/^st\.? ?saviour/i,'/assets/map-icons/school-st-saviour.png']
+];
+function schoolIcon(it){
+  for(var i=0;i<SCHOOLLOGO.length;i++)if(SCHOOLLOGO[i][0].test(it.t||''))return SCHOOLLOGO[i][1];
+  var k=it.k||'';
+  if(k==='Public K-12'||k==='Special education')return '/assets/map-icons/schools-nycps.png';
+  return null; // charter and other private schools keep their own colour dot
+}
 var LAYERICON={library:'/assets/map-icons/library-bpl.png',citibike:'/assets/map-icons/citibike.png',fdny:'/assets/map-icons/fdny-shield.png',schools:'/assets/map-icons/schools-nycps.png',childcare:'/assets/map-icons/childcare-nyc.png',parks:'/assets/map-icons/parks-nyc.png',biz:'/assets/map-icons/bid-5th-ave.png'};
 function logoIcon(src,sz){
   sz=sz||16;
@@ -827,7 +841,11 @@ function fillLayer(d){
     if(L0)L0.items.forEach(function(it){if(DATED[d.layer]&&!inDate(it,rng))return;var pop='<div class="pop"><div class="pt">'+esc(it.t)+'</div><div class="ps">'+esc(it.s)+'</div><div class="pl">'+esc(L0.label)+'</div></div>';
       if(it.g&&it.g.length>1){var ll=it.g.map(function(p){return [p[1],p[0]];});g.addLayer(L.polyline(ll,{pane:'hi',color:'#fff',weight:7,opacity:.9,interactive:false}));g.addLayer(L.polyline(ll,{pane:'hi',color:it.c||d.sw,weight:4,opacity:.95}).bindPopup(pop));}
       else{var c=it.g?it.g[0]:[it.x,it.y];
-        if(LAYERICON[d.layer]){
+        if(d.layer==='schools'){
+          var sic=schoolIcon(it);
+          if(sic)g.addLayer(L.marker([c[1],c[0]],{icon:logoIcon(sic),pane:'hi'}).bindPopup(pop));
+          else g.addLayer(L.circleMarker([c[1],c[0]],{pane:'hi',radius:4.5,color:'#fff',weight:1.2,fillColor:it.c||d.sw,fillOpacity:.95}).bindPopup(pop));
+        } else if(LAYERICON[d.layer]){
           g.addLayer(L.marker([c[1],c[0]],{icon:logoIcon(LAYERICON[d.layer]),pane:'hi'}).bindPopup(pop));
         } else if(d.layer==='subway'){
           var sp='<div class="pop"><div class="pt">'+subBullets(it.s,18)+'</div><div class="pt" style="margin-top:5px">'+esc(it.t)+'</div><div class="pl">'+esc(L0.label)+'</div></div>';
