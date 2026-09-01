@@ -69,6 +69,18 @@
 #mapToolsTop{max-height:96px;overflow-y:auto}
 .cb6lab{background:#0d1b4b;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-family:'DM Mono',monospace;font-size:.6rem;letter-spacing:.09em;font-weight:700;box-shadow:0 1px 4px rgba(13,27,75,.4)}
 .cb6lab:before{display:none}
+.itemspanel{position:absolute;left:10px;top:10px;z-index:950;background:rgba(255,255,255,.97);border:1.5px solid var(--border);border-radius:12px;width:228px;max-height:calc(100% - 90px);display:flex;flex-direction:column;box-shadow:0 3px 10px rgba(13,27,75,.22)}
+.iph{padding:10px 12px 6px;font-family:'DM Sans',sans-serif;font-size:.86rem;font-weight:800;color:var(--navy)}
+.ipall{display:flex;gap:5px;padding:0 10px 8px;align-items:center}
+.ipall button{padding:4px 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.7rem;font-weight:700;color:var(--navy);cursor:pointer}
+.ipall input{flex:1;min-width:0;padding:4px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.72rem}
+.ipbody{overflow-y:auto;padding:0 10px 8px;flex:1}
+.ipg{margin:7px 0 2px}
+.ipg label{font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.07em;color:var(--navy);font-weight:700;display:flex;gap:6px;align-items:center}
+.ipg i{font-style:normal;color:var(--muted)}
+.ipi{display:flex;gap:6px;align-items:flex-start;font-family:'DM Sans',sans-serif;font-size:.74rem;line-height:1.4;color:#333;padding:2px 0 2px 4px}
+.ipi input,.ipg input{accent-color:#0d1b4b;margin-top:1px}
+.ipclose{margin:6px 10px 10px;padding:7px;border:none;border-radius:8px;background:var(--navy);color:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer}
 .mapkey{position:absolute;left:10px;bottom:10px;z-index:900;background:rgba(255,255,255,.94);border:1.5px solid var(--border);border-radius:10px;padding:8px 11px;max-width:230px;box-shadow:0 2px 8px rgba(13,27,75,.18)}
 .mk{display:flex;align-items:center;gap:7px;font-family:'DM Sans',sans-serif;font-size:.7rem;font-weight:600;color:#333;padding:2px 0}
 .mkl{flex:0 0 18px;height:4px;border-radius:2px;border:1.5px solid transparent}
@@ -184,7 +196,7 @@
   </div>
   <div class="maptools" id="mapToolsTop"><span class="tl">On the map</span></div>
   <div class="mapnote" id="mapnote">Choose a stretch above, or tap the map to drop a pin.</div>
-  <div id="map"><div class="mapkey" id="mapKey"></div></div>
+  <div id="map"><div class="mapkey" id="mapKey"></div><div class="itemspanel" id="itemsPanel" style="display:none"><div class="iph" id="ipTitle"></div><div class="ipall"><button type="button" id="ipAll">All</button><button type="button" id="ipNone">None</button><input type="search" id="ipQ" placeholder="Filter"></div><div class="ipbody" id="ipBody"></div><button type="button" class="ipclose" id="ipClose">Hide list</button></div></div>
   <div class="below" id="edWrap" style="display:none"><div class="bh">Election results by election district</div><select id="edPick"></select><div class="edlegend" id="edLegend"></div><div class="ednote">Every election district in CB6, coloured by who carried it. Tap an ED for the full count. Shading gets darker as the winner's share rises. Source: NYC Board of Elections certified results.</div></div><div class="below"><div class="bh">Add to the map</div><div class="row2" id="mapToolsBottom"></div></div>
   <div class="dates">
     <div class="bh">Permits and work by date</div>
@@ -601,6 +613,14 @@ function drawEd(){
 }
 function renderToggles(){
   updateMapKey();
+  var ipA=$('ipAll'),ipN=$('ipNone'),ipQ=$('ipQ'),ipC=$('ipClose');
+  if(ipA&&!ipA._wired){
+    ipA._wired=true;
+    ipA.addEventListener('click',function(){IP.items.forEach(function(x,i){IP.on[i]=true;});ipApply();ipRender();});
+    ipN.addEventListener('click',function(){IP.items.forEach(function(x,i){IP.on[i]=false;});ipApply();ipRender();});
+    ipQ.addEventListener('input',function(){ipRender();});
+    ipC.addEventListener('click',ipCloseFn);
+  }
   var bottom=$('mapToolsBottom');
   if(bottom){
     bottom.innerHTML='';
@@ -659,6 +679,87 @@ function updateMapKey(){
   });
   el.innerHTML=h;
 }
+
+// Per-layer item lists: which overlays expose their contents, and how items group.
+var ITEMSETS={
+  schooldist:{layer:'schools',title:'Schools',auto:true,
+    group:function(it){var p=(it.s||'').split(',');return p.length>1?p[1].trim():'Other';}},
+  'all-schools':{layer:'schools',title:'Schools',
+    group:function(it){var p=(it.s||'').split(',');return p.length>1?p[1].trim():'Other';}},
+  bids:{layer:'biz',title:'5th Avenue BID businesses',auto:true,group:null},
+  'all-biz':{layer:'biz',title:'5th Avenue BID businesses',group:null}
+};
+var IP={ov:null,layer:null,items:[],marks:{},on:{},grp:null};
+function ipMarker(it,d){
+  var pop='<div class="pop"><div class="pt">'+esc(it.t)+'</div><div class="ps">'+esc(it.s||'')+'</div>'+(it.u?'<div class="pl"><a href="'+esc(it.u)+'">More &rarr;</a></div>':'')+'</div>';
+  var sw=(d&&d.sw)||'#0d1b4b';
+  var ico=LAYERICON[(ITEMSETS[IP.ov]||{}).layer];
+  return ico?L.marker([it.y,it.x],{pane:'hi',icon:logoIcon(ico,16)}).bindPopup(pop)
+            :L.circleMarker([it.y,it.x],{pane:'hi',radius:4.5,color:'#fff',weight:1.2,fillColor:sw,fillOpacity:.95}).bindPopup(pop);
+}
+function ipApply(){
+  var g=IP.g;if(!g)return;
+  IP.items.forEach(function(it,i){
+    var want=IP.on[i]!==false;
+    var has=!!IP.marks[i]&&IP.marks[i]._on;
+    if(want&&!has){if(!IP.marks[i])IP.marks[i]=ipMarker(it,IP.d);g.addLayer(IP.marks[i]);IP.marks[i]._on=true;}
+    if(!want&&has){g.removeLayer(IP.marks[i]);IP.marks[i]._on=false;}
+  });
+}
+function ipRender(){
+  var body=document.getElementById('ipBody');if(!body)return;
+  var q=(document.getElementById('ipQ').value||'').toLowerCase();
+  var set=ITEMSETS[IP.ov];
+  var groups={};
+  IP.items.forEach(function(it,i){
+    if(q&&(it.t+' '+(it.s||'')).toLowerCase().indexOf(q)<0)return;
+    var gname=set.group?set.group(it):'';
+    (groups[gname]=groups[gname]||[]).push(i);
+  });
+  var names=Object.keys(groups).sort(function(a,b){return groups[b].length-groups[a].length;});
+  var h='';
+  names.forEach(function(n){
+    if(n){
+      var allOn=groups[n].every(function(i){return IP.on[i]!==false;});
+      h+='<div class="ipg"><label><input type="checkbox" data-g="'+esc(n)+'"'+(allOn?' checked':'')+'> '+esc(n)+' <i>'+groups[n].length+'</i></label></div>';
+    }
+    groups[n].forEach(function(i){
+      var it=IP.items[i];
+      h+='<label class="ipi"><input type="checkbox" data-i="'+i+'"'+(IP.on[i]!==false?' checked':'')+'> '+esc(it.t)+'</label>';
+    });
+  });
+  body.innerHTML=h||'<div class="ipi" style="color:#888">Nothing matches.</div>';
+  Array.prototype.forEach.call(body.querySelectorAll('input[data-i]'),function(cb){
+    cb.addEventListener('change',function(){IP.on[+cb.getAttribute('data-i')]=cb.checked;ipApply();ipRender();});
+  });
+  Array.prototype.forEach.call(body.querySelectorAll('input[data-g]'),function(cb){
+    cb.addEventListener('change',function(){
+      var n=cb.getAttribute('data-g');
+      IP.items.forEach(function(it,i){var gname=set.group?set.group(it):'';if(gname===n)IP.on[i]=cb.checked;});
+      ipApply();ipRender();
+    });
+  });
+}
+function ipOpen(ovId){
+  var set=ITEMSETS[ovId];if(!set||!LAY)return;
+  var lay=null;LAY.layers.forEach(function(l){if(l.id===set.layer)lay=l;});
+  if(!lay)return;
+  var switching=IP.layer!==set.layer;
+  IP.ov=ovId;IP.layer=set.layer;IP.items=lay.items;IP.d=OVDEF.filter(function(x){return x.layer===set.layer;})[0]||{};
+  if(switching)IP.on={};
+  if(!IP.g){IP.g=L.layerGroup();}
+  IP.g.addTo(map);
+  IP.marks={};IP.g.clearLayers();
+  IP.items.forEach(function(it,i){if(!(i in IP.on))IP.on[i]=true;});
+  document.getElementById('ipTitle').textContent=set.title;
+  document.getElementById('itemsPanel').style.display='block';
+  ipApply();ipRender();
+}
+function ipCloseFn(){
+  document.getElementById('itemsPanel').style.display='none';
+  if(IP.g)map.removeLayer(IP.g);
+  IP.ov=null;
+}
 function toggleOverlay(id){
   var d=OVDEF.filter(function(x){return x.id===id;})[0];d.on=!d.on;
   var g=OV[id];
@@ -667,6 +768,7 @@ function toggleOverlay(id){
   if(g){if(d.on)g.addTo(map);else map.removeLayer(g);}
   if(id==='gov'&&d.on){var b=L.latLngBounds(GOV.map(function(o){return [o.lat,o.lng];}));if(cbLayer)b.extend(cbLayer.getBounds());map.fitBounds(b.pad(.05));}
   Array.prototype.forEach.call(document.querySelectorAll('[data-ov="'+id+'"]'),function(b){b.classList.toggle('on',d.on);});
+  if(ITEMSETS[id]&&ITEMSETS[id].auto){if(d.on)ipOpen(id);else if(IP.ov===id)ipCloseFn();}
   updateMapKey();
 }
 var SUBCOL={'1':'#EE352E','2':'#EE352E','3':'#EE352E','4':'#00933C','5':'#00933C','6':'#00933C','7':'#B933AD','A':'#0039A6','C':'#0039A6','E':'#0039A6','B':'#FF6319','D':'#FF6319','F':'#FF6319','M':'#FF6319','G':'#6CBE45','J':'#996633','Z':'#996633','L':'#A7A9AC','N':'#FCCC0A','Q':'#FCCC0A','R':'#FCCC0A','W':'#FCCC0A','S':'#808183','SIR':'#0039A6','FX':'#FF6319','6X':'#00933C','7X':'#B933AD'};
