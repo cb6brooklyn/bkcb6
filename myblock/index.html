@@ -83,6 +83,21 @@
 .ipi{display:flex;gap:6px;align-items:flex-start;font-family:'DM Sans',sans-serif;font-size:.74rem;line-height:1.4;color:#333;padding:2px 0 2px 4px}
 .ipi input,.ipg input{accent-color:#0d1b4b;margin-top:1px}
 .ipclose{margin:6px 10px 10px;padding:7px;border:none;border-radius:8px;background:var(--navy);color:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer}
+.maphint{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:960;background:#0d1b4b;color:#fff;border-radius:999px;padding:8px 12px 8px 16px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;box-shadow:0 3px 10px rgba(13,27,75,.35);display:flex;gap:8px;align-items:center;white-space:nowrap}
+.maphint button{border:none;background:transparent;color:#f47920;font-size:1.05rem;cursor:pointer;padding:0 2px;line-height:1}
+#tglQ{width:100%;margin:0 0 10px;padding:8px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.8rem}
+details.ovgrp>summary{cursor:pointer;list-style:none;display:flex;gap:6px;align-items:center}
+details.ovgrp>summary::-webkit-details-marker{display:none}
+details.ovgrp>summary:before{content:'\25B8';color:var(--muted);font-size:.6rem;transition:transform .12s}
+details.ovgrp[open]>summary:before{transform:rotate(90deg)}
+.ovgh em{font-style:normal;color:var(--muted);font-weight:500}
+details.ovgrp>.ovgr{margin-top:6px}
+.tgl.clr{background:#0d1b4b;color:#fff;border-color:#0d1b4b}
+.tlnone{font-family:'DM Sans',sans-serif;font-size:.74rem;color:var(--muted)}
+.mapkey{cursor:pointer}
+.mapkey.min .mk{display:none}
+.mapkey.min:after{content:'Key';font-family:'DM Mono',monospace;font-size:.62rem;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.08em}
+@media(max-width:640px){.itemspanel{width:186px}.maphint{font-size:.7rem;max-width:92%;white-space:normal}}
 .mapkey{position:absolute;left:10px;bottom:10px;z-index:900;background:rgba(255,255,255,.94);border:1.5px solid var(--border);border-radius:10px;padding:8px 11px;max-width:230px;box-shadow:0 2px 8px rgba(13,27,75,.18)}
 .mk{display:flex;align-items:center;gap:7px;font-family:'DM Sans',sans-serif;font-size:.7rem;font-weight:600;color:#333;padding:2px 0}
 .mkl{flex:0 0 18px;height:4px;border-radius:2px;border:1.5px solid transparent}
@@ -204,7 +219,7 @@
   </div>
   <div class="maptools" id="mapToolsTop"><span class="tl">On the map</span></div>
   <div class="mapnote" id="mapnote">Choose a stretch above, or tap the map to drop a pin.</div>
-  <div id="map"><div class="mapkey" id="mapKey"></div><div class="itemspanel" id="itemsPanel" style="display:none"><div class="iph" id="ipTitle"></div><div class="ipall"><button type="button" id="ipAll">All</button><button type="button" id="ipNone">None</button><input type="search" id="ipQ" placeholder="Filter"></div><div class="ipbody" id="ipBody"></div><button type="button" class="ipclose" id="ipClose">Hide list</button></div></div>
+  <div id="map"><div class="maphint" id="mapHint">Tap any block to see everything on it<button type="button" id="hintX">&times;</button></div><div class="mapkey" id="mapKey"></div><div class="itemspanel" id="itemsPanel" style="display:none"><div class="iph" id="ipTitle"></div><div class="ipall"><button type="button" id="ipAll">All</button><button type="button" id="ipNone">None</button><input type="search" id="ipQ" placeholder="Filter"></div><div class="ipbody" id="ipBody"></div><button type="button" class="ipclose" id="ipClose">Hide list</button></div></div>
   <div class="below" id="edWrap" style="display:none"><div class="bh">Election results by election district</div><select id="edPick"></select><div class="edlegend" id="edLegend"></div><div class="ednote">Every election district in CB6, coloured by who carried it. Tap an ED for the full count. Shading gets darker as the winner's share rises. Source: NYC Board of Elections certified results. Contests marked * reached only a corner of CB6.</div></div><div class="below"><div class="bh">Add to the map</div><div class="row2" id="mapToolsBottom"></div></div>
   <div class="dates">
     <div class="bh">Permits and work by date</div>
@@ -480,7 +495,7 @@ function buildBlockLayer(){
       var b=BKIDX&&BKIDX[sg.bk];if(!b)return;
       var sti=NET.streets.indexOf(b.st);if(sti<0)return;
       var s2=selectStretch(sti,b.from,b.to);if(!s2)return;
-      sel=s2;setMode('street');run();
+      sel=s2;setMode('street');run();var mh=$('mapHint');if(mh){mh.style.display='none';try{localStorage.setItem('mbHint','1');}catch(e){}}
       if(ev&&ev.originalEvent)ev.originalEvent.stopPropagation();
     });
     blkLayer.addLayer(pl);
@@ -665,6 +680,9 @@ function drawEd(){
 }
 function renderToggles(){
   updateMapKey();
+  var hint=$('mapHint'),hx=$('hintX');
+  try{if(localStorage.getItem('mbHint'))hint.style.display='none';}catch(e){}
+  if(hx)hx.addEventListener('click',function(){hint.style.display='none';try{localStorage.setItem('mbHint','1');}catch(e){}});
   var ipA=$('ipAll'),ipN=$('ipNone'),ipQ=$('ipQ'),ipC=$('ipClose');
   if(ipA&&!ipA._wired){
     ipA._wired=true;
@@ -676,12 +694,17 @@ function renderToggles(){
   var bottom=$('mapToolsBottom');
   if(bottom){
     bottom.innerHTML='';
+    var filt=document.createElement('input');
+    filt.type='search';filt.id='tglQ';filt.placeholder='Find a layer\u2026';
+    bottom.appendChild(filt);
     OVORDER.forEach(function(gname){
       var members=OVDEF.filter(function(d){return (OVGROUP[d.id]||'Permits and work')===gname;});
       if(!members.length)return;
-      var wrapEl=document.createElement('div');wrapEl.className='ovgrp';
-      var hEl=document.createElement('div');hEl.className='ovgh';hEl.textContent=gname;
-      wrapEl.appendChild(hEl);
+      var det=document.createElement('details');det.className='ovgrp';
+      if(members.some(function(d){return d.on;}))det.open=true;
+      var sum=document.createElement('summary');sum.className='ovgh';
+      sum.innerHTML=esc(gname)+' <em>'+members.length+'</em>';
+      det.appendChild(sum);
       var rowEl=document.createElement('div');rowEl.className='ovgr';
       members.forEach(function(d){
         var b=document.createElement('button');b.type='button';b.className='tgl'+(d.on?' on':'');
@@ -691,20 +714,39 @@ function renderToggles(){
         b.addEventListener('click',function(){toggleOverlay(d.id);});
         rowEl.appendChild(b);
       });
-      wrapEl.appendChild(rowEl);
-      bottom.appendChild(wrapEl);
+      det.appendChild(rowEl);
+      bottom.appendChild(det);
+    });
+    filt.addEventListener('input',function(){
+      var q=filt.value.trim().toLowerCase();
+      Array.prototype.forEach.call(bottom.querySelectorAll('details.ovgrp'),function(det){
+        var any=false;
+        Array.prototype.forEach.call(det.querySelectorAll('.tgl'),function(b){
+          var hit=!q||b.textContent.toLowerCase().indexOf(q)>=0;
+          b.style.display=hit?'':'none';if(hit)any=true;
+        });
+        det.style.display=any?'':'none';
+        if(q&&any)det.open=true;
+      });
     });
   }
-  ['mapToolsTop'].forEach(function(id){
-    var box=$(id);
-    OVDEF.forEach(function(d){
-      var b=document.createElement('button');b.type='button';b.className='tgl'+(d.on?' on':'');b.setAttribute('data-ov',d.id);
-      var ico=OVICON[d.id]||LAYERICON[d.layer];
-        b.innerHTML=(ico?'<img class="swi" src="'+ico+'" alt="">':'<span class="sw" style="background:'+d.sw+'"></span>')+esc(d.label);
-      b.addEventListener('click',function(){toggleOverlay(d.id);});
-      box.appendChild(b);
-    });
+  renderActive();
+}
+function renderActive(){
+  var box=$('mapToolsTop');if(!box)return;
+  var on=OVDEF.filter(function(d){return d.on;});
+  var h='<span class="tl">On the map</span>';
+  on.forEach(function(d){
+    h+='<button type="button" class="tgl on" data-ov="'+d.id+'" title="Tap to turn off">'+esc(d.label)+' &times;</button>';
   });
+  if(on.length>1)h+='<button type="button" class="tgl clr" id="tglClear">Clear all</button>';
+  if(!on.length)h+='<span class="tlnone">Nothing yet. Add layers below.</span>';
+  box.innerHTML=h;
+  Array.prototype.forEach.call(box.querySelectorAll('[data-ov]'),function(b){
+    b.addEventListener('click',function(){toggleOverlay(b.getAttribute('data-ov'));});
+  });
+  var c=$('tglClear');
+  if(c)c.addEventListener('click',function(){OVDEF.filter(function(d){return d.on;}).forEach(function(d){toggleOverlay(d.id);});});
 }
 var KEYLINES={
   blocks:[{sw:'#0d1b4b',dash:false,t:'Every block, tap one to inspect it'}],
@@ -723,6 +765,7 @@ var KEYLINES={
 };
 function updateMapKey(){
   var el=document.getElementById('mapKey');if(!el)return;
+  if(!el._wired){el._wired=true;el.addEventListener('click',function(){el.classList.toggle('min');});if(window.innerWidth<640)el.classList.add('min');}
   var h='<div class="mk"><span class="mkl" style="background:#0d1b4b"></span>Brooklyn CB6 boundary</div>';
   OVDEF.forEach(function(d){
     if(!d.on||!KEYLINES[d.id])return;
@@ -828,7 +871,8 @@ function toggleOverlay(id){
   }
   if(id==='gov'&&d.on){var b=L.latLngBounds(GOV.map(function(o){return [o.lat,o.lng];}));if(cbLayer)b.extend(cbLayer.getBounds());map.fitBounds(b.pad(.05));}
   Array.prototype.forEach.call(document.querySelectorAll('[data-ov="'+id+'"]'),function(b){b.classList.toggle('on',d.on);});
-  if(ITEMSETS[id]&&ITEMSETS[id].auto){if(d.on)ipOpen(id);else if(IP.ov===id)ipCloseFn();}
+  if(set&&set.auto&&d.layer!==set.layer){if(d.on)ipOpen(id);else if(IP.ov===id)ipCloseFn();}
+  renderActive();
   updateMapKey();
 }
 var SUBCOL={'1':'#EE352E','2':'#EE352E','3':'#EE352E','4':'#00933C','5':'#00933C','6':'#00933C','7':'#B933AD','A':'#0039A6','C':'#0039A6','E':'#0039A6','B':'#FF6319','D':'#FF6319','F':'#FF6319','M':'#FF6319','G':'#6CBE45','J':'#996633','Z':'#996633','L':'#A7A9AC','N':'#FCCC0A','Q':'#FCCC0A','R':'#FCCC0A','W':'#FCCC0A','S':'#808183','SIR':'#0039A6','FX':'#FF6319','6X':'#00933C','7X':'#B933AD'};
