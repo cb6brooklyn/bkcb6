@@ -67,6 +67,10 @@
 .ovgh{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:0 0 6px}
 .ovgr{display:flex;gap:6px;flex-wrap:wrap}
 #mapToolsTop{max-height:96px;overflow-y:auto}
+.csdl{background:rgba(255,255,255,.9);border:2px solid;border-radius:8px;padding:3px 9px;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:800;box-shadow:0 1px 4px rgba(13,27,75,.25)}
+.csdl:before{display:none}
+.csdl13{color:#6599cd;border-color:#6599cd}
+.csdl15{color:#1b237e;border-color:#4a5dc2}
 .logoicon{background:transparent;border:none}
 .logoicon img{width:16px;height:16px;border-radius:4px;display:block;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(13,27,75,.45)}
 .swi{width:13px;height:13px;border-radius:3px;object-fit:cover;vertical-align:-2px;margin-right:5px;display:inline-block}
@@ -433,17 +437,6 @@ function buildOverlays(){
     if(d.custom){
       if(d.id==='records'){OV[d.id]=ptLayer;return;}
       if(d.layer){OV[d.id]=L.layerGroup();return;}
-      if(d.id==='schooldist'){
-        var sg=L.layerGroup();OV[d.id]=sg;if(d.on)sg.addTo(map);
-        fetch(d.src).then(function(r){return r.json();}).then(function(gj){
-          sg.addLayer(L.geoJSON(gj,{filter:d.filter,style:d.style,
-            onEachFeature:function(f,l){if(d.pop)l.bindPopup(d.pop(f.properties||{}));}}));
-          CSD.forEach(function(c){
-            sg.addLayer(L.marker([c.lat,c.lng],{pane:'hi',icon:logoIcon(c.logo,34),zIndexOffset:600}).bindPopup(csdPopup(c)));
-            sg.addLayer(L.marker([c.olat,c.olng],{pane:'hi',icon:logoIcon(c.logo,22),zIndexOffset:590}).bindPopup(csdPopup(c)));
-          });
-        }).catch(function(){});
-        return;}
       if(d.id==='edresults'){
         var eg=L.layerGroup();OV[d.id]=eg;
         fetch('/data/cb6-ed-elections.geojson').then(function(r){return r.json();}).then(function(gj){
@@ -455,6 +448,28 @@ function buildOverlays(){
         gg.addLayer(L.marker([o.lat,o.lng],{icon:ic,pane:'hi',zIndexOffset:800}).bindPopup('<div class="pop"><div class="pt">'+esc(o.name)+'</div><div class="ps">'+esc(o.title)+'<br>'+esc(o.addr)+(o.share?'<br>Represents about '+o.share+' of CB6':'')+'</div><div class="pl"><a href="/'+o.slug+'/">Profile &rarr;</a></div></div>'));});
         return;}
 
+    }
+    if(d.id==='schooldist'){
+      var sg=L.layerGroup();OV[d.id]=sg;if(d.on)sg.addTo(map);
+      fetch(d.src).then(function(r){return r.json();}).then(function(gj){
+        sg.addLayer(L.geoJSON(gj,{filter:d.filter,
+          style:function(f){
+            var c=CSDCOL[String(f.properties.schooldist)]||{main:'#1f5fd6'};
+            return {color:c.main,weight:3.5,dashArray:'8 5',fillColor:c.main,fillOpacity:.10};
+          },
+          onEachFeature:function(f,l){
+            var sd=String(f.properties.schooldist);
+            var c=CSDCOL[sd]||{main:'#1f5fd6'};
+            var cs=CSD.filter(function(x){return x.d===sd;})[0];
+            if(cs)l.bindPopup(csdPopup(cs));
+            l.bindTooltip('District '+sd,{permanent:true,direction:'center',className:'csdl csdl'+sd});
+          }}));
+        CSD.forEach(function(c){
+          sg.addLayer(L.marker([c.lat,c.lng],{pane:'hi',icon:logoIcon(c.logo,36),zIndexOffset:600}).bindPopup(csdPopup(c)));
+          sg.addLayer(L.marker([c.olat,c.olng],{pane:'hi',icon:logoIcon(c.logo,24),zIndexOffset:590}).bindPopup(csdPopup(c)));
+        });
+      }).catch(function(){});
+      return;
     }
     var g=L.layerGroup();OV[d.id]=g;if(d.on)g.addTo(map);
     fetch(d.src).then(function(r){return r.json();}).then(function(gj){
@@ -612,6 +627,7 @@ function subBullets(routes,sz){
     return '<span class="mtab" style="width:'+sz+'px;height:'+sz+'px;background:'+bg+';color:'+fg+';font-size:'+(sz*0.62)+'px">'+esc(r.toUpperCase())+'</span>';
   }).join('');
 }
+var CSDCOL={'13':{main:'#6599cd',accent:'#7eb24c'},'15':{main:'#4a5dc2',accent:'#1b237e'}};
 var CSD=[
   {d:'15',logo:'/assets/map-icons/csd15.png',
    lat:40.676564,lng:-74.000880,
