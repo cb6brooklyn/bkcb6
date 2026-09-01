@@ -67,6 +67,8 @@
 .ovgh{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:0 0 6px}
 .ovgr{display:flex;gap:6px;flex-wrap:wrap}
 #mapToolsTop{max-height:96px;overflow-y:auto}
+.blkt{background:#0d1b4b;color:#fff;border:none;border-radius:7px;padding:4px 10px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;box-shadow:0 2px 6px rgba(13,27,75,.35)}
+.blkt:before{display:none}
 .cb6lab{background:#0d1b4b;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-family:'DM Mono',monospace;font-size:.6rem;letter-spacing:.09em;font-weight:700;box-shadow:0 1px 4px rgba(13,27,75,.4)}
 .cb6lab:before{display:none}
 .itemspanel{position:absolute;left:10px;top:10px;z-index:950;background:rgba(255,255,255,.97);border:1.5px solid var(--border);border-radius:12px;width:228px;max-height:calc(100% - 90px);display:flex;flex-direction:column;box-shadow:0 3px 10px rgba(13,27,75,.22)}
@@ -261,6 +263,7 @@ var MPD_LAT=111320, MPD_LON=84400;
 var BKIDX=null;
 var NET=null, LAY=null, map=null, base=null;
 var stLayer=null, hiLayer=null, bufLayer=null, ptLayer=null, pin=null, cbLayer=null;
+var blkLayer=null;
 var mode='street', reach=75, pinReach=150;
 var sel=null; // {kind:'street'|'addr'|'pin', geom:[[lon,lat]...] or point, label, sub}
 var live={n311:null,crime:null,arrests:null,tix:null,lots:null,hist:null};
@@ -371,8 +374,9 @@ function blockLinks(){
 // ---------- map ----------
 var OV={};
 var OVDEF=[
-  {id:'zoning',label:'Zoning',sw:'#f59e0b',on:true,src:'/data/cb6-zoning-clipped.geojson',style:function(f){var c=f.properties.color||'#999';return {color:c,weight:.8,opacity:.6,fillColor:c,fillOpacity:.16};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.zone)+'</div><div class="ps">'+esc(p.family_label||'')+(p.description?'. '+esc(p.description):'')+'</div><div class="pl">Zoning district</div></div>';}},
-  {id:'historic',label:'Historic districts',sw:'#9b2226',on:true,src:'/data/cb6-historic-clipped.geojson',style:function(){return {color:'#9b2226',weight:1.5,dashArray:'5 3',fillColor:'#9b2226',fillOpacity:.10};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.area_name)+'</div><div class="ps">'+esc(p.lp_number||'')+' · '+esc(p.status_of_||'')+'</div><div class="pl">LPC historic district</div></div>';}},
+  {id:'blocks',label:'Every block (hover and tap)',sw:'#0d1b4b',on:true,custom:true},
+  {id:'zoning',label:'Zoning',sw:'#f59e0b',on:false,src:'/data/cb6-zoning-clipped.geojson',style:function(f){var c=f.properties.color||'#999';return {color:c,weight:.8,opacity:.6,fillColor:c,fillOpacity:.16};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.zone)+'</div><div class="ps">'+esc(p.family_label||'')+(p.description?'. '+esc(p.description):'')+'</div><div class="pl">Zoning district</div></div>';}},
+  {id:'historic',label:'Historic districts',sw:'#9b2226',on:false,src:'/data/cb6-historic-clipped.geojson',style:function(){return {color:'#9b2226',weight:1.5,dashArray:'5 3',fillColor:'#9b2226',fillOpacity:.10};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.area_name)+'</div><div class="ps">'+esc(p.lp_number||'')+' · '+esc(p.status_of_||'')+'</div><div class="pl">LPC historic district</div></div>';}},
   {id:'parks',label:'Parks',sw:'#2a8a3a',on:true,src:'/data/bkcb6-parks.geojson',style:function(){return {color:'#2a8a3a',weight:1,opacity:.7,fillColor:'#3fb35a',fillOpacity:.35};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.sign_name||p.name)+'</div><div class="ps">'+esc(p.type_category||'')+(p.acres?' · '+esc(p.acres)+' acres':'')+'</div><div class="pl">NYC Parks</div></div>';}},
   {id:'subway',label:'Subway lines',sw:'#EE352E',on:true,src:'/data/cb6-subway-routes.geojson',style:function(f){return {color:f.properties.color||'#333',weight:5,opacity:.85};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.name)+'</div><div class="pl">Subway route</div></div>';}},
   {id:'bike',label:'Bike lanes',sw:'#ff8c00',on:false,src:'/data/cb6-bike-routes.geojson',style:function(f){return {color:f.properties.line_color||'#ff8800',weight:3,opacity:.85};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.name)+'</div><div class="ps">'+esc(p.lane_type||'')+'</div><div class="pl">Bike route</div></div>';}},
@@ -457,6 +461,34 @@ function setDateQuick(q){
 function inCb6(lon,lat){var poly=CB6RING;if(!poly)return true;var inside=false,n=poly.length,j=n-1;for(var i=0;i<n;i++){var xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];if(((yi>lat)!==(yj>lat))&&(lon<(xj-xi)*(lat-yi)/(yj-yi)+xi))inside=!inside;j=i;}return inside;}
 function placeNbhd(list){list.forEach(function(n){if(n.b!=='Brooklyn'||!inCb6(n.x,n.y))return;
   nbLayer.addLayer(L.tooltip({permanent:true,direction:'center',className:'nbl',interactive:false}).setLatLng([n.y,n.x]).setContent(n.n));});}
+function buildBlockLayer(){
+  if(!NET||blkLayer)return;
+  blkLayer=L.layerGroup();
+  var st0={color:'#0d1b4b',weight:3,opacity:.32};
+  var hot={color:'#f47920',weight:6,opacity:.95};
+  NET.segs.forEach(function(sg){
+    if(!sg.g||sg.g.length<2)return;
+    var pl=L.polyline(sg.g.map(function(p){return [p[1],p[0]];}),st0);
+    pl.on('mouseover',function(){
+      pl.setStyle(hot);pl.bringToFront();
+      var b=BKIDX&&BKIDX[sg.bk];
+      var lab=b?b.st+' between '+b.from+' and '+b.to:(NET.streets[sg.st]||'Block');
+      pl.bindTooltip(lab,{sticky:true,className:'blkt'}).openTooltip();
+    });
+    pl.on('mouseout',function(){pl.setStyle(st0);pl.closeTooltip();});
+    pl.on('click',function(ev){
+      var b=BKIDX&&BKIDX[sg.bk];if(!b)return;
+      var sti=NET.streets.indexOf(b.st);if(sti<0)return;
+      var s2=selectStretch(sti,b.from,b.to);if(!s2)return;
+      sel=s2;setMode('street');run();
+      if(ev&&ev.originalEvent)ev.originalEvent.stopPropagation();
+    });
+    blkLayer.addLayer(pl);
+  });
+  var d=OVDEF.filter(function(x){return x.id==='blocks';})[0];
+  OV['blocks']=blkLayer;
+  if(!d||d.on)blkLayer.addTo(map);
+}
 function buildOverlays(){
   fetch('/data/precinct-directory.json').then(function(r){return r.json();}).then(function(j){window.PCTDIR=j;}).catch(function(){});
   nbLayer=L.layerGroup().addTo(map);
@@ -464,6 +496,7 @@ function buildOverlays(){
   OVDEF.forEach(function(d){
     if(d.custom){
       if(d.id==='records'){OV[d.id]=ptLayer;return;}
+      if(d.id==='blocks'){if(blkLayer)OV[d.id]=blkLayer;return;}
       if(d.layer){OV[d.id]=L.layerGroup();return;}
       if(d.id==='edresults'){
         var eg=L.layerGroup();OV[d.id]=eg;
@@ -525,7 +558,7 @@ function buildOverlays(){
 }
 var OVGROUP={
   edresults:'Elections',
-  zoning:'Boundaries and land',historic:'Boundaries and land',parks:'Boundaries and land',
+  blocks:'Boundaries and land',zoning:'Boundaries and land',historic:'Boundaries and land',parks:'Boundaries and land',
   nycha:'Boundaries and land','park-sites':'Boundaries and land',
   subway:'Getting around',bike:'Getting around','all-subway':'Getting around',
   'all-citibike':'Getting around','all-asp':'Getting around',dsny:'Getting around',
@@ -674,6 +707,7 @@ function renderToggles(){
   });
 }
 var KEYLINES={
+  blocks:[{sw:'#0d1b4b',dash:false,t:'Every block, tap one to inspect it'}],
   schooldist:[{sw:'#6599cd',dash:true,t:'District 13 boundary'},{sw:'#4a5dc2',dash:true,t:'District 15 boundary'}],
   zoning:[{sw:'#7a6636',dash:false,t:'Zoning districts (CB6 only)'}],
   historic:[{sw:'#8a2b2b',dash:true,t:'Historic districts (CB6 only)'}],
@@ -1339,7 +1373,7 @@ function load(){
   initMap();wire();
   fetch('/assets/blocks/block-index.json').then(function(r){return r.json();}).then(function(j){BKIDX=j.blocks;if(sel)render(lastFound);}).catch(function(){});
   Promise.all([fetch('/assets/blocks/cb6-streets.json').then(function(r){return r.json();}),fetch('/assets/blocks/cb6-layers.json').then(function(r){return r.json();})]).then(function(res){
-    NET=res[0];LAY=res[1];buildIndex();fillStreets();
+    NET=res[0];LAY=res[1];buildIndex();fillStreets();buildBlockLayer();
     var n=0;LAY.layers.forEach(function(l){n+=l.n;});
     $('foot').innerHTML='Street centerline and cross streets from the NYC Department of Transportation centerline file ('+NET.streets.length+' streets in and around the district). '+
       'Site layers ('+fmt(n)+' records, rebuilt '+esc(LAY.generated)+'): liquor licenses, DOB NOW permits, DOT street work permits, DOT resurfacing history, permitted events, block parties, LPC landmark sites and permits, LIFT housing sites, health services, culture, food access, Park Slope 5th Avenue BID businesses, Citi Bike, subway, schools, childcare and pre-K, libraries, firehouses, poll sites, parks and farmers markets. '+
