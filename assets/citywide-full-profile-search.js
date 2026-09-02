@@ -1173,6 +1173,14 @@
     return out;
   }
   var NICKNAMES={
+    'KANE STREET SYNAGOGUE':'226 Kane Street',
+    'KANE ST SYNAGOGUE':'226 Kane Street',
+    'KANE STREET SHUL':'226 Kane Street',
+    'KANE ST SHUL':'226 Kane Street',
+    'BAITH ISRAEL ANSHEI EMES':'226 Kane Street',
+    'CONGREGATION BAITH ISRAEL ANSHEI EMES':'226 Kane Street',
+    '236 KANE STREET':'226 Kane Street',
+    '236 KANE ST':'226 Kane Street',
     'BMT':'Brooklyn Marine Terminal',
     'THE BMT':'Brooklyn Marine Terminal',
     'BROOKLYN MARINE':'Brooklyn Marine Terminal',
