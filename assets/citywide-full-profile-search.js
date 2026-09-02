@@ -2346,7 +2346,7 @@
      links:[
        {url:'https://zoom.us/webinar/register/WN_1EevxISzQtqRMJ--qbVzvg',text:'Register on Zoom \u2197'},
        {url:'https://drive.google.com/file/d/1LXszKKbwOaLc1-bpgNKLZa_R2Z8qy2rC/view?usp=drivesdk',text:'View the presentation \u2197'},
-       {url:'https://docs.google.com/forms/d/e/1FAIpQLSeC0-6VCCmfqeOrIn_enus0qe6azIedp8B8iUa8PaTpAQpXCQ/viewform',text:'Comment form \u2197'},
+       {url:'https://docs.google.com/forms/d/e/1FAIpQLSeiRFirGoa1GEsuMt7PPr-ltrxsEsijtWdDrusjpJFBJp92zQ/viewform',text:'Comment form \u2197'},
        {url:'https://bkcb6.app/event-2026-09-03-landmarks.html',text:'Event page with map \u2197'}
      ],
      expires:'2026-09-04T04:00:00Z'}
