@@ -2330,6 +2330,42 @@
     }
     head.parentNode.insertBefore(d, head.nextSibling);
   }
+  /* ---------- upcoming meeting announcements (self-expiring, BBL match) ---------- */
+  var AGENDA=[
+    {bbl:'3003260028',addr:'226 Kane Street',
+     title:'On the CB6 Landmarks, Land Use & Housing Committee agenda: Thu Sept 3, 2026 at 6:30pm on Zoom',
+     desc:'226 Kane Street (Kane Street Synagogue), Cobble Hill Historic District: application to the NYC Landmarks Preservation Commission for a Certificate of Appropriateness for a rooftop alteration and primary facade window (LPC-26-12518).',
+     links:[
+       {url:'https://zoom.us/webinar/register/WN_1EevxISzQtqRMJ--qbVzvg',text:'Register on Zoom \u2197'},
+       {url:'https://drive.google.com/file/d/1LXszKKbwOaLc1-bpgNKLZa_R2Z8qy2rC/view?usp=drivesdk',text:'View the presentation \u2197'},
+       {url:'https://bkcb6.app/event-2026-09-03-landmarks.html',text:'Event page with map \u2197'}
+     ],
+     expires:'2026-09-04T04:00:00Z'}
+  ];
+  function agendaFor(bbl,input){
+    var now=Date.now(), safe=normalizeBbl(bbl), q=String(input||'').toUpperCase();
+    for(var i=0;i<AGENDA.length;i++){var a=AGENDA[i];
+      if(now>=Date.parse(a.expires)) continue;
+      if(safe&&safe===a.bbl) return a;
+      if(q&&q.indexOf(a.addr.toUpperCase())===0) return a;
+    }
+    return null;
+  }
+  function injectAgendaBanner(result,profile){
+    try{
+      var a=agendaFor(profile&&((profile.address&&profile.address.bbl)||(profile.pluto&&profile.pluto.bbl)),profile&&profile.input);
+      if(!a) return;
+      var card=result.querySelector('[data-cardtop]'); if(!card) return;
+      var html='<div data-agenda style="background:#f47920;color:#fff;padding:14px 16px;border-radius:7px;border-bottom:4px solid #0d1b4b;margin:0 0 12px">'+
+        '<div style="font-size:1rem;font-weight:700;line-height:1.3">'+esc(a.title)+'</div>'+
+        '<div style="font-size:.9rem;line-height:1.45;margin-top:6px">'+esc(a.desc)+'</div>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">'+a.links.map(function(l,i){
+          return '<a href="'+l.url+'" target="_blank" rel="noopener" style="display:inline-block;padding:7px 12px;border-radius:6px;font-size:.85rem;font-weight:700;text-decoration:none;border:2px solid #fff;'+(i?'color:#fff;background:transparent':'color:#0d1b4b;background:#fff')+'">'+esc(l.text)+'</a>';
+        }).join('')+'</div></div>';
+      card.insertAdjacentHTML('afterbegin',html);
+    }catch(e){}
+  }
+
   function injectLiftBadge(result,address){
     if(!result || result.querySelector('.lift-badge')) return;
     var m=result.querySelector('.citywide-result-map');
@@ -2986,7 +3022,7 @@
         }
         if(status) status.textContent='Searching full '+(boroughName||'citywide')+' address profile…';
         result.hidden=true; result.innerHTML='';
-        try{var profile=await build(q,{boroughName:boroughName,shortLabel:boroughName}); result.innerHTML=profile.html; try{ if(typeof window.__bkcbPickMapGoTo==='function') window.__bkcbPickMapGoTo(profile.lat,profile.lng,q); }catch(e){} result.hidden=false; initResultMap(result); bindShare(result); injectCardBar(result); injectSiteNote(result); injectLiftBadge(result,q); injectAliasLine(result,LAST_PLACE,q); bindZoneLink(result); bindPdf(result,profile); stampUrl(q); if(status) status.textContent=profile.status || 'Search complete.'; try{ setTimeout(function(){ var t=result.querySelector('[data-cardtop]')||result; t.scrollIntoView({block:'start',behavior:'smooth'}); },60); }catch(e){}}catch(err){console.error(err); if(status) status.textContent=err&&err.message?err.message:'Address lookup failed. Please try a full NYC street address.'; result.hidden=true; result.innerHTML='';}
+        try{var profile=await build(q,{boroughName:boroughName,shortLabel:boroughName}); result.innerHTML=profile.html; try{ if(typeof window.__bkcbPickMapGoTo==='function') window.__bkcbPickMapGoTo(profile.lat,profile.lng,q); }catch(e){} result.hidden=false; initResultMap(result); bindShare(result); injectCardBar(result); injectSiteNote(result); injectAgendaBanner(result,profile); injectLiftBadge(result,q); injectAliasLine(result,LAST_PLACE,q); bindZoneLink(result); bindPdf(result,profile); stampUrl(q); if(status) status.textContent=profile.status || 'Search complete.'; try{ setTimeout(function(){ var t=result.querySelector('[data-cardtop]')||result; t.scrollIntoView({block:'start',behavior:'smooth'}); },60); }catch(e){}}catch(err){console.error(err); if(status) status.textContent=err&&err.message?err.message:'Address lookup failed. Please try a full NYC street address.'; result.hidden=true; result.innerHTML='';}
       }
       input.dataset.fullProfileBound='true';
       if(button && button.dataset.fullProfileBound!=='true'){button.dataset.fullProfileBound='true'; button.addEventListener('click', function(e){e.preventDefault(); e.stopImmediatePropagation(); runFull();}, true);}
