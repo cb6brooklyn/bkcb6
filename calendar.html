@@ -333,7 +333,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
       <button class="cat-pill" data-cat="parks" onclick="setCat(this,'parks')">Parks</button>
       <button class="cat-pill" data-cat="community" onclick="setCat(this,'community')">Community</button>
     </div>
-    <select class="list-filter" id="list-org-filter" onchange="renderList()">
+    <select class="list-filter" id="list-org-filter" onchange="renderList();renderMonth()">
       <option value="">All organizations</option>
       <option value="board">CB6 Full Board</option>
       <option value="committee">CB6 Committee</option>
@@ -1936,6 +1936,7 @@ function filterByOrg(type, e){
   if(rangeFilter) clearRange();
   setView('list');
   renderList();
+  renderMonth();
   // "All of this org's events" means all of them: if nothing is upcoming, open
   // the past list straight away rather than landing the user on an empty screen.
   const body = document.getElementById('list-body');
@@ -2107,22 +2108,20 @@ function applyInitialResponsiveView(){
     const p = new URLSearchParams(window.location.search);
     hasUrlFilter = !!(p.get('org') || p.get('cat'));
   } catch(e){}
-  if(isMobile){
-    // Mobile: list view, CB6 filter active by default (unless URL says otherwise)
-    if(!hasUrlFilter){
-      const cb6Pill = document.querySelector('.cat-pill[data-cat="cb6"]');
-      if(cb6Pill){
-        document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
-        cb6Pill.classList.add('active');
-        const sel = document.getElementById('list-org-filter');
-        if(sel) sel.value = '';
-      }
+  // CB6 is what the site is for, so it is the default filter everywhere.
+  // Everything else stays one tap away: the other category pills, the org
+  // dropdown, and the government calendars in the Add calendars panel.
+  if(!hasUrlFilter){
+    const cb6Pill = document.querySelector('.cat-pill[data-cat="cb6"]');
+    if(cb6Pill){
+      document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
+      cb6Pill.classList.add('active');
+      const sel = document.getElementById('list-org-filter');
+      if(sel) sel.value = '';
     }
-    setView('list');
-  } else {
-    // Desktop: calendar view by default
-    setView('cal');
   }
+  // Mobile opens as a list, desktop as the month grid, as before.
+  setView(isMobile ? 'list' : 'cal');
 }
 
 function setCat(btn, cat){
@@ -2130,6 +2129,7 @@ function setCat(btn, cat){
   btn.classList.add('active');
   document.getElementById('list-org-filter').value = '';
   renderList();
+  renderMonth();
 }
 
 const ORG_ICONS = {
@@ -2172,18 +2172,20 @@ const ORG_ICONS = {
 
 const MONTHS_SHORT2 = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-function renderList(){
-  const q = (document.getElementById('list-search').value||'').toLowerCase();
-  const org = document.getElementById('list-org-filter').value;
-  const cat = (document.getElementById('cat-filter-row').querySelector('.cat-pill.active')||{}).dataset?.cat || '';
-  const CAT_TYPES = {
+// Category map, shared by the list and the month grid.
+const CAT_TYPES = {
     cb6:       new Set(['board','committee']),
     arts:      new Set(['bkcm','powerhouse','bric','bricarts','artsgowanus','vanalen','jalopy','osh','bkpride','sss','nitehawk','rhba','rhap','whynotart','dredgers','pioneer works','pioneerworks','porchstomp','booksaremagic','wytchonymous','hookarts','portside','recordshop','rooftopfilms','fortdefiance']),
     food:      new Set(['dte','rhlp','principles','green615','strongrope','housepepper']),
     civic:     new Set(['lpc','dcp','nyccouncil','aviles','gounardes','simon','bkcbs','hearing','bpall','deadline','gotf','bkbp','nycvotes','hpd','rgb','pct76','pct78','fac','rhjc','gcc','cobblehill','cga','aaldc','ps5bid','psos','swbtu','rhi','fofa','cec15','dsny','niyn','rrh','nycdot','dep','cuffh','cswa','mta','bmtdc','mayorsoffice','psccivic','sbdsa','duboisbunche']),
     parks:     new Set(['prospect','bbp','nycparks','bbg','birdcollective']),
     community: new Set(['bpl','psos','barkslope','school','ps15','bikebus','bergenbikebus','secretgarden','brooklynpopup','soccer','altside','ulurp','fof','niyn','rrh','dsny','rhba','pacemakers','streetlab']),
-  };
+};
+
+function renderList(){
+  const q = (document.getElementById('list-search').value||'').toLowerCase();
+  const org = document.getElementById('list-org-filter').value;
+  const cat = (document.getElementById('cat-filter-row').querySelector('.cat-pill.active')||{}).dataset?.cat || '';
   const all = [];
   Object.entries(EVENTS).forEach(([dateKey, evs])=>{
     evs.forEach(ev=>{
@@ -2540,8 +2542,14 @@ function cell(d, key, other, today, weekend){
     if(hasBoard) cls += ' board-day';
     else if(hasCommittee) cls += ' committee-day';
   }
+  const catEl = document.querySelector('#cat-filter-row .cat-pill.active');
+  const activeCat = catEl ? (catEl.dataset.cat || '') : '';
+  const orgSel = document.getElementById('list-org-filter');
+  const activeOrgFilter = orgSel ? (orgSel.value || '') : '';
   const dedupedEvs = evs.filter(ev => {
     if(hiddenTypes.has(ev.type)) return false;
+    if(activeOrgFilter && ev.type !== activeOrgFilter) return false;
+    if(activeCat && CAT_TYPES[activeCat] && !CAT_TYPES[activeCat].has(ev.type)) return false;
     if(ev._civic && !civicOn.has(ev._civic)) return false;
     if(entityFilter && ev._entity !== entityFilter) return false;
     return true;
