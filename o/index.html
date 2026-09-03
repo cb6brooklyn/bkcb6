@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Organizations on the CB6 Calendar &mdash; bkcb6.app</title>
+<meta name="description" content="Every organization, agency and elected office with events on the Brooklyn Community Board 6 community calendar. Each one has a profile page listing its own events.">
+<link rel="canonical" href="https://bkcb6.app/o/">
+<meta property="og:site_name" content="Brooklyn Community Board 6"><meta property="og:type" content="website">
+<meta property="og:title" content="Organizations on the CB6 Calendar">
+<meta property="og:description" content="Every organization, agency and elected office with events on the Brooklyn Community Board 6 community calendar.">
+<meta property="og:url" content="https://bkcb6.app/o/">
+<meta property="og:image" content="https://bkcb6.app/og-image.png">
+<meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1080"><meta property="og:image:height" content="1080">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Organizations on the CB6 Calendar">
+<meta name="twitter:description" content="Every organization, agency and elected office with events on the Brooklyn Community Board 6 community calendar.">
+<meta name="twitter:image" content="https://bkcb6.app/og-image.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500;700&family=DM+Sans:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/place-profile.css?v=1">
+<link rel="stylesheet" href="/assets/org-events.css?v=1">
+<style>
+.tools{position:sticky;top:0;z-index:6;background:#fff;border-bottom:1px solid var(--border);padding:10px 12px}
+.tools input{width:100%;font-family:'DM Sans',sans-serif;font-size:.9rem;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;color:var(--navy)}
+.tools input:focus{outline:none;border-color:var(--orange)}
+.filters{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.fil{font-family:'DM Mono',monospace;font-size:.6rem;font-weight:500;letter-spacing:.05em;text-transform:uppercase;
+ background:#fff;border:1.5px solid var(--border);color:var(--muted);border-radius:999px;padding:6px 11px;cursor:pointer}
+.fil.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.grp{border-top:1px solid var(--border)}
+.ghead{display:flex;align-items:center;gap:9px;padding:13px 12px 8px;font-family:'DM Mono',monospace}
+.gname{flex:1;font-size:.66rem;text-transform:uppercase;letter-spacing:.11em;color:var(--navy);font-weight:500}
+.gcount{font-size:.7rem;font-weight:700;color:var(--orange)}
+.rows{list-style:none;padding:0 12px 12px}
+.row{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:7px;
+ background:#fff;padding:9px 11px;text-decoration:none}
+.row:hover{border-color:var(--orange)}
+.row img{width:40px;height:40px;border-radius:7px;object-fit:cover;background:#fff;flex:none}
+.row .em{width:40px;height:40px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex:none}
+.rtx{flex:1;min-width:0}
+.rnm{font-size:.88rem;font-weight:800;color:var(--navy);line-height:1.3}
+.rct{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);line-height:1.5;margin-top:2px}
+.rnext{color:var(--navy);font-weight:700}
+.rarr{flex:none;color:var(--orange);font-weight:900;font-size:1rem}
+.none{padding:16px 12px;font-size:.85rem;color:var(--muted)}
+@media(max-width:560px){.row img,.row .em{width:34px;height:34px}.rnm{font-size:.82rem}}
+</style>
+</head><body>
+<div class="pwrap">
+  <div class="phead">
+    <div class="pcrumb"><a href="/" style="color:inherit">bkcb6.app</a> &middot; <a href="/calendar.html" style="color:inherit">Community calendar</a></div>
+    <h1>Who&rsquo;s on the <span style="color:var(--orange)">calendar</span></h1>
+    <div class="pseat" id="total">Loading&hellip;</div>
+  </div>
+  <div class="intro"><p>Every organization, agency, park, precinct and elected office with events on the CB6 community calendar. Each one has its own page listing what it has coming up and what it has already held.</p></div>
+
+  <div class="tools">
+    <input id="q" type="search" placeholder="Search an organization" autocomplete="off">
+    <div class="filters" id="fils"></div>
+  </div>
+  <div class="none" id="none" hidden>Nothing matches that.</div>
+  <div id="groups"></div>
+
+  <div class="pfoot">Counts are read live from the community calendar, so this directory always matches what the calendar shows.<br>
+  <a href="/calendar.html">Community calendar</a> &middot; <a href="/orgs">Community organizations</a> &middot; <a href="/">bkcb6.app</a></div>
+</div>
+
+<script>
+(function(){
+  var bust = '?_=' + Math.floor(Date.now() / 60000);
+  var GROUPS = [
+    ['cb6','Community Board 6'], ['civic','Government and civic'], ['arts','Arts and culture'],
+    ['parks','Parks and open space'], ['food','Food and drink'], ['community','Community life'],
+    ['other','Everything else']
+  ];
+  var CIVIC_FILE = { nyccouncil:'council', bkcbs:'brooklyn-cbs', bpall:'bp', hearing:'hearings', deadline:'hearings' };
+
+  function esc(s){ return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function literal(src, opener, closer){
+    var i = src.indexOf(opener); if(i === -1) return null;
+    var j = src.indexOf(closer, i); if(j === -1) return null;
+    try { return (new Function('return ' + src.slice(i + opener.length - 1, j + closer.length)))(); }
+    catch(e){ return null; }
+  }
+  function todayKey(){
+    var n = new Date(), p = function(x){ return String(x).padStart(2,'0'); };
+    return n.getFullYear() + '-' + p(n.getMonth()+1) + '-' + p(n.getDate());
+  }
+
+  var ITEMS = [], activeCat = '';
+
+  function render(){
+    var q = (document.getElementById('q').value || '').toLowerCase().trim();
+    var wrap = document.getElementById('groups');
+    var shown = ITEMS.filter(function(it){
+      if(activeCat && it.cat !== activeCat) return false;
+      if(q && it.name.toLowerCase().indexOf(q) === -1 && it.slug.indexOf(q) === -1) return false;
+      return true;
+    });
+    document.getElementById('none').hidden = shown.length > 0;
+    var html = '';
+    GROUPS.forEach(function(g){
+      var list = shown.filter(function(it){ return it.cat === g[0]; });
+      if(!list.length) return;
+      html += '<div class="grp"><div class="ghead"><span class="gname">' + esc(g[1]) +
+        '</span><span class="gcount">' + list.length + '</span></div><ul class="rows">' +
+        list.map(function(it){
+          var mark = it.logo
+            ? '<img src="/' + esc(it.logo) + '" alt="" loading="lazy" style="border-radius:' + it.round + '">'
+            : '<span class="em" style="background:' + esc(it.bg) + ';color:' + esc(it.color) + '">' + it.icon + '</span>';
+          var line = it.total
+            ? (it.upcoming
+                ? '<span class="rnext">' + it.upcoming + ' upcoming</span> &middot; ' + it.total + ' in all'
+                : it.total + (it.total === 1 ? ' past listing' : ' past listings'))
+            : 'No listings yet';
+          return '<li><a class="row" href="/o/' + esc(it.slug) + '.html">' + mark +
+            '<span class="rtx"><span class="rnm">' + esc(it.name) + '</span>' +
+            '<span class="rct">' + line + '</span></span><span class="rarr">&rsaquo;</span></a></li>';
+        }).join('') + '</ul></div>';
+    });
+    wrap.innerHTML = html;
+  }
+
+  function buildFilters(){
+    var fils = document.getElementById('fils');
+    var present = GROUPS.filter(function(g){ return ITEMS.some(function(it){ return it.cat === g[0]; }); });
+    fils.innerHTML = '<button class="fil on" data-c="">All</button>' +
+      present.map(function(g){ return '<button class="fil" data-c="' + g[0] + '">' + esc(g[1]) + '</button>'; }).join('');
+    fils.addEventListener('click', function(e){
+      var b = e.target.closest('.fil'); if(!b) return;
+      activeCat = b.dataset.c;
+      Array.prototype.forEach.call(fils.querySelectorAll('.fil'), function(x){ x.classList.toggle('on', x === b); });
+      render();
+    });
+  }
+
+  Promise.all([
+    fetch('/calendar.html' + bust).then(function(r){ return r.ok ? r.text() : ''; }).catch(function(){ return ''; }),
+    fetch('/data/calendar-events.json' + bust).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }),
+    Promise.all(['council','brooklyn-cbs','bp','hearings'].map(function(f){
+      return fetch('/data/civic-calendar/' + f + '.json' + bust)
+        .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
+        .then(function(j){ return [f, j]; });
+    }))
+  ]).then(function(res){
+    var src = res[0], live = res[1];
+    var civic = {}; res[2].forEach(function(p){ civic[p[0]] = p[1]; });
+    if(!src){ document.getElementById('total').textContent = 'The calendar could not be read from here.'; return; }
+
+    var ORG_ICONS = literal(src, 'const ORG_ICONS = {', '\n};') || {};
+    var TYPES     = literal(src, 'const TYPES = {', '\n};') || {};
+    var CAT_TYPES = literal(src, 'const CAT_TYPES = {', '\n};') || {};
+    var EVENTS    = literal(src, 'const EVENTS = {', '\n};') || {};
+
+    // Names come from the calendar's own organization filter.
+    var NAMES = {};
+    var sel = src.match(/id="list-org-filter"[\s\S]*?<\/select>/);
+    if(sel){
+      var re = /<option value="([^"]+)"[^>]*>([\s\S]*?)<\/option>/g, m;
+      while((m = re.exec(sel[0]))) if(!NAMES[m[1]]) NAMES[m[1]] = m[2].replace(/\s+/g,' ').trim();
+    }
+    NAMES.nycdot = NAMES.nycdot || 'NYC DOT';
+    NAMES.knicks = NAMES.knicks || 'New York Knicks';
+
+    // Merge exactly the way the profile pages do, then count off the merged
+    // set, so a directory number can never disagree with the page it links to.
+    var norm = function(s){ return (s||'').replace(/\s+/g,' ').trim().toLowerCase(); };
+    var supSet = new Set(literal(src, 'const SUPPRESSED_LIVE = new Set([', '\n]);') || []);
+    if(live && Array.isArray(live.events)) live.events.forEach(function(ev){
+      if(!ev || !ev.date) return;
+      if(supSet.has(ev.date + '|' + (ev.label||'').replace(/\s+/g,' ').trim())) return;
+      if(typeof ev.label === 'string' && /^Early Voting\s+\u2014/.test(ev.label)) return;
+      if(!EVENTS[ev.date]) EVENTS[ev.date] = [];
+      var day = EVENTS[ev.date];
+      if(day.some(function(e){ return e._hardcoded && norm(e.label) === norm(ev.label); })) return;
+      var idx = day.findIndex(function(e){ return e.type === ev.type && e._hardcoded; });
+      if(idx !== -1) day[idx] = ev;
+      else if(!day.some(function(e){ return e.type === ev.type && !e._hardcoded; })) day.push(ev);
+    });
+    function civicAdd(key, ev){
+      if(!key) return;
+      if(!EVENTS[key]) EVENTS[key] = [];
+      if(EVENTS[key].some(function(e){ return norm(e.label) === norm(ev.label) && e.type === ev.type; })) return;
+      EVENTS[key].push(ev);
+    }
+    var cc = civic['council'];
+    if(cc && cc.events) Object.keys(cc.events).forEach(function(d){
+      cc.events[d].forEach(function(e){ civicAdd(d, { type:'nyccouncil', label:'NYC Council: ' + e.label }); }); });
+    var cb = civic['brooklyn-cbs'];
+    if(cb && cb.boards) Object.keys(cb.boards).forEach(function(k){
+      var b = cb.boards[k];
+      (b.events || []).forEach(function(e){ civicAdd(e.date, { type:'bkcbs', label:'Brooklyn CB' + b.cb + ': ' + e.label }); }); });
+    var bp = civic['bp'];
+    if(bp && bp.boroughs) Object.keys(bp.boroughs).forEach(function(k){
+      (bp.boroughs[k].events || []).forEach(function(e){ civicAdd(e.date, { type:'bpall', label:e.borough + ' BP: ' + e.label }); }); });
+    var hr = civic['hearings'];
+    if(hr && hr.events) Object.keys(hr.events).forEach(function(d){
+      hr.events[d].forEach(function(e){
+        var kind = (e.kind || 'hearing') === 'comment-deadline' ? 'deadline' : 'hearing';
+        civicAdd(d, { type:kind, label:e.agency + ': ' + e.label });
+      }); });
+
+    var counts = {}, today = todayKey();
+    Object.keys(EVENTS).forEach(function(k){
+      var seenDay = {};
+      (EVENTS[k] || []).forEach(function(ev){
+        if(!ev || !ev.label || !ev.type) return;
+        var dk = ev.type + '|' + norm(ev.label);
+        if(seenDay[dk]) return;
+        seenDay[dk] = 1;
+        var c = counts[ev.type] || (counts[ev.type] = { total:0, upcoming:0 });
+        c.total++; if(k >= today) c.upcoming++;
+      });
+    });
+
+    var catOrder = Object.keys(CAT_TYPES);
+    function catOf(slug){
+      for(var i = 0; i < catOrder.length; i++){
+        var s = CAT_TYPES[catOrder[i]];
+        if(s && typeof s.has === 'function' && s.has(slug)) return catOrder[i];
+      }
+      return 'other';
+    }
+
+    var slugs = Object.keys(NAMES).concat(Object.keys(counts));
+    var seen = {};
+    slugs.forEach(function(slug){
+      if(seen[slug]) return; seen[slug] = 1;
+      var t = TYPES[slug] || TYPES.community || { bg:'#2d6a4f', color:'#fff', icon:'\u2022' };
+      var c = counts[slug] || { total:0, upcoming:0 };
+      ITEMS.push({
+        slug: slug, name: NAMES[slug] || slug, cat: catOf(slug),
+        logo: ORG_ICONS[slug] || null, bg: t.bg, color: t.color, icon: t.icon,
+        round: (slug === 'principles' || slug === 'artichoke' || slug === 'nycvotes') ? '50%' : '7px',
+        total: c.total, upcoming: c.upcoming
+      });
+    });
+    ITEMS.sort(function(a,b){ return b.upcoming - a.upcoming || b.total - a.total || a.name.localeCompare(b.name); });
+
+    document.getElementById('total').textContent =
+      ITEMS.length + ' organizations, agencies and offices on the CB6 community calendar';
+    buildFilters();
+    render();
+    document.getElementById('q').addEventListener('input', render);
+  }).catch(function(){
+    document.getElementById('total').textContent = 'The calendar could not be read from here.';
+  });
+})();
+</script>
+</body></html>
