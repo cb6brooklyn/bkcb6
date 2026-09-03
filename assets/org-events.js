@@ -115,6 +115,7 @@
   }
 
   function fail(msg){
+    if(!document.getElementById('o-upcoming')) return;
     document.getElementById('o-upcoming').innerHTML =
       '<div class="oempty">' + esc(msg) + ' <a href="/calendar.html?org=' +
       encodeURIComponent(window.ORG) + '">Open this organization on the calendar</a>.</div>';
@@ -180,6 +181,66 @@
     }
   }
 
+  // Every profile links on to its neighbours, so the set is walkable without
+  // going back to the directory: previous/next alphabetically, plus the other
+  // organizations the calendar files under the same category.
+  function renderNav(src){
+    var host = document.getElementById('o-nav');
+    if(!host || !src) return;
+    var ORG_ICONS = literal(src, 'const ORG_ICONS = {', '\n};') || {};
+    var CAT_TYPES = literal(src, 'const CAT_TYPES = {', '\n};') || {};
+    var NAMES = {};
+    var sel = src.match(/id="list-org-filter"[\s\S]*?<\/select>/);
+    if(sel){
+      var re = /<option value="([^"]+)"[^>]*>([\s\S]*?)<\/option>/g, m;
+      while((m = re.exec(sel[0]))) if(!NAMES[m[1]]) NAMES[m[1]] = m[2].replace(/\s+/g,' ').trim();
+    }
+    NAMES.nycdot = NAMES.nycdot || 'NYC DOT';
+    NAMES.knicks = NAMES.knicks || 'New York Knicks';
+    NAMES[window.ORG] = NAMES[window.ORG] || window.ORG_NAME;
+
+    var all = Object.keys(NAMES).sort(function(a,b){ return NAMES[a].localeCompare(NAMES[b]); });
+    var i = all.indexOf(window.ORG);
+    var prev = i > 0 ? all[i-1] : all[all.length-1];
+    var next = i > -1 && i < all.length-1 ? all[i+1] : all[0];
+
+    var cats = Object.keys(CAT_TYPES), mine = null;
+    for(var c = 0; c < cats.length; c++){
+      var s = CAT_TYPES[cats[c]];
+      if(s && typeof s.has === 'function' && s.has(window.ORG)){ mine = cats[c]; break; }
+    }
+    var CAT_LABEL = { cb6:'Community Board 6', arts:'Arts and culture', food:'Food and drink',
+                      civic:'Government and civic', parks:'Parks and open space', community:'Community life' };
+    var sibs = [];
+    if(mine){
+      sibs = all.filter(function(x){
+        return x !== window.ORG && CAT_TYPES[mine].has(x);
+      }).slice(0, 12);
+    }
+
+    function link(slug){
+      var logo = ORG_ICONS[slug];
+      return '<a class="onav-chip" href="/o/' + encodeURIComponent(slug) + '.html">' +
+        (logo ? '<img src="/' + esc(logo) + '" alt="" loading="lazy">' : '') +
+        esc(NAMES[slug] || slug) + '</a>';
+    }
+
+    var html = '<div class="onav-pn">' +
+      '<a class="onav-step" href="/o/' + encodeURIComponent(prev) + '.html">' +
+        '<span class="onav-dir">&lsaquo; Previous</span><span class="onav-nm">' + esc(NAMES[prev]) + '</span></a>' +
+      '<a class="onav-step onav-next" href="/o/' + encodeURIComponent(next) + '.html">' +
+        '<span class="onav-dir">Next &rsaquo;</span><span class="onav-nm">' + esc(NAMES[next]) + '</span></a>' +
+      '</div>';
+    if(sibs.length){
+      html += '<div class="onav-lbl">Also under ' + esc(CAT_LABEL[mine] || mine) + '</div>' +
+              '<div class="onav-row">' + sibs.map(link).join('') + '</div>';
+    }
+    html += '<div class="onav-row" style="margin-top:10px">' +
+      '<a class="onav-chip onav-all" href="/o/">All ' + all.length + ' organizations &rsaquo;</a>' +
+      '<a class="onav-chip onav-all" href="/calendar.html">Community calendar &rsaquo;</a></div>';
+    host.innerHTML = html;
+  }
+
   function boot(){
     var civicFile = CIVIC[window.ORG];
     Promise.all([
@@ -191,6 +252,7 @@
     ]).then(function(res){
       var src = res[0], live = res[1], civic = res[2];
       var EVENTS = src ? literal(src, 'const EVENTS = {', '\n};') : null;
+      renderNav(src);
       if(!EVENTS){ fail('The calendar could not be read from here.'); return; }
       var suppressed = (src ? literal(src, 'const SUPPRESSED_LIVE = new Set([', '\n]);') : null) || [];
       var supSet = new Set(suppressed);
