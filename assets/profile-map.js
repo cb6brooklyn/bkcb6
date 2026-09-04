@@ -136,6 +136,8 @@
     var district = String(el.getAttribute('data-district') || '');
     // a BID is not a chamber, so it names its own file and skips the sibling toggles
     var bidSlug = el.getAttribute('data-bid-slug') || '';
+    // a place profile is not a BID, but it wants the same zoning-on opening view
+    var startZoning = el.getAttribute('data-start-zoning') === '1';
     var self = bidSlug ? { label: 'BID', folder: 'bid', color: BID_LINE } : CHAMBERS[chamber];
     if (!self) return;
     // an address profile pins its own front door and opens on it, so the map
@@ -272,6 +274,7 @@
       }
     }).catch(function () {
       map.setView(hasPoint ? [ptLat, ptLng] : [40.70, -73.95], hasPoint ? ptZoom : 11);
+      startDefaults();
     });
 
     // ---- overlapping districts from the other two chambers, faint ----
@@ -577,7 +580,7 @@
     // On a BID page the boundary is a thin ribbon of frontage. Alone on a grey
     // basemap it says nothing, so the zoning underneath it starts switched on.
     function startDefaults() {
-      if (!bidSlug || startDefaults.done) return;
+      if ((!bidSlug && !startZoning) || startDefaults.done) return;
       startDefaults.done = true;
       setLayer('zoning', true);
     }

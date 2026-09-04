@@ -14,6 +14,8 @@ TYPE_LINE = {
 }
 BORO_LONG = {'Bronx': 'The Bronx', 'Brooklyn': 'Brooklyn', 'Manhattan': 'Manhattan',
              'Queens': 'Queens', 'Staten Island': 'Staten Island'}
+BORO_DIGIT = {'MN': '1', 'BX': '2', 'BK': '3', 'QN': '4', 'SI': '5'}
+CD_FILES = set(f[3:-8] for f in os.listdir('data/districts') if f.startswith('cb-') and f.endswith('.geojson'))
 CB_LONG = {'BX': 'The Bronx', 'BK': 'Brooklyn', 'MN': 'Manhattan',
            'QN': 'Queens', 'SI': 'Staten Island'}
 
@@ -78,6 +80,15 @@ def page(p):
                 'style="max-height:96px;max-width:min(100%%,320px);width:auto;display:block;'
                 'object-fit:contain;border-radius:6px"></div>') % (e(p['logo']), name)
 
+    # A handful of large parks carry a joint-interest-area code in `cd` that has
+    # no boundary file, so fall back to the board in `cb`, then to no boundary.
+    cd_code = str(p.get('cd') or '')
+    if cd_code not in CD_FILES:
+        m = re.match(r'([A-Z]{2})S?CB(\d+)', p.get('cb', '') or '')
+        cd_code = (BORO_DIGIT.get(m.group(1), '') + m.group(2).zfill(2)) if m else ''
+    if cd_code not in CD_FILES:
+        cd_code = ''
+
     mapsec = ''
     if p.get('lat') and p.get('lng'):
         icon_attr = ''
@@ -93,7 +104,8 @@ def page(p):
             '<div class="msearch"><input type="search" placeholder="Search an address to drop a pin" autocomplete="off">'
             '<button type="button">Find</button>'
             '<button type="button" class="mreset" data-map-reset>Reset</button></div>'
-            '<div class="pmap" id="map" data-profile-map data-point-lat="%(lat)s" data-point-lng="%(lng)s" '
+            '<div class="pmap" id="map" data-profile-map%(dist)s '
+            'data-start-zoning="1" data-point-lat="%(lat)s" data-point-lng="%(lng)s" '
             'data-point-zoom="17"%(icon)s></div>'
             '<div class="mstat" data-map-status></div>'
             '<button type="button" class="mtoggle" aria-expanded="false" data-map-toggle-btn>'
@@ -101,7 +113,8 @@ def page(p):
             '<div class="mtools" data-map-toggles hidden></div>'
             '<div class="mhint">Tap the map anywhere to drop a pin and open that lot.</div>'
             '</div></details></div>\n'
-        ) % dict(addr=addr, lat=p['lat'], lng=p['lng'], icon=icon_attr)
+        ) % dict(addr=addr, lat=p['lat'], lng=p['lng'], icon=icon_attr,
+                 dist=(' data-chamber="cb" data-district="%s"' % cd_code) if cd_code else '')
 
     cal_q = urllib.parse.quote(p['name'])
     events = (
@@ -140,7 +153,7 @@ def page(p):
 %(events)s  <div class="pfoot">Location and category from the culture dataset behind the bkcb6.app culture map. Zoning, land use and ownership come from the Department of City Planning and are shown on the lot page.<br>
   <a href="/culture-map.html">The culture map</a> &middot; <a href="/citywide-search.html">Search any address</a> &middot; <a href="/">bkcb6.app</a></div>
 </div>
-<script src="/assets/profile-map.js?v=20260830a"></script>
+<script src="/assets/profile-map.js?v=20260904a"></script>
 </body></html>""" % dict(name=name, desc=e(desc), slug=sl, icon=icon, boro=boro,
                          blurb=blurb, rows=''.join(rows), chips=''.join(chips), logo=logo,
                          events=events, mapsec=mapsec)
