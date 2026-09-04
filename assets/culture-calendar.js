@@ -22,12 +22,20 @@
     if(!host || !window.PLACE) return;
     Promise.all([
       fetch('/calendar.html' + bust).then(function(r){ return r.ok ? r.text() : ''; }).catch(function(){ return ''; }),
-      fetch('/data/calendar-events.json' + bust).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
+      fetch('/data/calendar-events.json' + bust).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }),
+      fetch('/data/culture-events.json' + bust).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
     ]).then(function(res){
-      var src = res[0], live = res[1];
+      var src = res[0], live = res[1], own = res[2];
+      // What the venue itself publishes, scraped from its own listings page.
+      var ownRows = [];
+      if(own && own[window.PLACE.name]) own[window.PLACE.name].forEach(function(e){
+        if(!e || !e.date || !e.title) return;
+        ownRows.push({ key: e.date, ev: { label: e.title, time: e.time || '',
+          location: window.PLACE.name, href: e.url || '', type: 'venue' } });
+      });
       var EVENTS = src ? literal(src, 'const EVENTS = {', '\n};') : null;
       if(!EVENTS){
-        window.renderProfileCalendar(host, [], { name: window.PLACE.name });
+        window.renderProfileCalendar(host, ownRows, { name: window.PLACE.name });
         return;
       }
       // Same merge the calendar itself applies to the daily overlay.
@@ -66,14 +74,20 @@
         });
       });
 
+      ownRows.forEach(function(r){
+        var k = r.key + '|' + norm(r.ev.label);
+        if(seen.has(k)) return;
+        seen.add(k); rows.push(r);
+      });
+
       window.renderProfileCalendar(host, rows, {
         name: window.PLACE.name,
         calendarHref: org ? ('/calendar.html?org=' + encodeURIComponent(org)) : '/calendar.html'
       });
       if(org){
         var more = document.getElementById('c-cal-more');
-        if(more) more.innerHTML = '<a class="chip hot" href="/o/' + encodeURIComponent(org) +
-          '.html">All ' + rows.length + ' listings on its page</a>';
+        if(more) more.insertAdjacentHTML('afterbegin', '<a class="chip" href="/o/' + encodeURIComponent(org) +
+          '.html">All ' + rows.length + ' listings on its page</a>');
       }
     }).catch(function(){
       window.renderProfileCalendar(host, [], { name: window.PLACE.name });
