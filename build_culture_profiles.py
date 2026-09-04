@@ -15,6 +15,7 @@ TYPE_LINE = {
 BORO_LONG = {'Bronx': 'The Bronx', 'Brooklyn': 'Brooklyn', 'Manhattan': 'Manhattan',
              'Queens': 'Queens', 'Staten Island': 'Staten Island'}
 BORO_DIGIT = {'MN': '1', 'BX': '2', 'BK': '3', 'QN': '4', 'SI': '5'}
+EVENT_URLS = json.load(open('data/culture-event-urls.json'))
 CD_FILES = set(f[3:-8] for f in os.listdir('data/districts') if f.startswith('cb-') and f.endswith('.geojson'))
 CB_LONG = {'BX': 'The Bronx', 'BK': 'Brooklyn', 'MN': 'Manhattan',
            'QN': 'Queens', 'SI': 'Staten Island'}
@@ -117,6 +118,9 @@ def page(p):
         ) % dict(addr=addr, lat=p['lat'], lng=p['lng'], icon=icon_attr,
                  dist=(' data-chamber="cb" data-district="%s"' % cd_code) if cd_code else '')
 
+    own_url = EVENT_URLS.get(p['name'], '')
+    own_chip = ('<a class="chip hot" href="%s" target="_blank" rel="noopener">'
+                'What is on at %s &#8599;</a>' % (e(own_url), name)) if own_url else ''
     cal_q = urllib.parse.quote(p['name'])
     # A live month calendar. assets/culture-calendar.js matches the place to
     # the community calendar, either as its own organization or by an event
@@ -124,11 +128,11 @@ def page(p):
     events = (
         '  <div class="sec"><h2>Calendar</h2>'
         '<div id="c-cal"></div>'
-        '<div class="chips" id="c-cal-more" style="margin-top:10px">'
+        '<div class="chips" id="c-cal-more" style="margin-top:10px">%(own)s'
         '<a class="chip" href="/calendar.html?q=%(q)s">Search the calendar for %(n)s</a>'
         '<a class="chip" href="/calendar.html">The full bkcb6.app calendar</a>'
         '</div></div>\n'
-    ) % dict(n=name, q=cal_q)
+    ) % dict(n=name, q=cal_q, own=own_chip)
 
     return """<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
