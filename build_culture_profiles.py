@@ -72,6 +72,7 @@ def page(p):
     if p.get('url'):
         chips.append('<a class="chip" href="%s" target="_blank" rel="noopener">Official site &#8599;</a>' % e(p['url']))
     chips.append('<a class="chip" href="/culture-map.html">The culture map</a>')
+    chips.append('<a class="chip" href="/o/">The directory</a>')
     chips.append('<a class="chip" href="/citywide-search.html">Search an address</a>')
 
     logo = ''
@@ -117,15 +118,16 @@ def page(p):
                  dist=(' data-chamber="cb" data-district="%s"' % cd_code) if cd_code else '')
 
     cal_q = urllib.parse.quote(p['name'])
+    # A live month calendar. assets/culture-calendar.js matches the place to
+    # the community calendar, either as its own organization or by an event
+    # naming it as the location, and fills the grid in.
     events = (
-        '  <div class="sec"><h2>Events</h2><div class="bio">'
-        '<p>Upcoming events at %(n)s, filtered out of the bkcb6.app calendar. '
-        'The calendar covers community board meetings, public hearings and neighbourhood '
-        'programming across the five boroughs.</p>'
-        '<div class="chips">'
-        '<a class="chip hot" href="/calendar.html?q=%(q)s">Events at %(n)s</a>'
+        '  <div class="sec"><h2>Calendar</h2>'
+        '<div id="c-cal"></div>'
+        '<div class="chips" id="c-cal-more" style="margin-top:10px">'
+        '<a class="chip" href="/calendar.html?q=%(q)s">Search the calendar for %(n)s</a>'
         '<a class="chip" href="/calendar.html">The full bkcb6.app calendar</a>'
-        '</div></div></div>\n'
+        '</div></div>\n'
     ) % dict(n=name, q=cal_q)
 
     return """<!DOCTYPE html>
@@ -140,21 +142,24 @@ def page(p):
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://bkcb6.app/og-culture.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>\n<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>\n<link rel="stylesheet" href="/assets/place-profile.css?v=2">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>\n<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>\n<link rel="stylesheet" href="/assets/place-profile.css?v=2">\n<link rel="stylesheet" href="/assets/org-events.css?v=1">\n<link rel="stylesheet" href="/assets/profile-calendar.css?v=1">
 </head><body>
 <div class="pwrap">
   <div class="phead">
-    <div class="pcrumb"><a href="/" style="color:inherit">bkcb6.app</a> &middot; <a href="/culture-map.html" style="color:inherit">Culture</a></div>
+    <div class="pcrumb"><a href="/" style="color:inherit">bkcb6.app</a> &middot; <a href="/culture-map.html" style="color:inherit">Culture</a> &middot; <a href="/o/" style="color:inherit">Directory</a></div>
     <h1>%(name)s</h1>
     <div class="pseat">%(icon)s &middot; %(boro)s</div>
   </div>
 %(logo)s%(mapsec)s  <div class="sec"><h2>What it is</h2><div class="bio"><p>%(blurb)s</p></div></div>
   <div class="sec"><h2>Details</h2><div class="bio"><ul class="kv">%(rows)s</ul><div class="chips">%(chips)s</div></div></div>
 %(events)s  <div class="pfoot">Location and category from the culture dataset behind the bkcb6.app culture map. Zoning, land use and ownership come from the Department of City Planning and are shown on the lot page.<br>
-  <a href="/culture-map.html">The culture map</a> &middot; <a href="/citywide-search.html">Search any address</a> &middot; <a href="/">bkcb6.app</a></div>
+  <a href="/culture-map.html">The culture map</a> &middot; <a href="/o/">The directory</a> &middot; <a href="/citywide-search.html">Search any address</a> &middot; <a href="/">bkcb6.app</a></div>
 </div>
 <script src="/assets/profile-map.js?v=20260904b"></script>
-</body></html>""" % dict(name=name, desc=e(desc), slug=sl, icon=icon, boro=boro,
+<script>window.PLACE={"name":%(namejs)s,"slug":"%(slug)s"};</script>
+<script src="/assets/profile-calendar.js?v=1"></script>
+<script src="/assets/culture-calendar.js?v=1"></script>
+</body></html>""" % dict(name=name, namejs=json.dumps(p['name']), desc=e(desc), slug=sl, icon=icon, boro=boro,
                          blurb=blurb, rows=''.join(rows), chips=''.join(chips), logo=logo,
                          events=events, mapsec=mapsec)
 

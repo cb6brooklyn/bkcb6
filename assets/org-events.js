@@ -270,6 +270,12 @@
         });
       });
       render(rows);
+      if(window.renderProfileCalendar){
+        window.renderProfileCalendar(document.getElementById('o-cal'), rows, {
+          name: window.ORG_NAME,
+          calendarHref: '/calendar.html?org=' + encodeURIComponent(window.ORG)
+        });
+      }
     }).catch(function(){ fail('The calendar could not be read from here.'); });
   }
 
