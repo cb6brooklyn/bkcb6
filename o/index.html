@@ -1,17 +1,17 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Organizations on the CB6 Calendar &mdash; bkcb6.app</title>
-<meta name="description" content="Every organization, agency and elected office with events on the Brooklyn Community Board 6 community calendar. Each one has a profile page listing its own events.">
+<title>Directory &mdash; Organizations and Culture &mdash; bkcb6.app</title>
+<meta name="description" content="Every organization with events on the Brooklyn Community Board 6 community calendar, plus every museum, theatre, library and landmark on the culture map. Each one has its own page.">
 <link rel="canonical" href="https://bkcb6.app/o/">
 <meta property="og:site_name" content="Brooklyn Community Board 6"><meta property="og:type" content="website">
-<meta property="og:title" content="Organizations on the CB6 Calendar">
-<meta property="og:description" content="Every organization, agency and elected office with events on the Brooklyn Community Board 6 community calendar.">
+<meta property="og:title" content="Directory &mdash; Organizations and Culture">
+<meta property="og:description" content="Every organization on the CB6 community calendar, plus every museum, theatre, library and landmark on the culture map.">
 <meta property="og:url" content="https://bkcb6.app/o/">
 <meta property="og:image" content="https://bkcb6.app/og-image.png">
 <meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1080"><meta property="og:image:height" content="1080">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Organizations on the CB6 Calendar">
-<meta name="twitter:description" content="Every organization, agency and elected office with events on the Brooklyn Community Board 6 community calendar.">
+<meta name="twitter:title" content="Directory &mdash; Organizations and Culture">
+<meta name="twitter:description" content="Every organization on the CB6 community calendar, plus every museum, theatre, library and landmark on the culture map.">
 <meta name="twitter:image" content="https://bkcb6.app/og-image.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500;700&family=DM+Sans:wght@400;500;700;800;900&display=swap" rel="stylesheet">
@@ -41,6 +41,7 @@
 .rnext{color:var(--navy);font-weight:700}
 .rarr{flex:none;color:var(--orange);font-weight:900;font-size:1rem}
 .none{padding:16px 12px;font-size:.85rem;color:var(--muted)}
+.showall{width:100%;margin:2px 0 6px;padding:9px 11px;cursor:pointer;background:#fff;text-align:center}
 .golink{text-decoration:none;border-color:var(--orange);color:var(--orange)}
 .golink:hover{background:var(--orange);border-color:var(--orange);color:#fff}
 @media(max-width:560px){.row img,.row .em{width:34px;height:34px}.rnm{font-size:.82rem}}
@@ -49,21 +50,21 @@
 <div class="pwrap">
   <div class="phead">
     <div class="pcrumb"><a href="/" style="color:inherit">bkcb6.app</a> &middot; <a href="/calendar.html" style="color:inherit">Community calendar</a></div>
-    <h1>Who&rsquo;s on the <span style="color:var(--orange)">calendar</span></h1>
+    <h1>The <span style="color:var(--orange)">directory</span></h1>
     <div class="pseat" id="total">Loading&hellip;</div>
   </div>
-  <div class="intro"><p>Every organization, agency, park, precinct and elected office with events on the CB6 community calendar. Each one has its own page listing what it has coming up and what it has already held.</p></div>
+  <div class="intro"><p>Every organization, agency, park, precinct and elected office with events on the CB6 community calendar, each with its own page listing what it has coming up and what it has already held. Plus every museum, theatre, library and landmark on the culture map.</p></div>
 
   <div class="tools">
-    <input id="q" type="search" placeholder="Search an organization" autocomplete="off">
+    <input id="q" type="search" placeholder="Search an organization, a museum, a theatre or a library" autocomplete="off">
     <div class="filters" id="fils"></div>
-    <div class="filters"><a class="fil golink" href="/calendar.html">&lsaquo; Back to the calendar</a></div>
+    <div class="filters"><a class="fil golink" href="/calendar.html">&lsaquo; The calendar</a><a class="fil golink" href="/culture-map.html">&lsaquo; The culture map</a></div>
   </div>
   <div class="none" id="none" hidden>Nothing matches that.</div>
   <div id="groups"></div>
 
-  <div class="pfoot">Counts are read live from the community calendar, so this directory always matches what the calendar shows.<br>
-  <a href="/calendar.html">Community calendar</a> &middot; <a href="/orgs">Community organizations</a> &middot; <a href="/">bkcb6.app</a></div>
+  <div class="pfoot">Counts are read live from the community calendar and the culture listings come from the dataset behind the culture map, so this directory always matches both.<br>
+  <a href="/calendar.html">Community calendar</a> &middot; <a href="/culture-map.html">Culture map</a> &middot; <a href="/orgs">Community organizations</a> &middot; <a href="/">bkcb6.app</a></div>
 </div>
 
 <script>
@@ -72,8 +73,13 @@
   var GROUPS = [
     ['cb6','Community Board 6'], ['civic','Government and civic'], ['arts','Arts and culture'],
     ['parks','Parks and open space'], ['food','Food and drink'], ['community','Community life'],
-    ['other','Everything else']
+    ['other','Everything else'],
+    ['Museum','Museums'], ['Performing arts','Performing arts'], ['Broadway theatre','Broadway theatres'],
+    ['Movie theater','Movie theaters'], ['Library','Libraries'],
+    ['Park or open space','Parks and open space (culture map)'], ['Landmark or other','Landmarks and other']
   ];
+  var CAP = 40;
+  var opened = {};
   var CIVIC_FILE = { nyccouncil:'council', bkcbs:'brooklyn-cbs', bpall:'bp', hearing:'hearings', deadline:'hearings' };
 
   function esc(s){ return String(s == null ? '' : s)
@@ -91,12 +97,31 @@
 
   var ITEMS = [], activeCat = '';
 
+  function subline(it){
+    if(it.kind === 'culture') return esc(it.sub);
+    if(!it.total) return 'No listings yet';
+    return it.upcoming
+      ? '<span class="rnext">' + it.upcoming + ' upcoming</span> &middot; ' + it.total + ' in all'
+      : it.total + (it.total === 1 ? ' past listing' : ' past listings');
+  }
+  function rowHtml(it){
+    var mark = it.logo
+      ? '<img src="' + esc(it.logo) + '" alt="" loading="lazy" style="border-radius:' + it.round + '">'
+      : '<span class="em" style="background:' + esc(it.bg) + ';color:' + esc(it.color) + '">' + it.icon + '</span>';
+    return '<li><a class="row" href="' + esc(it.href) + '">' + mark +
+      '<span class="rtx"><span class="rnm">' + esc(it.name) + '</span>' +
+      '<span class="rct">' + subline(it) + '</span></span><span class="rarr">&rsaquo;</span></a></li>';
+  }
+
   function render(){
     var q = (document.getElementById('q').value || '').toLowerCase().trim();
+    // Every word has to appear somewhere in the entry, so "brooklyn museum"
+    // finds the Brooklyn Museum rather than anything Brooklyn near a museum.
+    var terms = q ? q.split(/\s+/).filter(Boolean) : [];
     var wrap = document.getElementById('groups');
     var shown = ITEMS.filter(function(it){
       if(activeCat && it.cat !== activeCat) return false;
-      if(q && it.name.toLowerCase().indexOf(q) === -1 && it.slug.indexOf(q) === -1) return false;
+      if(terms.length && !terms.every(function(t){ return it.hay.indexOf(t) !== -1; })) return false;
       return true;
     });
     document.getElementById('none').hidden = shown.length > 0;
@@ -104,21 +129,16 @@
     GROUPS.forEach(function(g){
       var list = shown.filter(function(it){ return it.cat === g[0]; });
       if(!list.length) return;
+      // Long groups render a first slice so the page stays quick on a phone.
+      var full = opened[g[0]] || q || activeCat;
+      var slice = full ? list : list.slice(0, CAP);
       html += '<div class="grp"><div class="ghead"><span class="gname">' + esc(g[1]) +
         '</span><span class="gcount">' + list.length + '</span></div><ul class="rows">' +
-        list.map(function(it){
-          var mark = it.logo
-            ? '<img src="/' + esc(it.logo) + '" alt="" loading="lazy" style="border-radius:' + it.round + '">'
-            : '<span class="em" style="background:' + esc(it.bg) + ';color:' + esc(it.color) + '">' + it.icon + '</span>';
-          var line = it.total
-            ? (it.upcoming
-                ? '<span class="rnext">' + it.upcoming + ' upcoming</span> &middot; ' + it.total + ' in all'
-                : it.total + (it.total === 1 ? ' past listing' : ' past listings'))
-            : 'No listings yet';
-          return '<li><a class="row" href="/o/' + esc(it.slug) + '.html">' + mark +
-            '<span class="rtx"><span class="rnm">' + esc(it.name) + '</span>' +
-            '<span class="rct">' + line + '</span></span><span class="rarr">&rsaquo;</span></a></li>';
-        }).join('') + '</ul></div>';
+        slice.map(rowHtml).join('') +
+        (slice.length < list.length
+          ? '<li><button class="fil golink showall" data-g="' + esc(g[0]) + '">Show all ' + list.length + ' &rsaquo;</button></li>'
+          : '') +
+        '</ul></div>';
     });
     wrap.innerHTML = html;
   }
@@ -129,9 +149,15 @@
     fils.innerHTML = '<button class="fil on" data-c="">All</button>' +
       present.map(function(g){ return '<button class="fil" data-c="' + g[0] + '">' + esc(g[1]) + '</button>'; }).join('');
     fils.addEventListener('click', function(e){
-      var b = e.target.closest('.fil'); if(!b) return;
+      var b = e.target.closest('.fil'); if(!b || !('c' in b.dataset)) return;
       activeCat = b.dataset.c;
-      Array.prototype.forEach.call(fils.querySelectorAll('.fil'), function(x){ x.classList.toggle('on', x === b); });
+      opened = {};
+      Array.prototype.forEach.call(fils.querySelectorAll('.fil[data-c]'), function(x){ x.classList.toggle('on', x === b); });
+      render();
+    });
+    document.getElementById('groups').addEventListener('click', function(e){
+      var b = e.target.closest('.showall'); if(!b) return;
+      opened[b.dataset.g] = 1;
       render();
     });
   }
@@ -143,9 +169,10 @@
       return fetch('/data/civic-calendar/' + f + '.json' + bust)
         .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
         .then(function(j){ return [f, j]; });
-    }))
+    })),
+    fetch('/data/culture-places.json' + bust).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
   ]).then(function(res){
-    var src = res[0], live = res[1];
+    var src = res[0], live = res[1], culture = res[3];
     var civic = {}; res[2].forEach(function(p){ civic[p[0]] = p[1]; });
     if(!src){ document.getElementById('total').textContent = 'The calendar could not be read from here.'; return; }
 
@@ -237,10 +264,45 @@
         total: c.total, upcoming: c.upcoming
       });
     });
+    ITEMS.forEach(function(it){
+      it.kind = 'org'; it.href = '/o/' + it.slug + '.html';
+      if(it.logo) it.logo = '/' + it.logo;
+      it.hay = (it.name + ' ' + it.slug).toLowerCase();
+    });
     ITEMS.sort(function(a,b){ return b.upcoming - a.upcoming || b.total - a.total || a.name.localeCompare(b.name); });
+    var orgCount = ITEMS.length;
+
+    // The culture map's museums, theatres, libraries and landmarks each already
+    // have a page at /c/, so the directory lists them alongside the calendar
+    // organizations rather than sending people to a second index.
+    var CULTURE_ICON = { 'Museum':'\uD83C\uDFDB', 'Library':'\uD83D\uDCDA', 'Movie theater':'\uD83C\uDFAC',
+      'Broadway theatre':'\uD83C\uDFAD', 'Performing arts':'\uD83C\uDFB5', 'Park or open space':'\uD83C\uDF33',
+      'Landmark or other':'\uD83D\uDCCD' };
+    var cultureCount = 0;
+    if(Array.isArray(culture)) culture.forEach(function(pl){
+      if(!pl || !pl.name || !pl.profile) return;
+      var grp = pl.category_group || 'Landmark or other';
+      var bits = [pl.category || grp];
+      if(pl.boro_name) bits.push(pl.boro_name);
+      ITEMS.push({
+        kind:'culture', slug: pl.profile.replace('/c/',''), name: pl.name, cat: grp,
+        href: pl.profile, sub: bits.join(' \u00b7 '),
+        logo: pl.logo_sq || pl.logo || null, round:'7px',
+        bg:'#0d1b4b', color:'#fff', icon: CULTURE_ICON[grp] || '\uD83D\uDCCD',
+        total:0, upcoming:0,
+        hay: (pl.name + ' ' + (pl.aka_line||'') + ' ' + (pl.address||'') + ' ' + (pl.category||'') + ' ' + (pl.boro_name||'')).toLowerCase()
+      });
+      cultureCount++;
+    });
+    ITEMS.sort(function(a,b){
+      if(a.kind !== b.kind) return a.kind === 'org' ? -1 : 1;
+      if(a.kind === 'org') return b.upcoming - a.upcoming || b.total - a.total || a.name.localeCompare(b.name);
+      return a.name.localeCompare(b.name);
+    });
 
     document.getElementById('total').textContent =
-      ITEMS.length + ' organizations, agencies and offices on the CB6 community calendar';
+      orgCount + ' organizations on the community calendar and ' + cultureCount +
+      ' museums, theatres, libraries and landmarks from the culture map';
     buildFilters();
     render();
     document.getElementById('q').addEventListener('input', render);
