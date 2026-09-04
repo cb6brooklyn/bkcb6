@@ -153,7 +153,7 @@ def page(p):
 %(events)s  <div class="pfoot">Location and category from the culture dataset behind the bkcb6.app culture map. Zoning, land use and ownership come from the Department of City Planning and are shown on the lot page.<br>
   <a href="/culture-map.html">The culture map</a> &middot; <a href="/citywide-search.html">Search any address</a> &middot; <a href="/">bkcb6.app</a></div>
 </div>
-<script src="/assets/profile-map.js?v=20260904a"></script>
+<script src="/assets/profile-map.js?v=20260904b"></script>
 </body></html>""" % dict(name=name, desc=e(desc), slug=sl, icon=icon, boro=boro,
                          blurb=blurb, rows=''.join(rows), chips=''.join(chips), logo=logo,
                          events=events, mapsec=mapsec)

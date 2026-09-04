@@ -270,8 +270,8 @@
           var tt = own.getTooltip && own.getTooltip();
           if (tt && tt.setLatLng) tt.setLatLng(mid);
         }
-        startDefaults();
       }
+      startDefaults();
     }).catch(function () {
       map.setView(hasPoint ? [ptLat, ptLng] : [40.70, -73.95], hasPoint ? ptZoom : 11);
       startDefaults();
