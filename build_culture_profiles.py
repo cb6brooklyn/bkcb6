@@ -162,7 +162,7 @@ def page(p):
 <script src="/assets/profile-map.js?v=20260904b"></script>
 <script>window.PLACE={"name":%(namejs)s,"slug":"%(slug)s"};</script>
 <script src="/assets/profile-calendar.js?v=1"></script>
-<script src="/assets/culture-calendar.js?v=1"></script>
+<script src="/assets/culture-calendar.js?v=2"></script>
 </body></html>""" % dict(name=name, namejs=json.dumps(p['name']), desc=e(desc), slug=sl, icon=icon, boro=boro,
                          blurb=blurb, rows=''.join(rows), chips=''.join(chips), logo=logo,
                          events=events, mapsec=mapsec)
