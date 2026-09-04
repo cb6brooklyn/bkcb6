@@ -2,7 +2,7 @@
 """Write a /c/ profile page for any culture place that has a logo and an address
 but no profile yet. The template is copied from the pages already on the site so
 new pages are indistinguishable from the existing ones."""
-import json, os, re, html
+import json, os, re, html, urllib.parse
 
 TYPE_LINE = {
     'museum': ('&#127963; Museum', 'A museum. Collections, exhibitions and public programming.'),
@@ -78,6 +78,18 @@ def page(p):
                 'style="max-height:96px;max-width:min(100%%,320px);width:auto;display:block;'
                 'object-fit:contain;border-radius:6px"></div>') % (e(p['logo']), name)
 
+    cal_q = urllib.parse.quote(p['name'])
+    events = (
+        '  <div class="sec"><h2>Events</h2><div class="bio">'
+        '<p>Upcoming events at %(n)s, filtered out of the bkcb6.app calendar. '
+        'The calendar covers community board meetings, public hearings and neighbourhood '
+        'programming across the five boroughs.</p>'
+        '<div class="chips">'
+        '<a class="chip hot" href="/calendar.html?q=%(q)s">Events at %(n)s</a>'
+        '<a class="chip" href="/calendar.html">The full bkcb6.app calendar</a>'
+        '</div></div></div>\n'
+    ) % dict(n=name, q=cal_q)
+
     return """<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>%(name)s &mdash; bkcb6.app</title>
@@ -100,11 +112,12 @@ def page(p):
   </div>
 %(logo)s  <div class="sec"><h2>What it is</h2><div class="bio"><p>%(blurb)s</p></div></div>
   <div class="sec"><h2>Details</h2><div class="bio"><ul class="kv">%(rows)s</ul><div class="chips">%(chips)s</div></div></div>
-  <div class="pfoot">Location and category from the culture dataset behind the bkcb6.app culture map. Zoning, land use and ownership come from the Department of City Planning and are shown on the lot page.<br>
+%(events)s  <div class="pfoot">Location and category from the culture dataset behind the bkcb6.app culture map. Zoning, land use and ownership come from the Department of City Planning and are shown on the lot page.<br>
   <a href="/culture-map.html">The culture map</a> &middot; <a href="/citywide-search.html">Search any address</a> &middot; <a href="/">bkcb6.app</a></div>
 </div>
 </body></html>""" % dict(name=name, desc=e(desc), slug=sl, icon=icon, boro=boro,
-                         blurb=blurb, rows=''.join(rows), chips=''.join(chips), logo=logo)
+                         blurb=blurb, rows=''.join(rows), chips=''.join(chips), logo=logo,
+                         events=events)
 
 
 def main():
@@ -113,8 +126,6 @@ def main():
     made = []
     for p in d:
         if not p.get('logo') or not p.get('address'):
-            continue
-        if p.get('profile'):
             continue
         sl = slug(p['name'])
         out = 'c/%s.html' % sl
