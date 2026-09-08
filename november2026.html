@@ -120,6 +120,55 @@ h1 span{color:var(--orange)}
 .gl.wi .pn{font-weight:500;color:#666}
 .gc .gn{padding:9px 12px;font-size:.76rem;color:#555;line-height:1.45;border-top:1px solid var(--border);background:var(--off)}
 .gsrc{margin-top:10px;font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);line-height:1.6}
+
+/* interactive practice ballot */
+.gl{cursor:pointer;transition:background .12s;position:relative;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+.gl:hover{background:#fff7f0}
+.gl:active{background:#ffefe0}
+.gl .oval{transition:background .12s,box-shadow .12s;background:#fff}
+.gl.sel{background:#fff3e8}
+.gl.sel .oval{background:var(--navy);box-shadow:inset 0 0 0 2px #fff}
+.gl .pn::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--pc,transparent)}
+.gl[data-p="Democratic"]{--pc:#2b63c8}
+.gl[data-p="Republican"]{--pc:#d0342c}
+.gl[data-p="Conservative"]{--pc:#8a5a00}
+.gl[data-p="Working Families"]{--pc:#1a8f5a}
+.gl[data-p]:not([data-p="Democratic"]):not([data-p="Republican"]):not([data-p="Conservative"]):not([data-p="Working Families"]){--pc:#9a94a8}
+.gl .pn small::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--pc,#bbb);margin-right:5px;vertical-align:-1px}
+.gl.wi .pn small::before{display:none}
+.gc,.gov,.pq{transition:box-shadow .15s,transform .15s}
+.gc:hover,.pq:hover{box-shadow:0 6px 18px rgba(13,27,75,.09)}
+.gov{box-shadow:0 10px 30px rgba(244,121,32,.18)}
+.gi{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.gi .tap{font-family:'DM Mono',monospace;font-size:.56rem;color:var(--orange);letter-spacing:.06em}
+.pyn>div{cursor:pointer;transition:background .12s;position:relative;padding-left:40px}
+.pyn>div::before{content:'';position:absolute;left:12px;top:13px;width:20px;height:12px;border:2px solid var(--navy);border-radius:50%;background:#fff;transition:background .12s}
+.pyn>div:hover{background:#fff7f0}
+.pyn>div.sel{background:#fff3e8}
+.pyn>div.sel::before{background:var(--navy);box-shadow:inset 0 0 0 2px #fff}
+.pyn .yy.sel b{color:#14733c}
+.pyn .nn.sel b{color:#961f18}
+/* practice ballot tray */
+.tray{position:fixed;left:0;right:0;bottom:0;z-index:60;transform:translateY(110%);transition:transform .25s}
+.tray.on{transform:none}
+.tray .in{max-width:720px;margin:0 auto;background:var(--navy);color:#fff;border-radius:14px 14px 0 0;box-shadow:0 -8px 30px rgba(13,27,75,.35);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tray .tk{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--orange)}
+.tray .tn{font-weight:900;font-size:1rem;flex:1;min-width:160px}
+.tray .tn small{display:block;font-weight:500;font-size:.68rem;color:rgba(255,255,255,.7)}
+.tray .bar{height:6px;background:rgba(255,255,255,.18);border-radius:3px;overflow:hidden;flex-basis:100%}
+.tray .bar i{display:block;height:100%;background:var(--orange);width:0;transition:width .2s}
+.tray button{font:inherit;font-weight:800;font-size:.8rem;border:0;border-radius:8px;padding:9px 13px;cursor:pointer;background:var(--orange);color:var(--navy)}
+.tray button.ghost{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.4)}
+.tray .in .tn .nm{color:var(--orange)}
+body.tray-open{padding-bottom:96px}
+/* header who/what/where/why become jump buttons */
+.w4 .w{cursor:pointer;transition:background .12s;position:relative}
+.w4 .w:hover{background:#15265f}
+.w4 .w::after{content:'\2193';position:absolute;right:10px;top:9px;color:var(--orange);font-weight:900;font-size:.8rem}
+.jump:target{animation:flash 1.2s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 4px rgba(244,121,32,.7)}100%{box-shadow:0 0 0 0 rgba(244,121,32,0)}}
+.gsrc a{color:var(--navy);text-decoration:underline}
+@media print{.tray,.w4,.searchbox,header .crumb,.countdown{display:none!important}body{padding-bottom:0}.gl:not(.sel):not(.wi){opacity:.55}}
 .top{padding:15px 16px 16px;border-bottom:1px solid var(--border);background:#fff}
 .top h2{font-size:1.05rem;font-weight:900;letter-spacing:-.01em}
 .top h2 span{color:var(--orange)}
@@ -174,6 +223,66 @@ a.inl{color:var(--navy);font-weight:700;border-bottom:2px solid var(--orange);te
 </style>
 </head>
 <body>
+
+<div class="tray" id="tray"><div class="in">
+  <div class="tn"><span class="tk">Practice ballot</span><br><span id="tray-n">0</span> of <span id="tray-m">0</span> marked<small>Nothing is saved or sent anywhere. This is only for you.</small></div>
+  <button class="ghost" id="tray-clear" type="button">Clear</button>
+  <button id="tray-print" type="button">Print my picks</button>
+  <div class="bar"><i id="tray-bar"></i></div>
+</div></div>
+<script>
+(function(){
+  var picks={}; // contest key -> array of line ids
+  function all(k){ return document.querySelectorAll('.gl[data-c="'+k+'"]'); }
+  function paint(){
+    document.querySelectorAll('.gl.sel').forEach(function(e){ e.classList.remove('sel'); });
+    Object.keys(picks).forEach(function(k){
+      all(k).forEach(function(e){ if(picks[k].indexOf(e.getAttribute('data-l'))>=0) e.classList.add('sel'); });
+    });
+    // questions
+    document.querySelectorAll('.pyn>div.sel').forEach(function(e){ e.classList.remove('sel'); });
+    Object.keys(picks).forEach(function(k){
+      if(k.indexOf('q-')!==0) return;
+      document.querySelectorAll('.pq[data-q="'+k+'"] .pyn>div').forEach(function(e){ if(picks[k][0]===(e.classList.contains('yy')?'yes':'no')) e.classList.add('sel'); });
+    });
+    // tray
+    var keys={}, fb=document.getElementById('fullballot'), fbHidden=!fb||fb.style.display==='none';
+    document.querySelectorAll('.gl[data-c]').forEach(function(e){ if(fbHidden&&fb&&fb.contains(e)) return; keys[e.getAttribute('data-c')]=1; });
+    document.querySelectorAll('.pq[data-q]').forEach(function(e){ keys[e.getAttribute('data-q')]=1; });
+    var m=Object.keys(keys).length, n=Object.keys(picks).filter(function(k){ return keys[k]&&picks[k].length; }).length;
+    document.getElementById('tray-n').textContent=n; document.getElementById('tray-m').textContent=m;
+    document.getElementById('tray-bar').style.width=(m?Math.round(100*n/m):0)+'%';
+    var on=n>0; document.getElementById('tray').classList.toggle('on',on); document.body.classList.toggle('tray-open',on);
+  }
+  window.repaintPicks=paint;
+  document.addEventListener('click',function(ev){
+    var gl=ev.target.closest('.gl[data-c]');
+    if(gl){
+      var k=gl.getAttribute('data-c'), id=gl.getAttribute('data-l'), max=parseInt(gl.getAttribute('data-max'),10)||1;
+      var cur=picks[k]||[]; var i=cur.indexOf(id);
+      if(i>=0) cur.splice(i,1);
+      else if(max===1) cur=[id];
+      else if(cur.length<max) cur.push(id);
+      else return;
+      picks[k]=cur; paint(); return;
+    }
+    var yn=ev.target.closest('.pyn>div');
+    if(yn){
+      var q=yn.closest('.pq'); if(!q) return; var qk=q.getAttribute('data-q'); var v=yn.classList.contains('yy')?'yes':'no';
+      picks[qk]=(picks[qk]&&picks[qk][0]===v)?[]:[v]; paint(); return;
+    }
+    var w=ev.target.closest('.w4 .w[data-go]');
+    if(w){
+      var t=document.getElementById(w.getAttribute('data-go')); if(!t) return;
+      try{ history.replaceState(null,'','#'+w.getAttribute('data-go')); }catch(e){}
+      t.scrollIntoView({behavior:'smooth',block:'start'});
+      if(w.getAttribute('data-go')==='where'){ var a=document.getElementById('addr'); if(a) setTimeout(function(){ a.focus(); },450); }
+    }
+  });
+  document.getElementById('tray-clear').addEventListener('click',function(){ picks={}; paint(); });
+  document.getElementById('tray-print').addEventListener('click',function(){ window.print(); });
+})();
+</script>
 <script>window.G26={"src":"New York State Board of Elections, Amended Certification for the November 3, 2026 General Election, dated September 3, 2026","state":[{"office":"Governor and Lieutenant Governor","dist":"Statewide","vf":1,"pair":true,"lines":[["Democratic","Kathy C. Hochul","Adrienne E. Adams"],["Republican","Bruce A. Blakeman","Todd Hood"],["Conservative","Bruce A. Blakeman","Todd Hood"],["Working Families","Kathy C. Hochul","Adrienne E. Adams"],["Vote Affordable","Bruce A. Blakeman","Todd Hood"]]},{"office":"State Comptroller","dist":"Statewide","vf":1,"lines":[["Democratic","Thomas P. DiNapoli"],["Republican","Joseph Hernandez"],["Conservative","Joseph Hernandez"],["Working Families","Thomas P. DiNapoli"]]},{"office":"Attorney General","dist":"Statewide","vf":1,"lines":[["Democratic","Letitia A. James"],["Republican","Saritha Komatireddy"],["Conservative","Saritha Komatireddy"],["Working Families","Letitia A. James"]]}],"cd":{"7":[["Democratic","Claire Valdez"],["Republican","Melvin Rivera"],["Conservative","Melvin Rivera"],["Working Families","Claire Valdez"],["Our Future","Priscilla Ghaznavi"]],"8":[["Democratic","Hakeem S. Jeffries"],["Republican","Lewis Mizrahi"],["Conservative","Lewis Mizrahi"]],"9":[["Democratic","Yvette D. Clarke"],["Republican","Joel Azumah"],["Conservative","Joel Azumah"]],"10":[["Democratic","Brad Lander"],["Republican","Jennifer E. Moore"],["Conservative","Jennifer E. Moore"],["Working Families","Brad Lander"]],"11":[["Democratic","Mike DeCillis"],["Republican","Nicole Malliotakis"],["Conservative","Nicole Malliotakis"]]},"sd":{"12":[["Democratic","Aber Kawas"],["Republican","Han-Khon To"]],"15":[["Democratic","Joseph P. Addabbo Jr"],["Conservative","Danniel S. Maio"]],"17":[["Democratic","Larry He"],["Republican","Steve Chan"],["Conservative","Steve Chan"],["Stop Mamdani","Steve Chan"]],"18":[["Democratic","Julia Salazar"],["Working Families","Julia Salazar"]],"19":[["Democratic","Roxanne J. Persaud"]],"20":[["Democratic","Zellnor Y. Myrie"],["Working Families","Zellnor Y. Myrie"]],"21":[["Democratic","Kevin S. Parker"],["Republican","Ronald Seifert"],["Conservative","Ronald Seifert"]],"22":[["Democratic","Sam Sutton"],["Republican","Nachman Carl Caller"],["Conservative","Nachman Carl Caller"]],"23":[["Democratic","Jessica Scarcella-Spanton"],["Republican","Ruslan Shamal"],["Conservative","Ruslan Shamal"],["Affordable & Safe","Jessica Scarcella-Spanton"]],"25":[["Democratic","Jabari Brisport"],["Working Families","Jabari Brisport"]],"26":[["Democratic","Andrew S. Gounardes"],["Republican","Tom Stanten"],["Conservative","Tom Stanten"],["Working Families","Andrew S. Gounardes"]],"59":[["Democratic","Kristen Gonzalez"],["Working Families","Kristen Gonzalez"]]},"ad":{"41":[["Democratic","Kalman Yeger"],["Republican","Kalman Yeger"],["Conservative","Kalman Yeger"]],"42":[["Democratic","Rodneyse Bichotte"],["Republican","Herman G. Hall"]],"43":[["Democratic","Brian-Christopher A. Cunningham"],["Republican","Anna Shpilkovskaya"],["Working Families","Brian-Christopher A. Cunningham"]],"44":[["Democratic","Robert C. Carroll"],["Republican","Glenn Nocera"],["Conservative","Glenn Nocera"],["Working Families","Robert C. Carroll"]],"45":[["Democratic","Joey Cohen-Saban"],["Republican","Michael Novakhov"],["Conservative","Michael Novakhov"],["FGT AntiSemitism","Joey Cohen-Saban"]],"46":[["Democratic","Chris McCreight"],["Republican","Alec Brook-Krasny"],["Conservative","Alec Brook-Krasny"],["Working Families","Chris McCreight"],["Affordable & Safe","Chris McCreight"]],"47":[["Democratic","William Colton"],["Republican","John J. Ricottone"],["Conservative","John J. Ricottone"],["Stop Mamdani","John J. Ricottone"]],"48":[["Democratic","Simcha Eichenstein"],["Conservative","Simcha Eichenstein"]],"49":[["Democratic","Joyce Xiaoqiong Xie"],["Republican","Lester Chang"],["Conservative","Lester Chang"]],"50":[["Democratic","Emily Gallagher"]],"51":[["Democratic","Marcela Mitaynes"],["Republican","Carla Danielson"],["Conservative","Carla Danielson"],["Working Families","Marcela Mitaynes"]],"52":[["Democratic","Jo Anne Simon"],["Republican","Brett Wynkoop"],["Conservative","Brett Wynkoop"],["Working Families","Jo Anne Simon"]],"53":[["Democratic","Maritza Davila"]],"54":[["Democratic","Christian Celeste Tate"],["Working Families","Christian Celeste Tate"]],"55":[["Democratic","Latrice M. Walker"],["Working Families","Latrice M. Walker"]],"56":[["Democratic","Eon Huntley"],["Working Families","Eon Huntley"]],"57":[["Democratic","Phara Souffrant Forrest"],["Republican","Yolanda Allison"],["Working Families","Phara Souffrant Forrest"]],"58":[["Democratic","Monique Chandler-Waterman"],["Working Families","Monique Chandler-Waterman"]],"59":[["Democratic","Jaime R. Williams"],["Conservative","Jaime R. Williams"],["Working Families","Jibreel Jalloh"]],"60":[["Democratic","Nikki Lucas"],["Republican","Norman H. Ramsay"],["Conservative","Norman H. Ramsay"]],"61":[["Democratic","Charles D. Fall"],["Republican","Casey Marie O’Connor-Manasia"]],"64":[["Democratic","Tim Qorraj"],["Republican","Michael Tannousis"],["Conservative","Michael Tannousis"]]},"sc":{"office":"Justice of the Supreme Court","dist":"2nd Judicial District, Kings County","vf":4,"lines":[["Democratic","Betsey Jean Jacques"],["Democratic","Hemalee J. Patel"],["Democratic","Sherveal Mimes"],["Democratic","Lola Waterman"],["Republican","Betsey Jean Jacques"],["Republican","Hemalee J. Patel"],["Republican","Sherveal Mimes"],["Republican","Lola Waterman"],["Conservative","Betsey Jean Jacques"],["Conservative","William D. Spain Jr"],["Conservative","Sherveal Mimes"],["Conservative","Lola Waterman"]]}};</script>
 <script>window.PROPS26={"src":"Commission on Government Efficiency, the 2026 New York City Charter Revision Commission. Appendix A, Proposed Questions, adopted at the final public meeting on July 23, 2026.","q":[{"n":1,"t":"Speed Up Process for Granting a Revocable Consent to Use Public Space","s":"Simplify process to use public space for uses such as ramps, planters and cafes, by removing mandatory hearings and Council disapproval of sidewalk cafes, while maintaining community and Council input.","y":"speeds up process to use public space while maintaining community input.","no":"maintains longer process with mandatory public hearing to use public space and Council review of sidewalk cafes."},{"n":2,"t":"Reduce City Contractor Paperwork; Require Regular Meetings of Procurement Policy Board","s":"Reduce paperwork for City contractors by authorizing Procurement Policy Board to simplify contractor questionnaire. Require quarterly meetings of the Procurement Policy Board. Remove mandatory hearing for required client services report.","y":"amends Procurement Policy Board authority, including to simplify contractor questionnaire; authorizes Mayor to delegate certain contract approvals.","no":"leaves laws unchanged, with Mayor and Comptroller maintaining longer questionnaire."},{"n":3,"t":"Speed Up Street Safety Projects, Disposition of Unused City Property, Office Leasing","s":"Simplify review of street safety projects to reduce construction timelines. Fast track disposition of unused City property with approval from City Planning Commission. Expedite leasing offices used for City workforce.","y":"simplifies street project approval, City property disposition and office leasing.","no":"maintains intra-agency consultation for road projects, Council approval for City property dispositions and Council disapproval of office leases."},{"n":4,"t":"Simplify Building Permitting and Move Waterfront Permitting to Department of Buildings","s":"Create centralized construction permits hub to simplify permitting. Move waterfront permitting from Department of Small Business Services to Department of Buildings. Allow construction approval by additional Department of Buildings officials.","y":"simplifies permitting by authorizing a centralized permitting hub, moving waterfront permitting to Department of Buildings, and allowing additional Department of Buildings officials to issue approvals.","no":"leaves laws unchanged."},{"n":5,"t":"Set Contribution Targets for Rainy Day Fund to Promote Sufficient Budgetary Reserves","s":"Set target amount of money to hold in reserve funds, including rainy day fund, to address unexpected financial hardships in future years, and require development of methodology to calculate contributions.","y":"requires Mayor to develop methodology for calculating deposits to rainy day fund, with deposits subject to approval in the City budget.","no":"leaves laws unchanged, with no reserves target."}]};</script>
 <div class="wrap">
@@ -182,14 +291,14 @@ a.inl{color:var(--navy);font-weight:700;border-bottom:2px solid var(--orange);te
     <h1>Who, What, Where <span>and Why</span> You Vote</h1>
     <div class="sub">General Election &middot; Tuesday, November 3, 2026</div>
     <div class="w4">
-      <div class="w"><b>Who</b>Every candidate on every party line</div>
-      <div class="w"><b>What</b>The offices and the five ballot questions</div>
-      <div class="w"><b>Where</b>Your Election Day and early voting sites</div>
-      <div class="w"><b>Why</b>These are the seats that run your state and city</div>
+      <div class="w" data-go="who"><b>Who</b>Every candidate on every party line. Tap an oval to try a practice ballot.</div>
+      <div class="w" data-go="what"><b>What</b>The offices and the five ballot questions</div>
+      <div class="w" data-go="where"><b>Where</b>Your Election Day and early voting sites</div>
+      <div class="w" data-go="why"><b>Why</b>Deadlines. Register, vote early, or vote Nov 3.</div>
     </div>
   </header>
 
-  <div class="countdown">
+  <div class="countdown jump" id="why">
     <div class="cd" id="cd-ev">
       <div class="k">Until early voting</div>
       <div class="num" id="n-ev">&mdash;</div>
@@ -256,13 +365,14 @@ a.inl{color:var(--navy);font-weight:700;border-bottom:2px solid var(--orange);te
 
 
 
-  <div class="top">
+  <div class="top jump" id="who">
     <h2>On every ballot in <span>New York State</span></h2>
     <p>Three statewide offices are on the ballot for every voter in New York, no matter where you live. Everything else depends on your address.</p>
     <div class="gov" id="gov-card"></div>
     <div class="rest3" id="state-rest"></div>
+    <div class="gsrc">Source: <a href="https://elections.ny.gov/system/files/documents/2026/09/amended-accessible-2026-general-ballot-certification-9.3.2026.pdf" target="_blank" rel="noopener">New York State Board of Elections, Amended Certification for the November 3, 2026 General Election, September 3, 2026</a>.</div>
 
-    <div class="offlist">
+    <div class="offlist jump" id="what">
       <h3>The full list of what you vote on</h3>
       <ul>
         <li><i>Statewide</i><span><b>Governor and Lieutenant Governor</b><em>Same for every voter in New York</em></span></li>
@@ -282,15 +392,18 @@ a.inl{color:var(--navy);font-weight:700;border-bottom:2px solid var(--orange);te
 (function(){
   var G=window.G26; if(!G) return;
   function esc(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function key(o){ return (o.office+'|'+o.dist).replace(/[^a-z0-9]+/gi,'-').toLowerCase(); }
   function lines(o){
-    var h='<div class="gi">'+(o.vf>1?'Vote for up to '+o.vf:'Vote for one')+' &middot; fill the oval completely</div>';
-    (o.lines||[]).forEach(function(l){
-      h+='<div class="gl"><span class="oval"></span><span class="pn">'+esc(l[1])+
+    var k=key(o), max=o.vf>1?o.vf:1;
+    var h='<div class="gi"><span>'+(o.vf>1?'Vote for up to '+o.vf:'Vote for one')+'</span><span class="tap">tap an oval to mark</span></div>';
+    (o.lines||[]).forEach(function(l,i){
+      h+='<div class="gl" data-c="'+k+'" data-max="'+max+'" data-l="'+i+'" data-p="'+esc(l[0])+'"><span class="oval"></span><span class="pn">'+esc(l[1])+
          (l[2]?' <span style="font-weight:500;color:#555">and</span> '+esc(l[2]):'')+
          '<small>'+esc(l[0])+'</small></span></div>';
     });
-    return h+'<div class="gl wi"><span class="oval"></span><span class="pn">Write-in</span></div>';
+    return h+'<div class="gl wi" data-c="'+k+'" data-max="'+max+'" data-l="w"><span class="oval"></span><span class="pn">Write-in</span></div>';
   }
+  window.ballotLines=lines;
   var gov=G.state[0];
   document.getElementById('gov-card').innerHTML=
     '<div class="gh"><div class="go">'+esc(gov.office)+'</div><div class="gd">'+esc(gov.dist)+
@@ -301,7 +414,7 @@ a.inl{color:var(--navy);font-weight:700;border-bottom:2px solid var(--orange);te
 })();
 </script>
 
-  <div class="searchbox">
+  <div class="searchbox jump" id="where">
     <label for="addr">Your address or place</label>
     <input id="addr" type="text" placeholder="Address, building, park or housing development" autocomplete="off" autocapitalize="off" spellcheck="false">
     <div id="sug"></div>
@@ -547,11 +660,7 @@ a.inl{color:var(--navy);font-weight:700;border-bottom:2px solid var(--orange);te
       var cdN=String(parseInt(cd,10)), sdN=String(parseInt(sd,10)), adN=String(parseInt(ad,10));
       function card(o){
         var h='<div class="gc"><div class="gh"><div class="go">'+esc(o.office)+'</div><div class="gd">'+esc(o.dist)+'</div></div>';
-        h+='<div class="gi">'+(o.vf>1?'Vote for up to '+o.vf:'Vote for one')+' &middot; fill the oval completely</div>';
-        (o.lines||[]).forEach(function(l){
-          h+='<div class="gl"><span class="oval"></span><span class="pn">'+esc(l[1])+(l[2]?' <span style="font-weight:500;color:#555">and</span> '+esc(l[2]):'')+'<small>'+esc(l[0])+'</small></span></div>';
-        });
-        h+='<div class="gl wi"><span class="oval"></span><span class="pn">Write-in</span></div>';
+        h+=window.ballotLines(o);
         if(o.note) h+='<div class="gn">'+o.note+'</div>';
         return h+'</div>';
       }
@@ -567,7 +676,7 @@ a.inl{color:var(--navy);font-weight:700;border-bottom:2px solid var(--orange);te
       cards.push('<div class="gc"><div class="gh"><div class="go">Judge of the Civil Court</div><div class="gd">Kings County and municipal court district seats</div></div><div class="gn">Certified by the City Board of Elections, which has not yet posted its general election contest list. Names are added here when it does.</div></div>');
       fbEl.innerHTML=cards.join('');
       fbEl.style.display='';
-      srcEl.textContent='Source: '+G.src+'. Each party line is listed as it appears on the ballot; a candidate on more than one line appears once per line.';
+      srcEl.innerHTML='Source: <a href="https://elections.ny.gov/system/files/documents/2026/09/amended-accessible-2026-general-ballot-certification-9.3.2026.pdf" target="_blank" rel="noopener">'+esc(G.src)+'</a>. Each party line is listed as it appears on the ballot; a candidate on more than one line appears once per line.';
       srcEl.style.display='';
       introEl.textContent='Your sample ballot for AD '+adN+', ED '+ed+'. Every candidate on every party line, as certified by the State Board of Elections.';
       bigEl.style.display='none'; alsoEl.style.display='none'; balEl.style.display='none';
@@ -599,7 +708,7 @@ a.inl{color:var(--navy);font-weight:700;border-bottom:2px solid var(--orange);te
     var P=window.PROPS26;
     if(P){
       document.getElementById('props').innerHTML=P.q.map(function(o){
-        return '<div class="pq"><div class="ph"><div class="pnum">'+o.n+'</div><div class="pt">'+esc(o.t)+
+        return '<div class="pq" data-q="q-'+o.n+'"><div class="ph"><div class="pnum">'+o.n+'</div><div class="pt">'+esc(o.t)+
                '<small>Proposed charter amendment</small></div></div>'+
                '<div class="ps">'+esc(o.s)+'</div>'+
                '<div class="pyn"><div class="yy"><b>A yes vote</b>'+esc(o.y)+'</div>'+
@@ -607,6 +716,7 @@ a.inl{color:var(--navy);font-weight:700;border-bottom:2px solid var(--orange);te
       }).join('');
       document.getElementById('props-src').textContent='Source: '+P.src;
     }
+    if(window.repaintPicks) window.repaintPicks();
 
     outEl.style.display='block';
     try{ outEl.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){}
