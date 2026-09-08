@@ -58,10 +58,11 @@ ORGS = [
    'The <b>Gowanus Canal Conservancy</b> is the group that has done the work on the canal since 2006, out of the Old American Can Factory: volunteers in the rain gardens and tree pits, students in the watershed, and staff at every meeting where the canal&rsquo;s future gets decided, including ours. On the rezoning they were ahead of everyone, with a plan for the waterfront before the City had one, and they&rsquo;re on the Oversight Task Force now making sure the open space and stormwater commitments get built.',
    'Andrea Parker and her excellent team has run and met the moment for over a decade, and her team includes CB6 member Aurelia Casey. If you want to see what stewardship looks like in practice, go to the Salt Lot on a volunteer day.',
  ],
+ 'does_title':'What GCC does',
  'does':[
-   'It runs the <b>Lowlands Nursery</b>, growing native urban-adapted plants and selling them to residents, institutions and landscape designers, with proceeds going back into education and stewardship.',
-   'It runs the <b>Gowanus Green Team</b>, paid high school apprentices doing conservation work, and the <b>Gowanus Tree Network</b>, which trains neighbours as Citizen Pruners to look after the street trees on their own blocks.',
-   'It works out of the <b>Old American Can Factory</b>, a three storey 1890 complex at Third Street and Third Avenue that now houses artists, makers and non-profits. The lot is zoned <b>M1-4/R7X</b> inside the <b>Gowanus special district</b>, the mixed use zoning the 2021 rezoning brought in.',
+   'GCC runs the <b>Lowlands Nursery</b>, growing native urban-adapted plants and selling them to residents, institutions and landscape designers, with proceeds going back into education and stewardship.',
+   'GCC runs the <b>Gowanus Green Team</b>, paid high school apprentices doing conservation work, and the <b>Gowanus Tree Network</b>, which trains neighbours as Citizen Pruners to look after the street trees on their own blocks.',
+   'The Conservancy works out of the <b>Old American Can Factory</b>, a three storey 1890 complex at Third Street and Third Avenue that now houses artists, makers and non-profits. The lot is zoned <b>M1-4/R7X</b> inside the <b>Gowanus special district</b>, the mixed use zoning the 2021 rezoning brought in.',
  ],
  'kv':[('Community board','<a href="/cb-bk-6.html">Brooklyn Community Board 6</a>'),
        ('The building','<a href="/old-american-can-factory">The Old American Can Factory</a>'),
@@ -158,7 +159,7 @@ TPL = """<!DOCTYPE html>
     </div></details>
   </div>
 
-{events}  <div class="sec"><h2>What it does</h2><div class="bio">{does}{doesbtns}</div></div>
+{events}  <div class="sec"><h2>{does_title}</h2><div class="bio">{does}{doesbtns}</div></div>
 {extra}
   <div class="sec"><h2>Contact</h2><div class="bio"><ul class="kv">
     <li><span class="k">Address</span><span class="v">{addr}<br>Brooklyn, NY {zip}{note}</span></li>
@@ -332,12 +333,13 @@ for o in ORGS:
         '\n  <div class="sec"><h2>%s</h2><div class="contact" style="margin-top:0">%s</div></div>\n' % (title, cbtns(items))
         for title, items in o.get('extra', []))
     brandcss = BRANDCSS.format(name=o['name'], **o['brand']) if o.get('brand') else ''
+    does_title = o.get('does_title','What it does')
     fields = dict(o)
     # the record's own phone/email are raw values; the template wants the
     # rendered rows, so the built ones win
     fields.update(intro=intro, does=does, note=note, phone=phone, email=email,
                   kv=kv, links=links, mapjs=MAPJS, events=events, evjs=evjs,
-                  doesbtns=doesbtns, extra=extra, brandcss=brandcss,
+                  doesbtns=doesbtns, extra=extra, brandcss=brandcss, does_title=does_title,
                   addrflat=o['addr'].replace('<br>', ', '))
     html = TPL.format(**fields)
     d = os.path.join(ROOT, o['slug'])
