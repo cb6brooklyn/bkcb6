@@ -66,13 +66,18 @@ ORGS = [
  'kv':[('Community board','<a href="/cb-bk-6.html">Brooklyn Community Board 6</a>'),
        ('The building','<a href="/old-american-can-factory">The Old American Can Factory</a>'),
        ('Zoning','M1-4/R7X, Gowanus special district')],
+ 'evorg':'gcc','evtitle':'Coming up at the Gowanus Canal Conservancy','evhref':'/o/gcc.html','evname':'The Gowanus Canal Conservancy calendar',
+ 'does_btns':[('Their events','https://gowanuscanalconservancy.org/events/',True),
+              ('What is coming up','/o/gcc.html',False),
+              ('Zoning and land use for the lot','/old-american-can-factory',False)],
+ 'extra':[('The rezoning, the BID and the Task Force',
+           [('The Gowanus rezoning','/gowanus.html',False),
+            ('Gowanus BID formation effort','https://gowanusimprovementdistrict.org/',True),
+            ('Gowanus Oversight Task Force','https://gowanustaskforce.net/',True),
+            ('Task Force meetings on the calendar','/o/gotf.html',False)])],
  'links':[('Their site','https://gowanuscanalconservancy.org',True),
           ('The Old American Can Factory','/old-american-can-factory',False),
-          ('Their events on the calendar','/o/gcc.html',False),
-          ('The Gowanus rezoning','/gowanus.html',False),
-          ('Gowanus BID formation effort','https://gowanusimprovementdistrict.org/',True),
-          ('Gowanus Oversight Task Force','https://gowanustaskforce.net/',True),
-          ('Task Force meetings on the calendar','/o/gotf.html',False),
+          ('Their calendar','/o/gcc.html',False),
           ('Search an address','/citywide-search.html',False)],
 },
 {
@@ -152,8 +157,8 @@ TPL = """<!DOCTYPE html>
     </div></details>
   </div>
 
-  <div class="sec"><h2>What it does</h2><div class="bio">{does}</div></div>
-
+{events}  <div class="sec"><h2>What it does</h2><div class="bio">{does}{doesbtns}</div></div>
+{extra}
   <div class="sec"><h2>Contact</h2><div class="bio"><ul class="kv">
     <li><span class="k">Address</span><span class="v">{addr}<br>Brooklyn, NY {zip}{note}</span></li>
     {phone}{email}
@@ -167,7 +172,97 @@ TPL = """<!DOCTYPE html>
   <a href="/govhub.html">The Government Hub</a> &middot; <a href="/directory">The Address Directory</a> &middot; <a href="/citywide-search.html">Search any address</a></div>
 </div>
 <script src="/assets/profile-map.js?{mapjs}"></script>
-</body></html>
+{evjs}</body></html>
+"""
+
+EVJS = r"""
+<script>
+/* The next few events, read live out of calendar.html and data/calendar-events.json,
+   the same two sources the calendar itself uses. Each one is checked against the
+   clock and not just the date, so an event that started earlier today has
+   already dropped off by the evening and the next one has taken its place. */
+(function(){
+  var ORG='__EVORG__', HREF='__EVHREF__', NAME='__EVNAME__', LOGO='/site-icons/__SLUG__.png';
+  var slot=document.getElementById('orgEvents'), more=document.getElementById('orgMore');
+  if(!slot) return;
+  var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var DAY=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var AHEAD=4;
+  var bust='?_='+Math.floor(Date.now()/60000);
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function literal(src, opener, closer){
+    var i=src.indexOf(opener); if(i===-1) return null;
+    var j=src.indexOf(closer,i); if(j===-1) return null;
+    try { return (new Function('return '+src.slice(i+opener.length-1, j+closer.length)))(); } catch(e){ return null; }
+  }
+  function starts(e){
+    var p=String(e.date||'').split('-');
+    if(p.length!==3) return null;
+    var d=new Date(+p[0], +p[1]-1, +p[2]);
+    if(isNaN(d)) return null;
+    var m=/^\s*(\d{1,2}):(\d{2})\s*([AaPp])/.exec(e.time||'');
+    if(m){ var h=+m[1]%12; if(/[Pp]/.test(m[3])) h+=12; d.setHours(h, +m[2], 0, 0); }
+    else { d.setHours(23,59,59,999); }
+    return d;
+  }
+  function label(d, time){
+    var t=new Date(); t.setHours(0,0,0,0);
+    var days=Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate())-t)/86400000);
+    var w = days===0 ? 'Today' : days===1 ? 'Tomorrow' : DAY[d.getDay()]+', '+MON[d.getMonth()]+' '+d.getDate();
+    return w + (time ? ' \u00b7 '+esc(time) : '');
+  }
+  function empty(msg){
+    slot.innerHTML='<div class="evcard"><div class="evkick">Coming up</div><div class="evline">'+msg+' <a href="'+HREF+'" style="color:#fff;font-weight:700">See their calendar</a>.</div></div>';
+    more.innerHTML='<a class="evall" href="'+HREF+'">'+esc(NAME)+'</a>';
+  }
+  Promise.all([
+    fetch('/calendar.html'+bust).then(function(r){ return r.ok ? r.text() : ''; }).catch(function(){ return ''; }),
+    fetch('/data/calendar-events.json'+bust).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
+  ]).then(function(res){
+    var src=res[0], live=res[1];
+    var EVENTS = src ? literal(src, 'const EVENTS = {', '\n};') : null;
+    if(!EVENTS){ empty('The calendar did not load.'); return; }
+    var rows=[], seen={};
+    function add(date, ev){
+      if(!ev || ev.type!==ORG || !ev.label) return;
+      var k=date+'|'+String(ev.label).replace(/\s+/g,' ').trim().toLowerCase();
+      if(seen[k]) return; seen[k]=1;
+      rows.push({date:date, title:ev.label, time:ev.time||'', loc:ev.location||'', href:ev.href||'', link:ev.linkText||'', desc:ev.desc||''});
+    }
+    Object.keys(EVENTS).forEach(function(d){ (EVENTS[d]||[]).forEach(function(ev){ add(d, ev); }); });
+    if(live && Array.isArray(live.events)) live.events.forEach(function(ev){ if(ev && ev.date) add(ev.date, ev); });
+    var now=new Date();
+    var prog=rows.map(function(e){ e.__at=starts(e); return e; })
+      .filter(function(e){ return e.__at && e.__at>now; })
+      .sort(function(a,b){ return a.__at-b.__at; });
+    if(!prog.length){ empty('Nothing on the calendar right now.'); return; }
+    var e=prog[0];
+    var html='<div class="evcard"><div class="evkick">Next up</div>'
+      +'<div class="evhead"><span class="evlogo"><img src="'+LOGO+'" alt=""></span><span class="evttl">'+esc(e.title)+'</span></div>'
+      +'<div class="evline">\uD83D\uDD52 '+label(e.__at, e.time)+'</div>'
+      +(e.loc?'<div class="evline">\uD83D\uDCCD '+esc(e.loc)+'</div>':'')
+      +(e.desc?'<div class="evdesc">'+esc(e.desc)+'</div>':'')
+      +'<div class="evbtns">'
+      +(e.href?'<a class="evbtn" href="'+esc(e.href)+'" target="_blank" rel="noopener">'+esc(e.link||'Details \u2197')+'</a>':'')
+      +'<a class="evbtn" href="'+HREF+'">Their full calendar</a></div></div>';
+    var rest=prog.slice(1, AHEAD);
+    if(rest.length){
+      html+='<ul class="evthen">';
+      rest.forEach(function(x){
+        var row='<span class="ed"><span class="em">'+MON[x.__at.getMonth()]+'</span><span class="en">'+x.__at.getDate()+'</span></span>'
+          +'<span class="eb"><span class="et">'+esc(x.title)+'</span><span class="ew">'+label(x.__at, x.time)+'</span></span>';
+        html+='<li>'+(x.href ? '<a href="'+esc(x.href)+'" target="_blank" rel="noopener">'+row+'</a>' : row)+'</li>';
+      });
+      html+='</ul>';
+    }
+    slot.innerHTML=html;
+    var left=prog.length-Math.min(prog.length,AHEAD);
+    more.innerHTML = left>0
+      ? '<a class="evall" href="'+HREF+'">'+left+' more event'+(left===1?'':'s')+' on their CB6 calendar &rarr;</a>'
+      : '<a class="evall" href="'+HREF+'">'+esc(NAME)+' &rarr;</a>';
+  }).catch(function(){ empty('The calendar did not load.'); });
+})();
+</script>
 """
 
 for o in ORGS:
@@ -183,11 +278,30 @@ for o in ORGS:
             ' target="_blank" rel="noopener"' if hot else '',
             label, ' &#8599;' if hot else '')
         for label, href, hot in o['links'])
+    def cbtns(items):
+        return ''.join(
+            '<a class="cbtn" href="%s"%s>%s%s</a>' % (
+                href, ' target="_blank" rel="noopener"' if hot else '',
+                label, ' &#8599;' if hot else '')
+            for label, href, hot in items)
+    events = ''
+    evjs = ''
+    if o.get('evorg'):
+        events = ('  <div class="sec evsec"><h2>%s</h2><div id="orgEvents"><div class="evcard">'
+                  '<div class="evline">Loading from the CB6 calendar\u2026</div></div></div>'
+                  '<div class="secnote" id="orgMore"></div></div>\n\n') % o['evtitle']
+        evjs = (EVJS.replace('__EVORG__', o['evorg']).replace('__EVHREF__', o['evhref'])
+                .replace('__EVNAME__', o['evname']).replace('__SLUG__', o['slug']))
+    doesbtns = ('<div class="contact">' + cbtns(o['does_btns']) + '</div>') if o.get('does_btns') else ''
+    extra = ''.join(
+        '\n  <div class="sec"><h2>%s</h2><div class="contact" style="margin-top:0">%s</div></div>\n' % (title, cbtns(items))
+        for title, items in o.get('extra', []))
     fields = dict(o)
     # the record's own phone/email are raw values; the template wants the
     # rendered rows, so the built ones win
     fields.update(intro=intro, does=does, note=note, phone=phone, email=email,
-                  kv=kv, links=links, mapjs=MAPJS,
+                  kv=kv, links=links, mapjs=MAPJS, events=events, evjs=evjs,
+                  doesbtns=doesbtns, extra=extra,
                   addrflat=o['addr'].replace('<br>', ', '))
     html = TPL.format(**fields)
     d = os.path.join(ROOT, o['slug'])
