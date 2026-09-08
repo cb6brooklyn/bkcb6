@@ -66,6 +66,7 @@ ORGS = [
  'kv':[('Community board','<a href="/cb-bk-6.html">Brooklyn Community Board 6</a>'),
        ('The building','<a href="/old-american-can-factory">The Old American Can Factory</a>'),
        ('Zoning','M1-4/R7X, Gowanus special district')],
+ 'brand':{'dark':'#4d8d96','mid':'#70a8b0','light':'#a0c8d0','wash':'#eef5f6','accent':'#f5a01c','ink':'#2f6a72'},
  'evorg':'gcc','evtitle':'Coming up at the Gowanus Canal Conservancy','evhref':'/o/gcc.html','evname':'The Gowanus Canal Conservancy calendar',
  'does_btns':[('Their events','https://gowanuscanalconservancy.org/events/',True),
               ('What is coming up','/o/gcc.html',False),
@@ -127,7 +128,7 @@ TPL = """<!DOCTYPE html>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,700;9..40,800;9..40,900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/org-profile.css?v=1">
+<link rel="stylesheet" href="/assets/org-profile.css?v=1">{brandcss}
 </head>
 <body>
 <div class="pwrap">
@@ -174,6 +175,40 @@ TPL = """<!DOCTYPE html>
 <script src="/assets/profile-map.js?{mapjs}"></script>
 {evjs}</body></html>
 """
+
+
+BRANDCSS = """
+<style>
+/* {name} brand palette: teal and orange from their own mark */
+.phead{{background:{dark};border-bottom:4px solid {accent}}}
+.pmark{{border-color:rgba(255,255,255,.5)}}
+.pcrumb,.pcrumb a{{color:rgba(255,255,255,.8)}}
+.pseat{{color:rgba(255,255,255,.9)}}
+.dmintro{{border-left-color:{accent};background:{wash}}}
+.dmintro b{{color:{ink}}}
+.dmintro .sig a{{color:{ink};border-bottom-color:{accent}}}
+.sec h2{{color:{ink}}}
+.evsec h2{{color:{ink}}}
+.evcard{{background:{dark};box-shadow:0 3px 14px rgba(77,141,150,.28)}}
+.evthen li{{border-color:{light}}}
+.evthen .ed{{background:{dark}}}
+.evthen .eb .et{{color:{ink}}}
+.evall{{color:{ink};border-bottom-color:{mid}}}
+.evbtn{{border-color:rgba(255,255,255,.75)}}
+.bio b{{color:{ink}}}
+.bio a,.kv .v a{{text-decoration-color:{accent}}}
+.cbtn{{border-color:{mid};color:{ink}}}
+.btn{{border-color:{dark};color:{ink}}}
+.btn.hot{{background:{accent};border-color:{accent};color:#fff}}
+.mapwrap>summary{{border-color:{light};color:{ink}}}
+.msearch button{{background:{accent}}}
+.msearch input:focus{{border-color:{mid}}}
+.mtog.on{{background:{dark};border-color:{dark}}}
+.mtoggle{{border-color:{light};color:{ink}}}
+.mapttl{{color:{ink}}}
+.zoninglink{{border-left-color:{accent}}}
+.pfoot a{{color:{ink}}}
+</style>"""
 
 EVJS = r"""
 <script>
@@ -296,12 +331,13 @@ for o in ORGS:
     extra = ''.join(
         '\n  <div class="sec"><h2>%s</h2><div class="contact" style="margin-top:0">%s</div></div>\n' % (title, cbtns(items))
         for title, items in o.get('extra', []))
+    brandcss = BRANDCSS.format(name=o['name'], **o['brand']) if o.get('brand') else ''
     fields = dict(o)
     # the record's own phone/email are raw values; the template wants the
     # rendered rows, so the built ones win
     fields.update(intro=intro, does=does, note=note, phone=phone, email=email,
                   kv=kv, links=links, mapjs=MAPJS, events=events, evjs=evjs,
-                  doesbtns=doesbtns, extra=extra,
+                  doesbtns=doesbtns, extra=extra, brandcss=brandcss,
                   addrflat=o['addr'].replace('<br>', ', '))
     html = TPL.format(**fields)
     d = os.path.join(ROOT, o['slug'])
