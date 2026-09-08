@@ -56,7 +56,7 @@ ORGS = [
  'since':'',
  'intro':[
    'The <b>Gowanus Canal Conservancy</b> is the group that has done the work on the canal since 2006, out of the Old American Can Factory: volunteers in the rain gardens and tree pits, students in the watershed, and staff at every meeting where the canal&rsquo;s future gets decided, including ours. On the rezoning they were ahead of everyone, with a plan for the waterfront before the City had one, and they&rsquo;re on the Oversight Task Force now making sure the open space and stormwater commitments get built.',
-   'Andrea Parker and her excellent team has run and met the moment for over a decade, and her team includes CB6&rsquo;s very Aurelia Casey! If you want to see what stewardship looks like in practice, go to the Salt Lot on a volunteer day.',
+   'Andrea Parker and her excellent team has run and met the moment for over a decade, and her team includes CB6 member Aurelia Casey. If you want to see what stewardship looks like in practice, go to the Salt Lot on a volunteer day.',
  ],
  'does':[
    'It runs the <b>Lowlands Nursery</b>, growing native urban-adapted plants and selling them to residents, institutions and landscape designers, with proceeds going back into education and stewardship.',
