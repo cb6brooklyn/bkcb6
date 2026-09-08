@@ -10,7 +10,7 @@ import os
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 CSS = open(os.path.join(ROOT, 'assets/org-profile.css'), encoding='utf-8').read()
-MAPJS = 'v=20260828d'
+MAPJS = 'v=20260830a'
 
 ORGS = [
 {
@@ -62,13 +62,19 @@ ORGS = [
    'It runs the <b>Lowlands Nursery</b>, growing native urban-adapted plants and selling them to residents, institutions and landscape designers, with proceeds going back into education and stewardship.',
    'It runs the <b>Gowanus Green Team</b>, paid high school apprentices doing conservation work, and the <b>Gowanus Tree Network</b>, which trains neighbours as Citizen Pruners to look after the street trees on their own blocks.',
    'It works out of the <b>Old American Can Factory</b>, a three storey 1890 complex at Third Street and Third Avenue that now houses artists, makers and non-profits. The lot is zoned <b>M1-4/R7X</b> inside the <b>Gowanus special district</b>, the mixed use zoning the 2021 rezoning brought in.',
+   'It facilitates the <b>Gowanus Improvement District</b> formation effort, the community-led push to establish a Business Improvement District focused on maintaining and programming the public realm in Gowanus: the waterfront esplanades, the new parks on the CSO tank sites and at Gowanus Green, and the street trees the rezoning requires. The Conservancy lends staff time and expertise to the steering committee, and its executive director Andrea Parker co-chairs it. The 2021 Points of Agreement created this BID at Community Board 6&rsquo;s demand for a Parks Improvement District to fund waterfront maintenance independent of the Parks budget. Businesses and property owners are being asked to vote this fall.',
+   'It sits on the <b>Gowanus Oversight Task Force</b>, the volunteer community body the Points of Agreement created as Commitment 1 to track the 56 rezoning commitments through 2037, with quarterly public meetings and six committees. Andrea Parker is on the Task Force steering committee for Sustainability and Resiliency.',
  ],
  'kv':[('Community board','<a href="/cb-bk-6.html">Brooklyn Community Board 6</a>'),
        ('The building','<a href="/old-american-can-factory">The Old American Can Factory</a>'),
        ('Zoning','M1-4/R7X, Gowanus special district')],
  'links':[('Their site','https://gowanuscanalconservancy.org',True),
           ('The Old American Can Factory','/old-american-can-factory',False),
+          ('Their events on the calendar','/o/gcc.html',False),
           ('The Gowanus rezoning','/gowanus.html',False),
+          ('Gowanus BID formation effort','https://gowanusimprovementdistrict.org/',True),
+          ('Gowanus Oversight Task Force','https://gowanustaskforce.net/',True),
+          ('Task Force meetings on the calendar','/o/gotf.html',False),
           ('Search an address','/citywide-search.html',False)],
 },
 {
