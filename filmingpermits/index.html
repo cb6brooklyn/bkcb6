@@ -101,6 +101,7 @@
   <div class="tabs">
     <button id="tabFilm" class="on" type="button">Filming permits</button>
     <button id="tabDot" type="button">DOT street work</button>
+    <button id="tabRes" type="button">Resurfacing</button>
   </div>
 
   <div class="filmwrap" id="filmwrap">
@@ -134,8 +135,23 @@
     <div id="dlist"></div>
   </div>
 
+  <div class="dotwrap" id="reswrap">
+    <div class="head">
+      <h2 id="rrange">Loading…</h2>
+      <p>NYC DOT roadway milling and paving in Brooklyn Community Board 6, block by block, from the citywide street resurfacing schedule. Milling strips the old surface; paving lays the new one, usually a few days later. Each record is one block on one shift.</p>
+    </div>
+    <div class="controls">
+      <div><label for="rType">Work</label><select id="rType"><option value="">Milling and paving</option><option value="MILLING">Milling</option><option value="PAVING">Paving</option></select></div>
+      <div><label for="rWhen">Dates</label><select id="rWhen"><option value="year">Past 12 months</option><option value="upcoming">Upcoming only</option><option value="all">All years</option></select></div>
+      <div><label for="rQ">Search</label><input id="rQ" type="search" placeholder="Street, neighborhood…"></div>
+    </div>
+    <div class="legend" id="rlegend"></div>
+    <div class="side-head"><h2>Resurfacing</h2><div class="count" id="rcnt"></div></div>
+    <div id="rlist"></div>
+  </div>
+
   <div id="map"></div>
-  <div class="notice">Source: NYC Mayor's Office of Media &amp; Entertainment (film office) event notifications emailed to the CB6 District Office, July 1 – September 2, 2026. Locations geocoded via NYC Planning geosearch and NYC Geoclient; parks placed from the NYC Parks properties dataset. One held block (Plaza St E at Eastern Pkwy, permit 961720) could not be resolved to a single node and is listed in text only. Duplicate notices for the same permit number are shown once, using the latest notice. Street work: NYC DOT permit records via NYCStreets, filtered to the CB6 boundary, geometry projected from state plane. DOT data is a snapshot, not a live feed; permits can be amended, revoked or extended after the snapshot was taken.</div>
+  <div class="notice">Source: NYC Mayor's Office of Media &amp; Entertainment (film office) event notifications emailed to the CB6 District Office, July 1 – September 2, 2026. Locations geocoded via NYC Planning geosearch and NYC Geoclient; parks placed from the NYC Parks properties dataset. One held block (Plaza St E at Eastern Pkwy, permit 961720) could not be resolved to a single node and is listed in text only. Duplicate notices for the same permit number are shown once, using the latest notice. Street work: NYC DOT permit records via NYCStreets, filtered to the CB6 boundary, geometry projected from state plane. DOT data is a snapshot, not a live feed; permits can be amended, revoked or extended after the snapshot was taken. Resurfacing: NYC Open Data street resurfacing schedule (dataset xnfm-u3k5), filtered to Brooklyn Community District 6. Weekly schedules are revised often; confirm current-week work against the DOT weekly milling and paving schedule.</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script>
@@ -374,18 +390,101 @@
       });
     }
 
+
+    /* ---------- DOT resurfacing (milling and paving) ---------- */
+    var RES_COLOR={'MILLING':'#8a4310','PAVING':'#0d1b4b'};
+    var resLayer=L.layerGroup();
+    var RES=[];var resInit=false;
+
+    function rpopup(p){
+      return '<div class="pp-t">'+esc(p.on||'')+'</div>'
+        +'<div class="pp-m">'+esc(p.w)+' \u00b7 '+esc(p.sh)+'</div>'
+        +(p.fr||p.to?esc(p.fr)+' \u2192 '+esc(p.to)+'<br>':'')
+        +esc(p.day)+', '+esc(dfmt(p.d))
+        +'<div class="pp-hold">'+esc(p.cr)+(p.area?'<br>'+esc(p.area):'')+'</div>';
+    }
+
+    function rrender(){
+      var today=new Date().toISOString().slice(0,10);
+      var yr=new Date(Date.now()-365*864e5).toISOString().slice(0,10);
+      var type=document.getElementById('rType').value;
+      var when=document.getElementById('rWhen').value;
+      var q=document.getElementById('rQ').value.trim().toLowerCase();
+      resLayer.clearLayers();
+      var list=document.getElementById('rlist');list.innerHTML='';
+      var shown=0;
+      RES.forEach(function(p){
+        if(type&&p.w!==type)return;
+        if(when==='upcoming'&&p.d<today)return;
+        if(when==='year'&&p.d<yr)return;
+        if(q&&((p.on+' '+p.fr+' '+p.to+' '+p.area+' '+p.w+' '+p.cr).toLowerCase().indexOf(q)<0))return;
+        shown++;
+        var c=RES_COLOR[p.w]||'#5f5a52';
+        if(p.line&&p.line.length>1){
+          resLayer.addLayer(L.polyline(p.line,{color:c,weight:5,opacity:.75,className:'dline'}).bindPopup(rpopup(p),{maxWidth:340}));
+        }else if(p.c){
+          resLayer.addLayer(L.circleMarker(p.c,{radius:6,color:'#fff',weight:2,fillColor:c,fillOpacity:.95}).bindPopup(rpopup(p),{maxWidth:340}));
+        }
+        if(shown<=400){
+          var card=document.createElement('div');card.className='item';
+          var up=p.d>=today;
+          card.innerHTML='<div class="when'+(up?' up':'')+'">'+(up?'UPCOMING':'COMPLETED')+' \u00b7 '+esc(p.day)+', '+esc(dfmt(p.d))+'</div>'
+            +'<h3>'+esc(p.on||'\u2014')+'</h3>'
+            +'<div class="d">'+(p.fr||p.to?esc(p.fr)+' \u2192 '+esc(p.to):'')+'</div>'
+            +'<div class="meta"><span class="tag t" style="background:'+c+'">'+esc(p.w)+'</span>'
+            +'<span class="tag">'+esc(p.sh)+'</span>'
+            +(p.cr?'<span class="tag">'+esc(p.cr)+'</span>':'')
+            +(p.area?'<span class="tag hold">'+esc(p.area)+'</span>':'')+'</div>';
+          card.addEventListener('click',function(){
+            var pts=p.line&&p.line.length?p.line:(p.c?[p.c]:[]);
+            if(pts.length){map.fitBounds(L.latLngBounds(pts).pad(0.35));document.getElementById('map').scrollIntoView({behavior:'smooth'});}
+          });
+          list.appendChild(card);
+        }
+      });
+      if(!shown)list.innerHTML='<div class="empty">No resurfacing records match these filters.</div>';
+      else if(shown>400){
+        var more=document.createElement('div');more.className='empty';
+        more.textContent='All '+shown+' matching blocks are drawn on the map. The first 400 are listed here \u2014 narrow the filters to list the rest.';
+        list.appendChild(more);
+      }
+      document.getElementById('rcnt').textContent=shown+' of '+RES.length+' blocks';
+    }
+
+    function loadRes(){
+      if(resInit)return;resInit=true;
+      fetch('resurfacing.json').then(function(r){return r.json();}).then(function(data){
+        RES=data.rows.sort(function(a,b){return a.d<b.d?1:-1;});
+        var lg=document.getElementById('rlegend');
+        [['MILLING','Milling'],['PAVING','Paving']].forEach(function(c){
+          var sp=document.createElement('span');sp.className='lg';
+          sp.innerHTML='<i style="background:'+RES_COLOR[c[0]]+'"></i>'+c[1];lg.appendChild(sp);
+        });
+        var ds=RES.map(function(p){return p.d;}).filter(Boolean).sort();
+        document.getElementById('rrange').textContent=RES.length+' blocks \u00b7 '+dfmt(ds[0])+' \u2013 '+dfmt(ds[ds.length-1]);
+        ['rType','rWhen'].forEach(function(id){document.getElementById(id).addEventListener('change',rrender);});
+        document.getElementById('rQ').addEventListener('input',rrender);
+        rrender();
+      }).catch(function(){
+        document.getElementById('rrange').textContent='Could not load resurfacing data.';
+      });
+    }
     function setTab(which){
-      var film=which==='film';
-      document.getElementById('tabFilm').classList.toggle('on',film);
-      document.getElementById('tabDot').classList.toggle('on',!film);
-      document.getElementById('filmwrap').classList.toggle('off',!film);
-      document.getElementById('dotwrap').classList.toggle('on',!film);
-      if(film){map.addLayer(markerLayer);if(document.getElementById('tHolds').checked)map.addLayer(holdLayer);map.removeLayer(dotLayer);}
-      else{map.removeLayer(markerLayer);map.removeLayer(holdLayer);map.addLayer(dotLayer);loadDot();}
+      document.getElementById('tabFilm').classList.toggle('on',which==='film');
+      document.getElementById('tabDot').classList.toggle('on',which==='dot');
+      document.getElementById('tabRes').classList.toggle('on',which==='res');
+      document.getElementById('filmwrap').classList.toggle('off',which!=='film');
+      document.getElementById('dotwrap').classList.toggle('on',which==='dot');
+      document.getElementById('reswrap').classList.toggle('on',which==='res');
+      map.removeLayer(markerLayer);map.removeLayer(holdLayer);map.removeLayer(dotLayer);map.removeLayer(resLayer);
+      if(which==='film'){map.addLayer(markerLayer);if(document.getElementById('tHolds').checked)map.addLayer(holdLayer);}
+      else if(which==='dot'){map.addLayer(dotLayer);loadDot();}
+      else{map.addLayer(resLayer);loadRes();}
       setTimeout(function(){map.invalidateSize();},50);
     }
     document.getElementById('tabFilm').addEventListener('click',function(){setTab('film');});
     document.getElementById('tabDot').addEventListener('click',function(){setTab('dot');});
+    document.getElementById('tabRes').addEventListener('click',function(){setTab('res');});
   })();
   </script>
 </body>
