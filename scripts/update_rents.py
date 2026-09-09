@@ -422,6 +422,94 @@ def main(src):
                     if v is not None: p[pk] = v
         geo_writes.append((full, g))
 
+    # ---- rank, band and colour fields on the GeoJSON files ----
+    # The map pages read these directly (boro_fill_1br, city_rank_all, range_lo,
+    # sub_hi_name ...), so they must be recomputed every month, not just the rents.
+    BANDS = [('Most Expensive','#67000D'),('Expensive','#D45F00'),('Mid Range','#E8A800'),
+             ('Less Expensive','#82C341'),('Least Expensive','#1B5E8A')]
+    REDS  = ['#67000D','#A50F15','#EF3B2C','#FC9272','#FEE0D2']   # same order, bk-rents fill_* palette
+    MODES = {'studio':'rent_studio','1br':'rent_1br','2br':'rent_2br','3br':'rent_3br','all':'rent_all'}
+    BEDN  = {'studio':'Studio','1br':'1 Bedroom','2br':'2 Bedroom','3br':'3 Bedroom','all':'All'}
+    BEDK  = {'studio':'Studio','1br':'1 Bedroom','2br':'2 Bedroom','3br':'3+ Bedroom','all':'All Units'}
+    def ordinal(n):
+        return '%d%s' % (n, 'th' if 10 <= n % 100 <= 20 else {1:'st',2:'nd',3:'rd'}.get(n % 10, 'th'))
+    def band_of(rank, n):
+        return BANDS[(rank - 1) * 5 // n]
+    def rank_map(props_list, key):
+        """rank -> {id: (rank, n)} among features with a value, highest rent first"""
+        have = [p for p in props_list if p.get(key) is not None]
+        have.sort(key=lambda p: (-p[key], -(p.get('rent_all') or 0), str(p.get('cb_code') or p.get('boro'))))
+        return {id(p): (i + 1, len(have)) for i, p in enumerate(have)}
+    nb_all = {ALIAS.get(a['n'], a['n']): a['s']['all'][1][last_i] for a in areas if a['t'] == 'neighborhood'}
+    nb_all.update({a['n']: a['s']['all'][1][last_i] for a in areas if a['t'] == 'neighborhood'})
+    def cd_ranges(p, code):
+        beds = {k: p.get(MODES[k]) for k in ('studio','1br','2br','3br')}
+        have = {k: v for k, v in beds.items() if v is not None}
+        if have:
+            lo = min(have, key=have.get); hi = max(have, key=have.get)
+            p['range_lo'], p['range_hi'] = have[lo], have[hi]
+            p['range_lo_bed'], p['range_hi_bed'] = BEDLBL[{'1br':'br1','2br':'br2','3br':'br3'}.get(lo, lo)], BEDLBL[{'1br':'br1','2br':'br2','3br':'br3'}.get(hi, hi)]
+        if 'sub_lo' in p:
+            vals = [(nb_all.get(n), n) for n in crosswalk.get(code, []) if nb_all.get(n) is not None]
+            if vals:
+                mn, mx = min(vals), max(vals)
+                p['sub_lo'], p['sub_lo_name'], p['sub_hi'], p['sub_hi_name'], p['sub_kind'] = mn[0], mn[1], mx[0], mx[1], 'neighborhood'
+    for full, g in geo_writes:
+        name = os.path.basename(full)
+        P = [f['properties'] for f in g['features']]
+        if name in ('citywide-rents.geojson', 'bk-rents.geojson'):
+            def code_of(p):
+                c = str(p.get('cb_code', ''))
+                return ('BK' + c) if c.startswith('CB') else c
+            boro_of = lambda p: p.get('Borough') or BORO_OF.get(code_of(p)[:2])
+            city = [gg for ff, gg in geo_writes if os.path.basename(ff) == 'citywide-rents.geojson'][0]
+            CITY = [f['properties'] for f in city['features']]
+            by_code = {c['cb_code']: c for c in CITY}
+            # ranks are always taken against the freshly rebuilt citywide features
+            src = [by_code.get(code_of(p), p) for p in P]
+            for m, key in MODES.items():
+                cr = rank_map(CITY, key)
+                for p, sp in zip(P, src):
+                    r = cr.get(id(sp))
+                    if not r: continue
+                    b = band_of(*r)
+                    p['city_rank_'+m], p['city_band_'+m], p['city_fill_'+m] = r[0], b[0], b[1]
+                for boro in set(boro_of(c) for c in CITY):
+                    br = rank_map([c for c in CITY if boro_of(c) == boro], key)
+                    for p, sp in zip(P, src):
+                        r = br.get(id(sp))
+                        if not r: continue
+                        b = band_of(*r)
+                        p['boro_rank_'+m], p['boro_band_'+m], p['boro_fill_'+m] = r[0], b[0], b[1]
+                        if 'band_'+m in p:
+                            p['band_'+m], p['fill_'+m] = b[0], REDS[BANDS.index(b)]
+            for p, sp in zip(P, src):
+                boro = boro_of(sp)
+                for m in MODES:
+                    v = sp.get(MODES[m])
+                    if v is None or 'boro_rank_'+m not in p: continue
+                    if BEDK[m] in p:
+                        p[BEDK[m]] = '%s : $%s/mo  #%s in %s  |  #%s in NYC' % (
+                            BEDN[m], format(v, ','), ordinal(p['boro_rank_'+m]), boro, ordinal(p['city_rank_'+m]))
+                    if 'label_'+m in p:
+                        cbn = re.sub(r'^\D+', '', code_of(sp))
+                        p['label_'+m] = 'CB%s (%d) - $%s %s' % (cbn, p['boro_rank_'+m], format(v, ','),
+                            {'studio':'Studio Median Rent','1br':'1BR Median Rent','2br':'2BR Median Rent','3br':'3BR Median Rent','all':'ALL All Units'}[m])
+                if 'city_rank_all' in p:
+                    b = band_of(p['city_rank_all'], 59); i = BANDS.index(b)
+                    p['rank_all_city'] = p['city_rank_all']; p['price_band'] = i + 1
+                    p['fill_color'] = b[1]; p['band_label'] = 'Band %d \u2014 %s' % (i + 1, b[0])
+                cd_ranges(p, code_of(sp))
+        elif name == 'borough-rents.geojson':
+            for m, key in [('studio','rent_studio'),('br1','rent_1br'),('br2','rent_2br'),('br3','rent_3br')]:
+                r = rank_map(P, key)
+                for p in P:
+                    if id(p) in r:
+                        b = band_of(*r[id(p)])
+                        p['rank_'+m], p['band_'+m], p['fill_'+m] = r[id(p)][0], b[0], b[1]
+        elif name == 'neighborhood-rents.geojson':
+            for p in P: cd_ranges(p, None)
+
     # ---- write everything, only now that every check has passed ----
     def write(name, obj):
         with open(os.path.join(DATA, name), 'w') as fh:
