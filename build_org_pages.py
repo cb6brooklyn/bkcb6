@@ -43,6 +43,7 @@ ORGS = [
 },
 {
  'slug':'gowanus-canal-conservancy',
+ 'unsigned':True,
  'name':'Gowanus Canal Conservancy',
  'seat':'Community based organisation &middot; Gowanus, Brooklyn',
  'title':'Gowanus Canal Conservancy',
