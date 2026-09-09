@@ -84,6 +84,7 @@ ORGS = [
 },
 {
  'slug':'park-slope-food-coop',
+ 'unsigned':True,
  'name':'Park Slope Food Coop',
  'seat':'Member-owned food cooperative &middot; Park Slope, Brooklyn',
  'title':'Park Slope Food Coop',
@@ -182,8 +183,7 @@ TPL = """<!DOCTYPE html>
     </span>
   </div>
 
-  <div class="sec introsec"><div class="bio dmintro">{intro}
-    <p class="sig">&mdash;<a href="mailto:Mike@bkcb6.org">Mike Racioppo</a></p></div></div>
+  <div class="sec introsec"><div class="bio dmintro">{intro}{sig}</div></div>
 
   <div class="sec"><h2>Where it is</h2>
     <details class="mapwrap" open><summary>Map of the block<span class="msub">zoning, boundary, overlaps, land use</span><span class="marr2">&#9660;</span></summary>
@@ -373,12 +373,13 @@ for o in ORGS:
         for title, items in o.get('extra', []))
     brandcss = BRANDCSS.format(name=o['name'], **o['brand']) if o.get('brand') else ''
     does_title = o.get('does_title','What it does')
+    sig = '' if o.get('unsigned') else '\n    <p class="sig">&mdash;<a href="mailto:Mike@bkcb6.org">Mike Racioppo</a></p>'
     fields = dict(o)
     # the record's own phone/email are raw values; the template wants the
     # rendered rows, so the built ones win
     fields.update(intro=intro, does=does, note=note, phone=phone, email=email,
                   kv=kv, links=links, mapjs=MAPJS, events=events, evjs=evjs,
-                  doesbtns=doesbtns, extra=extra, brandcss=brandcss, does_title=does_title,
+                  doesbtns=doesbtns, extra=extra, brandcss=brandcss, does_title=does_title, sig=sig,
                   addrflat=o['addr'].replace('<br>', ', '))
     html = TPL.format(**fields)
     d = os.path.join(ROOT, o['slug'])
