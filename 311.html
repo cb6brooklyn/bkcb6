@@ -1949,7 +1949,8 @@ async function load311() {
       date: d.created_date ? d.created_date.substring(0,10) : '',
       complaint_type: d.complaint_type || '',
       descriptor: d.descriptor || '',
-      address: d.incident_address || '',
+      address: d.incident_address || (d.intersection_street_1 && d.intersection_street_2 ? `${d.intersection_street_1} & ${d.intersection_street_2}` : ''),
+      cross: [d.cross_street_1, d.cross_street_2, d.intersection_street_1, d.intersection_street_2].filter(Boolean).join(' '),
       agency: d.agency_name || d.agency || '',
       status: d.status || '',
       lat: parseFloat(d.latitude) || null,
@@ -2041,12 +2042,33 @@ async function runLanding311Search() {
   document.getElementById('c311ComplaintSearchPanel')?.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
+// Normalise street abbreviations and ordinals so "11th st", "5 ave", "5th avenue & 11th street" all match
+// the API's "11 STREET" / "5 AVENUE" spellings. Terms split on "&", "and", "/" or "," must all match.
+function normalize311Loc(s) {
+  return (s || '').toLowerCase()
+    .replace(/(\d+)(st|nd|rd|th)\b/g, '$1')
+    .replace(/\bave?\b\.?/g, 'avenue')
+    .replace(/\bst\b\.?/g, 'street')
+    .replace(/\bpl\b\.?/g, 'place')
+    .replace(/\brd\b\.?/g, 'road')
+    .replace(/\bblvd\b\.?/g, 'boulevard')
+    .replace(/\bpkwy\b\.?/g, 'parkway')
+    .replace(/\bct\b\.?/g, 'court')
+    .replace(/\bln\b\.?/g, 'lane')
+    .replace(/\s+/g, ' ').trim();
+}
+function matches311Location(haystack, query) {
+  const hay = normalize311Loc(haystack);
+  const terms = normalize311Loc(query).split(/\s*(?:&|\band\b|\/|,)\s*/).filter(Boolean);
+  return terms.every(t => hay.includes(t));
+}
+
 function get311SearchResults() {
   const { locationSearch, dateSearch, typeSearch } = get311SearchValues();
 
   return c311Filtered.filter(d => {
     const normalizedDate = (d.date || '').toLowerCase();
-    const matchesLocation = !locationSearch || `${d.address} ${d.agency}`.toLowerCase().includes(locationSearch);
+    const matchesLocation = !locationSearch || matches311Location(`${d.address} ${d.cross || ''} ${d.agency}`, locationSearch);
     const matchesDate = !dateSearch || normalizedDate.includes(dateSearch);
     const matchesType = !typeSearch || `${d.complaint_type} ${d.descriptor} ${d.cat}`.toLowerCase().includes(typeSearch);
     return matchesLocation && matchesDate && matchesType;
@@ -2509,7 +2531,8 @@ async function fetchReportData(year, month) {
     month: (d.created_date||'').substring(5,7),
     complaint_type: d.complaint_type||'',
     descriptor: d.descriptor||'',
-    address: d.incident_address||'',
+    address: d.incident_address || (d.intersection_street_1 && d.intersection_street_2 ? `${d.intersection_street_1} & ${d.intersection_street_2}` : ''),
+    cross: [d.cross_street_1, d.cross_street_2, d.intersection_street_1, d.intersection_street_2].filter(Boolean).join(' '),
     lat:   parseFloat(d.latitude) || null,
     lng:   parseFloat(d.longitude) || null,
     cat:   categorize(d.complaint_type||'')
