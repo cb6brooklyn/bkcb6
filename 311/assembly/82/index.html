@@ -392,6 +392,16 @@ footer a{color:var(--orange);text-decoration:none}
           <label for="c311SearchLocation" style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Location</label>
           <input type="text" id="c311SearchLocation" placeholder="Search street, address, or block..." style="width:100%;font-size:.82rem" oninput="sync311SearchInputs('monthly')">
         </div>
+        <div style="display:flex;flex-direction:column;gap:3px;flex:1 1 100%;min-width:220px">
+          <label for="c311BtwStreet" style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Street between cross streets</label>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <select id="c311BtwStreet" onchange="on311BtwStreetChange()" style="font-size:.82rem;flex:1;min-width:150px"><option value="">Street...</option></select>
+            <span style="font-size:.7rem;font-family:'DM Mono',monospace;color:var(--muted)">between</span>
+            <select id="c311BtwFrom" onchange="filter311Table()" disabled style="font-size:.82rem;flex:1;min-width:150px"><option value="">Cross street...</option></select>
+            <span style="font-size:.7rem;font-family:'DM Mono',monospace;color:var(--muted)">and</span>
+            <select id="c311BtwTo" onchange="filter311Table()" disabled style="font-size:.82rem;flex:1;min-width:150px"><option value="">Cross street...</option></select>
+          </div>
+        </div>
         <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:180px;max-width:280px">
           <label for="c311SearchDate" style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Date</label>
           <input type="text" id="c311SearchDate" placeholder="Search YYYY-MM-DD or YYYY-MM..." style="width:100%;font-size:.82rem" oninput="sync311SearchInputs('monthly')">
@@ -1866,6 +1876,9 @@ async function load311() {
       descriptor: d.descriptor || '',
       address: d.incident_address || (d.intersection_street_1 && d.intersection_street_2 ? `${d.intersection_street_1} & ${d.intersection_street_2}` : ''),
       cross: [d.cross_street_1, d.cross_street_2, d.intersection_street_1, d.intersection_street_2].filter(Boolean).join(' '),
+      street: d.street_name || '',
+      cs1: d.cross_street_1 || '', cs2: d.cross_street_2 || '',
+      is1: d.street_name ? '' : (d.intersection_street_1 || ''), is2: d.street_name ? '' : (d.intersection_street_2 || ''),
       agency: d.agency_name || d.agency || '',
       status: d.status || '',
       lat: parseFloat(d.latitude) || null,
@@ -1914,6 +1927,8 @@ function renderC311(year, month, catFilter) {
       </div>
     `).join('');
 
+  build311StreetIndex();
+  populate311StreetSelect();
   render311Map(c311Filtered);
   filter311Table();
   document.getElementById('c311Summary').style.display = 'block';
@@ -1978,15 +1993,151 @@ function matches311Location(haystack, query) {
   return terms.every(t => hay.includes(t));
 }
 
+// ── STREET-BETWEEN FILTER ─────────────────────────────────────────────────
+// Built from the loaded records: every street with its cross streets, ordered along
+// the street by the coordinates of the records that name them.
+let c311StreetIndex = new Map();
+function street311Key(s) { return normalize311Loc(s).toUpperCase(); }
+function build311StreetIndex() {
+  const idx = new Map();
+  const first = c311Data.find(d => d.lat && d.lng);
+  const kx = Math.cos(((first ? first.lat : 40.7) * Math.PI) / 180);
+  const touch = (street, crosses, d) => {
+    const sk = street311Key(street);
+    if (!sk) return;
+    let e = idx.get(sk);
+    if (!e) { e = { label: street, pts: [], crosses: new Map(), n: 0 }; idx.set(sk, e); }
+    e.n++;
+    const p = (d.lat && d.lng) ? [d.lng * kx, d.lat] : null;
+    if (p) e.pts.push(p);
+    crosses.forEach(c => {
+      const ck = street311Key(c);
+      if (!ck || ck === sk) return;
+      let ce = e.crosses.get(ck);
+      if (!ce) { ce = { label: c, blocks: new Map() }; e.crosses.set(ck, ce); }
+      if (p) {
+        const bk = crosses.map(street311Key).filter(k => k && k !== ck).sort().join('|') || '';
+        if (!ce.blocks.has(bk)) ce.blocks.set(bk, []);
+        ce.blocks.get(bk).push(p);
+      }
+    });
+  };
+  c311Data.forEach(d => {
+    if (d.street) touch(d.street, [d.cs1, d.cs2].filter(Boolean), d);
+    if (d.is1 && d.is2) { touch(d.is1, [d.is2], d); touch(d.is2, [d.is1], d); }
+  });
+  idx.forEach(e => {
+    const n = e.pts.length;
+    if (n >= 2) {
+      const mx = e.pts.reduce((a, p) => a + p[0], 0) / n, my = e.pts.reduce((a, p) => a + p[1], 0) / n;
+      let sxx = 0, syy = 0, sxy = 0;
+      e.pts.forEach(p => { const dx = p[0] - mx, dy = p[1] - my; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; });
+      const theta = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+      let ax = Math.cos(theta), ay = Math.sin(theta);
+      if (Math.abs(ay) > Math.abs(ax) ? ay < 0 : ax < 0) { ax = -ax; ay = -ay; }
+      e.mean = [mx, my]; e.axis = [ax, ay]; e.kx = kx;
+      e.proj = p => (p[0] - mx) * ax + (p[1] - my) * ay;
+      // a cross street sits at the mean of the medians of the blocks that name it,
+      // so with a block on each side it lands on the intersection itself
+      e.crosses.forEach(ce => {
+        ce.meds = new Map();
+        ce.blocks.forEach((pts, bk) => { const ts = pts.map(e.proj).sort((a, b) => a - b); ce.meds.set(bk, ts[Math.floor(ts.length / 2)]); });
+        const meds = [...ce.meds.values()];
+        ce.t = meds.length ? meds.reduce((a, b) => a + b, 0) / meds.length : null;
+        ce.solid = meds.length >= 2;
+      });
+      // a cross street named by only one block sits half a block past that block's
+      // midpoint: reflect the midpoint across the block's other (better-placed) cross street
+      e.crosses.forEach(ce => {
+        if (ce.solid || ce.meds.size !== 1) return;
+        const [bk, m] = [...ce.meds.entries()][0];
+        const partner = bk && !bk.includes('|') ? e.crosses.get(bk) : null;
+        if (partner && partner.solid && partner.t != null) ce.t = 2 * m - partner.t;
+      });
+      const ts = [...e.crosses.values()].map(c => c.t).filter(t => t != null).sort((a, b) => a - b);
+      const gaps = ts.slice(1).map((t, i) => t - ts[i]).filter(g => g > 0).sort((a, b) => a - b);
+      e.gap = gaps.length ? gaps[Math.floor(gaps.length / 2)] : 0;
+    } else {
+      e.mean = null; e.axis = null; e.proj = null; e.gap = 0;
+      e.crosses.forEach(ce => { ce.t = null; });
+    }
+    e.sorted = [...e.crosses.entries()].sort((a, b) => {
+      if (a[1].t == null && b[1].t == null) return a[1].label.localeCompare(b[1].label);
+      if (a[1].t == null) return 1;
+      if (b[1].t == null) return -1;
+      return b[1].t - a[1].t;
+    });
+  });
+  c311StreetIndex = idx;
+}
+function populate311StreetSelect() {
+  const sel = document.getElementById('c311BtwStreet');
+  if (!sel) return;
+  const prev = sel.value;
+  const streets = [...c311StreetIndex.entries()].filter(([, e]) => e.crosses.size >= 2)
+    .sort((a, b) => a[1].label.localeCompare(b[1].label));
+  sel.innerHTML = '<option value="">Street...</option>' + streets.map(([k, e]) =>
+    `<option value="${k}">${e.label} (${e.n.toLocaleString()})</option>`).join('');
+  sel.value = streets.some(([k]) => k === prev) ? prev : '';
+  on311BtwStreetChange(false);
+}
+function on311BtwStreetChange(refilter = true) {
+  const sel = document.getElementById('c311BtwStreet');
+  const from = document.getElementById('c311BtwFrom'), to = document.getElementById('c311BtwTo');
+  if (!sel || !from || !to) return;
+  const e = c311StreetIndex.get(sel.value);
+  const opts = e ? e.sorted.map(([k, ce]) => `<option value="${k}">${ce.label}</option>`).join('') : '';
+  from.innerHTML = '<option value="">Cross street...</option>' + opts;
+  to.innerHTML = '<option value="">Cross street...</option>' + opts;
+  from.disabled = to.disabled = !e;
+  if (refilter && document.getElementById('c311Summary')?.style.display !== 'none' && c311Filtered.length) filter311Table();
+}
+function get311BetweenFilter() {
+  const S = document.getElementById('c311BtwStreet')?.value || '';
+  if (!S) return null;
+  const e = c311StreetIndex.get(S);
+  if (!e) return null;
+  const A = document.getElementById('c311BtwFrom')?.value || '', B = document.getElementById('c311BtwTo')?.value || '';
+  if (!A && !B) return { street: S, set: null };
+  const set = new Set([A, B].filter(Boolean));
+  const ta = A ? e.crosses.get(A)?.t : null, tb = B ? e.crosses.get(B)?.t : null;
+  if (A && B && ta != null && tb != null) {
+    const lo = Math.min(ta, tb), hi = Math.max(ta, tb);
+    e.crosses.forEach((ce, k) => { if (ce.t != null && ce.t >= lo - 1e-9 && ce.t <= hi + 1e-9) set.add(k); });
+    return { street: S, set, lo, hi, margin: e.gap || 0, proj: e.proj, kx: e.kx };
+  }
+  return { street: S, set };
+}
+function record311MatchesBetween(d, f) {
+  const sk = street311Key(d.street), i1 = street311Key(d.is1), i2 = street311Key(d.is2);
+  const onStreet = sk === f.street || i1 === f.street || i2 === f.street;
+  if (!onStreet) return false;
+  if (!f.set) return true;
+  if (sk === f.street) {
+    const cs = [street311Key(d.cs1), street311Key(d.cs2)].filter(Boolean);
+    if (cs.length) return cs.every(k => f.set.has(k));
+  } else {
+    const other = i1 === f.street ? i2 : i1;
+    if (other) return f.set.has(other);
+  }
+  if (f.proj && d.lat && d.lng) {
+    const t = f.proj([d.lng * f.kx, d.lat]);
+    return t >= f.lo - f.margin - 1e-9 && t <= f.hi + f.margin + 1e-9;
+  }
+  return false;
+}
+
 function get311SearchResults() {
   const { locationSearch, dateSearch, typeSearch } = get311SearchValues();
 
+  const btw = get311BetweenFilter();
   return c311Filtered.filter(d => {
     const normalizedDate = (d.date || '').toLowerCase();
     const matchesLocation = !locationSearch || matches311Location(`${d.address} ${d.cross || ''} ${d.agency}`, locationSearch);
     const matchesDate = !dateSearch || normalizedDate.includes(dateSearch);
+    const matchesBetween = !btw || record311MatchesBetween(d, btw);
     const matchesType = !typeSearch || `${d.complaint_type} ${d.descriptor} ${d.cat}`.toLowerCase().includes(typeSearch);
-    return matchesLocation && matchesDate && matchesType;
+    return matchesLocation && matchesDate && matchesType && matchesBetween;
   });
 }
 
@@ -1998,6 +2149,8 @@ function clear311Search(source = 'monthly') {
     if (group.date) group.date.value = '';
     if (group.type) group.type.value = '';
   });
+  const btwS = document.getElementById('c311BtwStreet');
+  if (btwS) { btwS.value = ''; on311BtwStreetChange(false); }
   if (document.getElementById('c311Summary')?.style.display !== 'none' && c311Filtered.length) {
     filter311Table();
   }
@@ -2448,6 +2601,9 @@ async function fetchReportData(year, month) {
     descriptor: d.descriptor||'',
     address: d.incident_address || (d.intersection_street_1 && d.intersection_street_2 ? `${d.intersection_street_1} & ${d.intersection_street_2}` : ''),
     cross: [d.cross_street_1, d.cross_street_2, d.intersection_street_1, d.intersection_street_2].filter(Boolean).join(' '),
+    street: d.street_name || '',
+    cs1: d.cross_street_1 || '', cs2: d.cross_street_2 || '',
+    is1: d.street_name ? '' : (d.intersection_street_1 || ''), is2: d.street_name ? '' : (d.intersection_street_2 || ''),
     lat:   parseFloat(d.latitude) || null,
     lng:   parseFloat(d.longitude) || null,
     cat:   categorize(d.complaint_type||'')
