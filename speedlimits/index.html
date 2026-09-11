@@ -147,6 +147,8 @@ body.embed .top-bar,body.embed .head,body.embed .changes{display:none}
   <span class="li"><span class="ls" style="background:#ea580c"></span>35 to 40 mph</span>
   <span class="li"><span class="ls" style="background:#b91c1c"></span>45 to 50 mph</span>
   <span class="li"><span class="ls" style="background:#9ca3af"></span>No value in DOT data</span>
+  <span class="li"><span class="ld" style="color:#7c2d12;background:#7c2d12"></span>Public school</span>
+  <span class="li"><span class="ls dash" style="color:#dc2626;height:6px"></span>Proposed 15 mph school speed zone</span>
   <span class="li"><span class="ls dash" style="color:#6d28d9"></span>Council</span>
   <span class="li"><span class="ls dash" style="color:#be185d"></span>State Senate</span>
   <span class="li"><span class="ls dash" style="color:#0e7490"></span>State Assembly</span>
@@ -174,6 +176,9 @@ body.embed .top-bar,body.embed .head,body.embed .changes{display:none}
   <button class="tbtn active" id="sg-n" style="--tc:#0d1b4b" onclick="togSG('N',this)">Unsigned</button>
   <span class="lb" style="margin-left:8px">Boundaries</span>
   <button class="tbtn active" id="bnd-btn" style="--tc:#0d1b4b" onclick="togBounds(this)">Community districts</button>
+  <span class="lb" style="margin-left:8px">Schools</span>
+  <button class="tbtn" id="sch-btn" style="--tc:#7c2d12" onclick="togSchools(this)">School pins</button>
+  <button class="tbtn" id="sz-btn" style="--tc:#dc2626" onclick="togSZ(this)">Proposed 15 mph school speed zones</button>
 </div>
 <div class="ov" id="ov">
   <span class="lb">Overlapping</span>
@@ -188,6 +193,7 @@ body.embed .top-bar,body.embed .head,body.embed .changes{display:none}
 <div class="sel" id="sel"></div>
 <div class="head about">
   <p>The posted speed limit on every mapped street segment in New York City, 141,440 segments across the five boroughs, from NYC DOT's Vision Zero speed limit data. Since November 7, 2014 the citywide default has been 25 mph unless a street is signed otherwise; DOT marks each segment as signed or unsigned. Turn districts on and off below, search an address, or enter a street and cross streets. Every community district is labeled and colored on the map. The City Council, State Senate, State Assembly and Congressional districts that overlap the selected districts are listed as toggles; tap one to draw it. Tap any segment for the street, its speed limit, whether it is signed, and the district.</p>
+  <div class="notice"><strong>School speed zones.</strong> Sammy's Law, named for a child killed by a speeding driver in this district, gave New York City the authority to set speed limits below 25 mph. CB6 passed a resolution calling on DOT to implement 15 mph school speed zones district-wide, and the mayor has announced citywide 15 mph school zone reductions. The "Proposed 15 mph school speed zones" toggle shows what full implementation would look like on any district you select: every street segment within 150 meters of a New York City public school (1,950 schools; 26,240 of the 141,440 segments citywide), the same method used for the CB6 Sammy's Law map. Each highlighted segment's tooltip gives its current posted limit.</div>
   <div class="notice">DOT advises that speed limits are subject to temporary or permanent change and that posted signage governs. Segments shown as "No value" carry a 0 in DOT's data; DOT's data dictionary does not define that value.</div>
 </div>
 <div class="source-bar">Data: <a href="https://data.cityofnewyork.us/Transportation/VZV_Speed-Limits/5mad-ntua" target="_blank" rel="noopener">NYC DOT VZV_Speed Limits</a> via NYC Open Data (rows updated September 1, 2026, downloaded September 11, 2026), 141,444 rows, 141,440 with geometry, assigned to community districts by segment midpoint. District boundaries: NYC DCP. Built by Brooklyn Community Board 6 for <a href="https://bkcb6.app">bkcb6.app</a>.</div>
@@ -204,7 +210,7 @@ var OV={council:{name:'Council',short:'CD',off:[0,-30],pal:['#6d28d9','#a855f7',
 var OVTYPE={council:false,senate:false,assembly:false,congress:false},ovOn={},ovGeo={},ovMeta=null,ovPending={},ovLayers={},PDCDS=null,pdSegs={},pdSegLayers={};
 fetch('/data/truck-routes/pd-cds.json').then(function(r){return r.json();}).then(function(d){PDCDS=d;refreshOverlaps();}).catch(function(){});
 function cdColor(cd){if(cd==='306')return '#f47920';var c=cdInfo(cd);if(!c||!c.b)return '#555';var list=CDS.filter(function(x){return x.b===c.b;});return CDPAL[list.indexOf(c)%CDPAL.length];}
-var on={},data={},layers={},pending={},showBounds=true;
+var on={},data={},layers={},pending={},showBounds=true,showSchools=false,showSZ=false,schools=null,schoolLayer=L.layerGroup(),szLayer=L.layerGroup();
 var qs=new URLSearchParams(location.search);
 if(qs.get('embed')==='1')document.body.classList.add('embed');
 var map=L.map('map',{zoomControl:true,preferCanvas:true}).setView([40.674,-73.995],13);
@@ -232,6 +238,7 @@ function styleFor(f){var v=f.properties.sl||0;return{color:slColor(v),weight:v>=
 function tip(p){
   var cdi=cdInfo(p.borocd)||{};
   var s='<strong>'+escH(p.street||'')+'</strong><br><span class="k">'+(p.sl?'<b style="color:'+slColor(p.sl)+'">'+p.sl+' mph</b>':'No speed limit value in DOT data')+' &middot; '+(p.sg==='Y'?'signed':'unsigned')+'</span>';
+  if(p.sz)s+='<br><span class="k" style="color:#dc2626">Within 150 m of a public school: proposed 15 mph school speed zone</span>';
   s+='<br><span class="k">'+escH(cdi.lbl?(cdi.jia?cdi.lbl+' (joint interest area)':cdi.lbl):'Outside any district')+'</span>';
   return s;
 }
@@ -248,7 +255,7 @@ function applyCD(cd){
   if(layers[cd]){routeGroup.removeLayer(layers[cd]);delete layers[cd];}
   if(on[cd]&&data[cd]){layers[cd]=makeLayer(cd);routeGroup.addLayer(layers[cd]);}
   var ch=document.getElementById('chip-'+cd);if(ch){ch.classList.toggle('on',!!on[cd]);ch.classList.remove('busy');}
-  drawBounds();updateSel();refreshOverlaps();redrawPdSegs();
+  drawBounds();updateSel();refreshOverlaps();redrawPdSegs();redrawExtras();
 }
 function togCD(cd){setCD(cd,!on[cd],true);}
 function setCD(cd,val,fit){
@@ -267,8 +274,8 @@ function setAll(val){var cds=CDS.map(function(c){return c.cd;});
   else{cds.forEach(function(cd){on[cd]=false;applyCD(cd);});syncURL();}
 }
 function fitTo(cds){var bb=null;cds.forEach(function(cd){if(layers[cd]){var b=layers[cd].getBounds();if(b.isValid())bb=bb?bb.extend(b):b;}});if(bb&&bb.isValid())map.fitBounds(bb,{padding:[20,20]});}
-function togSL(btn){var v=+btn.getAttribute('data-sl');SL[v]=!SL[v];btn.classList.toggle('active',SL[v]);Object.keys(layers).forEach(function(cd){applyCD(cd);});redrawPdSegs();syncURL();}
-function togSG(k,btn){SG[k]=!SG[k];btn.classList.toggle('active',SG[k]);Object.keys(layers).forEach(function(cd){applyCD(cd);});redrawPdSegs();syncURL();}
+function togSL(btn){var v=+btn.getAttribute('data-sl');SL[v]=!SL[v];btn.classList.toggle('active',SL[v]);Object.keys(layers).forEach(function(cd){applyCD(cd);});redrawPdSegs();redrawExtras();syncURL();}
+function togSG(k,btn){SG[k]=!SG[k];btn.classList.toggle('active',SG[k]);Object.keys(layers).forEach(function(cd){applyCD(cd);});redrawPdSegs();redrawExtras();syncURL();}
 function togBounds(btn){showBounds=!showBounds;btn.classList.toggle('active',showBounds);if(showBounds)map.addLayer(boundLayer);else map.removeLayer(boundLayer);}
 function updateSel(){
   var sel=CDS.filter(function(c){return on[c.cd];});
@@ -312,7 +319,7 @@ function refreshOverlaps(){
     h+='<button class="chip ov-chip'+(isOn?' on':'')+'" style="--cc:'+col+'" title="'+escH(title)+'" onclick="togOv(\''+k+'\')"><img src="'+LOGO[o.t](o.d)+'" alt="" loading="lazy" onerror="this.remove()">'+OV[o.t].name+' '+o.d+'</button>';});
   host.innerHTML=h||'<span class="lb" style="text-transform:none;letter-spacing:0">Turn on a community district to see the districts that overlap it.</span>';
   // draw
-  Object.keys(ovLayers).forEach(function(k){if(!cur[k]||!OVTYPE[cur[k].t]||!ovOn[k]){map.removeLayer(ovLayers[k]);delete ovLayers[k];if(pdSegLayers[k]){map.removeLayer(pdSegLayers[k]);delete pdSegLayers[k];}}});
+  Object.keys(ovLayers).forEach(function(k){if(!cur[k]||!OVTYPE[cur[k].t]||!ovOn[k]){map.removeLayer(ovLayers[k]);delete ovLayers[k];if(pdSegLayers[k]){map.removeLayer(pdSegLayers[k]);delete pdSegLayers[k];}redrawExtras();}});
   var need=keys.filter(function(k){return OVTYPE[cur[k].t]&&ovOn[k]&&!ovLayers[k];});
   var types={};need.forEach(function(k){types[cur[k].t]=1;});
   Promise.all(Object.keys(types).map(loadOv)).then(function(){
@@ -330,7 +337,7 @@ function loadPdSegs(k,o,f){
   status('Loading '+OV[o.t].name+' '+o.d+' speed limits…');
   Promise.all(cds.map(loadCD)).then(function(){
     var feats=[];cds.forEach(function(cd){(data[cd].features||[]).forEach(function(ft){if(midIn(ft,f.geometry))feats.push(ft);});});
-    pdSegs[k]={feats:feats,cds:cds};status('');drawPdSegs(k);updateSel();
+    pdSegs[k]={feats:feats,cds:cds};status('');drawPdSegs(k);updateSel();redrawExtras();
   }).catch(function(){status('');});
 }
 function drawPdSegs(k){
@@ -339,6 +346,17 @@ function drawPdSegs(k){
   var fc={type:'FeatureCollection',features:s.feats.filter(function(ft){return !on[ft.properties.borocd];})};
   pdSegLayers[k]=L.geoJSON(fc,{style:styleFor,filter:function(ft){return !!SL[ft.properties.sl]&&!!SG[ft.properties.sg];},onEachFeature:function(ft,l){l.bindTooltip(tip(ft.properties),{sticky:true,opacity:1,className:'tr-tip'});}}).addTo(map);
 }
+function visibleFeatures(){var out=[];Object.keys(layers).forEach(function(cd){(data[cd].features||[]).forEach(function(f){if(SL[f.properties.sl]&&SG[f.properties.sg])out.push(f);});});Object.keys(pdSegs).forEach(function(k){if(!ovLayers[k])return;pdSegs[k].feats.forEach(function(f){if(!on[f.properties.borocd]&&SL[f.properties.sl]&&SG[f.properties.sg])out.push(f);});});return out;}
+function drawSZ(){szLayer.clearLayers();if(!showSZ)return;var fs=visibleFeatures().filter(function(f){return f.properties.sz;});
+  L.geoJSON({type:'FeatureCollection',features:fs},{style:{color:'#dc2626',weight:6,opacity:.85,dashArray:'10 7',lineCap:'round'},onEachFeature:function(f,l){l.bindTooltip(tip(f.properties),{sticky:true,opacity:1,className:'tr-tip'});}}).addTo(szLayer);
+  var el=document.getElementById('sz-btn');el.textContent='Proposed 15 mph school speed zones ('+fs.length.toLocaleString()+')';}
+function inShown(pt){var k;for(k in on)if(on[k]&&boundFeatures[k]&&pointIn(boundFeatures[k].geometry,pt))return true;for(k in ovLayers){var o=currentOverlaps()[k];if(o&&ovGeo[o.t]&&ovGeo[o.t][String(o.d)]&&pointIn(ovGeo[o.t][String(o.d)].geometry,pt))return true;}return false;}
+function drawSchools(){schoolLayer.clearLayers();if(!showSchools||!schools)return;var n=0;schools.features.forEach(function(f){var c=f.geometry.coordinates;if(!inShown(c))return;n++;
+  L.circleMarker([c[1],c[0]],{radius:6,color:'#fff',weight:1.5,fillColor:'#7c2d12',fillOpacity:.95}).bindTooltip('<strong>'+escH(f.properties.name)+'</strong><br><span class="k">'+escH(f.properties.ats||'')+' &middot; NYC public school</span>',{sticky:true,opacity:1,className:'tr-tip'}).addTo(schoolLayer);});
+  document.getElementById('sch-btn').textContent='School pins ('+n+')';}
+function togSchools(btn){showSchools=!showSchools;btn.classList.toggle('active',showSchools);if(showSchools){map.addLayer(schoolLayer);if(schools)drawSchools();else{status('Loading schools…');fetch('/data/nyc-schools.geojson').then(function(r){return r.json();}).then(function(d){schools=d;status('');drawSchools();}).catch(function(){status('');});}}else{map.removeLayer(schoolLayer);btn.textContent='School pins';}syncURL();}
+function togSZ(btn){showSZ=!showSZ;btn.classList.toggle('active',showSZ);if(showSZ){map.addLayer(szLayer);drawSZ();}else{map.removeLayer(szLayer);btn.textContent='Proposed 15 mph school speed zones';}syncURL();}
+function redrawExtras(){drawSZ();drawSchools();}
 function redrawPdSegs(){Object.keys(pdSegs).forEach(function(k){if(ovLayers[k])drawPdSegs(k);else if(pdSegLayers[k]){map.removeLayer(pdSegLayers[k]);delete pdSegLayers[k];}});}
 function togOv(k){var cur=currentOverlaps(),o=cur[k];if(!o)return;var vis=OVTYPE[o.t]&&ovOn[k];if(vis){ovOn[k]=false;}else{ovOn[k]=true;if(!OVTYPE[o.t]){OVTYPE[o.t]=true;Object.keys(cur).forEach(function(x){if(x!==k&&cur[x].t===o.t&&ovOn[x]===undefined)ovOn[x]=false;});Object.keys(cur).forEach(function(x){if(x!==k&&cur[x].t===o.t)ovOn[x]=false;});var b=document.querySelector('.tbtn[data-ov="'+o.t+'"]');if(b)b.classList.add('active');}}refreshOverlaps();syncURL();}
 function togOvType(btn){var t=btn.getAttribute('data-ov');OVTYPE[t]=!OVTYPE[t];btn.classList.toggle('active',OVTYPE[t]);if(OVTYPE[t]){var cur=currentOverlaps();Object.keys(cur).forEach(function(x){if(cur[x].t===t)ovOn[x]=true;});}refreshOverlaps();syncURL();}
@@ -408,12 +426,13 @@ function findStreet(){
 }
 ['f-street','f-x1','f-x2'].forEach(function(id){document.getElementById(id).addEventListener('keydown',function(e){if(e.key==='Enter')findStreet();});});
 document.getElementById('s-input').addEventListener('keydown',function(e){if(e.key==='Enter')doSearch();});
-function syncURL(){var sel=CDS.filter(function(c){return on[c.cd];}).map(function(c){return c.cd;});var p=new URLSearchParams();if(sel.length)p.set('cd',sel.join(','));var tOff=Object.keys(SL).filter(function(t){return !SL[t];});if(tOff.length)p.set('hide',tOff.join(','));if(!SG.Y)p.set('unsignedonly','1');if(!SG.N)p.set('signedonly','1');var oOn=Object.keys(OVTYPE).filter(function(t){return OVTYPE[t];});if(oOn.length)p.set('ov',oOn.join(','));if(qs.get('embed')==='1')p.set('embed','1');history.replaceState(null,'',location.pathname+(p.toString()?'?'+p.toString():''));}
+function syncURL(){var sel=CDS.filter(function(c){return on[c.cd];}).map(function(c){return c.cd;});var p=new URLSearchParams();if(sel.length)p.set('cd',sel.join(','));var tOff=Object.keys(SL).filter(function(t){return !SL[t];});if(tOff.length)p.set('hide',tOff.join(','));if(!SG.Y)p.set('unsignedonly','1');if(!SG.N)p.set('signedonly','1');if(showSZ)p.set('schoolzones','1');if(showSchools)p.set('schools','1');var oOn=Object.keys(OVTYPE).filter(function(t){return OVTYPE[t];});if(oOn.length)p.set('ov',oOn.join(','));if(qs.get('embed')==='1')p.set('embed','1');history.replaceState(null,'',location.pathname+(p.toString()?'?'+p.toString():''));}
 // init
 buildChips();
 (function(){
   var init=(qs.get('cd')||'306').split(',').map(function(s){return s.trim();}).filter(function(s){return cdInfo(s);});
   var hide=(qs.get('hide')||'').split(',');hide.forEach(function(t){if(SL.hasOwnProperty(t)){SL[t]=false;var b=document.querySelector('.tbtn[data-sl="'+t+'"]');if(b)b.classList.remove('active');}});
+  if(qs.get('schoolzones')==='1')togSZ(document.getElementById('sz-btn'));if(qs.get('schools')==='1')togSchools(document.getElementById('sch-btn'));
   if(qs.get('signedonly')==='1'){SG.N=false;document.getElementById('sg-n').classList.remove('active');}if(qs.get('unsignedonly')==='1'){SG.Y=false;document.getElementById('sg-y').classList.remove('active');}
   (qs.get('ov')||'').split(',').forEach(function(t){if(OVTYPE.hasOwnProperty(t)){OVTYPE[t]=true;var b=document.querySelector('.tbtn[data-ov="'+t+'"]');if(b)b.classList.add('active');}});
   status('Loading…');Promise.all(init.map(loadCD)).then(function(){status('');init.forEach(function(cd){on[cd]=true;applyCD(cd);});fitTo(init);updateSel();
