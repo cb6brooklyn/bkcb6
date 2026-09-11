@@ -201,7 +201,8 @@ var CDPAL=['#0d1b4b','#b91c1c','#047857','#7c3aed','#c2410c','#0369a1','#a21caf'
 var CONG={3:'suozzi',5:'meeks',6:'meng',7:'velazquez',8:'jeffries',9:'clarke',10:'goldman',11:'malliotakis',12:'nadler',13:'espaillat',14:'aoc',15:'torres',16:'latimer'};
 var LOGO={council:function(d){return '/elected/CD'+d+'.png';},senate:function(d){return '/elected/SD'+d+'.png';},assembly:function(d){return '/elected/AD'+d+'.png';},congress:function(d){return CONG[d]?'/elected/'+CONG[d]+'.png':'/site-icons/congress/cd'+d+'.png';}};
 var OV={council:{name:'Council',short:'CD',off:[0,-30],pal:['#6d28d9','#a855f7','#4c1d95','#c084fc']},senate:{name:'State Senate',short:'SD',off:[0,-10],pal:['#be185d','#f472b6','#831843','#fb7185']},assembly:{name:'State Assembly',short:'AD',off:[0,10],pal:['#0e7490','#22d3ee','#164e63','#0891b2']},congress:{name:'Congress',short:'NY',off:[0,30],pal:['#374151','#9ca3af']}};
-var OVTYPE={council:false,senate:false,assembly:false,congress:false},ovOn={},ovGeo={},ovMeta=null,ovPending={},ovLayers={};
+var OVTYPE={council:false,senate:false,assembly:false,congress:false},ovOn={},ovGeo={},ovMeta=null,ovPending={},ovLayers={},PDCDS=null,pdSegs={},pdSegLayers={};
+fetch('/data/truck-routes/pd-cds.json').then(function(r){return r.json();}).then(function(d){PDCDS=d;refreshOverlaps();}).catch(function(){});
 function cdColor(cd){if(cd==='306')return '#f47920';var c=cdInfo(cd);if(!c||!c.b)return '#555';var list=CDS.filter(function(x){return x.b===c.b;});return CDPAL[list.indexOf(c)%CDPAL.length];}
 var on={},data={},layers={},pending={},showBounds=true;
 var qs=new URLSearchParams(location.search);
@@ -247,7 +248,7 @@ function applyCD(cd){
   if(layers[cd]){routeGroup.removeLayer(layers[cd]);delete layers[cd];}
   if(on[cd]&&data[cd]){layers[cd]=makeLayer(cd);routeGroup.addLayer(layers[cd]);}
   var ch=document.getElementById('chip-'+cd);if(ch){ch.classList.toggle('on',!!on[cd]);ch.classList.remove('busy');}
-  drawBounds();updateSel();refreshOverlaps();
+  drawBounds();updateSel();refreshOverlaps();redrawPdSegs();
 }
 function togCD(cd){setCD(cd,!on[cd],true);}
 function setCD(cd,val,fit){
@@ -266,8 +267,8 @@ function setAll(val){var cds=CDS.map(function(c){return c.cd;});
   else{cds.forEach(function(cd){on[cd]=false;applyCD(cd);});syncURL();}
 }
 function fitTo(cds){var bb=null;cds.forEach(function(cd){if(layers[cd]){var b=layers[cd].getBounds();if(b.isValid())bb=bb?bb.extend(b):b;}});if(bb&&bb.isValid())map.fitBounds(bb,{padding:[20,20]});}
-function togSL(btn){var v=+btn.getAttribute('data-sl');SL[v]=!SL[v];btn.classList.toggle('active',SL[v]);Object.keys(layers).forEach(function(cd){applyCD(cd);});syncURL();}
-function togSG(k,btn){SG[k]=!SG[k];btn.classList.toggle('active',SG[k]);Object.keys(layers).forEach(function(cd){applyCD(cd);});syncURL();}
+function togSL(btn){var v=+btn.getAttribute('data-sl');SL[v]=!SL[v];btn.classList.toggle('active',SL[v]);Object.keys(layers).forEach(function(cd){applyCD(cd);});redrawPdSegs();syncURL();}
+function togSG(k,btn){SG[k]=!SG[k];btn.classList.toggle('active',SG[k]);Object.keys(layers).forEach(function(cd){applyCD(cd);});redrawPdSegs();syncURL();}
 function togBounds(btn){showBounds=!showBounds;btn.classList.toggle('active',showBounds);if(showBounds)map.addLayer(boundLayer);else map.removeLayer(boundLayer);}
 function updateSel(){
   var sel=CDS.filter(function(c){return on[c.cd];});
@@ -276,7 +277,8 @@ function updateSel(){
   var segs=0;sel.forEach(function(c){segs+=c.n;});
   var shown=0;Object.keys(layers).forEach(function(cd){shown+=layers[cd].getLayers().length;});
   var names=sel.length<=4?sel.map(function(c){return '<b>'+escH(c.lbl)+'</b>'+(c.name&&!c.jia?' ('+escH(c.name)+')':'');}).join('; '):sel.length+' districts';
-  el.innerHTML='Showing '+names+' &middot; <b>'+shown.toLocaleString()+'</b> of '+segs.toLocaleString()+' segments in the selected district'+(sel.length>1?'s':'')+(shown<segs?' (speed or sign filter applied)':'');
+  var pd=Object.keys(pdSegs).filter(function(k){return ovLayers[k];}).map(function(k){var o=currentOverlaps()[k];var n=pdSegs[k].feats.length,sh=pdSegLayers[k]?pdSegLayers[k].getLayers().length:0;return '<b>'+OV[o.t].name+' '+o.d+'</b> '+n.toLocaleString()+' segments'+(sh<n&&!pdSegs[k].feats.every(function(ft){return on[ft.properties.borocd];})?' ('+sh.toLocaleString()+' shown outside the selected community districts)':'');});
+  el.innerHTML='Showing '+names+' &middot; <b>'+shown.toLocaleString()+'</b> of '+segs.toLocaleString()+' segments in the selected district'+(sel.length>1?'s':'')+(shown<segs?' (speed or sign filter applied)':'')+(pd.length?'<br>Legislative districts: '+pd.join('; '):'');
 }
 // boundaries
 function drawBounds(){
@@ -310,7 +312,7 @@ function refreshOverlaps(){
     h+='<button class="chip ov-chip'+(isOn?' on':'')+'" style="--cc:'+col+'" title="'+escH(title)+'" onclick="togOv(\''+k+'\')"><img src="'+LOGO[o.t](o.d)+'" alt="" loading="lazy" onerror="this.remove()">'+OV[o.t].name+' '+o.d+'</button>';});
   host.innerHTML=h||'<span class="lb" style="text-transform:none;letter-spacing:0">Turn on a community district to see the districts that overlap it.</span>';
   // draw
-  Object.keys(ovLayers).forEach(function(k){if(!cur[k]||!OVTYPE[cur[k].t]||!ovOn[k]){map.removeLayer(ovLayers[k]);delete ovLayers[k];}});
+  Object.keys(ovLayers).forEach(function(k){if(!cur[k]||!OVTYPE[cur[k].t]||!ovOn[k]){map.removeLayer(ovLayers[k]);delete ovLayers[k];if(pdSegLayers[k]){map.removeLayer(pdSegLayers[k]);delete pdSegLayers[k];}}});
   var need=keys.filter(function(k){return OVTYPE[cur[k].t]&&ovOn[k]&&!ovLayers[k];});
   var types={};need.forEach(function(k){types[cur[k].t]=1;});
   Promise.all(Object.keys(types).map(loadOv)).then(function(){
@@ -318,9 +320,26 @@ function refreshOverlaps(){
       var g=L.featureGroup();
       L.geoJSON(f,{style:{color:col,weight:3,opacity:.9,dashArray:'9 6',fill:false},interactive:false}).addTo(g);
       o.cds.forEach(function(x){var lp=(ovMeta.cds[x.cd][o.t]||[]).filter(function(z){return z.d===o.d;})[0];if(lp&&lp.lp)L.tooltip({permanent:true,direction:'center',offset:OV[o.t].off,className:'pd-label',interactive:false}).setLatLng([lp.lp[1],lp.lp[0]]).setContent('<span style="--lc:'+col+'"><img src="'+LOGO[o.t](o.d)+'" alt="" onerror="this.remove()">'+OV[o.t].name+' '+o.d+'</span>').addTo(g);});
-      g.addTo(map);ovLayers[k]=g;});
+      g.addTo(map);ovLayers[k]=g;loadPdSegs(k,o,f);});
   }).catch(function(){});
 }
+function midIn(f,poly){var line=f.geometry.coordinates.reduce(function(a,l){return l.length>a.length?l:a;},[]);var m=line[Math.floor(line.length/2)];return m?pointIn(poly,m):false;}
+function loadPdSegs(k,o,f){
+  if(!PDCDS||!PDCDS[o.t]||!PDCDS[o.t][String(o.d)])return;
+  var cds=PDCDS[o.t][String(o.d)];
+  status('Loading '+OV[o.t].name+' '+o.d+' speed limits…');
+  Promise.all(cds.map(loadCD)).then(function(){
+    var feats=[];cds.forEach(function(cd){(data[cd].features||[]).forEach(function(ft){if(midIn(ft,f.geometry))feats.push(ft);});});
+    pdSegs[k]={feats:feats,cds:cds};status('');drawPdSegs(k);updateSel();
+  }).catch(function(){status('');});
+}
+function drawPdSegs(k){
+  if(pdSegLayers[k]){map.removeLayer(pdSegLayers[k]);delete pdSegLayers[k];}
+  var s=pdSegs[k];if(!s||!ovLayers[k])return;
+  var fc={type:'FeatureCollection',features:s.feats.filter(function(ft){return !on[ft.properties.borocd];})};
+  pdSegLayers[k]=L.geoJSON(fc,{style:styleFor,filter:function(ft){return !!SL[ft.properties.sl]&&!!SG[ft.properties.sg];},onEachFeature:function(ft,l){l.bindTooltip(tip(ft.properties),{sticky:true,opacity:1,className:'tr-tip'});}}).addTo(map);
+}
+function redrawPdSegs(){Object.keys(pdSegs).forEach(function(k){if(ovLayers[k])drawPdSegs(k);else if(pdSegLayers[k]){map.removeLayer(pdSegLayers[k]);delete pdSegLayers[k];}});}
 function togOv(k){var cur=currentOverlaps(),o=cur[k];if(!o)return;var vis=OVTYPE[o.t]&&ovOn[k];if(vis){ovOn[k]=false;}else{ovOn[k]=true;if(!OVTYPE[o.t]){OVTYPE[o.t]=true;Object.keys(cur).forEach(function(x){if(x!==k&&cur[x].t===o.t&&ovOn[x]===undefined)ovOn[x]=false;});Object.keys(cur).forEach(function(x){if(x!==k&&cur[x].t===o.t)ovOn[x]=false;});var b=document.querySelector('.tbtn[data-ov="'+o.t+'"]');if(b)b.classList.add('active');}}refreshOverlaps();syncURL();}
 function togOvType(btn){var t=btn.getAttribute('data-ov');OVTYPE[t]=!OVTYPE[t];btn.classList.toggle('active',OVTYPE[t]);if(OVTYPE[t]){var cur=currentOverlaps();Object.keys(cur).forEach(function(x){if(cur[x].t===t)ovOn[x]=true;});}refreshOverlaps();syncURL();}
 fetch('/data/truck-routes/cd-overlaps.json').then(function(r){return r.json();}).then(function(d){ovMeta=d;refreshOverlaps();}).catch(function(){});
