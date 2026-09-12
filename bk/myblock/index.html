@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Block Finder, Brooklyn Community Board 6">
+<meta property="og:description" content="Pick a street and two cross streets, search an address, or drop a pin, and see everything on that stretch: permits, 311, crime, liquor licenses, landmarks, lots, businesses, block parties, and more.">
+<meta property="og:url" content="https://bkcb6.app/blocks/">
+<meta property="og:image" content="https://bkcb6.app/cb6-logo.png">
+<meta name="twitter:card" content="summary">
+<meta name="description" content="Pick a street and two cross streets, search an address, or drop a pin, and see everything on that stretch of Brooklyn Community Board 6: permits, 311, crime, liquor licenses, landmarks, lots, businesses, block parties, and more.">
+<title>My CB6 Block &mdash; Block Finder &mdash; Brooklyn CB6</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="/assets/cd-page.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+.intro{background:#fff;padding:13px 15px;border-bottom:1px solid var(--border);font-size:.86rem;line-height:1.62;color:#333;max-width:76ch}
+.intro b{color:var(--navy)}
+.modes{display:flex;background:var(--navy);border-bottom:2px solid var(--orange)}
+.modes button{flex:1;padding:11px 6px;background:transparent;border:none;border-bottom:3px solid transparent;color:rgba(255,255,255,.7);font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:800;cursor:pointer}
+.modes button.on{color:#fff;border-bottom-color:var(--orange)}
+.pane{display:none;background:var(--navy);padding:12px}
+.pane.on{display:block}
+.pane .lab{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.62);font-weight:700;margin:6px 0 4px}
+.pane select,.pane input{width:100%;padding:12px 13px;font-family:'DM Sans',sans-serif;font-size:.92rem;font-weight:600;border:none;border-radius:10px;color:var(--navy);background:#fff}
+.pane .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pane .hint{font-family:'DM Mono',monospace;font-size:.6rem;color:rgba(255,255,255,.62);margin-top:8px;line-height:1.6}
+.pane .go{margin-top:9px;width:100%;padding:12px;background:var(--orange);color:#1a3a6b;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.88rem;font-weight:800;cursor:pointer}
+.sugg{background:#fff;border-radius:10px;margin-top:6px;overflow:hidden}
+.sugg button{display:block;width:100%;text-align:left;padding:10px 13px;border:none;border-bottom:1px solid var(--border);background:#fff;font-family:'DM Sans',sans-serif;font-size:.84rem;color:var(--navy);cursor:pointer}
+.sugg button:hover{background:#fff4ea}
+.reach{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:9px 12px;background:var(--navy2);border-bottom:1px solid rgba(255,255,255,.12)}
+.reach .tl{font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.6);font-weight:700;width:100%}
+.tgl{padding:5px 11px;border:1.5px solid rgba(255,255,255,.3);border-radius:16px;background:transparent;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:#fff;cursor:pointer}
+.tgl.on{background:var(--orange);border-color:var(--orange)}
+#map{height:54vh;min-height:340px;background:#eef0f4}
+.maptools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 12px;background:var(--navy2);border-bottom:1px solid rgba(255,255,255,.12)}
+.maptools .tl{font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.6);font-weight:700}
+.maptools .tgl .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.below{background:#fff;border-bottom:1px solid var(--border);padding:10px 12px}
+.below .bh{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin-bottom:7px}
+.below .row2{display:flex;gap:6px;flex-wrap:wrap}
+.dates{background:var(--off);border-bottom:1px solid var(--border);padding:10px 12px}
+.dates .bh{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin-bottom:7px}
+.dates .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.dates .row3{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dates input{width:100%;padding:9px 10px;font-family:'DM Mono',monospace;font-size:.78rem;border:1.5px solid var(--border);border-radius:9px;color:var(--navy);background:#fff}
+.dates .lab{font-family:'DM Mono',monospace;font-size:.53rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin-bottom:3px}
+.dates .dn{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);margin-top:7px;line-height:1.5}
+.below .tgl{color:var(--navy);border-color:var(--border);background:#fff}
+.below .tgl.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.office{background:transparent;border:none;box-shadow:none}
+#edPick{width:100%;padding:11px 12px;font-family:'DM Sans',sans-serif;font-size:.88rem;font-weight:700;color:var(--navy);border:2px solid var(--border);border-radius:10px;background:#fff}
+.edlegend{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
+.edk{display:inline-flex;align-items:center;gap:5px;font-family:'DM Sans',sans-serif;font-size:.74rem;font-weight:600;color:var(--navy)}
+.edk i{width:11px;height:11px;border-radius:3px;display:inline-block}
+.edk b{font-family:'DM Mono',monospace;font-size:.66rem;color:var(--muted)}
+.ednote{margin-top:9px;font-size:.74rem;line-height:1.55;color:var(--muted)}
+.edt{margin:6px 0}
+.edr{display:flex;align-items:baseline;gap:6px;font-size:.78rem;padding:2px 0;border-bottom:1px solid var(--border)}
+.edr span{flex:1;min-width:0;color:var(--navy)}
+.edr b{font-family:'DM Mono',monospace;font-weight:700}
+.edr i{font-style:normal;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);width:42px;text-align:right}
+.ovgrp{margin:0 0 12px}
+.ovgh{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:0 0 6px}
+.ovgr{display:flex;gap:6px;flex-wrap:wrap}
+#mapToolsTop{max-height:96px;overflow-y:auto}
+.blkt{background:#1a3a6b;color:#fff;border:none;border-radius:7px;padding:4px 10px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;box-shadow:0 2px 6px rgba(13,27,75,.35)}
+.blkt:before{display:none}
+.cb6lab{background:#1a3a6b;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-family:'DM Mono',monospace;font-size:.6rem;letter-spacing:.09em;font-weight:700;box-shadow:0 1px 4px rgba(13,27,75,.4)}
+.cb6lab:before{display:none}
+.itemspanel{position:absolute;left:10px;top:10px;z-index:950;background:rgba(255,255,255,.97);border:1.5px solid var(--border);border-radius:12px;width:228px;max-height:calc(100% - 90px);display:flex;flex-direction:column;box-shadow:0 3px 10px rgba(13,27,75,.22)}
+.iph{padding:10px 12px 6px;font-family:'DM Sans',sans-serif;font-size:.86rem;font-weight:800;color:var(--navy)}
+.ipall{display:flex;gap:5px;padding:0 10px 8px;align-items:center}
+.ipall button{padding:4px 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.7rem;font-weight:700;color:var(--navy);cursor:pointer}
+.ipall input{flex:1;min-width:0;padding:4px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.72rem}
+.ipbody{overflow-y:auto;padding:0 10px 8px;flex:1}
+.ipg{margin:7px 0 2px}
+.ipg label{font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.07em;color:var(--navy);font-weight:700;display:flex;gap:6px;align-items:center}
+.ipg i{font-style:normal;color:var(--muted)}
+.ipi{display:flex;gap:6px;align-items:flex-start;font-family:'DM Sans',sans-serif;font-size:.74rem;line-height:1.4;color:#333;padding:2px 0 2px 4px}
+.ipi input,.ipg input{accent-color:#1a3a6b;margin-top:1px}
+.ipclose{margin:6px 10px 10px;padding:7px;border:none;border-radius:8px;background:var(--navy);color:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer}
+.maphint{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:960;background:#1a3a6b;color:#fff;border-radius:999px;padding:8px 12px 8px 16px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;box-shadow:0 3px 10px rgba(13,27,75,.35);display:flex;gap:8px;align-items:center;white-space:nowrap}
+.maphint button{border:none;background:transparent;color:#f2c84b;font-size:1.05rem;cursor:pointer;padding:0 2px;line-height:1}
+#tglQ{width:100%;margin:0 0 10px;padding:8px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.8rem}
+details.ovgrp>summary{cursor:pointer;list-style:none;display:flex;gap:6px;align-items:center}
+details.ovgrp>summary::-webkit-details-marker{display:none}
+details.ovgrp>summary:before{content:'\25B8';color:var(--muted);font-size:.6rem;transition:transform .12s}
+details.ovgrp[open]>summary:before{transform:rotate(90deg)}
+.ovgh em{font-style:normal;color:var(--muted);font-weight:500}
+details.ovgrp>.ovgr{margin-top:6px}
+.tgl.clr{background:#1a3a6b;color:#fff;border-color:#1a3a6b}
+.tlnone{font-family:'DM Sans',sans-serif;font-size:.74rem;color:var(--muted)}
+.mapkey{cursor:pointer}
+.mapkey.min .mk{display:none}
+.mapkey.min:after{content:'Key';font-family:'DM Mono',monospace;font-size:.62rem;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.08em}
+@media(max-width:640px){.itemspanel{width:186px}.maphint{font-size:.7rem;max-width:92%;white-space:normal}}
+.mapkey{position:absolute;left:10px;bottom:10px;z-index:900;background:rgba(255,255,255,.94);border:1.5px solid var(--border);border-radius:10px;padding:8px 11px;max-width:230px;box-shadow:0 2px 8px rgba(13,27,75,.18)}
+.mk{display:flex;align-items:center;gap:7px;font-family:'DM Sans',sans-serif;font-size:.7rem;font-weight:600;color:#333;padding:2px 0}
+.mkl{flex:0 0 18px;height:4px;border-radius:2px;border:1.5px solid transparent}
+.mkl.dash{height:0;border-width:0 0 2.5px;border-style:dashed;border-radius:0}
+.csdl{background:rgba(255,255,255,.9);border:2px solid;border-radius:8px;padding:3px 9px;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:800;box-shadow:0 1px 4px rgba(13,27,75,.25)}
+.csdl:before{display:none}
+.csdl13{color:#6599cd;border-color:#6599cd}
+.csdl15{color:#1b237e;border-color:#4a5dc2}
+.logoicon{background:transparent;border:none}
+.logoicon img{transition:transform .13s ease}
+.logoicon:hover{z-index:1000!important}
+.logoicon:hover img{transform:scale(1.75)}
+.mtapin{transition:transform .13s ease}
+.mtaicon:hover{z-index:1000!important}
+.mtaicon:hover .mtapin{transform:scale(1.55)}
+.logoicon img{width:16px;height:16px;border-radius:4px;display:block;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(13,27,75,.45)}
+.swi{width:13px;height:13px;border-radius:3px;object-fit:cover;vertical-align:-2px;margin-right:5px;display:inline-block}
+.mtaicon{background:transparent;border:none}
+.mtapin{display:flex;gap:2px;align-items:center;justify-content:center;filter:drop-shadow(0 1px 3px rgba(13,27,75,.45))}
+.mtab{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;font-family:'DM Sans',sans-serif;font-weight:800;line-height:1;border:1.5px solid #fff}
+.office .oi{width:30px;height:30px;border-radius:7px;border:2px solid #f2c84b;box-shadow:0 2px 6px rgba(13,27,75,.35);background:#fff;display:block;object-fit:cover}
+.gov .oi{width:30px;height:30px;border-radius:50%;border:2px solid #1a3a6b;box-shadow:0 2px 6px rgba(13,27,75,.35);background:#fff;display:block;object-fit:cover}
+.nbl{background:transparent;border:none;box-shadow:none;font-family:'DM Sans',sans-serif;font-size:.74rem;font-weight:900;color:rgba(13,27,75,.62);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;text-shadow:0 1px 0 #fff,0 0 8px #fff,0 0 8px #fff}
+.nbl:before{display:none}
+.mapnote{padding:8px 14px;background:var(--navy);color:rgba(255,255,255,.85);font-size:.76rem;line-height:1.5;border-bottom:2px solid var(--orange)}
+.mapnote b{color:var(--orange)}
+.sel{background:#fff;padding:12px 14px;border-bottom:1px solid var(--border)}
+.sel .st{font-size:1.05rem;font-weight:900;color:var(--navy);line-height:1.25}
+.sel .sl{font-family:'DM Mono',monospace;font-size:.64rem;color:var(--muted);margin-top:4px;line-height:1.6}
+.aspcard{background:#1a3a6b;color:#fff;padding:13px 14px;border-bottom:2px solid var(--orange)}
+.aspcard .ah{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.65);font-weight:700}
+.aspcard .an{font-size:1.02rem;font-weight:900;line-height:1.3;margin-top:4px;color:#fff}
+.aspcard .an b{color:var(--orange)}
+.aspcard .as{font-size:.78rem;line-height:1.55;color:rgba(255,255,255,.85);margin-top:5px}
+.aspcard .as i{font-style:normal;color:#ffd9b8}
+.aspcard .ao{margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.15);font-size:.74rem;color:rgba(255,255,255,.8);line-height:1.5}
+.bklinks{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.bklinks .bl{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.bklinks a{padding:5px 11px;border:1.5px solid var(--navy);border-radius:16px;color:var(--navy);text-decoration:none;font-size:.72rem;font-weight:700}
+.sharebar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:9px 14px;background:#fff;border-bottom:1px solid var(--border)}
+.sharebar .sb-t{font-family:'DM Mono',monospace;font-size:.64rem;color:var(--muted);flex:1 1 auto}
+.lnk{padding:6px 13px;border:1.5px solid var(--navy2);border-radius:16px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:var(--navy);cursor:pointer}
+.kpis2{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:1px;background:var(--border);border-bottom:1px solid var(--border)}
+.kpi2{background:#fff;padding:10px 8px;text-align:left;border:none;border-left:3px solid transparent;cursor:pointer;font-family:'DM Sans',sans-serif}
+.kpi2:hover{background:#fff8f2}
+.kpi2 .n{font-family:'DM Mono',monospace;font-size:1.15rem;font-weight:800;color:var(--navy);line-height:1.1}
+.kpi2 .l{font-size:.62rem;font-weight:700;color:var(--muted);margin-top:3px;line-height:1.3}
+.kpi2.zero .n{color:#c8c4bb}
+.sec{background:#fff;border-bottom:1px solid var(--border)}
+.sec .sh{display:flex;align-items:center;gap:9px;width:100%;padding:12px 14px;background:#fff;border:none;border-left:4px solid var(--navy);text-align:left;cursor:pointer;font-family:'DM Sans',sans-serif}
+.sec .sh .t{flex:1;font-size:.86rem;font-weight:900;color:var(--navy)}
+.sec .sh .c{font-family:'DM Mono',monospace;font-size:.72rem;font-weight:800;color:var(--orange)}
+.sec .sh .ar{font-size:.7rem;color:var(--muted)}
+.sec .sb{display:none;padding:0 14px 6px}
+.sec.open .sb{display:block}
+.sec .note{font-size:.72rem;color:var(--muted);line-height:1.5;padding:2px 0 8px}
+.item{padding:8px 0 8px 11px;border-left:3px solid var(--orange);border-bottom:1px solid #f0ede8;margin-bottom:6px;background:#fbfaf8}
+.item .it{font-size:.82rem;font-weight:700;color:var(--navy);line-height:1.35}
+.item .is{font-family:'DM Mono',monospace;font-size:.63rem;color:#6b6760;margin-top:3px;line-height:1.55}
+.item a{color:var(--navy);text-decoration:none;border-bottom:1px solid var(--orange)}
+.cats{display:flex;gap:5px;flex-wrap:wrap;padding:0 0 9px}
+.cat{font-family:'DM Mono',monospace;font-size:.58rem;padding:3px 8px;border-radius:12px;background:#eef0f4;color:var(--navy);font-weight:700}
+.cat b{color:var(--orange)}
+.more{display:block;width:100%;margin:6px 0 10px;padding:10px;background:#fff;border:2px solid var(--navy2);border-radius:20px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:800;color:var(--navy);cursor:pointer}
+.loadbar{padding:8px 14px;background:#fff4ea;border-bottom:1px solid var(--border);font-family:'DM Mono',monospace;font-size:.66rem;color:#a65a00;line-height:1.5}
+.loadbar.done{background:var(--off);color:var(--muted)}
+.empty{padding:22px 14px;font-size:.84rem;color:#555;line-height:1.6;background:#fff;border-bottom:1px solid var(--border)}
+.regkey{padding:11px 14px;background:var(--off);border-bottom:1px solid var(--border);font-size:.77rem;line-height:1.6;color:#444}
+.regkey b{color:var(--navy);display:block;margin-bottom:5px}
+.regkey dt{font-family:'DM Mono',monospace;font-size:.63rem;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);font-weight:700;margin-top:7px}
+.regkey dd{font-size:.75rem;color:#555;line-height:1.55}
+.foot a{color:#6b6760;border-bottom:1px solid var(--orange);text-decoration:none}
+.leaflet-container{font-family:'DM Sans',sans-serif}
+.pop .pt{font-weight:800;color:#1a3a6b;font-size:.84rem;line-height:1.3}
+.pop .ps{font-family:'DM Mono',monospace;font-size:.62rem;color:#555;margin-top:3px;line-height:1.5}
+.pop .pl{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.06em;color:#f2c84b;font-weight:700;margin-top:4px}
+</style>
+</head>
+<body>
+<div id="bkapp-bar" style="display:flex;align-items:center;gap:9px;background:#1a3a6b;border-bottom:4px solid #f2c84b;padding:9px 14px;font-family:'DM Sans',system-ui,sans-serif">
+<a href="/bk/" style="display:flex;align-items:center;gap:9px;text-decoration:none"><img src="/brooklyn-seal.png" alt="" style="width:28px;height:28px"><span style="color:#fff;font-weight:900;font-size:.95rem;letter-spacing:-.01em">Brooklyn Civic</span></a>
+<a href="/bk/directory.html" style="margin-left:auto;color:#f2c84b;text-decoration:none;font-family:'DM Mono',monospace;font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em">Directory</a>
+</div>
+<div class="wrap">
+  <div class="top">
+    <div class="crumb"><a href="/">Brooklyn Civic</a></div>
+    <h1>Block Finder <span>Brooklyn CB6</span></h1>
+    <div class="nbs">Park Slope, Carroll Gardens, Cobble Hill, Red Hook, Gowanus, and the Columbia Street Waterfront District</div>
+  </div>
+  <div class="intro">
+    <b>Pick any stretch of any street in the district and see everything on it.</b> Choose a street and the two cross streets that bound the part you care about, or search an address, or drop a pin on the map. The block lights up, and every record the site holds for that stretch comes back: street work and building permits, 311 reports, crime complaints, liquor licenses, landmarked buildings, every lot with its zoning, businesses, block parties, schools, parks, and the rest.
+  </div>
+  <div class="modes">
+    <button type="button" class="on" id="mStreet">Pick a street</button>
+    <button type="button" id="mAddr">Search an address</button>
+    <button type="button" id="mPin">Drop a pin</button>
+  </div>
+  <div class="pane on" id="pStreet">
+    <div class="lab">Street</div>
+    <select id="stSel"><option value="">Choose a street&hellip;</option></select>
+    <div class="row">
+      <div><div class="lab">From</div><select id="fromSel" disabled><option value="">Cross street</option></select></div>
+      <div><div class="lab">To</div><select id="toSel" disabled><option value="">Cross street</option></select></div>
+    </div>
+    <button type="button" class="go" id="goStreet">Show this stretch</button>
+    <div class="hint">Example: 14th Street, from 4th Avenue to 8th Avenue. Pick the same cross street twice for a single corner. Leave To on "end of street" for everything from the From street onward.</div>
+  </div>
+  <div class="pane" id="pAddr">
+    <div class="lab">Address or place</div>
+    <input id="addrQ" type="search" autocomplete="off" placeholder="e.g. 250 Baltic Street">
+    <div class="sugg" id="sugg" style="display:none"></div>
+    <div class="hint">Type a house number and street. The search is biased to Brooklyn CB6 but will find any NYC address.</div>
+  </div>
+  <div class="pane" id="pPin">
+    <div class="hint" style="margin-top:0">Tap anywhere on the map below to drop a pin. Drag the pin to move it. Everything within the radius comes back.</div>
+    <button type="button" class="go" id="clearPin">Clear pin</button>
+  </div>
+  <div class="reach" id="reach">
+    <span class="tl" id="reachLab">Reach from the street</span>
+    <button type="button" class="tgl" data-r="45">Just the roadway and frontage</button>
+    <button type="button" class="tgl on" data-r="75">Both sides of the block</button>
+    <button type="button" class="tgl" data-r="130">A block either way</button>
+  </div>
+  <div class="maptools" id="mapToolsTop"><span class="tl">On the map</span></div>
+  <div class="mapnote" id="mapnote">Choose a stretch above, or tap the map to drop a pin.</div>
+  <div id="map"><div class="maphint" id="mapHint">Tap any block to see everything on it<button type="button" id="hintX">&times;</button></div><div class="mapkey" id="mapKey"></div><div class="itemspanel" id="itemsPanel" style="display:none"><div class="iph" id="ipTitle"></div><div class="ipall"><button type="button" id="ipAll">All</button><button type="button" id="ipNone">None</button><input type="search" id="ipQ" placeholder="Filter"></div><div class="ipbody" id="ipBody"></div><button type="button" class="ipclose" id="ipClose">Hide list</button></div></div>
+  <div class="below" id="edWrap" style="display:none"><div class="bh">Election results by election district</div><select id="edPick"></select><div class="edlegend" id="edLegend"></div><div class="ednote">Every election district in CB6, coloured by who carried it. Tap an ED for the full count. Shading gets darker as the winner's share rises. Source: NYC Board of Elections certified results. Contests marked * reached only a corner of CB6.</div></div><div class="below"><div class="bh">Add to the map</div><div class="row2" id="mapToolsBottom"></div></div>
+  <div class="dates">
+    <div class="bh">Permits and work by date</div>
+    <div class="chips">
+      <button type="button" class="tgl on" data-dq="next30">Today and the next 30 days</button>
+      <button type="button" class="tgl" data-dq="active">Active today</button>
+      <button type="button" class="tgl" data-dq="next90">Next 90 days</button>
+      <button type="button" class="tgl" id="lookBack">Look further back &#9660;</button>
+    </div>
+    <div id="lookBackPanel" style="display:none">
+    <div class="chips">
+      <button type="button" class="tgl" data-dq="window">30 days back and ahead</button>
+      <button type="button" class="tgl" data-dq="last90">Last 90 days</button>
+      <button type="button" class="tgl" data-dq="year">This year</button>
+      <button type="button" class="tgl" data-dq="past5">Past 5 years</button>
+      <button type="button" class="tgl" data-dq="past10">Past 10 years</button>
+      <button type="button" class="tgl" data-dq="since2007">Since 2007</button>
+      <button type="button" class="tgl" data-dq="all">All dates</button>
+    </div>
+    <div class="row3">
+      <div><div class="lab">From</div><input type="date" id="dFrom"></div>
+      <div><div class="lab">To</div><input type="date" id="dTo"></div>
+    </div>
+    </div>
+    <div class="dn" id="dNote">By default you see permits and work in effect today or starting in the next 30 days. Nothing already finished is shown unless you look back. Applies to street work, building permits, landmark permits, resurfacing and permitted events, on the map and in the results below. A permit counts if any part of its work window falls inside the range. Looking back past the last year also pulls the Department of Buildings permit history for every lot on the stretch, live from NYC Open Data (2007 onward).</div>
+  </div>
+  <div id="results"></div>
+  <div class="regkey">
+    <b>How to read this.</b>
+    <dl>
+      <dt>The stretch</dt>
+      <dd>Streets and cross streets come from the Department of Transportation street centerline. When you pick From and To, the tool walks the centerline between those two intersections and highlights it in orange. Everything within the reach you chose of that line is counted.</dd>
+      <dt>Reach</dt>
+      <dd>A Brooklyn block is roughly 60 to 80 meters deep from the street to the middle of the block. "Both sides of the block" catches the buildings fronting the street on both sides. "A block either way" reaches into the neighboring blocks too.</dd>
+      <dt>Live records</dt>
+      <dd>311 reports (last 12 months), NYPD crime complaints (this year to date), and lots with zoning are pulled live from NYC Open Data each time you pick a stretch. Everything else is from this site's own data files, refreshed nightly.</dd>
+      <dt>Placement</dt>
+      <dd>Every record is placed by its own coordinates. Nothing here is summed from precinct or district totals.</dd>
+    </dl>
+  </div>
+  <div class="nav">
+    <a href="/citywide-search.html">&#128269; Address search</a>
+    <a href="/block/">&#128203; Block cards</a>
+    <a href="/permits-cb6.html">&#128679; Street work</a>
+    <a href="/landmarks-cb6.html">&#127963; Landmarks</a>
+    <a href="/311.html">&#128222; 311</a>
+    <a href="/publicsafety/">&#128737; Public safety</a>
+  </div>
+  <div class="foot" id="foot"></div>
+</div>
+<script>
+(function(){
+'use strict';
+var TOKEN='HvFoIfzodzpRML7a1104Ca2tM';
+var MPD_LAT=111320, MPD_LON=84400;
+var BKIDX=null;
+var NET=null, LAY=null, map=null, base=null;
+var stLayer=null, hiLayer=null, bufLayer=null, ptLayer=null, pin=null, cbLayer=null;
+var blkLayer=null;
+var mode='street', reach=75, pinReach=150;
+var sel=null; // {kind:'street'|'addr'|'pin', geom:[[lon,lat]...] or point, label, sub}
+var live={n311:null,crime:null,arrests:null,tix:null,lots:null,hist:null};
+var liveReq=0;
+var openSecs={},lastFound={};
+var COLORS={liquor:'#8c2f6b',health:'#2e6b30',culture:'#6b3fa0',food:'#0f7b6c',biz:'#b3541e',dob:'#2145a8',dot:'#e0473c',resurf:'#7a7a7a',events:'#c98b1a',parties:'#f2c84b',lpc:'#1a3a6b',lift:'#9b2226',citibike:'#1f5fd6',subway:'#111',schools:'#ff8c00',library:'#5a3e1b',fdny:'#d0021b',polls:'#3a3a9c',parks:'#2a8a3a',markets:'#5e9c2a',n311:'#f2c84b',crime:'#b00020',arrests:'#7a1fa2',tix:'#0b6e7f',lots:'#6b6760',asp:'#2145a8',childcare:'#c98b1a'};
+var LIVEDEF=[
+  {id:'n311',label:'311 reports (12 months)',note:'Service requests to 311 in the last 12 months, placed by the coordinates on each report.',u:'/311.html'},
+  {id:'crime',label:'Crime complaints (this year)',note:'NYPD complaint records, year to date, placed by the coordinates on each complaint. NYPD offsets some sensitive locations.',u:'/publicsafety/'},
+  {id:'arrests',label:'NYPD arrests (this year)',note:'NYPD arrest records, year to date, placed by the coordinates on each arrest. NYPD offsets some sensitive locations.',u:'/publicsafety/'},
+  {id:'tix',label:'Criminal court summonses (latest year on file)',note:'NYPD criminal court summonses, the ticket book, from the most recent year NYPD has published, placed by the coordinates on each summons.',u:'/publicsafety/'},
+  {id:'hist',label:'Building permit history (DOB)',note:'Every Department of Buildings permit on record for the lots on this stretch, 2007 onward, from the DOB permit issuance file and DOB NOW. Filtered to the date range you chose.',u:'/permits-archive.html',hist:true},
+  {id:'lots',label:'Lots and zoning',note:'Every tax lot from PLUTO with its zoning district, land use, owner of record, year built and floors.',u:'/landuse-zoning.html'}
+];
+var LU={'01':'One and two family','02':'Multi-family walk-up','03':'Multi-family elevator','04':'Mixed residential and commercial','05':'Commercial and office','06':'Industrial and manufacturing','07':'Transportation and utility','08':'Public facilities and institutions','09':'Open space and recreation','10':'Parking','11':'Vacant land'};
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function fmt(n){return Number(n).toLocaleString('en-US');}
+function title(s){return String(s||'').toLowerCase().replace(/\b[a-z]/g,function(c){return c.toUpperCase();}).replace(/\b(\d+)(St|Nd|Rd|Th)\b/g,function(m,a,b){return a+b.toLowerCase();});}
+
+// ---------- geometry ----------
+function toM(p){return [ (p[0]+73.99)*MPD_LON, (p[1]-40.68)*MPD_LAT ];}
+function distPtSeg(p,a,b){
+  var px=p[0],py=p[1],ax=a[0],ay=a[1],bx=b[0],by=b[1];
+  var dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy,t=0;
+  if(l2>0){t=((px-ax)*dx+(py-ay)*dy)/l2;t=Math.max(0,Math.min(1,t));}
+  var x=ax+t*dx,y=ay+t*dy;return Math.hypot(px-x,py-y);
+}
+function distToPath(p,pathM){
+  var best=Infinity;
+  for(var i=0;i<pathM.length;i++){var ln=pathM[i];for(var j=0;j<ln.length-1;j++){var d=distPtSeg(p,ln[j],ln[j+1]);if(d<best)best=d;}}
+  return best;
+}
+function bboxOf(lines,padM){
+  var w=Infinity,e=-Infinity,s=Infinity,n=-Infinity;
+  lines.forEach(function(ln){ln.forEach(function(p){if(p[0]<w)w=p[0];if(p[0]>e)e=p[0];if(p[1]<s)s=p[1];if(p[1]>n)n=p[1];});});
+  return {w:w-padM/MPD_LON,e:e+padM/MPD_LON,s:s-padM/MPD_LAT,n:n+padM/MPD_LAT};
+}
+
+// ---------- street network ----------
+var stSegs={}, stAxis={};
+function buildIndex(){
+  NET.segs.forEach(function(s,i){s.i=i;(stSegs[s.st]=stSegs[s.st]||[]).push(s);});
+}
+function axisFor(sti){
+  if(stAxis[sti])return stAxis[sti];
+  var pts=[];stSegs[sti].forEach(function(s){pts.push(toM(s.g[0]));pts.push(toM(s.g[s.g.length-1]));});
+  var mx=0,my=0;pts.forEach(function(p){mx+=p[0];my+=p[1];});mx/=pts.length;my/=pts.length;
+  var sxx=0,sxy=0,syy=0;pts.forEach(function(p){var dx=p[0]-mx,dy=p[1]-my;sxx+=dx*dx;sxy+=dx*dy;syy+=dy*dy;});
+  var th=0.5*Math.atan2(2*sxy,sxx-syy);var ax=[Math.cos(th),Math.sin(th)];
+  stAxis[sti]={m:[mx,my],a:ax};return stAxis[sti];
+}
+function proj(sti,pLL){var A=axisFor(sti),p=toM(pLL);return (p[0]-A.m[0])*A.a[0]+(p[1]-A.m[1])*A.a[1];}
+function crossStreets(sti){
+  var name=NET.streets[sti],seen={},out=[];
+  stSegs[sti].forEach(function(s){[s.a,s.b].forEach(function(n){
+    (NET.cross[n]||[]).forEach(function(c){if(c===name)return;var k=c;if(!seen[k]){seen[k]={name:c,p:[],nodes:[]};out.push(seen[k]);}
+      seen[k].p.push(proj(sti,NET.nodes[n]));seen[k].nodes.push(n);});
+  });});
+  out.forEach(function(c){c.pm=c.p.reduce(function(a,b){return a+b;},0)/c.p.length;});
+  out.sort(function(a,b){return a.pm-b.pm;});
+  return out;
+}
+function pathBetween(sti,fromNodes,toNodes){
+  var segs=stSegs[sti],adj={};
+  segs.forEach(function(s){(adj[s.a]=adj[s.a]||[]).push([s.b,s]);(adj[s.b]=adj[s.b]||[]).push([s.a,s]);});
+  var toSet={};toNodes.forEach(function(n){toSet[n]=1;});
+  var prev={},q=[];fromNodes.forEach(function(n){prev[n]=null;q.push(n);});
+  while(q.length){var n=q.shift();if(toSet[n]){var path=[],x=n;while(prev[x]){path.push(prev[x][1]);x=prev[x][0];}return path;}
+    (adj[n]||[]).forEach(function(e){if(!(e[0] in prev)){prev[e[0]]=[n,e[1]];q.push(e[0]);}});}
+  return null;
+}
+function segsInRange(sti,lo,hi){
+  var tol=25;return stSegs[sti].filter(function(s){var pa=proj(sti,s.g[0]),pb=proj(sti,s.g[s.g.length-1]);return Math.min(pa,pb)>=lo-tol&&Math.max(pa,pb)<=hi+tol;});
+}
+function selectStretch(sti,fromName,toName){
+  var cs=crossStreets(sti),byName={};cs.forEach(function(c){byName[c.name]=c;});
+  var f=byName[fromName];if(!f)return null;
+  var t=toName?byName[toName]:null;
+  var segs=[];
+  if(t&&t.name!==f.name){
+    var p=pathBetween(sti,f.nodes,t.nodes);
+    var lo=Math.min(f.pm,t.pm),hi=Math.max(f.pm,t.pm);
+    var rng=segsInRange(sti,lo,hi);
+    var seen={};(p||[]).concat(rng).forEach(function(s){if(!seen[s.i]){seen[s.i]=1;segs.push(s);}});
+  } else if(t&&t.name===f.name){
+    segs=[];
+  } else {
+    var lo2=f.pm;segs=segsInRange(sti,lo2,Infinity);
+  }
+  var lines=segs.map(function(s){return s.g;});
+  var geomKind='line';
+  if(!lines.length){lines=[[NET.nodes[f.nodes[0]]]];geomKind='point';}
+  var hn=[];segs.forEach(function(s){(s.hn||[]).forEach(function(h){var v=parseInt(h,10);if(v)hn.push(v);});});
+  var hnTxt=hn.length?('House numbers '+Math.min.apply(null,hn)+' to '+Math.max.apply(null,hn)):'';
+  return {kind:'street',lines:lines,geomKind:geomKind,label:NET.streets[sti]+(t&&t.name!==f.name?' from '+f.name+' to '+t.name:(t?' at '+f.name:' from '+f.name+' to the end')),
+    sub:(segs.length?segs.length+' centerline segment'+(segs.length!==1?'s':'')+'. ':'')+hnTxt,
+    st:sti,from:fromName,to:toName||'',bks:segs.slice().sort(function(x,y){return proj(sti,x.g[Math.floor(x.g.length/2)])-proj(sti,y.g[Math.floor(y.g.length/2)]);}).map(function(x){return x.bk;}).filter(function(x,i,a){return x&&a.indexOf(x)===i;})};
+}
+function nearestBlock(pt){var pM=toM(pt),best=null,bd=45;NET.segs.forEach(function(s){if(!s.bk)return;var d=distToPath(pM,[s.g.map(toM)]);if(d<bd){bd=d;best=s.bk;}});return best;}
+function blockLinks(){
+  if(!sel||!NET)return '';var bks=sel.kind==='street'?(sel.bks||[]):[nearestBlock(sel.lines[0][0])].filter(Boolean);
+  if(!bks.length)return '';
+  var idx=BKIDX||{};
+  return '<div class="bklinks"><span class="bl">Block card'+(bks.length>1?'s':'')+'</span>'+bks.map(function(b){var v=idx[b];var lab=v?(v.from+' to '+v.to):b;return '<a href="/block/'+b+'/">'+esc(lab)+'</a>';}).join('')+'</div>';
+}
+
+// ---------- map ----------
+var OV={};
+var OVDEF=[
+  {id:'blocks',label:'Every block (hover and tap)',sw:'#1a3a6b',on:true,custom:true},
+  {id:'zoning',label:'Zoning',sw:'#f59e0b',on:false,src:'/data/cb6-zoning-clipped.geojson',style:function(f){var c=f.properties.color||'#999';return {color:c,weight:.8,opacity:.6,fillColor:c,fillOpacity:.16};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.zone)+'</div><div class="ps">'+esc(p.family_label||'')+(p.description?'. '+esc(p.description):'')+'</div><div class="pl">Zoning district</div></div>';}},
+  {id:'historic',label:'Historic districts',sw:'#9b2226',on:false,src:'/data/cb6-historic-clipped.geojson',style:function(){return {color:'#9b2226',weight:1.5,dashArray:'5 3',fillColor:'#9b2226',fillOpacity:.10};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.area_name)+'</div><div class="ps">'+esc(p.lp_number||'')+' · '+esc(p.status_of_||'')+'</div><div class="pl">LPC historic district</div></div>';}},
+  {id:'parks',label:'Parks',sw:'#2a8a3a',on:true,src:'/data/bkcb6-parks.geojson',style:function(){return {color:'#2a8a3a',weight:1,opacity:.7,fillColor:'#3fb35a',fillOpacity:.35};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.sign_name||p.name)+'</div><div class="ps">'+esc(p.type_category||'')+(p.acres?' · '+esc(p.acres)+' acres':'')+'</div><div class="pl">NYC Parks</div></div>';}},
+  {id:'subway',label:'Subway lines',sw:'#EE352E',on:true,src:'/data/cb6-subway-routes.geojson',style:function(f){return {color:f.properties.color||'#333',weight:5,opacity:.85};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.name)+'</div><div class="pl">Subway route</div></div>';}},
+  {id:'bike',label:'Bike lanes',sw:'#ff8c00',on:false,src:'/data/cb6-bike-routes.geojson',style:function(f){return {color:f.properties.line_color||'#ff8800',weight:3,opacity:.85};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.name)+'</div><div class="ps">'+esc(p.lane_type||'')+'</div><div class="pl">Bike route</div></div>';}},
+  {id:'bids',label:'Business districts',sw:'#b3541e',on:false,src:'/data/bids.geojson',filter:function(f){return String(f.properties.cds||'').indexOf('306')>=0;},style:function(){return {color:'#b3541e',weight:2,fillColor:'#b3541e',fillOpacity:.12};},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.name)+' BID</div><div class="ps">Since '+esc(p.year||'')+'</div><div class="pl">Business improvement district</div></div>';}},
+  {id:'schooldist',label:'School districts',sw:'#1f5fd6',on:false,src:'/data/school-districts-brooklyn.geojson',filter:function(f){return ['13','15'].indexOf(String(f.properties.schooldist))>=0;},style:function(){return {color:'#1f5fd6',weight:3,dashArray:'8 5',fillColor:'#1f5fd6',fillOpacity:.06};},label2:function(f){return 'District '+f.properties.schooldist;},pop:function(p){return '<div class="pop"><div class="pt">Community School District '+esc(p.schooldist)+'</div><div class="pl"><a href="/eduhub-csd-'+esc(p.schooldist)+'.html">Schools in this district &rarr;</a></div></div>';}},
+  {id:'all-schools',label:'All schools',sw:'#1a3a6b',on:false,custom:true,layer:'schools'},
+  {id:'all-childcare',label:'All childcare and pre-K',sw:'#c98b1a',on:false,custom:true,layer:'childcare'},
+  {id:'dsny',label:'Sanitation pickup days',sw:'#2e6b30',on:false,src:'/assets/blocks/dsny-freq.geojson',style:function(f){var c={C:'#2e6b30',D:'#2145a8',E:'#b3541e'}[f.properties.days]||'#666';return {color:c,weight:1.5,fillColor:c,fillOpacity:.14};},label2:function(f){return f.properties.refuse||'';},pop:function(p){return '<div class="pop"><div class="pt">Trash '+esc(p.refuse||'')+'</div><div class="ps">Recycling '+esc(p.recycling||'')+' · Compost '+esc(p.organics||'')+' · Bulk '+esc(p.bulk||'none')+'<br>DSNY section '+esc(p.section)+'</div><div class="pl"><a href="/sanitation-hub.html">Sanitation hub &rarr;</a></div></div>';}},
+  {id:'precincts',label:'Police precincts',sw:'#1a3a8f',on:false,src:'/data/police-precincts-citywide.geojson',filter:function(f){return ['72','76','78','84','88'].indexOf(String(f.properties.precinct))>=0;},style:function(){return {color:'#1a3a8f',weight:3,fillColor:'#1a3a8f',fillOpacity:.05};},label2:function(f){return ord(f.properties.precinct)+' Precinct';},pop:function(p){return '<div class="pop"><div class="pt">'+ord(p.precinct)+' Precinct</div><div class="pl"><a href="/precincts.html">Precincts &rarr;</a></div></div>';}},
+  {id:'sectors',label:'Police sectors',sw:'#5a7bd6',on:false,src:'/data/nypd_sectors_cb6.geojson',style:function(){return {color:'#5a7bd6',weight:1.5,dashArray:'4 3',fillColor:'#5a7bd6',fillOpacity:.06};},label2:function(f){return f.properties.pct.replace(/^0+/,'')+f.properties.sector.replace(/^\d+/,'');},pop:function(p){var pc=String(p.pct).replace(/^0+/,'');return '<div class="pop"><div class="pt">Sector '+esc(String(p.sector).replace(/^\d+/,''))+', '+ord(pc)+' Precinct</div><div class="pl"><a href="/sector/'+esc(pc)+String(p.sector).replace(/^\d+/,'').toLowerCase()+'/">Sector page &rarr;</a></div></div>';}},
+  {id:'nycha',label:'NYCHA',sw:'#1f5fd6',on:false,src:'/data/CB6-NYCHA.geojson',point:function(f,ll){return L.marker(ll,{pane:'hi',icon:logoIcon('/assets/map-icons/nycha.png',20)});},pop:function(p){return '<div class="pop"><div class="pt">'+esc(p.Name)+'</div><div class="ps">'+esc(p.Type||'')+'</div><div class="pl">NYCHA</div></div>';}},
+  {id:'all-asp',label:'Alternate side parking, every block',sw:'#2145a8',on:false,custom:true,layer:'asp'},
+  {id:'all-dot',label:'All street work permits',sw:'#e0473c',on:false,custom:true,layer:'dot'},
+  {id:'all-dob',label:'All building permits',sw:'#2145a8',on:false,custom:true,layer:'dob'},
+  {id:'all-lpc',label:'All landmark permits',sw:'#1a3a6b',on:false,custom:true,layer:'lpc'},
+  {id:'all-resurf',label:'All resurfacing',sw:'#7a7a7a',on:false,custom:true,layer:'resurf'},
+  {id:'edresults',label:'Election results by ED',sw:'#5b3fa8',on:false,custom:true},
+  {id:'all-subway',label:'Subway stations',sw:'#0039A6',on:true,custom:true,layer:'subway'},
+  {id:'all-citibike',label:'Citi Bike stations',sw:'#0a7cbf',on:false,custom:true,layer:'citibike'},
+  {id:'all-library',label:'Libraries',sw:'#7048a8',on:false,custom:true,layer:'library'},
+  {id:'all-fdny',label:'Firehouses',sw:'#c0392b',on:false,custom:true,layer:'fdny'},
+  {id:'all-polls',label:'Poll sites',sw:'#1b6ca8',on:false,custom:true,layer:'polls'},
+  {id:'all-markets',label:'Farmers markets',sw:'#2a8a3a',on:false,custom:true,layer:'markets'},
+  {id:'all-food',label:'Grocery and food access',sw:'#e07a1f',on:false,custom:true,layer:'food'},
+  {id:'all-health',label:'Health services',sw:'#0f8a7d',on:false,custom:true,layer:'health'},
+  {id:'all-culture',label:'Culture and institutions',sw:'#a8437a',on:false,custom:true,layer:'culture'},
+  {id:'park-sites',label:'Parks and playgrounds',sw:'#3fb35a',on:false,custom:true,layer:'parks'},
+  {id:'all-parties',label:'Block parties',sw:'#f2c84b',on:false,custom:true,layer:'parties'},
+  {id:'all-events',label:'Permitted events',sw:'#d4a017',on:false,custom:true,layer:'events'},
+  {id:'all-cbo',label:'Community organizations',sw:'#8a437a',on:false,custom:true,layer:'cbo'},
+  {id:'all-lift',label:'LIFT housing sites',sw:'#5b6abf',on:false,custom:true,layer:'lift'},
+  {id:'all-liquor',label:'Liquor licenses',sw:'#8a6d3b',on:false,custom:true,layer:'liquor'},
+  {id:'all-biz',label:'5th Avenue BID businesses',sw:'#b5651d',on:false,custom:true,layer:'biz'},
+  {id:'gov',label:'Elected officials\' offices',sw:'#1a3a6b',on:false,custom:true},
+  {id:'records',label:'Records found',sw:'#f2c84b',on:true,custom:true}
+];
+var GOV=[
+  {name:'Shahana Hanif',title:'Council Member, District 39',addr:'197 Bond Street',lat:40.683471,lng:-73.986888,icon:'/site-icons/hanif-district-39.png',slug:'cmhanif',share:'65%'},
+  {name:'Alexa Avil\u00e9s',title:'Council Member, District 38',addr:'4417 4th Avenue',lat:40.64931,lng:-74.009233,icon:'/site-icons/council/cd38.png',slug:'cmaviles',share:'33%'},
+  {name:'Jo Anne Simon',title:'Assembly Member, District 52',addr:'341 Smith Street',lat:40.68031,lng:-73.994547,icon:'/site-icons/assembly/ad52.png',slug:'amsimon',share:'50%'},
+  {name:'Marcela Mitaynes',title:'Assembly Member, District 51',addr:'4907 4th Avenue',lat:40.646638,lng:-74.011975,icon:'/site-icons/assembly/ad51.png',slug:'ammitaynes',share:'34%'},
+  {name:'Robert C. Carroll',title:'Assembly Member, District 44',addr:'416 7th Avenue',lat:40.664232,lng:-73.984088,icon:'/site-icons/assembly/ad44.png',slug:'amcarroll',share:'15%'},
+  {name:'Andrew Gounardes',title:'State Senator, District 26',addr:'497 Carroll Street',lat:40.67704,lng:-73.98556,icon:'/site-icons/senate/sd26.png',slug:'sengounardes',share:'82%'},
+  {name:'Zellnor Myrie',title:'State Senator, District 20',addr:'1077 Nostrand Avenue',lat:40.661766,lng:-73.950502,icon:'/site-icons/senate/sd20.png',slug:'senmyrie',share:'17%'},
+  {name:'Dan Goldman',title:'U.S. Representative, NY-10',addr:'Industry City, 254 36th Street',lat:40.65623,lng:-74.007951,icon:'/site-icons/congress/cd10.png',slug:'congressional-district-10',share:'100%'},
+  {name:'Antonio Reynoso',title:'Brooklyn Borough President',addr:'209 Joralemon Street',lat:40.692768,lng:-73.990298,icon:'/site-icons/citywide/bpbrooklyn.png',slug:'bpbrooklyn',share:''}
+];
+var nbLayer=null,CB6RING=null,nbPending=null;
+var DATED={dot:1,dob:1,lpc:1,resurf:1,events:1,parties:1};
+var dq='next30',dFrom='',dTo='';
+function ymd(d){return d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();}
+function dateRange(){
+  var t=new Date();var today=ymd(t);
+  if(dq==='active')return [today,today];
+  if(dq==='window'){var b0=new Date(t);b0.setDate(b0.getDate()-30);var e0=new Date(t);e0.setDate(e0.getDate()+30);return [ymd(b0),ymd(e0)];}
+  if(dq==='next30'){var e=new Date(t);e.setDate(e.getDate()+30);return [today,ymd(e)];}
+  if(dq==='next90'){var e9=new Date(t);e9.setDate(e9.getDate()+90);return [today,ymd(e9)];}
+  if(dq==='last90'){var b=new Date(t);b.setDate(b.getDate()-90);return [ymd(b),today];}
+  if(dq==='year')return [t.getFullYear()*10000+101,t.getFullYear()*10000+1231];
+  if(dq==='past5')return [(t.getFullYear()-5)*10000+101,today];
+  if(dq==='past10')return [(t.getFullYear()-10)*10000+101,today];
+  if(dq==='since2007')return [20070101,today];
+  if(dq==='custom'){var a=dFrom?parseInt(dFrom.replace(/-/g,''),10):0,z=dTo?parseInt(dTo.replace(/-/g,''),10):99999999;return [a,z];}
+  return null;
+}
+function inDate(it,rng){
+  if(!rng)return true;
+  if(it.ds&&it.ds.length){for(var i=0;i<it.ds.length;i++){var v=parseInt(it.ds[i],10);if(v>=rng[0]&&v<=rng[1])return true;}return false;}
+  var a=parseInt(it.d1,10)||0,z=parseInt(it.d2,10)||a||0;if(!a&&!z)return false;if(!a)a=z;
+  return a<=rng[1]&&z>=rng[0];
+}
+function refillPermitLayers(){
+  OVDEF.forEach(function(d){if(d.layer&&d.filled){d.filled=false;OV[d.id].clearLayers();if(d.on)fillLayer(d);}});
+}
+function lookback(){var r=dateRange();if(!r)return false;var t=new Date();t.setFullYear(t.getFullYear()-1);return r[0]<ymd(t);}
+function dateLabel(){var r=dateRange();if(!r)return 'all dates';function f(v){var s=String(v);return s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8);}var lab={window:'30 days back to 30 days ahead',active:'active today',next90:'the next 90 days',next30:'today and the next 30 days',last90:'the last 90 days',year:'this year',past5:'the past 5 years',past10:'the past 10 years',since2007:'2007 to today'}[dq];return lab||(f(r[0])+' to '+(r[1]>99999990?'any date':f(r[1])));}
+function setDateQuick(q){
+  dq=q;Array.prototype.forEach.call(document.querySelectorAll('[data-dq]'),function(b){b.classList.toggle('on',b.getAttribute('data-dq')===q);});
+  if(q!=='custom'){$('dFrom').value='';$('dTo').value='';}
+  refillPermitLayers();if(sel)run();
+}
+function inCb6(lon,lat){var poly=CB6RING;if(!poly)return true;var inside=false,n=poly.length,j=n-1;for(var i=0;i<n;i++){var xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];if(((yi>lat)!==(yj>lat))&&(lon<(xj-xi)*(lat-yi)/(yj-yi)+xi))inside=!inside;j=i;}return inside;}
+function placeNbhd(list){list.forEach(function(n){if(n.b!=='Brooklyn'||!inCb6(n.x,n.y))return;
+  nbLayer.addLayer(L.tooltip({permanent:true,direction:'center',className:'nbl',interactive:false}).setLatLng([n.y,n.x]).setContent(n.n));});}
+function buildBlockLayer(){
+  if(!NET||blkLayer)return;
+  blkLayer=L.layerGroup();
+  var st0={color:'#1a3a6b',weight:3,opacity:.32};
+  var hot={color:'#f2c84b',weight:6,opacity:.95};
+  NET.segs.forEach(function(sg){
+    if(!sg.g||sg.g.length<2)return;
+    var pl=L.polyline(sg.g.map(function(p){return [p[1],p[0]];}),st0);
+    pl.on('mouseover',function(){
+      pl.setStyle(hot);pl.bringToFront();
+      var b=BKIDX&&BKIDX[sg.bk];
+      var lab=b?b.st+' between '+b.from+' and '+b.to:(NET.streets[sg.st]||'Block');
+      pl.bindTooltip(lab,{sticky:true,className:'blkt'}).openTooltip();
+    });
+    pl.on('mouseout',function(){pl.setStyle(st0);pl.closeTooltip();});
+    pl.on('click',function(ev){
+      var b=BKIDX&&BKIDX[sg.bk];if(!b)return;
+      var sti=NET.streets.indexOf(b.st);if(sti<0)return;
+      var s2=selectStretch(sti,b.from,b.to);if(!s2)return;
+      sel=s2;setMode('street');run();var mh=$('mapHint');if(mh){mh.style.display='none';try{localStorage.setItem('mbHint','1');}catch(e){}}
+      if(ev&&ev.originalEvent)ev.originalEvent.stopPropagation();
+    });
+    blkLayer.addLayer(pl);
+  });
+  var d=OVDEF.filter(function(x){return x.id==='blocks';})[0];
+  OV['blocks']=blkLayer;
+  if(!d||d.on)blkLayer.addTo(map);
+}
+function buildOverlays(){
+  fetch('/data/precinct-directory.json').then(function(r){return r.json();}).then(function(j){window.PCTDIR=j;}).catch(function(){});
+  nbLayer=L.layerGroup().addTo(map);
+  fetch('/data/neighborhood-labels.json').then(function(r){return r.json();}).then(function(list){if(CB6RING)placeNbhd(list);else nbPending=list;});
+  OVDEF.forEach(function(d){
+    if(d.custom){
+      if(d.id==='records'){OV[d.id]=ptLayer;return;}
+      if(d.id==='blocks'){if(blkLayer)OV[d.id]=blkLayer;return;}
+      if(d.layer){OV[d.id]=L.layerGroup();return;}
+      if(d.id==='edresults'){
+        var eg=L.layerGroup();OV[d.id]=eg;
+        fetch('/data/cb6-ed-elections.geojson').then(function(r){return r.json();}).then(function(gj){
+          EDDATA=gj;buildEdPicker();drawEd();
+        }).catch(function(){});
+        return;}
+      if(d.id==='gov'){var gg=L.layerGroup();OV[d.id]=gg;GOV.forEach(function(o){
+        var ic=L.divIcon({className:'gov',iconSize:[30,30],iconAnchor:[15,15],popupAnchor:[0,-14],html:'<img class="oi" src="'+o.icon+'" alt="">'});
+        gg.addLayer(L.marker([o.lat,o.lng],{icon:ic,pane:'hi',zIndexOffset:800}).bindPopup('<div class="pop"><div class="pt">'+esc(o.name)+'</div><div class="ps">'+esc(o.title)+'<br>'+esc(o.addr)+(o.share?'<br>Represents about '+o.share+' of CB6':'')+'</div><div class="pl"><a href="/'+o.slug+'/">Profile &rarr;</a></div></div>'));});
+        return;}
+
+    }
+    if(d.id==='precincts'){
+      var pg=L.layerGroup();OV[d.id]=pg;if(d.on)pg.addTo(map);
+      fetch(d.src).then(function(r){return r.json();}).then(function(gj){
+        pg.addLayer(L.geoJSON(gj,{filter:d.filter,style:d.style,
+          onEachFeature:function(f,l){if(d.pop)l.bindPopup(d.pop(f.properties||{}));
+            if(d.label2)l.bindTooltip(d.label2(f),{permanent:true,direction:'center',className:'nbl'});}}));
+        PCTHOUSE.forEach(function(h){
+          var dir=(window.PCTDIR||{})[h.p]||{};
+          var pop='<div class="pop"><div class="pt">'+ord(h.p)+' Precinct station house</div>'+
+            '<div class="ps">'+esc(h.addr)+(dir.co?'<br>'+esc(dir.co):'')+
+            (dir.ph&&dir.ph.main?'<br><a href="tel:'+esc(String(dir.ph.main).replace(/[^0-9]/g,''))+'">'+esc(dir.ph.main)+'</a>':'')+'</div>'+
+            '<div class="pl"><a href="/precinct/'+esc(h.p)+'/">Precinct crime and safety data &rarr;</a></div></div>';
+          pg.addLayer(L.marker([h.lat,h.lng],{pane:'hi',icon:logoIcon('/assets/map-icons/pct'+h.p+'.png',26),zIndexOffset:620}).bindPopup(pop));
+        });
+      }).catch(function(){});
+      return;
+    }
+    if(d.id==='schooldist'){
+      var sg=L.layerGroup();OV[d.id]=sg;if(d.on)sg.addTo(map);
+      fetch(d.src).then(function(r){return r.json();}).then(function(gj){
+        sg.addLayer(L.geoJSON(gj,{filter:d.filter,
+          style:function(f){
+            var c=CSDCOL[String(f.properties.schooldist)]||{main:'#1f5fd6'};
+            return {color:c.main,weight:3.5,dashArray:'8 5',fillColor:c.main,fillOpacity:.10};
+          },
+          onEachFeature:function(f,l){
+            var sd=String(f.properties.schooldist);
+            var c=CSDCOL[sd]||{main:'#1f5fd6'};
+            var cs=CSD.filter(function(x){return x.d===sd;})[0];
+            if(cs)l.bindPopup(csdPopup(cs));
+            l.bindTooltip('District '+sd,{permanent:true,direction:'center',className:'csdl csdl'+sd});
+          }}));
+        CSD.forEach(function(c){
+          sg.addLayer(L.marker([c.lat,c.lng],{pane:'hi',icon:logoIcon(c.logo,36),zIndexOffset:600}).bindPopup(csdPopup(c)));
+          sg.addLayer(L.marker([c.olat,c.olng],{pane:'hi',icon:logoIcon(c.logo,24),zIndexOffset:590}).bindPopup(csdPopup(c)));
+        });
+      }).catch(function(){});
+      return;
+    }
+    var g=L.layerGroup();OV[d.id]=g;if(d.on)g.addTo(map);
+    fetch(d.src).then(function(r){return r.json();}).then(function(gj){
+      var lyr=L.geoJSON(gj,{filter:d.filter||function(){return true;},style:d.style,pointToLayer:d.point,onEachFeature:function(f,l){if(d.pop)l.bindPopup(d.pop(f.properties||{}));if(d.label2)l.bindTooltip(d.label2(f),{permanent:true,direction:'center',className:'nbl'});}});
+      g.addLayer(lyr);
+    }).catch(function(){});
+  });
+}
+var OVGROUP={
+  edresults:'Elections',
+  blocks:'Boundaries and land',zoning:'Boundaries and land',historic:'Boundaries and land',parks:'Boundaries and land',
+  nycha:'Boundaries and land','park-sites':'Boundaries and land',
+  subway:'Getting around',bike:'Getting around','all-subway':'Getting around',
+  'all-citibike':'Getting around','all-asp':'Getting around',dsny:'Getting around',
+  precincts:'Safety and services',sectors:'Safety and services','all-fdny':'Safety and services',
+  'all-health':'Safety and services','all-polls':'Safety and services',gov:'Safety and services',
+  schooldist:'Places',
+  'all-schools':'Places','all-childcare':'Places','all-library':'Places','all-culture':'Places',
+  'all-markets':'Places','all-food':'Places','all-lift':'Places','all-cbo':'Places',
+  bids:'Business and events','all-biz':'Business and events','all-liquor':'Business and events',
+  'all-parties':'Business and events','all-events':'Business and events',
+  'all-dot':'Permits and work','all-dob':'Permits and work','all-lpc':'Permits and work',
+  'all-resurf':'Permits and work',records:'Permits and work'
+};
+var OVORDER=['Elections','Boundaries and land','Getting around','Safety and services','Places','Business and events','Permits and work'];
+var EDDATA=null,EDC=0,EDLYR=null;
+var EDPARTY={'Democratic':'#2166ac','Republican':'#b2182b','Approve':'#2a8a3a','Disapprove':'#b2182b'};
+var EDRAMP=['#5b3fa8','#2166ac','#2a8a3a','#e08214','#b2182b','#7a6636','#a8437a','#0f8a7d'];
+function edLabel(k){
+  var era=k.split(':')[0],name=k.split(':').slice(1).join(':');
+  var m={p25:'June 2025 primary',g25:'November 2025 general',p26:'June 2026 primary'};
+  return name+' \u2014 '+(m[era]||era);
+}
+function buildEdPicker(){
+  var box=document.getElementById('edPick');if(!box||!EDDATA)return;
+  // how many EDs actually have a result for each contest
+  var cov={};
+  EDDATA.features.forEach(function(f){f.properties.r.forEach(function(row){cov[row[0]]=(cov[row[0]]||0)+1;});});
+  var groups={};
+  EDDATA.contests.forEach(function(c,i){
+    var e=c.k.split(':')[0];(groups[e]=groups[e]||[]).push({i:i,k:c.k,n:cov[i]||0});
+  });
+  var order=['p25','g25','p26'];
+  var names={p25:'June 2025 primary',g25:'November 2025 general',p26:'June 2026 primary'};
+  var h='';var first=null;
+  order.forEach(function(e){
+    if(!groups[e])return;
+    groups[e].sort(function(a,b){return b.n-a.n;}); // widest coverage first
+    h+='<optgroup label="'+esc(names[e])+'">';
+    groups[e].forEach(function(o){
+      if(first===null)first=o.i;
+      h+='<option value="'+o.i+'">'+esc(o.k.split(':').slice(1).join(':'))+(o.n<10?' *':'')+'</option>';
+    });
+    h+='</optgroup>';
+  });
+  box.innerHTML=h;
+  if(first!==null&&(EDC===0||/Council District 35$/.test((EDDATA.contests[EDC]||{}).k||'')))EDC=first;
+  box.value=String(EDC);
+  box.onchange=function(){EDC=parseInt(box.value,10)||0;drawEd();};
+  var wrap=document.getElementById('edWrap');if(wrap)wrap.style.display='block';
+}
+function edWinner(row,cands){
+  var best=-1,bi=-1,second=0;
+  for(var i=0;i<cands.length;i++){
+    var v=row[2+i]||0;
+    if(v>best){second=best;best=v;bi=i;}
+    else if(v>second)second=v;
+  }
+  return {name:bi>=0?cands[bi]:'\u2014',votes:best,second:second,total:row[1]||0,idx:bi};
+}
+function drawEd(){
+  var g=OV['edresults'];if(!g||!EDDATA)return;
+  g.clearLayers();
+  var c=EDDATA.contests[EDC];if(!c)return;
+  var winners={};
+  EDDATA.features.forEach(function(f){
+    var row=null;
+    for(var i=0;i<f.properties.r.length;i++){if(f.properties.r[i][0]===EDC){row=f.properties.r[i];break;}}
+    if(!row)return;
+    var w=edWinner(row,c.c);
+    winners[w.name]=(winners[w.name]||0)+1;
+  });
+  var names=Object.keys(winners).sort(function(a,b){return winners[b]-winners[a];});
+  var col={};names.forEach(function(n,i){col[n]=EDPARTY[n]||EDRAMP[i%EDRAMP.length];});
+  EDDATA.features.forEach(function(f){
+    var row=null;
+    for(var i=0;i<f.properties.r.length;i++){if(f.properties.r[i][0]===EDC){row=f.properties.r[i];break;}}
+    var ed=f.properties.e;
+    if(!row){
+      g.addLayer(L.geoJSON(f,{style:{color:'#999',weight:.7,fillColor:'#e8e8e8',fillOpacity:.35}})
+        .bindPopup('<div class="pop"><div class="pt">AD '+esc(ed.slice(0,2))+' ED '+esc(ed.slice(2))+'</div><div class="ps">No ballots cast in this contest here.</div></div>'));
+      return;
+    }
+    var w=edWinner(row,c.c);
+    var share=w.total?Math.round(w.votes/w.total*1000)/10:0;
+    var margin=w.total?Math.round((w.votes-w.second)/w.total*1000)/10:0;
+    var op=Math.max(.28,Math.min(.82,.28+(share/100)*.6));
+    var rows=c.c.map(function(n,i){return {n:n,v:row[2+i]||0};}).filter(function(x){return x.v>0;})
+      .sort(function(a,b){return b.v-a.v;});
+    var tbl=rows.map(function(x){
+      return '<div class="edr"><span>'+esc(x.n)+'</span><b>'+x.v.toLocaleString()+'</b><i>'+(w.total?(Math.round(x.v/w.total*1000)/10):0)+'%</i></div>';
+    }).join('');
+    var pop='<div class="pop"><div class="pt">AD '+esc(ed.slice(0,2))+' ED '+esc(ed.slice(2))+'</div>'+
+            '<div class="pl">'+esc(edLabel(c.k))+'</div>'+
+            '<div class="edt">'+tbl+'</div>'+
+            '<div class="ps">'+w.total.toLocaleString()+' votes cast &middot; winner by '+margin+' points</div></div>';
+    g.addLayer(L.geoJSON(f,{style:{color:'#fff',weight:.9,fillColor:col[w.name]||'#5b3fa8',fillOpacity:op}}).bindPopup(pop));
+  });
+  var lg=document.getElementById('edLegend');
+  if(lg){
+    lg.innerHTML=names.map(function(n){
+      return '<span class="edk"><i style="background:'+(col[n]||'#5b3fa8')+'"></i>'+esc(n)+' <b>'+winners[n]+'</b></span>';
+    }).join('');
+  }
+}
+function renderToggles(){
+  updateMapKey();
+  var hint=$('mapHint'),hx=$('hintX');
+  try{if(localStorage.getItem('mbHint'))hint.style.display='none';}catch(e){}
+  if(hx)hx.addEventListener('click',function(){hint.style.display='none';try{localStorage.setItem('mbHint','1');}catch(e){}});
+  var ipA=$('ipAll'),ipN=$('ipNone'),ipQ=$('ipQ'),ipC=$('ipClose');
+  if(ipA&&!ipA._wired){
+    ipA._wired=true;
+    ipA.addEventListener('click',function(){IP.items.forEach(function(x,i){IP.on[i]=true;});ipApply();ipRender();});
+    ipN.addEventListener('click',function(){IP.items.forEach(function(x,i){IP.on[i]=false;});ipApply();ipRender();});
+    ipQ.addEventListener('input',function(){ipRender();});
+    ipC.addEventListener('click',ipCloseFn);
+  }
+  var bottom=$('mapToolsBottom');
+  if(bottom){
+    bottom.innerHTML='';
+    var filt=document.createElement('input');
+    filt.type='search';filt.id='tglQ';filt.placeholder='Find a layer\u2026';
+    bottom.appendChild(filt);
+    OVORDER.forEach(function(gname){
+      var members=OVDEF.filter(function(d){return (OVGROUP[d.id]||'Permits and work')===gname;});
+      if(!members.length)return;
+      var det=document.createElement('details');det.className='ovgrp';
+      if(members.some(function(d){return d.on;}))det.open=true;
+      var sum=document.createElement('summary');sum.className='ovgh';
+      sum.innerHTML=esc(gname)+' <em>'+members.length+'</em>';
+      det.appendChild(sum);
+      var rowEl=document.createElement('div');rowEl.className='ovgr';
+      members.forEach(function(d){
+        var b=document.createElement('button');b.type='button';b.className='tgl'+(d.on?' on':'');
+        b.setAttribute('data-ov',d.id);
+        var ico=OVICON[d.id]||LAYERICON[d.layer];
+        b.innerHTML=(ico?'<img class="swi" src="'+ico+'" alt="">':'<span class="sw" style="background:'+d.sw+'"></span>')+esc(d.label);
+        b.addEventListener('click',function(){toggleOverlay(d.id);});
+        rowEl.appendChild(b);
+      });
+      det.appendChild(rowEl);
+      bottom.appendChild(det);
+    });
+    filt.addEventListener('input',function(){
+      var q=filt.value.trim().toLowerCase();
+      Array.prototype.forEach.call(bottom.querySelectorAll('details.ovgrp'),function(det){
+        var any=false;
+        Array.prototype.forEach.call(det.querySelectorAll('.tgl'),function(b){
+          var hit=!q||b.textContent.toLowerCase().indexOf(q)>=0;
+          b.style.display=hit?'':'none';if(hit)any=true;
+        });
+        det.style.display=any?'':'none';
+        if(q&&any)det.open=true;
+      });
+    });
+  }
+  renderActive();
+}
+function renderActive(){
+  var box=$('mapToolsTop');if(!box)return;
+  var on=OVDEF.filter(function(d){return d.on;});
+  var h='<span class="tl">On the map</span>';
+  on.forEach(function(d){
+    h+='<button type="button" class="tgl on" data-ov="'+d.id+'" title="Tap to turn off">'+esc(d.label)+' &times;</button>';
+  });
+  if(on.length>1)h+='<button type="button" class="tgl clr" id="tglClear">Clear all</button>';
+  if(!on.length)h+='<span class="tlnone">Nothing yet. Add layers below.</span>';
+  box.innerHTML=h;
+  Array.prototype.forEach.call(box.querySelectorAll('[data-ov]'),function(b){
+    b.addEventListener('click',function(){toggleOverlay(b.getAttribute('data-ov'));});
+  });
+  var c=$('tglClear');
+  if(c)c.addEventListener('click',function(){OVDEF.filter(function(d){return d.on;}).forEach(function(d){toggleOverlay(d.id);});});
+}
+var KEYLINES={
+  blocks:[{sw:'#1a3a6b',dash:false,t:'Every block, tap one to inspect it'}],
+  schooldist:[{sw:'#6599cd',dash:true,t:'District 13 boundary'},{sw:'#4a5dc2',dash:true,t:'District 15 boundary'}],
+  zoning:[{sw:'#7a6636',dash:false,t:'Zoning districts (CB6 only)'}],
+  historic:[{sw:'#8a2b2b',dash:true,t:'Historic districts (CB6 only)'}],
+  parks:[{sw:'#3fb35a',dash:false,t:'Parks'}],
+  nycha:[{sw:'#1f5fd6',dash:false,t:'NYCHA developments'}],
+  bids:[{sw:'#b5651d',dash:false,t:'Business improvement districts'}],
+  precincts:[{sw:'#444444',dash:true,t:'Police precincts (citywide)'}],
+  sectors:[{sw:'#888888',dash:true,t:'Police sectors'}],
+  dsny:[{sw:'#2a7a2a',dash:false,t:'Sanitation pickup areas'}],
+  subway:[{sw:'#0039A6',dash:false,t:'Subway lines'}],
+  bike:[{sw:'#2a8a3a',dash:false,t:'Bike lanes'}],
+  edresults:[{sw:'#5b3fa8',dash:false,t:'Election districts, coloured by winner'}]
+};
+function updateMapKey(){
+  var el=document.getElementById('mapKey');if(!el)return;
+  if(!el._wired){el._wired=true;el.addEventListener('click',function(){el.classList.toggle('min');});if(window.innerWidth<640)el.classList.add('min');}
+  var h='<div class="mk"><span class="mkl" style="background:#1a3a6b"></span>Brooklyn CB6 boundary</div>';
+  OVDEF.forEach(function(d){
+    if(!d.on||!KEYLINES[d.id])return;
+    KEYLINES[d.id].forEach(function(k){
+      h+='<div class="mk"><span class="mkl'+(k.dash?' dash':'')+'" style="background:'+(k.dash?'transparent':k.sw)+';border-color:'+k.sw+'"></span>'+esc(k.t)+'</div>';
+    });
+  });
+  el.innerHTML=h;
+}
+
+// Per-layer item lists: which overlays expose their contents, and how items group.
+var ITEMSETS={
+  schooldist:{layer:'schools',title:'Schools',auto:true,
+    group:function(it){var p=(it.s||'').split(',');return p.length>1?p[1].trim():'Other';}},
+  'all-schools':{layer:'schools',title:'Schools',auto:true,
+    group:function(it){var p=(it.s||'').split(',');return p.length>1?p[1].trim():'Other';}},
+  bids:{layer:'biz',title:'5th Avenue BID businesses',auto:true,group:null},
+  'all-biz':{layer:'biz',title:'5th Avenue BID businesses',auto:true,group:null}
+};
+var IP={ov:null,layer:null,items:[],marks:{},on:{},grp:null};
+function ipMarker(it,d){
+  var pop='<div class="pop"><div class="pt">'+esc(it.t)+'</div><div class="ps">'+esc(it.s||'')+'</div>'+(it.u?'<div class="pl"><a href="'+esc(it.u)+'">More &rarr;</a></div>':'')+'</div>';
+  var sw=(d&&d.sw)||'#1a3a6b';
+  var lay=(ITEMSETS[IP.ov]||{}).layer;
+  var ico=lay==='schools'?schoolIcon(it):LAYERICON[lay];
+  if(lay==='schools'&&!ico)sw=it.c||sw;
+  return ico?L.marker([it.y,it.x],{pane:'hi',icon:logoIcon(ico,16)}).bindPopup(pop)
+            :L.circleMarker([it.y,it.x],{pane:'hi',radius:4.5,color:'#fff',weight:1.2,fillColor:sw,fillOpacity:.95}).bindPopup(pop);
+}
+function ipApply(){
+  var g=IP.g;if(!g)return;
+  IP.items.forEach(function(it,i){
+    var want=IP.on[i]!==false;
+    var has=!!IP.marks[i]&&IP.marks[i]._on;
+    if(want&&!has){if(!IP.marks[i])IP.marks[i]=ipMarker(it,IP.d);g.addLayer(IP.marks[i]);IP.marks[i]._on=true;}
+    if(!want&&has){g.removeLayer(IP.marks[i]);IP.marks[i]._on=false;}
+  });
+}
+function ipRender(){
+  var body=document.getElementById('ipBody');if(!body)return;
+  var q=(document.getElementById('ipQ').value||'').toLowerCase();
+  var set=ITEMSETS[IP.ov];
+  var groups={};
+  IP.items.forEach(function(it,i){
+    if(q&&(it.t+' '+(it.s||'')).toLowerCase().indexOf(q)<0)return;
+    var gname=set.group?set.group(it):'';
+    (groups[gname]=groups[gname]||[]).push(i);
+  });
+  var names=Object.keys(groups).sort(function(a,b){return groups[b].length-groups[a].length;});
+  var h='';
+  names.forEach(function(n){
+    if(n){
+      var allOn=groups[n].every(function(i){return IP.on[i]!==false;});
+      h+='<div class="ipg"><label><input type="checkbox" data-g="'+esc(n)+'"'+(allOn?' checked':'')+'> '+esc(n)+' <i>'+groups[n].length+'</i></label></div>';
+    }
+    groups[n].forEach(function(i){
+      var it=IP.items[i];
+      h+='<label class="ipi"><input type="checkbox" data-i="'+i+'"'+(IP.on[i]!==false?' checked':'')+'> '+esc(it.t)+'</label>';
+    });
+  });
+  body.innerHTML=h||'<div class="ipi" style="color:#888">Nothing matches.</div>';
+  Array.prototype.forEach.call(body.querySelectorAll('input[data-i]'),function(cb){
+    cb.addEventListener('change',function(){IP.on[+cb.getAttribute('data-i')]=cb.checked;ipApply();ipRender();});
+  });
+  Array.prototype.forEach.call(body.querySelectorAll('input[data-g]'),function(cb){
+    cb.addEventListener('change',function(){
+      var n=cb.getAttribute('data-g');
+      IP.items.forEach(function(it,i){var gname=set.group?set.group(it):'';if(gname===n)IP.on[i]=cb.checked;});
+      ipApply();ipRender();
+    });
+  });
+}
+function ipOpen(ovId){
+  var set=ITEMSETS[ovId];if(!set||!LAY)return;
+  var lay=null;LAY.layers.forEach(function(l){if(l.id===set.layer)lay=l;});
+  if(!lay)return;
+  var switching=IP.layer!==set.layer;
+  IP.ov=ovId;IP.layer=set.layer;IP.items=lay.items;IP.d=OVDEF.filter(function(x){return x.layer===set.layer;})[0]||{};
+  if(switching)IP.on={};
+  if(!IP.g){IP.g=L.layerGroup();}
+  IP.g.addTo(map);
+  IP.marks={};IP.g.clearLayers();
+  IP.items.forEach(function(it,i){if(!(i in IP.on))IP.on[i]=true;});
+  document.getElementById('ipTitle').textContent=set.title;
+  document.getElementById('itemsPanel').style.display='block';
+  ipApply();ipRender();
+}
+function ipCloseFn(){
+  document.getElementById('itemsPanel').style.display='none';
+  if(IP.g)map.removeLayer(IP.g);
+  IP.ov=null;
+}
+function toggleOverlay(id){
+  var d=OVDEF.filter(function(x){return x.id===id;})[0];d.on=!d.on;
+  var g=OV[id];
+  var set=ITEMSETS[id];
+  if(set&&set.auto&&d.layer===set.layer){
+    if(d.on)ipOpen(id);else if(IP.ov===id)ipCloseFn();
+  } else {
+    if(d.layer&&g&&!d.filled&&LAY)fillLayer(d);
+    if(id==='edresults'&&d.on&&EDDATA)drawEd();
+    if(g){if(d.on)g.addTo(map);else map.removeLayer(g);}
+  }
+  if(id==='gov'&&d.on){var b=L.latLngBounds(GOV.map(function(o){return [o.lat,o.lng];}));if(cbLayer)b.extend(cbLayer.getBounds());map.fitBounds(b.pad(.05));}
+  Array.prototype.forEach.call(document.querySelectorAll('[data-ov="'+id+'"]'),function(b){b.classList.toggle('on',d.on);});
+  if(set&&set.auto&&d.layer!==set.layer){if(d.on)ipOpen(id);else if(IP.ov===id)ipCloseFn();}
+  renderActive();
+  updateMapKey();
+}
+var SUBCOL={'1':'#EE352E','2':'#EE352E','3':'#EE352E','4':'#00933C','5':'#00933C','6':'#00933C','7':'#B933AD','A':'#0039A6','C':'#0039A6','E':'#0039A6','B':'#FF6319','D':'#FF6319','F':'#FF6319','M':'#FF6319','G':'#6CBE45','J':'#996633','Z':'#996633','L':'#A7A9AC','N':'#FCCC0A','Q':'#FCCC0A','R':'#FCCC0A','W':'#FCCC0A','S':'#808183','SIR':'#0039A6','FX':'#FF6319','6X':'#00933C','7X':'#B933AD'};
+function subBullets(routes,sz){
+  sz=sz||16;
+  return String(routes||'').split(/[\s,\/]+/).filter(Boolean).map(function(r){
+    var bg=SUBCOL[r.toUpperCase()]||'#555';
+    var fg=(bg==='#FCCC0A'||bg==='#A7A9AC')?'#000':'#fff';
+    return '<span class="mtab" style="width:'+sz+'px;height:'+sz+'px;background:'+bg+';color:'+fg+';font-size:'+(sz*0.62)+'px">'+esc(r.toUpperCase())+'</span>';
+  }).join('');
+}
+var PCTHOUSE=[
+  {p:'72',lat:40.658199,lng:-74.001074,addr:'830 4th Avenue, Brooklyn, NY 11232'},
+  {p:'76',lat:40.683856,lng:-74.000247,addr:'191 Union Street, Brooklyn, NY 11231'},
+  {p:'78',lat:40.680901,lng:-73.974145,addr:'65 6th Avenue, Brooklyn, NY 11217'},
+  {p:'84',lat:40.695495,lng:-73.982842,addr:'301 Gold Street, Brooklyn, NY 11201'},
+  {p:'88',lat:40.690091,lng:-73.960499,addr:'298 Classon Avenue, Brooklyn, NY 11205'}
+];
+var CSDCOL={'13':{main:'#6599cd',accent:'#7eb24c'},'15':{main:'#4a5dc2',accent:'#1b237e'}};
+var CSD=[
+  {d:'15',logo:'/assets/map-icons/csd15.png',
+   lat:40.676564,lng:-74.000880,
+   olat:40.69097,olng:-73.988477,
+   addr:'131 Livingston St, Rm 301A, Brooklyn, NY 11201',
+   tel:'(718) 935-3424',site:'https://www.d15brooklyn.org',
+   note:'Covers most of Community Board 6'},
+  {d:'13',logo:'/assets/map-icons/csd13.png',
+   lat:40.677496,lng:-73.979055,
+   olat:40.676331,olng:-73.96587,
+   addr:'355 Park Place, Brooklyn, NY 11238',
+   tel:'(718) 636-3284',site:'https://www.d13brooklyn.com',
+   note:'Covers the northeast corner of Community Board 6'}
+];
+function csdPopup(c){
+  return '<div class="pop"><div class="pt">Community School District '+esc(c.d)+'</div>'+
+    '<div class="ps">'+esc(c.note)+'</div>'+
+    '<div class="ps" style="margin-top:6px"><b>District office</b><br>'+esc(c.addr)+'<br>'+
+    '<a href="tel:'+esc(c.tel.replace(/[^0-9]/g,''))+'">'+esc(c.tel)+'</a></div>'+
+    '<div class="pl"><a href="'+esc(c.site)+'" target="_blank" rel="noopener">'+esc(c.site.replace('https://www.',''))+' &rarr;</a>'+
+    ' &middot; <a href="/eduhub-csd-'+esc(c.d)+'.html">Schools in this district &rarr;</a></div></div>';
+}
+var OVICON={nycha:'/assets/map-icons/nycha.png',schooldist:'/assets/map-icons/csd15.png','all-markets':'/assets/map-icons/grownyc.png'};
+var SCHOOLMAP={
+ 'P.S. 133 William A. Butler':'ps133','P.S. 032 Samuel Mills Sprole':'ps32',
+ 'P.S. 015 Patrick F. Daly':'ps15','P.S. 282 Park Slope':'ps282',
+ 'P.S. 058 The Carroll':'ps58','P.S. 029 John M. Harrigan':'ps29',
+ 'P.S. 321 William Penn':'ps321','P.S. 039 Henry Bristow':'ps39',
+ 'Magnet School Of Math, Science And Design Technology':'ps10',
+ 'P.S. 038 The Pacific':'ps38','P.S. 107 John W. Kimball':'ps107',
+ 'P.S. 124 Silas B. Dutcher':'ps124','The Maurice Sendak Community School':'ps118',
+ 'P.S. 261 Zipporiah Mills':'ps261',"P.S. 372 -The Children's School":'ps372',
+ 'P.S. K077':'ps77','M.S. 51 William Alexander':'ms51',
+ 'M.S. K266 - Park Place Community Middle School':'ms266',
+ 'The Exploratory School':'ms447','John Jay School For Law':'john-jay-law',
+ 'Cyberarts Studio Academy':'john-jay-cyberarts','Park Slope Collegiate':'park-slope-collegiate',
+ 'Millennium Brooklyn Hs':'millennium-bk','Brooklyn High School Of The Arts':'bk-hs-arts',
+ 'Digital Arts And Cinema Technology High School':'digital-arts-hs',
+ 'South Brooklyn Community High School':'south-brooklyn-chs',
+ 'Brooklyn Collaborative Studies':'brooklyn-collaborative',
+ 'The Brooklyn New School, P.S. 146':'brooklyn-new-school',
+ 'The Boerum Hill School For International Studies':'boerum-hill-intl',
+ 'Red Hook Neighborhood School':'red-hook','New Dawn Charter High School':'new-dawn',
+ 'Success Academy Charter School - Cobble Hill':'success-cobble-hill',
+ 'Summit Academy Charter School':'summit','Pave Academy Charter School':'pave-red-hook',
+ 'Basis Independent Brooklyn':'basis','Berkeley-Carroll School':'berkeley-carroll',
+ 'International School Of Brooklyn':'isb',
+ 'St Saviour Catholic Academy':'st-saviour-academy','St Saviour High School':'st-saviour-hs',
+ 'Al-Noor School':'al-noor','A Fantis Parochial School':'a-fantis',
+ 'Luria Academy Of Brooklyn':'luria','Hannah Senesh Community School':'hannah-senesh',
+ 'Mary Mcdowell Friends - Upper':'mary-mcdowell','Mary Mcdowell Friends - Middle':'mary-mcdowell',
+ 'Mary Mcdowell Friends School-Element':'mary-mcdowell',
+ 'Brooklyn Hts Montessori School':'bk-hts-montessori',
+ 'Bishop Loughlin Memorial High School':'bishop-loughlin',
+ 'Community Roots Charter School':'community-roots',
+ 'St Joseph The Worker Catholic Acad':'st-joseph-worker',
+ 'Mesilas Bais Yaakov':'mesilas-bais-yaakov',
+ 'Yeshiva Kehilath Yakov':'yeshiva-kehilath-yakov',
+ 'Rivendell School':'rivendell','Sterling School':'sterling',
+ 'Ms Lam Montessori School':'ms-lam',
+ 'Smith Street Arts Et Lettres':'smith-street-arts',
+ 'Brooklyn Autism Center Academy':'brooklyn-autism-center',
+ 'League School - Vanderbilt':'league-school',
+ 'Child Study Center Of New York':'child-study-center',
+ 'Fusion Academy Brooklyn':'fusion-academy',
+ 'Heartshare Human Svcs Metrotech':'heartshare',
+ 'Achievement Unlocked':'achievement-unlocked',
+ 'Brooklyn Independent':'brooklyn-independent',
+ 'P.S. K369 - Coy L. Cox School':'ps-k369-clc',
+ 'P.S. K753 - School For Career Development':'ps-k753-bscd',
+ 'Urban Assembly Institute Of Math And Science For Young Women':'ua-institute',
+ 'The Urban Assembly School For Law And Justice':'ua-slj',
+ 'The Elizabeth Jennings School For Bold Explorers':'elizabeth-jennings',
+ 'Brooklyn Frontiers High School':'brooklyn-frontiers',
+ 'Fort Greene Preparatory Academy':'fort-greene-prep',
+ 'Albee Square Montessori Public School':'albee-square',
+ 'Cobble Hill School Of American Studies':'cobble-hill-american',
+ 'Khalil Gibran International Academy':'khalil-gibran',
+ 'Design Works High School':'design-works',
+ 'I.S. 340':'is340-north-star',
+ 'Bridges: A School For Exploration And Equity':'bridges',
+ 'M.S. 113 Ronald Edmonds Learning Center':'ms113-relc',
+ 'New Voices School Of Academic & Creative Arts':'new-voices',
+ 'J.H.S. 088 Peter Rouget':'jhs88-knights',
+ 'P.S. 295':'ps295',
+ 'P.S. 067 Charles A. Dorsey':'ps67-dorsey',
+ 'P.S. 046 Edward C. Blum':'ps46-blum',
+ 'Brooklyn Technical High School':'brooklyn-tech',
+ 'P.S. 020 Clinton Hill':'ps20-clinton-hill',
+ 'Brooklyn Prospect Charter School-Csd 13':'brooklyn-prospect',
+ 'Hellenic Classical Charter School':'hellenic-classical',
+ 'Hellenic Classical Charter School Park Slope':'hellenic-classical',
+ 'Compass Charter School':'compass-charter',
+ 'Al-Madinah School':'al-madinah',
+ 'Brooklyn Rise Charter School':'brooklyn-rise',
+ 'P.S. K053':'ps-k053'
+};
+var SCHOOLLOGO=[
+  [/^basis independent brooklyn/i,'/assets/map-icons/school-basis.png'],
+  [/^berkeley-?carroll/i,'/assets/map-icons/school-berkeley-carroll.png'],
+  [/^international school of brooklyn/i,'/assets/map-icons/school-isb.png'],
+  [/^st\.? ?saviour/i,'/assets/map-icons/school-st-saviour.png'],
+  [/^(st|saint) ?ann'?s school/i,'/assets/map-icons/school-saint-anns.png'],
+  [/^packer collegiate/i,'/assets/map-icons/school-packer.png'],
+  [/^brooklyn friends school/i,'/assets/map-icons/school-brooklyn-friends.png']
+];
+function schoolIcon(it){
+  if(SCHOOLMAP[it.t])return '/assets/map-icons/d15/'+SCHOOLMAP[it.t]+'.png';
+  for(var i=0;i<SCHOOLLOGO.length;i++)if(SCHOOLLOGO[i][0].test(it.t||''))return SCHOOLLOGO[i][1];
+  var k=it.k||'';
+  if(k==='Public K-12'||k==='Special education')return '/assets/map-icons/schools-nycps.png';
+  return null; // charter and other private schools keep their own colour dot
+}
+var LAYERICON={library:'/assets/map-icons/library-bpl.png',citibike:'/assets/map-icons/citibike.png',fdny:'/assets/map-icons/fdny-shield.png',schools:'/assets/map-icons/schools-nycps.png',childcare:'/assets/map-icons/childcare-nyc.png',parks:'/assets/map-icons/parks-nyc.png',biz:'/assets/map-icons/bid-5th-ave.png',lift:'/assets/map-icons/blockbyblock.png'};
+function logoIcon(src,sz){
+  sz=sz||19;
+  return L.divIcon({className:'logoicon',html:'<img src="'+src+'" alt="" style="width:'+sz+'px;height:'+sz+'px">',iconSize:[sz,sz],iconAnchor:[sz/2,sz/2],popupAnchor:[0,-sz/2]});
+}
+function subwayIcon(routes){
+  var html='<div class="mtapin">'+subBullets(routes,17)+'</div>';
+  var n=String(routes||'').split(/[\s,\/]+/).filter(Boolean).length||1;
+  var w=n*19+4;
+  return L.divIcon({className:'mtaicon',html:html,iconSize:[w,21],iconAnchor:[w/2,10],popupAnchor:[0,-9]});
+}
+function fillLayer(d){
+  var g=OV[d.id];d.filled=true;var L0=LAY.layers.filter(function(x){return x.id===d.layer;})[0];var rng=dateRange();
+    if(L0)L0.items.forEach(function(it){if(DATED[d.layer]&&!inDate(it,rng))return;var pop='<div class="pop"><div class="pt">'+esc(it.t)+'</div><div class="ps">'+esc(it.s)+'</div><div class="pl">'+esc(L0.label)+'</div></div>';
+      if(it.g&&it.g.length>1){var ll=it.g.map(function(p){return [p[1],p[0]];});g.addLayer(L.polyline(ll,{pane:'hi',color:'#fff',weight:7,opacity:.9,interactive:false}));g.addLayer(L.polyline(ll,{pane:'hi',color:it.c||d.sw,weight:4,opacity:.95}).bindPopup(pop));}
+      else{var c=it.g?it.g[0]:[it.x,it.y];
+        if(d.layer==='cbo'){
+          var co={'Old Stone House and Washington Park':'cbo-old-stone-house','Van Alen Institute':'cbo-van-alen','Fifth Avenue Committee':'cbo-fac','Brooklyn Conservatory of Music':'cbo-bkcm'}[it.t];
+          if(co)g.addLayer(L.marker([c[1],c[0]],{icon:logoIcon('/assets/map-icons/'+co+'.png'),pane:'hi'}).bindPopup(pop));
+          else g.addLayer(L.circleMarker([c[1],c[0]],{pane:'hi',radius:4.5,color:'#fff',weight:1.2,fillColor:d.sw,fillOpacity:.95}).bindPopup(pop));
+        } else if(d.layer==='parks'){
+          var pk=/^prospect park$/i.test(it.t||'')?'/assets/map-icons/prospect-park-alliance.png'
+                :/^brooklyn bridge park$/i.test(it.t||'')?'/assets/map-icons/brooklyn-bridge-park.png'
+                :/^carroll park$/i.test(it.t||'')?'/assets/map-icons/carroll-park.png'
+                :/pool|aquatic/i.test((it.t||'')+' '+(it.s||''))?'/assets/map-icons/pool-nyc.png'
+                :'/assets/map-icons/parks-nyc.png';
+          g.addLayer(L.marker([c[1],c[0]],{icon:logoIcon(pk),pane:'hi'}).bindPopup(pop));
+        } else if(d.layer==='markets'){
+          if(/greenmarket/i.test(it.t||''))g.addLayer(L.marker([c[1],c[0]],{icon:logoIcon('/assets/map-icons/grownyc.png'),pane:'hi'}).bindPopup(pop));
+          else g.addLayer(L.circleMarker([c[1],c[0]],{pane:'hi',radius:4.5,color:'#fff',weight:1.2,fillColor:d.sw,fillOpacity:.95}).bindPopup(pop));
+        } else if(d.layer==='schools'){
+          var sic=schoolIcon(it);
+          if(sic)g.addLayer(L.marker([c[1],c[0]],{icon:logoIcon(sic),pane:'hi'}).bindPopup(pop));
+          else g.addLayer(L.circleMarker([c[1],c[0]],{pane:'hi',radius:4.5,color:'#fff',weight:1.2,fillColor:it.c||d.sw,fillOpacity:.95}).bindPopup(pop));
+        } else if(LAYERICON[d.layer]){
+          g.addLayer(L.marker([c[1],c[0]],{icon:logoIcon(LAYERICON[d.layer]),pane:'hi'}).bindPopup(pop));
+        } else if(d.layer==='subway'){
+          var sp='<div class="pop"><div class="pt">'+subBullets(it.s,18)+'</div><div class="pt" style="margin-top:5px">'+esc(it.t)+'</div><div class="pl">'+esc(L0.label)+'</div></div>';
+          g.addLayer(L.marker([c[1],c[0]],{icon:subwayIcon(it.s),pane:'hi'}).bindPopup(sp));
+        } else {
+          g.addLayer(L.circleMarker([c[1],c[0]],{pane:'hi',radius:4.5,color:'#fff',weight:1.2,fillColor:d.sw,fillOpacity:.95}).bindPopup(pop));
+        }
+      }});
+}
+function addOffice(){
+  var ic=L.divIcon({className:'office',iconSize:[30,30],iconAnchor:[15,15],popupAnchor:[0,-14],html:'<img class="oi" src="/cb6-logo-square.png" alt="CB6">'});
+  L.marker([40.686131,-73.994761],{icon:ic,zIndexOffset:900,pane:'hi'}).addTo(map).bindPopup('<div class="pop"><div class="pt">Brooklyn Community Board 6</div><div class="ps">250 Baltic Street, Brooklyn</div><div class="pl"><a href="/250baltic/">About the office &rarr;</a></div></div>');
+}
+function initMap(){
+  map=L.map('map',{scrollWheelZoom:false}).setView([40.677,-73.995],13);
+  base=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:19}).addTo(map);
+  map.createPane('mask');map.getPane('mask').style.zIndex=420;map.getPane('mask').style.pointerEvents='none';
+  fetch('/data/cb6_boundary_exact.geojson').then(function(r){return r.json();}).then(function(g){
+    var f=g.features?g.features[0]:g;var ring=f.geometry.coordinates[0];
+    CB6RING=ring;
+    var world=[[-90,-180],[-90,180],[90,180],[90,-180]];
+    var hole=ring.map(function(c){return [c[1],c[0]];});
+    L.polygon([world,hole],{pane:'mask',stroke:false,fillColor:'#f8f7f4',fillOpacity:.34,interactive:false}).addTo(map);
+    cbLayer=L.geoJSON(g,{style:{color:'#1a3a6b',weight:3,fill:false,opacity:.9}}).addTo(map);
+    var topPt=null;ring.forEach(function(c){if(!topPt||c[1]>topPt[1])topPt=c;});
+    L.tooltip({permanent:true,direction:'top',className:'cb6lab',interactive:false})
+      .setLatLng([topPt[1],topPt[0]]).setContent('BROOKLYN COMMUNITY BOARD 6').addTo(map);
+    map.fitBounds(cbLayer.getBounds().pad(.02));
+    if(nbPending){placeNbhd(nbPending);nbPending=null;}
+  });
+  map.on('click',function(e){if(mode==='pin')setPin(e.latlng);});
+  hiLayer=L.layerGroup().addTo(map);bufLayer=L.layerGroup().addTo(map);ptLayer=L.layerGroup().addTo(map);
+  map.createPane('hi');map.getPane('hi').style.zIndex=450;
+  buildOverlays();renderToggles();addOffice();loadGeo();
+}
+function setPin(latlng){
+  if(!pin){pin=L.marker(latlng,{draggable:true}).addTo(map);pin.on('dragend',function(){applyPin(pin.getLatLng());});}
+  else pin.setLatLng(latlng);
+  applyPin(latlng);
+}
+function applyPin(ll){
+  sel={kind:'pin',lines:[[[ll.lng,ll.lat]]],geomKind:'point',label:'Pin at '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5),sub:'',lat:ll.lat,lng:ll.lng};
+  run();
+}
+function clearPin(){if(pin){map.removeLayer(pin);pin=null;}sel=null;hiLayer.clearLayers();bufLayer.clearLayers();ptLayer.clearLayers();$('results').innerHTML='';$('mapnote').innerHTML='Tap the map to drop a pin.';}
+
+// ---------- run ----------
+function currentReach(){return sel&&sel.kind==='street'?reach:pinReach;}
+function run(){
+  if(!sel||!LAY)return;
+  var R=currentReach();
+  var linesM=sel.lines.map(function(ln){return ln.map(toM);});
+  var isPt=sel.geomKind==='point';
+  hiLayer.clearLayers();bufLayer.clearLayers();ptLayer.clearLayers();
+  if(isPt){
+    var c=sel.lines[0][0];
+    bufLayer.addLayer(L.circle([c[1],c[0]],{pane:'hi',radius:R,color:'#f2c84b',weight:2,fillColor:'#f2c84b',fillOpacity:.12}));
+    if(sel.kind!=='pin')hiLayer.addLayer(L.circleMarker([c[1],c[0]],{radius:7,color:'#fff',weight:2,fillColor:'#f2c84b',fillOpacity:1}));
+    map.fitBounds(L.latLng(c[1],c[0]).toBounds(R*2.6));
+  } else {
+    var ll=sel.lines.map(function(ln){return ln.map(function(p){return [p[1],p[0]];});});
+    bufLayer.addLayer(L.polyline(ll,{pane:'hi',color:'#f2c84b',weight:Math.max(14,R/2.2),opacity:.16,lineCap:'round',lineJoin:'round'}));
+    var pl=L.polyline(ll,{pane:'hi',color:'#f2c84b',weight:6,opacity:.95,lineCap:'round'});hiLayer.addLayer(pl);
+    map.fitBounds(pl.getBounds().pad(.35));
+  }
+  var found={},total=0,rng=dateRange();
+  LAY.layers.forEach(function(L0){
+    var hits=[];
+    L0.items.forEach(function(it){
+      var d;
+      if(DATED[L0.id]&&!inDate(it,rng))return;
+      if(L0.kind==='ln'&&it.g&&it.g.length>1){
+        var gM=it.g.map(toM);var best=Infinity;
+        gM.forEach(function(p){var dd=distToPath(p,linesM);if(dd<best)best=dd;});
+        linesM.forEach(function(ln){ln.forEach(function(p){var dd=distToPath(p,[gM]);if(dd<best)best=dd;});});
+        d=best;
+      } else {
+        var p=toM(it.g?it.g[0]:[it.x,it.y]);d=distToPath(p,linesM);
+      }
+      if(d<=R){it._d=d;hits.push(it);}
+    });
+    hits.sort(function(a,b){return a._d-b._d;});
+    found[L0.id]=hits;total+=hits.length;
+    hits.forEach(function(it){
+      var c=it.g&&it.g.length>1?null:(it.g?it.g[0]:[it.x,it.y]);
+      var pop='<div class="pop"><div class="pt">'+esc(it.t)+'</div><div class="ps">'+esc(it.s)+'</div><div class="pl">'+esc(L0.label)+'</div></div>';
+      if(c){ptLayer.addLayer(L.circleMarker([c[1],c[0]],{radius:5,color:'#fff',weight:1,fillColor:it.c||COLORS[L0.id]||'#333',fillOpacity:.9}).bindPopup(pop));}
+      else{ptLayer.addLayer(L.polyline(it.g.map(function(p){return [p[1],p[0]];}),{color:it.c||COLORS[L0.id]||'#333',weight:4,opacity:.8}).bindPopup(pop));}
+    });
+  });
+  $('mapnote').innerHTML='<b>'+esc(sel.label)+'</b>. '+fmt(total)+' records in the site\'s own data within '+R+' m'+(sel.sub?'. '+esc(sel.sub):'')+'. Loading live 311, crime and lots&hellip;';
+  live={n311:null,crime:null,lots:null,hist:null};
+  lastFound=found;render(found);
+  writeHash();
+  loadLive(linesM,R,found);
+}
+
+function loadLive(linesM,R,found){
+  var my=++liveReq;
+  var bb=bboxOf(sel.lines,R+5);
+  var w="latitude > "+bb.s.toFixed(6)+" AND latitude < "+bb.n.toFixed(6)+" AND longitude > "+bb.w.toFixed(6)+" AND longitude < "+bb.e.toFixed(6);
+  var since=new Date();since.setFullYear(since.getFullYear()-1);var sinceIso=since.toISOString().slice(0,19);
+  function q(ds,params){params.$$app_token=TOKEN;var qs=Object.keys(params).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);}).join('&');
+    return fetch('https://data.cityofnewyork.us/resource/'+ds+'.json?'+qs).then(function(r){return r.ok?r.json():[];}).catch(function(){return [];});}
+  function clip(rows){return rows.filter(function(r){var lat=parseFloat(r.latitude),lon=parseFloat(r.longitude);if(isNaN(lat))return false;var d=distToPath(toM([lon,lat]),linesM);if(d<=R){r._d=d;return true;}return false;}).sort(function(a,b){return a._d-b._d;});}
+  Promise.all([
+    q('erm2-nwe9',{'$where':w+" AND created_date > '"+sinceIso+"'",'$select':'unique_key,created_date,complaint_type,descriptor,incident_address,status,agency,latitude,longitude','$order':'created_date DESC','$limit':'8000'}),
+    q('5uac-w243',{'$where':w,'$select':'cmplnt_num,cmplnt_fr_dt,ofns_desc,pd_desc,law_cat_cd,prem_typ_desc,latitude,longitude','$order':'cmplnt_fr_dt DESC','$limit':'4000'}),
+    q('64uk-42ks',{'$where':w,'$select':'address,bbl,block,lot,zonedist1,zonedist2,overlay1,spdist1,landuse,ownername,yearbuilt,numfloors,unitsres,unitstotal,bldgclass,lotarea,bldgarea,builtfar,residfar,commfar,histdist,landmark,latitude,longitude','$limit':'3000'}),
+    q('uip8-fykc',{'$where':w,'$select':'arrest_key,arrest_date,ofns_desc,pd_desc,law_cat_cd,latitude,longitude','$order':'arrest_date DESC','$limit':'4000'}),
+    q('sv2w-rv3k',{'$where':w,'$select':'summons_key,summons_date,offense_description,summons_category_type,law_description,latitude,longitude','$order':'summons_date DESC','$limit':'4000'})
+  ]).then(function(res){
+    if(my!==liveReq)return;
+    live.n311=clip(res[0]);live.crime=clip(res[1]);live.lots=clip(res[2]);live.arrests=clip(res[3]);live.tix=clip(res[4]);
+    if(lookback())loadHist(my,linesM,R,q,clip);
+    live.lots.forEach(function(r){var c=[r.latitude,r.longitude];ptLayer.addLayer(L.circleMarker([parseFloat(r.latitude),parseFloat(r.longitude)],{radius:3.5,color:'#fff',weight:1,fillColor:COLORS.lots,fillOpacity:.8}).bindPopup(lotPop(r)));});
+    live.crime.forEach(function(r){ptLayer.addLayer(L.circleMarker([parseFloat(r.latitude),parseFloat(r.longitude)],{radius:5,color:'#fff',weight:1,fillColor:COLORS.crime,fillOpacity:.9}).bindPopup('<div class="pop"><div class="pt">'+esc(title(r.ofns_desc))+'</div><div class="ps">'+esc(title(r.pd_desc))+' · '+esc(title(r.law_cat_cd))+' · '+esc(String(r.cmplnt_fr_dt||'').slice(0,10))+'</div><div class="pl">Crime complaint</div></div>'));});
+    live.arrests.forEach(function(r){ptLayer.addLayer(L.circleMarker([parseFloat(r.latitude),parseFloat(r.longitude)],{radius:5,color:'#fff',weight:1,fillColor:COLORS.arrests,fillOpacity:.9}).bindPopup('<div class="pop"><div class="pt">'+esc(title(r.ofns_desc||r.pd_desc))+'</div><div class="ps">'+[title(r.pd_desc),title(r.law_cat_cd),String(r.arrest_date||'').slice(0,10)].filter(Boolean).join(' &middot; ')+'</div><div class="pl">NYPD arrest</div></div>'));});
+    live.tix.forEach(function(r){ptLayer.addLayer(L.circleMarker([parseFloat(r.latitude),parseFloat(r.longitude)],{radius:5,color:'#fff',weight:1,fillColor:COLORS.tix,fillOpacity:.9}).bindPopup('<div class="pop"><div class="pt">'+esc(title(r.offense_description||r.law_description))+'</div><div class="ps">'+[title(r.summons_category_type),String(r.summons_date||'').slice(0,10)].filter(Boolean).join(' &middot; ')+'</div><div class="pl">Criminal court summons</div></div>'));});
+    var total=0;Object.keys(found).forEach(function(k){total+=found[k].length;});
+    total+=live.n311.length+live.crime.length+live.arrests.length+live.tix.length+live.lots.length;
+    $('mapnote').innerHTML='<b>'+esc(sel.label)+'</b>. '+fmt(total)+' records within '+R+' m: '+fmt(live.lots.length)+' lots, '+fmt(live.n311.length)+' 311 reports in 12 months, '+fmt(live.crime.length)+' crime complaints and '+fmt(live.arrests.length)+' arrests this year, '+fmt(live.tix.length)+' criminal summonses on file, and '+fmt(total-live.n311.length-live.crime.length-live.arrests.length-live.tix.length-live.lots.length)+' from the site\'s own layers.'+(sel.sub?' '+esc(sel.sub):'');
+    render(found);
+  });
+}
+function loadHist(my,linesM,R,q,clip){
+  var blocks={};live.lots.forEach(function(r){if(r.block)blocks[String(parseInt(r.block,10))]=1;});
+  var bl=Object.keys(blocks);if(!bl.length){live.hist=[];return;}
+  var pad=bl.map(function(b){return "'"+('00000'+b).slice(-5)+"'";}).join(',');var raw=bl.map(function(b){return "'"+b+"'";}).join(',');
+  var rng=dateRange();
+  Promise.all([
+    q('ipu4-2q9a',{'$where':"borough='BROOKLYN' AND block IN ("+pad+")",'$select':'job__,house__,street_name,job_type,work_type,permit_type,permit_subtype,filing_status,permit_status,issuance_date,expiration_date,permittee_s_business_name,owner_s_business_name,gis_latitude,gis_longitude,block,lot','$limit':'6000'}),
+    q('rbx6-tga4',{'$where':"borough='BROOKLYN' AND block IN ("+raw+")",'$select':'job_filing_number,work_permit,house_no,street_name,work_type,filing_reason,permit_status,issued_date,expired_date,job_description,estimated_job_costs,applicant_business_name,owner_name,latitude,longitude,block,lot','$limit':'6000'})
+  ]).then(function(res){
+    if(my!==liveReq)return;
+    function nd(v){if(!v)return '';v=String(v);var m=v.match(/^(\d{2})\/(\d{2})\/(\d{4})/);if(m)return m[3]+m[1]+m[2];return v.slice(0,10).replace(/-/g,'');}
+    var rows=[];
+    res[0].forEach(function(r){r.latitude=r.gis_latitude;r.longitude=r.gis_longitude;var d1=nd(r.issuance_date),d2=nd(r.expiration_date);
+      rows.push({latitude:r.latitude,longitude:r.longitude,d1:d1,d2:d2,key:'A'+r.job__+'-'+r.permit_type+'-'+d1,t:title(String(r.house__||'')+' '+String(r.street_name||''))+' · '+esc(r.permit_type||'')+(r.work_type?'/'+esc(r.work_type):''),
+        s:[jobType(r.job_type),r.filing_status?title(r.filing_status):'',r.permit_status?title(r.permit_status):'',d1?'issued '+fdate(d1):'',d2?'expires '+fdate(d2):'',r.permittee_s_business_name?title(r.permittee_s_business_name):'',r.owner_s_business_name?'owner '+title(r.owner_s_business_name):'','Block '+parseInt(r.block,10)+' Lot '+parseInt(r.lot,10)].filter(Boolean).join(' · ')});});
+    res[1].forEach(function(r){var d1=nd(r.issued_date),d2=nd(r.expired_date);
+      rows.push({latitude:r.latitude,longitude:r.longitude,d1:d1,d2:d2,key:'B'+r.work_permit+'-'+d1,t:title(String(r.house_no||'')+' '+String(r.street_name||''))+' · '+esc(r.work_type||''),
+        s:[r.filing_reason,r.permit_status,d1?'issued '+fdate(d1):'',d2?'expires '+fdate(d2):'',r.estimated_job_costs?'est. $'+fmt(Math.round(parseFloat(r.estimated_job_costs))):'',r.applicant_business_name,r.owner_name?'owner '+title(r.owner_name):'',r.job_description?String(r.job_description).slice(0,160):'','Block '+r.block+' Lot '+r.lot].filter(Boolean).join(' · ')});});
+    var seen={};rows=rows.filter(function(r){if(seen[r.key])return false;seen[r.key]=1;return inDate(r,rng);});
+    rows=clip(rows);rows.sort(function(a,b){return (b.d1||'')<(a.d1||'')?-1:1;});
+    live.hist=rows;
+    rows.forEach(function(r){ptLayer.addLayer(L.circleMarker([parseFloat(r.latitude),parseFloat(r.longitude)],{radius:4,color:'#fff',weight:1,fillColor:'#2145a8',fillOpacity:.8}).bindPopup('<div class="pop"><div class="pt">'+esc(r.t)+'</div><div class="ps">'+esc(r.s)+'</div><div class="pl">DOB permit history</div></div>'));});
+    render(lastFound);
+  });
+}
+function fdate(d){return d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8);}
+function jobType(j){return {A1:'Alteration type 1',A2:'Alteration type 2',A3:'Alteration type 3',NB:'New building',DM:'Demolition',SG:'Sign'}[j]||j||'';}
+var DAYIDX={Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6},DAYNAME=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function parseTime(t){var m=String(t).trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);if(!m)return null;var h=parseInt(m[1],10)%12,mi=parseInt(m[2]||'0',10);if(/PM/i.test(m[3]))h+=12;return h*60+mi;}
+function suspSet(txt){var out={};String(txt||'').split('|').forEach(function(x){var m=x.trim().match(/^\w{3}\s+(\w{3})\s+(\d{1,2})/);if(!m)return;var mo=MON.indexOf(m[1]);if(mo<0)return;var y=new Date().getFullYear();var d=new Date(y,mo,parseInt(m[2],10));var today=new Date();today.setHours(0,0,0,0);if(d<today)return;out[ymd(d)]=x.trim().replace(/^[^:]*:\s*/,'');});return out;}
+function nextAsp(it){
+  var days=String(it.days||'').split(/[,\/]/).map(function(x){return x.trim();}).filter(function(x){return DAYIDX[x]!=null;});
+  var tm=String(it.t||'').replace(/^[A-Za-z\/, ]+\s/,'');var pr=tm.split('-');var tStart=parseTime(pr[0]),tEnd=parseTime(pr[1]);
+  if(!days.length||tStart==null)return null;
+  var susp=suspSet(it.ns);var now=new Date();var nowM=now.getHours()*60+now.getMinutes();
+  for(var i=0;i<21;i++){var d=new Date(now.getFullYear(),now.getMonth(),now.getDate()+i);var dn=DAYNAME[d.getDay()].slice(0,3);if(days.indexOf(dn)<0)continue;
+    if(i===0&&tEnd!=null&&nowM>=tEnd)continue;
+    var k=ymd(d);if(susp[k])continue;
+    return {date:d,inDays:i,active:(i===0&&nowM>=tStart&&(tEnd==null||nowM<tEnd)),time:tm,days:days};}
+  return null;
+}
+function sideOf(pt,line,sides){
+  var pM=toM(pt),best=Infinity,bx=0,by=0;
+  for(var j=0;j<line.length-1;j++){var a=toM(line[j]),b=toM(line[j+1]);var dx=b[0]-a[0],dy=b[1]-a[1],l2=dx*dx+dy*dy,t=l2?Math.max(0,Math.min(1,((pM[0]-a[0])*dx+(pM[1]-a[1])*dy)/l2)):0;var x=a[0]+t*dx,y=a[1]+t*dy;var d=Math.hypot(pM[0]-x,pM[1]-y);if(d<best){best=d;bx=pM[0]-x;by=pM[1]-y;}}
+  if(sides.indexOf('N')>=0||sides.indexOf('S')>=0)return by>=0?'N':'S';
+  return bx>=0?'E':'W';
+}
+function aspForPoint(pt){
+  var L0=LAY.layers.filter(function(x){return x.id==='asp';})[0];if(!L0)return null;
+  var pM=toM(pt),near=[];
+  L0.items.forEach(function(it){var d=distToPath(pM,[it.g.map(toM)]);if(d<=60)near.push({it:it,d:d});});
+  if(!near.length)return null;near.sort(function(a,b){return a.d-b.d;});
+  var key=function(it){return String(it.s).replace(/\s*\([NSEW] side\).*$/,'');};
+  var k0=key(near[0].it);var pair=near.filter(function(n){return key(n.it)===k0;});
+  var sides=pair.map(function(n){var m=String(n.it.s).match(/\(([NSEW]) side\)/);return m?m[1]:'';});
+  var side=sideOf(pt,near[0].it.g,sides);
+  var mine=pair.filter(function(n){return String(n.it.s).indexOf('('+side+' side)')>=0;})[0]||near[0];
+  var other=pair.filter(function(n){return n!==mine;})[0];
+  return {side:side,block:k0,mine:mine.it,other:other?other.it:null,sideName:{N:'north',S:'south',E:'east',W:'west'}[side]};
+}
+function ord(n){n=parseInt(n,10);var s='th';if(n%100<11||n%100>13)s={1:'st',2:'nd',3:'rd'}[n%10]||'th';return n+s;}
+var DSNY=null,PCT=null,SEC=null;
+function loadGeo(){
+  fetch('/assets/blocks/dsny-freq.geojson').then(function(r){return r.json();}).then(function(g){DSNY=g;if(sel)render(lastFound);});
+  fetch('/data/police-precincts-citywide.geojson').then(function(r){return r.json();}).then(function(g){PCT=g;if(sel)render(lastFound);});
+  fetch('/data/nypd_sectors_cb6.geojson').then(function(r){return r.json();}).then(function(g){SEC=g;if(sel)render(lastFound);});
+}
+function pipRing(lon,lat,ring){var inside=false,n=ring.length,j=n-1;for(var i=0;i<n;i++){var xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];if(((yi>lat)!==(yj>lat))&&(lon<(xj-xi)*(lat-yi)/(yj-yi)+xi))inside=!inside;j=i;}return inside;}
+function pipFeat(lon,lat,f){var g=f.geometry;var polys=g.type==='Polygon'?[g.coordinates]:g.coordinates;for(var i=0;i<polys.length;i++){if(pipRing(lon,lat,polys[i][0])){var hole=false;for(var h=1;h<polys[i].length;h++)if(pipRing(lon,lat,polys[i][h]))hole=true;if(!hole)return true;}}return false;}
+function featsAt(gj,pts){var out=[],seen={};if(!gj)return out;pts.forEach(function(p){gj.features.forEach(function(f){var k=JSON.stringify(f.properties);if(seen[k])return;if(pipFeat(p[0],p[1],f)){seen[k]=1;out.push(f.properties);}});});return out;}
+function samplePts(){if(!sel)return [];var pts=[];sel.lines.forEach(function(ln){ln.forEach(function(p){pts.push(p);});if(ln.length>1)for(var i=0;i<ln.length-1;i++)pts.push([(ln[i][0]+ln[i+1][0])/2,(ln[i][1]+ln[i+1][1])/2]);});return pts;}
+function nextDay(daysTxt){var days=String(daysTxt||'').split(',').map(function(x){return x.trim();}).filter(function(x){return DAYIDX[x]!=null;});if(!days.length)return '';var now=new Date();for(var i=0;i<8;i++){var d=new Date(now.getFullYear(),now.getMonth(),now.getDate()+i);if(days.indexOf(DAYNAME[d.getDay()].slice(0,3))>=0)return i===0?'today':(i===1?'tomorrow':DAYNAME[d.getDay()]+' '+MON[d.getMonth()]+' '+d.getDate());}return '';}
+function serviceCard(){
+  if(!sel)return '';var pts=samplePts();var h='';
+  var ds=featsAt(DSNY,pts),pc=featsAt(PCT,pts),sc=featsAt(SEC,pts);
+  h+='<div class="aspcard" style="background:#1c3d24"><div class="ah">Trash and recycling on this block</div>';
+  if(!DSNY)h+='<div class="as">Loading pickup schedule&hellip;</div>';
+  else if(!ds.length)h+='<div class="as">No DSNY residential schedule on file here.</div>';
+  else ds.forEach(function(d){h+='<div class="an">Trash <b>'+esc(d.refuse||'')+'</b>'+(ds.length>1?' <span style="font-size:.7rem;font-weight:600;color:rgba(255,255,255,.7)">section '+esc(d.section)+'</span>':'')+'</div><div class="as">Recycling <i>'+esc(d.recycling||'')+'</i> · Compost <i>'+esc(d.organics||'')+'</i> · Bulk items <i>'+esc(d.bulk||'none scheduled')+'</i>.'+(nextDay(d.refuse)?' Next trash pickup <i>'+esc(nextDay(d.refuse))+'</i>, next recycling <i>'+esc(nextDay(d.recycling))+'</i>.':'')+'</div>';});
+  if(ds.length>1)h+='<div class="ao">This stretch crosses more than one sanitation section, so the schedule changes partway along it. Turn on "Sanitation pickup days" to see where.</div>';
+  h+='<div class="ao">Set out after 6 PM the evening before (or 8 PM in bins). Bins are required for trash. Holiday suspensions are not reflected. <a href="/sanitation-hub.html" style="color:#ffd9b8">Sanitation hub &rarr;</a></div></div>';
+  if(pc.length||sc.length){h+='<div class="aspcard" style="background:#1a3a8f"><div class="ah">Police</div><div class="an">'+pc.map(function(p){return ord(p.precinct)+' Precinct';}).join(' and ')+'</div><div class="as">'+(sc.length?'Sector '+sc.map(function(p){return String(p.sector).replace(/^\d+/,'');}).join(', '):'')+'. <a href="/precincts.html" style="color:#ffd9b8">Precincts and sectors &rarr;</a></div></div>';}
+  return h;
+}
+function suspText(it){var su=suspSet(it.ns),ks=Object.keys(su).sort();if(!ks.length)return '';return ' Upcoming suspensions on this side: '+ks.map(function(k){return k.slice(4,6).replace(/^0/,'')+'/'+k.slice(6,8).replace(/^0/,'')+' ('+su[k]+')';}).join(', ')+'.';}
+function fmtNext(n){if(!n)return 'no upcoming date found';var d=n.date;var when=n.inDays===0?'Today':(n.inDays===1?'Tomorrow':DAYNAME[d.getDay()]+', '+MON[d.getMonth()]+' '+d.getDate());return when+', '+n.time.replace('-',' to ')+(n.inDays>1?' ('+n.inDays+' days from now)':'');}
+function aspCard(){
+  if(!sel||sel.geomKind!=='point'||!LAY)return '';
+  var a=aspForPoint(sel.lines[0][0]);if(!a)return '<div class="aspcard"><div class="ah">Alternate side parking</div><div class="as">No alternate side parking rules on file within 60 m of this point.</div></div>';
+  var n=nextAsp(a.mine),h='<div class="aspcard"><div class="ah">Alternate side parking at this address</div>';
+  h+='<div class="an">'+(n&&n.active?'<b>In effect right now</b>, ':'Next: <b>'+esc(fmtNext(n))+'</b>')+(n&&n.active?esc(n.time.replace('-',' to ')):'')+'</div>';
+  h+='<div class="as">You are on the <i>'+a.sideName+' side</i> of '+esc(a.block)+'. This side is cleaned <i>'+esc(a.mine.t)+'</i>.'+suspText(a.mine)+'</div>';
+  if(a.other){var n2=nextAsp(a.other);h+='<div class="ao">Across the street ('+esc((String(a.other.s).match(/\(([NSEW]) side\)/)||[])[1]||'')+' side): '+esc(a.other.t)+'. Next: '+esc(fmtNext(n2))+'.</div>';}
+  h+='<div class="ao">Side of street is worked out from where the address sits relative to the DOT centerline. Suspensions come from the DOT sign feed and can lag; confirm on <a href="https://portal.311.nyc.gov/article/?kanumber=KA-01008" style="color:#ffd9b8">311</a> before you move the car.</div></div>';
+  return h;
+}
+function lotPop(r){
+  return '<div class="pop"><div class="pt">'+esc(title(r.address))+'</div><div class="ps">'+esc(r.zonedist1||'')+(r.zonedist2?'/'+esc(r.zonedist2):'')+(r.overlay1?' '+esc(r.overlay1):'')+(r.spdist1?' · '+esc(r.spdist1):'')+' · '+esc(LU[r.landuse]||'Land use '+r.landuse)+'<br>'+(r.yearbuilt&&r.yearbuilt!=='0'?'Built '+esc(r.yearbuilt)+' · ':'')+esc(String(parseFloat(r.numfloors)||0))+' floors · '+esc(r.unitsres||'0')+' res. units · owner '+esc(title(r.ownername))+(r.histdist?'<br>'+esc(r.histdist):'')+(r.landmark?'<br>Landmark: '+esc(r.landmark):'')+'</div><div class="pl">Block '+esc(r.block)+' Lot '+esc(r.lot)+'</div></div>';
+}
+
+// ---------- results ----------
+var PAGE=30;
+function render(found){
+  var h='';
+  h+='<div class="sel"><div class="st">'+esc(sel.label)+'</div><div class="sl">'+(sel.sub?esc(sel.sub)+' · ':'')+'Reach '+currentReach()+' m from the '+(sel.geomKind==='point'?'point':'centerline')+'.</div>'+blockLinks()+'</div>';
+  h+=aspCard();
+  h+=serviceCard();
+  h+='<div class="sharebar"><span class="sb-t" id="sbText">'+esc(location.href)+'</span><button type="button" class="lnk" id="shareView">Copy link to this view</button></div>';
+  var kp='';
+  LIVEDEF.forEach(function(d){if(d.hist&&!lookback())return;var v=live[d.id];kp+='<button type="button" class="kpi2'+(v&&!v.length?' zero':'')+'" data-sec="'+d.id+'"><div class="n">'+(v==null?'&hellip;':fmt(v.length))+'</div><div class="l">'+esc(d.label)+'</div></button>';});
+  LAY.layers.forEach(function(L0){var n=found[L0.id].length;kp+='<button type="button" class="kpi2'+(n?'':' zero')+'" data-sec="'+L0.id+'"><div class="n">'+fmt(n)+'</div><div class="l">'+esc(L0.label)+'</div></button>';});
+  h+='<div class="kpis2">'+kp+'</div>';
+  h+=liveSec('n311',live.n311,function(r){return {t:title(r.complaint_type)+(r.descriptor?': '+title(r.descriptor):''),s:[title(r.incident_address),r.agency,String(r.created_date||'').slice(0,10),r.status].filter(Boolean).join(' · ')};},function(rows){return topCats(rows,function(r){return r.complaint_type;});});
+  h+=liveSec('crime',live.crime,function(r){return {t:title(r.ofns_desc),s:[title(r.pd_desc),title(r.law_cat_cd),title(r.prem_typ_desc),String(r.cmplnt_fr_dt||'').slice(0,10)].filter(Boolean).join(' · ')};},function(rows){return topCats(rows,function(r){return r.law_cat_cd;})+topCats(rows,function(r){return r.ofns_desc;});});
+  h+=liveSec('arrests',live.arrests,function(r){return {t:title(r.ofns_desc||r.pd_desc),s:[title(r.pd_desc),title(r.law_cat_cd),String(r.arrest_date||'').slice(0,10)].filter(Boolean).join(' · ')};},function(rows){return topCats(rows,function(r){return r.law_cat_cd;})+topCats(rows,function(r){return r.ofns_desc;});});
+  h+=liveSec('tix',live.tix,function(r){return {t:title(r.offense_description||r.law_description),s:[title(r.summons_category_type),String(r.summons_date||'').slice(0,10)].filter(Boolean).join(' · ')};},function(rows){return topCats(rows,function(r){return r.offense_description;});});
+  if(lookback())h+=liveSec('hist',live.hist,function(r){return {t:r.t,s:r.s};},function(rows){return topCats(rows,function(r){return String(r.d1||'').slice(0,4);})+topCats(rows,function(r){return r.t.split(' · ')[1]||'';});});
+  h+=liveSec('lots',live.lots,function(r){return {t:title(r.address),s:[(r.zonedist1||'')+(r.zonedist2?'/'+r.zonedist2:'')+(r.overlay1?' '+r.overlay1:''),LU[r.landuse]||'',(r.yearbuilt&&r.yearbuilt!=='0'?'built '+r.yearbuilt:''),(parseFloat(r.numfloors)||0)+' fl',(r.unitsres||'0')+' res. units','owner '+title(r.ownername),r.histdist||'',r.landmark?'landmark: '+r.landmark:'','Block '+r.block+' Lot '+r.lot].filter(Boolean).join(' · '),u:'/citywide-search.html?q='+encodeURIComponent(title(r.address)+', Brooklyn')};},function(rows){return topCats(rows,function(r){return r.zonedist1;})+topCats(rows,function(r){return LU[r.landuse]||'Other';});});
+  LAY.layers.forEach(function(L0){
+    var rows=found[L0.id];
+    h+='<div class="sec'+(openSecs[L0.id]?' open':'')+'" id="sec-'+L0.id+'"><button type="button" class="sh" data-sec="'+L0.id+'"><span class="t">'+esc(L0.label)+'</span><span class="c">'+fmt(rows.length)+'</span><span class="ar">'+(openSecs[L0.id]?'&#9650;':'&#9660;')+'</span></button><div class="sb">';
+    if(L0.note)h+='<div class="note">'+esc(L0.note)+'</div>';
+    if(L0.id==='asp'&&rows.length)h+=topCats(rows,function(r){return {Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday',Sun:'Sunday'}[r.day]||r.day;});
+    if((L0.id==='schools'||L0.id==='childcare')&&rows.length)h+=topCats(rows,function(r){return r.k;});
+    if(DATED[L0.id]&&dateRange())h+='<div class="note">Filtered to '+esc(dateLabel())+'.</div>';
+    if(!rows.length)h+='<div class="note">None within reach.</div>';
+    h+=itemList(L0.id,rows.map(function(it){return {t:it.t,s:it.s,u:it.u};}));
+    h+='</div></div>';
+  });
+  $('results').innerHTML=h;
+  Array.prototype.forEach.call(document.querySelectorAll('.kpi2,.sh'),function(b){b.addEventListener('click',function(){var id=b.getAttribute('data-sec');var s=$('sec-'+id);if(!s)return;
+    if(b.classList.contains('kpi2')){openSecs[id]=true;s.classList.add('open');s.scrollIntoView({behavior:'smooth',block:'start'});}
+    else{openSecs[id]=!openSecs[id];s.classList.toggle('open',openSecs[id]);}
+    var ar=s.querySelector('.ar');if(ar)ar.innerHTML=openSecs[id]?'&#9650;':'&#9660;';});});
+  Array.prototype.forEach.call(document.querySelectorAll('.more'),function(b){b.addEventListener('click',function(){var box=b.parentNode;Array.prototype.forEach.call(box.querySelectorAll('.item[data-hidden]'),function(it){it.removeAttribute('data-hidden');it.style.display='';});b.remove();});});
+  $('shareView').addEventListener('click',function(){var u=location.href;if(navigator.clipboard)navigator.clipboard.writeText(u).then(function(){$('shareView').textContent='Copied';setTimeout(function(){$('shareView').textContent='Copy link to this view';},1600);});});
+}
+function liveSec(id,rows,mapFn,catsFn){
+  var d=LIVEDEF.filter(function(x){return x.id===id;})[0];
+  var h='<div class="sec'+(openSecs[id]?' open':'')+'" id="sec-'+id+'"><button type="button" class="sh" data-sec="'+id+'"><span class="t">'+esc(d.label)+'</span><span class="c">'+(rows==null?'&hellip;':fmt(rows.length))+'</span><span class="ar">'+(openSecs[id]?'&#9650;':'&#9660;')+'</span></button><div class="sb">';
+  h+='<div class="note">'+esc(d.note)+' <a href="'+d.u+'">More &rarr;</a></div>';
+  if(rows==null)h+='<div class="note">Loading from NYC Open Data&hellip;</div>';
+  else if(!rows.length)h+='<div class="note">None within reach.</div>';
+  else{h+=catsFn(rows);h+=itemList(id,rows.map(mapFn));}
+  return h+'</div></div>';
+}
+function topCats(rows,fn){
+  var c={};rows.forEach(function(r){var k=title(fn(r)||'Unknown');c[k]=(c[k]||0)+1;});
+  var ks=Object.keys(c).sort(function(a,b){return c[b]-c[a];}).slice(0,8);
+  return '<div class="cats">'+ks.map(function(k){return '<span class="cat"><b>'+fmt(c[k])+'</b> '+esc(k)+'</span>';}).join('')+'</div>';
+}
+function itemList(id,items){
+  var h='';items.forEach(function(it,i){
+    var hid=i>=PAGE;
+    h+='<div class="item"'+(hid?' data-hidden="1" style="display:none"':'')+'><div class="it">'+(it.u?'<a href="'+esc(it.u)+'">'+esc(it.t)+'</a>':esc(it.t))+'</div>'+(it.s?'<div class="is">'+esc(it.s)+'</div>':'')+'</div>';
+  });
+  if(items.length>PAGE)h+='<button type="button" class="more">Show all '+fmt(items.length)+'</button>';
+  return h;
+}
+
+// ---------- UI ----------
+function setMode(m){
+  mode=m;['Street','Addr','Pin'].forEach(function(k){$('m'+k).classList.toggle('on',m===k.toLowerCase());$('p'+k).classList.toggle('on',m===k.toLowerCase());});
+  var isSt=m==='street';
+  $('reachLab').textContent=isSt?'Reach from the street':'Radius around the point';
+  Array.prototype.forEach.call(document.querySelectorAll('#reach .tgl'),function(b){
+    var r=isSt?parseInt(b.getAttribute('data-r'),10):parseInt(b.getAttribute('data-pr'),10);
+    b.classList.toggle('on',r===(isSt?reach:pinReach));
+  });
+  if(m==='pin')$('mapnote').innerHTML='Tap the map to drop a pin.';
+}
+function fillStreets(){
+  var s=$('stSel');NET.streets.forEach(function(n,i){var o=document.createElement('option');o.value=i;o.textContent=n;s.appendChild(o);});
+}
+function fillCross(){
+  var sti=parseInt($('stSel').value,10);var f=$('fromSel'),t=$('toSel');
+  f.innerHTML='<option value="">Cross street</option>';t.innerHTML='<option value="">End of street</option>';
+  if(isNaN(sti)){f.disabled=t.disabled=true;return;}
+  var cs=crossStreets(sti);
+  cs.forEach(function(c){var o=document.createElement('option');o.value=c.name;o.textContent=c.name;f.appendChild(o);var o2=o.cloneNode(true);t.appendChild(o2);});
+  f.disabled=t.disabled=false;
+}
+function goStreet(){
+  var sti=parseInt($('stSel').value,10);if(isNaN(sti))return;
+  var from=$('fromSel').value;if(!from){var cs=crossStreets(sti);if(cs.length){$('fromSel').value=cs[0].name;from=cs[0].name;}else return;}
+  var to=$('toSel').value;
+  var s=selectStretch(sti,from,to);if(!s)return;sel=s;setMode('street');run();
+  $('map').scrollIntoView({behavior:'smooth',block:'start'});
+}
+var suggT=null;
+function addrInput(){
+  var q=$('addrQ').value.trim();clearTimeout(suggT);
+  if(q.length<3){$('sugg').style.display='none';return;}
+  suggT=setTimeout(function(){
+    fetch('https://geosearch.planninglabs.nyc/v2/autocomplete?text='+encodeURIComponent(q)+'&focus.point.lat=40.677&focus.point.lon=-73.995&size=6').then(function(r){return r.json();}).then(function(j){
+      var fs=(j.features||[]);var box=$('sugg');box.innerHTML='';
+      if(!fs.length){box.style.display='none';return;}
+      fs.forEach(function(f){var b=document.createElement('button');b.type='button';var p=f.properties;b.textContent=(p.label||p.name||'').replace(', New York, NY, USA','');b.addEventListener('click',function(){pickAddr(f);});box.appendChild(b);});
+      box.style.display='block';
+    }).catch(function(){});
+  },220);
+}
+function pickAddr(f){
+  var c=f.geometry.coordinates,p=f.properties;var lab=(p.label||p.name||'').replace(', New York, NY, USA','');
+  $('addrQ').value=lab;$('sugg').style.display='none';
+  var inCb6=(p.pad_bbl||'').indexOf('3')===0;
+  sel={kind:'addr',lines:[[[c[0],c[1]]]],geomKind:'point',label:lab,sub:(p.pad_bbl?'BBL '+p.pad_bbl+'. ':'')+(p.pad_bin?'BIN '+p.pad_bin+'. ':''),lat:c[1],lng:c[0],q:lab};
+  setMode('addr');run();$('map').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function writeHash(){
+  if(!sel)return;var h='';
+  if(sel.kind==='street')h='st='+encodeURIComponent(NET.streets[sel.st])+'&from='+encodeURIComponent(sel.from)+(sel.to?'&to='+encodeURIComponent(sel.to):'')+'&r='+reach;
+  else if(sel.kind==='addr')h='q='+encodeURIComponent(sel.q)+'&pin='+sel.lat.toFixed(6)+','+sel.lng.toFixed(6)+'&r='+pinReach;
+  else h='pin='+sel.lat.toFixed(6)+','+sel.lng.toFixed(6)+'&r='+pinReach;
+  history.replaceState(null,'','#'+h);var t=$('sbText');if(t)t.textContent=location.href;
+}
+function readHash(){
+  var h=location.hash.replace(/^#/,'');if(!h)return false;var o={};h.split('&').forEach(function(kv){var i=kv.indexOf('=');if(i>0)o[decodeURIComponent(kv.slice(0,i))]=decodeURIComponent(kv.slice(i+1));});
+  if(o.st){var sti=NET.streets.indexOf(o.st);if(sti<0)return false;if(o.r)reach=parseInt(o.r,10)||reach;$('stSel').value=sti;fillCross();$('fromSel').value=o.from||'';$('toSel').value=o.to||'';goStreet();return true;}
+  if(o.pin){var a=o.pin.split(',');var lat=parseFloat(a[0]),lng=parseFloat(a[1]);if(isNaN(lat))return false;if(o.r)pinReach=parseInt(o.r,10)||pinReach;
+    if(o.q){$('addrQ').value=o.q;sel={kind:'addr',lines:[[[lng,lat]]],geomKind:'point',label:o.q,sub:'',lat:lat,lng:lng,q:o.q};setMode('addr');run();}
+    else{setMode('pin');setPin(L.latLng(lat,lng));}
+    return true;}
+  return false;
+}
+function wire(){
+  $('mStreet').addEventListener('click',function(){setMode('street');});
+  $('mAddr').addEventListener('click',function(){setMode('addr');setTimeout(function(){$('addrQ').focus();},50);});
+  $('mPin').addEventListener('click',function(){setMode('pin');});
+  $('stSel').addEventListener('change',fillCross);
+  $('goStreet').addEventListener('click',goStreet);
+  $('toSel').addEventListener('change',function(){if($('fromSel').value)goStreet();});
+  $('addrQ').addEventListener('input',addrInput);
+  $('addrQ').addEventListener('keydown',function(e){if(e.key==='Enter'){var b=$('sugg').querySelector('button');if(b)b.click();}});
+  $('clearPin').addEventListener('click',clearPin);
+  Array.prototype.forEach.call(document.querySelectorAll('[data-dq]'),function(b){b.addEventListener('click',function(){setDateQuick(b.getAttribute('data-dq'));});});
+  $('lookBack').addEventListener('click',function(){var p=$('lookBackPanel');var open=p.style.display==='none';p.style.display=open?'block':'none';$('lookBack').classList.toggle('on',open);$('lookBack').innerHTML=open?'Look further back &#9650;':'Look further back &#9660;';});
+  ['dFrom','dTo'].forEach(function(id){$(id).addEventListener('change',function(){dFrom=$('dFrom').value;dTo=$('dTo').value;dq=(dFrom||dTo)?'custom':'all';Array.prototype.forEach.call(document.querySelectorAll('[data-dq]'),function(b){b.classList.toggle('on',b.getAttribute('data-dq')===dq);});refillPermitLayers();if(sel)run();});});
+  var prs=[90,150,260];
+  Array.prototype.forEach.call(document.querySelectorAll('#reach .tgl'),function(b,i){
+    b.setAttribute('data-pr',prs[i]);
+    b.addEventListener('click',function(){
+      if(mode==='street')reach=parseInt(b.getAttribute('data-r'),10);else pinReach=prs[i];
+      Array.prototype.forEach.call(document.querySelectorAll('#reach .tgl'),function(x){x.classList.remove('on');});b.classList.add('on');
+      if(sel)run();
+    });
+  });
+}
+function load(){
+  initMap();wire();
+  fetch('/assets/blocks/block-index.json').then(function(r){return r.json();}).then(function(j){BKIDX=j.blocks;if(sel)render(lastFound);}).catch(function(){});
+  Promise.all([fetch('/assets/blocks/cb6-streets.json').then(function(r){return r.json();}),fetch('/assets/blocks/cb6-layers.json').then(function(r){return r.json();})]).then(function(res){
+    NET=res[0];LAY=res[1];buildIndex();fillStreets();buildBlockLayer();
+    var n=0;LAY.layers.forEach(function(l){n+=l.n;});
+    $('foot').innerHTML='Street centerline and cross streets from the NYC Department of Transportation centerline file ('+NET.streets.length+' streets in and around the district). '+
+      'Site layers ('+fmt(n)+' records, rebuilt '+esc(LAY.generated)+'): liquor licenses, DOB NOW permits, DOT street work permits, DOT resurfacing history, permitted events, block parties, LPC landmark sites and permits, LIFT housing sites, health services, culture, food access, Park Slope 5th Avenue BID businesses, Citi Bike, subway, schools, childcare and pre-K, libraries, firehouses, poll sites, parks and farmers markets. '+
+      '311, NYPD complaints and PLUTO lots are queried live from NYC Open Data for the chosen stretch.<br>'+
+      'Questions or a correction: <a href="mailto:Mike@bkcb6.org">Mike Racioppo</a>';
+    if(!readHash())setMode('street');
+  });
+}
+load();
+})();
+</script>
+<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b6e9b47ba0cf416388d72db8edaf4198"}'></script><!-- End Cloudflare Web Analytics -->
+</body>
+</html>
