@@ -309,7 +309,7 @@
     });
 
     // Keep the map on whatever the address search just found.
-    window.__bkcbPickMapGoTo=function(lat,lng,label){
+    realGoTo=function(lat,lng,label){
       if(!Number.isFinite(lat)||!Number.isFinite(lng)) return;
       pinned=true;
       map.setView([lat,lng],17);
@@ -322,6 +322,30 @@
     setTimeout(function(){ map.invalidateSize(); },200);
   }
 
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
-  else init();
+  var realGoTo=null;
+  window.__bkcbPickMapGoTo=function(lat,lng,label){
+    var host=document.getElementById('cw-pick-map');
+    var fold=host&&host.closest?host.closest('details.mapfold'):null;
+    if(fold&&!fold.open) fold.open=true;
+    start();
+    if(realGoTo) setTimeout(function(){ realGoTo(lat,lng,label); },80);
+  };
+
+  // The map sits in a fold that is closed by default, so it is only built once opened.
+  function start(){
+    var host=document.getElementById('cw-pick-map');
+    if(!host) return;
+    var fold=host.closest?host.closest('details.mapfold'):null;
+    if(fold&&!fold.open){
+      if(fold.dataset.cwBound!=='true'){
+        fold.dataset.cwBound='true';
+        fold.addEventListener('toggle',function(){ if(fold.open) init(); });
+      }
+      return;
+    }
+    init();
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start);
+  else start();
 })();
