@@ -142,26 +142,27 @@
 
     /* ---------- community boards (on by default) ---------- */
     var cdLayer=L.layerGroup(), cdSeals=L.layerGroup();
-    function sealSize(){ var z=map.getZoom(); return z<9.5?22:z<10.5?28:z<11.5?36:z<12.5?46:z<13.5?56:64; }
+    var SEAL_MIN_ZOOM=12, LOGO_MIN_ZOOM=12;
+    function sealSize(){ var z=map.getZoom(); return z<12.5?24:z<13.5?32:z<14.5?40:46; }
     var pinned=false;
     function cdStyle(f){
       var cd=String(f.properties.cd||''), b=parseInt(cd.charAt(0),10);
-      if(cd==='306') return {color:CB6_NAVY,weight:3,fillColor:CB6_ORANGE,fillOpacity:.22,interactive:false};
+      if(cd==='306') return {color:CB6_NAVY,weight:2.4,fillColor:CB6_ORANGE,fillOpacity:.10,interactive:false};
       var c=BORO_COLOR[b]||'#475569';
-      if(isJointInterest(cd)) return {color:c,weight:1,dashArray:'4,4',fillColor:c,fillOpacity:.04,interactive:false};
-      return {color:c,weight:1.6,fillColor:c,fillOpacity:.07,interactive:false};
+      if(isJointInterest(cd)) return {color:c,weight:.8,dashArray:'4,4',fillColor:c,fillOpacity:.02,interactive:false};
+      return {color:c,weight:1.2,fillColor:c,fillOpacity:.03,interactive:false};
     }
     function sealIcon(cd){
       var s=sealSize(), code=boardCode(cd), isCB6=cd==='306';
       var pt=labelPts&&labelPts.cd&&labelPts.cd[cd];
-      var wide=cd.charAt(0)==='5', showLabel=map.getZoom()>=10.5;
+      var wide=cd.charAt(0)==='5', showLabel=map.getZoom()>=13;
       return L.divIcon({className:'cw-seal-wrap',iconSize:[s,s+18],iconAnchor:[s/2,(s+18)/2],
         html:'<div class="cw-seal'+(isCB6?' cb6':'')+(wide?' wide':'')+'" style="--w:'+s+'px"><img src="'+boardSeal(cd)+'" alt="'+esc(code)+'" loading="lazy" onerror="this.style.display=\'none\'">'
           + (showLabel?'<b>'+esc(code)+'</b>':'')+'</div>'});
     }
     function drawSeals(){
       cdSeals.clearLayers();
-      if(!labelPts||!labelPts.cd||!map.hasLayer(cdLayer)) return;
+      if(!labelPts||!labelPts.cd||!map.hasLayer(cdLayer)||map.getZoom()<SEAL_MIN_ZOOM) return;
       Object.keys(labelPts.cd).forEach(function(cd){
         if(isJointInterest(cd)) return;
         var ll=labelPts.cd[cd];
@@ -190,9 +191,11 @@
           + (name?'<b>'+esc(name)+'</b>':'')
           + '<em>'+esc(officeLabel(t,n))+'</em></div>'});
     }
-    function buildOverlay(t,d){
-      var o=OVERLAYS[t], g=L.layerGroup();
-      L.geoJSON(d,{interactive:false,style:function(){ return {color:o.color,weight:2.2,fillColor:o.color,fillOpacity:.06,dashArray:'6,4',interactive:false}; }}).addTo(g);
+    var ovLogos={};
+    function drawOverlayLogos(t){
+      var g=ovLogos[t], d=ovData[t], o=OVERLAYS[t]; if(!g||!d) return;
+      g.clearLayers();
+      if(!ov[t]||!map.hasLayer(ov[t])||map.getZoom()<LOGO_MIN_ZOOM) return;
       var pts=(labelPts||{})[t]||{};
       (d.features||[]).forEach(function(f){
         var n=parseInt(f.properties[o.key],10); if(!isFinite(n)) return;
@@ -202,16 +205,23 @@
         if(href) m.on('click',function(){ window.open(href,'_blank','noopener'); });
         g.addLayer(m);
       });
+    }
+    var ovData={};
+    function buildOverlay(t,d){
+      var o=OVERLAYS[t], g=L.layerGroup();
+      ovData[t]=d;
+      L.geoJSON(d,{interactive:false,style:function(){ return {color:o.color,weight:1.8,fillColor:o.color,fillOpacity:.04,dashArray:'6,4',interactive:false}; }}).addTo(g);
+      ovLogos[t]=L.layerGroup().addTo(g);
       return g;
     }
     function setOverlay(t,on){
       var o=OVERLAYS[t]; if(!o) return;
       if(!on){ if(ov[t]) map.removeLayer(ov[t]); return; }
-      if(ov[t]){ ov[t].addTo(map); cdSeals.eachLayer(function(m){ if(m.setZIndexOffset) m.setZIndexOffset(m.options.zIndexOffset||0); }); return; }
+      if(ov[t]){ ov[t].addTo(map); drawOverlayLogos(t); return; }
       labelsReady.then(function(){ return getJson(o.url,15000); }).then(function(d){
         ov[t]=buildOverlay(t,d);
         var cb=document.querySelector('[data-cw-overlay="'+t+'"]');
-        if(cb&&cb.checked) ov[t].addTo(map);
+        if(cb&&cb.checked){ ov[t].addTo(map); drawOverlayLogos(t); }
       }).catch(function(e){ console.error('overlay',t,e); });
     }
     document.querySelectorAll('[data-cw-overlay]').forEach(function(cb){
@@ -221,7 +231,7 @@
         setOverlay(t,cb.checked);
       });
     });
-    map.on('zoomend',drawSeals);
+    map.on('zoomend',function(){ drawSeals(); Object.keys(ovLogos).forEach(drawOverlayLogos); });
 
     /* ---------- lot picking ---------- */
     var marker=null, hoverTimer=null, seq=0, lastAddress='';
