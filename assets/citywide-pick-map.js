@@ -142,7 +142,8 @@
 
     /* ---------- community boards (on by default) ---------- */
     var cdLayer=L.layerGroup(), cdSeals=L.layerGroup();
-    function sealSize(){ var z=map.getZoom(); return z<=10?26:z===11?34:z===12?44:z===13?54:64; }
+    function sealSize(){ var z=map.getZoom(); return z<=9?22:z===10?28:z===11?34:z===12?44:z===13?54:64; }
+    var pinned=false;
     function cdStyle(f){
       var cd=String(f.properties.cd||''), b=parseInt(cd.charAt(0),10);
       if(cd==='306') return {color:CB6_NAVY,weight:3,fillColor:CB6_ORANGE,fillOpacity:.22,interactive:false};
@@ -153,9 +154,10 @@
     function sealIcon(cd){
       var s=sealSize(), code=boardCode(cd), isCB6=cd==='306';
       var pt=labelPts&&labelPts.cd&&labelPts.cd[cd];
+      var wide=cd.charAt(0)==='5', showLabel=map.getZoom()>=11;
       return L.divIcon({className:'cw-seal-wrap',iconSize:[s,s+18],iconAnchor:[s/2,(s+18)/2],
-        html:'<div class="cw-seal'+(isCB6?' cb6':'')+'" style="--w:'+s+'px"><img src="'+boardSeal(cd)+'" alt="'+esc(code)+'" loading="lazy" onerror="this.style.display=\'none\'">'
-          + '<b>'+esc(code)+'</b></div>'});
+        html:'<div class="cw-seal'+(isCB6?' cb6':'')+(wide?' wide':'')+'" style="--w:'+s+'px"><img src="'+boardSeal(cd)+'" alt="'+esc(code)+'" loading="lazy" onerror="this.style.display=\'none\'">'
+          + (showLabel?'<b>'+esc(code)+'</b>':'')+'</div>'});
     }
     function drawSeals(){
       cdSeals.clearLayers();
@@ -171,8 +173,9 @@
       });
     }
     getJson('cd-boundaries-simple.geojson').then(function(d){
-      L.geoJSON(d,{style:cdStyle,interactive:false}).addTo(cdLayer);
+      var gj=L.geoJSON(d,{style:cdStyle,interactive:false}).addTo(cdLayer);
       cdLayer.addTo(map); cdSeals.addTo(map);
+      if(!pinned&&!host.getAttribute('data-center')){ try{ map.fitBounds(gj.getBounds(),{padding:[6,6]}); }catch(e){} }
       labelsReady.then(drawSeals);
     }).catch(function(e){ console.error('community boards',e); });
 
@@ -298,6 +301,7 @@
     // Keep the map on whatever the address search just found.
     window.__bkcbPickMapGoTo=function(lat,lng,label){
       if(!Number.isFinite(lat)||!Number.isFinite(lng)) return;
+      pinned=true;
       map.setView([lat,lng],17);
       if(marker) marker.setLatLng([lat,lng]);
       else marker=L.marker([lat,lng],{zIndexOffset:1000}).addTo(map);
