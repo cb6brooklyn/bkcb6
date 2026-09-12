@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Brooklyn Map — Every Layer — CB6 &amp; Beyond</title>
+<title>Brooklyn Map — CB6 &amp; Beyond</title>
 <meta property="og:site_name" content="CB6 &amp; Beyond">
-<meta property="og:title" content="Brooklyn Map — Every Layer — CB6 &amp; Beyond">
-<meta property="og:description" content="Every Brooklyn map layer in one place: land use, zoning, historic districts, parks, schools, childcare, libraries, school districts, NYPD sectors, fire battalions, transit, speed limits, rents, and the Council, Assembly, Senate and Congressional districts with the logos of the offices that hold them.">
+<meta property="og:title" content="Brooklyn Map — CB6 &amp; Beyond">
+<meta property="og:description" content="A map of Brooklyn with land use, zoning, historic districts, parks, schools, childcare, libraries, police and fire, transit, speed limits, rents, and the Council, Assembly, Senate and Congressional districts.">
 <meta property="og:url" content="https://bkcb6.app/brooklyn-map.html">
 <meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -128,7 +128,7 @@ body{display:flex;flex-direction:column}
 <div class="top-bar">
   <h1 id="map-title">Brooklyn <span>Map</span></h1>
   <div class="search-row" style="position:relative">
-    <input id="s-input" type="text" placeholder="Search an address in this district…" autocomplete="off"
+    <input id="s-input" type="text" placeholder="Search a Brooklyn address…" autocomplete="off"
       oninput="doAC(this.value)" onkeydown="if(event.key==='Enter')doSearch()"/>
     <div id="ac-drop" style="position:absolute;top:100%;left:0;right:80px;background:#1a3a6b;border:1.5px solid #f2c84b;border-top:none;border-radius:0 0 6px 6px;z-index:9999;display:none;max-height:180px;overflow-y:auto"></div>
     <button onclick="doSearch()">Search</button>
@@ -924,7 +924,66 @@ function filteredBySelectedDistricts(features, clipPolygons){
   return out;
 }
 
+// ── Point markers are only legible when you are zoomed in. Below that, the same
+// stations and sites are drawn as small dots so the borough view stays readable.
+var POINT_DETAIL_ZOOM = 15;
+var POINT_GATE_CONFIG = [
+  {state:'subway', varName:'subwayLayer', color:'#0039a6'},
+  {state:'citibike', varName:'citibikeLayer', color:'#0d9488'},
+  {state:'bus', varName:'busStopsLayer', color:'#0891b2'},
+  {state:'schools', varName:'schoolsLayer', color:'#0ea5e9'},
+  {state:'childcare', varName:'childcareLayer', color:'#d946ef'},
+  {state:'libraries', varName:'librariesLayer', color:'#db2777'}
+];
+var pointDotLayers = {};
+function buildPointDots(cfg){
+  var src = window[cfg.varName];
+  if(!src || !src.eachLayer) return null;
+  var pts = [];
+  src.eachLayer(function(l){ if(l && l.getLatLng) pts.push({ll:l.getLatLng(), tip:(l.getTooltip && l.getTooltip()) ? l.getTooltip().getContent() : ''}); });
+  if(!pts.length) return null;
+  var group = L.layerGroup();
+  pts.forEach(function(p){
+    var dot = L.circleMarker(p.ll, {radius:3.4, color:'#fff', weight:1, fillColor:cfg.color, fillOpacity:.95});
+    if(p.tip) dot.bindTooltip(p.tip, {sticky:true});
+    group.addLayer(dot);
+  });
+  pointDotLayers[cfg.state] = {source:src, layer:group};
+  return group;
+}
+function applyPointZoomGating(){
+  if(typeof map==='undefined' || !map || !map.getZoom) return;
+  var detailed = map.getZoom() >= POINT_DETAIL_ZOOM;
+  POINT_GATE_CONFIG.forEach(function(cfg){
+    var src = window[cfg.varName];
+    var cached = pointDotLayers[cfg.state];
+    if(cached && cached.layer && (!src || cached.source !== src)){
+      map.removeLayer(cached.layer);
+      pointDotLayers[cfg.state] = null;
+      cached = null;
+    }
+    if(!subState[cfg.state] || !src){
+      if(cached && cached.layer) map.removeLayer(cached.layer);
+      return;
+    }
+    if(detailed){
+      if(cached && cached.layer) map.removeLayer(cached.layer);
+      if(!map.hasLayer(src)) src.addTo(map);
+      return;
+    }
+    if(map.hasLayer(src)) map.removeLayer(src);
+    var dots = (cached && cached.layer) ? cached.layer : buildPointDots(cfg);
+    if(dots && !map.hasLayer(dots)) dots.addTo(map);
+  });
+}
+function clearPointDots(state){
+  var cached = pointDotLayers[state];
+  if(cached && cached.layer && typeof map!=='undefined' && map.removeLayer) map.removeLayer(cached.layer);
+  pointDotLayers[state] = null;
+}
+
 function removeOverlayLayer(name){
+  clearPointDots(name);
   if(name==='subway'){
     if(subwayRoutesLayer) map.removeLayer(subwayRoutesLayer);
     if(subwayLayer) map.removeLayer(subwayLayer);
@@ -1296,6 +1355,7 @@ function addResearchBusRouteLabels(group,gj){busRouteLabelMarkers=[];var best={}
 function deconflictResearchBusRouteLabels(){var boxes=[];busRouteLabelMarkers.forEach(function(marker){var el=marker.getElement&&marker.getElement();if(!el)return;el.classList.remove('bus-label-hidden');var badge=el.querySelector('.bus-route-badge'),txt=badge?badge.textContent.trim():'';var zoom=map.getZoom();if(zoom<14&&!/^B/.test(txt)){el.classList.add('bus-label-hidden');return;}var r=el.getBoundingClientRect(),pad=4,hit=boxes.some(function(b){return!(r.right+pad<b.left||b.right+pad<r.left||r.bottom+pad<b.top||b.bottom+pad<r.top);});if(hit)el.classList.add('bus-label-hidden');else boxes.push({left:r.left,top:r.top,right:r.right,bottom:r.bottom});});}
 function updateResearchBusStopZoomLabels(){var el=document.getElementById('map');if(!el||!map)return;var z=map.getZoom();el.classList.toggle('bus-stop-labels-routes',z>=15);el.classList.toggle('bus-stop-labels-full',z>=16);}
 map.on('zoomend moveend',function(){setTimeout(deconflictResearchBusRouteLabels,80);updateResearchBusStopZoomLabels();});
+map.on('zoomend',function(){ try{ applyPointZoomGating(); }catch(e){} });
 function normalizeTransportFeatureCollection(d,key){var gj=d&&d[key]?d[key]:d;return {type:'FeatureCollection',features:(gj&&gj.features)||[]};}
 function buildBusRoutes(d){
   if(!window._selectedCBFeature) {
@@ -1910,6 +1970,7 @@ function toggleOverlay(name, on){
   if(on && loaders[name]) loaders[name]();
   if(!on) removeOverlayLayer(name);
   if(['cc','assembly','senate','congress'].indexOf(name)>-1) refreshCBOverlapLayer();
+  [120, 600, 1600, 3200].forEach(function(ms){ setTimeout(function(){ try{ applyPointZoomGating(); }catch(e){} }, ms); });
 }
 
 
