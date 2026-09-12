@@ -26,6 +26,12 @@ body{display:flex;flex-direction:column}
 .search-row{display:flex;gap:6px;flex:1;min-width:200px}
 .search-row input{flex:1;font-family:'DM Sans',sans-serif;font-size:.83rem;padding:6px 11px;border:none;border-radius:6px;background:rgba(255,255,255,.12);color:#fff;outline:none}
 .search-row input::placeholder{color:rgba(255,255,255,.4)}
+.corner-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#1a3a6b;border-bottom:1px solid rgba(255,255,255,.14);padding:9px 14px}
+.corner-row[hidden]{display:none}
+.corner-lbl{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.62)}
+.corner-row select{min-width:190px;max-width:100%;padding:7px 9px;border:1.5px solid rgba(255,255,255,.32);border-radius:7px;background:#fff;color:#1a3a6b;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:600}
+.corner-row select:focus{outline:none;border-color:#f2c84b}
+@media(max-width:700px){.corner-row select{min-width:0;flex:1 1 140px}}
 .tool-btn{padding:6px 12px;background:rgba(255,255,255,.1);color:#fff;border:1.5px solid rgba(255,255,255,.35);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:700;cursor:pointer;white-space:nowrap}
 .tool-btn:hover{border-color:#f2c84b;background:rgba(242,200,75,.18)}
 .tool-btn.on{background:#f2c84b;color:#1a3a6b;border-color:#f2c84b}
@@ -137,9 +143,17 @@ body{display:flex;flex-direction:column}
       oninput="doAC(this.value)" onkeydown="if(event.key==='Enter')doSearch()"/>
     <div id="ac-drop" style="position:absolute;top:100%;left:0;right:80px;background:#1a3a6b;border:1.5px solid #f2c84b;border-top:none;border-radius:0 0 6px 6px;z-index:9999;display:none;max-height:180px;overflow-y:auto"></div>
     <button onclick="doSearch()">Search</button>
-    <button type="button" id="locate-btn" class="tool-btn" onclick="useMyLocation()" title="Find my location">◎ My location</button>
-    <button type="button" id="pin-btn" class="tool-btn" onclick="togglePinMode()" title="Drop a pin to read that lot">📍 Drop a pin</button>
+    <button type="button" id="locate-btn" class="tool-btn" onclick="useMyLocation()" title="Find my location">My location</button>
+    <button type="button" id="pin-btn" class="tool-btn" onclick="togglePinMode()" title="Drop a pin to read that lot">Drop a pin</button>
+    <button type="button" id="corner-btn" class="tool-btn" onclick="toggleCornerPicker()" title="Pick a street and a cross street">Street corner</button>
   </div>
+</div>
+<div class="corner-row" id="corner-row" hidden>
+  <label for="corner-street" class="corner-lbl">Street</label>
+  <select id="corner-street"><option value="">Loading streets…</option></select>
+  <label for="corner-cross" class="corner-lbl">Cross street</label>
+  <select id="corner-cross"><option value="">Pick a street first</option></select>
+  <button type="button" id="corner-go" class="tool-btn">Go to corner</button>
 </div>
 <div class="main-toggles" id="main-toggles" style="display:none"></div>
 <div class="sub-toggles" id="sub-row"></div>
@@ -2382,6 +2396,73 @@ function useMyLocation(){
     if(res){res.style.cssText='display:block;padding:10px 14px;background:#fff;border-bottom:2px solid #f2c84b;flex-shrink:0';res.innerHTML='<span style="color:#c81e1e;font-size:.78rem">Location unavailable. Search an address instead.</span>';}
   },{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
 }
+
+// ── Street and cross street ────────────────────────────────────────────────
+var STREETS=null, cornerOpen=false;
+function toggleCornerPicker(){
+  cornerOpen=!cornerOpen;
+  var row=document.getElementById('corner-row');
+  var btn=document.getElementById('corner-btn');
+  if(row) row.hidden=!cornerOpen;
+  if(btn) btn.classList.toggle('on',cornerOpen);
+  if(cornerOpen) loadStreets();
+}
+function loadStreets(){
+  if(STREETS) return;
+  fetch('/bk/data/bk-streets.json').then(function(r){return r.json();}).then(function(j){
+    STREETS=j;
+    var sel=document.getElementById('corner-street');
+    if(!sel) return;
+    sel.innerHTML='<option value="">Choose a street</option>';
+    j.streets.forEach(function(name){
+      var o=document.createElement('option'); o.value=name; o.textContent=name; sel.appendChild(o);
+    });
+  }).catch(function(){
+    var sel=document.getElementById('corner-street');
+    if(sel) sel.innerHTML='<option value="">Street list unavailable</option>';
+  });
+}
+function fillCrossStreets(){
+  var sel=document.getElementById('corner-street');
+  var cross=document.getElementById('corner-cross');
+  if(!sel||!cross||!STREETS) return;
+  var list=(STREETS.cross||{})[sel.value]||[];
+  cross.innerHTML = list.length ? '<option value="">Choose a cross street</option>' : '<option value="">No cross streets on file</option>';
+  list.forEach(function(name){
+    var o=document.createElement('option'); o.value=name; o.textContent=name; cross.appendChild(o);
+  });
+}
+async function goToCorner(){
+  var a=(document.getElementById('corner-street')||{}).value;
+  var b=(document.getElementById('corner-cross')||{}).value;
+  var res=document.getElementById('s-result');
+  if(!a||!b){
+    if(res){res.style.cssText='display:block;padding:10px 14px;background:#fff;border-bottom:2px solid #f2c84b;flex-shrink:0';res.innerHTML='<span style="color:#5b6675;font-size:.78rem;font-family:DM Mono,monospace">Pick a street and a cross street.</span>';}
+    return;
+  }
+  if(res){res.style.cssText='display:block;padding:10px 14px;background:#fff;border-bottom:2px solid #f2c84b;flex-shrink:0';res.innerHTML='<span style="color:#888;font-size:.78rem;font-family:DM Mono,monospace">Finding '+escH(a)+' and '+escH(b)+'…</span>';}
+  try{
+    var url='https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(a+' and '+b+', Brooklyn, NY')+'&size=1';
+    var d=await fetch(url).then(function(r){return r.json();});
+    var f=(d&&d.features&&d.features[0])||null;
+    if(!f) throw new Error('corner not found');
+    var lng=f.geometry.coordinates[0], lat=f.geometry.coordinates[1];
+    map.setView([lat,lng],17);
+    readPointAsLot(lat,lng);
+  }catch(e){
+    if(res) res.innerHTML='<span style="color:#c81e1e;font-size:.78rem">That corner was not found. Try the other cross street.</span>';
+  }
+}
+(function bindCornerPicker(){
+  function attach(){
+    var sel=document.getElementById('corner-street');
+    var go=document.getElementById('corner-go');
+    if(!sel||!go) return setTimeout(attach,300);
+    sel.addEventListener('change',fillCrossStreets);
+    go.addEventListener('click',goToCorner);
+  }
+  attach();
+})();
 
 (function bindPinDrop(){
   function attach(){
