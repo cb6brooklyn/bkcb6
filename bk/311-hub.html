@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The 311 Hub</title>
+<meta name="description" content="Every 311 report in New York City: citywide, by borough, and for each of the 59 community districts. Find your district by address or location.">
+<link rel="canonical" href="https://bkcb6.app/311-hub">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:type" content="website">
+<meta property="og:title" content="The 311 Hub">
+<meta property="og:description" content="Every 311 report in New York City: citywide, by borough, and for each of the 59 community districts.">
+<meta property="og:url" content="https://bkcb6.app/311-hub">
+<meta property="og:image" content="https://bkcb6.app/tiles/311-hub.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,700;9..40,800;9..40,900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+
+.dsh{border:1px solid var(--border);border-radius:12px;background:#fff;padding:14px;margin:0 16px 18px}
+.dsh-t{font-weight:900;font-size:1.05rem;margin-bottom:12px}
+.dsh-t span{display:block;font-weight:400;font-size:.78rem;color:var(--muted);margin-top:3px;line-height:1.4}
+.dsh-r{margin-bottom:10px}
+.dsh-r label{display:block;font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:5px}
+.dsh-2{display:flex;gap:9px}
+.dsh-2>div{flex:1}
+.dsh select{width:100%;padding:9px 10px;font:inherit;font-size:.9rem;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--navy)}
+.seg{display:flex;flex-wrap:wrap;gap:5px}
+.seg button{flex:1 1 auto;padding:8px 10px;font:inherit;font-size:.78rem;font-weight:700;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--navy);cursor:pointer;white-space:nowrap}
+.seg button.on{background:var(--navy);color:var(--orange);border-color:var(--navy)}
+.seg button:disabled{opacity:.35;cursor:not-allowed}
+.dsh-out{margin-top:12px;min-height:150px}
+.dsh-load,.dsh-err{font-family:'DM Mono',monospace;font-size:.75rem;color:var(--muted);padding:22px 0;text-align:center}
+.dsh-h{font-size:.95rem;line-height:1.45;margin-bottom:10px}
+.dsh-h b{font-size:1.35rem;font-weight:900}
+.dsh-h i{display:block;font-style:normal;font-family:'DM Mono',monospace;font-size:.66rem;color:var(--muted);margin-top:3px}
+.dsh-svg{width:100%;height:auto;display:block}
+.dsh-svg .ax{font-family:'DM Mono',monospace;font-size:10px;fill:#5f5d55}
+.rc-top{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.rc-k{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.rc-y{font-family:'DM Mono',monospace;font-size:1.7rem;font-weight:500;line-height:1;color:var(--navy)}
+.rc-ctl{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.rc-ctl button{padding:8px 14px;font:inherit;font-size:.8rem;font-weight:800;border:1px solid var(--navy);border-radius:7px;background:var(--navy);color:var(--orange);cursor:pointer}
+.rc-ctl button#rcBack{background:#fff;color:var(--navy);border-color:var(--border);padding:8px 11px}
+.rc-sp{display:flex;align-items:center;gap:5px;font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted)}
+.rc-sp input{width:70px;accent-color:var(--orange)}
+.rc-lead{font-size:.86rem;line-height:1.45;background:#faf9f2;border:1px solid var(--border);border-radius:9px;padding:9px 11px;margin-bottom:9px}
+.rc-lead b{font-weight:900}
+.rc-lead i{display:block;font-style:normal;font-family:'DM Mono',monospace;font-size:.63rem;color:var(--muted);margin-top:3px}
+.rc-scrub{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted)}
+.rc-scrub input{flex:1;accent-color:var(--orange)}
+.rc-bars{position:relative}
+.rc-row{position:absolute;left:0;right:0;top:0;height:26px;display:flex;align-items:center;gap:8px;cursor:pointer;padding:0 3px;border-radius:6px;transition:transform .5s cubic-bezier(.4,0,.2,1)}
+.rc-row.on{background:#fff8d6;outline:1px solid var(--border)}
+.rc-row.first .bl{font-weight:900}
+.rc-row .bl{flex:0 0 104px;font-size:.7rem;line-height:1.2;text-align:right}
+.rc-row .bt{flex:1;height:18px;background:#f2f0e8;border-radius:3px;overflow:hidden}
+.rc-row .bt i{display:block;height:100%;width:2%;border-radius:3px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+.rc-row .bn{flex:0 0 78px;text-align:right;font-family:'DM Mono',monospace;font-size:.68rem;line-height:1.15}
+.rc-row .bn em{display:block;font-style:normal;font-size:.58rem;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.rc-row,.rc-row .bt i{transition:none}}
+.dsh-map{height:320px;border:1px solid var(--border);border-radius:9px;overflow:hidden}
+.dsh-legend{display:flex;flex-wrap:wrap;gap:4px 10px;margin-bottom:8px}
+.dsh-legend .lk{display:inline-flex;align-items:center;gap:5px;font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted)}
+.dsh-legend .lk i{width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.25);display:block}
+.dsh-tw{max-height:330px;overflow:auto;border:1px solid var(--border);border-radius:9px}
+.dsh-tbl{width:100%;border-collapse:collapse;font-size:.78rem}
+.dsh-tbl th{position:sticky;top:0;background:#faf9f2;text-align:left;padding:7px 9px;font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--border)}
+.dsh-tbl td{padding:6px 9px;border-bottom:1px solid #f0eee6}
+.dsh-tbl td.r,.dsh-tbl th.r{text-align:right;font-family:'DM Mono',monospace}
+.dsh-tbl tr.me td{background:#fdf3c8;font-weight:800}
+.dsh-n{font-family:'DM Mono',monospace;font-size:.63rem;color:var(--muted);margin-top:9px;line-height:1.5}
+.dsh-go{display:block;margin-top:12px;text-align:center;padding:11px;border-radius:9px;background:var(--navy);color:var(--orange);font-weight:800;font-size:.85rem;text-decoration:none}
+:root{--navy:#1b1b1a;--orange:#fde907;--off:#faf9f2;--border:#e3e0d2;--muted:#5f5d55}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:'DM Sans',system-ui,-apple-system,sans-serif;background:var(--off);color:var(--navy);font-size:16px;line-height:1.5}
+.wrap{max-width:760px;margin:0 auto;background:#fff;border-left:1px solid var(--border);border-right:1px solid var(--border);min-height:100vh}
+a{color:var(--navy)}
+.head{background:var(--navy);color:#fff;padding:18px 16px 20px}
+.crumb{font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.55)}
+.crumb a{color:rgba(255,255,255,.55);text-decoration:none}
+.crumb a:hover{color:#fff}
+h1{font-size:1.85rem;font-weight:900;letter-spacing:-.02em;margin:6px 0 0;line-height:1.1}
+h1 span{color:var(--orange)}
+.sub{font-family:'DM Mono',monospace;font-size:.76rem;color:rgba(255,255,255,.62);margin-top:5px;line-height:1.5}
+.intro{padding:15px 16px;font-size:.88rem;line-height:1.65;color:#333;border-bottom:1px solid var(--border);max-width:72ch}
+.intro b{color:var(--navy)}
+.more{border-bottom:1px solid var(--border);background:#fff}
+.more summary{display:flex;align-items:center;gap:8px;padding:13px 16px;cursor:pointer;list-style:none}
+.more summary::-webkit-details-marker{display:none}
+.more-t{flex:1;font-size:.88rem;font-weight:800;color:var(--navy)}
+.more-g{font-family:'DM Mono',monospace;font-size:.66rem;text-transform:uppercase;letter-spacing:.1em;color:var(--orange)}
+.more-b{padding:2px 16px 16px;font-size:.85rem;line-height:1.68;color:#333;max-width:74ch}
+.ml{padding:7px 0;border-top:1px solid var(--border)}
+.ml:first-child{border-top:0}
+.ml b{color:var(--navy)}
+.finder{border-bottom:1px solid var(--border);padding:14px 16px 16px;background:#fbfaf7}
+.finder .ft{font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.11em;color:var(--muted);margin-bottom:9px}
+.frow{display:flex;gap:7px;flex-wrap:wrap}
+.frow input{flex:1;min-width:170px;font-family:'DM Sans',sans-serif;font-size:.92rem;padding:11px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;color:#1b1b1b}
+.frow select{font-family:'DM Sans',sans-serif;font-size:.92rem;padding:11px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:#1b1b1b}
+.fbtn{font-family:'DM Mono',monospace;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;padding:11px 15px;border-radius:8px;border:0;background:var(--orange);color:#1a3a6b;font-weight:500;cursor:pointer;white-space:nowrap}
+.fbtn.alt{background:#fff;color:var(--navy);border:1px solid var(--border)}
+.fbtn:hover{filter:brightness(1.06)}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.fmsg{margin:10px 0 0;font-size:.85rem;color:var(--muted);min-height:1.2em;line-height:1.55}
+.fmsg.err{color:#b42318}
+.fmsg b,.fmsg a{color:var(--navy)}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px 8px;padding:12px 12px 14px;align-items:end}
+.cell{display:flex;flex-direction:column;gap:4px}
+.lbl{font-size:.74rem;font-weight:800;color:var(--navy);line-height:1.22;min-height:2.05em;display:flex;align-items:flex-end}
+.tile{display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;background:var(--navy);border:3px solid var(--orange);border-radius:12px;overflow:hidden}
+.tile img{width:100%;height:100%;object-fit:cover;display:block}
+.rows{padding:4px 12px 16px}
+.rowt{font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.11em;color:var(--muted);margin:14px 0 8px}
+.btns{display:flex;flex-wrap:wrap;gap:6px}
+.b{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border:2px solid var(--navy);border-radius:22px;background:#fff;color:var(--navy);font-size:.82rem;font-weight:800;text-decoration:none;white-space:nowrap}
+.b:hover{background:#f2f4fb}
+.b.hot{background:var(--orange);border-color:var(--orange);color:#fff}
+.b .n{font-family:'DM Mono',monospace;font-size:.68rem;font-weight:400;opacity:.72}
+.b img{width:22px;height:22px;border-radius:4px;display:block}
+.foot{padding:16px;font-family:'DM Mono',monospace;font-size:.66rem;color:var(--muted);line-height:1.6;border-top:1px solid var(--border)}
+.foot a{color:var(--muted)}
+@media (max-width:520px){ .grid{grid-template-columns:repeat(2,1fr)} h1{font-size:1.6rem} }
+
+.cell.cb6first .tile{border-width:5px;box-shadow:0 4px 14px rgba(13,27,75,.18)}
+.cell.cb6first .lbl{font-weight:900}
+
+/* 311 mark: yellow on near-black. Anything sitting on the accent takes dark
+   type, since white on this yellow is unreadable. */
+.b.hot{background:var(--orange);border-color:var(--orange);color:#1b1b1a}
+.cell.cb6first .tile{border-color:var(--orange)}
+h1 span{color:var(--orange)}
+.fbtn{background:var(--orange);color:#1b1b1a;font-weight:700}
+</style>
+</head>
+<body>
+<div id="bkapp-bar" style="display:flex;align-items:center;gap:9px;background:#1a3a6b;border-bottom:4px solid #f2c84b;padding:9px 14px;font-family:'DM Sans',system-ui,sans-serif">
+<a href="/bk/" style="display:flex;align-items:center;gap:9px;text-decoration:none"><img src="/brooklyn-seal.png" alt="" style="width:28px;height:28px"><span style="color:#fff;font-weight:900;font-size:.95rem;letter-spacing:-.01em">Brooklyn Civic</span></a>
+<a href="/bk/directory.html" style="margin-left:auto;color:#f2c84b;text-decoration:none;font-family:'DM Mono',monospace;font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em">Directory</a>
+</div>
+<div class="wrap">
+  <div class="head">
+    <div class="crumb"><a href="/">bkcb6.app</a> · NYC Open Data</div>
+    <h1>The <span>311</span> Hub</h1>
+    <div class="sub">Every report · citywide, by borough, by district</div>
+  </div>
+
+  <div id="dash"></div>
+
+  <details class="more">
+    <summary><span class="more-t">The longer version</span><span class="more-g">Read &#9660;</span></summary>
+    <div class="more-b">
+      <div class="ml"><b>Where the numbers come from.</b> Two City datasets stitched together: 76ig-c548 covers 2010 through 2019, erm2-nwe9 covers 2020 to present. Roughly 44.8 million service requests.</div>
+      <div class="ml"><b>Nothing is sampled.</b> Every count is checked against the City's own total for the same filter and period before it is shown. If the two disagree, the page displays nothing rather than a partial figure.</div>
+      <div class="ml"><b>Complete takes time.</b> A full year for a large district is over 100,000 records. Pages state the size and expected wait before starting, and offer a narrower option.</div>
+      <div class="ml"><b>Categories.</b> Report types are grouped into ten buckets consistent from 2010 forward, including retired names like NONCONST and Sanitation Condition, so old and new years compare.</div>
+      <div class="ml"><b>Rates.</b> Per-1,000 figures use the 2010 Census, the most recent population the City publishes by community district. Districts that grew since read high, and business districts read very high because the rate counts residents only.</div>
+      <div class="ml"><b>Coordinates.</b> Some reports are published without a location. They are counted in every total and listed in every table; they cannot be drawn on a map, and each map says how many.</div>
+    </div>
+  </details>
+
+  <div class="finder">
+    <div class="ft">Find your community district</div>
+    <div class="frow">
+      <input type="text" id="addr" placeholder="e.g. 250 Baltic Street" autocomplete="off" enterkeyhint="search" aria-label="Address">
+      <select id="addrBoro" aria-label="Borough"><option value="">Any borough</option></select>
+      <button class="fbtn" type="button" id="findBtn">Find</button>
+      <button class="fbtn alt" type="button" id="locBtn">&#9678; Use my location</button>
+    </div>
+    <p class="fmsg" id="fmsg"></p>
+  </div>
+
+  <div class="grid">
+    <div class="cell cb6first"><div class="lbl">BKCB6 311</div><a class="tile" href="/311-district.html?cd=bk-6"><img src="/tiles/311-district.png" alt="One district in detail" loading="lazy" width="600" height="600"></a></div>
+    <div class="cell"><div class="lbl">Citywide numbers</div><a class="tile" href="/311-citywide.html"><img src="/tiles/311-citywide.png" alt="Citywide 311 dashboard" loading="lazy" width="600" height="600"></a></div>
+    <div class="cell"><div class="lbl">Compare all 59</div><a class="tile" href="/33159by5.html"><img src="/tiles/311-compare.png" alt="Compare all 59 districts" loading="lazy" width="600" height="600"></a></div>
+    
+    
+    <div class="cell"><div class="lbl">Find my district</div><a class="tile" href="/33159by5.html#level=city"><img src="/tiles/311-find.png" alt="Find my district by address or pin" loading="lazy" width="600" height="600"></a></div>
+  </div>
+
+  <div class="rows">
+    <div class="rowt">Start here</div>
+    <div class="btns" id="rowHome"></div>
+    <div class="rowt">Citywide and boroughs</div>
+    <div class="btns" id="rowBoro"></div>
+    <div class="rowt">Brooklyn community boards</div>
+    <div class="btns" id="rowBk"></div>
+    <div class="rowt">Manhattan community boards</div>
+    <div class="btns" id="rowMn"></div>
+    <div class="rowt">Queens community boards</div>
+    <div class="btns" id="rowQn"></div>
+    <div class="rowt">Bronx community boards</div>
+    <div class="btns" id="rowBx"></div>
+    <div class="rowt">Staten Island community boards</div>
+    <div class="btns" id="rowSi"></div>
+    <div class="rowt">Related</div>
+    <div class="btns">
+      <a class="b" href="/311.html">CB6 311, the full record</a>
+      <a class="b" href="/311-senate.html?sd=26">311 by state senate district</a>
+      <a class="b" href="/311-assembly.html?ad=52">311 by state assembly district</a>
+      <a class="b" href="/citywide-search.html">Citywide address search</a>
+      <a class="b" href="/useofland/">Use of Land hub</a>
+    </div>
+  </div>
+
+  <div class="foot">
+    Source: NYC Open Data, 311 Service Requests. <a href="/311-citywide.html">Citywide numbers</a> and district totals come from precomputed files so they load instantly; district pages query the City live. Population for per-resident rates is the 2010 Decennial Census by community district (xi7c-iiu2), the most recent published at this level.
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/assets/311-dashboard.js?v=20260827c"></script>
+<script>
+(function(){
+'use strict';
+var BOROS = ['BROOKLYN','MANHATTAN','QUEENS','BRONX','STATEN ISLAND'];
+var SHORT = {BROOKLYN:'bk', MANHATTAN:'mn', QUEENS:'qn', BRONX:'bx', 'STATEN ISLAND':'si'};
+var DIGIT = {BROOKLYN:'3', MANHATTAN:'1', QUEENS:'4', BRONX:'2', 'STATEN ISLAND':'5'};
+var COUNT = {BROOKLYN:18, MANHATTAN:12, QUEENS:14, BRONX:12, 'STATEN ISLAND':3};
+var ROW   = {BROOKLYN:'rowBk', MANHATTAN:'rowMn', QUEENS:'rowQn', BRONX:'rowBx', 'STATEN ISLAND':'rowSi'};
+var CD_LIST = [];
+BOROS.forEach(function(b){
+  for (var i=1;i<=COUNT[b];i++){
+    CD_LIST.push({key:(i<10?'0':'')+i+' '+b, boro:b, num:i, short:SHORT[b]});
+  }
+});
+function title(s){ return s.toLowerCase().replace(/\b\w/g, function(c){ return c.toUpperCase(); }); }
+function boroLabel(b){ return b === 'BRONX' ? 'The Bronx' : title(b); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+function el(id){ return document.getElementById(id); }
+var GEO = null, popFile = null;
+
+el('rowHome').innerHTML =
+  '<a class="b hot" href="/311-district.html?cd=bk-6"><img src="/cb6-logo-card.png" alt="" width="500" height="500">Brooklyn CB6</a>' +
+  '<a class="b" href="/311-citywide.html">Citywide numbers</a>' +
+  '<a class="b" href="/33159by5.html">Compare all 59</a>';
+el('rowBoro').innerHTML =
+  '<a class="b hot" href="/33159by5.html#level=city">Citywide <span class="n">59</span></a>' +
+  BOROS.map(function(b){
+    return '<a class="b" href="/33159by5.html#level=boro&boro=' + encodeURIComponent(b) + '">' +
+      esc(boroLabel(b)) + ' <span class="n">' + COUNT[b] + '</span></a>';
+  }).join('');
+BOROS.forEach(function(b){
+  el(ROW[b]).innerHTML = CD_LIST.filter(function(d){ return d.boro === b; }).map(function(d){
+    var hot = (d.boro === 'BROOKLYN' && d.num === 6) ? ' hot' : '';
+    return '<a class="b' + hot + '" href="/311-district.html?cd=' + d.short + '-' + d.num + '">CB ' + d.num + '</a>';
+  }).join('');
+});
+
+var ALIASES = [
+  ['STATEN ISLAND', /\b(staten\s*island|s\.?i\.?|richmond county)\b/i],
+  ['BROOKLYN',      /\b(brooklyn|bklyn|kings county)\b/i],
+  ['MANHATTAN',     /\b(manhattan|new york county)\b/i],
+  ['BRONX',         /\b(the\s+bronx|bronx|bx|bronx county)\b/i],
+  ['QUEENS',        /\b(queens|queens county)\b/i]
+];
+function boroughInText(t){
+  for (var i=0;i<ALIASES.length;i++){ if (ALIASES[i][1].test(t)) return ALIASES[i][0]; }
+  return null;
+}
+function keyForCode(c){
+  var boro = null;
+  for (var b in DIGIT){ if (DIGIT[b] === c.charAt(0)) boro = b; }
+  if (!boro) return null;
+  var k = c.slice(1) + ' ' + boro;
+  return CD_LIST.some(function(d){ return d.key === k; }) ? k : null;
+}
+function pointIn(lng, lat, geom){
+  function ring(r){
+    var inside = false;
+    for (var i=0, j=r.length-1; i<r.length; j=i++){
+      var xi=r[i][0], yi=r[i][1], xj=r[j][0], yj=r[j][1];
+      if ((yi>lat)!==(yj>lat) && lng < (xj-xi)*(lat-yi)/(yj-yi)+xi) inside = !inside;
+    }
+    return inside;
+  }
+  var polys = geom.type === 'MultiPolygon' ? geom.coordinates : [geom.coordinates];
+  for (var p=0;p<polys.length;p++){
+    if (ring(polys[p][0])){
+      var hole = false;
+      for (var h=1;h<polys[p].length;h++){ if (ring(polys[p][h])) hole = true; }
+      if (!hole) return true;
+    }
+  }
+  return false;
+}
+function districtAt(lng, lat){
+  if (!GEO) return null;
+  for (var i=0;i<GEO.features.length;i++){
+    if (pointIn(lng, lat, GEO.features[i].geometry)) return keyForCode(String(GEO.features[i].properties.cd||''));
+  }
+  return null;
+}
+function withGeo(fn){
+  if (GEO) return fn();
+  fetch('cd-boundaries-simple.geojson').then(function(r){ return r.json(); })
+    .then(function(g){ GEO = g; fn(); })
+    .catch(function(){
+      var m = el('fmsg'); m.className = 'fmsg err';
+      m.textContent = 'District outlines could not be loaded. Try again in a moment.';
+    });
+}
+function hoodName(key){ return (popFile && popFile.districts[key]) ? popFile.districts[key].name : null; }
+
+function resolveTo(lat, lng, label){
+  var msg = el('fmsg');
+  withGeo(function(){
+    var key = districtAt(lng, lat);
+    if (!key){
+      msg.className = 'fmsg err';
+      msg.textContent = label + ' is not inside one of the 59 community districts. It may be a park, an airport, or outside New York City.';
+      return;
+    }
+    var d = CD_LIST.filter(function(x){ return x.key === key; })[0];
+    msg.className = 'fmsg';
+    msg.innerHTML = esc(label) + ' is in <b>' + title(d.boro) + ' Community Board ' + d.num + '</b>' +
+      (hoodName(key) ? ' (' + esc(hoodName(key)) + ')' : '') + '. ' +
+      '<a href="/311-district.html?cd=' + d.short + '-' + d.num + '">Open its 311 page &rarr;</a>';
+  });
+}
+
+function find(){
+  var q = el('addr').value.trim(), msg = el('fmsg');
+  msg.className = 'fmsg';
+  if (!q){ msg.textContent = 'Type an address, or use your location.'; return; }
+  msg.innerHTML = '<span class="spin"></span>Looking up ' + esc(q);
+  var want = el('addrBoro').value || boroughInText(q);
+  fetch('https://geosearch.planninglabs.nyc/v2/search?size=8&text=' + encodeURIComponent(q))
+    .then(function(r){ if (!r.ok) throw new Error('search'); return r.json(); })
+    .then(function(g){
+      var feats = (g && g.features) || [];
+      if (!feats.length) throw new Error('none');
+      var pick;
+      if (want){
+        pick = feats.filter(function(f){ return String((f.properties||{}).borough||'').toUpperCase() === want; })[0];
+        if (!pick){
+          msg.className = 'fmsg err';
+          msg.textContent = 'No match for that address in ' + boroLabel(want) + '. Check the number, or try another borough.';
+          return;
+        }
+      } else {
+        var seen = {};
+        feats.forEach(function(f){ if ((f.properties||{}).borough) seen[f.properties.borough] = true; });
+        var names = Object.keys(seen);
+        if (names.length > 1){
+          msg.className = 'fmsg err';
+          msg.textContent = 'That address exists in ' + names.length + ' boroughs (' + names.join(', ') + '). Pick one from the borough menu.';
+          return;
+        }
+        pick = feats[0];
+      }
+      resolveTo(pick.geometry.coordinates[1], pick.geometry.coordinates[0], pick.properties.label || q);
+    })
+    .catch(function(){
+      msg.className = 'fmsg err';
+      msg.textContent = 'No match for that address. Try adding the borough, for example "250 Baltic Street, Brooklyn".';
+    });
+}
+
+function useMyLocation(){
+  var msg = el('fmsg');
+  msg.className = 'fmsg';
+  if (!navigator.geolocation){
+    msg.className = 'fmsg err';
+    msg.textContent = 'This browser cannot share a location. Type an address instead.';
+    return;
+  }
+  msg.innerHTML = '<span class="spin"></span>Getting your location';
+  navigator.geolocation.getCurrentPosition(function(pos){
+    resolveTo(pos.coords.latitude, pos.coords.longitude, 'Your location');
+  }, function(err){
+    msg.className = 'fmsg err';
+    msg.textContent = err.code === 1
+      ? 'Location permission was denied. Type an address instead.'
+      : 'Could not get your location. Type an address instead.';
+  }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
+}
+
+el('addrBoro').innerHTML = '<option value="">Any borough</option>' +
+  BOROS.map(function(b){ return '<option value="' + b + '">' + boroLabel(b) + '</option>'; }).join('');
+el('findBtn').addEventListener('click', find);
+el('locBtn').addEventListener('click', useMyLocation);
+el('addr').addEventListener('keydown', function(e){ if (e.key === 'Enter') find(); });
+el('addrBoro').addEventListener('change', function(){ if (el('addr').value.trim()) find(); });
+fetch('33159by5-pop.json').then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(j){ popFile = j; }).catch(function(){});
+})();
+</script>
+</body>
+</html>

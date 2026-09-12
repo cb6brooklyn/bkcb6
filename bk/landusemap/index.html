@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Land Use &amp; Zoning Map">
+<meta property="og:description" content="What every part of New York City is used for and how it is zoned. By community board, council district, borough or citywide.">
+<meta property="og:url" content="https://bkcb6.app/landusemap">
+<meta property="og:image" content="https://bkcb6.app/tiles/landusemap.png">
+<meta property="og:image:width" content="600"><meta property="og:image:height" content="600">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://bkcb6.app/tiles/landusemap.png">
+<title>Land Use &amp; Zoning Map — bkcb6.app</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="/assets/cd-page.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+.intro{background:#fff;padding:13px 15px;border-bottom:1px solid var(--border);font-size:.86rem;line-height:1.62;color:#333;max-width:74ch}
+.intro b{color:var(--navy)}
+.legend2{display:flex;gap:6px;flex-wrap:wrap;padding:9px 14px;background:var(--navy);border-bottom:2px solid var(--orange)}
+.legend2 .l{font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6);font-weight:700;width:100%;margin-bottom:2px}
+.legend2 .i{display:inline-flex;align-items:center;gap:5px;font-size:.66rem;color:#fff;font-weight:600}
+.legend2 .sw{width:13px;height:11px;border-radius:2px;flex:none}
+#map{height:60vh;min-height:340px;background:#eef0f4}
+.readout{background:#fff;border-top:3px solid var(--orange)}
+.rh2{padding:12px 15px;background:var(--navy)}
+.rh2 .n{color:#fff;font-size:1.02rem;font-weight:900;line-height:1.25}
+.rh2 .s{font-family:'DM Mono',monospace;font-size:.66rem;color:rgba(255,255,255,.65);margin-top:2px}
+
+.bar2{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:.78rem}
+.bar2 .sw{width:11px;height:11px;border-radius:3px;flex:none}
+.bar2 .nm{min-width:150px;color:var(--navy);font-weight:700;font-size:.76rem;line-height:1.3}
+.bar2 .br{flex:1;height:10px;background:#f0ede8;border-radius:3px;overflow:hidden;min-width:34px}
+.bar2 .br i{display:block;height:100%;border-radius:3px}
+.bar2 .pc{font-family:'DM Mono',monospace;font-weight:800;color:var(--navy);min-width:48px;text-align:right;font-size:.74rem}
+.rnote{font-size:.76rem;color:#555;line-height:1.6;margin-top:11px}
+.ztbl2{width:100%;border-collapse:collapse;margin-top:11px}
+.ztbl2 th,.ztbl2 td{padding:6px 8px;font-size:.75rem;text-align:right;border-bottom:1px solid #f0ede8;font-family:'DM Mono',monospace}
+.ztbl2 th{font-size:.5rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--off)}
+.ztbl2 th:first-child,.ztbl2 td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-weight:700}
+
+.catsel{padding:7px 11px;font-family:'DM Sans',sans-serif;font-size:.79rem;font-weight:700;border:2px solid rgba(255,255,255,.32);border-radius:20px;background:var(--navy2);color:#fff;cursor:pointer;max-width:230px}
+.scale{display:flex;align-items:center;gap:7px;padding:9px 14px;background:var(--navy);border-bottom:2px solid var(--orange);flex-wrap:wrap}
+.scale:empty{display:none;padding:0;border:none}
+.scale .l{font-family:'DM Mono',monospace;font-size:.54rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6);font-weight:700;width:100%;margin-bottom:4px}
+.scale .i{display:inline-flex;align-items:center;gap:5px;font-size:.66rem;color:#fff;font-weight:600}
+.scale .sw{width:13px;height:11px;border-radius:2px;flex:none}
+.scale .st{flex:1;min-width:44px;text-align:center;padding:5px 3px;font-family:'DM Mono',monospace;font-size:.6rem;font-weight:700;color:#fff}
+.scale .st:first-of-type{border-radius:5px 0 0 5px}
+.scale .st:last-of-type{border-radius:0 5px 5px 0}
+.sharebar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--off);border-bottom:1px solid var(--border)}
+.sharebtn{padding:9px 15px;background:var(--navy2);color:#fff;border:none;border-radius:22px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer}
+.sharebtn:hover{background:var(--orange)}
+.sharemsg{font-family:'DM Mono',monospace;font-size:.68rem;color:#2e6b30;font-weight:700}
+.selected{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--orange);font-weight:700}
+
+.findbar{display:flex;gap:8px;padding:11px 14px;background:#fff;border-bottom:1px solid var(--border)}
+.findbar input{flex:1;min-width:0;padding:12px 13px;font-family:'DM Sans',sans-serif;font-size:.88rem;border:2px solid var(--navy2);border-radius:10px;color:var(--navy)}
+.findbar input:focus{outline:none;border-color:var(--orange)}
+.findbar button{padding:12px 18px;background:var(--orange);color:#1a3a6b;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.84rem;font-weight:800;cursor:pointer;flex:none}
+#findSug{margin:0 14px}
+#findSug .sg{padding:10px 12px;border:1px solid var(--border);border-top:none;background:#fff;cursor:pointer;font-size:.82rem;color:var(--navy)}
+#findSug .sg:first-child{border-top:1px solid var(--border);border-radius:8px 8px 0 0}
+#findSug .sg:last-child{border-radius:0 0 8px 8px}
+#findSug .sg:hover{background:#fff4ea}
+.pinres{margin:11px 14px 0;padding:12px 13px;background:#fff8f2;border:2px solid var(--orange);border-radius:11px}
+.pinres .ad{font-size:.9rem;font-weight:900;color:var(--navy);line-height:1.3}
+.pinres .who{display:grid;gap:5px;margin-top:8px}
+.pinres .w{display:flex;gap:9px;align-items:baseline;font-size:.79rem}
+.pinres .w .k{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;min-width:96px}
+.pinres .w .v{color:var(--navy);font-weight:700}
+.pinres .w .v a{color:var(--navy);border-bottom:1px solid var(--orange);text-decoration:none}
+.pinres .hint{font-family:'DM Mono',monospace;font-size:.64rem;color:#9ca3af;margin-top:8px;line-height:1.5}
+
+.boro-lab{background:none!important;border:none!important;box-shadow:none!important;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.boro-lab span{font-family:'DM Sans',sans-serif;font-weight:900;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#1a3a6b;background:rgba(255,255,255,.82);padding:2px 8px;border-radius:11px;white-space:nowrap;box-shadow:0 1px 3px rgba(13,27,75,.18)}
+
+.zoomnote{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;z-index:640;background:var(--navy);color:#fff;padding:7px 14px;border-radius:20px;font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:700;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.zoomnote:empty{display:none}
+
+.mchips{display:flex;gap:7px;flex-wrap:wrap;padding:11px 14px;background:var(--off);border-bottom:1px solid var(--border)}
+.mchip{display:inline-flex;align-items:center;gap:7px;padding:6px 8px 6px 12px;border-radius:20px;font-size:.76rem;font-weight:700;color:#fff}
+.mchip .x{cursor:pointer;font-size:1rem;line-height:1;opacity:.75;padding:0 3px}
+.mchip .x:hover{opacity:1}
+.clearsel{padding:6px 13px;border:1px solid var(--border);border-radius:20px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.74rem;font-weight:700;color:var(--navy);cursor:pointer}
+.clearsel:hover{background:#fff4ea;border-color:var(--orange)}
+.totals2{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:1px;background:var(--border);border-bottom:1px solid var(--border)}
+.tot2{background:#fff;padding:9px 12px}
+.tot2 .k{font-family:'DM Mono',monospace;font-size:.5rem;text-transform:uppercase;letter-spacing:.07em;font-weight:700;line-height:1.3}
+.tot2 .v{font-family:'DM Mono',monospace;font-size:1rem;font-weight:900;color:var(--navy);margin-top:2px}
+.tot2 .nn{font-size:.66rem;color:var(--muted);margin-top:1px;line-height:1.35}
+.cat2{padding:10px 14px;border-bottom:1px solid var(--border)}
+.ch2{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+.sw2{width:12px;height:12px;border-radius:3px;flex:none}
+.cn2{flex:1;font-size:.82rem;font-weight:800;color:var(--navy);line-height:1.25}
+.cr2{font-family:'DM Mono',monospace;font-size:.63rem;color:var(--muted)}
+.crow2{display:flex;align-items:center;gap:9px;padding:2px 0}
+.rn2{min-width:120px;font-size:.74rem;font-weight:700;line-height:1.3}
+.rb2{flex:1;height:12px;background:#f0ede8;border-radius:3px;overflow:hidden;min-width:36px}
+.rb2 i{display:block;height:100%;border-radius:3px}
+.rp2{font-family:'DM Mono',monospace;font-weight:800;min-width:50px;text-align:right;font-size:.74rem;color:var(--navy)}
+
+.sec2b{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;padding:13px 14px 4px;background:#fff}
+.chartwrap2{position:relative;height:150px;padding:4px 12px 10px;background:#fff;border-bottom:1px solid var(--border)}
+
+
+.tbhead{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.tbl{flex:1;font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.tbmini{padding:5px 11px;border:1px solid var(--border);border-radius:16px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.71rem;font-weight:700;color:var(--navy);cursor:pointer}
+.tbmini:hover{background:#fff4ea;border-color:var(--orange)}
+#tbFilter{width:100%;padding:9px 11px;font-family:'DM Sans',sans-serif;font-size:.82rem;border:2px solid var(--border);border-radius:9px;color:var(--navy);margin-bottom:8px}
+#tbFilter:focus{outline:none;border-color:var(--navy2)}
+
+.togglelist.hidden{display:none}
+.tg{padding:6px 12px;border:1.5px solid var(--border);border-radius:18px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:700;color:var(--navy);cursor:pointer;white-space:nowrap}
+.tg:hover{border-color:var(--orange)}
+.tg.on{color:#fff;border-color:transparent}
+
+
+.tgroup{margin-bottom:9px}
+.tgh{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.09em;color:var(--navy);font-weight:800;margin-bottom:5px}
+.tgh span{color:var(--muted);font-weight:700}
+.tgrow{display:flex;gap:5px;flex-wrap:wrap}
+.tbl b{color:var(--navy)}
+
+
+.togglebar>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:11px 14px}
+.togglebar>summary::-webkit-details-marker{display:none}
+.togglebar>summary:hover{background:#fff4ea}
+.tbcv{font-size:0;margin-left:auto;flex:none}
+.togglebar[open] .tbcv:before{content:'close \25B4';font-size:.62rem;color:var(--orange);font-family:'DM Mono',monospace;font-weight:700}
+.togglebar:not([open]) .tbcv:before{content:'pick areas \25BE';font-size:.62rem;color:var(--orange);font-family:'DM Mono',monospace;font-weight:700}
+.tbbody{padding:0 12px 12px}
+.tbstatus{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:0}
+.tbstatus:not(:empty){padding:9px 14px;background:var(--off);border-bottom:1px solid var(--border)}
+.tbstatus .sc{display:inline-flex;align-items:center;gap:7px;padding:5px 8px 5px 11px;border-radius:18px;font-size:.74rem;font-weight:700;color:#fff}
+.tbstatus .sc .x{cursor:pointer;font-size:.95rem;line-height:1;opacity:.75;padding:0 2px}
+.tbstatus .allbtn{padding:5px 12px;border:1px solid var(--border);border-radius:18px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;color:var(--navy);cursor:pointer}
+
+.ugblock{border-bottom:1px solid var(--border);padding:10px 14px}
+.ugh{display:flex;align-items:flex-start;gap:9px;margin-bottom:6px}
+.ugnum{font-family:'DM Mono',monospace;font-size:.76rem;font-weight:900;color:var(--orange);min-width:30px}
+.ugt2{flex:1;font-size:.81rem;font-weight:800;color:var(--navy);line-height:1.25}
+.ugt2 small{display:block;font-size:.7rem;font-weight:400;color:var(--muted);margin-top:1px}
+.ugrow{display:flex;align-items:center;gap:8px;padding:2px 0}
+.ugn2{min-width:112px;font-size:.73rem;font-weight:700;line-height:1.3}
+.ugbar{flex:1;display:flex;height:13px;border-radius:3px;overflow:hidden;background:#f0ede8;min-width:50px}
+.ugbar i{display:block;height:100%}
+.ugp{font-family:'DM Mono',monospace;font-weight:800;min-width:42px;text-align:right;font-size:.73rem;color:var(--navy)}
+.uglegend{display:flex;gap:10px;flex-wrap:wrap;padding:10px 14px;background:var(--off);border-bottom:1px solid var(--border)}
+.uglegend .i{display:inline-flex;align-items:center;gap:5px;font-size:.7rem;color:#333;font-weight:600}
+.uglegend .sw{width:12px;height:11px;border-radius:2px}
+.ugnote{padding:10px 14px;font-size:.77rem;line-height:1.6;color:#555}
+
+.area-lab{background:none!important;border:none!important;box-shadow:none!important;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.area-lab span{font-family:'DM Sans',sans-serif;font-weight:800;font-size:11px;color:#1a3a6b;background:rgba(255,255,255,.9);padding:2px 7px;border-radius:9px;white-space:nowrap;line-height:1.25;text-align:center;box-shadow:0 1px 2px rgba(13,27,75,.2)}
+.area-lab span .sub{display:block;font-size:9px;font-weight:600;opacity:.75}
+.area-lab.on span{box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.togglebar{background:#fff;border-bottom:1px solid var(--border);padding:0}
+.togglelist{display:block;max-height:none;overflow:visible}
+</style>
+</head>
+<body>
+<div id="bkapp-bar" style="display:flex;align-items:center;gap:9px;background:#1a3a6b;border-bottom:4px solid #f2c84b;padding:9px 14px;font-family:'DM Sans',system-ui,sans-serif">
+<a href="/bk/" style="display:flex;align-items:center;gap:9px;text-decoration:none"><img src="/brooklyn-seal.png" alt="" style="width:28px;height:28px"><span style="color:#fff;font-weight:900;font-size:.95rem;letter-spacing:-.01em">Brooklyn Civic</span></a>
+<a href="/bk/directory.html" style="margin-left:auto;color:#f2c84b;text-decoration:none;font-family:'DM Mono',monospace;font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em">Directory</a>
+</div>
+<div class="wrap">
+  <div class="top">
+    <div class="crumb"><a href="/">Brooklyn Civic</a> &rsaquo; <a href="/zoning">Zoning &amp; Land Use</a></div>
+    <h1>Land Use &amp; <span>Zoning Map</span></h1>
+    <div class="nbs">What every part of the city is used for, and how it is zoned</div>
+  </div>
+
+  <div class="intro">
+    <b>Two different questions.</b> Land use is what is on the ground today. Zoning is what the rules allow. They are often not the same, and where they differ is usually where the argument is. The map draws every zoning district and every lot in its own colour, straight from the city records. Outlines show community boards, council districts or boroughs on top. Tap any outline to highlight it and it appears in the comparison below. Highlight as many as you want, from any level. Search an address or long press the map to drop a pin, and use the link button to share exactly what you are looking at.
+  </div>
+
+  <div class="findbar">
+    <input id="findQ" type="search" placeholder="Find an address, or tap the map to drop a pin" autocomplete="off" spellcheck="false">
+    <button id="findGo" type="button">Find</button>
+  </div>
+  <div id="findSug"></div>
+  <div id="findOut"></div>
+
+  <div class="bar top0">
+    <span class="bl">Show</span>
+    <button class="btn" data-view="lu" type="button">Land use</button>
+    <button class="btn on" data-view="zn" type="button">Zoning</button>
+    <button class="btn" data-view="ug" type="button">Use Groups</button>
+  </div>
+  <div class="bar">
+    <span class="bl">By</span>
+    <button class="btn on" data-lens="cd" type="button">Community boards</button>
+    <button class="btn" data-lens="cc" type="button">Council districts</button>
+    <button class="btn" data-lens="nb" type="button">Neighborhoods</button>
+    <button class="btn" data-lens="boro" type="button">Boroughs</button>
+    <button class="btn" data-lens="city" type="button">Citywide</button>
+    <span class="bnote" id="bnote">Loading&hellip;</span>
+  </div>
+  <div class="scale" id="scale"></div>
+  <details class="togglebar" id="tbBox">
+    <summary class="tbhead"><span class="tbl" id="tbLabel"></span><span class="tbcv"></span></summary>
+    <div class="tbbody">
+      <input id="tbFilter" type="search" placeholder="Filter&hellip;" autocomplete="off">
+      <div class="togglelist" id="toggleList"></div>
+    </div>
+  </details>
+  <div class="tbstatus" id="tbStatus"></div>
+
+  <div class="maphold"><div id="map"></div><div class="zoomnote" id="zoomnote"></div></div>
+
+  <div class="sharebar">
+    <button type="button" class="sharebtn" id="shareBtn">Copy link to this view</button>
+    <span class="sharemsg" id="shareMsg"></span>
+  </div>
+
+  <div class="readout" id="readout"></div>
+
+  <div class="nav">
+    <a href="/ulurps">&#128203; ULURPs over time</a>
+    <a href="/landusedash">&#128202; Compare areas</a>
+    <a href="/zoning">&#128208; What the rules allow</a>
+    <a href="/citywide-search.html">&#128269; Look up an address</a>
+    <a href="/cd/">&#128205; Your district</a>
+    <a href="/allhousing">&#127959; What got built</a>
+  </div>
+  <div class="foot">City lot records, from NYC Open Data. Shares are by lot area, so a few large parcels can outweigh many small ones.</div>
+</div>
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i);};
+  var n=function(v){return Number(Math.round(v)).toLocaleString('en-US');};
+  function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  var D=null, GEO={}, view='zn', lens='cd', cat='01', picked=[], showAll=true, map, layer=null, labels=[];
+  var CCBORO=null, NBBORO={};
+  var TONE=['#1a3a6b','#f2c84b','#2e6b30','#7a5cc6','#c0392b','#2145a8','#a65a00','#00838f'];
+  function pIdx(lvl,key){ for(var i=0;i<picked.length;i++){ if(picked[i].lvl===lvl&&picked[i].key===key) return i; } return -1; }
+  function togglePick(lvl,key,name){
+    showAll=false;
+    var i=pIdx(lvl,key);
+    if(i>-1) picked.splice(i,1);
+    else { if(picked.length>=8) return; picked.push({lvl:lvl,key:key,name:name}); }
+    if(!picked.length) showAll=true;
+  }
+  function syncUrl(){
+    var q='?view='+view+'&by='+lens+(picked.length?'&sel='+encodeURIComponent(picked.map(function(p){return p.lvl+':'+p.key;}).join(',')):'');
+    try{ history.replaceState(null,'',location.pathname+q); }catch(e){}
+  }
+  function readUrl(){
+    var p=new URLSearchParams(location.search);
+    var vv=p.get('view'); if(vv==='zn'||vv==='lu'||vv==='ug') view=vv;
+    if(['cd','cc','boro','nb','city'].indexOf(p.get('by'))>-1) lens=p.get('by');
+
+    var sel=p.get('sel');
+    if(sel) picked=sel.split(',').filter(Boolean).map(function(x){var b=x.split(':');return {lvl:b[0],key:b.slice(1).join(':')};});
+  }
+
+  map=L.map('map',{scrollWheelZoom:true,preferCanvas:true}).setView([40.678,-73.97],12);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{maxZoom:19,attribution:'&copy; CARTO'}).addTo(map);
+  map.createPane('streetLabels'); map.getPane('streetLabels').style.zIndex=645; map.getPane('streetLabels').style.pointerEvents='none';
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{maxZoom:19,pane:'streetLabels'}).addTo(map);
+
+  map.createPane('areaNames'); map.getPane('areaNames').style.zIndex=655; map.getPane('areaNames').style.pointerEvents='none';
+  var areaLabels=[];
+  function shortLabel(lvl,key){
+    if(lvl==='cd') return key;
+    if(lvl==='cc'){ var m=CM&&CM[key]; return 'CD'+key+(m?'<br><span class="sub">'+m.name+'</span>':''); }
+    if(lvl==='nb') return key;
+    if(lvl==='boro') return key;
+    return key;
+  }
+  function drawAreaLabels(cfg){
+    areaLabels.forEach(function(m){ map.removeLayer(m); }); areaLabels=[];
+    if(!cfg||!cfg.geo||lens==='city') return;
+    var z=map.getZoom();
+    // neighborhoods are dense, so only name them once you are in close
+    if(lens==='nb' && z<13) return;
+    var b=map.getBounds();
+    L.geoJSON(cfg.geo).eachLayer(function(l){
+      var p=l.feature.properties, key=cfg.key(p);
+      if(picked.length && !showAll && pIdx(lens,key)<0) return;
+      var c;
+      try{ c=l.getBounds().getCenter(); }catch(e){ return; }
+      if(!b.contains(c)) return;
+      var idx=pIdx(lens,key);
+      var cls='area-lab'+(idx>-1?' on':'');
+      areaLabels.push(L.marker(c,{interactive:false,keyboard:false,pane:'areaNames',
+        icon:L.divIcon({className:cls,html:'<span'+(idx>-1?' style="background:'+TONE[idx%TONE.length]+';color:#fff"':'')+'>'+
+          shortLabel(lens,key)+'</span>',iconSize:[130,30],iconAnchor:[65,15]})}).addTo(map));
+    });
+  }
+  map.createPane('boroNames'); map.getPane('boroNames').style.zIndex=660; map.getPane('boroNames').style.pointerEvents='none';
+  var boroLabels=[];
+  function drawBoroLabels(){
+    boroLabels.forEach(function(m){ map.removeLayer(m); }); boroLabels=[];
+    if(!GEO.boro) return;
+    if(map.getZoom()>=13 && lens!=='boro') return;
+    L.geoJSON(GEO.boro).eachLayer(function(l){
+      var nm=(l.feature.properties.boro||l.feature.properties.code||'');
+      if(!nm) return;
+      try{
+        var c=l.getBounds().getCenter();
+        boroLabels.push(L.marker(c,{interactive:false,keyboard:false,pane:'boroNames',
+          icon:L.divIcon({className:'boro-lab',html:'<span>'+nm+'</span>',iconSize:[140,26],iconAnchor:[70,13]})}).addTo(map));
+      }catch(e){}
+    });
+  }
+
+  function pal(){ return view==='lu' ? D.landuse_colors : D.zone_family_colors; }
+  function mapView(){ return view==='ug' ? 'zn' : view; }
+  function lab(k){ return view==='lu' ? (D.landuse_labels[k]||k) : k; }
+  function buckets(rec){ return view==='lu' ? rec.lu : rec.zfam; }
+  function cats(){
+    var set={};
+    ['cd','cc','boro'].forEach(function(g){
+      Object.keys(D[g]||{}).forEach(function(k){
+        var b=buckets(D[g][k])||{};
+        Object.keys(b).forEach(function(c){ set[c]=(set[c]||0)+b[c].area; });
+      });
+    });
+    return Object.keys(set).sort(function(a,b){return set[b]-set[a];});
+  }
+  function share(rec,c){
+    var b=buckets(rec)||{}, tot=0;
+    Object.keys(b).forEach(function(k){ tot+=b[k].area; });
+    return (tot && b[c]) ? b[c].area/tot*100 : 0;
+  }
+  function dominant(rec){
+    var b=buckets(rec)||{}, best=null, tot=0;
+    Object.keys(b).forEach(function(k){ tot+=b[k].area; if(!best||b[k].area>b[best].area) best=k; });
+    return {k:best,pct:(best&&tot)?b[best].area/tot*100:0};
+  }
+  function share(rec,c){
+    var b=buckets(rec)||{}, tot=0;
+    Object.keys(b).forEach(function(k){ tot+=b[k].area; });
+    return (tot&&b[c]) ? b[c].area/tot*100 : 0;
+  }
+  function fmtPct(x){ return Math.round(x)+'%'; }
+  function drawScale(){
+    var items = mapView()==='zn'
+      ? [['#f2994a','Residential'],['#2563eb','Commercial'],['#9b51e0','Manufacturing'],['#27ae60','Parkland'],['#56ccf2','Special district']]
+      : [['#f2c94c','One and two family'],['#f2994a','Multifamily walk-up'],['#eb5757','Multifamily elevator'],['#bb6bd9','Mixed use'],['#2f80ed','Commercial and office'],['#9b51e0','Industrial'],['#6b7280','Transport and utility'],['#56ccf2','Public facilities'],['#27ae60','Open space'],['#a0a0a0','Parking'],['#d9d9d9','Vacant']];
+    $('scale').innerHTML='<span class="l">Every '+(mapView()==='zn'?'zoning district':'lot')+' in its own colour. Outlines are '+
+      (lens==='cd'?'community districts':(lens==='cc'?'council districts':(lens==='nb'?'neighborhoods':'boroughs')))+'.</span>'+
+      items.map(function(it){
+        return '<span class="i"><span class="sw" style="background:'+it[0]+'"></span>'+it[1]+'</span>';
+      }).join('');
+  }
+  function rows(rec){
+    var b=buckets(rec)||{}, tot=0;
+    Object.keys(b).forEach(function(k){ tot+=b[k].area; });
+    return Object.keys(b).map(function(k){
+      return {k:k,label:lab(k),area:b[k].area,lots:b[k].lots,units:b[k].units||0,pct:tot?b[k].area/tot*100:0};
+    }).sort(function(a,b2){return b2.area-a.area;});
+  }
+  function bars(rs){
+    var P=pal();
+    return rs.map(function(r){
+      var on=false;
+      return '<div class="bar2"'+(on?' style="background:#fff8f2;border-radius:6px;padding-left:5px;padding-right:5px"':'')+'>'+
+        '<span class="sw" style="background:'+(P[r.k]||'#9ca3af')+'"></span>'+
+        '<span class="nm"'+(on?' style="color:#f2c84b"':'')+'>'+esc(r.label)+'</span>'+
+        '<span class="br"><i style="width:'+r.pct.toFixed(1)+'%;background:'+(P[r.k]||'#9ca3af')+'"></i></span>'+
+        '<span class="pc">'+r.pct.toFixed(1)+'%</span></div>';
+    }).join('');
+  }
+  function recOf(p){
+    if(p.lvl==='city') return D.city;
+    return (D[p.lvl]||{})[p.key];
+  }
+  function nameOf(p){
+    if(p.name) return p.name;
+    if(p.lvl==='city') return 'New York City';
+    if(p.lvl==='cc'){ var m=CM&&CM[p.key]; return 'Council '+p.key+(m?' \u00b7 '+m.name:''); }
+    return p.key;
+  }
+  function shareOf(rec,c){
+    var b=buckets(rec)||{}, tot=0;
+    Object.keys(b).forEach(function(k){ tot+=b[k].area; });
+    return (tot&&b[c])?b[c].area/tot*100:0;
+  }
+
+
+  var MX=null, UGD=null;
+  var VERD={Y:'Permitted as of right',L:'Permitted with limits',S:'Special permit',N:'Not permitted'};
+  var VCOL={Y:'#2e6b30',L:'#e08a00',S:'#2145a8',N:'#c0392b'};
+  function baseD(z){
+    var t=String(z||'').trim().toUpperCase();
+    if(t.indexOf('PARK')===0) return 'PARK';
+    var m=t.match(/^([RCM])\s*(\d{1,2})/);
+    if(!m) return null;
+    var lim={R:12,C:8,M:3}[m[1]], nn=parseInt(m[2],10);
+    return (nn>=1&&nn<=lim)?(m[1]+nn):null;
+  }
+  function ugMix(rec,ug){
+    var out={Y:0,L:0,S:0,N:0}, other=0, tot=0;
+    Object.keys(rec.zone||{}).forEach(function(z){
+      var a=rec.zone[z].area; tot+=a;
+      var b=baseD(z);
+      var v=(b&&MX.matrix[ug])?MX.matrix[ug][b]:null;
+      if(v&&out[v]!==undefined) out[v]+=a; else other+=a;
+    });
+    if(!tot) return null;
+    ['Y','L','S','N'].forEach(function(k){ out[k]=out[k]/tot*100; });
+    out.other=other/tot*100;
+    return out;
+  }
+  function ugBody(){
+    if(!MX||!UGD) return '<div class="ugnote">Use Group data could not load.</div>';
+    return '<div class="ugnote">Of all the zoned lot area here, how much sits in a district that allows this use.</div>'+
+      (UGD.groups||[]).map(function(g){
+        var rows=picked.map(function(p,i){
+          var r=recOf(p); if(!r) return '';
+          var m=ugMix(r,g.n); if(!m) return '';
+          var seg=['Y','L','S','N'].map(function(k){
+            return m[k]>0.4?'<i style="width:'+m[k].toFixed(1)+'%;background:'+VCOL[k]+'"></i>':'';
+          }).join('')+(m.other>0.4?'<i style="width:'+m.other.toFixed(1)+'%;background:#d9d9d9"></i>':'');
+          return '<div class="ugrow"><span class="ugn2" style="color:'+TONE[i%TONE.length]+'">'+esc(nameOf(p))+'</span>'+
+            '<span class="ugbar">'+seg+'</span><span class="ugp">'+(m.Y+m.L).toFixed(0)+'%</span></div>';
+        }).join('');
+        return '<div class="ugblock"><div class="ugh"><span class="ugnum">'+g.n+'</span>'+
+          '<span class="ugt2">'+esc(g.name)+'<small>'+esc(g.short)+'</small></span></div>'+rows+'</div>';
+      }).join('')+
+      '<div class="uglegend">'+['Y','L','S','N'].map(function(k){
+        return '<span class="i"><span class="sw" style="background:'+VCOL[k]+'"></span>'+VERD[k]+'</span>';
+      }).join('')+'</div>';
+  }
+  var mStack=null;
+  function drawStack(cats){
+    if(!window.Chart||!$('mStack')) return;
+    var P=pal();
+    var ds=cats.map(function(c){
+      return {label:lab(c),backgroundColor:P[c]||'#9ca3af',borderWidth:0,
+        data:picked.map(function(p){var r=recOf(p);return r?+shareOf(r,c).toFixed(1):0;})};
+    });
+    if(mStack) mStack.destroy();
+    mStack=new Chart($('mStack'),{type:'bar',
+      data:{labels:picked.map(nameOf),datasets:ds},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,animation:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+c.parsed.x+'%';}}}},
+        scales:{x:{stacked:true,max:100,ticks:{callback:function(v){return v+'%';},font:{size:10,family:'DM Mono'},color:'#6b6760'},grid:{color:'#f0ede8'}},
+                y:{stacked:true,ticks:{font:{size:11,family:'DM Sans'},color:'#1a3a6b'},grid:{display:false}}}}});
+  }
+  function renderCompare(){
+    syncUrl();
+    applyMask();
+    if(!picked.length){
+      $('readout').innerHTML='<div class="rh2"><div class="n">Showing the whole city</div>'+
+        '<div class="s">Tap any area above or on the map to focus on it. Add as many as you like.</div></div>';
+      return;
+    }
+    var P=pal();
+    var cats={};
+    picked.forEach(function(p){
+      var r=recOf(p); if(!r) return;
+      var b=buckets(r)||{};
+      Object.keys(b).forEach(function(k){ cats[k]=(cats[k]||0)+b[k].area; });
+    });
+    var order=Object.keys(cats).sort(function(a,b){return cats[b]-cats[a];});
+    var chips=picked.map(function(p,i){
+      return '<span class="mchip" style="background:'+TONE[i%TONE.length]+'">'+esc(nameOf(p))+
+        '<span class="x" data-i="'+i+'">&times;</span></span>';
+    }).join('');
+    var head='<div class="rh2"><div class="n">'+picked.length+(picked.length===1?' area highlighted':' areas highlighted')+'</div>'+
+      '<div class="s">'+(view==='lu'?'Land use':'Zoning')+' \u00b7 share of lot area</div></div>'+
+      '<div class="mchips">'+chips+'<button type="button" class="clearsel" id="clearSel">Clear all</button></div>';
+    var body=order.map(function(c){
+      var vals=picked.map(function(p){ var r=recOf(p); return r?shareOf(r,c):0; });
+      var mx=Math.max.apply(null,vals)||1;
+      var rows=picked.map(function(p,i){
+        var pc=vals[i];
+        return '<div class="crow2"><span class="rn2" style="color:'+TONE[i%TONE.length]+'">'+esc(nameOf(p))+'</span>'+
+          '<span class="rb2"><i style="width:'+(pc/mx*100).toFixed(1)+'%;background:'+TONE[i%TONE.length]+'"></i></span>'+
+          '<span class="rp2">'+pc.toFixed(1)+'%</span></div>';
+      }).join('');
+      var spread=Math.max.apply(null,vals)-Math.min.apply(null,vals);
+      return '<div class="cat2"><div class="ch2"><span class="sw2" style="background:'+(P[c]||'#9ca3af')+'"></span>'+
+        '<span class="cn2">'+esc(lab(c))+'</span>'+
+        (picked.length>1?'<span class="cr2">'+spread.toFixed(1)+' pt spread</span>':'')+'</div>'+rows+'</div>';
+    }).join('');
+    var chartBox='<div class="sec2b">The whole mix</div><div class="chartwrap2" style="height:'+Math.max(110,44+picked.length*34)+'px"><canvas id="mStack"></canvas></div>';
+    var tot='<div class="totals2">'+picked.map(function(p,i){
+      var r=recOf(p); if(!r) return '';
+      return '<div class="tot2"><div class="k" style="color:'+TONE[i%TONE.length]+'">'+esc(nameOf(p))+'</div>'+
+        '<div class="v">'+n(r.lots)+'</div><div class="nn">lots \u00b7 '+n(r.units)+' homes</div></div>';
+    }).join('')+'</div>';
+    if(view==='ug'){ $('readout').innerHTML=head+tot+ugBody(); attachChipHandlers(); return; }
+    $('readout').innerHTML=head+tot+chartBox+body+
+      '<div style="padding:12px 15px"><a href="/landusedash?view='+view+'&a='+
+      encodeURIComponent(picked.map(function(p){return p.lvl+':'+p.key;}).join(','))+
+      '" style="font-size:.79rem;font-weight:700;color:#fff;background:#1a3a6b;padding:9px 14px;border-radius:22px;text-decoration:none">Open this in the full dashboard &rarr;</a></div>';
+    drawStack(order);
+    attachChipHandlers();
+  }
+  function attachChipHandlers(){
+    $('readout').querySelectorAll('.x').forEach(function(el){
+      el.addEventListener('click',function(){ picked.splice(+this.getAttribute('data-i'),1); draw(); renderCompare(); buildToggles(); });
+    });
+    var cs=$('clearSel');
+    if(cs) cs.addEventListener('click',function(){ picked=[]; draw(); renderCompare(); buildToggles(); });
+  }
+  function clear(){ if(layer){map.removeLayer(layer);layer=null;} labels.forEach(function(m){map.removeLayer(m);}); labels=[]; }
+
+  function draw(){
+    clear();
+    if(lens==='city'){
+      var rec=D.city;
+
+      layer=L.geoJSON(GEO.boro,{style:function(f){
+        var br=D.boro[f.properties.boro];
+        var d=br?dominant(br):{k:null};
+        return {color:'#5b5651',weight:1.5,fill:true,fillColor:'#000',fillOpacity:0};
+      }}).addTo(map);
+      drawScale();
+      drawBoroLabels();
+      $('bnote').textContent='All five boroughs together';
+      renderCompare();
+      return;
+    }
+    var cfg={
+      cd:{geo:GEO.cd,key:function(p){return p.cb_code;},data:D.cd,name:function(p){return p.cb_code;},sub:'Community district'},
+      cc:{geo:GEO.cc,key:function(p){return String(p.cc);},data:D.cc,name:function(p){var m=CM&&CM[String(p.cc)];return 'Council District '+p.cc+(m?' \u00b7 '+m.name:'');},sub:'Council district'},
+      boro:{geo:GEO.boro,key:function(p){return p.boro;},data:D.boro,name:function(p){return p.boro;},sub:'Borough'},
+      nb:{geo:GEO.nb,key:function(p){return p.nb;},data:D.nb,name:function(p){return p.nb;},sub:'Neighborhood'}
+    }[lens];
+    if(!cfg||!cfg.geo){ $('bnote').textContent='Boundaries could not load.'; return; }
+    window.__cfg=cfg;
+    layer=L.geoJSON(cfg.geo,{
+      style:function(f){
+        var rec=cfg.data[cfg.key(f.properties)];
+        if(!rec) return {color:'#b8b3ad',weight:1,fillColor:'#eeece7',fillOpacity:.25};
+        var d=dominant(rec);
+        var idx=pIdx(lens,cfg.key(f.properties));
+        if(idx>-1) return {color:TONE[idx%TONE.length],weight:4,fill:true,fillColor:TONE[idx%TONE.length],fillOpacity:.18};
+        return {color:'#1f2a44',weight:2,fill:true,fillColor:'#000',fillOpacity:0,dashArray:lens==='nb'?'4,3':null};
+      },
+      onEachFeature:function(f,l){
+        var p=f.properties, key=cfg.key(p), rec=cfg.data[key];
+        if(!rec){ l.bindTooltip('No data',{sticky:true}); return; }
+        var d=dominant(rec), rs=rows(rec).slice(0,4);
+        l.bindTooltip('<div style="font-family:DM Sans,sans-serif;min-width:190px">'+
+          '<div style="font-weight:800;font-size:.88rem;color:#1a3a6b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:5px">'+esc(cfg.name(p))+'</div>'+
+          '<div style="font-size:.72rem;color:#f2c84b;font-weight:700;margin-bottom:5px">Largest: '+esc(lab(d.k))+' at '+d.pct.toFixed(0)+'%</div>'+
+          rs.map(function(r){
+            return '<div style="display:flex;justify-content:space-between;gap:14px;padding:1px 0;font-size:.72rem">'+
+              '<span style="color:#555">'+esc(r.label)+'</span><span style="font-family:DM Mono,monospace;color:#1a3a6b">'+r.pct.toFixed(1)+'%</span></div>';
+          }).join('')+
+          '<div style="font-size:.65rem;color:#888;margin-top:5px;border-top:1px solid #eee;padding-top:4px">Tap for everything</div></div>',{sticky:true,opacity:1});
+        l.on('mouseover',function(){ l.setStyle({weight:3,color:'#1a3a6b'}); if(l.bringToFront) l.bringToFront(); });
+        l.on('mouseout',function(){ layer.resetStyle(l); });
+        l.on('click',function(e){
+          if(e&&e.originalEvent) L.DomEvent.stopPropagation(e);
+          togglePick(lens,key,cfg.name(p));
+          layer.setStyle(function(ff){
+            var ii=pIdx(lens,cfg.key(ff.properties));
+            if(ii>-1) return {color:TONE[ii%TONE.length],weight:4,fillColor:TONE[ii%TONE.length],fillOpacity:.18};
+            return {color:'#1f2a44',weight:2,fillColor:'#000',fillOpacity:0};
+          });
+          renderCompare(); buildToggles();
+          drawAreaLabels(cfg);
+          fitPicked();
+        });
+      }
+    }).addTo(map);
+    drawBoroLabels();
+    drawAreaLabels(cfg);
+    drawScale();
+    var count=Object.keys(cfg.data).length;
+    $('bnote').textContent=count+' '+(lens==='cd'?'community districts':(lens==='cc'?'council districts':(lens==='nb'?'neighborhoods':'boroughs')));
+    var want=(lens==='cd'?'BKCB6':(lens==='cc'?'39':(lens==='nb'?'Park Slope':'Brooklyn')));
+    if(cfg.data[want]){
+      var m=CM&&CM[want];
+      var nm = lens==='cd'?want:(lens==='cc'?('Council District '+want+(m?' \u00b7 '+m.name:'')):want);
+      renderCompare();
+    }
+  }
+
+  document.querySelectorAll('[data-view]').forEach(function(b){
+    b.addEventListener('click',function(){
+      view=this.getAttribute('data-view');
+      document.querySelectorAll('[data-view]').forEach(function(x){x.classList.toggle('on',x===b);});
+      realKey=''; clearReal(); draw(); loadRealZoning();
+    });
+  });
+  $('shareBtn').addEventListener('click',function(){
+    syncUrl();
+    var url=location.href;
+    function done(){ $('shareMsg').textContent='Link copied'; setTimeout(function(){$('shareMsg').textContent='';},2200); }
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(done).catch(function(){ $('shareMsg').textContent=url; });
+    } else { $('shareMsg').textContent=url; }
+  });
+  document.querySelectorAll('[data-lens]').forEach(function(b){
+    b.addEventListener('click',function(){
+      lens=this.getAttribute('data-lens');
+      document.querySelectorAll('[data-lens]').forEach(function(x){x.classList.toggle('on',x===b);});
+      $('tbFilter').value='';
+      draw(); buildToggles(); renderCompare();
+    });
+  });
+
+
+
+  /* ---- the actual zoning and land use polygons, loaded for whatever is on screen ---- */
+  map.createPane('realzone'); map.getPane('realzone').style.zIndex=420;
+  var realLayer=null, realBusy=false, realKey='';
+  var ZFILL={R:'#f2994a',C:'#2563eb',M:'#9b51e0',P:'#27ae60',B:'#56ccf2','?':'#9ca3af'};
+  var ZNAME={R:'Residential',C:'Commercial',M:'Manufacturing',P:'Parkland',B:'Special district','?':'Other'};
+  function zfam(z){
+    if(!z) return '?';
+    var t=String(z).trim().toUpperCase();
+    if(t.indexOf('PARK')===0) return 'P';
+    var c=t.charAt(0);
+    if(c==='R'||c==='C'||c==='M') return c;
+    if(c==='B') return 'B';
+    return '?';
+  }
+  var LUFILL={'01':'#f2c94c','02':'#f2994a','03':'#eb5757','04':'#bb6bd9','05':'#2f80ed','06':'#9b51e0',
+    '07':'#6b7280','08':'#56ccf2','09':'#27ae60','10':'#a0a0a0','11':'#d9d9d9'};
+  function clearReal(){ if(realLayer){ map.removeLayer(realLayer); realLayer=null; } }
+  function loadRealZoning(){
+    var z=map.getZoom();
+    if(z<11){ clearReal(); $('zoomnote').textContent='Zoom in to load the boundaries'; return; }
+    $('zoomnote').textContent='';
+    var b=map.getBounds();
+    var key=mapView()+'|'+z+'|'+b.getSouth().toFixed(3)+b.getWest().toFixed(3)+b.getNorth().toFixed(3)+b.getEast().toFixed(3);
+    if(key===realKey||realBusy) return;
+    realKey=key; realBusy=true;
+    if(!realLayer) $('zoomnote').textContent='Loading the boundaries\u2026';
+    var env={xmin:b.getWest(),ymin:b.getSouth(),xmax:b.getEast(),ymax:b.getNorth(),spatialReference:{wkid:4326}};
+    var svc = mapView()==='zn'
+      ? 'nyzd/FeatureServer/0/query?where=1%3D1&outFields=ZONEDIST'
+      : 'MAPPLUTO/FeatureServer/0/query?where=1%3D1&outFields=LandUse,Address,ZoneDist1';
+    var url='https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/'+svc+
+      '&returnGeometry=true&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(env))+
+      '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&f=geojson&resultRecordCount='+(view==='zn'?4000:4000);
+    fetch(url).then(function(r){return r.json();}).then(function(d){
+      realBusy=false; $('zoomnote').textContent='';
+      if(!d||!d.features||!d.features.length){ clearReal(); return; }
+      clearReal();
+      realLayer=L.geoJSON(d,{pane:'realzone',
+        style:function(f){
+          var p=f.properties||{};
+          if(mapView()==='zn'){
+            var k=zfam(p.ZONEDIST);
+            return {color:'#ffffff',weight:.5,fillColor:ZFILL[k],fillOpacity:.86};
+          }
+          var lu=String(p.LandUse||'').padStart(2,'0');
+          return {color:'#ffffff',weight:.25,fillColor:LUFILL[lu]||'#e5e2db',fillOpacity:.86};
+        },
+        onEachFeature:function(f,l){
+          var p=f.properties||{};
+          if(mapView()==='zn'){
+            var k=zfam(p.ZONEDIST);
+            l.bindTooltip('<b>'+esc(p.ZONEDIST||'')+'</b><br>'+ZNAME[k],{sticky:true});
+          } else {
+            var lu=String(p.LandUse||'').padStart(2,'0');
+            l.bindTooltip('<b>'+esc(p.Address||'')+'</b><br>'+esc(D.landuse_labels[lu]||'Unclassified')+
+              (p.ZoneDist1?'<br>Zoned '+esc(p.ZoneDist1):''),{sticky:true});
+          }
+        }}).addTo(map);
+    }).catch(function(){ realBusy=false; $('zoomnote').textContent='Boundaries could not load here'; });
+  }
+  map.on('moveend zoomend',loadRealZoning);
+  map.on('moveend zoomend',function(){ if(window.__cfg) drawAreaLabels(window.__cfg); drawBoroLabels(); });
+
+
+
+  /* ---- one toggle per area in the current lens ---- */
+  function lensKeys(){
+    if(lens==='city') return ['city'];
+    var d=D[lens]||{};
+    var k=Object.keys(d);
+    if(lens==='cc') k.sort(function(a,b){return (+a)-(+b);}); else k.sort();
+    return k;
+  }
+  function lensLabel(key){
+    if(lens==='city') return 'New York City';
+    if(lens==='cc'){ var m=CM&&CM[key]; return key+(m?' '+m.name.split(' ').slice(-1)[0]:''); }
+    return key;
+  }
+  var BORDER=['Manhattan','The Bronx','Brooklyn','Queens','Staten Island'];
+  function boroOfKey(key){
+    if(lens==='cd'){ return ({MN:'Manhattan',BX:'The Bronx',BK:'Brooklyn',QN:'Queens',SI:'Staten Island'})[String(key).slice(0,2)]||'Other'; }
+    if(lens==='cc'){ var r=CCBORO&&CCBORO[String(key)]; return r?(r.main==='Bronx'?'The Bronx':r.main):'Other'; }
+    if(lens==='nb'){ return NBBORO[key]||'Other'; }
+    if(lens==='boro'){ return key==='Bronx'?'The Bronx':key; }
+    return 'Other';
+  }
+  function buildToggles(){
+    var keys=lensKeys();
+    var q=($('tbFilter').value||'').toLowerCase().trim();
+    var shown=keys.filter(function(k){ return !q || lensLabel(k).toLowerCase().indexOf(q)>-1 || String(k).toLowerCase().indexOf(q)>-1; });
+    var onCount=picked.filter(function(p){return p.lvl===lens;}).length;
+    $('tbLabel').innerHTML=showAll
+      ? '<b>Showing all '+keys.length+'</b> \u00b7 tap any to focus on it'
+      : '<b>'+onCount+' of '+keys.length+' showing</b> \u00b7 tap to add or remove';
+    if(lens==='city'){ $('toggleList').innerHTML=''; return; }
+    var byBoro={};
+    shown.forEach(function(k){ var b=boroOfKey(k); (byBoro[b]=byBoro[b]||[]).push(k); });
+    var order=BORDER.filter(function(b){return byBoro[b];}).concat(Object.keys(byBoro).filter(function(b){return BORDER.indexOf(b)<0;}));
+    $('toggleList').innerHTML=order.map(function(b){
+      return '<div class="tgroup"><div class="tgh">'+esc(b)+' <span>'+byBoro[b].length+'</span></div>'+
+        '<div class="tgrow">'+byBoro[b].map(function(k){
+          var i=pIdx(lens,k), on=i>-1;
+          return '<button type="button" class="tg'+(on?' on':'')+'" data-k="'+esc(k)+'"'+
+            (on?' style="background:'+TONE[i%TONE.length]+'"':'')+'>'+esc(lensLabel(k))+'</button>';
+        }).join('')+'</div></div>';
+    }).join('')||'<span style="font-family:DM Mono,monospace;font-size:.72rem;color:#9ca3af">Nothing matches</span>';
+    $('toggleList').querySelectorAll('.tg').forEach(function(b){
+      b.addEventListener('click',function(){
+        var k=this.getAttribute('data-k');
+        togglePick(lens,k,lensLabel(k));
+        draw(); renderCompare(); buildToggles();
+      });
+    });
+    buildStatus();
+  }
+  function buildStatus(){
+    var mine=picked.filter(function(p){return p.lvl===lens;});
+    if(showAll||!mine.length){ $('tbStatus').innerHTML=''; return; }
+    $('tbStatus').innerHTML=mine.map(function(p){
+      var i=pIdx(p.lvl,p.key);
+      return '<span class="sc" style="background:'+TONE[i%TONE.length]+'">'+esc(p.name||p.key)+'<span class="x" data-k="'+esc(p.key)+'">&times;</span></span>';
+    }).join('')+'<button type="button" class="allbtn" id="selAll">Show all</button>';
+    $('tbStatus').querySelectorAll('.x').forEach(function(el){
+      el.addEventListener('click',function(){
+        togglePick(lens,this.getAttribute('data-k'));
+        draw(); renderCompare(); buildToggles();
+      });
+    });
+    var sa=$('selAll');
+    if(sa) sa.addEventListener('click',function(){ picked=[]; showAll=true; draw(); renderCompare(); buildToggles(); });
+  }
+  $('tbFilter').addEventListener('input',buildToggles);
+
+  /* ---- isolate: dim everything outside what is highlighted ---- */
+  map.createPane('mask'); map.getPane('mask').style.zIndex=435; map.getPane('mask').style.pointerEvents='none';
+  var maskLayer=null;
+  function ringsOf(geom){
+    var out=[];
+    function ring(c){ return c.map(function(pt){ return [pt[1],pt[0]]; }); }
+    if(!geom) return out;
+    if(geom.type==='Polygon') geom.coordinates.forEach(function(r,i){ if(i===0) out.push(ring(r)); });
+    else if(geom.type==='MultiPolygon') geom.coordinates.forEach(function(poly){ if(poly[0]) out.push(ring(poly[0])); });
+    return out;
+  }
+  function geoFor(lvl,key){
+    var g={cd:GEO.cd,cc:GEO.cc,nb:GEO.nb,boro:GEO.boro}[lvl];
+    if(!g) return null;
+    var kf={cd:'cb_code',cc:'cc',nb:'nb',boro:'boro'}[lvl];
+    for(var i=0;i<g.features.length;i++){
+      if(String(g.features[i].properties[kf])===String(key)) return g.features[i].geometry;
+    }
+    return null;
+  }
+
+  function fitPicked(){
+    if(!picked.length) return;
+    var b=null;
+    picked.forEach(function(p){
+      if(p.lvl==='city') return;
+      var g=geoFor(p.lvl,p.key);
+      if(!g) return;
+      try{
+        var lyr=L.geoJSON({type:'Feature',geometry:g});
+        b = b ? b.extend(lyr.getBounds()) : lyr.getBounds();
+      }catch(e){}
+    });
+    if(b){ try{ map.fitBounds(b,{padding:[30,30],maxZoom:15}); }catch(e){} }
+  }
+  function applyMask(){
+    if(maskLayer){ map.removeLayer(maskLayer); maskLayer=null; }
+    if(showAll) return;
+    var holes=[];
+    picked.forEach(function(p){
+      if(p.lvl==='city') return;
+      var g=geoFor(p.lvl,p.key);
+      if(g) holes=holes.concat(ringsOf(g));
+    });
+    if(!holes.length) return;
+    var world=[[85,-190],[85,190],[-85,190],[-85,-190]];
+    maskLayer=L.polygon([world].concat(holes),{pane:'mask',stroke:false,
+      fillColor:'#f8f7f4',fillOpacity:.82,interactive:false}).addTo(map);
+  }
+
+  /* ---- address search and pin drop ---- */
+  var pin=null, CM=null;
+  function boroOf(code){ return ({MN:'Manhattan',BX:'Bronx',BK:'Brooklyn',QN:'Queens',SI:'Staten Island'})[String(code).slice(0,2)]||''; }
+  function ptIn(latlng,gj,keyfn){
+    var hit=null;
+    L.geoJSON(gj,{style:function(){return{};}}).eachLayer(function(l){
+      if(hit) return;
+      try{ if(l.getBounds().contains(latlng) && leafletContains(l,latlng)) hit=keyfn(l.feature.properties); }catch(e){}
+    });
+    return hit;
+  }
+  function leafletContains(layer,latlng){
+    var polys=layer.getLatLngs();
+    function inRing(ring,p){
+      var x=p.lng,y=p.lat,inside=false;
+      for(var i=0,j=ring.length-1;i<ring.length;j=i++){
+        var xi=ring[i].lng,yi=ring[i].lat,xj=ring[j].lng,yj=ring[j].lat;
+        if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi)) inside=!inside;
+      }
+      return inside;
+    }
+    function walk(a){
+      if(!a.length) return false;
+      if(a[0] instanceof L.LatLng) return inRing(a,latlng);
+      for(var i=0;i<a.length;i++){ if(walk(a[i])) return true; }
+      return false;
+    }
+    return walk(polys);
+  }
+  function dropPin(latlng,label){
+    if(pin) map.removeLayer(pin);
+    pin=L.marker(latlng,{title:label||''}).addTo(map);
+    var cdKey=GEO.cd?ptIn(latlng,GEO.cd,function(p){return p.cb_code;}):null;
+    var ccKey=GEO.cc?ptIn(latlng,GEO.cc,function(p){return String(p.cc);}):null;
+    var nbKey=GEO.nb?ptIn(latlng,GEO.nb,function(p){return p.nb;}):null;
+    var member=(CM&&ccKey&&CM[ccKey])?CM[ccKey]:null;
+    var rows='';
+    if(nbKey) rows+='<div class="w"><span class="k">Neighborhood</span><span class="v">'+esc(nbKey)+'</span></div>';
+    if(cdKey) rows+='<div class="w"><span class="k">Community board</span><span class="v">'+esc(cdKey)+' <a href="/cd/'+esc(cdKey.toLowerCase())+'/">see the district</a></span></div>';
+    if(ccKey) rows+='<div class="w"><span class="k">Council district</span><span class="v">'+esc(ccKey)+'</span></div>';
+    if(member) rows+='<div class="w"><span class="k">Council member</span><span class="v"><a href="'+esc(member.url)+'" target="_blank" rel="noopener">'+esc(member.name)+'</a></span></div>';
+    if(cdKey) rows+='<div class="w"><span class="k">Borough</span><span class="v">'+esc(boroOf(cdKey))+'</span></div>';
+    $('findOut').innerHTML='<div class="pinres"><div class="ad">'+esc(label||'Dropped pin')+'</div>'+
+      '<div class="who">'+(rows||'<div class="w"><span class="v">Outside the mapped districts.</span></div>')+'</div>'+
+      '<div class="hint">The map below is showing that area. Tap anywhere else to move the pin.</div></div>';
+    // select whichever area the pin landed in, under the current lens
+    var want = lens==='cd'?cdKey : (lens==='cc'?ccKey : (lens==='nb'?nbKey : (lens==='boro'?boroOf(cdKey||''):null)));
+    if(want && pIdx(lens,want)<0){ togglePick(lens,want,want); draw(); renderCompare(); }
+    map.setView(latlng, Math.max(map.getZoom(),15));
+
+  }
+  map.on('contextmenu',function(e){ dropPin(e.latlng,'Dropped pin'); });
+
+  var findTimer=null;
+  function findSuggest(q){
+    if(!q||q.length<3){ $('findSug').innerHTML=''; return; }
+    fetch('https://geosearch.planninglabs.nyc/v2/autocomplete?size=5&text='+encodeURIComponent(q))
+      .then(function(r){return r.json();}).then(function(j){
+        var f=(j&&j.features)||[];
+        $('findSug').innerHTML=f.map(function(x,i){
+          var p=x.properties||{};
+          return '<div class="sg" data-i="'+i+'">'+esc(p.label||p.name)+'</div>';
+        }).join('');
+        $('findSug').querySelectorAll('.sg').forEach(function(el){
+          el.addEventListener('click',function(){
+            var x=f[+this.getAttribute('data-i')];
+            var c=x.geometry.coordinates;
+            $('findQ').value=(x.properties&&(x.properties.label||x.properties.name))||'';
+            $('findSug').innerHTML='';
+            dropPin(L.latLng(c[1],c[0]), $('findQ').value);
+          });
+        });
+      }).catch(function(){ $('findSug').innerHTML=''; });
+  }
+  function findGo(q){
+    if(!q) return;
+    fetch('https://geosearch.planninglabs.nyc/v2/search?size=1&text='+encodeURIComponent(q))
+      .then(function(r){return r.json();}).then(function(j){
+        var f=j&&j.features&&j.features[0];
+        if(!f) throw new Error('none');
+        var c=f.geometry.coordinates;
+        dropPin(L.latLng(c[1],c[0]), (f.properties&&(f.properties.label||f.properties.name))||q);
+      }).catch(function(){
+        $('findOut').innerHTML='<div class="pinres" style="border-color:#c0392b;background:#fbe6e6"><div class="ad">Could not find that address</div><div class="hint">Try including the borough, or tap the map to drop a pin.</div></div>';
+      });
+  }
+  $('findQ').addEventListener('input',function(){ clearTimeout(findTimer); var v=this.value; findTimer=setTimeout(function(){findSuggest(v);},220); });
+  $('findQ').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); $('findSug').innerHTML=''; findGo(this.value); } });
+  $('findGo').addEventListener('click',function(){ $('findSug').innerHTML=''; findGo($('findQ').value); });
+
+  Promise.all([
+    fetch('/data/landuse-zoning-all.json').then(function(r){return r.json();}),
+    fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}),
+    fetch('/data/council-districts.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/borough-rents.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/council-members.json').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/city-neighborhoods.geojson').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/cc-borough.json').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/zoning-matrix.json').then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch('/data/zoning-use-groups.json').then(function(r){return r.json();}).catch(function(){return null;})
+  ]).then(function(a){
+    D=a[0]; GEO.cd=a[1]; GEO.cc=a[2];
+    loadRealZoning();
+    if(a[4]&&a[4].members) CM=a[4].members;
+    GEO.nb=a[5];
+    CCBORO=a[6]; MX=a[7]; UGD=a[8];
+    if(GEO.nb) GEO.nb.features.forEach(function(f){ NBBORO[f.properties.nb]=f.properties.boro; });
+    readUrl();
+    document.querySelectorAll('[data-view]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-view')===view);});
+    document.querySelectorAll('[data-lens]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-lens')===lens);});
+    if(a[3]){
+      a[3].features.forEach(function(f){ f.properties.boro=f.properties.boro||f.properties.code; });
+      GEO.boro=a[3];
+    }
+    draw(); buildToggles(); renderCompare();
+  }).catch(function(){ $('bnote').textContent='Data could not load.'; });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:site_name" content="Brooklyn Community Board 6">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Where Affordable Housing Got Built">
+<meta property="og:description" content="Map of every affordable unit NYC financed since 2014, by community board, council district or neighborhood.">
+<meta property="og:url" content="https://bkcb6.app/builtmap">
+<meta property="og:image" content="https://bkcb6.app/tiles/builtmap.png">
+<meta property="og:image:width" content="600"><meta property="og:image:height" content="600">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://bkcb6.app/tiles/builtmap.png">
+<title>Where Affordable Housing Got Built — bkcb6.app</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700;900&display=swap');
+:root{--navy:#1a3a6b;--orange:#f2c84b;--off:#f8f7f4;--border:#e5e2db;--muted:#6b6760}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);min-height:100vh;display:flex;flex-direction:column}
+.top-bar{background:var(--navy);border-bottom:3px solid var(--orange);padding:12px 16px}
+.crumb a{color:rgba(255,255,255,.6);font-size:.7rem;font-weight:600;text-decoration:none;font-family:'DM Mono',monospace}
+.top-bar h1{color:#fff;font-size:1.15rem;font-weight:900;margin-top:6px}
+.top-bar h1 span{color:var(--orange)}
+.lensbar{position:sticky;top:0;z-index:600;display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 14px;background:var(--navy);border-bottom:2px solid var(--orange)}
+.lb-lab{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.6);font-weight:700}
+.lens-btn{padding:6px 13px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;border:2px solid rgba(255,255,255,.35);border-radius:20px;background:transparent;color:#fff;cursor:pointer}
+.lens-btn.active{background:var(--orange);border-color:var(--orange)}
+.lb-note{font-family:'DM Sans',sans-serif;font-size:.66rem;color:rgba(255,255,255,.65);margin-left:auto}
+.legend{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 14px;background:var(--navy);border-bottom:2px solid rgba(255,255,255,.15)}
+.legend .l{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6);font-weight:700}
+.legend .i{display:inline-flex;align-items:center;gap:4px;font-size:.66rem;color:#fff;font-weight:600}
+.legend .sw{width:14px;height:11px;border-radius:2px}
+.maphold{position:relative;flex:1 0 auto;display:flex;flex-direction:column;min-height:62vh}
+#map{flex:1 0 auto;min-height:62vh;background:#eef0f4}
+.mapdate{position:absolute;top:10px;right:10px;z-index:640;background:var(--navy);color:#fff;border:2px solid var(--orange);border-radius:9px;padding:7px 12px;pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.mapdate .m{display:block;font-family:'DM Mono',monospace;font-size:1rem;font-weight:700}
+.mapdate .w{display:block;font-family:'DM Sans',sans-serif;font-size:.58rem;color:rgba(255,255,255,.75);margin-top:2px;text-transform:uppercase;letter-spacing:.07em}
+.cap{padding:11px 14px;background:var(--navy);border-top:3px solid var(--orange)}
+.cap .t{font-size:1.05rem;font-weight:900;color:#fff}
+.cap .s{font-family:'DM Mono',monospace;font-size:.66rem;color:rgba(255,255,255,.65);margin-top:2px}
+.geo-label{background:none!important;border:none!important;box-shadow:none!important;pointer-events:none;font-family:'DM Sans',sans-serif;font-size:.62rem;font-weight:800;color:#1a3a6b;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;text-align:center;line-height:1.15}
+.geo-label:before{display:none!important}
+.src{padding:12px 14px 40px;font-family:'DM Mono',monospace;font-size:.64rem;color:#9ca3af;line-height:1.7;background:var(--off)}
+.mrnote{background:#fff;border-bottom:3px solid #f2c84b;font-family:'DM Sans',sans-serif}
+.mrnote>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:11px 15px;background:#1a3a6b}
+.mrnote>summary::-webkit-details-marker{display:none}
+.mrnote-k{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.09em;color:#f2c84b;font-weight:800}
+.mrnote-x{margin-left:auto;font-family:'DM Mono',monospace;font-size:.6rem;color:rgba(255,255,255,.6)}
+.mrnote[open] .mrnote-x:before{content:'hide \25B4'}
+.mrnote:not([open]) .mrnote-x:before{content:'read \25BE'}
+.mrnote-x{font-size:0}
+.mrnote-x:before{font-size:.6rem}
+.mrnote-body{padding:13px 15px 15px;max-width:74ch}
+.mrnote-body p{font-size:.83rem;line-height:1.6;color:#333;margin-bottom:9px}
+.mrnote-body p:last-child{margin-bottom:0}
+.mrnote-sig{font-weight:800;color:#1a3a6b;font-size:.85rem!important;margin-top:11px!important}
+.mrnote-role{display:block;font-family:'DM Mono',monospace;font-size:.68rem;font-weight:400;color:#6b6760;margin-top:2px;letter-spacing:.02em}
+.boro-label{background:none!important;border:none!important;box-shadow:none!important;pointer-events:none;width:auto!important;height:auto!important;white-space:nowrap}
+.boro-label:before{display:none!important}
+.boro-label b{display:inline-block;transform:translate(-50%,-50%);background:#1a3a6b;color:#f2c84b;font-family:'DM Sans',sans-serif;font-weight:900;letter-spacing:.12em;text-transform:uppercase;padding:5px 11px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.28);border:1px solid rgba(244,121,32,.55)}
+
+.pgintro{background:#fff;border-bottom:3px solid #f2c84b}
+.pgi-lead{padding:12px 15px;font-size:.88rem;line-height:1.6;color:#222;max-width:78ch}
+.pgi-lead b{color:#1a3a6b}
+.pgi-what{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:1px;background:#e5e2db;border-top:1px solid #e5e2db}
+.pgi-w{background:#fff;padding:9px 12px;font-size:.75rem;line-height:1.45;color:#444}
+.pgi-w b{display:block;color:#1a3a6b;font-size:.79rem;margin-bottom:1px}
+.pgi-more{border-top:1px solid #e5e2db}
+.pgi-more>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:9px;padding:9px 15px;background:#f8f7f4;font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.09em;color:#6b6760;font-weight:700}
+.pgi-more>summary::-webkit-details-marker{display:none}
+.pgi-more>summary:hover{background:#fff4ea;color:#f2c84b}
+.pgi-cv{margin-left:auto;font-size:0}
+.pgi-more[open] .pgi-cv:before{content:'close \25B4';font-size:.58rem;color:#f2c84b}
+.pgi-more:not([open]) .pgi-cv:before{content:'read \25BE';font-size:.58rem;color:#f2c84b}
+.pgi-body{padding:12px 15px 14px;max-width:82ch}
+.pgi-body p{font-size:.8rem;line-height:1.65;color:#333;margin-bottom:9px}
+.pgi-body p:last-child{margin-bottom:0}
+.pgi-body b{color:#1a3a6b}
+.lensexpl{padding:7px 14px;background:#0b1740;border-bottom:1px solid rgba(255,255,255,.1);font-family:'DM Sans',sans-serif;font-size:.71rem;color:rgba(255,255,255,.75);line-height:1.45}
+.lensexpl b{color:#f2c84b}
+
+.trbar{background:#1a3a6b;border-top:3px solid #f2c84b}
+.trbar-in{max-width:920px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:13px 15px;flex-wrap:wrap}
+.trbar-ic{font-size:1.5rem;line-height:1}
+.trbar-tx{flex:1 1 260px;min-width:210px;display:flex;flex-direction:column;gap:2px}
+.trbar-t{font-family:'DM Sans',sans-serif;font-size:.95rem;font-weight:800;color:#fff;line-height:1.3}
+.trbar-d{font-family:'DM Sans',sans-serif;font-size:.76rem;color:rgba(255,255,255,.72);line-height:1.5}
+.trbar-go{background:#f2c84b;color:#1a3a6b;text-decoration:none;font-family:'DM Sans',sans-serif;font-size:.84rem;font-weight:800;padding:10px 16px;border-radius:22px;white-space:nowrap}
+.trbar-go:hover{background:#e3b62f}
+</style>
+</head>
+<body>
+<div id="bkapp-bar" style="display:flex;align-items:center;gap:9px;background:#1a3a6b;border-bottom:4px solid #f2c84b;padding:9px 14px;font-family:'DM Sans',system-ui,sans-serif">
+<a href="/bk/" style="display:flex;align-items:center;gap:9px;text-decoration:none"><img src="/brooklyn-seal.png" alt="" style="width:28px;height:28px"><span style="color:#fff;font-weight:900;font-size:.95rem;letter-spacing:-.01em">Brooklyn Civic</span></a>
+<a href="/bk/directory.html" style="margin-left:auto;color:#f2c84b;text-decoration:none;font-family:'DM Mono',monospace;font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em">Directory</a>
+</div>
+<div class="top-bar">
+  <div class="crumb"><a href="/">Brooklyn Civic</a> &rsaquo; <a href="/housing">Housing &amp; Rent</a> &rsaquo; <a href="/built">What got built</a></div>
+  <h1>Where Affordable Housing <span>Got Built</span></h1>
+</div>
+<details class="mrnote"><summary><span class="mrnote-k">Mike Racioppo</span><span class="mrnote-sub">why this page exists, and what is in it</span><span class="mrnote-x">hide</span></summary><div class="mrnote-body"><p>Housing and its price are often discussed, directly and indirectly. In every corner of New York City, even more so. Those discussions can be indirect, like with the countless articles pondering &ldquo;why are so many young adults living with their parents?&rdquo; I haven&rsquo;t read all of them, but the bottom line is it&rsquo;s due to housing costs.</p>
+<p>This page aims to simplify and clarify what housing costs are based on what&rsquo;s available at a given time. I used all listings from 2010 to today based on StreetEasy.com&rsquo;s listings. I broke it down from micro (cb6/ neighborhoods) to macro (borough and citywide).</p>
+<p>Rest assured, it&rsquo;s not just staring at numbers that I&rsquo;d say are too high; it&rsquo;s also got every active &ldquo;affordable housing&rdquo; lottery open across NYC. I put &ldquo;affordable&rdquo; in quotes, as that may be better described as &ldquo;less expensive housing&rdquo;, but I digress. I&rsquo;ll keep making updates, but check it out and let me know what you think.</p>
+<p class="mrnote-sig">Mike Racioppo<span class="mrnote-role">District Manager, Brooklyn Community Board 6</span></p></div></details>
+<div class="pgintro"><div class="pgi-lead">This map shows <b>where the city financed affordable, income regulated housing since 2014</b>, and how much went to each area.</div><div class="pgi-what"><div class="pgi-w"><b>The map</b>Areas shaded by how many affordable units were built there.</div><div class="pgi-w"><b>The lens</b>Community boards, council districts or neighborhoods.</div><div class="pgi-w"><b>Tap an area</b>Unit totals, the new build and preservation split, and which income levels it serves.</div></div><details class="pgi-more"><summary><span>What counts as affordable here</span><span class="pgi-cv"></span></summary><div class="pgi-body"><p><b>These are income regulated units</b>, meaning the rent is capped and tied to what a household earns. They come from HPD’s own production records.</p><p><b>New construction and preservation are not the same thing.</b> New construction adds a home that did not exist. Preservation renews the affordability of a home someone already lives in. Both matter, but only one adds supply.</p><p>Income bands are shown as the dollar range a household can earn and still qualify, for a three person household. The limits scale with household size.</p></div></details></div>
+<div class="lensbar">
+  <span class="lb-lab">Lens</span>
+  <button type="button" class="lens-btn active" data-lens="cb">Community boards</button>
+  <button type="button" class="lens-btn" data-lens="cc">Council districts</button>
+  <button type="button" class="lens-btn" data-lens="nb">Neighborhoods</button>
+  <span class="lb-note" id="lensNote"></span>
+</div>
+<div class="legend" id="legend"></div>
+<div class="maphold"><div id="map"></div>
+  <div class="mapdate"><span class="m">2014&ndash;2026</span><span class="w">affordable units</span></div></div>
+<div class="cap"><div class="t" id="capT">New York City</div><div class="s" id="capS">Affordable units financed since 2014</div></div>
+<div class="src" id="src"></div>
+
+<script>
+(function(){
+  var TIERS=['#1B5E8A','#82C341','#E8A800','#D45F00','#67000D'];
+  var TIERNAME=['Fewest','Below average','Middle','Above average','Most'];
+  var map=L.map('map',{scrollWheelZoom:true,attributionControl:true}).setView([40.705,-73.95],10);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{maxZoom:17,attribution:'&copy; CARTO'}).addTo(map);
+  var D=null, CTX=null, layer=null, labels=[], lens='cb';
+  var INCS=['Extremely low','Very low','Low','Moderate','Middle','Other'];
+  function incLabel(b){ return (CTX && CTX.bands[b] && CTX.bands[b].range) ? CTX.bands[b].range : b; }
+  var GEO={};
+  var n=function(v){return Number(v).toLocaleString('en-US');};
+
+  var CFG={
+    cb:{file:'/data/citywide-rents.geojson', key:function(p){ var c=p.cb_code; return c?(c.slice(0,2)+'-'+c.slice(4).padStart(2,'0')):null; },
+        label:function(p){ return p.cb_code?p.cb_code.slice(0,2)+' '+p.cb_code.slice(4):''; }, name:'community boards'},
+    cc:{file:'/data/council-districts.geojson', key:function(p){ return p.cc; },
+        label:function(p){ return 'CD '+p.cc; }, name:'council districts'},
+    nb:{file:'/data/neighborhood-rents.geojson', key:function(p){ return p.nb; },
+        label:function(p){ return p.nb; }, name:'neighborhoods'}
+  };
+
+  function tiers(vals){
+    var s=vals.slice().sort(function(a,b){return a-b;});
+    return function(v){
+      if(v==null) return null;
+      var i=s.indexOf(v), q=Math.min(Math.floor(i/s.length*5),4);
+      return {fill:TIERS[q],band:TIERNAME[q]};
+    };
+  }
+  function drawLegend(){
+    document.getElementById('legend').innerHTML='<span class="l">Affordable units built</span>'+
+      TIERS.slice().reverse().map(function(c,i){
+        return '<span class="i"><span class="sw" style="background:'+c+'"></span>'+TIERNAME[4-i]+'</span>';
+      }).join('');
+  }
+  function draw(){
+    var cfg=CFG[lens], data=D[lens];
+    var g=GEO[lens]; if(!g) return;
+    if(layer){ map.removeLayer(layer); layer=null; }
+    labels.forEach(function(m){map.removeLayer(m);}); labels=[];
+    var vals=[];
+    g.features.forEach(function(f){ var k=cfg.key(f.properties); var d=k&&data[k]; if(d) vals.push(d.units); });
+    var T=tiers(vals);
+    layer=L.geoJSON(g,{
+      style:function(f){
+        var k=cfg.key(f.properties), d=k&&data[k];
+        var t=d?T(d.units):null;
+        return {color:'#fff',weight:1.2,fillColor:t?t.fill:'#e3e5ea',fillOpacity:t?0.85:0.35};
+      },
+      onEachFeature:function(f,l){
+        var k=cfg.key(f.properties), d=k&&data[k];
+        var t=d?T(d.units):null;
+        var inc=d?d.income:{};
+        var rows=INCS.filter(function(i){return inc[i];})
+          .map(function(i){ return '<div style="display:flex;justify-content:space-between;gap:14px;padding:1px 0;color:#555"><span>'+incLabel(i)+'</span><span style="font-family:DM Mono,monospace">'+n(inc[i])+'</span></div>'; }).join('');
+        l.bindTooltip('<div style="font-family:DM Sans,sans-serif;min-width:190px">'+
+          '<div style="font-weight:700;font-size:.9rem;color:#1a3a6b;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:6px">'+cfg.label(f.properties)+'</div>'+
+          (d?('<div style="margin-bottom:6px"><span style="font-size:1.15rem;font-weight:800;font-family:DM Mono,monospace;color:#1a3a6b">'+n(d.units)+'</span>'+
+              '<span style="font-size:.76rem;font-weight:700;color:#1a3a6b"> affordable units</span>'+
+              '<div style="font-size:.62rem;color:#9ca3af;margin-top:1px;text-transform:uppercase;letter-spacing:.05em;font-family:DM Mono,monospace">income regulated</div>'+
+              '<div style="font-size:.7rem;color:#555;margin-top:2px">'+n(d.new)+' new construction &middot; '+n(d.pres)+' preservation</div>'+
+              '<div style="font-size:.68rem;color:#9ca3af;margin-top:1px">'+n(d.bldgs)+' buildings</div></div>'+(rows?'<div style="font-family:DM Mono,monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;margin:6px 0 3px">Household income served</div>'+rows:'')+
+              '<div style="font-size:.66rem;color:#888;margin-top:6px;border-top:1px solid #eee;padding-top:5px">'+(t?t.band:'')+'</div>')
+             :'<div style="font-size:.78rem;color:#777">No units recorded</div>')+'</div>',{sticky:true,opacity:1});
+        l.on('mouseover',function(){ l.setStyle({weight:2.5,color:'#333'}); if(l.bringToFront) l.bringToFront(); });
+        l.on('mouseout',function(){ layer.resetStyle(l); });
+        try{
+          var mk=L.marker(l.getBounds().getCenter(),{interactive:false,keyboard:false,
+            icon:L.divIcon({className:'geo-label',html:cfg.label(f.properties),iconSize:[110,16],iconAnchor:[55,8]})}).addTo(map);
+          labels.push(mk);
+        }catch(e){}
+      }
+    }).addTo(map);
+    var count=Object.keys(data).length;
+    document.getElementById('lensNote').textContent=count+' '+cfg.name+' with units recorded';
+    document.getElementById('capS').textContent='Affordable, income regulated units financed since 2014, by '+cfg.name.replace(/s$/,'');
+  }
+  function setLens(v){
+    lens=v;
+    document.querySelectorAll('.lens-btn').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-lens')===v); });
+    if(GEO[v]) return draw();
+    fetch(CFG[v].file).then(function(r){return r.json();}).then(function(g){ GEO[v]=g; draw(); })
+      .catch(function(){ document.getElementById('lensNote').textContent='Layer could not load.'; });
+  }
+  document.querySelectorAll('.lens-btn').forEach(function(b){
+    b.addEventListener('click',function(){ setLens(this.getAttribute('data-lens')); });
+  });
+
+  drawLegend();
+  Promise.all([
+    fetch('/data/hpd-geo.json').then(function(r){return r.json();}),
+    fetch('/data/hpd-income-context.json').then(function(r){return r.json();}).catch(function(){return null;})
+  ]).then(function(a){
+    var j=a[0]; D=j; CTX=a[1];
+    document.getElementById('src').textContent=j.source+'. Counted units are those HPD counts toward its housing plans. '+
+      n(j.unplaced)+' building records could not be placed inside a neighborhood polygon and are excluded from the neighborhood lens only; '+
+      'community board and council district figures come from HPD\u2019s own fields and include every record. Colour bands are relative to the areas shown.';
+    setLens('cb');
+  }).catch(function(){ document.getElementById('lensNote').textContent='Data could not load.'; });
+})();
+
+(function(){
+  var BORO=[{n:'Manhattan',y:40.7881,x:-73.9467},{n:'The Bronx',y:40.8560,x:-73.8664},
+    {n:'Brooklyn',y:40.6543,x:-73.9486},{n:'Queens',y:40.7178,x:-73.7775},
+    {n:'Staten Island',y:40.5722,x:-74.1558}];
+  var marks=[], busy=false, paneReady=false;
+  function ensurePane(){
+    if(paneReady) return;
+    if(!map.getPane('boroNames')){
+      map.createPane('boroNames');
+      var p=map.getPane('boroNames');
+      p.style.zIndex=650; p.style.pointerEvents='none';
+    }
+    paneReady=true;
+  }
+  function place(){
+    if(busy) return;
+    busy=true;
+    try{
+      ensurePane();
+      marks.forEach(function(k){ try{map.removeLayer(k);}catch(e){} }); marks=[];
+      var z=map.getZoom();
+      var px = z>=14 ? 16 : (z>=13 ? 15 : (z>=12 ? 14 : (z>=11 ? 13 : 12)));
+      BORO.forEach(function(b){
+        marks.push(L.marker([b.y,b.x],{interactive:false,keyboard:false,pane:'boroNames',
+          icon:L.divIcon({className:'boro-label',html:'<b style="font-size:'+px+'px">'+b.n+'</b>',
+            iconSize:null})}).addTo(map));
+      });
+    } finally { busy=false; }
+  }
+  window.__placeBoroughs=place;
+  place();
+  map.on('zoomend',place);
+  setTimeout(place,600); setTimeout(place,1600);
+})();
+
+/* ---- say what the current lens actually is ---- */
+(function(){
+  var EXPL={"cb": "The 59 districts that review land use locally and are the boards this site is built around.", "nb": "The names people actually use. They follow neither official boundary.", "cc": "The 51 seats whose members hold the deciding vote on most rezonings. From January 2023.", "lu": "What every lot in the district is actually used for today.", "zn": "What the rules allow to be built, lot by lot. R residential, C commercial, M manufacturing."};
+  var LBL={cb:'Community boards',nb:'Neighborhoods',cc:'Council districts',lu:'Land use',zn:'Zoning'};
+  function bar(){
+    var b=document.getElementById('lensexpl');
+    if(b) return b;
+    var host=document.querySelector('.lensbar');
+    if(!host) return null;
+    b=document.createElement('div'); b.className='lensexpl'; b.id='lensexpl';
+    host.parentNode.insertBefore(b,host.nextSibling);
+    return b;
+  }
+  function paint(){
+    var on=document.querySelector('.lens-btn.active,.lens-btn.on,[data-lens].on,[data-lens].active');
+    var k=on?on.getAttribute('data-lens'):null;
+    var b=bar(); if(!b||!k||!EXPL[k]) return;
+    b.innerHTML='<b>'+(LBL[k]||'')+'</b> \u00b7 '+EXPL[k];
+  }
+  document.querySelectorAll('[data-lens]').forEach(function(x){
+    x.addEventListener('click',function(){ setTimeout(paint,30); });
+  });
+  setTimeout(paint,300); setTimeout(paint,1200);
+})();
+</script>
+
+<div class="trbar">
+  <div class="trbar-in">
+    <span class="trbar-ic">&#9878;</span>
+    <div class="trbar-tx">
+      <span class="trbar-t">Know your rights as a tenant</span>
+      <span class="trbar-d">Repairs, heat and hot water, harassment, eviction, lease renewals and rent regulation. From HPD.</span>
+    </div>
+    <a class="trbar-go" href="https://www.nyc.gov/site/hpd/services-and-information/tenants-rights-and-responsibilities.page" target="_blank" rel="noopener">Tenants&rsquo; rights &rarr;</a>
+  </div>
+</div>
+</body>
+</html>

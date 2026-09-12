@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="/">
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>NYC Parks Activities Map | BKCB6</title>
+<meta name="description" content="Every NYC park and every community district on one map. Click any park to see what you can do there, or search by activity to find the closest place to play, swim, skate or walk a dog."/>
+<meta property="og:title" content="NYC Parks Activities Map"/>
+<meta property="og:description" content="Every NYC park and every community district on one map. Search by activity to find the closest place to play, swim, skate or walk a dog."/>
+<meta property="og:image" content="https://bkcb6.app/site-icons/nyc-parks.png"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">    return false;
+  }
+</script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:#f8f7f4;color:#1c1a17;-webkit-text-size-adjust:100%}
+
+.top-bar{background:#027539;color:#fff;padding:11px 14px;display:flex;align-items:center;gap:12px}
+.top-logo{width:40px;height:40px;border-radius:9px;flex:0 0 auto;display:block;background:#6cb33f}
+.top-txt{flex:1;min-width:0}
+.top-txt h1{font-size:1.22rem;font-weight:900;line-height:1.18;letter-spacing:-.01em}
+.top-txt p{font-size:.8rem;opacity:.92;margin-top:3px;font-family:'DM Mono',monospace}
+.back-link{color:#fff;text-decoration:none;font-size:.82rem;font-weight:700;border:1px solid rgba(255,255,255,.45);border-radius:999px;padding:5px 11px;white-space:nowrap}
+.back-link:hover{background:rgba(255,255,255,.12)}
+
+.panel{background:#fff;border-bottom:1.5px solid #e5e2db;padding:10px 14px}
+.panel-lede{font-size:.95rem;color:#2f2b26;line-height:1.55;margin-bottom:12px}
+.field-row{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:4px;flex:1 1 150px;min-width:0}
+.field label{font-size:.7rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em;color:#5f5a52;font-weight:500}
+.field select,.field input{padding:11px 12px;border:1.5px solid #d8d4cb;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:1rem;font-weight:500;color:#027539;background:#fff;width:100%}
+.field select:focus,.field input:focus{outline:none;border-color:#0a8f49}
+.btn{padding:12px 18px;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.95rem;font-weight:700;cursor:pointer;white-space:nowrap;background:#0a8f49;color:#fff}
+.btn:hover{background:#e3b62f}
+.btn.sec{background:#027539}
+.btn.sec:hover{background:#1a2d6b}
+.btn.ghost{background:#fff;color:#027539;border:1.5px solid #e5e2db}
+.btn.ghost:hover{background:#f8f7f4}
+
+.result-bar{display:none;padding:13px 14px;background:#fff6ec;border-bottom:1.5px solid #f0c9a4;border-left:5px solid #0a8f49;font-size:1rem;line-height:1.5;color:#1c1a17}
+.act-panel{display:none;background:#fff;border-bottom:1.5px solid #e5e2db;padding:12px 14px}
+.act-panel.open{display:block}
+.act-head{font-size:.95rem;color:#027539;font-weight:700;margin-bottom:10px;line-height:1.45}
+.act-head span{font-weight:500;color:#4a453e}
+.act-list{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto}
+.act-row{display:flex;align-items:flex-start;gap:10px;background:#f8f7f4;border:1.5px solid #e5e2db;border-radius:8px;padding:9px 11px;cursor:pointer;text-align:left}
+.act-row:hover{border-color:#0a8f49;background:#fffaf5}
+.act-rank{font-family:'DM Mono',monospace;font-size:.95rem;font-weight:700;color:#0a8f49;min-width:22px;padding-top:2px}
+.act-body{flex:1;min-width:0}
+.act-name{font-size:1.02rem;font-weight:700;color:#027539;line-height:1.28}
+.act-meta{font-size:.85rem;color:#4a453e;margin-top:3px;line-height:1.45}
+.act-dist{font-family:'DM Mono',monospace;font-size:.9rem;font-weight:500;color:#027539;white-space:nowrap;padding-top:2px}
+.act-tag{display:inline-block;font-size:.73rem;font-weight:700;letter-spacing:.03em;padding:2px 6px;border-radius:3px;margin-right:5px;margin-top:4px;background:#027539;color:#fff}
+.act-tag.alt{background:#0a8f49}
+
+#map{height:74vh;min-height:520px;width:100%}
+.layer-bar{display:flex;flex-wrap:wrap;gap:7px;align-items:center;padding:9px 14px;background:#fff;border-bottom:1.5px solid #e5e2db}
+.lb-label{font-size:.72rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em;color:#5f5a52;font-weight:500;margin-right:4px}
+.lbtn{--pc:#027539;border:1.5px solid var(--pc);background:#fff;color:var(--pc);border-radius:999px;padding:8px 13px;font-family:'DM Sans',sans-serif;font-size:.84rem;font-weight:700;cursor:pointer;line-height:1.05}
+.lbtn.on{background:var(--pc);color:#fff}
+.more{margin-top:9px;border:1.5px solid #e5e2db;border-radius:9px;background:#fbfaf8}
+.more summary{padding:9px 12px;font-size:.86rem;font-weight:700;color:#027539;cursor:pointer;list-style:none}
+.more summary::-webkit-details-marker{display:none}
+.more summary::after{content:' ▾';color:#0a8f49}
+.more[open] summary::after{content:' ▴'}
+.more-body{padding:2px 10px 10px}
+.more-body .field-row{margin-bottom:8px}
+.legend-bar.plain{padding:0;border:none;background:transparent;margin-bottom:8px}
+.key-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px 22px}
+.key-block.wide{grid-column:1/-1}
+.key-block h5{font-size:.72rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em;color:#5f5a52;margin-bottom:7px;font-weight:500}
+.key-row{display:flex;align-items:center;gap:9px;font-size:.86rem;color:#2f2b26;line-height:1.35;margin-bottom:6px}
+.key-sw{width:20px;height:13px;border-radius:3px;flex:0 0 auto}
+.key-lbl{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:900;color:#22521a;flex:0 0 auto}
+.key-pin{width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex:0 0 auto;position:relative}
+.key-pin.top{width:32px;height:32px;font-size:16px}
+.key-rank{position:absolute;top:-6px;right:-6px;background:#fff;color:#027539;border:1.5px solid #027539;border-radius:50%;width:15px;height:15px;font:700 9px/12px 'DM Mono',monospace;text-align:center}
+.key-cdl-pill{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:900;letter-spacing:.04em;color:#fff;background:#027539;border:2px solid #0a8f49;border-radius:999px;padding:4px 10px;text-transform:uppercase;flex:0 0 auto}
+.key-cdl{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.02em;flex:0 0 auto}
+.key-ring{width:22px;height:22px;border-radius:50%;background:#fff;border:4px solid #027539;flex:0 0 auto;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.key-dot{width:16px;height:16px;border-radius:50%;background:#027539;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);flex:0 0 auto}
+.key-icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px}
+.key-ico{display:flex;align-items:center;gap:8px;font-size:.85rem;color:#2f2b26}
+.key-ico b{display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;border-radius:50%;font-size:12px;font-weight:400;flex:0 0 auto}
+.key-note{margin-top:12px;padding-top:10px;border-top:1px solid #e5e2db}
+.act-bar{background:#fff;border-bottom:1.5px solid #e5e2db;padding:8px 14px 10px}
+.act-bar-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.act-toggles{display:flex;flex-wrap:wrap;gap:6px}
+.lbtn.tiny{padding:6px 11px;font-size:.76rem;--pc:#6b6760}
+.scope-bar{display:none;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+.scope-bar.on{display:flex}
+.sbtn{border:1.5px solid #027539;background:#fff;color:#027539;border-radius:999px;padding:7px 14px;font:700 .82rem 'DM Sans',sans-serif;cursor:pointer;line-height:1.1}
+.sbtn.on{background:#027539;color:#fff}
+.sbtn:hover{border-color:#0a8f49}
+body.embed .scope-bar{margin-bottom:7px}
+.tbtn{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border:1.5px solid #e5e2db;border-radius:999px;background:#fff;cursor:pointer;font:700 .82rem 'DM Sans',sans-serif;color:#027539;line-height:1.1}
+.tbtn .gy{display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;border-radius:50%;font-size:12px;flex:0 0 auto}
+.tbtn .n{font:.74rem 'DM Mono',monospace;color:#6b6760}
+.tbtn.off{opacity:.42}
+.tbtn:hover{border-color:#0a8f49}
+.tbtn.all{background:#027539;color:#fff;border-color:#027539}
+.tbtn.all .n{color:rgba(255,255,255,.72)}
+.tbtn.all.dim{opacity:.45}
+.legend-bar{display:flex;flex-wrap:wrap;gap:10px 16px;padding:9px 14px;background:#fff;border-bottom:1.5px solid #e5e2db;font-size:.84rem;color:#2f2b26;font-weight:500;align-items:center}
+.lg{display:inline-flex;align-items:center;gap:6px}
+.lgs{width:14px;height:10px;border-radius:2px;display:inline-block}
+.note-bar{padding:13px 14px;font-size:.86rem;color:#4a453e;background:#fff;border-top:1.5px solid #e5e2db;line-height:1.6}
+.note-bar a{color:#0a8f49;font-weight:700;text-decoration:none}
+.defs{background:#fff;border-top:1.5px solid #e5e2db}
+.defs summary{padding:14px;font-size:.95rem;font-weight:700;cursor:pointer;color:#027539}
+.defs-body{padding:0 14px 16px;font-size:.9rem;color:#3a352e;line-height:1.65}
+.defs-body p{margin-bottom:8px}
+.fac-pin{width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px rgba(255,255,255,.95),0 1px 4px rgba(13,27,75,.4);display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;position:relative}
+.fac-pin.top{width:32px;height:32px;font-size:16px;margin:-2px}
+.fac-rank{position:absolute;top:-6px;right:-6px;background:#fff;color:#027539;border:1.5px solid currentColor;border-radius:50%;width:15px;height:15px;font:700 9px/12px 'DM Mono',monospace;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.cd-label{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;letter-spacing:.01em;opacity:.72;
+  text-shadow:0 0 4px #fff,0 0 4px #fff,0 0 4px #fff,0 0 4px #fff;white-space:nowrap;
+  transform:translate(-50%,-50%);pointer-events:none;line-height:1.1;text-transform:uppercase}
+.cd-label.sel{font-size:12.5px;font-weight:900;letter-spacing:.04em;opacity:1;color:#fff;
+  background:#027539;border:2px solid #0a8f49;border-radius:999px;padding:5px 12px;
+  text-shadow:none;box-shadow:0 0 0 2px rgba(255,255,255,.95),0 2px 6px rgba(13,27,75,.35)}
+.pk-label{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:900;color:#22521a;text-shadow:0 0 4px #fff,0 0 4px #fff,0 0 4px #fff,0 0 4px #fff;white-space:nowrap;transform:translate(-50%,-50%);pointer-events:none;line-height:1.1;letter-spacing:-.005em}
+.pk-label.has{color:#14400c}
+.pk-pop{font-family:'DM Sans',sans-serif;min-width:190px}
+.pk-pop h4{font-size:1.08rem;color:#027539;margin-bottom:4px;line-height:1.25;font-weight:900}
+.pk-pop .sub{font-size:.84rem;color:#4a453e;margin-bottom:9px;line-height:1.45}
+.pk-pop .acts{display:flex;flex-wrap:wrap;gap:4px}
+.pk-pop .acts b{font-size:.78rem;font-weight:700;background:#3f7d24;color:#fff;padding:3px 8px;border-radius:4px}
+.pk-pop .none{font-size:.84rem;color:#6b6760;font-style:italic;line-height:1.45}
+@media(max-width:640px){
+  #map{height:68vh;min-height:430px}
+  .field{flex:1 1 100%}
+  .field-row .btn{flex:1 1 calc(50% - 4px)}
+  .top-txt h1{font-size:.92rem}
+}
+body.embed .top-bar,body.embed .more,body.embed #map-key,body.embed .note-bar,body.embed .embed-fab{display:none}
+body.embed .panel .field-row.compact{gap:6px;margin-bottom:7px}
+body.embed .field label{font-size:.62rem}
+body.embed .field select,body.embed .field input{padding:9px 10px;font-size:.92rem}
+body.embed .btn{padding:10px 13px;font-size:.86rem}
+body.embed .result-bar{padding:10px 12px;font-size:.92rem}
+body.embed .panel{padding:8px 10px;border-bottom:1.5px solid #e5e2db}
+body.embed .more{display:block;border:none;background:transparent;margin-top:0}
+body.embed .more summary{display:none}
+body.embed .more-body{padding:0}
+body.embed .layer-bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 0 7px}
+/* Embedded on a district or borough page, the only layer worth a control is
+   the markets one; parks and district lines are the point of the map. */
+body.embed .layer-bar .lb-label,body.embed #tg-parks,body.embed #tg-cds{display:none}
+body.embed .more-body .field-row{display:none}
+body.embed.boro .more-body .field-row{display:flex;margin-bottom:7px}
+body.embed.boro .more-body .field-row .btn.ghost,body.embed.boro .more-body .field-row .field:first-child{display:none}
+body.embed .act-bar{padding:0}
+body.embed .act-toggles{max-height:64px;overflow-y:auto}
+body.embed #map{height:calc(100vh - 190px);min-height:300px}
+body.embed .act-panel{max-height:none}
+body.embed .act-list{max-height:190px}
+body.embed .embed-title{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+body.embed .embed-title img{width:24px;height:24px;border-radius:5px}
+body.embed .embed-title strong{font-size:.9rem;color:#027539}
+body.embed .embed-title a{margin-left:auto;font-size:.76rem;font-weight:700;color:#0a8f49;text-decoration:none;white-space:nowrap}
+.embed-title{display:none}
+.embed-fab{position:fixed;bottom:20px;right:20px;z-index:9000;background:#027539;color:#fff;border:none;border-radius:50px;padding:10px 16px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.embed-fab:hover{background:#1a2d6b}
+.embed-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px}
+.embed-modal-bg.open{display:flex}
+.embed-modal{background:#fff;border-radius:12px;padding:24px;max-width:520px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.embed-modal h3{font-size:1rem;font-weight:700;color:#027539;margin-bottom:6px}
+.embed-modal p{font-size:.82rem;color:#6b6760;margin-bottom:14px;line-height:1.5}
+.embed-url-row{display:flex;gap:8px;margin-bottom:16px}
+.embed-url-box{flex:1;padding:8px 10px;border:1.5px solid #e5e2db;border-radius:6px;font-size:.78rem;font-family:'DM Mono',monospace;color:#027539;background:#f8f7f4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.embed-copy-btn{padding:8px 14px;background:#0a8f49;color:#fff;border:none;border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif}
+.embed-close{width:100%;padding:10px;background:#f8f7f4;border:1.5px solid #e5e2db;border-radius:6px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;color:#027539}
+
+.mkt-pin{width:26px;height:26px;border-radius:50%;background:#fff;border:2px solid #c1121f;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+</style>
+<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b6e9b47ba0cf416388d72db8edaf4198"}'></script><!-- End Cloudflare Web Analytics -->
+</head>
+<body>
+<div id="bkapp-bar" style="display:flex;align-items:center;gap:9px;background:#1a3a6b;border-bottom:4px solid #f2c84b;padding:9px 14px;font-family:'DM Sans',system-ui,sans-serif">
+<a href="/bk/" style="display:flex;align-items:center;gap:9px;text-decoration:none"><img src="/brooklyn-seal.png" alt="" style="width:28px;height:28px"><span style="color:#fff;font-weight:900;font-size:.95rem;letter-spacing:-.01em">Brooklyn Civic</span></a>
+<a href="/bk/directory.html" style="margin-left:auto;color:#f2c84b;text-decoration:none;font-family:'DM Mono',monospace;font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em">Directory</a>
+</div>
+
+<div class="top-bar">
+  <img class="top-logo" src="/site-icons/nyc-parks.png" alt="NYC Parks"/>
+  <div class="top-txt">
+    <h1>NYC Parks Activities Map</h1>
+    <p>Every park, every community district</p>
+  </div>
+  <a class="back-link" href="/parks/">Parks hub</a>
+</div>
+
+<div class="panel">
+  <div class="embed-title">
+    <img src="/site-icons/nyc-parks.png" alt="NYC Parks"/>
+    <strong id="embed-heading">Parks and activities</strong>
+    <a id="embed-full" href="/bk/activities.html" target="_blank" rel="noopener">Open full map →</a>
+  </div>
+  <div class="scope-bar" id="scope-bar">
+    <span class="lb-label">Showing</span>
+    <button class="sbtn on" id="sc-district" onclick="setScope('district')">District</button>
+    <button class="sbtn" id="sc-borough" onclick="setScope('borough')">Borough</button>
+    <button class="sbtn" id="sc-city" onclick="setScope('city')">Citywide</button>
+  </div>
+  <div class="field-row compact">
+    <div class="field">
+      <label for="s-act-pick">Activity</label>
+      <select id="s-act-pick" onchange="pickActivity(this.value)">
+        <option value="">Choose an activity…</option>
+      </select>
+    </div>
+    <div class="field" style="flex:2 1 200px">
+      <label for="s-addr">Near this address</label>
+      <input id="s-addr" type="text" placeholder="Optional, ranks by distance"/>
+    </div>
+    <button class="btn" onclick="doSearch()">Search</button>
+    <button class="btn sec" onclick="findNearest()">Nearest to me</button>
+  </div>
+  <details class="more" id="more-filters">
+    <summary>District, layers and activity list</summary>
+    <div class="more-body">
+      <div class="field-row">
+        <div class="field">
+          <label for="s-boro">Borough</label>
+          <select id="s-boro" onchange="fillDistricts();rerun()">
+            <option value="">All boroughs</option>
+            <option value="1">Manhattan</option>
+            <option value="2">Bronx</option>
+            <option value="3">Brooklyn</option>
+            <option value="4">Queens</option>
+            <option value="5">Staten Island</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="s-cd">District</label>
+          <select id="s-cd" onchange="rerun()"><option value="">All districts</option></select>
+        </div>
+        <button class="btn ghost" onclick="resetView()">Reset everything</button>
+      </div>
+      <div class="layer-bar">
+        <span class="lb-label">Show</span>
+        <button class="lbtn on" id="tg-parks" style="--pc:#6cb33f" onclick="togParks(this)">Parks</button>
+        <button class="lbtn on" id="tg-cds" style="--pc:#027539" onclick="togCds(this)">District lines</button>
+      <button class="lbtn on" id="tg-mkts" style="--pc:#c1121f" onclick="togMkts(this)">Farmers markets</button>
+      </div>
+      <div class="act-bar">
+        <div class="act-bar-head">
+          <span class="lb-label">Activities</span>
+          <button class="lbtn tiny" onclick="clearActs()">Clear</button>
+        </div>
+        <div class="act-toggles" id="act-toggles"></div>
+      </div>
+    </div>
+  </details>
+</div>
+
+<div id="map"></div>
+
+<div class="result-bar" id="result-bar"></div>
+<div class="act-panel" id="act-panel">
+  <div class="act-head" id="act-head"></div>
+  <div class="act-list" id="act-list"></div>
+</div>
+
+<details class="defs" id="map-key" open>
+  <summary>Map key</summary>
+  <div class="defs-body">
+    <div class="key-grid">
+      <div class="key-block">
+        <h5>Shapes on the map</h5>
+        <div class="key-row"><span class="key-sw" style="background:#6cb33f;opacity:.6"></span>Park with a court, field, pool, skatepark or dog run</div>
+        <div class="key-row"><span class="key-sw" style="background:#cfe3bd;opacity:.7"></span>Other parkland</div>
+        <div class="key-row"><span class="key-sw" style="background:transparent;border:1.5px solid #027539"></span>Community district boundary</div>
+        <div class="key-row"><span class="key-sw" style="background:transparent;border:2.5px solid #0a8f49"></span>The district you picked</div>
+        <div class="key-row"><span class="key-lbl">Carroll Park</span>Park name, appears at zoom 12 and in</div>
+        <div class="key-row"><span class="key-cdl-pill">Brooklyn CB6</span>The district you picked</div>
+        <div class="key-row"><span class="key-cdl" style="color:#0a8f49">Brooklyn CB2</span>Other districts, in the borough color</div>
+      </div>
+      <div class="key-block">
+        <h5>Pins on the map</h5>
+        <div class="key-row"><span class="key-pin" style="background:#1f6feb;border-color:#0a8f49">&#127934;</span>An activity location. The fill and icon are the activity, the ring is the borough.</div>
+        <div class="key-row"><span class="key-pin top" style="background:#0ea5c6;border-color:#0a8f49">&#127946;<span class="key-rank">1</span></span>One of the twelve closest when results are ranked. The number matches the list.</div>
+        <div class="key-row"><span class="key-dot"></span>Your starting point, from an address or your location</div>
+      </div>
+      <div class="key-block">
+        <h5>Ring color is the borough</h5>
+        <div class="key-row"><span class="key-ring" style="border-color:#027539"></span>Manhattan</div>
+        <div class="key-row"><span class="key-ring" style="border-color:#c62828"></span>Bronx</div>
+        <div class="key-row"><span class="key-ring" style="border-color:#0a8f49"></span>Brooklyn</div>
+        <div class="key-row"><span class="key-ring" style="border-color:#2e9e6b"></span>Queens</div>
+        <div class="key-row"><span class="key-ring" style="border-color:#7e57c2"></span>Staten Island</div>
+      </div>
+      <div class="key-block wide">
+        <h5>Fill color and icon are the activity</h5>
+        <div class="key-icons" id="key-icons"></div>
+      </div>
+    </div>
+    <p class="key-note">Zoom in and the activity icons appear on their own. Click a park for everything it holds. Turn on an activity to map every place you can do it citywide. District lines do not limit the results, so if the nearest court is a district over, it still comes up first.</p>
+  </div>
+</details>
+
+<details class="defs">
+  <summary>What is on this map</summary>
+  <div class="defs-body">
+    <p>Park shapes come from the NYC Parks Properties dataset, 2,058 properties citywide. District lines are the Department of City Planning community district boundaries.</p>
+    <p>Activity locations come from four NYC Parks datasets on NYC Open Data: Athletic Facilities, Pools, SkateParks, and Dog Runs. Each is matched to its community district by mapped boundary rather than by the agency's own district field, which contains errors.</p>
+    <p>Lap Swimming covers Olympic, Intermediate, and Large pools. Wading and mini pools are listed separately. Pools are marked indoor or outdoor.</p>
+    <p>NYC Parks records cover the parks it runs. Nine major parks are run by someone else, so their courts and fields never reach the agency data: Brooklyn Bridge Park, Hudson River Park, Battery Park City, The Battery, Governors Island, Bryant Park, Domino Park, Riverbank State Park and Roosevelt Island. Those are filled in here from OpenStreetMap and marked with who runs them. School gyms, private clubs, and YMCA facilities are still not covered.</p>
+    <p><a href="/parks/">Parks and activities hub →</a> &nbsp;|&nbsp; <a href="/bk/parks.html">CB6 parks map →</a></p>
+  </div>
+</details>
+
+<div class="note-bar" id="note">Loading parks, districts, and activity data…</div>
+
+<script>
+// Build stamp so a parent page can tell whether it got a stale cached copy.
+window.BKCB6_BUILD='798';
+var map=L.map('map',{scrollWheelZoom:true,preferCanvas:true}).setView([40.706,-73.94],11);
+// In an iframe the container can still be sizing when the first fit runs, which
+// makes Leaflet pick a near-minimum zoom. Keep the last fit and re-apply it.
+var lastFit=null;
+function fitTo(bounds,opts){
+  if(!bounds)return;
+  lastFit={b:bounds,o:opts||{}};
+  try{map.fitBounds(bounds,opts);}catch(e){}
+}
+function refit(){
+  try{map.invalidateSize();}catch(e){}
+  if(lastFit){try{map.fitBounds(lastFit.b,lastFit.o);}catch(e){}}
+}
+window.addEventListener('load',function(){setTimeout(refit,120);setTimeout(refit,600);});
+if(window.ResizeObserver){
+  try{new ResizeObserver(function(){refit();}).observe(document.getElementById('map'));}catch(e){}
+}
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'&copy; CARTO | NYC Parks, NYC Open Data',subdomains:'abcd',maxZoom:19}).addTo(map);
+
+var ACT_LABELS={'BKB':'Basketball','HDB':'Handball','TNS':'Tennis','PKB':'Pickleball','VLB':'Volleyball','BOC':'Bocce','HKY':'Hockey','BSB':'Baseball','SFB':'Softball','SCR':'Soccer','FTB':'Football','CRK':'Cricket','RGB':'Rugby','LAX':'Lacrosse','KCK':'Kickball','NET':'Netball','FRS':'Frisbee','TRK':'Running Track','MPP':'Multi-Purpose','SWM':'Lap Swimming','WAD':'Wading Pool','SKT':'Skateboarding','DOG':'Dog Run'};
+var BORO_NAMES={'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
+// District mode: dist=cd33 | ad44 | sd20 | ny10 scopes everything to that district's
+// boundary from the Department of City Planning, by point in polygon.
+var DIST=null;
+var DIST_SRC={cd:['data/city-council-districts-wgs84.geojson','CounDist','Council District %n'],ad:['data/assembly-districts.geojson','ad','Assembly District %n'],sd:['data/senate-districts.geojson','sd','Senate District %n'],ny:['data/congressional-districts.geojson','cong_dist','NY-%n']};
+function pipRing(pt,ring){var x=pt[0],y=pt[1],ins=false;for(var i=0,j=ring.length-1;i<ring.length;j=i++){var xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))ins=!ins;}return ins;}
+function pipGeom(pt,g){var polys=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];for(var p=0;p<polys.length;p++){if(!pipRing(pt,polys[p][0]))continue;var hole=false;for(var h=1;h<polys[p].length;h++)if(pipRing(pt,polys[p][h])){hole=true;break;}if(!hole)return true;}return false;}
+function inDist(lat,lng){return !!(DIST&&pipGeom([+lng,+lat],DIST.geom));}
+function inBoro(r,boro){if(DIST)return !!r._in;return String(r.c).charAt(0)===boro;}
+function loadDist(){
+  var v=new URLSearchParams(window.location.search).get('dist')||'';
+  var m=v.match(/^(cd|ad|sd|ny)(\d+)$/);
+  if(!m)return Promise.resolve(null);
+  var src=DIST_SRC[m[1]],num=parseInt(m[2],10);
+  return fetch(src[0]).then(function(r){return r.json();}).then(function(g){
+    var f=g.features.filter(function(x){return parseInt(x.properties[src[1]],10)===num;})[0];
+    if(!f)return null;
+    DIST={key:v,type:m[1],num:num,label:src[2].replace('%n',num),geom:f.geometry};
+    return DIST;
+  }).catch(function(){return null;});
+}
+var BORO_KEY={'1':'MN','2':'BX','3':'BK','4':'QN','5':'SI'};
+// One flat color per borough, matching the palette used elsewhere on the site
+var BORO_COLORS={'1':'#027539','2':'#c62828','3':'#0a8f49','4':'#2e9e6b','5':'#7e57c2'};
+var ACT_ICONS={'BKB':'\uD83C\uDFC0','HDB':'\uD83E\uDD3E','TNS':'\uD83C\uDFBE','PKB':'\uD83C\uDFD3','VLB':'\uD83C\uDFD0','BOC':'\uD83C\uDFB1','HKY':'\uD83C\uDFD2','BSB':'\u26BE','SFB':'\uD83E\uDD4E','SCR':'\u26BD','FTB':'\uD83C\uDFC8','CRK':'\uD83C\uDFCF','RGB':'\uD83C\uDFC9','LAX':'\uD83E\uDD4D','KCK':'\uD83D\uDC5F','NET':'\uD83E\uDD45','FRS':'\uD83E\uDD4F','TRK':'\uD83C\uDFC3','MPP':'\uD83C\uDFDF','SWM':'\uD83C\uDFCA','WAD':'\uD83D\uDCA6','SKT':'\uD83D\uDEF9','DOG':'\uD83D\uDC15'};
+var ACT_COLORS={
+  'BKB':'#1f6feb','HDB':'#1f6feb','TNS':'#1f6feb','PKB':'#1f6feb','VLB':'#1f6feb','BOC':'#1f6feb','HKY':'#1f6feb',
+  'BSB':'#2e9e6b','SFB':'#2e9e6b','SCR':'#2e9e6b','FTB':'#2e9e6b','CRK':'#2e9e6b','RGB':'#2e9e6b','LAX':'#2e9e6b','KCK':'#2e9e6b','NET':'#2e9e6b','FRS':'#2e9e6b','MPP':'#2e9e6b',
+  'TRK':'#d98b00','SWM':'#0ea5c6','WAD':'#0ea5c6','SKT':'#7e57c2','DOG':'#8d6e63'
+};
+var ACT_FAMILY={'court':'Courts','field':'Fields and tracks','water':'Water','wheels':'Skating','dogs':'Dogs'};
+function boroColor(c){return BORO_COLORS[String(c||'').charAt(0)]||'#027539';}
+function actColor(code){return ACT_COLORS[code]||'#7bc043';}
+// The pin fills with the activity color and rings in the borough color, the
+// same convention the culture map uses.
+function actColorFor(codes,r){
+  for(var i=0;i<codes.length;i++){if(r.a.indexOf(codes[i])!==-1&&ACT_COLORS[codes[i]])return ACT_COLORS[codes[i]];}
+  for(var j=0;j<r.a.length;j++){if(ACT_COLORS[r.a[j]])return ACT_COLORS[r.a[j]];}
+  return '#7bc043';
+}
+function actIcon(codes,r){
+  for(var i=0;i<codes.length;i++){if(r.a.indexOf(codes[i])!==-1&&ACT_ICONS[codes[i]])return ACT_ICONS[codes[i]];}
+  for(var j=0;j<r.a.length;j++){if(ACT_ICONS[r.a[j]])return ACT_ICONS[r.a[j]];}
+  return '\uD83D\uDCCD';
+}
+var HOME=[[40.49,-74.27],[40.92,-73.68]];
+
+var recData=null,cdLookup={},parkLayer=null,parkGeo=null,labelGroup=null,cdLayer=null,recLayer=null,searchMarker=null,topResults=[],cdIndex={};
+var showParks=true,showNames=true,showCds=true,onlyAct=false,lastOrigin=null,lastOriginLabel='',browseLayer=null,cdGeo=null,cdLabelGroup=null;
+
+function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function showResult(html){var b=document.getElementById('result-bar');b.style.display='block';b.innerHTML=html;}
+
+var JIA_NAMES={'164':'Central Park','226':'Van Cortlandt Park','227':'Bronx Park','228':'Pelham Bay Park','355':'Prospect Park','481':'Flushing Meadows Corona Park','482':'Forest Park','595':'Staten Island shorefront parkland'};
+function cdLabel(c){
+  c=String(c||'');
+  if(c.length!==3)return '';
+  var b=BORO_NAMES[c.charAt(0)];
+  if(!b)return '';
+  var n=parseInt(c.substring(1),10);
+  if(n>18)return JIA_NAMES[c]||(b+' parkland');
+  return b+' CB'+n;
+}
+function cdNeighborhoods(c){
+  c=String(c||'');
+  var k=BORO_KEY[c.charAt(0)];
+  if(!k)return '';
+  var r=cdLookup[k+'CB'+parseInt(c.substring(1),10)];
+  return (r&&r.se&&r.se.length)?r.se.join(', '):'';
+}
+function milesBetween(aLat,aLng,bLat,bLng){
+  var R=3958.8,t=Math.PI/180;
+  var dLat=(bLat-aLat)*t,dLng=(bLng-aLng)*t;
+  var h=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(aLat*t)*Math.cos(bLat*t)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
+}
+function fmtDist(mi){return mi<0.19?Math.round(mi*5280)+' ft':mi.toFixed(1)+' mi';}
+function recDetail(r){
+  var b=[];
+  if(r.op)b.push('run by '+r.op);
+  if(r.pt)b.push(r.pt+(r['in']?' · indoor':' · outdoor'));
+  if(r.dt&&r.dt!=='Dog Run')b.push(r.dt);
+  if(r.sf)b.push(r.sf);
+  if(r._ct>1)b.push(r._ct+' courts or fields');
+  if(r.lt)b.push('lighted');
+  if(r.ac)b.push('accessible');
+  if(r.ad)b.push(r.ad);
+  return b.join(' · ');
+}
+
+// ---------- base layers ----------
+function buildCdLabels(){
+  if(cdLabelGroup){map.removeLayer(cdLabelGroup);cdLabelGroup=null;}
+  if(!cdGeo||!showCds)return;
+  var z=map.getZoom();
+  if(z<10)return;
+  var b=map.getBounds();
+  cdLabelGroup=L.layerGroup();
+  var sel=document.getElementById('s-cd').value;
+  cdGeo.features.forEach(function(f){
+    var c=String(f.properties.c);
+    var isSel=(c===sel);
+    if(!isSel&&z<11)return;
+    var pt=labelPoint(f);
+    if(!pt)return;
+    if(!isSel&&!b.contains(pt))return;
+    var n=parseInt(c.substring(1),10);
+    // Large parks only get a label when they have a name worth showing
+    if(n>18&&!JIA_NAMES[c])return;
+    if(n>18&&!isSel&&z<12)return;
+    var txt=cdLabel(c);
+    if(!txt)return;
+    var col=boroColor(c);
+    var style=isSel?'':' style="color:'+col+'"';
+    L.marker(pt,{
+      icon:L.divIcon({className:'',html:'<div class="cd-label'+(isSel?' sel':'')+'"'+style+'>'+escH(txt)+'</div>',iconSize:[0,0],iconAnchor:[0,0]}),
+      interactive:false,zIndexOffset:-100
+    }).addTo(cdLabelGroup);
+  });
+  cdLabelGroup.addTo(map);
+}
+
+function drawDistricts(geo){
+  cdGeo=geo;
+  cdLayer=L.geoJSON(geo,{
+    style:function(){return{color:'#027539',weight:1,opacity:.55,fill:true,fillOpacity:0,fillColor:'#027539'};},
+    onEachFeature:function(f,l){
+      cdIndex[f.properties.c]=l;
+      var lbl=cdLabel(f.properties.c);
+      var nb=cdNeighborhoods(f.properties.c);
+      l.bindTooltip('<strong>'+escH(lbl)+'</strong>'+(nb?'<br><span style="font-size:.72rem;color:#555">'+escH(nb)+'</span>':''),{sticky:true,opacity:1});
+    }
+  }).addTo(map);
+}
+// Label the biggest parks first and only as many as the zoom level can carry,
+// so names stay readable instead of stacking on top of each other.
+var LABEL_RULES=[
+  {z:12,min:60,cap:14},
+  {z:13,min:20,cap:20},
+  {z:14,min:4,cap:26},
+  {z:15,min:1.2,cap:34},
+  {z:16,min:.35,cap:44},
+  {z:17,min:0,cap:60}
+];
+function labelRule(z){
+  var r=LABEL_RULES[0];
+  for(var i=0;i<LABEL_RULES.length;i++){if(z>=LABEL_RULES[i].z)r=LABEL_RULES[i];}
+  return r;
+}
+function buildParkLabels(){
+  if(labelGroup){map.removeLayer(labelGroup);labelGroup=null;}
+  if(!parkGeo||!showNames||!showParks)return;
+  var z=map.getZoom();
+  if(z<12)return;
+  var rule=labelRule(z);
+  var b=map.getBounds();
+  var cand=[];
+  parkGeo.features.forEach(function(f){
+    var p=f.properties;
+    if(!p.n)return;
+    if(onlyAct&&!(p.a&&p.a.length))return;
+    var ac=parseFloat(p.ac)||0;
+    if(ac<rule.min)return;
+    var c=labelPoint(f);
+    if(!c||!b.contains(c))return;
+    cand.push({n:p.n,c:c,ac:ac,has:!!(p.a&&p.a.length)});
+  });
+  cand.sort(function(x,y){return y.ac-x.ac;});
+  labelGroup=L.layerGroup();
+  var shown={},placed=[],n=0;
+  // Rough collision test in screen pixels so labels do not pile up
+  var minGapY=16,perChar=6.1;
+  for(var i=0;i<cand.length&&n<rule.cap;i++){
+    var it=cand[i];
+    if(shown[it.n])continue;
+    var pt=map.latLngToLayerPoint(it.c);
+    var halfW=(it.n.length*perChar)/2;
+    var clash=false;
+    for(var j=0;j<placed.length;j++){
+      if(Math.abs(pt.y-placed[j].y)<minGapY&&Math.abs(pt.x-placed[j].x)<(halfW+placed[j].hw+6)){clash=true;break;}
+    }
+    if(clash)continue;
+    placed.push({x:pt.x,y:pt.y,hw:halfW});
+    shown[it.n]=1;n++;
+    L.marker(it.c,{
+      icon:L.divIcon({className:'',html:'<div class="pk-label'+(it.has?' has':'')+'">'+escH(it.n)+'</div>',iconSize:[0,0],iconAnchor:[0,0]}),
+      interactive:false,zIndexOffset:-200
+    }).addTo(labelGroup);
+  }
+  labelGroup.addTo(map);
+}
+
+function parkStyle(f){
+  var has=f.properties.a&&f.properties.a.length;
+  if(onlyAct&&!has)return{opacity:0,fillOpacity:0,weight:0,interactive:false};
+  return{color:'#ffffff',weight:.6,fillColor:has?'#7bc043':'#d8ecc4',fillOpacity:has?.6:.55};
+}
+function refreshParks(){
+  if(parkLayer)parkLayer.setStyle(parkStyle);
+  buildParkLabels();
+}
+// Farmers markets, from the DOHMH list on NYC Open Data. Drawn as their own
+// layer rather than an activity, because going to a market is not a sport.
+var mktLayer=null, mktData=null, showMkts=true;
+function drawMarkets(list){
+  mktData=list;
+  refreshMarkets();
+}
+// Markets belong to the scope you are looking at, the same as everything else:
+// a district view shows that district's markets, a borough view the borough's.
+function marketsInScope(){
+  if(!mktData)return [];
+  var cd=document.getElementById('s-cd').value;
+  var boro=document.getElementById('s-boro').value;
+  return mktData.filter(function(m){
+    if(DIST)return !!m._in;
+    if(cd)return m.c===cd;
+    if(boro)return String(m.c).charAt(0)===boro;
+    return true;
+  });
+}
+function refreshMarkets(){
+  if(mktLayer){map.removeLayer(mktLayer);mktLayer=null;}
+  if(!mktData)return;
+  var list=marketsInScope();
+  mktLayer=L.layerGroup();
+  list.forEach(function(m){
+    var when=[m.d,m.h].filter(Boolean).join(', ');
+    var tags=[];
+    if(m.yr)tags.push('open year round');
+    if(m.ebt)tags.push('accepts EBT');
+    L.marker([m.y,m.x],{icon:L.divIcon({className:'',
+      html:'<div class="mkt-pin">\uD83E\uDD55</div>',iconSize:[26,26],iconAnchor:[13,13]})})
+     .bindPopup('<div class="pk-pop"><h4>'+escH(m.n)+'</h4><div class="sub">'+
+       escH(m.ad||'')+(when?'<br>'+escH(when):'')+
+       (tags.length?'<br>'+escH(tags.join(' \u00b7 ')):'')+'</div></div>')
+     .addTo(mktLayer);
+  });
+  var btn=document.getElementById('tg-mkts');
+  if(btn)btn.textContent='Farmers markets'+(list.length?' ('+list.length+')':'');
+  if(showMkts&&list.length)mktLayer.addTo(map);
+}
+function togMkts(btn){
+  showMkts=!showMkts;btn.classList.toggle('on',showMkts);
+  if(mktLayer){showMkts?mktLayer.addTo(map):map.removeLayer(mktLayer);}
+}
+function togParks(btn){
+  showParks=!showParks;btn.classList.toggle('on',showParks);
+  if(parkLayer){showParks?parkLayer.addTo(map):map.removeLayer(parkLayer);}
+  buildParkLabels();
+}
+function togCds(btn){
+  showCds=!showCds;btn.classList.toggle('on',showCds);
+  if(cdLayer){showCds?cdLayer.addTo(map):map.removeLayer(cdLayer);}
+  buildCdLabels();
+}
+function labelPoint(f){
+  if(f._lp!==undefined)return f._lp;
+  var best=null,bestA=-1;
+  function ring(r){
+    var minx=180,maxx=-180,miny=90,maxy=-90;
+    for(var i=0;i<r.length;i++){var x=r[i][0],y=r[i][1];
+      if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;}
+    var a=(maxx-minx)*(maxy-miny);
+    if(a>bestA){bestA=a;best=[(miny+maxy)/2,(minx+maxx)/2];}
+  }
+  var g=f.geometry;
+  if(!g)return (f._lp=null);
+  if(g.type==='Polygon')ring(g.coordinates[0]);
+  else if(g.type==='MultiPolygon')g.coordinates.forEach(function(p){ring(p[0]);});
+  f._lp=best?L.latLng(best[0],best[1]):null;
+  return f._lp;
+}
+
+function drawParks(geo){
+  parkGeo=geo;
+  parkLayer=L.geoJSON(geo,{
+    style:parkStyle,
+    onEachFeature:function(f,l){
+      var p=f.properties;
+      l.bindPopup(function(){
+        var h='<div class="pk-pop"><h4>'+escH(p.n)+'</h4><div class="sub">'+
+          escH([p.t,(p.ac?parseFloat(p.ac).toFixed(1)+' acres':''),p.op?('run by '+p.op):''].filter(Boolean).join(' · '))+
+          (p.ad?'<br>'+escH(p.ad):'')+'</div>';
+        if(p.a&&p.a.length){
+          h+='<div class="acts">';
+          p.a.forEach(function(a){h+='<b>'+escH(ACT_LABELS[a]||a)+'</b>';});
+          h+='</div>';
+        } else {
+          h+='<div class="none">No athletic facility, pool, skatepark, or dog run recorded here.</div>';
+        }
+        return h+'</div>';
+      },{maxWidth:280});
+    }
+  }).addTo(map);
+}
+
+// ---------- activity search ----------
+function fillDistricts(){
+  var b=document.getElementById('s-boro').value;
+  var sel=document.getElementById('s-cd');
+  sel.innerHTML='<option value="">All districts</option>';
+  if(!b||!recData)return;
+  var codes={},parks={};
+  recData.forEach(function(r){
+    var c=String(r.c);
+    if(c.charAt(0)!==b)return;
+    if(parseInt(c.substring(1),10)<=18)codes[c]=1;else parks[c]=1;
+  });
+  Object.keys(codes).sort(function(x,y){return parseInt(x.substring(1),10)-parseInt(y.substring(1),10);}).forEach(function(c){
+    var o=document.createElement('option');o.value=c;o.textContent='CB'+parseInt(c.substring(1),10);sel.appendChild(o);
+  });
+  Object.keys(parks).sort().forEach(function(c){
+    var o=document.createElement('option');o.value=c;o.textContent=cdLabel(c);sel.appendChild(o);
+  });
+}
+function collapse(rows){
+  var seen={},out=[];
+  rows.forEach(function(r){
+    var k=r.n+'|'+(r.ad||'')+'|'+r.c;
+    if(seen[k]){seen[k]._ct++;return;}
+    var c={};for(var p in r)c[p]=r[p];
+    c._ct=1;seen[k]=c;out.push(c);
+  });
+  return out;
+}
+function highlightDistrict(cd){
+  setTimeout(buildCdLabels,0);
+  Object.keys(cdIndex).forEach(function(k){
+    cdIndex[k].setStyle(k===cd?{color:'#0a8f49',weight:2.5,opacity:1}:{color:'#027539',weight:1,opacity:.55});
+  });
+}
+// ---------- activity toggles ----------
+var ACT_ORDER=['BKB','HDB','TNS','PKB','VLB','BOC','HKY','BSB','SFB','SCR','FTB','CRK','RGB','LAX','KCK','NET','FRS','TRK','MPP','SWM','WAD','SKT','DOG'];
+var actOn={};
+
+function buildActToggles(){
+  var counts={};
+  recData.forEach(function(r){r.a.forEach(function(a){counts[a]=(counts[a]||0)+1;});});
+  var pick=document.getElementById('s-act-pick');
+  pick.innerHTML='<option value="">Choose an activity…</option>';
+  ACT_ORDER.forEach(function(code){
+    if(!counts[code])return;
+    var o=document.createElement('option');
+    o.value=code;o.textContent=(ACT_ICONS[code]?ACT_ICONS[code]+' ':'')+ACT_LABELS[code];
+    pick.appendChild(o);
+  });
+  var wrap=document.getElementById('act-toggles');
+  wrap.innerHTML='<button class="tbtn all" id="ta-all" onclick="clearActs()">All activities</button>';
+  ACT_ORDER.forEach(function(code){
+    if(!counts[code])return;
+    var b=document.createElement('button');
+    // Nothing selected means every activity is shown, the same state
+    // clearActs() produces. Only grey a chip once a filter is actually on,
+    // otherwise the map reads as empty before anyone has touched it.
+    var anyOn=ACT_ORDER.some(function(c){return actOn[c];});
+    b.className='tbtn'+((anyOn && !actOn[code])?' off':'');
+    b.id='ta-'+code;
+    b.innerHTML='<span class="gy" style="background:'+actColor(code)+'">'+(ACT_ICONS[code]||'')+'</span>'+
+                escH(ACT_LABELS[code]);
+    b.onclick=function(){togAct(code);};
+    wrap.appendChild(b);
+  });
+}
+function togAct(code){
+  actOn[code]=!actOn[code];
+  var b=document.getElementById('ta-'+code);
+  if(b)b.classList.toggle('off',!actOn[code]);
+  syncAllChip();
+  runActivities();
+}
+function buildKeyIcons(){
+  var counts={};
+  recData.forEach(function(r){r.a.forEach(function(a){counts[a]=(counts[a]||0)+1;});});
+  var h='';
+  ACT_ORDER.forEach(function(c){
+    if(!counts[c])return;
+    h+='<span class="key-ico"><b style="background:'+actColor(c)+'">'+(ACT_ICONS[c]||'')+'</b>'+escH(ACT_LABELS[c])+'</span>';
+  });
+  document.getElementById('key-icons').innerHTML=h;
+}
+function pickActivity(code){
+  if(!code)return;
+  actOn={};
+  ACT_ORDER.forEach(function(c){var b=document.getElementById('ta-'+c);if(b)b.classList.remove('on');});
+  actOn[code]=true;
+  ACT_ORDER.forEach(function(c){var t=document.getElementById('ta-'+c);if(t)t.classList.toggle('off',c!==code);});
+  syncAllChip();
+  doSearch();
+}
+function clearActs(){
+  actOn={};
+  document.getElementById('s-act-pick').value='';
+  ACT_ORDER.forEach(function(c){var b=document.getElementById('ta-'+c);if(b)b.classList.remove('off');});
+  syncAllChip();
+  runActivities();
+}
+function syncAllChip(){
+  var a=document.getElementById('ta-all');
+  if(a)a.classList.toggle('dim',activeActs().length>0);
+}
+function activeActs(){return ACT_ORDER.filter(function(c){return actOn[c];});}
+function actListLabel(codes){
+  if(codes.length===1)return ACT_LABELS[codes[0]];
+  if(codes.length===2)return ACT_LABELS[codes[0]]+' and '+ACT_LABELS[codes[1]];
+  return codes.length+' activities';
+}
+
+// Two parks CB6 uses that the city files place elsewhere: Prospect Park sits in
+// Brooklyn Joint Interest Area 55, and most of Brooklyn Bridge Park is filed
+// under CB2. Both border the district, so CB6 counts them.
+var CD_INCLUDE={'306':[['355','Prospect Park'],['302','Brooklyn Bridge Park']]};
+function inCd(r,cd){
+  if(DIST)return !!r._in;
+  if(r.c===cd)return true;
+  var ex=CD_INCLUDE[cd];
+  if(!ex)return false;
+  for(var i=0;i<ex.length;i++){
+    if(r.c===ex[i][0]&&String(r.n||'').indexOf(ex[i][1])===0)return true;
+  }
+  return false;
+}
+function inFilter(r,cd,boro){
+  if(cd)return inCd(r,cd);
+  if(boro)return inBoro(r,boro);
+  return true;
+}
+function scopedRows(codes){
+  var boro=document.getElementById('s-boro').value;
+  var cd=document.getElementById('s-cd').value;
+  var rows=recData.filter(function(r){
+    for(var i=0;i<codes.length;i++){if(r.a.indexOf(codes[i])!==-1)return true;}
+    return false;
+  });
+  if(cd)return {rows:rows.filter(function(r){return inCd(r,cd);}),all:rows};
+  if(boro)return {rows:rows.filter(function(r){return inBoro(r,boro);}),all:rows};
+  return {rows:rows,all:rows};
+}
+
+function runActivities(origin,originLabel){
+
+  refreshMarkets();
+  var codes=activeActs();
+  var cd=document.getElementById('s-cd').value;
+  var boro=document.getElementById('s-boro').value;
+  highlightDistrict(cd);
+  if(!codes.length){
+    if(cd||boro){showScopeAll(cd,boro);return;}
+    if(recLayer){map.removeLayer(recLayer);recLayer=null;}
+    updateBrowsePins();
+    document.getElementById('act-panel').classList.remove('open');
+    if(HOME_CD||HOME_BORO){
+      showResult('Showing the whole city. '+recData.length.toLocaleString()+' facilities in all. Turn on an activity to map it, or switch back to '+escH(cdLabel(HOME_CD)||BORO_NAMES[HOME_BORO]||'your district')+'.');
+    } else {
+      document.getElementById('result-bar').style.display='none';
+    }
+    return;
+  }
+  if(origin===undefined&&lastOrigin){origin=lastOrigin;originLabel=lastOriginLabel;}
+  var where=cd?cdLabel(cd):(boro?BORO_NAMES[boro]:'the city');
+  var sc=scopedRows(codes);
+  if(!sc.all.length){
+    showResult('No '+actListLabel(codes)+' locations in the NYC Parks data.');
+    document.getElementById('act-panel').classList.remove('open');
+    if(recLayer){map.removeLayer(recLayer);recLayer=null;}
+    return;
+  }
+  var inScope=collapse(sc.rows);
+
+  // Nobody is bound by a district line. Once there is a starting point, rank
+  // everything citywide by distance so a closer court one district over is not
+  // hidden behind a filter.
+  if(!origin&&(cd||boro)&&!inScope.length){
+    var near=recData.filter(function(r){return cd?inCd(r,cd):inBoro(r,boro);});
+    if(near.length){
+      var sy=0,sx=0;near.forEach(function(r){sy+=r.y;sx+=r.x;});
+      origin=[sy/near.length,sx/near.length];originLabel='the middle of '+where;
+    }
+  }
+
+  var list,ranked=!!origin,crossed=false;
+  if(origin){
+    list=collapse(sc.all);
+    list.forEach(function(r){r._d=milesBetween(origin[0],origin[1],r.y,r.x);});
+    list.sort(function(a,b){return a._d-b._d;});
+    crossed=!!((cd||boro)&&list.length&&!inFilter(list[0],cd,boro));
+  } else {
+    list=inScope.length?inScope:collapse(sc.all);
+    list.sort(function(a,b){return a.n<b.n?-1:a.n>b.n?1:0;});
+  }
+  var fellBack=!inScope.length;
+
+  if(browseLayer){map.removeLayer(browseLayer);browseLayer=null;}
+  drawFacilities(list,codes,!!origin);
+
+  var top=list.slice(0,12);topResults=top;
+  var head='<strong>'+escH(actListLabel(codes))+'</strong> <span>· ';
+  if(fellBack&&(cd||boro)){head+='none in '+escH(where)+', showing the closest anywhere';}
+  else if(origin&&(cd||boro)){head+=inScope.length+' in '+escH(where)+', ranked against all '+list.length+' citywide';}
+  else if(cd||boro){
+    head+=list.length+' site'+(list.length===1?'':'s')+' in '+escH(where);
+    if(cd){var nb=cdNeighborhoods(cd);if(nb)head+=' ('+escH(nb)+')';}
+  }
+  else{head+=list.length+' site'+(list.length===1?'':'s')+' citywide';}
+  if(origin)head+=' · ranked from '+escH(originLabel||'your location');
+  head+='</span>';
+  document.getElementById('act-head').innerHTML=head;
+
+  var html='';
+  top.forEach(function(r,i){
+    var mine=codes.filter(function(c){return r.a.indexOf(c)!==-1;}).map(function(c){return ACT_LABELS[c];}).join(', ');
+    var extra=(r.a.indexOf('SWM')!==-1&&r['in'])?'<span class="act-tag alt">Indoor</span>':'';
+    if((cd||boro)&&inFilter(r,cd,boro))extra+='<span class="act-tag alt">In '+escH(where)+'</span>';
+    html+='<div class="act-row" onclick="flyTo('+i+')">'+
+      '<div class="act-rank">'+(i+1)+'</div>'+
+      '<div class="act-body"><div class="act-name">'+escH(r.n)+'</div>'+
+      '<div class="act-meta">'+escH(mine)+(recDetail(r)?' · '+escH(recDetail(r)):'')+'</div>'+
+      '<span class="act-tag">'+escH(cdLabel(r.c)||'NYC Parks')+'</span>'+extra+'</div>'+
+      (origin?'<div class="act-dist">'+fmtDist(r._d)+'</div>':'')+'</div>';
+  });
+  document.getElementById('act-list').innerHTML=html;
+  document.getElementById('act-panel').classList.add('open');
+  if(map.invalidateSize)setTimeout(function(){try{map.invalidateSize();}catch(e){}},60);
+
+  var pre='<strong>'+escH(actListLabel(codes))+'</strong>: ';
+  if(origin&&top.length){
+    var msg=pre+'Closest is <strong>'+escH(top[0].n)+'</strong> ('+fmtDist(top[0]._d)+') in '+escH(cdLabel(top[0].c)||'NYC')+'.';
+    if(crossed){
+      var firstIn=null;
+      for(var q=0;q<list.length;q++){if(inFilter(list[q],cd,boro)){firstIn=list[q];break;}}
+      msg+=' That is outside '+escH(where)+'.';
+      if(firstIn)msg+=' Closest inside '+escH(where)+' is <strong>'+escH(firstIn.n)+'</strong> ('+fmtDist(firstIn._d)+').';
+      else msg+=' There are none in '+escH(where)+'.';
+    }
+    showResult(msg);
+  } else if(top.length){
+    showResult(pre+list.length+' site'+(list.length===1?'':'s')+' in '+escH(where)+'. Add an address or tap Nearest to me to rank by distance.');
+  }
+}
+
+// Every matching location goes on the map. When results are ranked, the closest
+// twelve carry a number so the list and the map line up.
+function drawFacilities(list,codes,ranked,skipFit){
+  if(recLayer)map.removeLayer(recLayer);
+  recLayer=L.layerGroup();
+  list.forEach(function(r,i){
+    var mine=codes.filter(function(c){return r.a.indexOf(c)!==-1;}).map(function(c){return ACT_LABELS[c];}).join(', ');
+    var tip='<strong>'+escH(r.n)+'</strong><br><span style="font-size:.72rem;color:#555">'+escH(mine)+(cdLabel(r.c)?' · '+escH(cdLabel(r.c)):'')+(r._d!==undefined?' · '+fmtDist(r._d):'')+'</span>';
+    var glyph=actIcon(codes,r);
+    var rank=(ranked&&i<12)?'<span class="fac-rank">'+(i+1)+'</span>':'';
+    var m=L.marker([r.y,r.x],{
+      icon:L.divIcon({
+        className:'',
+        html:'<div class="fac-pin'+(ranked&&i<12?' top':'')+'" style="background:'+actColorFor(codes,r)+';border-color:'+boroColor(r.c)+'">'+glyph+rank+'</div>',
+        iconSize:[28,28],iconAnchor:[14,14]
+      }),
+      zIndexOffset:(ranked&&i<12)?600:0
+    });
+    m.bindTooltip(tip,{opacity:1}).addTo(recLayer);
+  });
+  recLayer.addTo(map);
+  if(skipFit)return;
+  var pts=(ranked?list.slice(0,12):list).map(function(r){return [r.y,r.x];});
+  if(lastOrigin)pts.push(lastOrigin);
+  if(pts.length)fitTo(L.latLngBounds(pts),{padding:[45,45],maxZoom:15});
+}
+
+// With nothing selected, the map still shows what is there: every facility in
+// view gets its activity icon once you are zoomed in enough to place them.
+function updateBrowsePins(){
+  if(browseLayer){map.removeLayer(browseLayer);browseLayer=null;}
+  if(!recData||activeActs().length)return;
+  if(document.getElementById('s-cd').value)return;
+  if(map.getZoom()<13)return;
+  var b=map.getBounds();
+  browseLayer=L.layerGroup();
+  var n=0;
+  for(var i=0;i<recData.length&&n<300;i++){
+    var r=recData[i];
+    if(!b.contains(L.latLng(r.y,r.x)))continue;
+    n++;
+    var names=r.a.map(function(a){return ACT_LABELS[a];}).join(', ');
+    L.marker([r.y,r.x],{
+      icon:L.divIcon({className:'',html:'<div class="fac-pin" style="background:'+actColorFor([],r)+';border-color:'+boroColor(r.c)+'">'+actIcon([],r)+'</div>',iconSize:[28,28],iconAnchor:[14,14]})
+    }).bindTooltip('<strong>'+escH(r.n)+'</strong><br><span style="font-size:.8rem;color:#4a453e">'+escH(names)+'</span>',{opacity:1}).addTo(browseLayer);
+  }
+  browseLayer.addTo(map);
+}
+
+// Landing on a district or borough with no activity chosen still gives a real
+// map of that place: every facility in it, listed by site.
+function showScopeAll(cd,boro){
+  var where=cd?cdLabel(cd):BORO_NAMES[boro];
+  var rows=recData.filter(function(r){return cd?inCd(r,cd):inBoro(r,boro);});
+  if(!rows.length){
+    showResult('No recorded courts, fields, pools, skateparks, or dog runs in '+escH(where)+'.');
+    document.getElementById('act-panel').classList.remove('open');
+    if(recLayer){map.removeLayer(recLayer);recLayer=null;}
+    return;
+  }
+  var list=collapse(rows);
+  list.sort(function(a,b){return b.a.length-a.a.length||(a.n<b.n?-1:a.n>b.n?1:0);});
+  var all={};
+  rows.forEach(function(r){r.a.forEach(function(a){all[a]=(all[a]||0)+1;});});
+  var kinds=ACT_ORDER.filter(function(c){return all[c];});
+
+  // A whole borough or the whole city is too many pins to read, so at those
+  // scopes the parks themselves carry the map and pins appear as you zoom in.
+  var wide=!cd;
+  if(wide){
+    if(recLayer){map.removeLayer(recLayer);recLayer=null;}
+    updateBrowsePins();
+  } else {
+    if(browseLayer){map.removeLayer(browseLayer);browseLayer=null;}
+    drawFacilities(list,kinds,false,!!cdIndex[cd]);
+  }
+  topResults=list.slice(0,12);
+
+  document.getElementById('act-head').innerHTML='<strong>'+escH(where)+'</strong> <span>· '+
+    rows.length.toLocaleString()+' facilit'+(rows.length===1?'y':'ies')+' across '+list.length.toLocaleString()+' park site'+(list.length===1?'':'s')+
+    ' · '+kinds.length+' different activit'+(kinds.length===1?'y':'ies')+'</span>';
+
+  var html='';
+  list.slice(0,12).forEach(function(r,i){
+    html+='<div class="act-row" onclick="flyTo('+i+')">'+
+      '<div class="act-rank">'+(i+1)+'</div>'+
+      '<div class="act-body"><div class="act-name">'+escH(r.n)+'</div>'+
+      '<div class="act-meta">'+escH(r.a.map(function(a){return ACT_LABELS[a];}).join(', '))+(r.ad?' · '+escH(r.ad):'')+'</div>'+
+      '<span class="act-tag">'+escH(cdLabel(r.c)||'NYC Parks')+'</span></div></div>';
+  });
+  document.getElementById('act-list').innerHTML=html;
+  document.getElementById('act-panel').classList.add('open');
+
+  showResult('<strong>'+escH(where)+'</strong>: '+rows.length.toLocaleString()+' facilit'+(rows.length===1?'y':'ies')+' at '+
+    list.length.toLocaleString()+' park site'+(list.length===1?'':'s')+'. '+
+    (wide?'Parks are shaded green, and activity icons appear as you zoom in. Turn on an activity to map every one of them.'
+        :'Turn on an activity above to narrow it, or add an address to rank by distance.'));
+}
+
+function flyTo(i){var r=topResults[i];if(r)map.setView([r.y,r.x],17);}
+function rerun(){runActivities(undefined);}
+
+function doSearch(){
+  if(!activeActs().length){showResult('Turn on an activity above, or click any park on the map.');return;}
+  var q=document.getElementById('s-addr').value.trim();
+  if(!q){lastOrigin=null;lastOriginLabel='';runActivities(null);return;}
+  showResult('Searching…');
+  fetch('https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(q)+'&size=1')
+    .then(function(r){return r.json();}).then(function(geo){
+      if(!geo.features||!geo.features.length){showResult('Address not found.');return;}
+      var f=geo.features[0],lat=f.geometry.coordinates[1],lng=f.geometry.coordinates[0];
+      if(searchMarker)map.removeLayer(searchMarker);
+      searchMarker=L.circleMarker([lat,lng],{radius:7,fillColor:'#027539',color:'#fff',weight:3,fillOpacity:1}).addTo(map).bindTooltip('Your starting point',{opacity:1});
+      lastOrigin=[lat,lng];lastOriginLabel=f.properties.label||q;
+      runActivities(lastOrigin,lastOriginLabel);
+    }).catch(function(){showResult('Search failed.');});
+}
+function findNearest(){
+  if(!activeActs().length){showResult('Turn on an activity above first.');return;}
+  if(!navigator.geolocation){showResult('Location is not available in this browser.');return;}
+  showResult('Finding your location…');
+  navigator.geolocation.getCurrentPosition(function(pos){
+    var lat=pos.coords.latitude,lng=pos.coords.longitude;
+    if(searchMarker)map.removeLayer(searchMarker);
+    searchMarker=L.circleMarker([lat,lng],{radius:8,fillColor:'#027539',color:'#fff',weight:3,fillOpacity:1}).addTo(map).bindTooltip('You are here',{opacity:1});
+    lastOrigin=[lat,lng];lastOriginLabel='your location';
+    runActivities(lastOrigin,lastOriginLabel);
+  },function(){showResult('Could not get your location.');});
+}
+function resetView(){
+  showParks=true;showCds=true;
+  document.getElementById('tg-parks').classList.add('on');
+  document.getElementById('tg-cds').classList.add('on');
+  if(parkLayer)parkLayer.addTo(map);
+  if(cdLayer)cdLayer.addTo(map);
+  actOn={};
+  document.getElementById('s-act-pick').value='';
+  ACT_ORDER.forEach(function(c){var b=document.getElementById('ta-'+c);if(b)b.classList.remove('off');});
+  syncAllChip();
+  lastOrigin=null;lastOriginLabel='';
+  document.getElementById('scope-bar').classList.remove('on');
+  HOME_CD='';HOME_BORO='';
+  document.getElementById('s-boro').value='';
+  fillDistricts();
+  document.getElementById('s-addr').value='';
+  document.getElementById('act-panel').classList.remove('open');
+  document.getElementById('result-bar').style.display='none';
+  if(recLayer){map.removeLayer(recLayer);recLayer=null;}
+  if(searchMarker){map.removeLayer(searchMarker);searchMarker=null;}
+  highlightDistrict('');
+  refreshParks();
+  fitTo(HOME,{});
+}
+function boroBounds(b){
+  var pts=[];
+  Object.keys(cdIndex).forEach(function(k){
+    if(k.charAt(0)!==b)return;
+    try{
+      var bb=cdIndex[k].getBounds();
+      pts.push([bb.getSouth(),bb.getWest()]);
+      pts.push([bb.getNorth(),bb.getEast()]);
+    }catch(e){}
+  });
+  return pts.length?L.latLngBounds(pts):null;
+}
+var HOME_CD='',HOME_BORO='';
+function setScope(which){
+  document.getElementById('sc-district').classList.toggle('on',which==='district');
+  document.getElementById('sc-borough').classList.toggle('on',which==='borough');
+  document.getElementById('sc-city').classList.toggle('on',which==='city');
+  var boroSel=document.getElementById('s-boro'),cdSel=document.getElementById('s-cd');
+  if(which==='district'&&HOME_CD){
+    boroSel.value=HOME_CD.charAt(0);fillDistricts();cdSel.value=HOME_CD;
+    if(cdIndex[HOME_CD]){try{fitTo(cdIndex[HOME_CD].getBounds().pad(0.12),{padding:[10,10]});}catch(e){}}
+  } else if(which==='borough'){
+    var b=HOME_BORO||(HOME_CD?HOME_CD.charAt(0):'');
+    boroSel.value=b;fillDistricts();cdSel.value='';
+    var bb=boroBounds(b);
+    if(bb)fitTo(bb,{padding:[15,15]});
+  } else {
+    boroSel.value='';fillDistricts();cdSel.value='';
+    fitTo(HOME,{});
+  }
+  rerun();
+}
+function showScopeBar(cd,boro){
+  HOME_CD=cd||'';HOME_BORO=boro||(cd?cd.charAt(0):'');
+  if(!HOME_CD&&!boro)return;
+  var bar=document.getElementById('scope-bar');
+  bar.classList.add('on');
+  var d=document.getElementById('sc-district');
+  if(!HOME_CD){d.style.display='none';}
+  else{d.textContent=cdLabel(HOME_CD).replace(/^.*? (CB\d+)$/,'$1')||'District';}
+  document.getElementById('sc-borough').textContent=DIST?DIST.label:(BORO_NAMES[HOME_BORO]||'Borough');
+  document.getElementById('sc-district').classList.toggle('on',!!HOME_CD);
+  document.getElementById('sc-borough').classList.toggle('on',!HOME_CD);
+}
+function useAt(at,haveActs){
+  var parts=String(at).split(',');
+  var lat=parseFloat(parts[0]),lng=parseFloat(parts[1]);
+  if(!isFinite(lat)||!isFinite(lng))return false;
+  if(searchMarker)map.removeLayer(searchMarker);
+  searchMarker=L.circleMarker([lat,lng],{radius:8,fillColor:'#027539',color:'#fff',weight:3,fillOpacity:1})
+    .addTo(map).bindTooltip('Your location',{opacity:1});
+  lastOrigin=[lat,lng];lastOriginLabel='your location';
+  runActivities(lastOrigin,lastOriginLabel);
+  return true;
+}
+function applyUrlParams(){
+  var p=new URLSearchParams(window.location.search);
+  var cd=p.get('cd'),act=p.get('a'),boro=p.get('boro');
+  if(DIST){
+    cd='';var first=recData.filter(function(r){return r._in;})[0];boro=first?String(first.c).charAt(0):'3';
+    document.getElementById('s-boro').value=boro;fillDistricts();
+    try{fitTo(DIST.layer.getBounds().pad(0.08),{padding:[10,10]});}catch(e){}
+    if(EMBED)document.body.classList.add('boro');
+  }
+  if(!DIST&&!cd&&boro&&/^[1-5]$/.test(boro)){
+    document.getElementById('s-boro').value=boro;
+    fillDistricts();
+    var bb=boroBounds(boro);
+    if(bb)fitTo(bb,{padding:[15,15]});
+  }
+  if(cd&&/^\d{3}$/.test(cd)){
+    document.getElementById('s-boro').value=cd.charAt(0);
+    fillDistricts();
+    var sel=document.getElementById('s-cd');
+    for(var i=0;i<sel.options.length;i++){if(sel.options[i].value===cd){sel.value=cd;break;}}
+    highlightDistrict(cd);
+    if(cdIndex[cd]){try{fitTo(cdIndex[cd].getBounds().pad(0.12),{padding:[10,10]});}catch(e){}}
+  }
+  showScopeBar(cd,boro);
+  var addr=p.get('addr');
+  var at=p.get('at');
+  if(act){
+    act.split(',').forEach(function(a){if(ACT_LABELS[a])actOn[a]=true;});
+    buildActToggles();
+    var on=activeActs();
+    ACT_ORDER.forEach(function(c){var t=document.getElementById('ta-'+c);if(t)t.classList.toggle('off',!actOn[c]);});
+    syncAllChip();
+    if(on.length===1)document.getElementById('s-act-pick').value=on[0];
+    if(at&&useAt(at,on.length))return;
+    if(addr){
+      document.getElementById('s-addr').value=addr;
+      if(on.length)doSearch();else runActivities(null);
+    } else if(on.length)runActivities(null);
+  } else if(at){
+    useAt(at,false);
+  } else if(addr){
+    document.getElementById('s-addr').value=addr;
+    runActivities(null);
+  } else if(cd||boro){
+    runActivities(null);
+  }
+  if(EMBED){
+    var m=document.getElementById('more-filters');
+    if(m)m.open=true;
+    var lbl=DIST?DIST.label:(cd?cdLabel(cd):(boro?BORO_NAMES[boro]:''));
+    document.getElementById('embed-heading').textContent=lbl?('Parks and activities in '+lbl):'Parks and activities';
+    document.getElementById('embed-full').href='activities.html'+(DIST?'?dist='+DIST.key:(cd?'?cd='+cd:(boro?'?boro='+boro:'')));
+  }
+}
+
+// Embed mode: the page drops its chrome and becomes just the map, for the
+// iframe on each community board page.
+var EMBED=new URLSearchParams(window.location.search).get('embed')==='1';
+if(EMBED)document.body.classList.add('embed');
+if(EMBED&&new URLSearchParams(window.location.search).get('boro'))document.body.classList.add('boro');
+
+fitTo(HOME,{});
+Promise.all([
+  fetch('data/nyc-recreation.json').then(function(r){return r.json();}),
+  fetch('data/cd-lookup.json').then(function(r){return r.json();}).catch(function(){return {};}),
+  fetch('data/cd-boundaries-lite.geojson').then(function(r){return r.json();}),
+  fetch('data/parks-citywide.geojson').then(function(r){return r.json();}),
+  fetch('data/farmers-markets.json').then(function(r){return r.ok?r.json():null;})
+    .catch(function(){return null;})
+]).then(function(res){
+  return loadDist().then(function(){return res;});
+}).then(function(res){
+  recData=res[0];cdLookup=res[1]||{};
+  if(DIST){
+    recData.forEach(function(r){r._in=inDist(r.y,r.x);});
+    if(res[4]&&res[4].markets)res[4].markets.forEach(function(m){m._in=inDist(m.y,m.x);});
+    var dl=L.geoJSON({type:'Feature',geometry:DIST.geom},{style:{color:'#1a3a6b',weight:3,opacity:.9,fill:false},interactive:false}).addTo(map);
+    DIST.layer=dl;
+    (function(){var sc=document.createElement('script');sc.src='/assets/map-labels.js?v=20260829a';sc.onload=function(){window.MapLabels.add(map,{bounds:dl.getBounds(),district:DIST.label});};document.head.appendChild(sc);})();
+  }
+  drawParks(res[3]);
+  if(res[4]&&res[4].markets)drawMarkets(res[4].markets);
+  drawDistricts(res[2]);
+  buildParkLabels();
+  updateBrowsePins();
+  buildCdLabels();
+  map.on('zoomend moveend',function(){buildParkLabels();updateBrowsePins();buildCdLabels();});
+  fillDistricts();
+  buildActToggles();
+  buildKeyIcons();
+  applyUrlParams();
+  var withAct=res[3].features.filter(function(f){return f.properties.a&&f.properties.a.length;}).length;
+  document.getElementById('note').innerHTML=res[3].features.length.toLocaleString()+' NYC Parks properties, '+withAct.toLocaleString()+' of them with a recorded court, field, pool, skatepark, or dog run, across all 59 community districts and the large parks mapped on their own, including Prospect Park, Central Park, Van Cortlandt, Pelham Bay, Bronx Park, Forest Park, and Flushing Meadows. Names and activity icons appear as you zoom in. Click any park for what is there. Source: NYC Open Data. &nbsp;|&nbsp; <a href="/parks/">Parks and activities hub</a> &nbsp;|&nbsp; <a href="/bk/parks.html">CB6 parks map</a>';
+}).catch(function(e){document.getElementById('note').textContent='Load error: '+e;});
+
+
+document.getElementById('s-addr').addEventListener('keydown',function(e){if(e.key==='Enter')doSearch();});
+</script>
+
+<button aria-label="Share or embed this page" class="embed-fab" onclick="document.getElementById('bkcb6EmbedModal').classList.add('open')">
+  &lt;/&gt; Share / Embed
+</button>
+<div class="embed-modal-bg" id="bkcb6EmbedModal" onclick="if(event.target===this)this.classList.remove('open')">
+<div class="embed-modal">
+<h3>Share or Embed This Page</h3>
+<p>Copy the direct link to share, or use the embed code to display this page on your own site.</p>
+<div class="embed-url-row">
+<div class="embed-url-box" id="bkcb6EmbedUrlBox"></div>
+<button class="embed-copy-btn" onclick="bkcb6CopyEmbed()">Copy</button>
+</div>
+<button class="embed-close" onclick="document.getElementById('bkcb6EmbedModal').classList.remove('open')">Close</button>
+</div>
+</div>
+<script>
+(function(){
+  var url=window.location.href.split('?')[0].split('#')[0];
+  url=url.replace('cb6brooklyn.github.io/bkcb6','bkcb6.app');
+  document.getElementById('bkcb6EmbedUrlBox').textContent=url;
+})();
+function bkcb6CopyEmbed(){
+  var t=document.getElementById('bkcb6EmbedUrlBox').textContent;
+  navigator.clipboard.writeText(t).then(function(){
+    var b=document.querySelector('.embed-copy-btn');
+    var o=b.textContent;b.textContent='Copied!';b.style.background='#2d6a4f';
+    setTimeout(function(){b.textContent=o;b.style.background='';},1800);
+  });
+}
+</script>
+</body>
+</html>
