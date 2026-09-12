@@ -82,6 +82,13 @@
   function openFull(address){
     var input=document.getElementById('citywide-borough-address-input');
     var btn=document.getElementById('citywide-borough-address-search-btn');
+    if(!input||!btn){
+      var card=document.querySelector('[data-full-profile-search]');
+      if(card){
+        input=input||card.querySelector('[data-full-profile-input]');
+        btn=btn||card.querySelector('[data-full-profile-button]');
+      }
+    }
     if(!input||!btn) return;
     input.value=address;
     btn.click();
@@ -95,7 +102,15 @@
     if(!host||!panel||typeof L==='undefined'||host.dataset.ready==='true') return;
     host.dataset.ready='true';
 
-    var map=L.map(host,{scrollWheelZoom:true}).setView(NYC,11);
+    var startCenter=NYC, startZoom=11;
+    var cAttr=(host.getAttribute('data-center')||'').split(',');
+    if(cAttr.length===2){
+      var cLat=parseFloat(cAttr[0]), cLng=parseFloat(cAttr[1]);
+      if(isFinite(cLat)&&isFinite(cLng)) startCenter=[cLat,cLng];
+    }
+    var zAttr=parseFloat(host.getAttribute('data-zoom'));
+    if(isFinite(zAttr)) startZoom=zAttr;
+    var map=L.map(host,{scrollWheelZoom:true}).setView(startCenter,startZoom);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{
       maxZoom:19, attribution:'&copy; OpenStreetMap &copy; CARTO'
     }).addTo(map);
