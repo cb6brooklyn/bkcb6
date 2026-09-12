@@ -132,7 +132,7 @@
     }
     var zAttr=parseFloat(host.getAttribute('data-zoom'));
     if(isFinite(zAttr)) startZoom=zAttr;
-    var map=L.map(host,{scrollWheelZoom:true}).setView(startCenter,startZoom);
+    var map=L.map(host,{scrollWheelZoom:true,zoomSnap:0.25}).setView(startCenter,startZoom);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{
       maxZoom:19, attribution:'&copy; OpenStreetMap &copy; CARTO'
     }).addTo(map);
@@ -142,7 +142,7 @@
 
     /* ---------- community boards (on by default) ---------- */
     var cdLayer=L.layerGroup(), cdSeals=L.layerGroup();
-    function sealSize(){ var z=map.getZoom(); return z<=9?22:z===10?28:z===11?34:z===12?44:z===13?54:64; }
+    function sealSize(){ var z=map.getZoom(); return z<9.5?22:z<10.5?28:z<11.5?36:z<12.5?46:z<13.5?56:64; }
     var pinned=false;
     function cdStyle(f){
       var cd=String(f.properties.cd||''), b=parseInt(cd.charAt(0),10);
@@ -154,7 +154,7 @@
     function sealIcon(cd){
       var s=sealSize(), code=boardCode(cd), isCB6=cd==='306';
       var pt=labelPts&&labelPts.cd&&labelPts.cd[cd];
-      var wide=cd.charAt(0)==='5', showLabel=map.getZoom()>=11;
+      var wide=cd.charAt(0)==='5', showLabel=map.getZoom()>=10.5;
       return L.divIcon({className:'cw-seal-wrap',iconSize:[s,s+18],iconAnchor:[s/2,(s+18)/2],
         html:'<div class="cw-seal'+(isCB6?' cb6':'')+(wide?' wide':'')+'" style="--w:'+s+'px"><img src="'+boardSeal(cd)+'" alt="'+esc(code)+'" loading="lazy" onerror="this.style.display=\'none\'">'
           + (showLabel?'<b>'+esc(code)+'</b>':'')+'</div>'});
@@ -175,7 +175,7 @@
     getJson('cd-boundaries-simple.geojson').then(function(d){
       var gj=L.geoJSON(d,{style:cdStyle,interactive:false}).addTo(cdLayer);
       cdLayer.addTo(map); cdSeals.addTo(map);
-      if(!pinned&&!host.getAttribute('data-center')){ try{ map.fitBounds(gj.getBounds(),{padding:[6,6]}); }catch(e){} }
+      if(!pinned&&!host.getAttribute('data-center')){ try{ map.fitBounds(gj.getBounds(),{padding:[4,4]}); }catch(e){} }
       labelsReady.then(drawSeals);
     }).catch(function(e){ console.error('community boards',e); });
 
