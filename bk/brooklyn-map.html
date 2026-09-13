@@ -183,7 +183,6 @@ body.embed .sp-alt{flex:0 0 auto;padding:7px 12px;font-size:.78rem}
       <button type="button" class="sp-go" onclick="doSearch()">Search</button>
       <button type="button" id="corner-go" class="sp-alt">Go to corner</button>
       <button type="button" id="pin-btn" class="sp-alt" onclick="togglePinMode()">Drop a pin</button>
-      <button type="button" id="locate-btn" class="sp-alt" onclick="useMyLocation()">My location</button>
       <button type="button" class="sp-alt" onclick="clearMapSearch()">Clear</button>
     </div>
   </div>
@@ -2452,44 +2451,6 @@ async function readPointAsLot(lat,lng){
   if(pinMarker) pinMarker.bindTooltip(escH(addr),{direction:'top'});
 }
 
-// A WKWebView does not implement navigator.geolocation, so inside the app we
-// ask the native layer instead. In a browser this falls through untouched.
-function nativeGeo(){
-  var C=window.Capacitor;
-  if(C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.Geolocation) return C.Plugins.Geolocation;
-  return null;
-}
-function getPosition(ok,fail){
-  var g=nativeGeo();
-  if(g){
-    g.requestPermissions().then(function(){
-      return g.getCurrentPosition({enableHighAccuracy:true,timeout:12000});
-    }).then(function(p){ ok({coords:{latitude:p.coords.latitude,longitude:p.coords.longitude}}); })
-     .catch(function(e){ fail(e); });
-    return;
-  }
-  if(navigator.geolocation) navigator.geolocation.getCurrentPosition(ok,fail,{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
-  else fail(new Error('no geolocation'));
-}
-function useMyLocation(){
-  var res=document.getElementById('s-result');
-  if(!navigator.geolocation && !nativeGeo()){
-    if(res){res.style.cssText='display:block;padding:10px 14px;background:#fff;border-bottom:2px solid #f2c84b;flex-shrink:0';res.innerHTML='<span style="color:#c81e1e;font-size:.78rem">This browser cannot share a location.</span>';}
-    return;
-  }
-  var btn=document.getElementById('locate-btn');
-  if(btn){btn.classList.add('on');btn.textContent='Locating…';}
-  getPosition(function(pos){
-    if(btn){btn.classList.remove('on');btn.textContent='My location';}
-    map.setView([pos.coords.latitude,pos.coords.longitude],17);
-    readPointAsLot(pos.coords.latitude,pos.coords.longitude);
-  },function(){
-    if(btn){btn.classList.remove('on');btn.textContent='My location';}
-    if(res){res.style.cssText='display:block;padding:10px 14px;background:#fff;border-bottom:2px solid #f2c84b;flex-shrink:0';res.innerHTML='<span style="color:#c81e1e;font-size:.78rem">Location unavailable. Search an address instead.</span>';}
-  });
-  setTimeout(function(){ if(btn && /Locating/.test(btn.textContent)){ btn.classList.remove('on'); btn.textContent='My location'; } },14000);
-}
-
 // ── Street and cross street ────────────────────────────────────────────────
 var STREETS=null;
 function clearMapSearch(){
@@ -2565,7 +2526,7 @@ var userMovedMap=false;
 (function initialBoroughView(){
   function attach(){
     if(typeof map==='undefined' || !map || !map.setView) return setTimeout(attach,200);
-    ['s-input','corner-go','pin-btn','locate-btn'].forEach(function(id){
+    ['s-input','corner-go','pin-btn'].forEach(function(id){
       var el=document.getElementById(id);
       if(el) el.addEventListener('click',function(){userMovedMap=true;});
     });
