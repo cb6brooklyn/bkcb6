@@ -2307,6 +2307,11 @@ async function doAC(val){
 document.addEventListener('click',e=>{if(!e.target.closest('.search-row'))document.getElementById('ac-drop').style.display='none';});
 
 // ── SEARCH ──
+function tidyNum(v){
+  var n=parseFloat(v);
+  if(!isFinite(n)) return v;
+  return (Math.round(n*100)/100).toLocaleString('en-US');
+}
 function pRow(icon,label,val){return'<tr style="border-bottom:1px solid #f0efed"><td style="padding:6px 10px 6px 0;vertical-align:top;white-space:nowrap"><span style="font-size:.85rem">'+icon+'</span><span style="font-size:.63rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-left:4px">'+label+'</span></td><td style="padding:6px 0;font-size:.78rem;color:#1a3a6b;line-height:1.4">'+val+'</td></tr>';}
 
 async function doSearch(){
@@ -2415,22 +2420,26 @@ async function readPointAsLot(lat,lng){
   var addr=label||row.address||'';
   var zone=String(row.zonedist1||'').trim();
   var luName=(typeof LAND_USE_LABELS!=='undefined' && row.landuse)?(LAND_USE_LABELS[row.landuse]||''):'';
-  var board=row.cd?('CB '+(parseInt(row.cd,10)%100)):'';
+  var cdNum=parseInt(row.cd,10);
+  var cdBoard=isFinite(cdNum)?(cdNum%100):0;
+  var board=(cdBoard>=1&&cdBoard<=18)?('Brooklyn CB '+cdBoard):'';
+  var jointArea=(isFinite(cdNum)&&!board)?'Parkland or other joint interest area':'';
   var html='<div style="font-family:DM Sans,sans-serif;font-weight:800;font-size:.86rem;color:#1a3a6b;margin-bottom:6px">'+escH(addr)+'</div>'
     + '<table style="border-collapse:collapse;width:100%;font-size:.78rem">';
   if(board) html+=pRow('🗂','Community Board',board);
+  else if(jointArea) html+=pRow('🗂','Community Board',jointArea);
   if(zone) html+=pRow('🏙','Zoning',zone);
   if(luName) html+=pRow('🏘','Land Use',luName.replace(/\s*\(\d\d\)\s*$/,''));
   if(row.ownername) html+=pRow('🔑','Owner',row.ownername);
   if(row.yearbuilt && String(row.yearbuilt)!=='0') html+=pRow('🏗','Year Built',row.yearbuilt);
-  if(row.numfloors && String(row.numfloors)!=='0') html+=pRow('🏢','Floors',row.numfloors);
+  if(row.numfloors && parseFloat(row.numfloors)>0) html+=pRow('🏢','Floors',tidyNum(row.numfloors));
   if(row.unitsres && String(row.unitsres)!=='0') html+=pRow('🏠','Residential Units',row.unitsres);
   if(bbl) html+=pRow('#','BBL',bbl);
   html+='<tr><td colspan="2" style="padding:6px 0">'
     + '<a href="brooklyn-search.html?address='+encodeURIComponent(addr)+'" target="_blank" style="color:#1a3a6b;font-size:.72rem;font-family:DM Mono,monospace;font-weight:700">Open the full address card &rarr;</a>'
     + '</td></tr></table>';
   if(res) res.innerHTML=html;
-  if(pinMarker) pinMarker.bindPopup('<b>'+escH(addr)+'</b>'+(zone?'<br>'+escH(zone):'')).openPopup();
+  if(pinMarker) pinMarker.bindTooltip(escH(addr),{direction:'top'});
 }
 
 function useMyLocation(){
@@ -2440,15 +2449,16 @@ function useMyLocation(){
     return;
   }
   var btn=document.getElementById('locate-btn');
-  if(btn){btn.classList.add('on');btn.textContent='◎ Locating…';}
+  if(btn){btn.classList.add('on');btn.textContent='Locating…';}
   navigator.geolocation.getCurrentPosition(function(pos){
-    if(btn){btn.classList.remove('on');btn.textContent='◎ My location';}
+    if(btn){btn.classList.remove('on');btn.textContent='My location';}
     map.setView([pos.coords.latitude,pos.coords.longitude],17);
     readPointAsLot(pos.coords.latitude,pos.coords.longitude);
   },function(){
-    if(btn){btn.classList.remove('on');btn.textContent='◎ My location';}
+    if(btn){btn.classList.remove('on');btn.textContent='My location';}
     if(res){res.style.cssText='display:block;padding:10px 14px;background:#fff;border-bottom:2px solid #f2c84b;flex-shrink:0';res.innerHTML='<span style="color:#c81e1e;font-size:.78rem">Location unavailable. Search an address instead.</span>';}
   },{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
+  setTimeout(function(){ if(btn && /Locating/.test(btn.textContent)){ btn.classList.remove('on'); btn.textContent='My location'; } },14000);
 }
 
 // ── Street and cross street ────────────────────────────────────────────────
