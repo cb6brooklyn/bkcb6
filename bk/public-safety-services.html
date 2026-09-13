@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BKCB6 — Public Safety</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:#1a3a6b}
+body{display:flex;flex-direction:column}
+.top-bar{background:#1a3a6b;border-bottom:3px solid #f2c84b;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-shrink:0}
+.top-bar h1{font-size:.92rem;font-weight:700;color:#fff;white-space:nowrap;flex-shrink:0}
+.top-bar h1 span{color:#f2c84b}
+.back-link{font-size:.7rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.45);text-decoration:none;white-space:nowrap;margin-left:auto}
+.back-link:hover{color:#f2c84b}
+.layer-bar{padding:8px 14px;background:#1a3a6b;border-bottom:1px solid rgba(255,255,255,.1);display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-shrink:0}
+.layer-bar span{font-size:.58rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.45);margin-right:2px}
+.lbtn{padding:5px 13px;font-size:.76rem;font-family:'DM Sans',sans-serif;font-weight:700;border:1.5px solid rgba(255,255,255,.25);border-radius:20px;background:transparent;color:rgba(255,255,255,.6);cursor:pointer;transition:all .15s;white-space:nowrap}
+.lbtn.on{background:var(--pc);border-color:var(--pc);color:#fff}
+.legend-bar{padding:6px 14px;background:#fafaf8;border-bottom:1px solid #e5e2db;display:flex;flex-wrap:wrap;gap:10px;align-items:center;flex-shrink:0}
+.li{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;color:#444}
+.ls{display:inline-block;width:14px;height:10px;border-radius:2px}
+#map{flex:1;min-height:300px}
+.note-bar{padding:4px 14px;font-size:.65rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.3);background:#1a3a6b;flex-shrink:0}
+.note-bar a{color:#f2c84b;text-decoration:none}
+</style>
+
+<style id="bkcb6-embed-modal-css">
+.embed-fab{position:fixed;bottom:18px;right:18px;z-index:9999;background:#f2c84b;color:#1a3a6b;border:none;border-radius:999px;padding:10px 18px;font-size:.82rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.18);display:flex;align-items:center;gap:6px}
+.embed-fab:hover{background:#e3b62f}
+.embed-modal-bg{display:none;position:fixed;inset:0;z-index:10000;background:rgba(13,27,75,.55);align-items:center;justify-content:center;padding:16px}
+.embed-modal-bg.open{display:flex}
+.embed-modal{background:#fff;border-radius:12px;padding:22px 20px 18px;max-width:480px;width:100%;box-shadow:0 8px 32px rgba(13,27,75,.22)}
+.embed-modal h3{font-size:1rem;font-weight:700;color:#1a3a6b;margin:0 0 6px}
+.embed-modal p{font-size:.82rem;color:#6b6760;margin:0 0 14px;line-height:1.5}
+.embed-tabs{display:flex;gap:6px;margin-bottom:14px}
+.embed-tab{padding:6px 12px;border-radius:6px;font-size:.75rem;font-weight:600;cursor:pointer;border:1.5px solid #e5e2db;background:#fff;color:#6b6760;font-family:'DM Sans',sans-serif}
+.embed-tab.active{background:#1a3a6b;color:#fff;border-color:#1a3a6b}
+.embed-url-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.embed-url-box{flex:1;padding:8px 10px;border:1.5px solid #e5e2db;border-radius:6px;font-size:.78rem;font-family:'DM Mono',monospace;color:#1a3a6b;background:#f8f7f4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.embed-copy-btn{padding:8px 14px;background:#f2c84b;color:#1a3a6b;border:none;border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif}
+.embed-copy-btn:hover{background:#e3b62f}
+.embed-code-box{background:#f8f7f4;border:1.5px solid #e5e2db;border-radius:6px;padding:12px;font-size:.72rem;font-family:'DM Mono',monospace;color:#333;line-height:1.6;word-break:break-all;margin-bottom:14px;white-space:pre-wrap}
+.embed-close{width:100%;padding:10px;background:#f8f7f4;border:1.5px solid #e5e2db;border-radius:6px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;color:#1a3a6b}
+.embed-close:hover{background:#e5e2db}
+</style>
+<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b6e9b47ba0cf416388d72db8edaf4198"}'></script><!-- End Cloudflare Web Analytics -->
+</head>
+<body>
+<div id="bkapp-bar" style="display:flex;align-items:center;gap:9px;background:#1a3a6b;border-bottom:4px solid #f2c84b;padding:9px 14px;font-family:'DM Sans',system-ui,sans-serif">
+<a href="/bk/index.html" style="display:flex;align-items:center;gap:9px;text-decoration:none"><img src="/brooklyn-seal.png" alt="" style="width:28px;height:28px"><span style="color:#fff;font-weight:900;font-size:.95rem;letter-spacing:-.01em">Brooklyn Civic</span></a>
+<a href="/bk/directory.html" style="margin-left:auto;color:#f2c84b;text-decoration:none;font-family:'DM Mono',monospace;font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em">Directory</a>
+</div>
+<div class="top-bar">
+  <h1>BKCB6 <span>Public Safety</span></h1>
+  <a class="back-link" href="/bk/cb-bk-6.html">← CB6</a>
+</div>
+<div class="layer-bar">
+  <span>Layers</span>
+  <button class="lbtn on" onclick="togPct('76',this)" style="--pc:#1d4ed8" id="btn-pct76">🚔 76th Precinct &amp; Sectors</button>
+  <button class="lbtn on" onclick="togPct('78',this)" style="--pc:#7c3aed" id="btn-pct78">🚔 78th Precinct &amp; Sectors</button>
+  <button class="lbtn on" onclick="togLayer('fdny',this)" style="--pc:#dc2626">🚒 FDNY Battalions</button>
+  <button class="lbtn on" onclick="togLayer('firehouses',this)" style="--pc:#b91c1c">🏠 Firehouses</button>
+  <button class="lbtn on" onclick="togLayer('dsny',this)" style="--pc:#15803d">🗑 DSNY Sections</button>
+</div>
+<div class="legend-bar">
+  <span class="li"><span class="ls" style="background:#1d4ed8;opacity:.8"></span>76th Precinct + Sectors</span>
+  <span class="li"><span class="ls" style="background:#7c3aed;opacity:.8"></span>78th Precinct + Sectors</span>
+  <span class="li"><span class="ls" style="background:#dc2626;opacity:.5"></span>FDNY Battalions</span>
+  <span class="li"><span style="font-size:.9rem">🚒</span>Firehouses (CB6 = orange)</span>
+  <span class="li"><span class="ls" style="background:#15803d;opacity:.5"></span>DSNY Sections</span>
+  <span class="li"><span class="ls" style="background:transparent;border:2px dashed #f2c84b"></span>CB6 Boundary</span>
+</div>
+<div id="map"></div>
+<div class="note-bar" id="note">Loading… &nbsp;|&nbsp; <a href="/bk/cb-bk-6.html">← CB6</a></div>
+
+<script>
+var map = L.map('map',{scrollWheelZoom:true}).setView([40.671,-73.990],13);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+
+var vis = {pct76:true, pct78:true, fdny:true, firehouses:true, dsny:true};
+var searchMarker = null;
+var layers = {pct76:null, pct78:null, fdny:null, firehouses:null, dsny:null};
+var boundaryLayer = null;
+
+function togLayer(k, btn){
+  vis[k] = !vis[k];
+  btn.classList.toggle('on');
+  if(layers[k]){ vis[k] ? layers[k].addTo(map) : map.removeLayer(layers[k]); }
+}
+function togPct(pct, btn){
+  var key = 'pct'+pct;
+  vis[key] = !vis[key];
+  btn.classList.toggle('on');
+  if(layers[key]){ vis[key] ? layers[key].addTo(map) : map.removeLayer(layers[key]); }
+}
+
+function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+Promise.all([
+  fetch('nyc_cb_boundaries.geojson').then(function(r){return r.json();}),
+  fetch('data/nypd_sectors_cb6.geojson').then(function(r){return r.json();}),
+  fetch('data/fire_battalions_cb6.geojson').then(function(r){return r.json();}),
+  fetch('data/fdny_firehouses_cb6.geojson').then(function(r){return r.json();}),
+  fetch('data/dsny_sections_cb6.geojson').then(function(r){return r.json();})
+]).then(function(res){
+  var bdData=res[0], nypdData=res[1], fdnyData=res[2], housesData=res[3], dsnyData=res[4];
+
+  // CB6 boundary
+  var cb6 = (bdData.features||[]).find(function(f){return String(f.properties&&f.properties.boro_cd)==='306';});
+  if(cb6){
+    boundaryLayer = L.geoJSON(cb6,{style:function(){return{color:'#f2c84b',weight:3,fill:false,dashArray:'6 3'};}}).addTo(map);
+    map.fitBounds(boundaryLayer.getBounds(),{padding:[24,24]});
+  }
+
+  // NYPD — separate layer per precinct
+  var pctColors = {'76':'#1d4ed8','78':'#7c3aed'};
+
+  function buildPctLayer(pct){
+    var col = pctColors[pct]||'#1d4ed8';
+    var pctFeats = (nypdData.features||[]).filter(function(f){
+      return String(f.properties.pct||'').replace(/^0+/,'') === pct;
+    });
+    var lyr = L.layerGroup();
+
+    // Sector fills
+    L.geoJSON({type:'FeatureCollection',features:pctFeats},{
+      style:function(f){
+        return{color:col,weight:2,fillColor:col,fillOpacity:.12};
+      },
+      onEachFeature:function(f,l){
+        var sec = f.properties.sector||'';
+        l.bindTooltip('<strong>🚔 '+escH(pct)+'th Precinct — Sector '+escH(sec)+'</strong><br><span style="font-size:.72rem;color:#555">Click sector to highlight</span>',{sticky:true,opacity:1});
+        l.on('click',function(){
+          l.setStyle({fillOpacity:.35,weight:3});
+          setTimeout(function(){lyr.eachLayer(function(x){if(x.setStyle)x.setStyle({fillOpacity:.12,weight:2});});},2000);
+        });
+      }
+    }).addTo(lyr);
+
+    // Sector labels
+    pctFeats.forEach(function(f){
+      try{
+        var tmp = L.geoJSON(f);
+        var ctr = tmp.getBounds().getCenter();
+        var sec = f.properties.sector||'';
+        L.marker([ctr.lat,ctr.lng],{
+          icon:L.divIcon({className:'',html:'<div style="font-size:.6rem;font-family:DM Sans,sans-serif;font-weight:700;color:'+col+';background:#fff;padding:1px 4px;border-radius:3px;border:1px solid '+col+';white-space:nowrap">'+sec+'</div>',iconAnchor:[12,8]}),
+          interactive:false,zIndexOffset:300
+        }).addTo(lyr);
+      }catch(e){}
+    });
+
+    // Precinct label
+    try{
+      var allTmp = L.geoJSON({type:'FeatureCollection',features:pctFeats});
+      var ctr = allTmp.getBounds().getCenter();
+      L.marker([ctr.lat,ctr.lng],{
+        icon:L.divIcon({className:'',html:'<div style="background:'+col+';color:#fff;font-family:DM Sans,sans-serif;font-size:.78rem;font-weight:800;padding:4px 9px;border-radius:7px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3)">'+pct+'th Precinct</div>',iconAnchor:[45,12]}),
+        interactive:false,zIndexOffset:600
+      }).addTo(lyr);
+    }catch(e){}
+
+    return lyr;
+  }
+
+  layers.pct76 = buildPctLayer('76');
+  layers.pct78 = buildPctLayer('78');
+  if(vis.pct76) layers.pct76.addTo(map);
+  if(vis.pct78) layers.pct78.addTo(map);
+
+  // FDNY Battalions
+  var bnColors = ['#dc2626','#b91c1c','#ef4444','#f87171','#fca5a5'];
+  layers.fdny = L.geoJSON(fdnyData,{
+    style:function(f,i){
+      return{color:'#dc2626',weight:2,fillColor:'#dc2626',fillOpacity:.07};
+    },
+    onEachFeature:function(f,l){
+      var bn = f.properties.fire_bn||'?';
+      l.bindTooltip('<strong>🚒 FDNY Battalion '+escH(String(bn))+'</strong>',{sticky:true,opacity:1});
+    }
+  });
+  if(vis.fdny) layers.fdny.addTo(map);
+
+  // Firehouses — markers, CB6 ones highlighted
+  var cb6Houses = (housesData.features||[]).filter(function(f){return f.properties.cb==='306';});
+  var otherHouses = (housesData.features||[]).filter(function(f){return f.properties.cb!=='306';});
+
+  function houseIcon(isCB6){
+    return L.divIcon({
+      className:'',
+      html:'<div style="font-size:'+(isCB6?'1.2':'0.85')+'rem;filter:'+(isCB6?'none':'grayscale(1) opacity(.5)')+'">🚒</div>',
+      iconSize:[isCB6?24:16,isCB6?24:16],
+      iconAnchor:[isCB6?12:8,isCB6?12:8]
+    });
+  }
+
+  layers.firehouses = L.layerGroup();
+  otherHouses.forEach(function(f){
+    var ll = [f.geometry.coordinates[1], f.geometry.coordinates[0]];
+    L.marker(ll,{icon:houseIcon(false)})
+      .bindTooltip('<strong>'+escH(f.properties.name)+'</strong><br><span style="font-size:.75rem;color:#555">'+escH(f.properties.address)+'</span>',{sticky:true,opacity:1})
+      .addTo(layers.firehouses);
+  });
+  cb6Houses.forEach(function(f){
+    var ll = [f.geometry.coordinates[1], f.geometry.coordinates[0]];
+    L.marker(ll,{icon:houseIcon(true), zIndexOffset:1000})
+      .bindTooltip('<strong style="color:#dc2626">'+escH(f.properties.name)+'</strong><br><span style="font-size:.75rem;color:#555">'+escH(f.properties.address)+'</span><br><span style="font-size:.7rem;font-family:DM Mono,monospace;color:#f2c84b">CB6</span>',{sticky:true,opacity:1})
+      .addTo(layers.firehouses);
+  });
+  if(vis.firehouses) layers.firehouses.addTo(map);
+
+  // DSNY Sections
+  layers.dsny = L.geoJSON(dsnyData,{
+    style:function(f){
+      return{color:'#15803d',weight:1.5,fillColor:'#15803d',fillOpacity:.06};
+    },
+    onEachFeature:function(f,l){
+      var dist = f.properties.district||'?';
+      var sec = f.properties.section||'';
+      l.bindTooltip('<strong>🗑 DSNY '+escH(String(dist))+(sec?' — Section '+escH(String(sec)):'')+'</strong>',{sticky:true,opacity:1});
+    }
+  });
+  if(vis.dsny) layers.dsny.addTo(map);
+
+  // Precinct houses — permanent markers
+  var precinctHouseIcon = L.divIcon({
+    className:'',
+    html:'<div style="font-size:1.1rem">🚔</div>',
+    iconSize:[22,22], iconAnchor:[11,11]
+  });
+  var dsnyGarageIcon = L.divIcon({
+    className:'',
+    html:'<div style="font-size:1.1rem">🗑</div>',
+    iconSize:[22,22], iconAnchor:[11,11]
+  });
+  L.marker([40.6702, -73.9887], {icon:dsnyGarageIcon, zIndexOffset:2000})
+    .bindTooltip('<strong>🗑 DSNY BK6 Garage</strong><br><span style="font-size:.75rem;color:#555">2nd Ave, Brooklyn NY 11215</span>', {sticky:true,opacity:1})
+    .addTo(map);
+
+  var precinctHouses = [
+    {name:'78th Precinct', addr:'65 6th Avenue, Brooklyn NY 11217', lat:40.6821, lng:-73.9759},
+    {name:'76th Precinct', addr:'191 Union Street, Brooklyn NY 11231', lat:40.6763, lng:-73.9991},
+  ];
+  var precinctHouseLayer = L.layerGroup();
+  precinctHouses.forEach(function(p){
+    L.marker([p.lat, p.lng], {icon:precinctHouseIcon, zIndexOffset:2000})
+      .bindTooltip('<strong>🚔 '+p.name+'</strong><br><span style="font-size:.75rem;color:#555">'+p.addr+'</span>', {sticky:true,opacity:1})
+      .addTo(precinctHouseLayer);
+  });
+  precinctHouseLayer.addTo(map);
+
+  if(boundaryLayer) boundaryLayer.bringToFront();
+  document.getElementById('note').textContent = nypdData.features.length+' NYPD sectors · '+fdnyData.features.length+' FDNY battalions · '+dsnyData.features.length+' DSNY sections · '+cb6Houses.length+' CB6 firehouses';
+
+}).catch(function(e){
+  document.getElementById('note').textContent = 'Load error: '+e;
+});
+</script>
+
+<!-- DIRECTORY & SEARCH -->
+<div style="background:#fff;border-top:3px solid #1a3a6b;flex-shrink:0">
+
+  <!-- Search bar -->
+  <div style="background:#1a3a6b;padding:10px 14px;display:flex;gap:8px;align-items:center">
+    <span style="font-size:.82rem;font-weight:700;color:#fff;flex-shrink:0">📍 Address Lookup</span>
+    <input id="ps-addr" type="text" placeholder="Search a CB6 address…"
+      style="flex:1;font-family:'DM Sans',sans-serif;font-size:.82rem;padding:6px 10px;border:none;border-radius:6px;background:rgba(255,255,255,.12);color:#fff;outline:none"/>
+    <button onclick="psSearch()" style="padding:6px 14px;background:#f2c84b;color:#1a3a6b;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer">Search</button>
+  </div>
+  <div id="ps-result" style="display:none;padding:10px 14px;background:#fff8f0;border-bottom:2px solid #f2c84b;font-family:'DM Sans',sans-serif;font-size:.82rem"></div>
+
+  <!-- Directory -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));border-top:1px solid #e5e2db">
+
+    <!-- NYPD -->
+    <div style="padding:14px 16px;border-right:1px solid #e5e2db;border-bottom:1px solid #e5e2db">
+      <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:8px">🚔 NYPD Precincts</div>
+      <div style="margin-bottom:10px">
+        <div style="font-weight:700;font-size:.85rem;color:#1d4ed8;margin-bottom:2px">76th Precinct</div>
+        <div style="font-size:.75rem;color:#555;margin-bottom:2px">191 Union Street, Brooklyn NY 11231</div>
+        <div style="font-size:.72rem;font-family:'DM Mono',monospace;color:#888">Sectors: 76A · 76B · 76C · 76D</div>
+        <div style="font-size:.72rem;font-family:'DM Mono',monospace;color:#888">Carroll Gardens · Red Hook · Columbia St</div>
+      </div>
+      <div>
+        <div style="font-weight:700;font-size:.85rem;color:#7c3aed;margin-bottom:2px">78th Precinct</div>
+        <div style="font-size:.75rem;color:#555;margin-bottom:2px">65 6th Avenue, Brooklyn NY 11217</div>
+        <div style="font-size:.72rem;font-family:'DM Mono',monospace;color:#888">Sectors: 78A · 78B · 78C · 78D</div>
+        <div style="font-size:.72rem;font-family:'DM Mono',monospace;color:#888">Park Slope · Prospect Heights · Gowanus</div>
+      </div>
+    </div>
+
+    <!-- FDNY -->
+    <div style="padding:14px 16px;border-right:1px solid #e5e2db;border-bottom:1px solid #e5e2db">
+      <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:8px">🚒 FDNY Battalions &amp; Firehouses</div>
+      <div style="font-size:.75rem;color:#333;margin-bottom:8px">Battalions overlapping CB6: <strong>1 · 31 · 32 · 40 · 41 · 48 · 57</strong></div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="font-size:.75rem;color:#555"><strong>Engine 279 / Ladder 131</strong> — 252 Lorraine St</div>
+        <div style="font-size:.75rem;color:#555"><strong>Btn 32 / Engine 202 / Ladder 101</strong> — 31 Richards St</div>
+        <div style="font-size:.75rem;color:#555"><strong>Squad 1</strong> — 788 Union St</div>
+        <div style="font-size:.75rem;color:#555"><strong>Engine 239</strong> — 395 4th Ave</div>
+        <div style="font-size:.75rem;color:#555"><strong>Engine 220 / Ladder 122</strong> — 530 11th St</div>
+        <div style="font-size:.75rem;color:#555"><strong>Engine 219 / Ladder 105</strong> — 494 Dean St</div>
+        <div style="font-size:.75rem;color:#555"><strong>Engine 226</strong> — 409 State St</div>
+      </div>
+    </div>
+
+    <!-- DSNY -->
+    <div style="padding:14px 16px;border-bottom:1px solid #e5e2db">
+      <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:8px">🗑 DSNY District 6</div>
+      <div style="font-size:.75rem;color:#555;margin-bottom:6px"><strong>DSNY BK6 Garage</strong> — 2nd Ave, Brooklyn NY 11215</div>
+      <div style="font-size:.72rem;font-family:'DM Mono',monospace;color:#888;margin-bottom:6px">Sections: BKS061 · BKS062 · BKS063 · BKS064 · BKS065</div>
+      <div style="font-size:.72rem;color:#555;line-height:1.5">DSNY District 6 is the sole DSNY district overlapping CB6. Covers all CB6 neighborhoods for residential and commercial collection, street cleaning, and snow removal.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function pip(lng,lat,feat){var g=feat.geometry;if(!g)return false;var rings=g.type==='Polygon'?[g.coordinates]:g.coordinates;for(var p=0;p<rings.length;p++){var o=rings[p][0],ins=false;for(var i=0,j=o.length-1;i<o.length;j=i++){var xi=o[i][0],yi=o[i][1],xj=o[j][0],yj=o[j][1];if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))ins=!ins;}if(ins)return true;}return false;}
+
+var _nypdData=null,_fdnyData=null,_dsnyData=null;
+Promise.all([
+  fetch('data/nypd_sectors_cb6.geojson').then(function(r){return r.json();}),
+  fetch('data/fire_battalions_cb6.geojson').then(function(r){return r.json();}),
+  fetch('data/dsny_sections_cb6.geojson').then(function(r){return r.json();})
+]).then(function(res){_nypdData=res[0];_fdnyData=res[1];_dsnyData=res[2];});
+
+function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function pRow(icon,label,val){return '<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #f0efed"><span style="font-size:.8rem">'+icon+'</span><div><div style="font-size:.62rem;font-family:DM Mono,monospace;text-transform:uppercase;color:#888">'+label+'</div><div style="font-size:.78rem;font-weight:700;color:#1a3a6b">'+val+'</div></div></div>';}
+
+function psSearch(){
+  var addr=document.getElementById('ps-addr').value.trim();
+  if(!addr)return;
+  var res=document.getElementById('ps-result');
+  res.style.display='block';res.textContent='Searching…';
+  fetch('https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(addr)+'&size=1')
+    .then(function(r){return r.json();}).then(function(geo){
+      if(!geo.features||!geo.features.length){res.textContent='Address not found.';return;}
+      var feat=geo.features[0],lat=feat.geometry.coordinates[1],lng=feat.geometry.coordinates[0],lbl=feat.properties.label||addr;
+      
+      // PIP lookups
+      var sector='—',pct='—',battalion='—',dsnySection='—';
+      if(_nypdData){
+        (_nypdData.features||[]).forEach(function(f){
+          if(sector!=='—')return;
+          if(pip(lng,lat,f)){
+            sector=f.properties.sector||'—';
+            pct=String(f.properties.pct||'').replace(/^0+/,'')||'—';
+          }
+        });
+      }
+      if(_fdnyData){
+        (_fdnyData.features||[]).forEach(function(f){
+          if(battalion!=='—')return;
+          if(pip(lng,lat,f)) battalion='Battalion '+escH(String(f.properties.fire_bn||'?'));
+        });
+      }
+      if(_dsnyData){
+        (_dsnyData.features||[]).forEach(function(f){
+          if(dsnySection!=='—')return;
+          if(pip(lng,lat,f)) dsnySection='District 6 — Section '+escH(String(f.properties.section||'?'));
+        });
+      }
+
+      // Find nearest firehouse
+      var nearestHouse='—',minDist=999;
+      var houses=[
+        {name:'Engine 279/Ladder 131',addr:'252 Lorraine St',lat:40.6742,lng:-74.0048},
+        {name:'Btn 32/Engine 202/Ladder 101',addr:'31 Richards St',lat:40.6718,lng:-74.0064},
+        {name:'Squad 1',addr:'788 Union St',lat:40.6702,lng:-73.9775},
+        {name:'Engine 239',addr:'395 4th Ave',lat:40.6769,lng:-73.9827},
+        {name:'Engine 220/Ladder 122',addr:'530 11th St',lat:40.6641,lng:-73.9888},
+        {name:'Engine 219/Ladder 105',addr:'494 Dean St',lat:40.6772,lng:-73.9756},
+        {name:'Engine 226',addr:'409 State St',lat:40.6837,lng:-73.9903},
+      ];
+      houses.forEach(function(h){
+        var d=Math.sqrt(Math.pow(h.lat-lat,2)+Math.pow(h.lng-lng,2));
+        if(d<minDist){minDist=d;nearestHouse=h.name+' ('+h.addr+')';}
+      });
+
+      // Place marker on map
+      if(typeof searchMarker!=='undefined'&&searchMarker)map.removeLayer(searchMarker);
+      searchMarker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div style="background:#fff;border:2px solid #f2c84b;border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.2);font-family:DM Sans,sans-serif;min-width:200px"><div style="font-weight:700;font-size:.82rem;color:#1a3a6b;border-bottom:1px solid #f2c84b;padding-bottom:4px;margin-bottom:6px">📍 '+escH(lbl)+'</div>'+pRow('🚔','NYPD Precinct / Sector',escH(pct)+'th Precinct — Sector '+escH(sector))+pRow('🚒','FDNY Battalion',escH(battalion))+pRow('🗑','DSNY',escH(dsnySection))+pRow('🏠','Nearest Firehouse',escH(nearestHouse))+'</div>',iconSize:[240,1],iconAnchor:[0,0]}),zIndexOffset:9999}).addTo(map);
+      map.setView([lat,lng],15);
+
+      res.innerHTML='<strong>'+escH(lbl)+'</strong> — Pct <strong>'+escH(pct)+'</strong> Sector <strong>'+escH(sector)+'</strong> · FDNY <strong>'+escH(battalion)+'</strong> · DSNY <strong>'+escH(dsnySection)+'</strong>';
+    }).catch(function(){res.textContent='Search failed.';});
+}
+document.getElementById('ps-addr').addEventListener('keydown',function(e){if(e.key==='Enter')psSearch();});
+</script>
+
+
+<button aria-label="Share or embed this page" class="embed-fab" onclick="document.getElementById('bkcb6EmbedModal').classList.add('open')">
+  &lt;/&gt; Share / Embed
+</button>
+<div class="embed-modal-bg" id="bkcb6EmbedModal" onclick="if(event.target===this)this.classList.remove('open')">
+<div class="embed-modal">
+<h3>Share or Embed This Page</h3>
+<p>Copy the direct link to share, or use the embed code to display this page on your own site.</p>
+<div class="embed-tabs">
+<button class="embed-tab active" onclick="bkcb6SwitchEmbedTab(this,'link')">&#128279; Link</button>
+<button class="embed-tab" onclick="bkcb6SwitchEmbedTab(this,'iframe')">&lt;/&gt; Embed</button>
+</div>
+<div id="bkcb6EmbedLinkPanel">
+<div class="embed-url-row">
+<div class="embed-url-box" id="bkcb6EmbedUrlBox"></div>
+<button class="embed-copy-btn" onclick="bkcb6CopyEmbed('link')">Copy</button>
+</div>
+</div>
+<div id="bkcb6EmbedIframePanel" style="display:none">
+<div class="embed-code-box" id="bkcb6EmbedCodeBox"></div>
+<button class="embed-copy-btn" onclick="bkcb6CopyEmbed('iframe')" style="width:100%;margin-bottom:10px">Copy Embed Code</button>
+</div>
+<button class="embed-close" onclick="document.getElementById('bkcb6EmbedModal').classList.remove('open')">Close</button>
+</div>
+</div>
+<script>
+(function(){
+  var url = window.location.href.split('?')[0].split('#')[0];
+  url = url.replace('cb6brooklyn.github.io/bkcb6','bkcb6.app');
+  var iframe = '<iframe src="' + url + '" width="100%" height="600" style="border:none;border-radius:8px" loading="lazy" title="Brooklyn Civic \u2014 ' + document.title + '"></iframe>';
+  document.getElementById('bkcb6EmbedUrlBox').textContent = url;
+  document.getElementById('bkcb6EmbedCodeBox').textContent = iframe;
+})();
+function bkcb6SwitchEmbedTab(btn,panel){
+  document.querySelectorAll('.embed-tab').forEach(function(t){t.classList.remove('active')});
+  btn.classList.add('active');
+  document.getElementById('bkcb6EmbedLinkPanel').style.display=panel==='link'?'':'none';
+  document.getElementById('bkcb6EmbedIframePanel').style.display=panel==='iframe'?'':'none';
+}
+function bkcb6CopyEmbed(type){
+  var text=type==='link'?document.getElementById('bkcb6EmbedUrlBox').textContent:document.getElementById('bkcb6EmbedCodeBox').textContent;
+  navigator.clipboard.writeText(text).then(function(){
+    var btn=type==='link'?document.querySelector('#bkcb6EmbedLinkPanel .embed-copy-btn'):document.querySelector('#bkcb6EmbedIframePanel .embed-copy-btn');
+    var orig=btn.textContent;btn.textContent='Copied!';btn.style.background='#2d6a4f';
+    setTimeout(function(){btn.textContent=orig;btn.style.background='';},1800);
+  });
+}
+</script>
+</body>
+</html>
