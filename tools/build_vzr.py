@@ -106,7 +106,7 @@ for fn in sorted(glob.glob('/home/claude/crash/p*.csv')):
                 for k2, v in rec.items(): e[k2] += v
                 e['lat'] += pt.y; e['lng'] += pt.x; e['n'] += 1
             if rec['k'] > 0:
-                mode = 'pedestrian' if rec['pk'] else ('cyclist' if rec['ck'] else 'motor vehicle occupant')
+                mode = 'pedestrian' if rec['pk'] else ('cyclist' if rec['ck'] else 'in a vehicle')
                 cb6_fatal.append({'date': d, 'on': a, 'cross': b, 'k': rec['k'], 'mode': mode,
                                   'lat': round(pt.y, 6), 'lng': round(pt.x, 6)})
 for fn in sorted(glob.glob('/home/claude/crash/nolat*.csv')):
@@ -378,16 +378,19 @@ cb6_fatal.sort(key=lambda x: x['date'])
 json.dump({'generated': out['generated'], 'last_crash': LAST_CRASH, 'intersections': ints, 'fatal': cb6_fatal,
            'note': 'NYPD Motor Vehicle Collisions - Crashes (h9gi-nx95), crashes with at least one person injured or killed, inside Brooklyn Community District 6 by crash coordinates, 2014-01-01 to ' + LAST_CRASH + '. Intersections are the on-street and cross-street NYPD recorded; crashes recorded with only an on-street or an off-street address are counted in the district totals but not in the intersection list.'},
           open(os.path.join(OUT, 'cb6-places.json'), 'w'), separators=(',', ':'))
+def rnd(c):
+    if isinstance(c[0], (int, float)): return [round(c[0], 5), round(c[1], 5)]
+    return [rnd(x) for x in c]
 # corridors geojson for the map (named)
 fc = {'type': 'FeatureCollection', 'features': []}
 for i, f in enumerate(cor['features']):
     c = corridors[i]
-    fc['features'].append({'type': 'Feature', 'properties': {'i': i, 'name': c['name'], 'from': c['from'], 'to': c['to'], 'mi': c['mi'], 'cd': [x['k'] for x in c['cd']], 'cc': [x['k'] for x in c['cc']]}, 'geometry': f['geometry']})
+    fc['features'].append({'type': 'Feature', 'properties': {'i': i, 'name': c['name'], 'from': c['from'], 'to': c['to'], 'mi': c['mi'], 'cd': [x['k'] for x in c['cd']], 'cc': [x['k'] for x in c['cc']]}, 'geometry': {'type': f['geometry']['type'], 'coordinates': rnd(f['geometry']['coordinates'])}})
 json.dump(fc, open(os.path.join(OUT, 'priority-corridors.geojson'), 'w'), separators=(',', ':'))
 ifc = {'type': 'FeatureCollection', 'features': []}
 for f in load('tmt9-43em')['features']:
     p = f['properties']
-    ifc['features'].append({'type': 'Feature', 'properties': {'n': titlecase(p.get('street_1', '')) + ' & ' + titlecase(p.get('street_2', ''))}, 'geometry': f['geometry']})
+    ifc['features'].append({'type': 'Feature', 'properties': {'n': titlecase(p.get('street_1', '')) + ' & ' + titlecase(p.get('street_2', ''))}, 'geometry': {'type': f['geometry']['type'], 'coordinates': rnd(f['geometry']['coordinates'])}})
 json.dump(ifc, open(os.path.join(OUT, 'priority-intersections.geojson'), 'w'), separators=(',', ':'))
 
 # sanity
