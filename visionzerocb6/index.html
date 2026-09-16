@@ -345,6 +345,18 @@ a.sqcap:hover{color:var(--orange)}
     <div class="body" id="instWords"></div>
   </details>
 
+  <details class="fold" id="foldTickets">
+    <summary>Camera tickets and 311 complaints</summary>
+    <div class="sec">
+      <h2>What enforcement and complaints look like here</h2>
+      <div class="lede">Speed camera and red light camera tickets issued in CB6, and the street and traffic complaints people filed with 311.</div>
+    </div>
+    <div class="kpis" id="tickKpis"></div>
+    <div class="yrs"><div class="piecard"><div class="pietitle">Camera tickets issued in CB6, by year</div><div class="piefig"><canvas id="tickChart"></canvas></div><div class="pienote" id="tickNote"></div></div></div>
+    <div class="tblwrap"><table class="dir" id="t311Tbl"></table></div>
+    <div class="srcnote" id="tickSrc" style="border-bottom:0"></div>
+  </details>
+
   <details class="fold" id="foldNeeds">
     <summary>What CB6 asked for, and where the plan answers</summary>
     <div class="sec">
@@ -616,7 +628,11 @@ a.sqcap:hover{color:var(--orange)}
       ['subway','Subway','#EE352E'],
       ['citi','Citi Bike','#0072CE'],
       ['truck','Truck routes','#0d9488'],
-      ['asp','Alternate side parking','#e41a1c']
+      ['asp','Alternate side parking','#e41a1c'],
+      ['t311parking','311: illegal parking and blocked driveways','#b5179e'],
+      ['t311street','311: street, sidewalk, curb and lighting','#7209b7'],
+      ['t311signal','311: signals, signs and bus shelters','#3a0ca3'],
+      ['t311vehicle','311: abandoned vehicles, idling and traffic','#4361ee']
     ]);
     var LKEY={};
     CORKEY.forEach(function(r){ LKEY[r[0]]=[['#f47920',r[1],'line']]; });
@@ -632,7 +648,11 @@ a.sqcap:hover{color:var(--orange)}
       subway:[['#0d1b4b','Station','dot']],
       citi:[['#0072CE','Citi Bike dock','dot']],
       truck:[['#0d9488','Through route','line'],['#2563eb','Local route','line']],
-      asp:[['#e41a1c','Mon','line'],['#377eb8','Tue','line'],['#4daf4a','Wed','line'],['#984ea3','Thu','line'],['#ff7f00','Fri','line'],['#a65628','Sat','line'],['#999999','Sun','line']]
+      asp:[['#e41a1c','Mon','line'],['#377eb8','Tue','line'],['#4daf4a','Wed','line'],['#984ea3','Thu','line'],['#ff7f00','Fri','line'],['#a65628','Sat','line'],['#999999','Sun','line']],
+      t311parking:[['#b5179e','Illegal parking, blocked driveway','dot']],
+      t311street:[['#7209b7','Street, sidewalk, curb, lighting','dot']],
+      t311signal:[['#3a0ca3','Signals, signs, bus shelters','dot']],
+      t311vehicle:[['#4361ee','Vehicles, idling, traffic','dot']]
     };
     for(var kk in LKEY2) LKEY[kk]=LKEY2[kk];
     var ON={}, LAYERS={}, TRN=null, aspZoomBound=false;
@@ -644,6 +664,8 @@ a.sqcap:hover{color:var(--orange)}
       var t=String(p.route_type||'').toLowerCase();if(t==='sbs')return'#c1121f';if(t==='express')return'#6a1b9a';if(t==='limited')return'#f77f00';return'#2563eb';}
     function truckC(p){return String(p.routetype||'').toLowerCase()==='through'?'#0d9488':'#2563eb';}
     var ASPC={Mon:'#e41a1c',Tue:'#377eb8',Wed:'#4daf4a',Thu:'#984ea3',Fri:'#ff7f00',Sat:'#a65628',Sun:'#999999'};
+    var T311=null;
+    function t311(){ return T311?Promise.resolve(T311):fetch('/data/vzr/cb6-311.json').then(function(r){return r.json();}).then(function(d){ T311=d; return d; }); }
     function trn(){ return TRN?Promise.resolve(TRN):fetch('/transport-data/cb-bk-6.json').then(function(r){return r.json();}).then(function(d){ TRN=d; return d; }); }
     function build(k){
       if(BASE[k]) return Promise.resolve(BASE[k]);
@@ -657,6 +679,16 @@ a.sqcap:hover{color:var(--orange)}
           L.marker([sc.y,sc.x],{icon:ic}).bindTooltip('<b>'+escH(sc.t)+'</b>'+(sc.s?('<br>'+escH(sc.s)):''),{sticky:true,className:'vz-tip'}).addTo(g);
         });
         return g; });
+      if(k.indexOf('t311')===0) return t311().then(function(d){
+        var g=k.slice(4), want={}, col={t311parking:'#b5179e',t311street:'#7209b7',t311signal:'#3a0ca3',t311vehicle:'#4361ee'}[k];
+        (d.groups[g]||[]).forEach(function(i){ want[i]=1; });
+        var lay=L.layerGroup(), cv=L.canvas({padding:.3});
+        d.rows.forEach(function(r){
+          if(!want[r[2]]) return;
+          L.circleMarker([r[0],r[1]],{renderer:cv,radius:3,color:col,weight:0,fillColor:col,fillOpacity:.6})
+            .bindTooltip('<b>'+escH(d.types[r[2]])+'</b><br>'+escH(r[4]||'')+(r[5]?('<br>'+escH(r[5])):'')+'<br>'+esc(r[3]),{sticky:true,className:'vz-tip'}).addTo(lay);
+        });
+        return lay; });
       if(k==='citi') return fetch('/data/citibike_stations_cb6.geojson').then(function(r){return r.json();}).then(function(d){
         return L.geoJSON(d,{pointToLayer:function(f,ll){return L.circleMarker(ll,{radius:5,fillColor:'#0072CE',color:'#fff',weight:1.5,fillOpacity:.9});},
           onEachFeature:function(f,l){ l.bindTooltip('<b>'+escH(f.properties.name)+'</b><br>Citi Bike dock',{sticky:true,className:'vz-tip'}); }}); });
@@ -723,6 +755,8 @@ a.sqcap:hover{color:var(--orange)}
       if(ON.schools) parts.push('98 schools, each in its own logo');
       if(ON.speed) parts.push(cb6.assets.street_mi.toFixed(0)+' street miles of posted limits');
       if(ON.asp) parts.push('1,377 alternate side segments, tap one for its next suspensions');
+      var t3=['t311parking','t311street','t311signal','t311vehicle'].filter(function(k){return ON[k];});
+      if(t3.length&&T311) parts.push(n(t3.reduce(function(t,k){return t+(T311.counts[k.slice(4)]||0);},0))+' 311 complaints in the last 12 months');
       $('lyrNote').innerHTML=on.length
         ? ('<b>On:</b> '+on.map(function(x){return escH(x[1]);}).join(', ')+'.'+(parts.length?(' '+parts.join('. ')+'.'):''))
         : 'Nothing on the map. Tap any layer to draw it. Everything here is Brooklyn Community District 6 only.';
@@ -730,7 +764,8 @@ a.sqcap:hover{color:var(--orange)}
     var GROUPS=[
       ['Vision Zero here', CORKEY.map(function(r){return r[0];}).concat(INTKEY.map(function(r){return r[0];})).concat(['deaths']), true],
       ['Streets and schools', ['sammy','schools','speed','bike','truck'], false],
-      ['Transit and parking', ['bus','busstops','subway','citi','asp'], false]
+      ['Transit and parking', ['bus','busstops','subway','citi','asp'], false],
+      ['311 complaints, last 12 months', ['t311parking','t311street','t311signal','t311vehicle'], false]
     ];
     function lab(k){ var x=LYR.filter(function(y){return y[0]===k;})[0]; return x?x[1]:k; }
     function col(k){ var x=LYR.filter(function(y){return y[0]===k;})[0]; return x?x[2]:'#0d1b4b'; }
@@ -754,6 +789,33 @@ a.sqcap:hover{color:var(--orange)}
       var b=ev.target.closest('[data-ly]'); if(b) toggle(b.getAttribute('data-ly'));
     });
     Promise.all(CORKEY.map(function(r){return show(r[0],true);}).concat([show('deaths',true)])).then(after);
+
+    /* camera tickets and 311 */
+    Promise.all([fetch('/data/vzr/cb6-cameras.json').then(function(r){return r.json();}), t311()]).then(function(z){
+      var CAM=z[0], T=z[1];
+      var ys=Object.keys(CAM.cb6).sort(), last=ys[ys.length-1];
+      var full2=ys.filter(function(y){return y<last;});
+      var sp=ys.map(function(y){return CAM.cb6[y].speed||0;}), rl=ys.map(function(y){return CAM.cb6[y].redlight||0;});
+      var lastFull=full2[full2.length-1];
+      $('tickKpis').innerHTML=
+        '<div class="kp"><div class="v">'+n(CAM.cb6[lastFull].speed)+'</div><div class="k">speed camera tickets issued in CB6 in '+lastFull+'</div></div>'+
+        '<div class="kp"><div class="v">'+n(CAM.cb6[lastFull].redlight)+'</div><div class="k">red light camera tickets in '+lastFull+'</div></div>'+
+        '<div class="kp"><div class="v">'+n(T.total)+'</div><div class="k">street and traffic complaints to 311 in the last 12 months</div></div>'+
+        '<div class="kp"><div class="v">'+n(T.counts.parking||0)+'</div><div class="k">of those about illegal parking or a blocked driveway</div></div>';
+      new Chart($('tickChart'),{type:'bar',data:{labels:ys.map(function(y){return y===last?(y+' to date'):y;}),
+        datasets:[{label:'Speed camera',data:sp,backgroundColor:'#f47920'},{label:'Red light camera',data:rl,backgroundColor:'#0d1b4b'}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{family:'DM Sans',size:11}}}},
+          scales:{x:{ticks:{font:{family:'DM Mono',size:9}}},y:{beginAtZero:true,ticks:{font:{family:'DM Mono',size:10}}}}}});
+      $('tickNote').textContent='Speed camera tickets in CB6 more than doubled between '+ys[1]+' and 2024. '+last+' is a partial year.';
+      var byType={};
+      T.rows.forEach(function(r){ byType[T.types[r[2]]]=(byType[T.types[r[2]]]||0)+1; });
+      var rows2=Object.keys(byType).sort(function(a,b){return byType[b]-byType[a];});
+      $('t311Tbl').innerHTML='<tr><th style="text-align:left">311 complaint, last 12 months</th><th>Complaints</th></tr>'+
+        rows2.map(function(t){return '<tr><td>'+esc(t)+'</td><td>'+n(byType[t])+'</td></tr>';}).join('')+
+        '<tr class="me"><td>All street and traffic complaints</td><td>'+n(T.total)+'</td></tr>';
+      $('tickSrc').innerHTML='<b>Camera tickets:</b> '+esc(CAM.source)+' <b>311:</b> '+esc(T.source)+' Each complaint can also be drawn on the map above.';
+      var ft2=$('foldTickets'); ft2.addEventListener('toggle',function(){ if(ft2.open) setTimeout(function(){ var c=Chart.getChart($('tickChart')); if(c) c.resize(); },60); });
+    });
 
     /* year by year */
     var yrs=D.years, inj=yrs.map(function(y){return cb6.years[y][1];}), kil=yrs.map(function(y){return cb6.years[y][2];});
