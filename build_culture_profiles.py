@@ -16,6 +16,21 @@ BORO_LONG = {'Bronx': 'The Bronx', 'Brooklyn': 'Brooklyn', 'Manhattan': 'Manhatt
              'Queens': 'Queens', 'Staten Island': 'Staten Island'}
 BORO_DIGIT = {'MN': '1', 'BX': '2', 'BK': '3', 'QN': '4', 'SI': '5'}
 EVENT_URLS = json.load(open('data/culture-event-urls.json'))
+
+# Featured upcoming events pinned to a place's profile page, keyed by the
+# place name in data/culture-places.json. Each carries its own end date so
+# it drops off the page once it has passed; the live month calendar below it
+# keeps the listing.
+FEATURED = {
+    'Brooklyn Conservatory of Music': [
+        {'until': '2026-10-11',
+         'title': 'Grand Opening Parade: a community celebration of BKCM\u2019s new campus',
+         'when': 'Sunday, October 11, 2026, 10 AM at 58 Seventh Avenue',
+         'text': 'Join BKCM for a musical march from 58 Seventh Avenue to the new location, BKCM Prospect Park West.',
+         'href': 'https://bkcm.org/parade/', 'link': 'RSVP',
+         'flyer': '/flyer-bkcm-grand-opening-parade-2026-10-11.jpg'},
+    ],
+}
 CD_FILES = set(f[3:-8] for f in os.listdir('data/districts') if f.startswith('cb-') and f.endswith('.geojson'))
 CB_LONG = {'BX': 'The Bronx', 'BK': 'Brooklyn', 'MN': 'Manhattan',
            'QN': 'Queens', 'SI': 'Staten Island'}
@@ -133,6 +148,26 @@ def page(p):
         '<a class="chip" href="/calendar.html">The full bkcb6.app calendar</a>'
         '</div></div>\n'
     ) % dict(n=name, q=cal_q, own=own_chip)
+
+    import datetime
+    today = datetime.date.today().isoformat()
+    feats = [f for f in FEATURED.get(p['name'], []) if f.get('until', '9999') >= today]
+    featured = ''
+    if feats:
+        cards = ''.join(
+            '<div class="bio" style="margin-bottom:10px">'
+            + ('<a href="%s" target="_blank" rel="noopener"><img src="%s" alt="%s" '
+               'style="width:100%%;max-width:420px;height:auto;display:block;border-radius:8px;margin-bottom:12px"></a>'
+               % (e(f['href']), e(f['flyer']), e(f['title'])) if f.get('flyer') else '')
+            + '<p style="font-weight:700;color:var(--navy)">%s</p>' % e(f['title'])
+            + '<p style="font-family:\'DM Mono\',monospace;font-size:.78rem">%s</p>' % e(f['when'])
+            + ('<p>%s</p>' % e(f['text']) if f.get('text') else '')
+            + ('<div class="chips" style="margin-top:10px"><a class="chip hot" href="%s" target="_blank" rel="noopener">%s &#8599;</a></div>'
+               % (e(f['href']), e(f.get('link', 'Details'))) if f.get('href') else '')
+            + '</div>'
+            for f in feats)
+        featured = '  <div class="sec"><h2>Coming up</h2>%s</div>\n' % cards
+    events = featured + events
 
     return """<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
