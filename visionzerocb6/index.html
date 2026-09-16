@@ -302,7 +302,7 @@ a.sqcap:hover{color:var(--orange)}
       <span class="addone-s">The record &rarr;</span>
     </a>
   </div>
-  <div class="mapnote" id="vzKey"><span class="lg"><i class="ln"></i>Priority corridor</span><span class="lg"><i class="pt"></i>Priority intersection</span><span class="lg"><i style="background:#b3202b;border-color:#b3202b;border-radius:50%"></i>Someone killed</span></div>
+  <div class="mapnote" id="vzKey">&nbsp;</div>
   <div id="cb6Map"></div>
   <div class="lyr" id="lyrCtl"></div>
   <div class="lyrnote" id="lyrNote"></div>
@@ -573,15 +573,28 @@ a.sqcap:hover{color:var(--orange)}
     L.tileLayer(TILE,{maxZoom:18,attribution:'&copy; CARTO'}).addTo(cb6Map);
     var cb6f=CDG.features.filter(function(f){return f.properties.cb_code==='BKCB6';});
     L.geoJSON({type:'FeatureCollection',features:cb6f},{style:{color:'#0d1b4b',weight:2.5,fillColor:'#f47920',fillOpacity:.06}}).addTo(cb6Map);
-    var BASE={};
-    BASE.corridors=L.layerGroup(); BASE.pints=L.layerGroup(); BASE.deaths=L.layerGroup();
+    var BASE={}, CORKEY=[], INTKEY=[];
+    BASE.deaths=L.layerGroup();
+    cb6cors.forEach(function(c,i){
+      var k='cor'+i; CORKEY.push([k,corName(c),c]);
+      BASE[k]=L.layerGroup();
+    });
     fetch('/data/vzr/priority-corridors.geojson').then(function(r){return r.json();}).then(function(g){
       CORG=g;
-      L.geoJSON({type:'FeatureCollection',features:g.features.filter(function(f){return f.properties.cd.indexOf('306')>-1;})},{style:{color:'#f47920',weight:5,opacity:.9},
-        onEachFeature:function(f,l){ var c6=cb6cors.filter(function(c){return c.name===f.properties.name;})[0]; l.bindTooltip('<b>'+esc(c6?corName(c6):stName(f.properties.name))+'</b><br>Vision Zero priority corridor'+(c6?('<br>'+c6.mi.toFixed(2)+' mi in CB6'):''),{sticky:true,className:'vz-tip'}); }}).addTo(BASE.corridors);
+      CORKEY.forEach(function(row){
+        var k=row[0], c=row[2];
+        var fs=g.features.filter(function(f){return f.properties.cd.indexOf('306')>-1 && f.properties.name===c.name;});
+        L.geoJSON({type:'FeatureCollection',features:fs},{style:{color:'#f47920',weight:5,opacity:.9},
+          onEachFeature:function(f,l){ l.bindTooltip('<b>'+esc(full(c))+'</b><br>'+c.mi.toFixed(2)+' mi in CB6',{sticky:true,className:'vz-tip'}); }}).addTo(BASE[k]);
+      });
     });
-    cb6.assets.intersections.forEach(function(x){
-      L.circleMarker([x.lat,x.lng],{radius:8,color:'#f47920',weight:3,fillColor:'#fff',fillOpacity:1}).bindTooltip('<b>'+esc(stName(x.n))+'</b><br>Priority intersection',{sticky:true,className:'vz-tip'}).addTo(BASE.pints);
+    cb6.assets.intersections.forEach(function(x,i){
+      var k='int'+i, nm=stName(x.n);
+      var p2=PSAP.intersections.filter(function(y){return stName(y.name).replace(/\s+/g,'')===nm.replace(/\s+/g,'');})[0];
+      INTKEY.push([k,nm]);
+      BASE[k]=L.layerGroup();
+      L.circleMarker([x.lat,x.lng],{radius:8,color:'#f47920',weight:3,fillColor:'#fff',fillOpacity:1})
+        .bindTooltip('<b>'+esc(nm)+'</b>'+(p2?('<br>'+p2.ped_ksi+' pedestrians killed or severely injured, 2017 to 2021'):''),{sticky:true,className:'vz-tip'}).addTo(BASE[k]);
     });
     CB6P.fatal.forEach(function(f){
       L.circleMarker([f.lat,f.lng],{radius:6,color:'#b3202b',weight:1.5,fillColor:'#b3202b',fillOpacity:.85})
@@ -589,9 +602,9 @@ a.sqcap:hover{color:var(--orange)}
     });
 
     /* map layers, the same data the CB6 transport map draws */
-    var LYR=[
-      ['corridors','Priority corridors','#f47920'],
-      ['pints','Priority intersections','#f47920'],
+    var LYR=CORKEY.map(function(r){return [r[0],r[1],'#f47920'];})
+      .concat(INTKEY.map(function(r){return [r[0],r[1],'#f47920'];}))
+      .concat([
       ['deaths','Where people were killed','#b3202b'],
       ['sammy',"Sammy's Law 15 mph school zones",'#27ae60'],
       ['schools','Schools','#0d1b4b'],
@@ -603,10 +616,11 @@ a.sqcap:hover{color:var(--orange)}
       ['citi','Citi Bike','#0072CE'],
       ['truck','Truck routes','#0d9488'],
       ['asp','Alternate side parking','#e41a1c']
-    ];
-    var LKEY={
-      corridors:[['#f47920','Priority corridor','line']],
-      pints:[['#f47920','Priority intersection','dot']],
+    ]);
+    var LKEY={};
+    CORKEY.forEach(function(r){ LKEY[r[0]]=[['#f47920',r[1],'line']]; });
+    INTKEY.forEach(function(r){ LKEY[r[0]]=[['#f47920',r[1],'dot']]; });
+    var LKEY2={
       deaths:[['#b3202b','Someone killed','dot']],
       sammy:[['#27ae60','15 mph school zone','line']],
       schools:[['#0d1b4b','School','logo']],
@@ -619,6 +633,7 @@ a.sqcap:hover{color:var(--orange)}
       truck:[['#0d9488','Through route','line'],['#2563eb','Local route','line']],
       asp:[['#e41a1c','Mon','line'],['#377eb8','Tue','line'],['#4daf4a','Wed','line'],['#984ea3','Thu','line'],['#ff7f00','Fri','line'],['#a65628','Sat','line'],['#999999','Sun','line']]
     };
+    for(var kk in LKEY2) LKEY[kk]=LKEY2[kk];
     var ON={}, LAYERS={}, TRN=null, aspZoomBound=false;
     function escH(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
     function speedC(p){var sl=parseInt(p.postvz_sl||0,10);if(sl<=20&&sl>0)return'#2a9d8f';if(sl<=25)return'#4c78a8';if(sl<=30)return'#f4a261';return'#e63946';}
@@ -671,14 +686,13 @@ a.sqcap:hover{color:var(--orange)}
       });
     }
     function keyRow(){
-      var base='<span class="lg"><i class="ln"></i>Priority corridor</span><span class="lg"><i class="pt"></i>Priority intersection</span><span class="lg"><i style="background:#b3202b;border-color:#b3202b;border-radius:50%"></i>Someone killed</span>';
-      var extra='';
+      var base='', extra='';
       LYR.forEach(function(x){ if(!ON[x[0]]) return;
         (LKEY[x[0]]||[]).forEach(function(e){
           extra+='<span class="lg"><i style="background:'+e[0]+';'+(e[2]==='dot'?'border-radius:50%;width:11px;height:11px':(e[2]==='line'?'height:4px;border-radius:2px;border:0':''))+'"></i>'+escH(e[1])+'</span>';
         });
       });
-      $('vzKey').innerHTML=base+(extra?('<div class="mn-k">'+extra+'</div>'):'');
+      $('vzKey').innerHTML=extra||'<span class="lg">Nothing on the map</span>';
     }
     function btnFor(k){ return $('lyrCtl').querySelector('[data-ly="'+k+'"]'); }
     function show(k,want){
@@ -701,8 +715,9 @@ a.sqcap:hover{color:var(--orange)}
     function note(){
       var on=LYR.filter(function(x){return ON[x[0]];});
       var parts=[];
-      if(ON.corridors) parts.push('4 priority corridors, '+cb6.assets.corridor_mi.toFixed(1)+' miles');
-      if(ON.pints) parts.push('3 priority intersections');
+      var onCor=CORKEY.filter(function(r){return ON[r[0]];}), onInt=INTKEY.filter(function(r){return ON[r[0]];});
+      if(onCor.length) parts.push(onCor.length+' of the four Vision Zero priority corridors DOT lists here');
+      if(onInt.length) parts.push(onInt.length+' of the three priority intersections');
       if(ON.deaths) parts.push(n(CB6P.fatal.length)+' crashes in which someone was killed since 2014');
       if(ON.sammy) parts.push('504 street segments inside a Sammy&rsquo;s Law 15 mph school zone');
       if(ON.schools) parts.push('98 schools, each in its own logo');
@@ -721,7 +736,7 @@ a.sqcap:hover{color:var(--orange)}
       var a=ev.target.closest('[data-act]'); if(a){ a.getAttribute('data-act')==='all'?allOn():clearAll(); return; }
       var b=ev.target.closest('[data-ly]'); if(b) toggle(b.getAttribute('data-ly'));
     });
-    Promise.all([show('corridors',true),show('pints',true),show('deaths',true)]).then(after);
+    Promise.all(CORKEY.map(function(r){return show(r[0],true);}).concat(INTKEY.map(function(r){return show(r[0],true);})).concat([show('deaths',true)])).then(after);
 
     /* year by year */
     var yrs=D.years, inj=yrs.map(function(y){return cb6.years[y][1];}), kil=yrs.map(function(y){return cb6.years[y][2];});
@@ -730,8 +745,8 @@ a.sqcap:hover{color:var(--orange)}
     var opts=function(){return {responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'DM Mono',size:9},maxRotation:60}},y:{beginAtZero:true,ticks:{font:{family:'DM Mono',size:10}}}}};};
     new Chart($('injChart'),{type:'bar',data:{labels:labels,datasets:[{data:inj,backgroundColor:'#0d1b4b'}]},options:opts()});
     var ko=opts(); ko.scales.y.ticks.stepSize=1; new Chart($('kChart'),{type:'bar',data:{labels:labels,datasets:[{data:kil,backgroundColor:'#f47920'}]},options:ko});
-    var full=yrs.filter(function(y){return y<lastY;}), mx=Math.max.apply(null,full.map(function(y){return cb6.years[y][2];}));
-    var worst=full.filter(function(y){return cb6.years[y][2]===mx;});
+    var fullYrs=yrs.filter(function(y){return y<lastY;}), mx=Math.max.apply(null,fullYrs.map(function(y){return cb6.years[y][2];}));
+    var worst=fullYrs.filter(function(y){return cb6.years[y][2]===mx;});
     $('yrNote').textContent='Twelve full years, 2014 through 2025, and '+lastY+' through '+lastMon+'. The worst year'+(worst.length>1?'s':'')+' for deaths in CB6: '+worst.join(' and ')+', with '+mx+' each. In 2025 there were '+cb6.years['2025'][2]+' deaths and '+n(cb6.years['2025'][1])+' injuries.';
     var fr=$('foldRecord'); fr.addEventListener('toggle',function(){ if(fr.open) setTimeout(function(){ Chart.getChart($('injChart')).resize(); Chart.getChart($('kChart')).resize(); },60); });
 
