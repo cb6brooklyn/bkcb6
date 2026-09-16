@@ -316,7 +316,7 @@ a.sqcap:hover{color:var(--orange)}
       <div class="lede">The plan commits to finishing safety treatments on every Vision Zero Priority Corridor, nearly 200 citywide, and to hardened daylighting or better at 1,000 intersections a year. This is what DOT&rsquo;s own list holds inside CB6.</div>
     </div>
     <div class="pair" id="cb6Cors"></div>
-    <div class="srcnote" style="border-bottom:0">DOT Vision Zero View, priority corridors and priority intersections, rows updated September 1, 2026. Corridor names and extents worked out by us from the nearest DOT street segment.</div>
+    <div class="srcnote" style="border-bottom:0">Corridor and intersection names, extents and the 2017 to 2021 pedestrian figures are DOT&rsquo;s own, from the Borough Pedestrian Safety Action Plans Update (2023). The lines on the map are DOT&rsquo;s Vision Zero View priority corridor and intersection layers, rows updated September 1, 2026; the mileage inside CB6 is ours.</div>
   </details>
 
   <details class="fold" id="foldRecord">
@@ -452,20 +452,26 @@ a.sqcap:hover{color:var(--orange)}
   function stName(s){ return String(s||'').replace(/\b(\d+)\b(?=\s)/g,function(m,d){return ord(parseInt(d,10));}); }
   function tc(s){ return String(s||'').toLowerCase().replace(/\b([a-z])/g,function(m){return m.toUpperCase();}); }
   var TILE='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e';
-  var GOALS=null, D=null, PLAN=null, POS=null, CB6P=null, CDG=null, CORG=null, INTG=null;
+  var GOALS=null, D=null, PLAN=null, POS=null, CB6P=null, CDG=null, CORG=null, INTG=null, PSAP=null;
   Promise.all([
     fetch('/data/vzr/districts.json').then(function(r){return r.json();}),
     fetch('/data/vzr/plan.json').then(function(r){return r.json();}),
     fetch('/data/vzr/positions.json').then(function(r){return r.json();}),
     fetch('/data/vzr/cb6-places.json').then(function(r){return r.json();}),
-    fetch('/data/citywide-rents.geojson').then(function(r){return r.json();})
+    fetch('/data/citywide-rents.geojson').then(function(r){return r.json();}),
+    fetch('/data/vzr/psap-cb6.json').then(function(r){return r.json();})
   ]).then(function(a){
-    D=a[0]; PLAN=a[1]; POS=a[2].positions; CB6P=a[3]; CDG=a[4]; GOALS=PLAN.goals;
+    D=a[0]; PLAN=a[1]; POS=a[2].positions; CB6P=a[3]; CDG=a[4]; PSAP=a[5]; GOALS=PLAN.goals;
+    var DOTNAME={'Atlantic Avenue':'Atlantic Ave','Court Street':'Court St','9 Street':'9 St','5 Avenue':'5 Ave'};
+    function dot(c){ var k=DOTNAME[c.name]; if(!k) return null;
+      return PSAP.corridors.filter(function(x){return x.street===k;})[0]||null; }
+    function full(c){ var x=dot(c); return x?(stName(x.street)+', '+stName(x.from)+' to '+stName(x.to)):(stName(c.name)+', '+stName(c.from)+' to '+stName(c.to)); }
+    function corName(c){ var x=dot(c); return stName((x?x.street:c.name)); }
     var cb6=D.cd.BKCB6, city=D.city, cb6cors=cb6.assets.corridors;
     var lastMon=new Date(D.last_crash+'T12:00:00').toLocaleString('en-US',{month:'long',day:'numeric',year:'numeric'});
     var NW=['None','One','Two','Three','Four','Five','Six','Seven','Eight'];
     $('cb6Head').innerHTML='<span>The plan commits</span> to finishing every Vision Zero Priority Corridor. <span>'+(NW[cb6cors.length]||cb6cors.length)+' run through CB6:</span> '+
-      cb6cors.map(function(c,i){return (i===cb6cors.length-1?'and ':'')+esc(stName(c.name));}).join(', ')+'. '+
+      cb6cors.map(function(c,i){return (i===cb6cors.length-1?'and ':'')+esc(corName(c));}).join(', ')+'. '+
       '<span>'+n(cb6.tot.k)+' people</span> were killed in traffic here from 2014 through 2025, '+n(cb6.tot.pk)+' of them walking.';
     var ranked=[]; for(var k in D.cd) ranked.push([k,D.cd[k].tot.k]); ranked.sort(function(x,y){return y[1]-x[1];});
     var rank=ranked.map(function(x){return x[0];}).indexOf('BKCB6')+1;
@@ -535,10 +541,13 @@ a.sqcap:hover{color:var(--orange)}
       '<div class="kp"><div class="v">'+n(cb6.assets.lpi)+'</div><div class="k">leading pedestrian intervals installed here</div></div>'+
       '<div class="kp"><div class="v">'+n(cb6.assets.speed_humps)+'</div><div class="k">speed humps, plus '+n(cb6.assets.turn_calming)+' turn calming treatments and '+n(cb6.assets.school_zone_segments)+' Sammy&rsquo;s Law school zone segments</div></div>';
     $('cb6Cors').innerHTML=cb6cors.map(function(c){
-      return '<div class="pc"><div class="pk">Priority corridor \u00b7 '+c.mi.toFixed(2)+' mi in CB6 of '+c.mi_total.toFixed(2)+'</div><div class="pv">'+esc(stName(c.name))+'</div>'+
-        '<div class="pn">'+esc(stName(c.from))+' to '+esc(stName(c.to))+', the whole corridor as DOT draws it.</div></div>';
-    }).join('')+cb6.assets.intersections.map(function(x){
-      return '<div class="pc navyc"><div class="pk">Priority intersection</div><div class="pv">'+esc(stName(x.n))+'</div></div>';
+      var x=dot(c);
+      return '<div class="pc"><div class="pk">Vision Zero priority corridor</div><div class="pv">'+esc(full(c))+'</div>'+
+        '<div class="pn">'+(x?('DOT recorded '+x.ped_fat+' pedestrian death'+(x.ped_fat===1?'':'s')+' and '+x.ped_ksi+' pedestrians killed or severely injured along the whole '+x.mi.toFixed(1)+' miles between 2017 and 2021, '+x.ksi_per_mi.toFixed(1)+' per mile. '):'')+
+        c.mi.toFixed(2)+' of those miles run through CB6.</div></div>';
+    }).join('')+PSAP.intersections.map(function(x){
+      return '<div class="pc navyc"><div class="pk">Vision Zero priority intersection</div><div class="pv">'+esc(stName(x.name))+'</div>'+
+        '<div class="pn">'+x.ped_ksi+' pedestrian'+(x.ped_ksi===1?'':'s')+' killed or severely injured here between 2017 and 2021'+(x.ped_fat?(', including '+x.ped_fat+' killed'):'')+'.</div></div>';
     }).join('');
     var fat=CB6P.fatal.slice().reverse();
     $('cb6FatalLede').textContent=n(fat.reduce(function(t,f){return t+f.k;},0))+' people, in '+n(fat.length)+' crashes, since January 2014. Each row is one crash as the NYPD recorded it.';
@@ -557,7 +566,7 @@ a.sqcap:hover{color:var(--orange)}
       $('cb6Int').querySelectorAll('[data-k]').forEach(function(th){ th.addEventListener('click',function(){ var k=th.getAttribute('data-k'); if(k===isort) idir=-idir; else { isort=k; idir=(k==='n')?1:-1; } drawInt(); }); });
     }
     $('cb6Q').addEventListener('input',drawInt); drawInt();
-    $('cb6Src').innerHTML='<b>Crashes:</b> '+esc(CB6P.note)+' <b>Corridors and intersections:</b> DOT Vision Zero View, priority corridors and priority intersections, rows updated September 1, 2026; corridor names and extents worked out by us from the nearest DOT street segment.';
+    $('cb6Src').innerHTML='<b>Crashes:</b> '+esc(CB6P.note)+' <b>Corridors and intersections:</b> DOT Vision Zero View layers, rows updated September 1, 2026, named as DOT names them in the Borough Pedestrian Safety Action Plans Update (2023).';
 
     /* CB6 map */
     var cb6Map=L.map('cb6Map',{scrollWheelZoom:false}).setView([40.677,-73.99],13);
@@ -569,7 +578,7 @@ a.sqcap:hover{color:var(--orange)}
     fetch('/data/vzr/priority-corridors.geojson').then(function(r){return r.json();}).then(function(g){
       CORG=g;
       L.geoJSON({type:'FeatureCollection',features:g.features.filter(function(f){return f.properties.cd.indexOf('306')>-1;})},{style:{color:'#f47920',weight:5,opacity:.9},
-        onEachFeature:function(f,l){ l.bindTooltip('<b>'+esc(stName(f.properties.name))+'</b><br>Priority corridor, '+f.properties.mi.toFixed(1)+' mi',{sticky:true,className:'vz-tip'}); }}).addTo(BASE.corridors);
+        onEachFeature:function(f,l){ var c6=cb6cors.filter(function(c){return c.name===f.properties.name;})[0]; l.bindTooltip('<b>'+esc(c6?corName(c6):stName(f.properties.name))+'</b><br>Vision Zero priority corridor'+(c6?('<br>'+c6.mi.toFixed(2)+' mi in CB6'):''),{sticky:true,className:'vz-tip'}); }}).addTo(BASE.corridors);
     });
     cb6.assets.intersections.forEach(function(x){
       L.circleMarker([x.lat,x.lng],{radius:8,color:'#f47920',weight:3,fillColor:'#fff',fillOpacity:1}).bindTooltip('<b>'+esc(stName(x.n))+'</b><br>Priority intersection',{sticky:true,className:'vz-tip'}).addTo(BASE.pints);
