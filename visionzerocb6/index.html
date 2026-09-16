@@ -263,6 +263,15 @@ a.sqcap:hover{color:var(--orange)}
 .ml span{display:block;font-size:.79rem;color:#555;line-height:1.55;margin-top:3px}
 
 @media(max-width:560px){.lbl{font-size:.62rem;line-height:1.2;min-height:2.1em}.grid{gap:7px 6px}.tile .fallback .nm{font-size:.66rem}.tile .fallback .ds{font-size:.5rem}}
+
+.lyr{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px 4px;border-bottom:1px solid var(--border)}
+.lyr button{border:1.5px solid var(--border);background:#fff;border-radius:18px;padding:6px 12px;font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:700;color:var(--navy);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.lyr button i{width:12px;height:12px;border-radius:3px;background:var(--lc,#0d1b4b);display:inline-block}
+.lyr button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.lyr button.on i{box-shadow:0 0 0 2px rgba(255,255,255,.5)}
+.lyrnote{padding:2px 16px 10px;font-family:'DM Mono',monospace;font-size:.62rem;line-height:1.7;color:var(--muted);border-bottom:1px solid var(--border)}
+.schicon img{border-radius:4px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.asp-sign-icon{background:none;border:0}
 </style>
 </head>
 <body>
@@ -283,8 +292,10 @@ a.sqcap:hover{color:var(--orange)}
       <span class="addone-s">The record &rarr;</span>
     </a>
   </div>
-  <div class="mapnote"><span class="lg"><i class="ln"></i>Priority corridor</span><span class="lg"><i class="pt"></i>Priority intersection</span><span class="lg"><i style="background:#b3202b;border-color:#b3202b;border-radius:50%"></i>Someone killed</span></div>
+  <div class="mapnote" id="vzKey"><span class="lg"><i class="ln"></i>Priority corridor</span><span class="lg"><i class="pt"></i>Priority intersection</span><span class="lg"><i style="background:#b3202b;border-color:#b3202b;border-radius:50%"></i>Someone killed</span></div>
   <div id="cb6Map"></div>
+  <div class="lyr" id="lyrCtl"></div>
+  <div class="lyrnote" id="lyrNote"></div>
   <div class="numbar" id="planNums"></div>
   <div class="kpis" id="cb6Kpis"></div>
 
@@ -551,6 +562,112 @@ a.sqcap:hover{color:var(--orange)}
         .bindTooltip('<b>'+esc(f.date)+'</b><br>'+esc(stName(tc(f.on)))+(f.cross?(' at '+esc(stName(tc(f.cross)))):'')+'<br>'+esc(f.mode)+' killed',{sticky:true,className:'vz-tip'}).addTo(cb6Map);
     });
     
+    /* map layers, the same data the CB6 transport map draws */
+    var LYR=[
+      ['sammy',"Sammy's Law 15 mph school zones",'#27ae60'],
+      ['schools','Schools','#0d1b4b'],
+      ['speed','Speed limits','#4c78a8'],
+      ['bike','Bike routes','#1d4ed8'],
+      ['bus','Bus routes','#2563eb'],
+      ['busstops','Bus stops','#f59e0b'],
+      ['subway','Subway','#EE352E'],
+      ['citi','Citi Bike','#0072CE'],
+      ['truck','Truck routes','#0d9488'],
+      ['asp','Alternate side parking','#e41a1c']
+    ];
+    var LKEY={
+      sammy:[['#27ae60','15 mph school zone','line']],
+      schools:[['#0d1b4b','School','logo']],
+      speed:[['#2a9d8f','20 mph','line'],['#4c78a8','25 mph','line'],['#f4a261','30 mph','line'],['#e63946','35 mph and above','line']],
+      bike:[['#1d4ed8','Protected','line'],['#0f766e','Greenway','line'],['#f59e0b','Buffered','line'],['#6b7280','Shared','line']],
+      bus:[['#2563eb','Local','line'],['#c1121f','SBS','line'],['#6a1b9a','Express','line']],
+      busstops:[['#2563eb','Stop','dot']],
+      subway:[['#0d1b4b','Station','dot']],
+      citi:[['#0072CE','Citi Bike dock','dot']],
+      truck:[['#0d9488','Through route','line'],['#2563eb','Local route','line']],
+      asp:[['#e41a1c','Mon','line'],['#377eb8','Tue','line'],['#4daf4a','Wed','line'],['#984ea3','Thu','line'],['#ff7f00','Fri','line'],['#a65628','Sat','line'],['#999999','Sun','line']]
+    };
+    var ON={}, LAYERS={}, TRN=null, aspZoomBound=false;
+    function escH(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+    function speedC(p){var sl=parseInt(p.postvz_sl||0,10);if(sl<=20&&sl>0)return'#2a9d8f';if(sl<=25)return'#4c78a8';if(sl<=30)return'#f4a261';return'#e63946';}
+    function bikeC(p){var t=[p.ft_facilit,p.tf_facilit,p.facilitycl,p.allclasses,p.grnwy,p.status].join(' ').toLowerCase();
+      if(t.indexOf('greenway')!==-1)return'#0f766e';if(t.indexOf('protected')!==-1)return'#1d4ed8';if(t.indexOf('buffered')!==-1)return'#f59e0b';return'#6b7280';}
+    function busC(p){var r=String(p.route_color||'').trim();if(r&&r[0]!=='#')r='#'+r;if(/^#[0-9a-fA-F]{6}$/.test(r))return r;
+      var t=String(p.route_type||'').toLowerCase();if(t==='sbs')return'#c1121f';if(t==='express')return'#6a1b9a';if(t==='limited')return'#f77f00';return'#2563eb';}
+    function truckC(p){return String(p.routetype||'').toLowerCase()==='through'?'#0d9488':'#2563eb';}
+    var ASPC={Mon:'#e41a1c',Tue:'#377eb8',Wed:'#4daf4a',Thu:'#984ea3',Fri:'#ff7f00',Sat:'#a65628',Sun:'#999999'};
+    function trn(){ return TRN?Promise.resolve(TRN):fetch('/transport-data/cb-bk-6.json').then(function(r){return r.json();}).then(function(d){ TRN=d; return d; }); }
+    function build(k){
+      if(k==='sammy') return fetch('/data/cb6-sammys-15mph.geojson').then(function(r){return r.json();}).then(function(d){
+        return L.geoJSON(d,{style:function(){return {color:'#27ae60',weight:5,opacity:.9};},onEachFeature:function(f,l){
+          l.bindTooltip('<b>'+escH(stName(tc(f.properties.street)))+'</b><br>15 mph school zone under Sammy&rsquo;s Law',{sticky:true,className:'vz-tip'}); }}); });
+      if(k==='schools') return fetch('/data/vzr/cb6-schools.json').then(function(r){return r.json();}).then(function(d){
+        var g=L.layerGroup();
+        d.schools.forEach(function(sc){
+          var ic=L.divIcon({className:'schicon',html:'<img src="'+sc.logo+'" alt="" style="width:26px;height:26px;object-fit:contain">',iconSize:[26,26],iconAnchor:[13,13]});
+          L.marker([sc.y,sc.x],{icon:ic}).bindTooltip('<b>'+escH(sc.t)+'</b>'+(sc.s?('<br>'+escH(sc.s)):''),{sticky:true,className:'vz-tip'}).addTo(g);
+        });
+        return g; });
+      if(k==='citi') return fetch('/data/citibike_stations_cb6.geojson').then(function(r){return r.json();}).then(function(d){
+        return L.geoJSON(d,{pointToLayer:function(f,ll){return L.circleMarker(ll,{radius:5,fillColor:'#0072CE',color:'#fff',weight:1.5,fillOpacity:.9});},
+          onEachFeature:function(f,l){ l.bindTooltip('<b>'+escH(f.properties.name)+'</b><br>Citi Bike dock',{sticky:true,className:'vz-tip'}); }}); });
+      if(k==='asp') return Promise.all([
+          fetch('/data/cb6-asp-lines.geojson').then(function(r){return r.json();}),
+          fetch('/data/cb6-asp-points.geojson').then(function(r){return r.json();})
+        ]).then(function(arr){
+          var g=L.layerGroup();
+          L.geoJSON(arr[0],{style:function(f){return {color:ASPC[f.properties.primary_day]||'#666',weight:5,opacity:.85,lineCap:'round'};},
+            onEachFeature:function(f,l){ var p=f.properties;
+              l.bindTooltip('<b>'+escH(p.schedule)+'</b><br>'+escH(p.location)+(p.next_suspensions?('<br>Next suspensions: '+escH(String(p.next_suspensions).split(' | ')[0])):''),{sticky:true,className:'vz-tip'}); }}).addTo(g);
+          return g; });
+      return trn().then(function(d){
+        var gj=d[k];
+        if(k==='subway'||k==='busstops') return L.geoJSON(gj,{pointToLayer:function(f,ll){var p=f.properties||{};
+            return L.circleMarker(ll,{radius:k==='busstops'?4:6,color:'#fff',weight:1.5,fillColor:k==='subway'?'#0d1b4b':'#f59e0b',fillOpacity:.95});},
+          onEachFeature:function(f,l){var p=f.properties||{};
+            l.bindTooltip(k==='subway'?('<b>'+escH(p.stop_name||'Station')+'</b><br>'+escH([p.line,p.daytime_routes].filter(Boolean).join(' \u00b7 '))):('<b>'+escH(p.stop_name||'Stop')+'</b><br>'+escH((p.routes||[]).join(', '))),{sticky:true,className:'vz-tip'});}});
+        var st={speed:function(f){var p=f.properties||{};return {color:speedC(p),weight:3,opacity:.9};},
+                bike:function(f){return {color:bikeC(f.properties||{}),weight:3.5,opacity:.9};},
+                bus:function(f){return {color:busC(f.properties||{}),weight:3,opacity:.85};},
+                truck:function(f){return {color:truckC(f.properties||{}),weight:3.5,opacity:.85};}}[k];
+        var tip={speed:function(p){return '<b>'+escH(stName(tc(p.street)))+'</b><br>'+escH(p.postvz_sl||'')+' mph';},
+                 bike:function(p){return '<b>'+escH(stName(tc(p.street||'')))+'</b><br>'+escH(p.allclasses||p.facilitycl||'Bike route');},
+                 bus:function(p){return '<b>'+escH(p.route_short_name||p.route_id||'Bus')+'</b><br>'+escH(p.route_long_name||'');},
+                 truck:function(p){return '<b>'+escH(stName(tc(p.street||'')))+'</b><br>'+escH(p.routetype||'')+' truck route';}}[k];
+        return L.geoJSON(gj,{style:st,onEachFeature:function(f,l){ l.bindTooltip(tip(f.properties||{}),{sticky:true,className:'vz-tip'}); }});
+      });
+    }
+    function keyRow(){
+      var base='<span class="lg"><i class="ln"></i>Priority corridor</span><span class="lg"><i class="pt"></i>Priority intersection</span><span class="lg"><i style="background:#b3202b;border-color:#b3202b;border-radius:50%"></i>Someone killed</span>';
+      var extra='';
+      LYR.forEach(function(x){ if(!ON[x[0]]) return;
+        (LKEY[x[0]]||[]).forEach(function(e){
+          extra+='<span class="lg"><i style="background:'+e[0]+';'+(e[2]==='dot'?'border-radius:50%;width:11px;height:11px':(e[2]==='line'?'height:4px;border-radius:2px;border:0':''))+'"></i>'+escH(e[1])+'</span>';
+        });
+      });
+      $('vzKey').innerHTML=base+(extra?('<div class="mn-k">'+extra+'</div>'):'');
+    }
+    function toggle(k,btn){
+      ON[k]=!ON[k]; btn.classList.toggle('on',ON[k]);
+      if(LAYERS[k]){ ON[k]?LAYERS[k].addTo(cb6Map):cb6Map.removeLayer(LAYERS[k]); keyRow(); note(); return; }
+      if(!ON[k]){ keyRow(); note(); return; }
+      btn.disabled=true;
+      build(k).then(function(g){ LAYERS[k]=g; if(ON[k]) g.addTo(cb6Map); btn.disabled=false; keyRow(); note();
+        if(k==='asp'&&!aspZoomBound){ aspZoomBound=true; }
+      }).catch(function(){ btn.disabled=false; ON[k]=false; btn.classList.remove('on'); });
+    }
+    function note(){
+      var on=LYR.filter(function(x){return ON[x[0]];});
+      var parts=[];
+      if(ON.sammy) parts.push('623 street segments in CB6 sit inside a Sammy&rsquo;s Law 15 mph school zone');
+      if(ON.schools) parts.push('98 schools, each with its own logo');
+      if(ON.speed) parts.push(n(cb6.assets.street_mi)+' street miles, posted limits from DOT');
+      $('lyrNote').innerHTML=on.length?('Showing: '+on.map(function(x){return escH(x[1]);}).join(', ')+'. '+parts.join('. ')+(parts.length?'.':'')):'Tap a layer to draw it on the map above. Everything here is clipped to Brooklyn Community District 6.';
+    }
+    $('lyrCtl').innerHTML=LYR.map(function(x){ return '<button type="button" data-ly="'+x[0]+'" style="--lc:'+x[2]+'"><i></i>'+escH(x[1])+'</button>'; }).join('');
+    $('lyrCtl').addEventListener('click',function(ev){ var b=ev.target.closest('[data-ly]'); if(!b) return; toggle(b.getAttribute('data-ly'),b); });
+    keyRow(); note();
+
     /* year by year */
     var yrs=D.years, inj=yrs.map(function(y){return cb6.years[y][1];}), kil=yrs.map(function(y){return cb6.years[y][2];});
     var lastY=D.last_crash.slice(0,4);
