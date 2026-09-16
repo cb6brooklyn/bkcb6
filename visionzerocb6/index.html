@@ -265,9 +265,19 @@ a.sqcap:hover{color:var(--orange)}
 @media(max-width:560px){.lbl{font-size:.62rem;line-height:1.2;min-height:2.1em}.grid{gap:7px 6px}.tile .fallback .nm{font-size:.66rem}.tile .fallback .ds{font-size:.5rem}}
 
 .lyr{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px 4px;border-bottom:1px solid var(--border)}
+.lychip{display:inline-flex;align-items:stretch;border:1.5px solid var(--border);border-radius:18px;overflow:hidden;background:#fff}
+.lychip button{border:0;background:none}
+.lychip .onlyb{border-left:1.5px solid var(--border);font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:0 9px}
+.lychip .onlyb:hover{background:var(--orange);color:#fff}
+.lychip:has(button.on){border-color:var(--navy)}
+.lyr button.load{opacity:.5}
+.lyacts{display:inline-flex;gap:6px}
+.lyacts button{border:1.5px solid var(--navy);background:#fff;border-radius:18px;padding:6px 12px;font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--navy);cursor:pointer}
+.lyacts button:hover{background:var(--navy);color:#fff}
 .lyr button{border:1.5px solid var(--border);background:#fff;border-radius:18px;padding:6px 12px;font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:700;color:var(--navy);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .lyr button i{width:12px;height:12px;border-radius:3px;background:var(--lc,#0d1b4b);display:inline-block}
 .lyr button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.lychip button.on{border-radius:0}
 .lyr button.on i{box-shadow:0 0 0 2px rgba(255,255,255,.5)}
 .lyrnote{padding:2px 16px 10px;font-family:'DM Mono',monospace;font-size:.62rem;line-height:1.7;color:var(--muted);border-bottom:1px solid var(--border)}
 .schicon img{border-radius:4px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25)}
@@ -298,19 +308,6 @@ a.sqcap:hover{color:var(--orange)}
   <div class="lyrnote" id="lyrNote"></div>
   <div class="numbar" id="planNums"></div>
   <div class="kpis" id="cb6Kpis"></div>
-
-  <div class="dash">
-    <div class="dashhead">The maps, set to CB6</div>
-    <div class="dashsub">Speed limits, bike routes, buses, subway, truck routes, Sammy&rsquo;s Law and parking, each opening with that layer on for Brooklyn Community District 6.</div>
-    <div class="big">
-      <a class="bigb" href="/transport-map-cb6.html"><b>Sammy&rsquo;s Law and parking</b><span>CB6 school zones and ASP</span></a>
-      <a class="bigb" href="/transport-map.html?cd=bk-6&amp;layers=speed"><b>Speed limits in CB6</b><span>Posted, with school zones</span></a>
-      <a class="bigb" href="/transport-map.html?cd=bk-6&amp;layers=bike"><b>Bike routes in CB6</b><span>Protected, buffered, greenway</span></a>
-      <a class="bigb" href="/transport-map.html?cd=bk-6&amp;layers=truck"><b>Truck routes in CB6</b><span>Through and local</span></a>
-      <a class="bigb" href="/transport-map.html?cd=bk-6&amp;layers=speed,bike,citi,bus,busstops,subrt,subway,truck"><b>Everything at once</b><span>All layers, CB6</span></a>
-      <a class="bigb" href="/transport"><b>The Transportation Hub</b><span>Every layer, anywhere in the city</span></a>
-    </div>
-  </div>
 
   <details class="fold" id="foldCors">
     <summary>The corridors and intersections DOT has singled out here</summary>
@@ -567,24 +564,26 @@ a.sqcap:hover{color:var(--orange)}
     L.tileLayer(TILE,{maxZoom:18,attribution:'&copy; CARTO'}).addTo(cb6Map);
     var cb6f=CDG.features.filter(function(f){return f.properties.cb_code==='BKCB6';});
     L.geoJSON({type:'FeatureCollection',features:cb6f},{style:{color:'#0d1b4b',weight:2.5,fillColor:'#f47920',fillOpacity:.06}}).addTo(cb6Map);
+    var BASE={};
+    BASE.corridors=L.layerGroup(); BASE.pints=L.layerGroup(); BASE.deaths=L.layerGroup();
     fetch('/data/vzr/priority-corridors.geojson').then(function(r){return r.json();}).then(function(g){
       CORG=g;
       L.geoJSON({type:'FeatureCollection',features:g.features.filter(function(f){return f.properties.cd.indexOf('306')>-1;})},{style:{color:'#f47920',weight:5,opacity:.9},
-        onEachFeature:function(f,l){ l.bindTooltip('<b>'+esc(stName(f.properties.name))+'</b><br>Priority corridor, '+f.properties.mi.toFixed(1)+' mi',{sticky:true,className:'vz-tip'}); }}).addTo(cb6Map);
+        onEachFeature:function(f,l){ l.bindTooltip('<b>'+esc(stName(f.properties.name))+'</b><br>Priority corridor, '+f.properties.mi.toFixed(1)+' mi',{sticky:true,className:'vz-tip'}); }}).addTo(BASE.corridors);
     });
-    fetch('/data/vzr/priority-intersections.geojson').then(function(r){return r.json();}).then(function(g){
-      INTG=g;
-      cb6.assets.intersections.forEach(function(x){
-        L.circleMarker([x.lat,x.lng],{radius:8,color:'#f47920',weight:3,fillColor:'#fff',fillOpacity:1}).bindTooltip('<b>'+esc(stName(x.n))+'</b><br>Priority intersection',{sticky:true,className:'vz-tip'}).addTo(cb6Map);
-      });
+    cb6.assets.intersections.forEach(function(x){
+      L.circleMarker([x.lat,x.lng],{radius:8,color:'#f47920',weight:3,fillColor:'#fff',fillOpacity:1}).bindTooltip('<b>'+esc(stName(x.n))+'</b><br>Priority intersection',{sticky:true,className:'vz-tip'}).addTo(BASE.pints);
     });
     CB6P.fatal.forEach(function(f){
       L.circleMarker([f.lat,f.lng],{radius:6,color:'#b3202b',weight:1.5,fillColor:'#b3202b',fillOpacity:.85})
-        .bindTooltip('<b>'+esc(f.date)+'</b><br>'+esc(stName(tc(f.on)))+(f.cross?(' at '+esc(stName(tc(f.cross)))):'')+'<br>'+esc(f.mode)+' killed',{sticky:true,className:'vz-tip'}).addTo(cb6Map);
+        .bindTooltip('<b>'+esc(f.date)+'</b><br>'+esc(stName(tc(f.on)))+(f.cross?(' at '+esc(stName(tc(f.cross)))):'')+'<br>'+esc(f.mode)+' killed',{sticky:true,className:'vz-tip'}).addTo(BASE.deaths);
     });
-    
+
     /* map layers, the same data the CB6 transport map draws */
     var LYR=[
+      ['corridors','Priority corridors','#f47920'],
+      ['pints','Priority intersections','#f47920'],
+      ['deaths','Where people were killed','#b3202b'],
       ['sammy',"Sammy's Law 15 mph school zones",'#27ae60'],
       ['schools','Schools','#0d1b4b'],
       ['speed','Speed limits','#4c78a8'],
@@ -597,6 +596,9 @@ a.sqcap:hover{color:var(--orange)}
       ['asp','Alternate side parking','#e41a1c']
     ];
     var LKEY={
+      corridors:[['#f47920','Priority corridor','line']],
+      pints:[['#f47920','Priority intersection','dot']],
+      deaths:[['#b3202b','Someone killed','dot']],
       sammy:[['#27ae60','15 mph school zone','line']],
       schools:[['#0d1b4b','School','logo']],
       speed:[['#2a9d8f','20 mph','line'],['#4c78a8','25 mph','line'],['#f4a261','30 mph','line'],['#e63946','35 mph and above','line']],
@@ -619,6 +621,7 @@ a.sqcap:hover{color:var(--orange)}
     var ASPC={Mon:'#e41a1c',Tue:'#377eb8',Wed:'#4daf4a',Thu:'#984ea3',Fri:'#ff7f00',Sat:'#a65628',Sun:'#999999'};
     function trn(){ return TRN?Promise.resolve(TRN):fetch('/transport-data/cb-bk-6.json').then(function(r){return r.json();}).then(function(d){ TRN=d; return d; }); }
     function build(k){
+      if(BASE[k]) return Promise.resolve(BASE[k]);
       if(k==='sammy') return fetch('/data/cb6-sammys-15mph.geojson').then(function(r){return r.json();}).then(function(d){
         return L.geoJSON(d,{style:function(){return {color:'#27ae60',weight:5,opacity:.9};},onEachFeature:function(f,l){
           l.bindTooltip('<b>'+escH(stName(tc(f.properties.street)))+'</b><br>15 mph school zone under Sammy&rsquo;s Law',{sticky:true,className:'vz-tip'}); }}); });
@@ -668,26 +671,48 @@ a.sqcap:hover{color:var(--orange)}
       });
       $('vzKey').innerHTML=base+(extra?('<div class="mn-k">'+extra+'</div>'):'');
     }
-    function toggle(k,btn){
-      ON[k]=!ON[k]; btn.classList.toggle('on',ON[k]);
-      if(LAYERS[k]){ ON[k]?LAYERS[k].addTo(cb6Map):cb6Map.removeLayer(LAYERS[k]); keyRow(); note(); return; }
-      if(!ON[k]){ keyRow(); note(); return; }
-      btn.disabled=true;
-      build(k).then(function(g){ LAYERS[k]=g; if(ON[k]) g.addTo(cb6Map); btn.disabled=false; keyRow(); note();
-        if(k==='asp'&&!aspZoomBound){ aspZoomBound=true; }
-      }).catch(function(){ btn.disabled=false; ON[k]=false; btn.classList.remove('on'); });
+    function btnFor(k){ return $('lyrCtl').querySelector('[data-ly="'+k+'"]'); }
+    function show(k,want){
+      var btn=btnFor(k); if(!btn) return Promise.resolve();
+      ON[k]=!!want; btn.classList.toggle('on',ON[k]);
+      if(LAYERS[k]){ ON[k]?LAYERS[k].addTo(cb6Map):cb6Map.removeLayer(LAYERS[k]); return Promise.resolve(); }
+      if(!ON[k]) return Promise.resolve();
+      btn.classList.add('load');
+      return build(k).then(function(g){ LAYERS[k]=g; if(ON[k]) g.addTo(cb6Map); btn.classList.remove('load'); })
+        .catch(function(){ btn.classList.remove('load'); ON[k]=false; btn.classList.remove('on'); });
     }
+    function after(){ keyRow(); note(); }
+    function toggle(k){ show(k,!ON[k]).then(after); }
+    function only(k){
+      var jobs=LYR.map(function(x){ return show(x[0], x[0]===k); });
+      Promise.all(jobs).then(after);
+    }
+    function clearAll(){ Promise.all(LYR.map(function(x){ return show(x[0],false); })).then(after); }
+    function allOn(){ Promise.all(LYR.map(function(x){ return show(x[0],true); })).then(after); }
     function note(){
       var on=LYR.filter(function(x){return ON[x[0]];});
       var parts=[];
-      if(ON.sammy) parts.push('623 street segments in CB6 sit inside a Sammy&rsquo;s Law 15 mph school zone');
-      if(ON.schools) parts.push('98 schools, each with its own logo');
-      if(ON.speed) parts.push(n(cb6.assets.street_mi)+' street miles, posted limits from DOT');
-      $('lyrNote').innerHTML=on.length?('Showing: '+on.map(function(x){return escH(x[1]);}).join(', ')+'. '+parts.join('. ')+(parts.length?'.':'')):'Tap a layer to draw it on the map above. Everything here is clipped to Brooklyn Community District 6.';
+      if(ON.corridors) parts.push('4 priority corridors, '+cb6.assets.corridor_mi.toFixed(1)+' miles');
+      if(ON.pints) parts.push('3 priority intersections');
+      if(ON.deaths) parts.push(n(CB6P.fatal.length)+' crashes in which someone was killed since 2014');
+      if(ON.sammy) parts.push('504 street segments inside a Sammy&rsquo;s Law 15 mph school zone');
+      if(ON.schools) parts.push('98 schools, each in its own logo');
+      if(ON.speed) parts.push(cb6.assets.street_mi.toFixed(0)+' street miles of posted limits');
+      if(ON.asp) parts.push('1,377 alternate side segments, tap one for its next suspensions');
+      $('lyrNote').innerHTML=on.length
+        ? ('<b>On:</b> '+on.map(function(x){return escH(x[1]);}).join(', ')+'.'+(parts.length?(' '+parts.join('. ')+'.'):''))
+        : 'Nothing on the map. Tap any layer to draw it. Everything here is Brooklyn Community District 6 only.';
     }
-    $('lyrCtl').innerHTML=LYR.map(function(x){ return '<button type="button" data-ly="'+x[0]+'" style="--lc:'+x[2]+'"><i></i>'+escH(x[1])+'</button>'; }).join('');
-    $('lyrCtl').addEventListener('click',function(ev){ var b=ev.target.closest('[data-ly]'); if(!b) return; toggle(b.getAttribute('data-ly'),b); });
-    keyRow(); note();
+    $('lyrCtl').innerHTML=LYR.map(function(x){
+      return '<span class="lychip" style="--lc:'+x[2]+'"><button type="button" data-ly="'+x[0]+'"><i></i>'+escH(x[1])+'</button>'+
+        '<button type="button" class="onlyb" data-only="'+x[0]+'" title="Show only this">only</button></span>';
+    }).join('')+'<span class="lyacts"><button type="button" data-act="all">Everything</button><button type="button" data-act="clear">Clear</button></span>';
+    $('lyrCtl').addEventListener('click',function(ev){
+      var o=ev.target.closest('[data-only]'); if(o){ only(o.getAttribute('data-only')); return; }
+      var a=ev.target.closest('[data-act]'); if(a){ a.getAttribute('data-act')==='all'?allOn():clearAll(); return; }
+      var b=ev.target.closest('[data-ly]'); if(b) toggle(b.getAttribute('data-ly'));
+    });
+    Promise.all([show('corridors',true),show('pints',true),show('deaths',true)]).then(after);
 
     /* year by year */
     var yrs=D.years, inj=yrs.map(function(y){return cb6.years[y][1];}), kil=yrs.map(function(y){return cb6.years[y][2];});
