@@ -66,22 +66,6 @@ OVERRIDES = [
     },
 ]
 
-# ADDITIONS — events added by hand that are not (yet) in any source feed.
-# Each entry is a full event record in the same shape the feeds produce.
-ADDITIONS = [
-    # Oct 21, 2026 Transportation, Parks and Public Infrastructure committee meeting.
-    {
-        "date": "2026-10-21",
-        "type": "committee",
-        "label": "CB6 Committee Meeting \u2013 Transportation, Parks and Public Infrastructure Committee Meeting",
-        "time": "6:30 PM",
-        "location": "Principles GI Coffee House, 139 9th Street, Brooklyn, NY 11215",
-        "desc": None,
-        "href": "https://brooklyncb6.cityofnewyork.us/venue/principles-gi-coffee-house/",
-        "linkText": "Venue details \u2197",
-    },
-]
-
 
 def apply_manual_layer(events):
     kept = []
@@ -97,16 +81,6 @@ def apply_manual_layer(events):
                 ev.update(ov["set"])
                 print(f"  Overrode: {ev.get('date')} {ev.get('label')}")
         kept.append(ev)
-    for add in ADDITIONS:
-        if any(
-            e.get("date") == add["date"] and (e.get("label") or "") == add["label"]
-            for e in kept
-        ):
-            print(f"  Addition already in feed, skipped: {add['date']} {add['label']}")
-            continue
-        kept.append(dict(add))
-        print(f"  Added: {add['date']} {add['label']}")
-    kept.sort(key=lambda e: (e.get("date") or "", e.get("label") or ""))
     return kept
 
 
