@@ -56,6 +56,8 @@ FEEDS = [
 EXCLUDES = [
     # June 22, 2026 Business Affairs & Licenses committee meeting — removed.
     {"date": "2026-06-22", "label_contains": "Business Affairs and Licenses"},
+    # Sept 24, 2026 Landmarks, Land Use & Housing committee meeting — removed.
+    {"date": "2026-09-24", "label_contains": "Landmarks, Land Use & Housing"},
 ]
 
 OVERRIDES = [
