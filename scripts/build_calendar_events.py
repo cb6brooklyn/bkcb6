@@ -53,6 +53,8 @@ EXCLUDES = [
     # Oct 15, 2026 Transportation committee: feed has Thursday, committee meets the
     # third Wednesday. The correct Oct 21 date is hardcoded in calendar.html.
     {"date": "2026-10-15", "label_contains": "Transportation, Parks and Public Infrastructure"},
+    {"date": "2026-11-19", "label_contains": "Transportation, Parks and Public Infrastructure"},
+    {"date": "2026-12-17", "label_contains": "Transportation, Parks and Public Infrastructure"},
 ]
 
 OVERRIDES = [
