@@ -290,8 +290,20 @@ def fetch_api(base_url, limit=200):
     return out
 
 
+def load_previous():
+    """Previous run's output, so a feed that fails today does not silently
+    delete events that were there yesterday."""
+    try:
+        with open("data/calendar-events.json") as f:
+            return json.load(f).get("events", [])
+    except Exception:
+        return []
+
+
 def main():
+    previous = load_previous()
     all_events = []
+    failed_types = []
 
     for feed in FEEDS:
         print(f"Fetching {feed['name']}...")
@@ -307,6 +319,8 @@ def main():
             print(f"  Got {len(raw)} events via REST API")
         else:
             print(f"  FAILED — no data")
+            if feed.get("type"):
+                failed_types.append(feed["type"])
             continue
         for ev in raw:
             etype = classify_event(ev["summary"], ev["cats"], ev["url"], feed.get("type"))
@@ -324,6 +338,18 @@ def main():
                 "href": ev["url"] or None,
                 "linkText": "Full details \u2197" if ev["url"] else None,
             })
+
+    # A feed that failed this run keeps whatever it contributed last run, so a
+    # temporary block or outage at the source does not wipe events off the site.
+    if failed_types:
+        have = {(e.get("date"), e.get("label")) for e in all_events}
+        carried = 0
+        for e in previous:
+            if e.get("type") in failed_types and (e.get("date"), e.get("label")) not in have:
+                all_events.append(e)
+                carried += 1
+        if carried:
+            print(f"  Carried over {carried} events from the previous run for: {', '.join(sorted(set(failed_types)))}")
 
     all_events = apply_manual_layer(all_events)
 
