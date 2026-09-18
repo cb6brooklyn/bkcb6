@@ -358,18 +358,20 @@ def main():
     # The same meeting can arrive from more than one feed (a venue feed and the
     # host org's feed, say). Collapse those on date + title, keeping the record
     # that carries the most detail.
-    def richness(e):
-        return sum(1 for k in ("location", "desc", "href", "time") if e.get(k))
-
     best = {}
     order = []
     for e in all_events:
         key = (e.get("date"), re.sub(r"\s+", " ", (e.get("label") or "")).strip().lower())
         if key not in best:
-            best[key] = e
+            best[key] = dict(e)
             order.append(key)
-        elif richness(e) > richness(best[key]):
-            best[key] = e
+            continue
+        # Same event from another feed: fill in anything the first copy lacks
+        # rather than choosing between them, so no detail is dropped.
+        kept = best[key]
+        for k, v in e.items():
+            if v and not kept.get(k):
+                kept[k] = v
     if len(order) < len(all_events):
         print(f"  Merged {len(all_events) - len(order)} duplicate events across feeds")
     all_events = [best[k] for k in order]
