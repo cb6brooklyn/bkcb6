@@ -3,6 +3,7 @@
 
 import json
 import re
+import time
 import requests
 from datetime import datetime, timezone
 
@@ -192,16 +193,42 @@ def parse_ics(text):
     return events
 
 
-def fetch_feed(url, fallback=None):
+BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/calendar,text/plain,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Cache-Control": "no-cache",
+}
+
+
+def fetch_feed(url, fallback=None, attempts=3):
+    """Fetch an ICS feed. Retries, and reports why a fetch came back unusable.
+
+    Some hosts sit behind a CDN that refuses datacenter IPs or non-browser
+    user agents, so this sends browser headers and retries with backoff.
+    """
+    last = None
     for u in ([url, fallback] if fallback else [url]):
         if not u:
             continue
-        try:
-            r = requests.get(u, timeout=15, headers={"User-Agent": "bkcb6.app calendar/1.0"})
-            if r.ok and "BEGIN:VCALENDAR" in r.text:
-                return r.text
-        except Exception as e:
-            print(f"  Failed {u}: {e}")
+        for attempt in range(1, attempts + 1):
+            try:
+                r = requests.get(u, timeout=30, headers=BROWSER_HEADERS, allow_redirects=True)
+                if r.ok and "BEGIN:VCALENDAR" in r.text:
+                    return r.text
+                ctype = r.headers.get("content-type", "")
+                last = f"HTTP {r.status_code}, {len(r.text)} bytes, content-type {ctype}"
+                if r.ok and not r.text.strip():
+                    last = "HTTP 200 but empty body"
+                    break  # nothing to retry for
+            except Exception as e:
+                last = f"{type(e).__name__}: {e}"
+            if attempt < attempts:
+                time.sleep(2 * attempt)
+        print(f"  Unusable {u}: {last}")
     return None
 
 
