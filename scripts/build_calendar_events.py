@@ -21,6 +21,9 @@ FEEDS = [
     {
         "name": "Prospect Park",
         "url": "https://www.prospectpark.org/events/list/?ical=1",
+        # Their CDN returns 403 to datacenter IPs (GitHub Actions included),
+        # so fall back to The Events Calendar REST API on the same site.
+        "api_url": "https://www.prospectpark.org/wp-json/tribe/events/v1/events",
         "type": "prospect",
     },
     {
@@ -37,6 +40,8 @@ FEEDS = [
     {
         "name": "Principles GI Coffee House (via CB6)",
         "url": "https://brooklyncb6.cityofnewyork.us/venue/principles-gi-coffee-house/?ical=1",
+        # The venue ICS endpoint returns an empty body; the REST API works.
+        "api_url": "https://brooklyncb6.cityofnewyork.us/wp-json/tribe/events/v1/events?venue=1889",
         "type": "principles",
     },
 ]
@@ -232,17 +237,77 @@ def fetch_feed(url, fallback=None, attempts=3):
     return None
 
 
+def fetch_api(base_url, limit=200):
+    """Read events from The Events Calendar REST API and return them in the
+    same shape parse_ics produces. Used when a site's ICS endpoint is blocked
+    or empty but its REST API answers."""
+    sep = "&" if "?" in base_url else "?"
+    out = []
+    page = 1
+    while len(out) < limit:
+        url = f"{base_url}{sep}per_page=50&page={page}&start_date={datetime.now().strftime('%Y-%m-%d')}"
+        try:
+            r = requests.get(url, timeout=30, headers=BROWSER_HEADERS)
+            if not r.ok:
+                print(f"  API {url}: HTTP {r.status_code}")
+                break
+            data = r.json()
+        except Exception as e:
+            print(f"  API {url}: {type(e).__name__}: {e}")
+            break
+        evs = data.get("events") or []
+        if not evs:
+            break
+        for e in evs:
+            start = e.get("start_date") or ""
+            if not start:
+                continue
+            d = start[:10]
+            t = ""
+            if len(start) >= 16 and not e.get("all_day"):
+                hh, mm = int(start[11:13]), start[14:16]
+                ampm = "AM" if hh < 12 else "PM"
+                h12 = hh % 12 or 12
+                t = f"{h12}:{mm} {ampm}"
+            venue = e.get("venue") or {}
+            loc = ", ".join(
+                x for x in [venue.get("venue"), venue.get("address"), venue.get("city")] if x
+            )
+            cats = ", ".join(c.get("name", "") for c in (e.get("categories") or []))
+            desc = re.sub(r"<[^>]+>", " ", e.get("description") or "")
+            out.append({
+                "date": d,
+                "summary": re.sub(r"<[^>]+>", "", e.get("title") or "").strip(),
+                "url": e.get("url") or "",
+                "cats": cats,
+                "location": loc,
+                "desc": re.sub(r"\s+", " ", desc).strip(),
+                "time": t,
+            })
+        if len(evs) < 50:
+            break
+        page += 1
+    return out
+
+
 def main():
     all_events = []
 
     for feed in FEEDS:
         print(f"Fetching {feed['name']}...")
         text = fetch_feed(feed["url"], feed.get("fallback"))
-        if not text:
+        if text:
+            raw = parse_ics(text)
+            print(f"  Got {len(raw)} events")
+        elif feed.get("api_url"):
+            raw = fetch_api(feed["api_url"])
+            if not raw:
+                print(f"  FAILED — no data")
+                continue
+            print(f"  Got {len(raw)} events via REST API")
+        else:
             print(f"  FAILED — no data")
             continue
-        raw = parse_ics(text)
-        print(f"  Got {len(raw)} events")
         for ev in raw:
             etype = classify_event(ev["summary"], ev["cats"], ev["url"], feed.get("type"))
             # Skip CB6 board/committee if coming from Dredgers feed etc.
