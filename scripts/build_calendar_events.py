@@ -315,6 +315,8 @@ def main():
             raw = fetch_api(feed["api_url"])
             if not raw:
                 print(f"  FAILED — no data")
+                if feed.get("type"):
+                    failed_types.append(feed["type"])
                 continue
             print(f"  Got {len(raw)} events via REST API")
         else:
