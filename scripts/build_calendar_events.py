@@ -53,6 +53,15 @@ EXCLUDES = [
 ]
 
 OVERRIDES = [
+    # Transportation, Parks and Public Infrastructure meets the third WEDNESDAY.
+    # The official feed has published these on Thursdays. These move them to the
+    # correct date; once the feed carries the right date they simply stop matching.
+    {"date": "2026-10-15", "label_contains": "Transportation, Parks and Public Infrastructure",
+     "set": {"date": "2026-10-21"}},
+    {"date": "2026-11-19", "label_contains": "Transportation, Parks and Public Infrastructure",
+     "set": {"date": "2026-11-18"}},
+    {"date": "2026-12-17", "label_contains": "Transportation, Parks and Public Infrastructure",
+     "set": {"date": "2026-12-16"}},
     # June 25, 2026 Landmarks, Land Use & Housing — meeting is on Zoom.
     {
         "date": "2026-06-25",
