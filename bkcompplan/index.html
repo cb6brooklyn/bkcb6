@@ -196,13 +196,30 @@ mark{background:#f7d3c8;color:inherit;padding:0 1px;border-radius:2px}
 .video .play span::after{content:"";border-left:18px solid #fff;border-top:11px solid transparent;border-bottom:11px solid transparent;margin-left:4px}
 .video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .lbimg svg.live{pointer-events:auto}
-.cdp{fill:rgba(0,45,29,0);stroke:rgba(0,45,29,.55);stroke-width:2;cursor:pointer;transition:fill .12s}
-.cdp:hover,.cdp.sel{fill:rgba(219,129,107,.38);stroke:#002d1d;stroke-width:4}
-.cdp.is6{stroke:#0d1b4b;stroke-width:5}
-.cdp.is6:hover,.cdp.is6.sel{fill:rgba(244,121,32,.3);stroke:#f47920}
+.fp{fill:transparent;stroke:var(--lc);stroke-width:2.5;pointer-events:none;transition:fill .1s}
+.fp.hi{fill:color-mix(in srgb,var(--lc) 26%,transparent);stroke-width:5}
+.ly-cb .fp.is6{stroke:#0d1b4b;stroke-width:5}
+.ly-cb .fp.is6.hi{fill:rgba(244,121,32,.28);stroke:#f47920}
+.ly-council .fp{stroke-dasharray:14 6}.ly-assembly .fp{stroke-dasharray:4 5}.ly-senate .fp{stroke-dasharray:18 5 3 5}.ly-congress .fp{stroke-width:4}.ly-precinct .fp{stroke-dasharray:2 4}.ly-school .fp{stroke-dasharray:10 4 2 4}
+#liveSvg{cursor:crosshair}
+.lyrs{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.lyt{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--border);border-radius:99px;padding:5px 10px;font:500 .72rem 'DM Mono',monospace;cursor:pointer;background:#fff}
+.lyt input{position:absolute;opacity:0;pointer-events:none}
+.lyt i{width:14px;height:4px;border-radius:2px;background:var(--lc)}
+.lyt span{opacity:.55}
+.lyt:has(input:checked){border-color:var(--lc);background:color-mix(in srgb,var(--lc) 12%,#fff);font-weight:700}
+.lyt:has(input:focus-visible){outline:2px solid var(--lc)}
+.hr{padding:2px 0 2px 9px;border-left:3px solid var(--lc);margin:3px 0;font-size:.78rem;line-height:1.35}
+.hr span{display:block;font-size:.7rem;opacity:.75}
+.hr a{color:inherit}
+.cdtip .hr{border-left-color:color-mix(in srgb,var(--lc) 60%,#fff)}
+.cdtip .hr.on{font-weight:700}
+.tiphint{font-family:'DM Mono',monospace;font-size:.6rem;opacity:.6;margin-top:4px}
+.pinlist{margin-top:6px}
+.pinlist .hr a{color:var(--green)}
 .pin circle{fill:rgba(219,129,107,.35);stroke:#002d1d;stroke-width:3}
 .pin .pc{fill:#002d1d;stroke:#fff}
-.cdtip{position:absolute;z-index:3;background:#002d1d;color:#fff;border-radius:7px;padding:7px 10px;font:500 .8rem 'DM Sans',sans-serif;line-height:1.4;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:200px}
+.cdtip{position:absolute;z-index:3;background:#002d1d;color:#fff;border-radius:7px;padding:8px 11px;font:500 .8rem 'DM Sans',sans-serif;line-height:1.4;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.3);width:240px}
 .cdtip b{font-family:'DM Mono',monospace;font-size:.82rem;color:#db816b}
 .cdtip a{display:block;color:#fff;margin-top:3px;font-size:.78rem}
 .cdtip.sticky{pointer-events:auto}
@@ -547,21 +564,37 @@ function openPage(p){
   document.body.style.overflow='hidden';
 }
 function mapList(){return D.maps.filter(function(m){return mapCat==='All'||m.cat===mapCat})}
-var MAPMODE='plan', PIN=null, CDSEL=null;
+var MAPMODE='plan', PIN=null, LY=null, LYON={cb:true}, HOLD=null;
+var LYCOL={cb:'#002d1d',council:'#a9482f',assembly:'#7a2257',senate:'#3d4b9f',congress:'#85603a',precinct:'#1d6f8a',school:'#4f7a1c'};
+function loadLayers(cb){if(LY)return cb();fetch('/bkcompplan/layers.json').then(function(r){return r.json()}).then(function(j){LY=j;LY.forEach(function(L){L.f.forEach(function(f){var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;f.r.forEach(function(r){r.forEach(function(p){if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1]})});f.bb=[x0,y0,x1,y1]})});cb()}).catch(function(){var s=$('lyrs');if(s)s.innerHTML='<p class="lg">The district boundaries did not load. Reopen the map to try again.</p>'})}
 function toPx(m,lon,lat){var G=D.geo,s=m.g[0];return [(lon*G.C-G.gx0)*s+m.g[1],(-lat-G.gy0)*s+m.g[2]]}
 function ringPath(r,m){var s=m.g[0],tx=m.g[1],ty=m.g[2];return 'M'+r.map(function(p){return (p[0]*s+tx).toFixed(1)+','+(p[1]*s+ty).toFixed(1)}).join('L')+'Z'}
 function inRing(x,y,r){var c=false;for(var i=0,j=r.length-1;i<r.length;j=i++){var xi=r[i][0],yi=r[i][1],xj=r[j][0],yj=r[j][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c}return c}
-function cdAt(lon,lat){var G=D.geo,x=lon*G.C-G.gx0,y=-lat-G.gy0;for(var k=0;k<D.cds.length;k++){if(D.cds[k].r.some(function(r){return inRing(x,y,r)}))return D.cds[k]}return null}
+function hitsAt(x,y){var out=[];if(!LY)return out;LY.forEach(function(L,li){for(var k=0;k<L.f.length;k++){var f=L.f[k],b=f.bb;if(x<b[0]||x>b[2]||y<b[1]||y>b[3])continue;if(f.r.some(function(r){return inRing(x,y,r)})){out.push({li:li,k:k,L:L,f:f});break}}});return out}
+function hitsLL(lon,lat){var G=D.geo;return hitsAt(lon*G.C-G.gx0,-lat-G.gy0)}
 function liveSVG(m){
-  var h='<svg class="live" viewBox="0 0 '+m.w+' '+m.h+'" preserveAspectRatio="xMidYMin slice">';
-  D.cds.forEach(function(c){h+='<path class="cdp'+(c.n===6?' is6':'')+(CDSEL===c.n?' sel':'')+'" data-n="'+c.n+'" d="'+c.r.map(function(r){return ringPath(r,m)}).join('')+'"/>'});
+  var h='<svg class="live" viewBox="0 0 '+m.w+' '+m.h+'" preserveAspectRatio="xMidYMin slice" id="liveSvg"><rect x="0" y="0" width="'+m.w+'" height="'+m.h+'" fill="transparent"/>';
+  if(LY) LY.forEach(function(L,li){ if(!LYON[L.k])return; h+='<g class="ly ly-'+L.k+'" style="--lc:'+LYCOL[L.k]+'">'; L.f.forEach(function(f,k){h+='<path id="f'+li+'_'+k+'" class="fp'+(L.k==='cb'&&f.n===6?' is6':'')+'" d="'+f.r.map(function(r){return ringPath(r,m)}).join('')+'"/>'}); h+='</g>' });
   if(PIN){var p=toPx(m,PIN.lon,PIN.lat);h+='<g class="pin" transform="translate('+p[0].toFixed(1)+','+p[1].toFixed(1)+')"><circle r="16"/><circle r="6" class="pc"/></g>'}
   return h+'</svg><div class="cdtip" id="cdtip" hidden></div>';
 }
-function cdTip(n,x,y,sticky){
-  var t=$('cdtip');if(!t)return;var c=D.cds[n-1];
-  t.innerHTML='<b>'+c.cb+'</b>'+(sticky?'<a href="/cb-bk-'+n+'.html">Open the '+c.cb+' profile &rarr;</a>':'');
-  t.hidden=false;var W=$('lbimg').clientWidth;t.style.left=Math.max(4,Math.min(x+12,W-190))+'px';t.style.top=(y+14)+'px';t.classList.toggle('sticky',!!sticky);
+function listHTML(hits,links){
+  if(!hits.length)return '<i>Outside Brooklyn&rsquo;s districts</i>';
+  return hits.map(function(x){var f=x.f,sub=f.s?' <span>'+esc(f.s)+'</span>':'';return '<div class="hr'+(LYON[x.L.k]?' on':'')+'" style="--lc:'+LYCOL[x.L.k]+'">'+(links&&f.h?'<a href="'+f.h+'">'+f.l+' &rarr;'+sub+'</a>':f.l+sub)+'</div>'}).join('');
+}
+function setHi(hits){
+  [].forEach.call(document.querySelectorAll('#liveSvg .fp.hi'),function(p){p.classList.remove('hi')});
+  hits.forEach(function(x){var p=document.getElementById('f'+x.li+'_'+x.k);if(p)p.classList.add('hi')});
+}
+function pointerProj(e){var m=D.maps.filter(function(x){return x.id===LB.map})[0];var sv=$('liveSvg');if(!m||!sv)return null;var r=sv.getBoundingClientRect();var sc=r.width/m.w;var px=(e.clientX-r.left)/sc,py=(e.clientY-r.top)/sc;return {x:(px-m.g[1])/m.g[0],y:(py-m.g[2])/m.g[0],cx:e.clientX,cy:e.clientY}}
+function showTip(hits,cx,cy,sticky){
+  var t=$('cdtip');if(!t)return;var R=$('lbimg').getBoundingClientRect();
+  t.innerHTML=listHTML(hits,sticky)+(sticky?'':'<div class="tiphint">Click for links</div>');t.hidden=false;t.classList.toggle('sticky',!!sticky);
+  var x=cx-R.left,y=cy-R.top,W=$('lbimg').clientWidth;t.style.left=Math.max(4,Math.min(x+14,W-250))+'px';t.style.top=(y+16)+'px';
+}
+function renderLayerToggles(){
+  var s=$('lyrs');if(!s||!LY)return;
+  s.innerHTML=LY.map(function(L){return '<label class="lyt" style="--lc:'+LYCOL[L.k]+'"><input type="checkbox" data-ly="'+L.k+'"'+(LYON[L.k]?' checked':'')+'><i></i>'+esc(L.t)+' <span>'+L.f.length+'</span></label>'}).join('');
 }
 function openMap(id){
   var m=D.maps.filter(function(x){return x.id===id})[0]; if(!m)return;
@@ -571,18 +604,20 @@ function openMap(id){
   $('lbt').innerHTML=esc(m.id+' '+m.t)+'<span>'+esc(m.cat)+' &middot; page '+m.p+'</span>';
   var f='m'+m.id.replace('.','-');
   var live=MAPMODE==='live'&&m.g;
+  if(live&&!LY){loadLayers(function(){openMap(id)});}
   $('lbimg').innerHTML='<img src="/bkcompplan/maps/'+f+'.webp" width="'+m.w+'" height="'+m.h+'" alt="'+esc(m.t)+'">'+(live?liveSVG(m):cbSVG(m,5));
   var L=mapList(),i=L.indexOf(m);
   $('lbPrev').disabled=i<=0;$('lbNext').disabled=i<0||i>=L.length-1;
   var sd=$('lbside');sd.hidden=false;
   var modes=m.g?'<div class="seg" role="group" aria-label="Map view"><button type="button" data-mode="plan" aria-pressed="'+(!live)+'">Plan map</button><button type="button" data-mode="live" aria-pressed="'+(!!live)+'">Interactive</button></div>':'<p class="lg">This map covers more than Brooklyn, so it has no interactive view.</p>';
-  var liveBox=live?'<div class="livebox"><div class="lg">Hover or tap a district to see its board and a link to its profile.</div><form id="addrForm" class="addr"><input id="addrQ" type="search" placeholder="Find an address" autocomplete="off" value="'+(PIN?esc(PIN.q):'')+'"><button type="submit">Go</button></form><div class="lg" id="addrOut">'+(PIN?pinText():'')+'</div></div>':'';
+  var liveBox=live?'<div class="livebox"><div class="lg">Hover or tap anywhere to see every district at that spot. Click or tap to get links. Choose which boundaries to draw:</div><div class="lyrs" id="lyrs"></div><form id="addrForm" class="addr"><input id="addrQ" type="search" placeholder="Find an address" autocomplete="off" value="'+(PIN?esc(PIN.q):'')+'"><button type="submit">Go</button></form><div class="lg" id="addrOut">'+(PIN?pinText():'')+'</div></div>':'';
   sd.innerHTML=modes+liveBox+(!live&&m.g?'<label class="tog"><input type="checkbox" id="cbTog2" '+($('cbTog').checked?'checked':'')+'> Outline CB6</label>':'')+(m.lg?'<div class="lg">'+esc(m.lg)+'</div>':'')+'<p>'+esc(m.d)+'</p><p style="margin-top:8px"><a href="#" data-open-page="'+m.p+'">See it on page '+m.p+'</a></p>';
+  renderLayerToggles();
   $('lbview').scrollTop=0;
   setHash('map-'+m.id);
   document.body.style.overflow='hidden';
 }
-function pinText(){var c=cdAt(PIN.lon,PIN.lat);return esc(PIN.label)+(c?' &middot; in <a href="/cb-bk-'+c.n+'.html">'+c.cb+'</a>':' &middot; outside Brooklyn&rsquo;s community districts')}
+function pinText(){return '<b>'+esc(PIN.label)+'</b>'+(LY?'<div class="pinlist">'+listHTML(hitsLL(PIN.lon,PIN.lat),true)+'</div>':'')}
 function geocode(q){
   $('addrOut').textContent='Searching…';
   fetch('https://geosearch.planninglabs.nyc/v2/search?size=1&text='+encodeURIComponent(q)).then(function(r){return r.json()}).then(function(j){
@@ -643,17 +678,16 @@ document.addEventListener('click',function(e){
 });
 document.addEventListener('submit',function(e){if(e.target.id==='addrForm'){e.preventDefault();var q=$('addrQ').value.trim();if(q)geocode(q)}});
 document.addEventListener('pointermove',function(e){
-  var p=e.target.closest&&e.target.closest('.cdp');var t=$('cdtip');if(!t||t.classList.contains('sticky'))return;
-  if(!p){t.hidden=true;return}
-  var r=$('lbimg').getBoundingClientRect();cdTip(+p.getAttribute('data-n'),e.clientX-r.left,e.clientY-r.top,false);
+  if(!e.target.closest||!e.target.closest('#liveSvg'))return;var t=$('cdtip');if(!t||t.classList.contains('sticky'))return;
+  var q=pointerProj(e);if(!q)return;var hits=hitsAt(q.x,q.y);setHi(hits);if(!hits.length){t.hidden=true;return}showTip(hits,q.cx,q.cy,false);
 });
+document.addEventListener('pointerleave',function(e){},true);
 document.addEventListener('click',function(e){
-  var mb=e.target.closest('[data-mode]');if(mb){MAPMODE=mb.getAttribute('data-mode');CDSEL=null;openMap(LB.map);return}
-  var p=e.target.closest('.cdp');
-  if(p){var n=+p.getAttribute('data-n');[].forEach.call(document.querySelectorAll('.cdp.sel'),function(x){x.classList.remove('sel')});p.classList.add('sel');CDSEL=n;var r=$('lbimg').getBoundingClientRect();cdTip(n,e.clientX-r.left,e.clientY-r.top,true);return}
-  if(e.target.closest('#lbimg')&&!e.target.closest('.cdtip')){var t=$('cdtip');if(t){t.hidden=true;t.classList.remove('sticky')}[].forEach.call(document.querySelectorAll('.cdp.sel'),function(x){x.classList.remove('sel')});CDSEL=null}
+  var mb=e.target.closest('[data-mode]');if(mb){MAPMODE=mb.getAttribute('data-mode');openMap(LB.map);return}
+  if(e.target.closest('#liveSvg')){var q=pointerProj(e);if(!q)return;var hits=hitsAt(q.x,q.y);setHi(hits);if(!hits.length){var t=$('cdtip');t.hidden=true;t.classList.remove('sticky');return}showTip(hits,q.cx,q.cy,true);return}
 });
 document.addEventListener('change',function(e){
+  if(e.target.hasAttribute&&e.target.hasAttribute('data-ly')){LYON[e.target.getAttribute('data-ly')]=e.target.checked;openMap(LB.map);return}
   if(e.target.id==='cbTog'){renderMaps()}
   if(e.target.id==='cbTog2'){$('cbTog').checked=e.target.checked;renderMaps();if(LB.map)openMap(LB.map)}
 });
