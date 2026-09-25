@@ -195,6 +195,24 @@ mark{background:#f7d3c8;color:inherit;padding:0 1px;border-radius:2px}
 .video .play span{width:68px;height:48px;border-radius:12px;background:var(--salmon);display:flex;align-items:center;justify-content:center}
 .video .play span::after{content:"";border-left:18px solid #fff;border-top:11px solid transparent;border-bottom:11px solid transparent;margin-left:4px}
 .video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.lbimg svg.live{pointer-events:auto}
+.cdp{fill:rgba(0,45,29,0);stroke:rgba(0,45,29,.55);stroke-width:2;cursor:pointer;transition:fill .12s}
+.cdp:hover,.cdp.sel{fill:rgba(219,129,107,.38);stroke:#002d1d;stroke-width:4}
+.cdp.is6{stroke:#0d1b4b;stroke-width:5}
+.cdp.is6:hover,.cdp.is6.sel{fill:rgba(244,121,32,.3);stroke:#f47920}
+.pin circle{fill:rgba(219,129,107,.35);stroke:#002d1d;stroke-width:3}
+.pin .pc{fill:#002d1d;stroke:#fff}
+.cdtip{position:absolute;z-index:3;background:#002d1d;color:#fff;border-radius:7px;padding:7px 10px;font:500 .8rem 'DM Sans',sans-serif;line-height:1.4;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:200px}
+.cdtip b{font-family:'DM Mono',monospace;font-size:.82rem;color:#db816b}
+.cdtip a{display:block;color:#fff;margin-top:3px;font-size:.78rem}
+.cdtip.sticky{pointer-events:auto}
+.seg{display:inline-flex;border:2px solid var(--green);border-radius:8px;overflow:hidden;margin-bottom:10px}
+.seg button{border:0;background:#fff;color:var(--green);font:700 .78rem 'DM Sans',sans-serif;padding:7px 12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--green);color:#fff}
+.livebox{margin-bottom:10px}
+.addr{display:flex;gap:6px;margin:8px 0 4px}
+.addr input{flex:1;min-width:0;padding:8px 10px;border:2px solid var(--green);border-radius:7px;font:500 .85rem 'DM Sans',sans-serif}
+.addr button{border:0;border-radius:7px;background:var(--green);color:#fff;font:700 .8rem 'DM Sans',sans-serif;padding:0 14px;cursor:pointer}
 .foot{padding:16px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:8px 18px}
 .foot a{font-family:'DM Mono',monospace;font-size:.64rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--rust);text-decoration:none}
 .empty{font-size:.85rem;color:var(--muted);padding:12px 0}
@@ -529,6 +547,22 @@ function openPage(p){
   document.body.style.overflow='hidden';
 }
 function mapList(){return D.maps.filter(function(m){return mapCat==='All'||m.cat===mapCat})}
+var MAPMODE='plan', PIN=null, CDSEL=null;
+function toPx(m,lon,lat){var G=D.geo,s=m.g[0];return [(lon*G.C-G.gx0)*s+m.g[1],(-lat-G.gy0)*s+m.g[2]]}
+function ringPath(r,m){var s=m.g[0],tx=m.g[1],ty=m.g[2];return 'M'+r.map(function(p){return (p[0]*s+tx).toFixed(1)+','+(p[1]*s+ty).toFixed(1)}).join('L')+'Z'}
+function inRing(x,y,r){var c=false;for(var i=0,j=r.length-1;i<r.length;j=i++){var xi=r[i][0],yi=r[i][1],xj=r[j][0],yj=r[j][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c}return c}
+function cdAt(lon,lat){var G=D.geo,x=lon*G.C-G.gx0,y=-lat-G.gy0;for(var k=0;k<D.cds.length;k++){if(D.cds[k].r.some(function(r){return inRing(x,y,r)}))return D.cds[k]}return null}
+function liveSVG(m){
+  var h='<svg class="live" viewBox="0 0 '+m.w+' '+m.h+'" preserveAspectRatio="xMidYMin slice">';
+  D.cds.forEach(function(c){h+='<path class="cdp'+(c.n===6?' is6':'')+(CDSEL===c.n?' sel':'')+'" data-n="'+c.n+'" d="'+c.r.map(function(r){return ringPath(r,m)}).join('')+'"/>'});
+  if(PIN){var p=toPx(m,PIN.lon,PIN.lat);h+='<g class="pin" transform="translate('+p[0].toFixed(1)+','+p[1].toFixed(1)+')"><circle r="16"/><circle r="6" class="pc"/></g>'}
+  return h+'</svg><div class="cdtip" id="cdtip" hidden></div>';
+}
+function cdTip(n,x,y,sticky){
+  var t=$('cdtip');if(!t)return;var c=D.cds[n-1];
+  t.innerHTML='<b>'+c.cb+'</b>'+(sticky?'<a href="/cb-bk-'+n+'.html">Open the '+c.cb+' profile &rarr;</a>':'');
+  t.hidden=false;var W=$('lbimg').clientWidth;t.style.left=Math.max(4,Math.min(x+12,W-190))+'px';t.style.top=(y+14)+'px';t.classList.toggle('sticky',!!sticky);
+}
 function openMap(id){
   var m=D.maps.filter(function(x){return x.id===id})[0]; if(!m)return;
   LB.mode='map';LB.map=id;
@@ -536,14 +570,27 @@ function openMap(id){
   $('lbPg').hidden=true;
   $('lbt').innerHTML=esc(m.id+' '+m.t)+'<span>'+esc(m.cat)+' &middot; page '+m.p+'</span>';
   var f='m'+m.id.replace('.','-');
-  $('lbimg').innerHTML='<img src="/bkcompplan/maps/'+f+'.webp" width="'+m.w+'" height="'+m.h+'" alt="'+esc(m.t)+'">'+cbSVG(m,5);
+  var live=MAPMODE==='live'&&m.g;
+  $('lbimg').innerHTML='<img src="/bkcompplan/maps/'+f+'.webp" width="'+m.w+'" height="'+m.h+'" alt="'+esc(m.t)+'">'+(live?liveSVG(m):cbSVG(m,5));
   var L=mapList(),i=L.indexOf(m);
   $('lbPrev').disabled=i<=0;$('lbNext').disabled=i<0||i>=L.length-1;
   var sd=$('lbside');sd.hidden=false;
-  sd.innerHTML=(m.g?'<label class="tog"><input type="checkbox" id="cbTog2" '+($('cbTog').checked?'checked':'')+'> Outline CB6</label>':'')+(m.lg?'<div class="lg">'+esc(m.lg)+'</div>':'')+'<p>'+esc(m.d)+'</p><p style="margin-top:8px"><a href="#" data-open-page="'+m.p+'">See it on page '+m.p+'</a></p>';
+  var modes=m.g?'<div class="seg" role="group" aria-label="Map view"><button type="button" data-mode="plan" aria-pressed="'+(!live)+'">Plan map</button><button type="button" data-mode="live" aria-pressed="'+(!!live)+'">Interactive</button></div>':'<p class="lg">This map covers more than Brooklyn, so it has no interactive view.</p>';
+  var liveBox=live?'<div class="livebox"><div class="lg">Hover or tap a district to see its board and a link to its profile.</div><form id="addrForm" class="addr"><input id="addrQ" type="search" placeholder="Find an address" autocomplete="off" value="'+(PIN?esc(PIN.q):'')+'"><button type="submit">Go</button></form><div class="lg" id="addrOut">'+(PIN?pinText():'')+'</div></div>':'';
+  sd.innerHTML=modes+liveBox+(!live&&m.g?'<label class="tog"><input type="checkbox" id="cbTog2" '+($('cbTog').checked?'checked':'')+'> Outline CB6</label>':'')+(m.lg?'<div class="lg">'+esc(m.lg)+'</div>':'')+'<p>'+esc(m.d)+'</p><p style="margin-top:8px"><a href="#" data-open-page="'+m.p+'">See it on page '+m.p+'</a></p>';
   $('lbview').scrollTop=0;
   setHash('map-'+m.id);
   document.body.style.overflow='hidden';
+}
+function pinText(){var c=cdAt(PIN.lon,PIN.lat);return esc(PIN.label)+(c?' &middot; in <a href="/cb-bk-'+c.n+'.html">'+c.cb+'</a>':' &middot; outside Brooklyn&rsquo;s community districts')}
+function geocode(q){
+  $('addrOut').textContent='Searching…';
+  fetch('https://geosearch.planninglabs.nyc/v2/search?size=1&text='+encodeURIComponent(q)).then(function(r){return r.json()}).then(function(j){
+    var f=j.features&&j.features[0];
+    if(!f){$('addrOut').textContent='No match for that address.';return}
+    PIN={lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1],label:f.properties.label,q:q};
+    openMap(LB.map);
+  }).catch(function(){$('addrOut').textContent='Address search did not respond. Try again.'});
 }
 function closeLB(){$('lb').classList.remove('on','zoom');LB.mode=null;document.body.style.overflow='';if(/^#(p|map)-/.test(location.hash))history.replaceState(null,'',location.pathname+location.search)}
 function step(d){
@@ -593,6 +640,18 @@ document.addEventListener('click',function(e){
   if(t.hasAttribute('data-mc')){mapCat=t.getAttribute('data-mc');renderMapChips();renderMaps();return}
   if(t.hasAttribute('data-expand')){var o=t.getAttribute('data-expand')==='1';[].forEach.call($('elpanel').querySelectorAll('details.obj,details.strat'),function(d){d.open=o});return}
   if(t.tagName==='A'){var h=t.getAttribute('href').slice(1);if(/^(el-|fr-|front-|appb|map-|p-)/.test(h)){e.preventDefault();if($('lb').classList.contains('on'))closeLB();history.replaceState(null,'','#'+h);goTo(h)}}
+});
+document.addEventListener('submit',function(e){if(e.target.id==='addrForm'){e.preventDefault();var q=$('addrQ').value.trim();if(q)geocode(q)}});
+document.addEventListener('pointermove',function(e){
+  var p=e.target.closest&&e.target.closest('.cdp');var t=$('cdtip');if(!t||t.classList.contains('sticky'))return;
+  if(!p){t.hidden=true;return}
+  var r=$('lbimg').getBoundingClientRect();cdTip(+p.getAttribute('data-n'),e.clientX-r.left,e.clientY-r.top,false);
+});
+document.addEventListener('click',function(e){
+  var mb=e.target.closest('[data-mode]');if(mb){MAPMODE=mb.getAttribute('data-mode');CDSEL=null;openMap(LB.map);return}
+  var p=e.target.closest('.cdp');
+  if(p){var n=+p.getAttribute('data-n');[].forEach.call(document.querySelectorAll('.cdp.sel'),function(x){x.classList.remove('sel')});p.classList.add('sel');CDSEL=n;var r=$('lbimg').getBoundingClientRect();cdTip(n,e.clientX-r.left,e.clientY-r.top,true);return}
+  if(e.target.closest('#lbimg')&&!e.target.closest('.cdtip')){var t=$('cdtip');if(t){t.hidden=true;t.classList.remove('sticky')}[].forEach.call(document.querySelectorAll('.cdp.sel'),function(x){x.classList.remove('sel')});CDSEL=null}
 });
 document.addEventListener('change',function(e){
   if(e.target.id==='cbTog'){renderMaps()}
