@@ -180,6 +180,50 @@ ORGS = [
           ('Search an address','/citywide-search.html',False)],
 },
 {
+ 'slug':'sbidc',
+ 'unsigned':True,
+ 'name':'SBIDC',
+ 'seat':'Southwest Brooklyn Industrial Development Corporation &middot; Sunset Park, Red Hook and Gowanus',
+ 'title':'SBIDC, Southwest Brooklyn Industrial Development Corporation',
+ 'desc':'SBIDC, the Southwest Brooklyn Industrial Development Corporation, at 4223 1st Avenue. Business support and training, green economy, employee ownership, workforce services and advocacy for the Southwest Brooklyn industrial waterfront since 1978.',
+ 'lat':'40.654375','lng':'-74.014746',
+ 'addr':'4223 1st Avenue, Suite 2','zip':'11232',
+ 'phone':'718-965-3100','tel':'7189653100',
+ 'email':'info@sbidc.org',
+ 'web':'sbidc.org','weburl':'https://www.sbidc.org',
+ 'since':'1978',
+ 'intro':[
+   '<b>SBIDC</b>, the Southwest Brooklyn Industrial Development Corporation, has been creating opportunity in Southwest Brooklyn since <b>1978</b>. In the words of its own mission, SBIDC is a resource that creates equal opportunity for the people, businesses and community of the Southwest Brooklyn industrial waterfront.',
+   'SBIDC serves the waterfront neighborhoods of <b>Sunset Park</b>, <b>Red Hook</b> and <b>Gowanus</b>, two of them in CB6.',
+   'Executive Director <b>Jesse Tinen Solomon</b> leads the organisation.',
+ ],
+ 'does_title':'What SBIDC does',
+ 'does':[
+   'For businesses, SBIDC offers <b>business support</b>, <b>business training</b>, <b>green economy</b> programs and help with <b>employee ownership</b>.',
+   'For workers, SBIDC runs <b>workforce services</b>, job placement and skill development, through the <b>Sunset Park Economic Mobility Network</b>.',
+   'SBIDC also provides <b>advocacy support</b>, representing the industrial business community.',
+ ],
+ 'kv':[('Founded','1978'),('Executive Director','Jesse Tinen Solomon'),
+       ('Serves','Sunset Park, Red Hook and Gowanus')],
+ 'brand':{'dark':'#353736','mid':'#66a6f2','light':'#f7b7b3','wash':'#fdf0ef','accent':'#f26861','ink':'#b8423b'},
+ 'flyer':{'img':'/flyer-sbidc-plan-for-growth-marketing-2026-10-09.jpg','href':'/calendar.html?event=2026-10-09-applications-due-sbidc-plan-for-growth-marketing-edition','alt':'SBIDC Plan for Growth, Marketing Edition. Applications due October 9','until':'2026-10-09'},
+ 'going':[
+   {'img':'','alt':'','kicker':'Applications due October 9',
+    'title':'Plan for Growth: Marketing Edition',
+    'text':'A four class, hands on program for Brooklyn makers and manufacturers to build a marketing plan and operational roadmap, instructed by Kim Robinson of 3pts. A virtual introductory session on October 22, then classes at Industry City on October 27 and 29 and November 3 and 5. The fee is $275, including a one year SBIDC membership, with payment plans and a sliding scale available.',
+    'btns':[('Apply','https://bit.ly/PFGMARKETING','hot'),('Details','https://www.sbidc.org/programs-and-events/plan-for-growth-marketing-edition-fall-2026')],'until':'2026-10-09'},
+ ],
+ 'evorg':'sbidc','evtitle':'Coming up with SBIDC','evhref':'/o/sbidc.html','evname':'The SBIDC calendar',
+ 'does_btns':[('Business services','https://www.sbidc.org',True),
+              ('What is coming up','/o/sbidc.html',False),
+              ('Zoning and land use for the lot','/citywide-search.html?address=4223%201st%20Avenue%2C%20Brooklyn',False)],
+ 'links':[('Their site','https://www.sbidc.org',True),
+          ('Instagram','https://www.instagram.com/sbidc__',True),
+          ('LinkedIn','https://www.linkedin.com/company/southwest-brooklyn-industrial-development-corporation/',True),
+          ('Their calendar','/o/sbidc.html',False),
+          ('Search an address','/citywide-search.html',False)],
+},
+{
  'slug':'fifth-avenue-committee',
  'name':'Fifth Avenue Committee',
  'seat':'Community based organisation &middot; Park Slope and Gowanus, Brooklyn',
@@ -442,9 +486,10 @@ for o in ORGS:
         for g in o['going']:
             hotcss = 'background:%s;border-color:%s;color:#fff;font-weight:700' % ((o.get('brand') or {}).get('accent', '#f47920'), (o.get('brand') or {}).get('accent', '#f47920'))
             btns = ''.join('<a class="cbtn" href="%s" target="_blank" rel="noopener"%s>%s &#8599;</a>' % (b[1], ' style="%s"' % hotcss if len(b) > 2 else '', b[0]) for b in g['btns'])
-            cards += ('<div class="gocard"%s><img src="%s" alt="%s"><div class="gobody"><div class="gokick">%s</div>'
+            gimg = '<img src="%s" alt="%s">' % (g['img'], g['alt']) if g.get('img') else ''
+            cards += ('<div class="gocard"%s>%s<div class="gobody"><div class="gokick">%s</div>'
                       '<div class="gottl">%s</div><p>%s</p><div class="contact">%s</div></div></div>') % (
-                ' data-until="%s"' % g['until'] if g.get('until') else '', g['img'], g['alt'], g['kicker'], g['title'], g['text'], btns)
+                ' data-until="%s"' % g['until'] if g.get('until') else '', gimg, g['kicker'], g['title'], g['text'], btns)
         going = ('  <div class="sec gosec"><h2>Going on now</h2>'
                  '<style>.gocard{background:#fff;border:1px solid var(--rule,#e5e2db);border-radius:14px;overflow:hidden;margin-bottom:14px}'
                  '.gocard img{display:block;width:100%%;max-height:420px;object-fit:cover}.gobody{padding:14px 16px}'
