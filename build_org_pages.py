@@ -153,6 +153,7 @@ ORGS = [
        ('Community board','<a href="/cb-bk-6.html">Brooklyn Community Board 6</a>'),
        ('Zoning','M1-4/R7-2, Gowanus special district')],
  'brand':{'dark':'#1a1a1a','mid':'#d9676a','light':'#eeb3b4','wash':'#fbefef','accent':'#ca373a','ink':'#a82a2d'},
+ 'flyer':{'img':'/flyer-arts-gowanus-open-studios-2026-10-17.jpg','href':'/calendar.html?event=2026-10-17-arts-gowanus-open-studios-30th-annual-day-1-of-2','alt':'30th Annual Arts Gowanus Open Studios, October 17 and 18, 2026, noon to 6 PM','until':'2026-10-18'},
  'evorg':'artsgowanus','evtitle':'Coming up at Arts Gowanus','evhref':'/o/artsgowanus.html','evname':'The Arts Gowanus calendar',
  'does_btns':[('Gowanus Open Studios','https://www.artsgowanus.org/gowanus-open-studios',True),
               ('Their advocacy','https://www.artsgowanus.org/advocacy',True),
@@ -228,7 +229,7 @@ TPL = """<!DOCTYPE html>
     </span>
   </div>
 
-  <div class="sec introsec"><div class="bio dmintro">{intro}{sig}</div></div>
+{flyer}  <div class="sec introsec"><div class="bio dmintro">{intro}{sig}</div></div>
 
   <div class="sec"><h2>Where it is</h2>
     <details class="mapwrap" open><summary>Map of the block<span class="msub">zoning, boundary, overlaps, land use</span><span class="marr2">&#9660;</span></summary>
@@ -418,6 +419,13 @@ for o in ORGS:
     extra = ''.join(
         '\n  <div class="sec"><h2>%s</h2><div class="contact" style="margin-top:0">%s</div></div>\n' % (title, cbtns(items))
         for title, items in o.get('extra', []))
+    flyer = ''
+    if o.get('flyer'):
+        f = o['flyer']
+        flyer = ('  <div class="sec flyersec" id="orgFlyer" data-until="%s"><a href="%s" style="display:block">'
+                 '<img src="%s" alt="%s" style="display:block;width:100%%;max-width:560px;margin:0 auto;border-radius:10px;box-shadow:0 3px 14px rgba(0,0,0,.18)"></a></div>\n'
+                 '  <script>(function(){var f=document.getElementById(\'orgFlyer\');var u=f.getAttribute(\'data-until\').split(\'-\');'
+                 'if(new Date()>new Date(+u[0],+u[1]-1,+u[2],23,59,59))f.remove();})();</script>\n\n') % (f['until'], f['href'], f['img'], f['alt'])
     brandcss = BRANDCSS.format(name=o['name'], **o['brand']) if o.get('brand') else ''
     does_title = o.get('does_title','What it does')
     sig = '' if o.get('unsigned') else '\n    <p class="sig">&mdash;<a href="mailto:Mike@bkcb6.org">Mike Racioppo</a></p>'
@@ -426,7 +434,7 @@ for o in ORGS:
     # rendered rows, so the built ones win
     fields.update(intro=intro, does=does, note=note, phone=phone, email=email,
                   kv=kv, links=links, mapjs=MAPJS, events=events, evjs=evjs,
-                  doesbtns=doesbtns, extra=extra, brandcss=brandcss, does_title=does_title, sig=sig,
+                  doesbtns=doesbtns, extra=extra, flyer=flyer, brandcss=brandcss, does_title=does_title, sig=sig,
                   addrflat=o['addr'].replace('<br>', ', '))
     html = TPL.format(**fields)
     d = os.path.join(ROOT, o['slug'])
