@@ -10,10 +10,13 @@
 <meta property="og:url" content="https://bkcb6.app/BQE/">
 <meta name="twitter:card" content="summary">
 <title>The BQE &mdash; bkcb6.app</title>
+<meta name="description" content="Map of the Brooklyn-Queens Expressway by section with ramps, NYC DOT traffic counts, 311 truck route complaints, truck routes and overlapping districts, plus the city's plan for BQE Central. Every figure links to its source.">
 <link rel="canonical" href="https://bkcb6.app/BQE/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
 :root{--navy:#0d1b4b;--orange:#f47920;--off:#f8f7f4;--border:#e5e2db;--muted:#6b6760}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -72,6 +75,71 @@ a{color:var(--navy)}
 .srclogo img{height:30px;width:auto;border:1px solid var(--border);border-radius:5px;background:#fff;padding:2px}
 </style>
 <style>
+.top-bar{background:var(--navy);color:#fff;padding:11px 14px;display:flex;align-items:center;gap:12px;border-bottom:3px solid var(--orange)}
+.top-txt{flex:1;min-width:0}
+.top-txt h1{font-size:1.25rem;font-weight:900;line-height:1.18;letter-spacing:-.01em;margin:0}
+.top-txt h1 span{color:var(--orange)}
+.top-txt p{font-size:.76rem;opacity:.9;margin-top:3px;font-family:'DM Mono',monospace}
+.back-link{color:#fff;text-decoration:none;font-size:.82rem;font-weight:700;border:1px solid rgba(255,255,255,.45);border-radius:999px;padding:5px 11px;white-space:nowrap}
+@media (max-width:560px){.top-txt p{display:none}}
+.search-row{display:flex;gap:6px;padding:8px 14px 4px;background:#fff}
+.search-row input{flex:1;font-family:'DM Sans',sans-serif;font-size:.95rem;padding:9px 12px;border:1.5px solid #d8d4cb;border-radius:8px;color:var(--navy);outline:none;min-width:0}
+.search-row button{padding:8px 16px;background:var(--orange);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.9rem;font-weight:700;cursor:pointer}
+.street-row{display:flex;gap:6px;padding:4px 14px 8px;background:#fff;border-bottom:1.5px solid var(--border);flex-wrap:wrap}
+.street-row select,.street-row input{font-family:'DM Sans',sans-serif;font-size:.9rem;padding:8px 10px;border:1.5px solid #d8d4cb;border-radius:8px;background:#fff;color:var(--navy);outline:none;min-width:0;flex:1 1 120px}
+.street-row select{flex:0 1 130px}
+.street-row button{padding:8px 16px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.9rem;font-weight:700;cursor:pointer}
+.addr-result{display:none;padding:9px 14px;background:#fff;border-bottom:2px solid var(--orange);font-size:.88rem;line-height:1.5}
+.addr-result .k{font-family:'DM Mono',monospace;font-size:.72rem;color:#666}
+.legend-bar{padding:6px 14px;background:#fafaf8;border-bottom:1.5px solid var(--border);display:flex;flex-wrap:wrap;gap:5px 12px;align-items:center}
+.li{display:inline-flex;align-items:center;gap:5px;font-size:.73rem;color:#444}
+.ls{display:inline-block;width:22px;height:5px;border-radius:2px;flex-shrink:0}
+.ls.thin{height:3px;background:repeating-linear-gradient(90deg,#475569 0 4px,transparent 4px 7px)}
+.ld{display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid #fff;box-shadow:0 0 0 1px currentColor}
+.lpill{font-family:'DM Mono',monospace;font-size:.62rem;font-weight:700;background:#fff;border:2px solid #be123c;color:#0d1b4b;border-radius:10px;padding:0 5px}
+.map-shell{position:relative;height:72vh;min-height:420px;display:flex}
+#map{flex:1;background:#eef3f8}
+@media (max-width:640px){.map-shell{height:62vh;min-height:360px}}
+.status{position:absolute;left:50%;transform:translateX(-50%);top:12px;z-index:800;background:rgba(13,27,75,.93);color:#fff;font-size:.76rem;font-family:'DM Mono',monospace;padding:7px 14px;border-radius:20px;display:none}
+.sect-title{font-size:.62rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.09em;color:#888;padding:10px 14px 0;background:var(--off)}
+.toggles{padding:8px 14px;background:var(--off);border-bottom:1.5px solid var(--border);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.lb{font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em;color:#888;margin-right:2px;white-space:nowrap}
+.tbtn{padding:5px 11px;font-size:.74rem;font-family:'DM Sans',sans-serif;font-weight:600;border:1.5px solid #ccc;border-radius:20px;background:#fff;color:#555;cursor:pointer;white-space:nowrap}
+.tbtn:hover{border-color:var(--tc);color:var(--tc)}
+.tbtn.active{background:var(--tc);border-color:var(--tc);color:#fff}
+.ov{padding:6px 14px 8px;background:#fff;border-bottom:1.5px solid var(--border);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ov .chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{padding:4px 9px;font-size:.72rem;font-family:'DM Mono',monospace;font-weight:500;border:1.5px solid #c9c4b8;border-radius:7px;background:#fff;color:#444;cursor:pointer;white-space:nowrap}
+.chip.ov-chip{display:inline-flex;align-items:center;gap:8px;padding:3px 12px 3px 4px;font-size:.8rem;font-family:'DM Sans',sans-serif;font-weight:600}
+.chip.ov-chip img{width:40px;height:40px;border-radius:6px;object-fit:contain;background:#fff;border:1px solid #e5e2db}
+.chip.on{background:var(--cc);border-color:var(--cc);color:#fff}
+.sel{padding:7px 14px;font-size:.78rem;color:var(--muted);background:#fff;border-bottom:1.5px solid var(--border);line-height:1.5}
+.sel b{color:var(--navy);font-family:'DM Mono',monospace;font-weight:500}
+.cd-label{background:none;border:none;box-shadow:none;font-family:'DM Mono',monospace;font-weight:700;font-size:.78rem;color:#0d1b4b;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap;pointer-events:none}
+.leaflet-tooltip.cd-label::before,.leaflet-tooltip.pd-label::before{display:none}
+.cb6-mark{width:46px;height:46px;border-radius:9px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);display:block}
+.pd-label{background:#fff;border:1.5px solid #6b7280;border-radius:10px;padding:3px 10px 3px 4px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:.78rem;box-shadow:0 1px 4px rgba(0,0,0,.18);white-space:nowrap;pointer-events:none}
+.pd-label span{display:inline-flex;align-items:center;gap:6px}
+.pd-label img{width:44px;height:44px;border-radius:6px;object-fit:contain;background:#fff;border:1px solid #e5e2db}
+.leaflet-tooltip.tr-tip{font-family:'DM Sans',sans-serif;font-size:.8rem;line-height:1.35;padding:6px 9px;border-radius:8px}
+.leaflet-tooltip.tr-tip .k,.leaflet-popup-content .k{font-family:'DM Mono',monospace;font-size:.66rem;color:#666}
+.leaflet-popup-content{font-family:'DM Sans',sans-serif;font-size:.82rem;line-height:1.4}
+.ptab{border-collapse:collapse;margin:6px 0;font-size:.74rem}
+.ptab th{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;color:#888;text-align:right;padding:2px 5px}
+.ptab td{padding:3px 5px;text-align:right;font-family:'DM Mono',monospace;border-top:1px solid #eee}
+.ptab td:first-child{text-align:left;font-family:'DM Sans',sans-serif}
+.cwrap{position:relative;width:0;height:0}
+.cdot{position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;background:#fff;border:2.5px solid #be123c;box-sizing:border-box}
+.cdot.st{border-color:#0d1b4b}
+.cpill{position:absolute;font-family:'DM Mono',monospace;font-size:.7rem;font-weight:700;background:#fff;color:#0d1b4b;border:2.5px solid #be123c;border-radius:12px;padding:1px 7px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.25);cursor:pointer}
+.cpill.st{border-color:#0d1b4b;font-size:.64rem}
+.cpill.right{left:9px;top:0;transform:translateY(-50%)}
+.cpill.left{right:9px;top:0;transform:translateY(-50%)}
+.cpill.up{left:0;bottom:9px;transform:translateX(-50%)}
+.wrap{max-width:900px}
+</style>
+
+<style>
 .sec h3{font-size:.98rem;font-weight:900;margin-top:4px}
 .sub2{padding:18px 16px 4px;border-top:1px dashed var(--border)}
 .sub2 h3{font-size:1rem;font-weight:900;line-height:1.3}
@@ -87,12 +155,64 @@ a{color:var(--navy)}
 <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b6e9b47ba0cf416388d72db8edaf4198"}'></script><!-- End Cloudflare Web Analytics -->
 </head>
 <body>
+<div class="top-bar">
+  <div class="top-txt"><h1>The <span>BQE</span></h1><p>Brooklyn-Queens Expressway: sections, ramps, traffic counts, truck complaints and truck routes</p></div>
+  <a class="back-link" href="/transport.html">&larr; Transportation</a>
+</div>
+<div class="search-row"><input id="s-input" type="text" placeholder="Search an address&hellip;" autocomplete="off"><button onclick="doSearch()">Search</button></div>
+<div class="street-row">
+  <select id="f-boro"><option value="Brooklyn" selected>Brooklyn</option><option value="Queens">Queens</option><option value="Manhattan">Manhattan</option><option value="Bronx">Bronx</option><option value="Staten Island">Staten Island</option></select>
+  <input id="f-street" type="text" placeholder="Street" autocomplete="off">
+  <input id="f-x1" type="text" placeholder="From cross street" autocomplete="off">
+  <input id="f-x2" type="text" placeholder="To cross street (optional)" autocomplete="off">
+  <button onclick="findStreet()">Find</button>
+</div>
+<div class="addr-result" id="addr-result"></div>
+<div class="legend-bar">
+  <span class="li"><span class="ls" style="background:#2563eb"></span>BQE North</span>
+  <span class="li"><span class="ls" style="background:#be123c"></span>BQE Central (city-owned)</span>
+  <span class="li"><span class="ls" style="background:#0f766e"></span>BQE South</span>
+  <span class="li"><span class="ls" style="background:#7c3aed"></span>Kosciuszko Bridge</span>
+  <span class="li"><span class="ls" style="background:#64748b"></span>BQE in Queens</span>
+  <span class="li"><span class="ls thin"></span>Ramps</span>
+  <span class="li"><span class="lpill">63,346 NB</span>DOT traffic count, vehicles a day by direction (tap for both directions)</span>
+  <span class="li"><span class="ld" style="color:#b91c1c;background:#b91c1c"></span>311 truck route complaint</span>
+  <span class="li"><span class="ls" style="background:#0d9488"></span>Through truck route</span>
+  <span class="li"><span class="ls" style="background:#60a5fa"></span>Local truck route</span>
+</div>
+<div class="map-shell"><div id="map"></div><div class="status" id="status"></div></div>
+<div class="sect-title">Layers</div>
+<div class="toggles">
+  <span class="lb">BQE</span>
+  <button class="tbtn active" data-sec="north" style="--tc:#2563eb" onclick="togSec(this)">North</button>
+  <button class="tbtn active" data-sec="central" style="--tc:#be123c" onclick="togSec(this)">Central</button>
+  <button class="tbtn active" data-sec="south" style="--tc:#0f766e" onclick="togSec(this)">South</button>
+  <button class="tbtn active" data-sec="kosciuszko" style="--tc:#7c3aed" onclick="togSec(this)">Kosciuszko Bridge</button>
+  <button class="tbtn active" data-sec="queens" style="--tc:#64748b" onclick="togSec(this)">Queens</button>
+  <button class="tbtn active" id="ramp-btn" style="--tc:#475569" onclick="togRamps(this)">Ramps</button>
+</div>
+<div class="toggles">
+  <span class="lb">Data</span>
+  <button class="tbtn active" id="cnt-btn" style="--tc:#0d1b4b" onclick="togCounts(this)">Traffic counts</button>
+  <button class="tbtn active" id="cmp-btn" style="--tc:#b91c1c" onclick="togComplaints(this)">311 truck route complaints</button>
+  <button class="tbtn" id="tr-btn" style="--tc:#0d9488" onclick="togTR(this)">DOT truck routes</button>
+  <span class="lb" style="margin-left:8px">Area</span>
+  <button class="tbtn active" id="area-cb6" style="--tc:#f47920" onclick="setArea('cb6')">BKCB6</button>
+  <button class="tbtn" id="area-along" style="--tc:#0d1b4b" onclick="setArea('along')">Every district the BQE crosses</button>
+  <span class="lb" style="margin-left:8px">Boundaries</span>
+  <button class="tbtn active" id="bnd-btn" style="--tc:#0d1b4b" onclick="togBounds(this)">Community districts</button>
+</div>
+<div class="ov">
+  <span class="lb">Overlapping</span>
+  <button class="tbtn" data-ov="council" style="--tc:#6d28d9" onclick="togOvType(this)">Council</button>
+  <button class="tbtn" data-ov="assembly" style="--tc:#0e7490" onclick="togOvType(this)">State Assembly</button>
+  <button class="tbtn" data-ov="senate" style="--tc:#be185d" onclick="togOvType(this)">State Senate</button>
+  <button class="tbtn" data-ov="congress" style="--tc:#374151" onclick="togOvType(this)">Congress</button>
+  <div class="chips" id="ov-chips" style="width:100%"></div>
+</div>
+<div class="sel" id="sel"></div>
+
 <div class="wrap">
-<header>
-<div class="crumb"><a href="/">bkcb6.app</a> / <a href="/transport.html">Transportation Hub</a> / BQE</div>
-<h1>The <span>BQE</span></h1>
-<div class="sub">The Brooklyn-Queens Expressway: the corridor, traffic and trucks, the city's rebuild plan, and what reaches CB6 streets. Every figure links to its source.</div>
-</header>
 
 <div class="kpis">
 <div class="kp"><div class="v"><a href="https://www.nyc.gov/html/dot/html/infrastructure/bqecentral.shtml" target="_blank" rel="noopener">130,000</a></div><div class="k">vehicles a day on the BQE, <a href="https://www.nyc.gov/html/dot/html/infrastructure/bqecentral.shtml" target="_blank" rel="noopener">13,000</a> of them trucks (NYC DOT)</div></div>
@@ -229,5 +349,140 @@ a{color:var(--navy)}
 
 <nav class="nav"><a href="/transport.html">Transportation Hub</a><a href="/truckroutes/">Truck routes</a><a href="/visionzerocb6/">Vision Zero in CB6</a><a href="/speedlimits/">Speed limits</a></nav>
 </div>
+<script>
+var CDS=[{"cd":"0","b":"","lbl":"Bridges & tunnels","n":174,"jia":1},{"cd":"101","b":"1","lbl":"MNCB1","name":"Battery Park City, Civic Center, Governors Island, South Street Seaport, The Financial District, TriBeCa, World Trade Center","n":529,"jia":0},{"cd":"102","b":"1","lbl":"MNCB2","name":"Greenwich Village, Hudson Square, Little Italy/NoLIta, Meatpacking District, NoHo, SoHo, West Village","n":333,"jia":0},{"cd":"103","b":"1","lbl":"MNCB3","name":"Alphabet City, Bowery, Chinatown, East Village, Lower East Side, Two Bridges","n":400,"jia":0},{"cd":"104","b":"1","lbl":"MNCB4","name":"Chelsea, Hell's Kitchen (Clinton), Hudson Yards, West Chelsea","n":460,"jia":0},{"cd":"105","b":"1","lbl":"MNCB5","name":"Flatiron District, Garment - Fashion District, Midtown, Midtown East, NoMad, Rose Hill, The Empire District (Tenderloin), The Penn District, Theater District - Times Square, Union Square","n":230,"jia":0},{"cd":"106","b":"1","lbl":"MNCB6","name":"Gramercy, Kips Bay, Murray Hill, Stuyvesant Town, Sutton Place, Tudor City, Turtle Bay","n":288,"jia":0},{"cd":"107","b":"1","lbl":"MNCB7","name":"Bloomingdale District, Lincoln Square, Manhattan Valley, Upper West Side","n":341,"jia":0},{"cd":"108","b":"1","lbl":"MNCB8","name":"Carnegie Hill, Lenox Hill, Metropolitan Hill, Roosevelt Island, Upper East Side, Yorkville","n":337,"jia":0},{"cd":"109","b":"1","lbl":"MNCB9","name":"Hamilton Heights, Manhattanville, Morningside Heights, Sugar Hill","n":198,"jia":0},{"cd":"110","b":"1","lbl":"MNCB10","name":"Harlem","n":257,"jia":0},{"cd":"111","b":"1","lbl":"MNCB11","name":"East Harlem, Randall's Island, Spanish Harlem (El Barrio)","n":465,"jia":0},{"cd":"112","b":"1","lbl":"MNCB12","name":"Fort George, Hudson Heights, Inwood, Washington Heights","n":541,"jia":0},{"cd":"164","b":"1","lbl":"MN JIA 64","name":"Joint interest area (parks, airports, cemeteries)","n":96,"jia":1},{"cd":"201","b":"2","lbl":"BXCB1","name":"Melrose, Mott Haven, Port Morris","n":746,"jia":0},{"cd":"202","b":"2","lbl":"BXCB2","name":"Foxhurst, Hunts Point, Longwood","n":481,"jia":0},{"cd":"203","b":"2","lbl":"BXCB3","name":"Claremont Village, Crotona, Crotona Park, Foxhurst, Morrisania","n":265,"jia":0},{"cd":"204","b":"2","lbl":"BXCB4","name":"Claremont, Concourse, Concourse Village, Highbridge, Mount Eden","n":528,"jia":0},{"cd":"205","b":"2","lbl":"BXCB5","name":"Fordham Heights, Morris Heights, Mt. Hope, University Heights","n":296,"jia":0},{"cd":"206","b":"2","lbl":"BXCB6","name":"Belmont, East Tremont, West Farms","n":345,"jia":0},{"cd":"207","b":"2","lbl":"BXCB7","name":"Bedford Park, Fordham Manor, Jerome Park, Kingsbridge Heights, Norwood, University Heights","n":154,"jia":0},{"cd":"208","b":"2","lbl":"BXCB8","name":"Fieldston, Kingsbridge, Kingsbridge Heights, Marble Hill, Mosholu, North Riverdale, Riverdale, Spuyten Duyvil, Van Cortlandt Village","n":125,"jia":0},{"cd":"209","b":"2","lbl":"BXCB9","name":"Bronx River, Castle Hill, Clason Point, Harding Park, Parkchester, Shorehaven, Soundview, Soundview Park, Unionport","n":835,"jia":0},{"cd":"210","b":"2","lbl":"BXCB10","name":"City Island, Co-Op City, Country Club, Eastchester Bay, Locust Point, Park of Edgewater, Pelham Bay, Schuylerville, Silver Beach, Throggs Neck, Westchester Square","n":891,"jia":0},{"cd":"211","b":"2","lbl":"BXCB11","name":"Allerton, Bronxwood, Indian Village, Laconia, Morris Park, Pelham Bay, Pelham Gardens, Pelham Parkway, Van Nest","n":290,"jia":0},{"cd":"212","b":"2","lbl":"BXCB12","name":"Baychester, Eastchester, Edenwald, Olinville, Wakefield, Williamsbridge, Woodlawn Cemetery, Woodlawn Heights","n":573,"jia":0},{"cd":"226","b":"2","lbl":"BX JIA 26","name":"Joint interest area (parks, airports, cemeteries)","n":226,"jia":1},{"cd":"227","b":"2","lbl":"BX JIA 27","name":"Joint interest area (parks, airports, cemeteries)","n":61,"jia":1},{"cd":"228","b":"2","lbl":"BX JIA 28","name":"Joint interest area (parks, airports, cemeteries)","n":150,"jia":1},{"cd":"301","b":"3","lbl":"BKCB1","name":"East Williamsburg, Greenpoint, Los Sures - Southside Williamsburg, Northside Williamsburg, South Williamsburg, Williamsburg","n":974,"jia":0},{"cd":"302","b":"3","lbl":"BKCB2","name":"Boerum Hill, Brooklyn Heights, Brooklyn Navy Yard, Clinton Hill, DUMBO, Downtown Brooklyn, Fort Greene, Vinegar Hill","n":987,"jia":0},{"cd":"303","b":"3","lbl":"BKCB3","name":"Bedford-Stuyvesant, Stuyvesant Heights","n":269,"jia":0},{"cd":"304","b":"3","lbl":"BKCB4","name":"Bushwick","n":31,"jia":0},{"cd":"305","b":"3","lbl":"BKCB5","name":"City Line, Cypress Hills, East New York, Highland Park, New Lots, Starrett City","n":800,"jia":0},{"cd":"306","b":"3","lbl":"BKCB6","name":"Park Slope, Carroll Gardens, Cobble Hill, Red Hook, Gowanus, and the Columbia Street Waterfront District","n":615,"jia":0},{"cd":"307","b":"3","lbl":"BKCB7","name":"Greenwood Cemetery, Greenwood Heights, South Slope, Sunset Park, Windsor Terrace","n":792,"jia":0},{"cd":"308","b":"3","lbl":"BKCB8","name":"Crown Heights, Prospect Heights","n":103,"jia":0},{"cd":"309","b":"3","lbl":"BKCB9","name":"Prospect Lefferts Gardens, Wingate","n":93,"jia":0},{"cd":"310","b":"3","lbl":"BKCB10","name":"Bay Ridge, Dyker Beach Park, Dyker Heights, Fort Hamilton","n":444,"jia":0},{"cd":"311","b":"3","lbl":"BKCB11","name":"Bath Beach, Bensonhurst, Gravesend, Mapleton","n":180,"jia":0},{"cd":"312","b":"3","lbl":"BKCB12","name":"Albemarle, Borough Park, Dahill, Kensington, Midwood","n":128,"jia":0},{"cd":"313","b":"3","lbl":"BKCB13","name":"Brighton Beach, Coney Island, Seagate","n":172,"jia":0},{"cd":"314","b":"3","lbl":"BKCB14","name":"Flatbush, Midwood, Midwood Park / Fiske Terrace, Parkville, Prospect Park South, Victorian Flatbush / Ditmas Park","n":81,"jia":0},{"cd":"315","b":"3","lbl":"BKCB15","name":"Gerritsen Beach, Homecrest, Madison, Manhattan Beach, Sheepshead Bay","n":127,"jia":0},{"cd":"316","b":"3","lbl":"BKCB16","name":"Brownsville, Ocean Hill","n":248,"jia":0},{"cd":"317","b":"3","lbl":"BKCB17","name":"East Flatbush, Erasmus, Farragut, Remsen Village","n":282,"jia":0},{"cd":"318","b":"3","lbl":"BKCB18","name":"Bergen Beach, Canarsie, Flatlands, Georgetown, Marine Park, Mill Basin, Paerdegat","n":617,"jia":0},{"cd":"355","b":"3","lbl":"BK JIA 55","name":"Joint interest area (parks, airports, cemeteries)","n":21,"jia":1},{"cd":"356","b":"3","lbl":"BK JIA 56","name":"Joint interest area (parks, airports, cemeteries)","n":32,"jia":1},{"cd":"401","b":"4","lbl":"QNCB1","name":"Astoria, Astoria Heights, Ditmars-Steinway, Long Island City","n":662,"jia":0},{"cd":"402","b":"4","lbl":"QNCB2","name":"Hunter's Point, Long Island City, Maspeth, Sunnyside, Woodside","n":1517,"jia":0},{"cd":"403","b":"4","lbl":"QNCB3","name":"East Elmhurst, Jackson Heights, North Corona","n":290,"jia":0},{"cd":"404","b":"4","lbl":"QNCB4","name":"Corona, Elmhurst","n":556,"jia":0},{"cd":"405","b":"4","lbl":"QNCB5","name":"Glendale, Highland Park, Maspeth, Middle Village, Ridgewood","n":699,"jia":0},{"cd":"406","b":"4","lbl":"QNCB6","name":"Forest Hills, Forest Hills Gardens, Rego Park","n":766,"jia":0},{"cd":"407","b":"4","lbl":"QNCB7","name":"Auburndale, Bay Terrace, Beechhurst, Broadway-Flushing, College Point, Downtown Flushing, Kissena, Kissena Park, Linden Hill, Malba, Murray Hill, Queensboro Hill, Whitestone, Willets Point (The Iron Triangle)","n":891,"jia":0},{"cd":"408","b":"4","lbl":"QNCB8","name":"Briarwood, Cunningham Park, Flushing Heights, Fresh Meadows, Hillcrest, Holliswood, Jamaica Estates, Jamaica Hills, Kew Gardens Hills, Pomonok, Queensboro Hill, Utopia","n":874,"jia":0},{"cd":"409","b":"4","lbl":"QNCB9","name":"Kew Gardens, Ozone Park, Richmond Hill, Richmond Hill East, South Richmond Hill, Woodhaven","n":454,"jia":0},{"cd":"410","b":"4","lbl":"QNCB10","name":"Hamilton Beach, Howard Beach, Lindenwood, Old Howard Beach, Ozone Park, South Ozone Park, South Richmond Hill, The Hole","n":454,"jia":0},{"cd":"411","b":"4","lbl":"QNCB11","name":"Alley Pond Park, Auburndale, Bayside, Bayside Hills, Douglas Manor, Douglaston, Fresh Meadows, Hollis Hills, Little Neck, Oakland Gardens","n":645,"jia":0},{"cd":"412","b":"4","lbl":"QNCB12","name":"Bricktown, Hollis, Jamaica, Jamaica Center, Locust Manor, Rochdale, South Jamaica, Springfield Gardens, St. Albans","n":964,"jia":0},{"cd":"413","b":"4","lbl":"QNCB13","name":"Bellaire, Bellerose, Bellerose Manor, Brookville, Brookville Park, Cambria Heights, Floral Park, Glen Oaks, Laurelton, Meadowmere, New Hyde Park, Queens Village, Rosedale, Springfield Gardens","n":955,"jia":0},{"cd":"414","b":"4","lbl":"QNCB14","name":"Arverne, Bayswater, Belle Harbor, Breezy Point, Edgemere, Far Rockaway, Neponsit, Rockaway Beach, Rockaway Park, Roxbury","n":279,"jia":0},{"cd":"480","b":"4","lbl":"QN JIA 80","name":"Joint interest area (parks, airports, cemeteries)","n":29,"jia":1},{"cd":"481","b":"4","lbl":"QN JIA 81","name":"Joint interest area (parks, airports, cemeteries)","n":431,"jia":1},{"cd":"482","b":"4","lbl":"QN JIA 82","name":"Joint interest area (parks, airports, cemeteries)","n":54,"jia":1},{"cd":"483","b":"4","lbl":"QN JIA 83","name":"Joint interest area (parks, airports, cemeteries)","n":190,"jia":1},{"cd":"484","b":"4","lbl":"QN JIA 84","name":"Joint interest area (parks, airports, cemeteries)","n":89,"jia":1},{"cd":"501","b":"5","lbl":"SICB1","name":"Arlington, Brighton Heights, Castleton Corners, Clifton, Clove Lakes Park, Graniteville, Grymes Hill, Livingston, Mariners Harbor, Meier's Corners, New Brighton, Park Hill, Port Richmond, Randall Manor, Rosebank, Shore Acres, Silver Lake, St. George, Stapleton, Stapleton Heights, Sunnyside, Sunset Hill, Tompkinsville, West New Brighton, Westerleigh","n":1520,"jia":0},{"cd":"502","b":"5","lbl":"SICB2","name":"Arrochar, Bloomfield, Bull's Head, Concord, Dongan Hills, Dongan Hills Colony, Egbertville, Emerson Hill, Freshkills Park, Grant City, Grasmere, Heartland Village, Latourette Park, Lighthouse Hill, Manor Heights, Midland Beach, New Dorp, New Dorp Beach, New Springville, Ocean Breeze, Old Town, South Beach, Todt Hill, Travis - Chelsea, Willowbrook","n":1362,"jia":0},{"cd":"503","b":"5","lbl":"SICB3","name":"Annadale, Arden Heights, Bay Terrace, Charleston, Eltingville, Freshkills Park, Great Kills, Huguenot North, Huguenot Park, Oakwood, Pleasant Plains, Prince's Bay, Richmond Town, Richmond Valley, Rossville, Sandy Ground, Tottenville, Village Greens, Woodrow","n":1509,"jia":0},{"cd":"595","b":"5","lbl":"SI JIA 95","name":"Joint interest area (parks, airports, cemeteries)","n":138,"jia":1}];
+var CONG={3:'suozzi',5:'meeks',6:'meng',7:'velazquez',8:'jeffries',9:'clarke',10:'goldman',11:'malliotakis',12:'nadler',13:'espaillat',14:'aoc',15:'torres',16:'latimer'};
+var LOGO={council:function(d){return '/elected/CD'+d+'.png';},senate:function(d){return '/elected/SD'+d+'.png';},assembly:function(d){return '/elected/AD'+d+'.png';},congress:function(d){return CONG[d]?'/elected/'+CONG[d]+'.png':'/site-icons/congress/cd'+d+'.png';}};
+var OV={council:{name:'Council',file:'/data/council-districts.geojson',prop:'cc',off:[0,-30],pal:['#6d28d9','#a855f7','#4c1d95','#c084fc']},assembly:{name:'State Assembly',file:'/data/assembly-districts.geojson',prop:'ad',off:[0,10],pal:['#0e7490','#22d3ee','#164e63','#0891b2']},senate:{name:'State Senate',file:'/data/senate-districts.geojson',prop:'sd',off:[0,-10],pal:['#be185d','#f472b6','#831843','#fb7185']},congress:{name:'Congress',file:'/data/congress-districts-simple.geojson',prop:'cong_dist',off:[0,30],pal:['#374151','#9ca3af']}};
+var SEC={north:{n:'BQE North',c:'#2563eb'},central:{n:'BQE Central (city-owned)',c:'#be123c'},south:{n:'BQE South',c:'#0f766e'},kosciuszko:{n:'Kosciuszko Bridge',c:'#7c3aed'},queens:{n:'BQE in Queens',c:'#64748b'}};
+var SECON={north:true,central:true,south:true,kosciuszko:true,queens:true},showRamps=true,showCounts=true,showCmp=true,showTR=false,showBounds=true,area='cb6';
+var BORO={'1':'MANHATTAN','2':'BRONX','3':'BROOKLYN','4':'QUEENS','5':'STATEN ISLAND'};
+function cbName(cd){return ('0'+String(cd).slice(1)).slice(-2)+' '+BORO[String(cd)[0]];}
+function cdInfo(cd){for(var i=0;i<CDS.length;i++)if(CDS[i].cd===cd)return CDS[i];return null;}
+function escH(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function status(t){var el=document.getElementById('status');el.textContent=t;el.style.display=t?'block':'none';}
+var map=L.map('map',{zoomControl:true,preferCanvas:true}).setView([40.69,-73.97],12);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',subdomains:'abcd',maxZoom:19}).addTo(map);
+map.createPane('bnd');map.getPane('bnd').style.zIndex=350;
+map.createPane('trp');map.getPane('trp').style.zIndex=380;
+map.createPane('bqe');map.getPane('bqe').style.zIndex=420;
+map.createPane('pts');map.getPane('pts').style.zIndex=450;
+var boundLayer=L.layerGroup().addTo(map),trGroup=L.layerGroup().addTo(map),bqeGroup=L.layerGroup().addTo(map),cmpGroup=L.layerGroup().addTo(map),cntGroup=L.layerGroup().addTo(map),hlLayer=L.layerGroup().addTo(map),searchMarker=null;
+var LINES=null,COUNTS=null,CMP=null,boundFeatures={},ovGeo={},ovPending={},OVTYPE={council:false,assembly:false,senate:false,congress:false},ovOn={},ovLayers={},trData={},trPending={};
+function pointIn(geom,pt){var polys=geom.type==='MultiPolygon'?geom.coordinates:[geom.coordinates];for(var i=0;i<polys.length;i++){if(ringIn(polys[i][0],pt)){var hole=false;for(var j=1;j<polys[i].length;j++)if(ringIn(polys[i][j],pt))hole=true;if(!hole)return true;}}return false;}
+function ringIn(r,p){var x=p[0],y=p[1],ins=false;for(var i=0,j=r.length-1;i<r.length;j=i++){var xi=r[i][0],yi=r[i][1],xj=r[j][0],yj=r[j][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))ins=!ins;}return ins;}
+// ---- BQE lines
+function drawBQE(){bqeGroup.clearLayers();if(!LINES)return;
+  L.geoJSON(LINES,{pane:'bqe',filter:function(f){var p=f.properties;return SECON[p.sec]&&(p.k==='main'||showRamps);},
+    style:function(f){var p=f.properties,c=SEC[p.sec].c;return p.k==='main'?{color:c,weight:6,opacity:.9,lineCap:'round'}:{color:c,weight:2.5,opacity:.75,dashArray:'4 4'};},
+    onEachFeature:function(f,l){var p=f.properties;l.bindTooltip('<strong>'+escH(p.st)+'</strong><br><span class="k">'+(p.k==='main'?'':'Ramp &middot; ')+SEC[p.sec].n+'</span>',{sticky:true,className:'tr-tip'});}}).addTo(bqeGroup);}
+// ---- counts
+function countHTML(c){var h='<strong>'+escH(c.name)+'</strong><br><span class="k">'+escH(c.date)+(c.note?' &middot; '+escH(c.note):'')+'</span><table class="ptab"><tr><th></th><th>Vehicles/day</th><th>Trucks/day</th><th>Heavy</th></tr>';
+  c.rows.forEach(function(r){h+='<tr><td>'+escH(r[0])+'</td><td><a href="'+escH(r[4])+'" target="_blank" rel="noopener">'+r[1]+'</a></td><td>'+(r[2]?'<a href="'+escH(r[4])+'" target="_blank" rel="noopener">'+r[2]+'</a>':'not classified')+'</td><td>'+(r[3]?'<a href="'+escH(r[4])+'" target="_blank" rel="noopener">'+r[3]+'</a>':'')+'</td></tr>';});
+  return h+'</table><span class="k">NYC DOT counts. Each figure links to its rows on NYC Open Data.</span>';}
+function drawCounts(){cntGroup.clearLayers();if(!COUNTS||!showCounts)return;
+  var z=map.getZoom();
+  COUNTS.counts.forEach(function(c){if(!c.pt)return;var dir={Northbound:'NB',Southbound:'SB',Eastbound:'EB',Westbound:'WB'}[c.rows[0][0].split(' ')[0]]||'',tot=c.rows[0][1]+(dir?' '+dir:''),pill=c.g==='bqe'?z>=13:z>=14;
+    if(!pill){L.circleMarker(c.pt,{pane:'pts',radius:c.g==='bqe'?6:4,color:c.g==='bqe'?'#be123c':'#0d1b4b',weight:2.5,fillColor:'#fff',fillOpacity:1}).bindPopup(countHTML(c),{maxWidth:320}).addTo(cntGroup);return;}
+    var side=/Columbia/.test(c.name)?'left':(/Kane Street to Sackett/.test(c.name)?'up':'right');
+    var icon=L.divIcon({className:'',html:'<div class="cwrap"><i class="cdot '+(c.g==='bqe'?'bqe':'st')+'"></i><div class="cpill '+(c.g==='bqe'?'bqe':'st')+' '+side+'">'+tot+'</div></div>',iconSize:null});
+    L.marker(c.pt,{icon:icon,pane:'pts',riseOnHover:true}).bindPopup(countHTML(c),{maxWidth:320}).addTo(cntGroup);});}
+// ---- area polygons (CB6, every district the BQE crosses, plus toggled legislative districts)
+function activeCDs(){return area==='along'&&COUNTS?COUNTS.along.slice():['306'];}
+function activeOv(){var out=[];Object.keys(ovLayers).forEach(function(k){var t=k.split(':')[0],d=k.split(':')[1];var f=ovGeo[t]&&ovGeo[t][d];if(f)out.push({t:t,d:d,f:f});});return out;}
+function inArea(lat,lng,cb){var cds=activeCDs();if(cb&&cds.some(function(cd){return cbName(cd)===cb;}))return true;
+  var ov=activeOv();for(var i=0;i<ov.length;i++)if(pointIn(ov[i].f.geometry,[lng,lat]))return true;return false;}
+function drawComplaints(){cmpGroup.clearLayers();var n=0;if(!CMP||!showCmp){updateSel(0);return;}
+  CMP.p.forEach(function(p){if(!inArea(p[0],p[1],p[4]))return;n++;
+    L.circleMarker([p[0],p[1]],{pane:'pts',radius:4,color:'#fff',weight:1,fillColor:'#b91c1c',fillOpacity:.9}).bindPopup('<strong>311 Truck Route Violation</strong><br>'+escH(p[3])+'<br><span class="k">'+escH(p[2])+' &middot; '+escH(p[4])+'<br><a href="https://data.cityofnewyork.us/resource/erm2-nwe9.json?unique_key='+escH(p[5])+'" target="_blank" rel="noopener">311 record '+escH(p[5])+'</a></span>').addTo(cmpGroup);});
+  updateSel(n);}
+function updateSel(n){var el=document.getElementById('sel');if(!CMP){el.innerHTML='';return;}
+  var ar=area==='along'?'every community district the BQE crosses':'BKCB6';var ov=activeOv().map(function(o){return OV[o.t].name+' '+o.d;});
+  el.innerHTML=(showCmp?'<b>'+n.toLocaleString()+'</b> 311 truck route complaints mapped in '+ar+(ov.length?' plus '+escH(ov.join(', ')):'')+'. ':'')+'Citywide, 311 has <b>'+CMP.total.toLocaleString()+'</b> "Truck Route Violation" complaints from '+CMP.first+' to '+CMP.last+'; <b>'+(CMP.total-CMP.no_location).toLocaleString()+'</b> have a location and <b>'+CMP.no_location.toLocaleString()+'</b> have none, so they cannot be mapped.';}
+// ---- DOT truck routes for the active area
+function loadTR(cd){if(trData[cd])return Promise.resolve(trData[cd]);if(trPending[cd])return trPending[cd];
+  trPending[cd]=fetch('/data/truck-routes/'+cd+'.json').then(function(r){return r.json();}).then(function(d){trData[cd]=d;delete trPending[cd];return d;});return trPending[cd];}
+var PDCDS=null;
+function trCDs(){var s={};activeCDs().forEach(function(c){s[c]=1;});if(PDCDS)activeOv().forEach(function(o){((PDCDS[o.t]||{})[o.d]||[]).forEach(function(c){s[c]=1;});});return Object.keys(s);}
+function drawTR(){trGroup.clearLayers();if(!showTR)return;var cds=trCDs();status('Loading truck routes…');
+  Promise.all(cds.map(loadTR)).then(function(){status('');trGroup.clearLayers();if(!showTR)return;var ov=activeOv();
+    cds.forEach(function(cd){L.geoJSON(trData[cd],{pane:'trp',filter:function(f){if(activeCDs().indexOf(cd)>=0)return true;var c=f.geometry.type==='MultiLineString'?f.geometry.coordinates[0][0]:f.geometry.coordinates[0];return ov.some(function(o){return pointIn(o.f.geometry,c);});},
+      style:function(f){var t=f.properties.routetype;return{color:t==='Through'?'#0d9488':'#60a5fa',weight:t==='Through'?3:2,opacity:.85};},
+      onEachFeature:function(f,l){l.bindTooltip('<strong>'+escH(f.properties.street)+'</strong><br><span class="k">'+escH(f.properties.routetype)+' truck route</span>',{sticky:true,className:'tr-tip'});}}).addTo(trGroup);});
+  }).catch(function(){status('');});}
+// ---- community district boundaries
+function drawBounds(){boundLayer.clearLayers();if(!showBounds)return;var along=COUNTS?COUNTS.along:[];
+  Object.keys(boundFeatures).forEach(function(k){var f=boundFeatures[k],is6=k==='306',isA=along.indexOf(k)>=0;
+    L.geoJSON(f,{pane:'bnd',interactive:false,style:{color:is6?'#f47920':(isA?'#0d1b4b':'#9a958a'),weight:is6?3:(isA?1.6:.8),opacity:is6?1:(isA?.7:.5),fill:is6,fillColor:'#0d1b4b',fillOpacity:.06,dashArray:isA||is6?null:'3 4'}}).addTo(boundLayer);
+    var ci=cdInfo(k),lx=f.properties.lx,ly=f.properties.ly;
+    if(ci&&lx!=null&&(is6||isA))L.tooltip({permanent:true,direction:'center',className:'cd-label'+(is6?' cb6':''),interactive:false}).setLatLng([ly,lx]).setContent(is6?'<img class="cb6-mark" src="/cb6-logo-square.png" alt="BKCB6">':escH(ci.lbl)).addTo(boundLayer);});}
+// ---- overlapping legislative districts
+function loadOv(t){if(ovGeo[t])return Promise.resolve(ovGeo[t]);if(ovPending[t])return ovPending[t];
+  ovPending[t]=fetch(OV[t].file).then(function(r){return r.json();}).then(function(g){var m={};g.features.forEach(function(f){m[String(parseInt(f.properties[OV[t].prop],10))]=f;});ovGeo[t]=m;delete ovPending[t];return m;});return ovPending[t];}
+function ovColor(t,d){var list=(COUNTS.ov[t]||[]).map(function(o){return String(o.d);});var i=list.indexOf(String(d));return OV[t].pal[(i<0?0:i)%OV[t].pal.length];}
+function buildOvChips(){var h='';if(!COUNTS)return;
+  Object.keys(OV).forEach(function(t){if(!OVTYPE[t])return;(COUNTS.ov[t]||[]).forEach(function(o){var k=t+':'+o.d,isOn=!!ovOn[k];
+    h+='<button class="chip ov-chip'+(isOn?' on':'')+'" style="--cc:'+ovColor(t,o.d)+'" onclick="togOv(\''+k+'\')"><img src="'+LOGO[t](o.d)+'" alt="" loading="lazy" onerror="this.remove()">'+OV[t].name+' '+o.d+'</button>';});});
+  document.getElementById('ov-chips').innerHTML=h||'<span class="lb" style="text-transform:none;letter-spacing:0">Turn on Council, State Assembly, State Senate or Congress to list every district the BQE crosses.</span>';}
+function drawOv(){Object.keys(ovLayers).forEach(function(k){map.removeLayer(ovLayers[k]);});ovLayers={};
+  var keys=Object.keys(ovOn).filter(function(k){return ovOn[k]&&OVTYPE[k.split(':')[0]];});
+  var types={};keys.forEach(function(k){types[k.split(':')[0]]=1;});
+  return Promise.all(Object.keys(types).map(loadOv)).then(function(){keys.forEach(function(k){var t=k.split(':')[0],d=k.split(':')[1],f=ovGeo[t][d];if(!f)return;var col=ovColor(t,d),g=L.featureGroup();
+    L.geoJSON(f,{style:{color:col,weight:3,opacity:.9,dashArray:'9 6',fill:false},interactive:false}).addTo(g);
+    var o=(COUNTS.ov[t]||[]).filter(function(x){return String(x.d)===d;})[0];
+    if(o)L.tooltip({permanent:true,direction:'center',offset:OV[t].off,className:'pd-label',interactive:false}).setLatLng(o.lp).setContent('<span><img src="'+LOGO[t](d)+'" alt="" onerror="this.remove()">'+OV[t].name+' '+d+'</span>').addTo(g);
+    g.addTo(map);ovLayers[k]=g;});drawComplaints();drawTR();});}
+function togOvType(btn){var t=btn.getAttribute('data-ov');OVTYPE[t]=!OVTYPE[t];btn.classList.toggle('active',OVTYPE[t]);
+  (COUNTS.ov[t]||[]).forEach(function(o){ovOn[t+':'+o.d]=OVTYPE[t];});buildOvChips();drawOv();}
+function togOv(k){ovOn[k]=!ovOn[k];buildOvChips();drawOv();}
+// ---- toggles
+function togSec(b){var s=b.getAttribute('data-sec');SECON[s]=!SECON[s];b.classList.toggle('active',SECON[s]);drawBQE();}
+function togRamps(b){showRamps=!showRamps;b.classList.toggle('active',showRamps);drawBQE();}
+function togCounts(b){showCounts=!showCounts;b.classList.toggle('active',showCounts);drawCounts();}
+function togComplaints(b){showCmp=!showCmp;b.classList.toggle('active',showCmp);drawComplaints();}
+function togTR(b){showTR=!showTR;b.classList.toggle('active',showTR);drawTR();}
+function togBounds(b){showBounds=!showBounds;b.classList.toggle('active',showBounds);drawBounds();}
+function setArea(a){area=a;document.getElementById('area-cb6').classList.toggle('active',a==='cb6');document.getElementById('area-along').classList.toggle('active',a==='along');drawComplaints();drawTR();}
+// ---- search
+function doSearch(){var q=document.getElementById('s-input').value.trim();if(!q)return;status('Searching…');
+  fetch('https://geosearch.planninglabs.nyc/v2/search?size=1&text='+encodeURIComponent(q)).then(function(r){return r.json();}).then(function(d){status('');var f=d.features&&d.features[0],out=document.getElementById('addr-result');
+    if(!f){out.style.display='block';out.innerHTML='No match for that address.';return;}
+    var lng=f.geometry.coordinates[0],lat=f.geometry.coordinates[1];if(searchMarker)map.removeLayer(searchMarker);
+    searchMarker=L.circleMarker([lat,lng],{pane:'pts',radius:9,color:'#fff',weight:2,fillColor:'#f47920',fillOpacity:1}).addTo(map);
+    var hit=null;Object.keys(boundFeatures).forEach(function(k){if(!hit&&pointIn(boundFeatures[k].geometry,[lng,lat]))hit=k;});var ci=hit?cdInfo(hit):null;
+    var best=null;if(LINES)LINES.features.forEach(function(ft){if(ft.properties.k!=='main')return;var cs=ft.geometry.type==='MultiLineString'?[].concat.apply([],ft.geometry.coordinates):ft.geometry.coordinates;cs.forEach(function(c){var dd=map.distance([lat,lng],[c[1],c[0]]);if(!best||dd<best.d)best={d:dd,sec:ft.properties.sec};});});
+    out.style.display='block';out.innerHTML='<strong>'+escH(f.properties.label||q)+'</strong>'+(ci?' &middot; '+escH(ci.lbl):'')+(best?'<br><span class="k">About '+(best.d<1000?Math.round(best.d/10)*10+' m':(best.d/1609.34).toFixed(1)+' miles')+' from the nearest BQE mainline ('+SEC[best.sec].n+')</span>':'');
+    map.setView([lat,lng],16);}).catch(function(){status('');});}
+var GEO_KEY='b913bdfb9c47466589d0f08c99c75b21';
+function geoIx(a,b,boro,comp){var q='crossStreetOne='+encodeURIComponent(a)+'&crossStreetTwo='+encodeURIComponent(b)+'&borough='+encodeURIComponent(boro)+(comp?'&compassDirection='+comp:'')+'&subscription-key='+GEO_KEY;
+  return fetch('https://api.nyc.gov/geoclient/v2/intersection.json?'+q).then(function(r){return r.json();}).then(function(d){var ix=d.intersection||{};if(ix.latitude&&ix.longitude)return{lat:+ix.latitude,lng:+ix.longitude};var m=String(ix.message||'');
+    if(!comp&&/INTERSECT TWICE/.test(m))return geoIx(a,b,boro,'E').catch(function(){return geoIx(a,b,boro,'W');}).catch(function(){return geoIx(a,b,boro,'N');}).catch(function(){return geoIx(a,b,boro,'S');});throw new Error(m||'not found');});}
+function findStreet(){var boro=document.getElementById('f-boro').value,st=document.getElementById('f-street').value.trim(),x1=document.getElementById('f-x1').value.trim(),x2=document.getElementById('f-x2').value.trim(),out=document.getElementById('addr-result');
+  if(!st||!x1){out.style.display='block';out.innerHTML='Enter a street and at least one cross street.';return;}
+  status('Locating '+st+'…');hlLayer.clearLayers();var ps=[geoIx(st,x1,boro)];if(x2)ps.push(geoIx(st,x2,boro));
+  Promise.all(ps).then(function(pts){status('');var lats=pts.map(function(p){return p.lat;}),lngs=pts.map(function(p){return p.lng;}),pad=x2?0.0006:0.0022;
+    var n=Math.max.apply(null,lats)+pad,s=Math.min.apply(null,lats)-pad,e=Math.max.apply(null,lngs)+pad,w=Math.min.apply(null,lngs)-pad;
+    if(pts.length===2)L.polyline(pts.map(function(p){return[p.lat,p.lng];}),{color:'#f47920',weight:10,opacity:.55,interactive:false}).addTo(hlLayer);
+    pts.forEach(function(p){L.circleMarker([p.lat,p.lng],{pane:'pts',radius:7,color:'#fff',weight:2,fillColor:'#0d1b4b',fillOpacity:1}).addTo(hlLayer);});
+    map.fitBounds([[s,w],[n,e]],{padding:[30,30],maxZoom:17});
+    var nc=CMP?CMP.p.filter(function(p){return p[0]>=s&&p[0]<=n&&p[1]>=w&&p[1]<=e;}).length:0;
+    out.style.display='block';out.innerHTML='<strong>'+escH(st)+(x2?' between '+escH(x1)+' and '+escH(x2):' at '+escH(x1))+'</strong><br><span class="k">'+nc+' mapped 311 truck route complaint'+(nc===1?'':'s')+' in this view</span>';
+  }).catch(function(err){status('');out.style.display='block';out.innerHTML='Could not locate that intersection in '+escH(boro)+'. '+escH(String(err.message||''));});}
+['f-street','f-x1','f-x2'].forEach(function(id){document.getElementById(id).addEventListener('keydown',function(e){if(e.key==='Enter')findStreet();});});
+document.getElementById('s-input').addEventListener('keydown',function(e){if(e.key==='Enter')doSearch();});
+// ---- load
+status('Loading…');
+Promise.all([
+  fetch('/data/bqe/bqe-lines.geojson').then(function(r){return r.json();}),
+  fetch('/data/bqe/counts.json').then(function(r){return r.json();}),
+  fetch('/cd-boundaries-simple.geojson').then(function(r){return r.json();}),
+  fetch('/data/truck-routes/pd-cds.json').then(function(r){return r.json();}).catch(function(){return null;})
+]).then(function(a){LINES=a[0];COUNTS=a[1];a[2].features.forEach(function(f){var cd=String(f.properties.cd||'');if(cd)boundFeatures[cd]=f;});PDCDS=a[3];
+  status('');drawBounds();drawBQE();drawCounts();buildOvChips();map.on('zoomend',drawCounts);
+  var b=L.geoJSON(LINES).getBounds();if(b.isValid())map.fitBounds(b,{padding:[10,10]});
+  fetch('/data/bqe/truck-complaints.json').then(function(r){return r.json();}).then(function(d){CMP=d;drawComplaints();});
+}).catch(function(){status('The map data could not be loaded.');});
+
+</script>
 </body>
 </html>
