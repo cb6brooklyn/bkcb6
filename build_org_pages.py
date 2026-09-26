@@ -441,9 +441,10 @@ EVJS = r"""
 </script>
 """
 
-_extra = os.path.join(ROOT, 'data', 'org-profiles-cal.json')
-if os.path.exists(_extra):
-    ORGS += json.load(open(_extra, encoding='utf-8'))
+for _f in ('org-profiles-cal.json', 'gov-profiles.json'):
+    _extra = os.path.join(ROOT, 'data', _f)
+    if os.path.exists(_extra):
+        ORGS += json.load(open(_extra, encoding='utf-8'))
 
 for o in ORGS:
     intro = ''.join('<p>' + p + '</p>' for p in o['intro'])
