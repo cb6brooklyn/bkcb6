@@ -298,12 +298,12 @@ TPL = """<!DOCTYPE html>
     </div></details>
   </div>
 
-{events}  <div class="sec"><h2>{does_title}</h2><div class="bio">{does}{doesbtns}</div></div>
+{events}{doessec}
 {extra}
   <div class="sec"><h2>Contact</h2><div class="bio"><ul class="kv">
-    <li><span class="k">Address</span><span class="v">{addr}<br>Brooklyn, NY {zip}{note}</span></li>
+    {addrli}
     {phone}{email}
-    <li><span class="k">Website</span><span class="v"><a href="{weburl}" target="_blank" rel="noopener">{web} &#8599;</a></span></li>
+    {webli}
     {kv}
   </ul></div></div>
 
@@ -441,6 +441,10 @@ EVJS = r"""
 </script>
 """
 
+_extra = os.path.join(ROOT, 'data', 'org-profiles-cal.json')
+if os.path.exists(_extra):
+    ORGS += json.load(open(_extra, encoding='utf-8'))
+
 for o in ORGS:
     intro = ''.join('<p>' + p + '</p>' for p in o['intro'])
     does = ''.join('<p>' + p + '</p>' for p in o['does'])
@@ -508,10 +512,21 @@ for o in ORGS:
     fields = dict(o)
     # the record's own phone/email are raw values; the template wants the
     # rendered rows, so the built ones win
+    if o.get('addr'):
+        addrli = '<li><span class="k">Address</span><span class="v">%s<br>%s%s</span></li>' % (o['addr'], o.get('cityline') or ('Brooklyn, NY ' + o.get('zip', '')), note)
+    elif o.get('addr_note'):
+        addrli = '<li><span class="k">Where</span><span class="v">%s</span></li>' % o['addr_note']
+    else:
+        addrli = ''
+    webli = ('<li><span class="k">Website</span><span class="v"><a href="%s" target="_blank" rel="noopener">%s &#8599;</a></span></li>' % (o['weburl'], o.get('web') or 'Their site')) if o.get('weburl') else ''
+    doessec = ('  <div class="sec"><h2>%s</h2><div class="bio">%s%s</div></div>' % (does_title, does, doesbtns)) if (o.get('does') or doesbtns) else ''
+    if not o.get('addr') and o.get('addr_note'):
+        note = ''
+    fields.update(addrli=addrli, webli=webli, doessec=doessec)
     fields.update(intro=intro, does=does, note=note, phone=phone, email=email,
                   kv=kv, links=links, mapjs=MAPJS, events=events, evjs=evjs,
                   doesbtns=doesbtns, extra=extra, flyer=flyer, going=going, ogmeta=ogmeta, brandcss=brandcss, does_title=does_title, sig=sig,
-                  addrflat=o['addr'].replace('<br>', ', '))
+                  addrflat=(o.get('addr') or o.get('addr_note') or o['name']).replace('<br>', ', '))
     html = TPL.format(**fields)
     d = os.path.join(ROOT, o['slug'])
     os.makedirs(d, exist_ok=True)
