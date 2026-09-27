@@ -1,0 +1,52 @@
+name: App calendar
+
+# Rebuilds the iOS app's calendar files (app/data/civic/cal) from calendar.html and the daily
+# calendar feeds, so the app shows what bkcb6.app/calendar shows and drops what has passed.
+on:
+  schedule:
+    - cron: '0 10 * * *'
+    - cron: '0 16 * * *'
+    - cron: '0 22 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'calendar.html'
+      - 'data/calendar-events.json'
+      - 'data/civic-calendar/**'
+      - 'scripts/build_app_calendar.mjs'
+      - 'scripts/app-calendar-extra.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: app-calendar
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build the app calendar
+        run: node scripts/build_app_calendar.mjs
+
+      - name: Commit
+        run: |
+          git config user.email "Mike@bkcb6.org"
+          git config user.name "Mike Racioppo"
+          git add app/data/civic/cal app/manifest.json scripts/app-calendar-types.json scripts/app-calendar-extra.json
+          git diff --cached --quiet && exit 0
+          git commit -m "App calendar refresh $(date -u +%Y-%m-%d)"
+          for i in 1 2 3 4 5; do
+            git pull --rebase --autostash -q origin main && git push && exit 0
+            echo "push attempt $i failed, retrying"
+            sleep 10
+          done
+          exit 1
