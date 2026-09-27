@@ -43,17 +43,27 @@ geo = {'type': 'FeatureCollection', 'features': [
 json.dump(geo, open(os.path.join(OUT, 'corridor.geojson'), 'w'), separators=(',', ':'))
 # ---- districts crossed and near the block
 files = [('cd', 'data/community-districts.geojson', 'boro_cd'), ('council', 'data/council-districts.geojson', 'cc'), ('senate', 'data/senate-districts.geojson', 'sd'),
-         ('assembly', 'data/assembly-districts.geojson', 'ad'), ('precinct', 'data/police-precincts-citywide.geojson', 'precinct')]
+         ('assembly', 'data/assembly-districts.geojson', 'ad'), ('precinct', 'data/police-precincts-citywide.geojson', 'precinct'), ('congress', 'data/congress-districts-simple.geojson', 'cong_dist')]
 bp = P(block); samp = [bp.interpolate(i / 40, normalized=True) for i in range(41)]
 dist = {}
 for key, f, k in files:
-    fs = [(str(x['properties'][k]), P(shape(x['geometry'])).buffer(0)) for x in json.load(open(os.path.join(ROOT, f)))['features']]
+    fs = [(str(int(float(x['properties'][k]))), P(shape(x['geometry'])).buffer(0)) for x in json.load(open(os.path.join(ROOT, f)))['features']]
     cor = {}
     for nm, L in (('bergen', P(bergen)), ('dean', P(dean))):
         cor[nm] = {i: round(L.intersection(g).length / 5280, 2) for i, g in fs if L.intersection(g).length > 30}
     own = [i for i, g in fs if g.contains(bp.interpolate(0.5, normalized=True))]
     near = sorted([(i, round(bp.distance(g)), round(max(p.distance(g) for p in samp))) for i, g in fs if i not in own and bp.distance(g) < 3000], key=lambda x: x[1])
-    dist[key] = {'corridor': cor, 'block': own, 'near': near[:4]}
+    # label point for each district: the middle of the longer street's run through it
+    lab = {}
+    for i, g in fs:
+        best = None
+        for L in (P(bergen), P(dean)):
+            seg = L.intersection(g)
+            if seg.length > 30 and (best is None or seg.length > best.length): best = seg
+        if best is not None:
+            m = U(best.interpolate(0.5, normalized=True)) if best.geom_type == 'LineString' else U(max(best.geoms, key=lambda x: x.length).interpolate(0.5, normalized=True))
+            lab[i] = [round(m.y, 6), round(m.x, 6)]
+    dist[key] = {'corridor': cor, 'block': own, 'near': near[:4], 'label': lab}
 out['districts'] = dist
 # ---- crashes (h9gi-nx95), 2020 to latest
 CSEL = 'date_extract_y(crash_date) as year,count(*) as crashes,sum(number_of_persons_injured) as injured,sum(number_of_persons_killed) as killed,sum(number_of_cyclist_injured) as cyc_inj,sum(number_of_cyclist_killed) as cyc_kil,sum(number_of_pedestrians_injured) as ped_inj,sum(number_of_pedestrians_killed) as ped_kil'
