@@ -40,6 +40,24 @@ for a, (kind, wk) in areas.items():
                       's311_month_url': sm, 's311_month': [[r['m'][:7], int(r['n'])] for r in get(sm)], 's311_year_url': sy, 's311_year': [[r['y'], int(r['n'])] for r in get(sy)]}
     print(a, len(C['series'][a]['crash_month']), len(C['series'][a]['s311_month']), sum(x[1] for x in C['series'][a]['crash_year']), sum(x[1] for x in C['series'][a]['s311_year']))
 C['miles'] = {'bergen': S['lengths_mi']['bergen'], 'dean': S['lengths_mi']['dean'], 'cb6': C['cb6_street_mi']['mi'], 'brooklyn': C['bk_street_mi']['mi']}
+# the four community districts the corridor crosses, whole districts: street miles, crashes and 311 by year
+from shapely.geometry import shape
+def wkt(g):
+    parts = [q for q in getattr(g, 'geoms', [g]) if q.geom_type == 'Polygon']
+    return 'MULTIPOLYGON(' + ','.join('((' + ','.join('%.6f %.6f' % c for c in q.exterior.coords) + '))' for q in parts) + ')'
+CDS = {}
+for f in json.load(open(os.path.join(ROOT, 'cd-boundaries-simple.geojson')))['features']:
+    if str(f['properties'].get('cd')) in ('302', '306', '308', '316'): CDS[str(f['properties']['cd'])] = wkt(shape(f['geometry']).buffer(0).simplify(0.00002, preserve_topology=True))
+C['cds'] = {}
+for cd, wk in sorted(CDS.items()):
+    u = url('inkn-q76z', {'$select': 'sum(segmentlength) as ft,count(*) as n', '$where': "rw_type='1' AND within_polygon(the_geom,'%s')" % wk}); r = get(u)[0]
+    cw = f"crash_date>='2020-01-01T00:00:00' AND crash_date<'{CEND}' AND within_polygon(location,'{wk}')"
+    sw = f"created_date>='2020-01-01T00:00:00' AND created_date<'{END}' AND within_polygon(location,'{wk}')"
+    uy = url('h9gi-nx95', {'$select': 'date_extract_y(crash_date) as y,count(*) as n,sum(number_of_persons_injured) as inj,sum(number_of_cyclist_injured) as cyc,sum(number_of_pedestrians_injured) as ped,sum(number_of_persons_killed) as kil', '$where': cw, '$group': 'y', '$order': 'y'})
+    sy = url('erm2-nwe9', {'$select': 'date_extract_y(created_date) as y,count(*) as n', '$where': sw, '$group': 'y', '$order': 'y'})
+    C['cds'][cd] = {'mi_url': u, 'mi': round(float(r['ft']) / 5280, 1), 'crash_year_url': uy, 'crash_year': [[x['y'], int(x['n']), int(float(x['inj'])), int(float(x['cyc'])), int(float(x['ped'])), int(float(x['kil']))] for x in get(uy)], 's311_year_url': sy, 's311_year': [[x['y'], int(x['n'])] for x in get(sy)]}
+    print('cd', cd, C['cds'][cd]['mi'], sum(x[1] for x in C['cds'][cd]['crash_year']), sum(x[1] for x in C['cds'][cd]['s311_year']))
+C['boundary_file'] = 'https://github.com/cb6brooklyn/bkcb6/blob/main/cd-boundaries-simple.geojson'
 # periods in years
 d0 = datetime.date(2020, 1, 1)
 C['crash_years'] = round((datetime.date.fromisoformat(S['crash_last']) - d0).days / 365.25, 2)
