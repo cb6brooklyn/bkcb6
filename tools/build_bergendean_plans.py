@@ -3,7 +3,7 @@
   "rerouted to travel on Atlantic Av in both directions between Downtown Brooklyn and Washington Av".
 - b65_cut: the current B65 (MTA Bus Routes, bzwk-3hb4) on Dean/Bergen west of Washington Av, where the draft discontinues service.
 - tr_changes: Brooklyn entries of NYC DOT's October 4, 2026 truck route changes (data/truck-routes/changes-2026-10-04.json)."""
-import json, urllib.request, urllib.parse
+import json, os, urllib.request, urllib.parse
 from shapely.geometry import shape, mapping, box
 from shapely.ops import unary_union, linemerge
 NYC = 'https://data.cityofnewyork.us/resource/'
@@ -27,5 +27,17 @@ L['b65_draft'] = r(draft); L['b65_cut'] = r(cut); L['washington_lon'] = round(wl
 C = json.load(open('data/truck-routes/changes-2026-10-04.json'))
 L['tr_changes'] = [{'kind': e['kind'], 'num': e['num'], 'text': e['text'], 'geometry': e['geometry']} for e in C['entries'] if e['boro'] == 'Brooklyn' and e.get('geometry')]
 L['tr_changes_all'] = sum(1 for e in C['entries'] if e['boro'] == 'Brooklyn')
+# district polygons clipped to the corridor area, for the pin / address lookup on the page
+CG = json.load(open('data/bergendean/corridor.geojson'))
+area = unary_union([shape(f['geometry']) for f in CG['features']]).buffer(0.012)
+DF = [('cd', 'data/community-districts.geojson', 'boro_cd'), ('council', 'data/council-districts.geojson', 'cc'), ('assembly', 'data/assembly-districts.geojson', 'ad'), ('senate', 'data/senate-districts.geojson', 'sd'), ('congress', 'data/congress-districts-simple.geojson', 'cong_dist'), ('precinct', 'data/police-precincts-citywide.geojson', 'precinct')]
+feats = []
+for k, f, pkey in DF:
+    for x in json.load(open(f))['features']:
+        g = shape(x['geometry']).buffer(0).intersection(area)
+        if g.is_empty: continue
+        feats.append({'type': 'Feature', 'properties': {'k': k, 'id': str(int(float(x['properties'][pkey])))}, 'geometry': r(g.simplify(0.00005))})
+L['districts'] = {'type': 'FeatureCollection', 'features': feats}
 json.dump(L, open(P, 'w'), separators=(',', ':'))
+print('district pieces', len(feats), os.path.getsize(P))
 print('b65 shapes', [(r['direction'], r['shape_id']) for r in R65]); print('wash lon', wlon, 'draft mi', round(draft.length * 52.5, 2), 'cut mi', round(cut.length * 52.5, 2), 'tr', len(L['tr_changes']), L['tr_changes_all'])
