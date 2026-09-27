@@ -110,7 +110,7 @@ def config(KB, scope):
     for f in L['districts']['features']:
         k, i = f['properties']['k'], f['properties']['id']; lg = logo(k, i)
         D.setdefault(k, {})[i] = [dname(k, i), lg if lg and os.path.exists(ROOT + lg) else '']
-    return 'var KSCOPE=%s;var KDIST=%s;\n' % (json.dumps({'id': scope, 'nbs': SCOPES[scope]['nbs'], 'name': SCOPES[scope]['name'], 'cds': SCOPES[scope]['cds']}), json.dumps(D))
+    return 'var KSCOPE=%s;var KDIST=%s;\n' % (json.dumps({'id': scope, 'nbs': SCOPES[scope]['nbs'], 'name': SCOPES[scope]['name'], 'cds': SCOPES[scope]['cds'], 'cdOn': scope == 'cg'}), json.dumps(D))
 def apply(page, scope):
     KB = json.load(open(f'{ROOT}/data/bqe/kit/blocks.json')); KT = json.load(open(f'{ROOT}/data/bqe/kit/ts.json'))
     css = open(os.path.join(HERE, 'kit.css')).read()
@@ -143,6 +143,12 @@ def apply(page, scope):
     page = page[:tb] + '<img class="bqesign" src="/assets/bqe/bqe-road-sign.jpg" alt="Interstate 278, Brooklyn-Queens Expressway" width="150" height="46"><a class="bqeurl" href="https://bkcb6.app/bqe" title="bkcb6.app/bqe"><img src="/assets/bqe/bkcb6-app-bqe-wordmark.jpg" alt="bkcb6.app/bqe" width="190" height="46"></a>' + page[tb:]
     if 'property="og:image"' not in page:
         page = page.replace('</head>', '<meta property="og:image" content="https://bkcb6.app/assets/bqe/og-bkcb6-app-bqe.jpg">\n<meta name="twitter:image" content="https://bkcb6.app/assets/bqe/og-bkcb6-app-bqe.jpg">\n</head>', 1).replace('<meta name="twitter:card" content="summary">', '<meta name="twitter:card" content="summary_large_image">')
+    # map icons: 311, NYPD, crash and DOT count points drawn as icons instead of dots; CB logos; no stacked neighborhood labels
+    page = page.replace('L.circleMarker(', 'kMark(')
+    page = page.replace('</head>', '<script>' + open(os.path.join(HERE, 'kit_icons.js')).read() + '</script>\n</head>', 1)
+    page = page.replace(':escH(ci.lbl))', ':kCdLab(ci.lbl))')
+    page = page.replace('function drawNb(){', 'function drawNb(){kNbReset();', 1)
+    page = page.replace('if(z>=13){var c=L.geoJSON(f).getBounds().getCenter();', 'if(z>=13){var c=L.geoJSON(f).getBounds().getCenter();if(!kNbOk(c,f.properties.nb))return;', 1)
     # NYC DOT branding last, so it wins over the host styles
     b = page.rindex('</body>')
     page = page[:b] + '<style>' + open(os.path.join(HERE, 'dot_theme.css')).read() + '</style>\n' + page[b:]

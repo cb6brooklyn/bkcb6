@@ -11,7 +11,7 @@ var HI=L.layerGroup().addTo(map);
 function status2(t){var s=document.getElementById('status');if(s){s.textContent=t;s.style.display=t?'block':'none';}}
 // ================================================================= layers
 var DK=[['cd','Community boards','#0d1b4b'],['council','City Council','#b91c1c'],['assembly','State Assembly','#1d4ed8'],['senate','State Senate','#15803d'],['congress','Congress','#7c3aed'],['precinct','NYPD precincts','#334155']];
-var KLY={},KORD=[];
+var KLY={},KORD=[];var DOFF={cd:[0,-40],council:[46,-76],precinct:[-46,-112],assembly:[-56,40],senate:[56,76],congress:[0,112]};
 function reg(k,o){o.g=L.layerGroup();KLY[k]=o;KORD.push(k);}
 var BKC={'I':'#15803d','II':'#22c55e','III':'#86efac'};
 var SLC={10:'#7c3aed',15:'#db2777',20:'#f59e0b',25:'#94a3b8',45:'#111827'};
@@ -30,9 +30,9 @@ function labelPt(f){// a point inside the largest piece: the grid point farthest
   return best||[(y0+y1)/2,(x0+x1)/2];}
 function mkLayers(){
   DK.forEach(function(dk){KL.districts.features.filter(function(f){return f.properties.k===dk[0];}).sort(function(a,b){return (+a.properties.id)-(+b.properties.id);}).forEach(function(f){var id=f.properties.id;
-    reg('d-'+dk[0]+'-'+id,{group:dk[1],dk:dk[0],label:dName(dk[0],id),logo:dLogo(dk[0],id),color:dk[2],on:dk[0]==='cd'&&KSCOPE.cds[0]===id,load:function(o){
+    reg('d-'+dk[0]+'-'+id,{group:dk[1],dk:dk[0],label:dName(dk[0],id),logo:dLogo(dk[0],id),color:dk[2],on:dk[0]==='cd'&&KSCOPE.cds[0]===id&&KSCOPE.cdOn,load:function(o){
       L.geoJSON(f,{pane:'kbnd',style:{color:dk[2],weight:dk[0]==='cd'?3:2.4,opacity:.9,dashArray:dk[0]==='cd'?null:'8 5',fill:true,fillColor:dk[2],fillOpacity:.03}}).bindTooltip('<span class="dtip">'+(o.logo?'<img src="'+E(o.logo)+'" alt="">':'')+E(o.label)+'</span>',{sticky:true,className:'tr-tip'}).addTo(o.g);
-      L.marker(labelPt(f),{pane:'kptp',interactive:false,keyboard:false,zIndexOffset:500,icon:L.divIcon({className:'',iconSize:null,html:'<div class="dmk" style="border-color:'+dk[2]+'">'+(o.logo?'<img src="'+E(o.logo)+'" alt="">':'')+E(o.label)+'</div>'})}).addTo(o.g);}});});});
+      var off=DOFF[dk[0]]||[0,0];L.marker(labelPt(f),{pane:'kptp',interactive:false,keyboard:false,zIndexOffset:500,icon:L.divIcon({className:'',iconSize:null,html:'<div class="dmk" style="border-color:'+dk[2]+';margin-left:'+off[0]+'px;margin-top:'+off[1]+'px">'+(o.logo?'<img src="'+E(o.logo)+'" alt="">':'')+E(o.label)+'</div>'})}).addTo(o.g);}});});});
   reg('nbhd',{group:'Neighborhoods',label:'Neighborhood outlines',color:'#9a3412',load:function(o){KL.neighborhoods.features.forEach(function(f){L.geoJSON(f,{pane:'kbnd',style:{color:'#9a3412',weight:1.6,dashArray:'2 4',fill:false}}).bindTooltip('<strong>'+E(f.properties.nb)+'</strong><br><span class="k">Neighborhood outline used across bkcb6.app (not an official boundary)</span>',{sticky:true,className:'tr-tip'}).addTo(o.g);L.marker(labelPt(f),{pane:'kptp',interactive:false,keyboard:false,icon:L.divIcon({className:'',iconSize:null,html:'<div class="rlab"><span class="rlt">'+E(f.properties.nb)+'</span></div>'})}).addTo(o.g);});}});
   reg('busr',{group:'Transit',label:'Bus routes',color:'#0039a6',load:function(o){L.geoJSON(KL.bus_routes,{pane:'ktrp',style:function(f){return{color:busCol(f.properties.r),weight:3,opacity:.85};},onEachFeature:function(f,l){l.bindTooltip(busPill(f.properties.r,busCol(f.properties.r))+'<br><span class="k">MTA bus route, both directions</span>',{sticky:true,className:'tr-tip'});}}).addTo(o.g);
     KL.bus_routes.features.forEach(function(f){var cs=f.geometry.type==='MultiLineString'?f.geometry.coordinates.slice().sort(function(a,b){return b.length-a.length;})[0]:f.geometry.coordinates;var c=cs[Math.floor(cs.length/2)];L.marker([c[1],c[0]],{pane:'kptp',interactive:false,keyboard:false,icon:L.divIcon({className:'',iconSize:null,html:'<div class="rlab">'+busPill(f.properties.r,busCol(f.properties.r))+'</div>'})}).addTo(o.g);});}});
@@ -42,7 +42,7 @@ function mkLayers(){
   reg('bike',{group:'Streets',label:'Bike lanes, by class and type',color:'#16a34a',load:function(o){var seen={};L.geoJSON(KL.bike,{pane:'ktrp',style:function(f){var c=f.properties.cl;return{color:BKC[c]||'#16a34a',weight:c==='I'?4:3,opacity:.95,dashArray:c==='III'?'4 5':null};},onEachFeature:function(f,l){var p=f.properties;l.bindTooltip('<strong>'+E(p.s)+'</strong>'+(p.f?' <span class="k">'+E(p.f)+' to '+E(p.t)+'</span>':'')+'<br>'+bikePill(p.cl,p.ty)+(p.d?'<br><span class="k">Installed '+E(p.d)+'</span>':''),{sticky:true,className:'tr-tip'});
       var k=p.s+'|'+p.cl+'|'+p.ty;if(seen[k])return;seen[k]=1;var cs=f.geometry.type==='MultiLineString'?f.geometry.coordinates[0]:f.geometry.coordinates;if(!cs||cs.length<2)return;var c=cs[Math.floor(cs.length/2)];L.marker([c[1],c[0]],{pane:'kptp',interactive:false,keyboard:false,icon:L.divIcon({className:'',iconSize:null,html:'<div class="rlab bkl">'+bikePill(p.cl,p.ty)+'<span class="rlt">'+E(p.s)+'</span></div>'})}).addTo(o.g);}}).addTo(o.g);}});
   reg('speed',{group:'Streets',label:'Speed limits',color:'#f59e0b',load:function(o){L.geoJSON(KL.speed,{pane:'ktrp',style:function(f){var v=f.properties.sl;return{color:SLC[v]||'#cbd5e1',weight:v&&v!==25?4:2,opacity:.9};},onEachFeature:function(f,l){var p=f.properties;l.bindTooltip('<strong>'+E(p.s)+'</strong><br><span class="k">'+(p.sl?p.sl+' mph':'No value')+(p.sz?' &middot; school speed zone':'')+'</span>',{sticky:true,className:'tr-tip'});}}).addTo(o.g);}});
-  reg('citi',{group:'Streets',label:'Citi Bike stations',color:'#0369a1',sym:'dot',load:function(o){KL.citibike.forEach(function(p){L.circleMarker([p[0],p[1]],{pane:'kptp',radius:4,color:'#fff',weight:1,fillColor:'#0369a1',fillOpacity:.95}).bindPopup('<strong>'+E(p[2])+'</strong><br><span class="k">Citi Bike station &middot; '+E(String(p[3]||''))+' docks</span>').addTo(o.g);});}});
+  reg('citi',{group:'Streets',label:'Citi Bike stations',color:'#0369a1',sym:'dot',load:function(o){KL.citibike.forEach(function(p){L.marker([p[0],p[1]],{pane:'kptp',icon:kIcon('citi',20),keyboard:false}).bindPopup('<strong>'+E(p[2])+'</strong><br><span class="k">Citi Bike station &middot; '+E(String(p[3]||''))+' docks</span>').addTo(o.g);});}});
   reg('hc',{group:'Blocks (in the time window)',label:'Blocks by crashes',color:'#dc2626',dyn:1});
   reg('ht',{group:'Blocks (in the time window)',label:'Blocks by truck complaints and tickets',color:'#92400e',dyn:1});
 }
@@ -220,6 +220,6 @@ var J=function(u){return fetch(u).then(function(r){if(!r.ok)throw new Error(u);r
 Promise.all([J('/data/bqe/kit/layers.json'),J('/data/bqe/kit/blocks.json'),J('/data/bqe/kit/ts.json'),J('/data/bqe/kit/daily.json')]).then(function(a){KL=a[0];KB=a[1];KT=a[2];KD=a[3];
   KB.blocks.forEach(function(b,i){if(!KSCOPE.nbs||KSCOPE.nbs.indexOf(b.nb)>=0){KIN.push(i);INSET[i]=1;}});
   CF=lastFull(KT.crash_last,KT.crash_months);SF=lastFull(KT.s311_last,KT.s311_months);
-  mkLayers();kBuild();setWin('12');KORD.forEach(kApply);fillStreets();renderAll();
+  mkLayers();kBuild();setWin('12');KORD.forEach(kApply);fillStreets();renderAll();if(window.kSwapSwatches)kSwapSwatches(document);
 }).catch(function(e){var el=document.getElementById('k-tab');if(el)el.innerHTML='<p class="k">The block data could not be loaded.</p>';if(window.console)console.error(e);});
 })();
