@@ -2349,7 +2349,61 @@
        {url:'https://docs.google.com/forms/d/e/1FAIpQLSeiRFirGoa1GEsuMt7PPr-ltrxsEsijtWdDrusjpJFBJp92zQ/viewform',text:'Comment form \u2197'},
        {url:'https://bkcb6.app/event-2026-09-03-landmarks.html',text:'Event page with map \u2197'}
      ],
-     expires:'2026-09-04T04:00:00Z'}
+     expires:'2026-09-04T04:00:00Z'},
+    {bbl:'3004240001',addr:'508 Degraw Street',
+     title:'On the CB6 Business Affairs & Licenses Committee agenda: Monday, September 28, 6:30 PM at 250 Baltic Street',
+     desc:'508 Degraw Street: liquor license application from SakeBrooklyn Brewing Co. LLC (SakeBrooklyn).',
+     links:[
+       {url:'https://drive.google.com/file/d/1lra57IOhNGYF2OVYdMXSHbZOlN6eViSL/view',text:'View the application \u2197'},
+       {url:'https://bkcb6.app/92826/',text:'Meeting page with map \u2197'},
+       {url:'https://conta.cc/4yWkAoJ',text:'Meeting notice \u2197'}
+     ],
+     expires:'2026-09-29T04:00:00Z'},
+    {bbl:'3006230118',addr:'744 Clinton Street',
+     title:'On the CB6 Business Affairs & Licenses Committee agenda: Monday, September 28, 6:30 PM at 250 Baltic Street',
+     desc:'744 Clinton Street: liquor license application from Dink Court LLC (Dink Court Pickleball).',
+     links:[
+       {url:'https://drive.google.com/file/d/1nJXe_AruI232GbqfPg8dQ69kMWKGD88_/view',text:'View the application \u2197'},
+       {url:'https://bkcb6.app/92826/',text:'Meeting page with map \u2197'},
+       {url:'https://conta.cc/4yWkAoJ',text:'Meeting notice \u2197'}
+     ],
+     expires:'2026-09-29T04:00:00Z'},
+    {bbl:'3009310008',addr:'446A Dean Street',
+     title:'On the CB6 Business Affairs & Licenses Committee agenda: Monday, September 28, 6:30 PM at 250 Baltic Street',
+     desc:'446A Dean Street: liquor license application from Teos Group LLC (Nacho Macho Cantina).',
+     links:[
+       {url:'https://drive.google.com/file/d/1eTqiS3NyrlZs562h21HovrBz1ccS9l_B/view',text:'View the application \u2197'},
+       {url:'https://bkcb6.app/92826/',text:'Meeting page with map \u2197'},
+       {url:'https://conta.cc/4yWkAoJ',text:'Meeting notice \u2197'}
+     ],
+     expires:'2026-09-29T04:00:00Z'},
+    {bbl:'3004530001',addr:'420 Carroll Street',
+     title:'On the CB6 Business Affairs & Licenses Committee agenda: Monday, September 28, 6:30 PM at 250 Baltic Street',
+     desc:'420 Carroll Street: liquor license application from Focal Point Brewing Company LLC (Focal Point Beer).',
+     links:[
+       {url:'https://drive.google.com/file/d/1o6aAY16yyNIkBnev_q0rSoyuVbAM8TH5/view',text:'View the application \u2197'},
+       {url:'https://bkcb6.app/92826/',text:'Meeting page with map \u2197'},
+       {url:'https://conta.cc/4yWkAoJ',text:'Meeting notice \u2197'}
+     ],
+     expires:'2026-09-29T04:00:00Z'},
+    {bbl:'3009460011',addr:'348 Douglass Street',
+     title:'On the CB6 Business Affairs & Licenses Committee agenda: Monday, September 28, 6:30 PM at 250 Baltic Street',
+     desc:'348 Douglass Street: liquor license application from Nothing But Brunch LLC (Flamingo Baby Brunch & Bar).',
+     links:[
+       {url:'https://drive.google.com/file/d/1S7YIKtzRmj_HOyf-uE1X-2zkrVBuwqNi/view',text:'View the application \u2197'},
+       {url:'https://bkcb6.app/92826/',text:'Meeting page with map \u2197'},
+       {url:'https://conta.cc/4yWkAoJ',text:'Meeting notice \u2197'}
+     ],
+     expires:'2026-09-29T04:00:00Z'},
+    {bbl:'3010960005',addr:'381 7th Avenue',
+     title:'On the CB6 Business Affairs & Licenses Committee agenda: Monday, September 28, 6:30 PM at 250 Baltic Street',
+     desc:'381 7th Avenue: liquor license application from 381 Hospitality LLC (ZoZo\'s).',
+     links:[
+       {url:'https://drive.google.com/file/d/1P3wHd_uIg4k33pCoZSQk1rRrYZgjdsmS/view',text:'View the application \u2197'},
+       {url:'https://bkcb6.app/92826/',text:'Meeting page with map \u2197'},
+       {url:'https://conta.cc/4yWkAoJ',text:'Meeting notice \u2197'}
+     ],
+     expires:'2026-09-29T04:00:00Z'}
   ];
   function agendaFor(bbl,input){
     var now=Date.now(), safe=normalizeBbl(bbl), q=String(input||'').toUpperCase();
