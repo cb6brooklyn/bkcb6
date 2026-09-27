@@ -51,7 +51,7 @@ def intro(scope, KB, KT):
 
 </section>'''
 def cta_block():
-    return f'''<section class="ctatop" id="meetings"><div class="dotbrand"><a href="{BQEC}" target="_blank" rel="noopener"><img src="/assets/nycdot-logo.jpg" alt="NYC DOT, New York City Department of Transportation" width="120" height="94"></a><div><span class="dbk">Infrastructure</span><a class="dbt" href="{BQEC}" target="_blank" rel="noopener">BQE Central Project</a><p>This is a New York City Department of Transportation project. It is not a Community Board 6 project: DOT runs the plan, the meetings and the environmental review. This page gathers DOT\'s plans and meetings and the public record for residents.</p></div></div>
+    return f'''<section class="ctatop" id="meetings"><div class="dotbrand"><a class="dbl" href="{BQEC}" target="_blank" rel="noopener"><img src="/assets/bqe/nycdot-logo.png" alt="New York City DOT" width="130" height="78"></a><div class="dbx"><a class="dbw" href="{BQEC}" target="_blank" rel="noopener"><img src="/assets/bqe/bqe-central-wordmark.png" alt="BQE Central" width="260" height="64"></a><p>This is a New York City Department of Transportation project. It is not a Community Board 6 project: DOT runs the plan, the meetings and the environmental review. This page gathers DOT\'s plans and meetings and the public record for residents.</p></div></div>
 <h2>Upcoming DOT meetings on BQE Central</h2>
 <div class="cta" id="comment"><ul class="mtg">
 <li><b>Tue, Oct 6</b><span>7 to 8 p.m. &middot; Virtual Q&amp;A</span><a class="ctalink" href="https://bit.ly/bqecentral-oct6" target="_blank" rel="noopener">Join</a></li>
@@ -138,6 +138,11 @@ def apply(page, scope):
     # script after the host map script
     e = page.rindex('</script>')
     page = page[:e] + '\n' + js + '\n' + page[e:]
+    # the I-278 road sign in the top bar
+    tb = page.index('<div class="top-txt">')
+    page = page[:tb] + '<img class="bqesign" src="/assets/bqe/bqe-road-sign.jpg" alt="Interstate 278, Brooklyn-Queens Expressway" width="150" height="46">' + page[tb:]
+    if 'property="og:image"' not in page:
+        page = page.replace('</head>', '<meta property="og:image" content="https://bkcb6.app/assets/bqe/og-bkcb6-app-bqe.jpg">\n<meta name="twitter:image" content="https://bkcb6.app/assets/bqe/og-bkcb6-app-bqe.jpg">\n</head>', 1).replace('<meta name="twitter:card" content="summary">', '<meta name="twitter:card" content="summary_large_image">')
     # NYC DOT branding last, so it wins over the host styles
     b = page.rindex('</body>')
     page = page[:b] + '<style>' + open(os.path.join(HERE, 'dot_theme.css')).read() + '</style>\n' + page[b:]
