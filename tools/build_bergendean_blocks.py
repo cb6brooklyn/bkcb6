@@ -127,10 +127,10 @@ CR = [(c, P(Point(c[1], c[0]))) for c in PTS['crashes']]
 # 311 for the whole corridor, once
 s311 = []; seen = set()
 for k in ('bergen', 'dean'):
-    u = url('erm2-nwe9', {'$select': 'unique_key,latitude,longitude,complaint_type', '$where': f"created_date>='2020-01-01T00:00:00' AND created_date<'{END}' AND within_polygon(location,'{S['wkt'][k]}')", '$limit': 200000})
+    u = url('erm2-nwe9', {'$select': 'unique_key,latitude,longitude,complaint_type,created_date', '$where': f"created_date>='2020-01-01T00:00:00' AND created_date<'{END}' AND within_polygon(location,'{S['wkt'][k]}')", '$limit': 200000})
     for r in get(u):
         if r['unique_key'] in seen or not r.get('latitude'): continue
-        seen.add(r['unique_key']); s311.append((r['complaint_type'], P(Point(float(r['longitude']), float(r['latitude'])))))
+        seen.add(r['unique_key']); s311.append((r['complaint_type'], P(Point(float(r['longitude']), float(r['latitude']))), r['created_date'][:7]))
 print('311 points', len(s311))
 def wkt(poly):
     parts = [q for q in getattr(poly, 'geoms', [poly]) if q.geom_type == 'Polygon']
@@ -162,14 +162,23 @@ crs = collections.defaultdict(list); t3s = collections.defaultdict(collections.C
 for c, g in CR:
     i = nearest_block(g)
     if i is not None: crs[i].append(c)
-for t, g in s311:
+t3m = collections.defaultdict(collections.Counter); crm = collections.defaultdict(collections.Counter)
+for t, g, m in s311:
     i = nearest_block(g)
-    if i is not None: t3s[i][t] += 1
+    if i is not None: t3s[i][t] += 1; t3m[i][m] += 1
+for c, g in CR:
+    i = nearest_block(g)
+    if i is not None: crm[i][c[2][:7]] += 1
+CM = sorted(set(m for v in crm.values() for m in v)); SM = sorted(set(m for v in t3m.values() for m in v))
 for b in blocks:
     cr = crs[b['id']]
     b['crash'] = {'n': len(cr), 'inj': sum(c[5] for c in cr), 'kil': sum(c[6] for c in cr), 'cyc': sum(c[7] for c in cr), 'ped': sum(c[8] for c in cr)}
     t3 = t3s[b['id']]
-    b['s311'] = {'n': sum(t3.values()), 'top': t3.most_common(3)}
+    b['s311'] = {'n': sum(t3.values()), 'top': t3.most_common(3), 'types': t3.most_common(12), 'months': [t3m[b['id']].get(m, 0) for m in SM]}
+    b['crash']['months'] = [crm[b['id']].get(m, 0) for m in CM]
+    cy = collections.Counter(c[2][:4] for c in cr); b['crash']['years'] = dict(cy)
+    b['crash']['cyc_years'] = {y: sum(c[7] for c in cr if c[2][:4] == y) for y in cy}
+    sy = collections.Counter(m[:4] for m, n in t3m[b['id']].items() for _ in range(n)); b['s311']['years'] = dict(sy)
 # ---- totals
 tot = {'blocks': len(blocks), 'by_street': dict(collections.Counter(b['sk'] for b in blocks)), 'districts': {}}
 for k, _, _ in FILES:
@@ -184,7 +193,7 @@ tot['b65cut'] = sum(1 for b in blocks if b['b65cut'])
 tot['crash'] = {'n': sum(b['crash']['n'] for b in blocks), 'zero': sum(1 for b in blocks if b['crash']['n'] == 0)}
 tot['s311'] = {'n': sum(b['s311']['n'] for b in blocks), 'zero': sum(1 for b in blocks if b['s311']['n'] == 0)}
 tot['ft'] = sum(b['ft'] for b in blocks)
-out = {'built': END[:10], 'cscl_query': CSCL_Q, 'crash_last': S['crash_last'], 's311_last': S['s311_last'], 'totals': tot,
+out = {'built': END[:10], 'crash_months': CM, 's311_months': SM, 'cscl_query': CSCL_Q, 'crash_last': S['crash_last'], 's311_last': S['s311_last'], 'totals': tot,
        'blocks': [{k: v for k, v in b.items() if k != 'g'} for b in blocks],
        'geo': {'type': 'FeatureCollection', 'features': [{'type': 'Feature', 'properties': {'id': b['id']}, 'geometry': json.loads(json.dumps(mapping(b['g'].simplify(0.00001))), parse_float=lambda s: round(float(s), 6))} for b in blocks]}}
 json.dump(out, open(os.path.join(OUT, 'blocks.json'), 'w'), separators=(',', ':'))
