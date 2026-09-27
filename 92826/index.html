@@ -47,7 +47,7 @@ h2{font-size:1rem;margin:22px 0 10px}
 .app .who{font-size:.82rem;color:#4a4a5a;margin-top:2px}
 .app .x{font-family:'DM Mono',monospace;font-size:.72rem;color:#6b6760;margin-top:2px}
 .app a{display:inline-block;margin-top:6px;font-size:.8rem;font-weight:700;color:#0d1b4b;text-decoration:none;border-bottom:1px solid #f47920}
-@media(max-width:520px){#map{height:360px}}
+@media(max-width:520px){#map{height:360px}.lbl{font-size:.64rem;padding:1px 4px}}
 html.banner,html.banner body{background:transparent}
 html.banner .top-bar,html.banner .bl,html.banner .info,html.banner h2,html.banner .apps{display:none}
 html.banner,html.banner body{height:100%;overflow:hidden}
@@ -82,7 +82,7 @@ html.banner #map{flex:1;height:auto;min-height:0}
   <div class="apps" id="apps"></div>
 </div>
 <script>
-if(/[?&]embed=banner/.test(location.search))document.documentElement.classList.add('banner');
+if(/[?&]embed=(banner|map)/.test(location.search))document.documentElement.classList.add('banner');
 var MEETING={name:'250 Baltic Street',sub:'CB6 District Office, library space',lat:40.686131,lng:-73.994761};
 var APPS=[
  {addr:'508 Degraw Street',trade:'SakeBrooklyn',llc:'SakeBrooklyn Brewing Co. LLC',x:'Bond Street and the Gowanus Canal',lat:40.68068,lng:-73.98836,pdf:'https://drive.google.com/file/d/1lra57IOhNGYF2OVYdMXSHbZOlN6eViSL/view'},
@@ -97,18 +97,19 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r
 fetch('/cb6_boundary.geojson').then(function(r){return r.json();}).then(function(g){
   L.geoJSON(g,{interactive:false,style:{color:'#0d1b4b',weight:2,fill:false,dashArray:'5 4'}}).addTo(map);
 }).catch(function(){});
-var slaIcon=L.icon({iconUrl:'/assets/agency-logos/nysla.png',iconSize:[34,34],iconAnchor:[17,17],popupAnchor:[0,-16],className:'sla-ic'});
-var cb6Icon=L.icon({iconUrl:'/cb6-logo-square.png',iconSize:[42,42],iconAnchor:[21,21],popupAnchor:[0,-20]});
+var SM=document.getElementById('map').clientWidth<600,SA=SM?24:34,SC=SM?30:42;
+var slaIcon=L.icon({iconUrl:'/assets/agency-logos/nysla.png',iconSize:[SA,SA],iconAnchor:[SA/2,SA/2],popupAnchor:[0,-SA/2],className:'sla-ic'});
+var cb6Icon=L.icon({iconUrl:'/cb6-logo-square.png',iconSize:[SC,SC],iconAnchor:[SC/2,SC/2],popupAnchor:[0,-SC/2]});
 var pts=[],markers=[];
 var m=L.marker([MEETING.lat,MEETING.lng],{icon:cb6Icon,zIndexOffset:1000}).addTo(map)
  .bindPopup('<div style="font-family:DM Sans,sans-serif;font-size:.85rem;line-height:1.4"><strong>Meeting location</strong><br>'+MEETING.name+'<br>'+MEETING.sub+'<br>Monday, September 28, 6:30 PM</div>')
- .bindTooltip('Meeting: 250 Baltic Street',{permanent:true,direction:'right',offset:[22,0],className:'lbl mtg'});
+ .bindTooltip(SM?'Meeting: 250 Baltic St':'Meeting: 250 Baltic Street',{permanent:true,direction:'right',offset:[22,0],className:'lbl mtg'});
 pts.push([MEETING.lat,MEETING.lng]);
 var box=document.getElementById('apps');
 APPS.forEach(function(a,i){
   var mk=L.marker([a.lat,a.lng],{icon:slaIcon}).addTo(map)
    .bindPopup('<div style="font-family:DM Sans,sans-serif;font-size:.85rem;line-height:1.4"><strong>'+a.addr+'</strong><br>'+a.trade+'<br>'+a.llc+'<br><a href="'+a.pdf+'" target="_blank" rel="noopener">View the application ↗</a></div>')
-   .bindTooltip(a.addr,{permanent:true,direction:'right',offset:[18,0],className:'lbl'});
+   .bindTooltip(SM?a.addr.replace(' Street',' St').replace(' Avenue',' Ave'):a.addr,{permanent:true,direction:'right',offset:[18,0],className:'lbl'});
   markers.push(mk);pts.push([a.lat,a.lng]);
   var d=document.createElement('div');d.className='app';
   d.innerHTML='<img src="/assets/agency-logos/nysla.png" alt=""><div><div class="addr">'+a.addr+'</div><div class="who">'+a.trade+' · '+a.llc+'</div><div class="x">'+a.x+'</div><a href="'+a.pdf+'" target="_blank" rel="noopener">View the application ↗</a></div>';
@@ -116,6 +117,34 @@ APPS.forEach(function(a,i){
   box.appendChild(d);
 });
 map.fitBounds(pts,{padding:[40,40]});
+/* place every label where it does not cover another label or icon */
+var ALL=[{mk:m,half:SC/2}].concat(markers.map(function(x){return{mk:x,half:SA/2};}));
+function declutter(){
+  var boxes=ALL.map(function(o){var p=map.latLngToContainerPoint(o.mk.getLatLng());return{l:p.x-o.half,t:p.y-o.half,r:p.x+o.half,b:p.y+o.half};});
+  var hit=function(a,b){return a.l<b.r+2&&a.r>b.l-2&&a.t<b.b+2&&a.b>b.t-2;};
+  var placed=[];
+  ALL.forEach(function(o,i){
+    var tt=o.mk.getTooltip(); if(!tt||!tt._container) return;
+    var w=tt._container.offsetWidth,h=tt._container.offsetHeight,p=map.latLngToContainerPoint(o.mk.getLatLng()),g=o.half+2;
+    var c=[
+      {d:'right',off:[g,0],r:{l:p.x+g,t:p.y-h/2,r:p.x+g+w,b:p.y+h/2}},
+      {d:'left',off:[-g,0],r:{l:p.x-g-w,t:p.y-h/2,r:p.x-g,b:p.y+h/2}},
+      {d:'top',off:[0,-g],r:{l:p.x-w/2,t:p.y-g-h,r:p.x+w/2,b:p.y-g}},
+      {d:'bottom',off:[0,g],r:{l:p.x-w/2,t:p.y+g,r:p.x+w/2,b:p.y+g+h}},
+      {d:'right',off:[g,-g-h/2],r:{l:p.x+g,t:p.y-g-h,r:p.x+g+w,b:p.y-g}},
+      {d:'right',off:[g,g+h/2],r:{l:p.x+g,t:p.y+g,r:p.x+g+w,b:p.y+g+h}},
+      {d:'left',off:[-g,-g-h/2],r:{l:p.x-g-w,t:p.y-g-h,r:p.x-g,b:p.y-g}},
+      {d:'left',off:[-g,g+h/2],r:{l:p.x-g-w,t:p.y+g,r:p.x-g,b:p.y+g+h}}
+    ];
+    var score=function(k){var n=0;boxes.forEach(function(b,j){if(j!==i&&hit(k.r,b))n++;});placed.forEach(function(b){if(hit(k.r,b))n++;});var z=map.getSize();if(k.r.l<0||k.r.t<0||k.r.r>z.x||k.r.b>z.y)n+=3;return n;};
+    var best=c[0],bs=score(c[0]);
+    for(var k=1;k<c.length&&bs>0;k++){var sc=score(c[k]);if(sc<bs){bs=sc;best=c[k];}}
+    tt.options.direction=best.d;tt.options.offset=L.point(best.off);tt.update();
+    placed.push(best.r);
+  });
+}
+map.on('zoomend moveend resize',declutter);
+setTimeout(declutter,0);
 </script>
 </body>
 </html>
