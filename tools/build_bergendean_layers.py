@@ -34,11 +34,12 @@ for r in rs:
     k = (r['route_short_name'], r['direction_id'])
     if k not in best or int(float(r['vertices'])) > int(float(best[k]['vertices'])): best[k] = r
 feats = []
-for (rt, d), r in sorted(best.items()):
-    if d != '0': continue
-    g = shape(r['geometry']).intersection(AREA)
+byroute = {}
+for (rt, d), r in sorted(best.items()): byroute.setdefault(rt, []).append(r)
+for rt, rr in sorted(byroute.items()):
+    g = unary_union([shape(r['geometry']) for r in rr]).intersection(AREA)  # both directions, so one-way pairs like the B65 on Bergen and Dean both show
     if g.is_empty: continue
-    feats.append({'type': 'Feature', 'properties': {'r': rt, 'c': '#' + (r.get('route_color') or '0d1b4b')}, 'geometry': rnd(g)})
+    feats.append({'type': 'Feature', 'properties': {'r': rt, 'c': '#' + (rr[0].get('route_color') or '0d1b4b'), 'dirs': len(rr)}, 'geometry': rnd(g)})
 layers['bus_routes'] = {'type': 'FeatureCollection', 'features': feats}
 # subway
 sub = json.load(open(os.path.join(ROOT, 'data', 'nyc-subway-routes.geojson')))
