@@ -51,7 +51,8 @@ def intro(scope, KB, KT):
 
 </section>'''
 def cta_block():
-    return f'''<section class="ctatop" id="meetings"><h2>Upcoming meetings: have a say on the BQE</h2>
+    return f'''<section class="ctatop" id="meetings"><div class="dotbrand"><a href="{BQEC}" target="_blank" rel="noopener"><img src="/assets/nycdot-logo.jpg" alt="NYC DOT, New York City Department of Transportation" width="120" height="94"></a><div><span class="dbk">Infrastructure</span><a class="dbt" href="{BQEC}" target="_blank" rel="noopener">BQE Central Project</a><p>This is a New York City Department of Transportation project. It is not a Community Board 6 project: DOT runs the plan, the meetings and the environmental review. This page gathers DOT\'s plans and meetings and the public record for residents.</p></div></div>
+<h2>Upcoming meetings: have a say on the BQE</h2>
 <div class="cta" id="comment"><ul class="mtg">
 <li><b>Tue, Oct 6</b><span>7 to 8 p.m. &middot; Virtual Q&amp;A</span><a class="ctalink" href="https://bit.ly/bqecentral-oct6" target="_blank" rel="noopener">Join</a></li>
 <li><b>Tue, Oct 13</b><span>4 to 7 p.m. &middot; In person, Brooklyn Heights Library, 286 Cadman Plaza West</span></li>
