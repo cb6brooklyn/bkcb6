@@ -48,8 +48,17 @@ def intro(scope, KB, KT):
 <p><b>DOT's case for it.</b> In a September 23, 2026 opinion piece, DOT Commissioner Mike Flynn says of the plan, "It isn't ideal," and that it is not what anyone would do starting from scratch. His argument is that time has run out: "We have years left, not decades," and "We are out of options," because removing the highway or changing its ramps would need federal, state and city agreement and money that do not exist. He puts the cost of waiting at $160 million a year in escalation alone, and says a sudden closure would force 13,000 daily truck trips onto local Brooklyn streets ({A(FLYNN, 'Mike Flynn, Streetsblog, September 23, 2026')}).</p>
 <p><b>Trucks and the streets.</b> A truck leaving the BQE is supposed to stay on designated truck routes until it is close to its destination (see the truck route rules below and the {A(TRMAP, 'bkcb6.app truck routes map')}). None of the 103 truck route changes DOT set for October 4, 2026 is in Community District 6 ({A(CHGPDF, 'NYC DOT list of changes')}). What the public record shows about trucks on these streets, the counts, 311 complaints, tickets and crashes, follows, every figure linked to its source.</p>
 <p><b>What happens next.</b> DOT's schedule for the environmental review: scoping notice in September 2026, public scoping meetings in November 2026, a final scoping report early in 2027, a draft environmental impact statement with public meetings late in 2027, and the final statement early in 2028 ({A(BQEC, 'NYC DOT, BQE Central')}). DOT says the statement will study "construction, traffic, noise, air quality" and more. During scoping, "the public can comment on what the EIS should study" ({A(BQEC, 'NYC DOT')}).</p>
-<div class="cta" id="comment"><div class="ctat"><b>Have a say.</b> DOT is holding sessions on BQE Central this fall: a virtual Q&amp;A on <b>October 6</b> (7 to 8 p.m.), an in-person session on <b>October 13</b> (4 to 7 p.m., Brooklyn Heights Library, 286 Cadman Plaza West) and a virtual Q&amp;A on <b>October 22</b> (11 a.m. to noon); the formal comment period on what the environmental review should study opens with scoping later this fall ({A(BQEC, 'NYC DOT')}). DOT's Red Hook Transportation Issues map is also open for comments on streets, trucks and transit in Red Hook ({A(FMRH, 'DOT')}).</div>
-<div class="ctab"><a class="ctabtn" href="{BQEC}" target="_blank" rel="noopener">BQE Central: sessions and how to comment &rarr;</a><a class="ctalink" href="https://bit.ly/bqecentral-oct6" target="_blank" rel="noopener">Join October 6 (virtual)</a><a class="ctalink" href="https://bit.ly/bqecentral-oct22" target="_blank" rel="noopener">Join October 22 (virtual)</a><a class="ctalink" href="{FMRH}" target="_blank" rel="noopener">Red Hook Transportation Issues map</a><a class="ctalink" href="https://portal.311.nyc.gov/" target="_blank" rel="noopener">Report a truck off its route to 311</a></div></div>
+
+</section>'''
+def cta_block():
+    return f'''<section class="ctatop" id="meetings"><h2>Upcoming meetings: have a say on the BQE</h2>
+<div class="cta" id="comment"><ul class="mtg">
+<li><b>Tue, Oct 6</b><span>7 to 8 p.m. &middot; Virtual Q&amp;A</span><a class="ctalink" href="https://bit.ly/bqecentral-oct6" target="_blank" rel="noopener">Join</a></li>
+<li><b>Tue, Oct 13</b><span>4 to 7 p.m. &middot; In person, Brooklyn Heights Library, 286 Cadman Plaza West</span></li>
+<li><b>Thu, Oct 22</b><span>11 a.m. to noon &middot; Virtual Q&amp;A</span><a class="ctalink" href="https://bit.ly/bqecentral-oct22" target="_blank" rel="noopener">Join</a></li>
+</ul>
+<div class="ctat">DOT's BQE Central sessions ({A(BQEC, 'NYC DOT')}). The formal comment period on what the environmental review should study opens with scoping later this fall. DOT's Red Hook Transportation Issues map is open now ({A(FMRH, 'DOT')}).</div>
+<div class="ctab"><a class="ctabtn" href="{BQEC}" target="_blank" rel="noopener">BQE Central: sessions and how to comment &rarr;</a><a class="ctalink" href="{FMRH}" target="_blank" rel="noopener">Red Hook Transportation Issues map</a><a class="ctalink" href="https://portal.311.nyc.gov/" target="_blank" rel="noopener">Report a truck off its route to 311</a></div></div>
 </section>'''
 def twbar(KT):
     my = lambda d: datetime.date.fromisoformat(d).strftime('%B %-d, %Y')
@@ -109,14 +118,19 @@ def apply(page, scope):
     # the Find bar replaces the host search box
     i = page.index('<div class="search-row">'); j = page.index('</div>', i) + 6
     page = page[:i] + findbar(KB, scope) + '<div hidden>' + page[i:j] + '</div>' + page[j:]
-    # intro and time window at the top, after Mike's note if present, else after the top bar
-    if 'class="mnote"' in page: anchor = page.index('</section>', page.index('class="mnote"')) + 10
-    elif '<section class="mstrip"' in page: anchor = page.index('<section class="mstrip"')
-    else: anchor = page.index('<div class="findbar">')
-    page = page[:anchor] + '\n' + intro(scope, KB, KT) + '\n' + twbar(KT) + page[anchor:]
     # extra layers panel after the map
     ms = page.index('<div class="map-shell">'); ms_end = page.index('</div></div>', ms) + 12
     page = page[:ms_end] + '\n' + layers_panel() + page[ms_end:]
+    # move the Find bar, map and layers to the top: after the top bar, behind the meetings box, with the time window
+    fb = page.index('<div class="findbar">'); fe = page.index('<section class="sec"', page.index('<div class="map-shell">'))
+    seg = page[fb:fe]; page = page[:fb] + page[fe:]
+    top = page.index('<section', page.index('class="top-bar"'))
+    page = page[:top] + cta_block() + '\n' + seg + '\n' + twbar(KT) + '\n' + page[top:]
+    # the story so far: after Mike's note if present, else before the key numbers
+    if 'class="mnote"' in page: anchor = page.index('</section>', page.index('class="mnote"')) + 10
+    elif '<section class="mstrip"' in page: anchor = page.index('<section class="mstrip"')
+    else: anchor = page.index('<section class="sec"')
+    page = page[:anchor] + '\n' + intro(scope, KB, KT) + '\n' + page[anchor:]
     # the record before Sources
     s = page.index('<section class="sec" id="sources">')
     page = page[:s] + record(KB, KT, scope) + '\n' + page[s:]
