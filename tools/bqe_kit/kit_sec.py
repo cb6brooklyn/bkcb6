@@ -42,7 +42,7 @@ def intro(scope, KB, KT):
         y26 = f'''An approximately $4 billion, 10-year rehabilitation of BQE Central that breaks ground in 2030, with two temporary bypasses, one on Furman Street ({A(MAYOR, "NYC Mayor's Office")}). DOT says "The highway will remain two lanes and will not expand, nor will interchanges be altered" ({A(BQEC, 'NYC DOT')}).'''
     y26f = '<b>August 2026: rehabilitate what is there.</b> ' + y26
     return f'''<section class="intro" id="intro"><h2>From Moses to Mamdani</h2>
-<p class="introlede">Robert Moses planned the BQE's route through Brooklyn, and it was finished in 1964. Its oldest stretch is now past its design life, and three mayors have put out plans to fix it: Bill de Blasio, Eric Adams and, this August, Zohran Mamdani.</p>
+<p class="introlede">Robert Moses planned the BQE's route through Brooklyn, and it was finished in 1964. Its oldest stretch is now past its design life, and multiple mayors have put out plans to fix it.</p>
 <details class="sfold"><summary><h3>What people may not know</h3><span>3 facts</span></summary>
 <div class="facts">
 <div class="fact"><b>The triple cantilever is a stacked highway.</b> For 0.4 miles, BQE Central is "two levels of highway with the Brooklyn Heights Promenade above and a local street, Furman Street, below" ({A(BQEC, 'NYC DOT')}).</div>
