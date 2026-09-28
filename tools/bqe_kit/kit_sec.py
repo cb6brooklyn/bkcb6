@@ -55,12 +55,10 @@ def intro(scope, KB, KT):
 <div class="govc state"><span class="gl">State</span><b>BQE North and BQE South</b><p>"New York State owns the rest," the other 10.6 miles in Brooklyn ({A(BQEC, 'NYC DOT')}): BQE North, "from the Kosciuszko Bridge to Sands Street," and BQE South, "from Atlantic Avenue to the Verrazzano Bridge" ({A(BQEV, 'BQE Corridor Vision')}){SOUTH}. The city's plan is meant to let it "work with the State, which controls the northern and southern segments" ({A(MAYOR, "NYC Mayor's Office")}).</p></div>
 <div class="govc fed"><span class="gl">Federal</span><b>All of it, as Interstate 278</b><p>"The BQE is part of the federal interstate highway system," and "If we were to completely remove BQE Central, or alter even a single on- or off-ramp, it would require federal permission," DOT Commissioner Mike Flynn wrote. Among the reasons a bigger change is off the table now, he named "a federal administration with very different priorities" ({A(FLYNN, 'Streetsblog')}). The current plan stays inside what the city can do on its own: the interchanges will not be altered, and the project goes through the city's environmental review, CEQR, not a federal one ({A(BQEC, 'NYC DOT')}). The Adams plan had been headed for a federal review ({A(ADAMS22, "NYC Mayor's Office")}).</p></div>
 </div>
-<div class="sub2"><h3>The BQE, from Robert Moses to three mayors</h3><p>It took 27 years to build. The city has been planning its repair since at least 2016, under three mayors.</p></div>
-{TL.graphic()}
-{TL.written(y26f)}
+<div class="sub2"><h3>From Moses to Mamdani</h3><p>It took 27 years to build. The city has been planning its repair since at least 2016, under three mayors.</p></div>
+{TL.scroller(y26)}
+{TL.film()}
 {TL.plans()}
-<div class="sub2"><h3>What happens next</h3></div>
-<p>DOT's environmental review: scoping notice in September 2026, public scoping meetings in November 2026, a final scoping report early in 2027, a draft environmental impact statement with public meetings late in 2027, and the final statement early in 2028 ({A(BQEC, 'NYC DOT')}). This fall's sessions are listed at the top of the page.</p>
 </section>'''
 def cta_block():
     return f'''<section class="ctatop" id="meetings"><div class="dotbrand"><a class="dbl" href="{BQEC}" target="_blank" rel="noopener"><img src="/assets/bqe/nycdot-logo.png" alt="New York City DOT" width="130" height="78"></a><div class="dbx"><a class="dbw" href="{BQEC}" target="_blank" rel="noopener"><img src="/assets/bqe/bqe-central-wordmark.png" alt="BQE Central" width="260" height="64"></a></div></div>
