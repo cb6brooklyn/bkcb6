@@ -255,6 +255,21 @@ ORGS = [
 },
 ]
 
+WHERE = """  <div class="sec"><h2>Where it is</h2>
+    <details class="mapwrap" open><summary>Map of the block<span class="msub">zoning, boundary, overlaps, land use</span><span class="marr2">&#9660;</span></summary>
+    <div class="mapinner">
+      <div class="mapttl">{addrflat} <span>the building, its block and the zoning around it</span></div>
+      <div class="msearch"><input type="search" placeholder="Search an address to drop a pin" autocomplete="off"><button type="button">Find</button><button type="button" class="mreset" data-map-reset>Reset</button></div>
+      <div class="pmap" id="map" data-profile-map data-bid-slug="park-slope-5th-avenue" data-point-lat="{lat}" data-point-lng="{lng}" data-point-zoom="17" data-point-icon="/site-icons/{slug}.png" data-point-icon-w="200" data-point-icon-h="200"></div>
+      <div class="mstat" data-map-status></div>
+      <button type="button" class="mtoggle" aria-expanded="false" data-map-toggle-btn><span style="flex:1;text-align:left">Add to the map</span><span class="marr">&#9660;</span></button>
+      <div class="mtools" data-map-toggles hidden></div>
+      <div class="mhint">Tap the map anywhere to drop a pin and open that lot.</div>
+    </div></details>
+  </div>
+
+"""
+
 TPL = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{title} &mdash; bkcb6.app</title>
@@ -285,20 +300,7 @@ TPL = """<!DOCTYPE html>
 
 {flyer}  <div class="sec introsec"><div class="bio dmintro">{intro}{sig}</div></div>
 {going}
-  <div class="sec"><h2>Where it is</h2>
-    <details class="mapwrap" open><summary>Map of the block<span class="msub">zoning, boundary, overlaps, land use</span><span class="marr2">&#9660;</span></summary>
-    <div class="mapinner">
-      <div class="mapttl">{addrflat} <span>the building, its block and the zoning around it</span></div>
-      <div class="msearch"><input type="search" placeholder="Search an address to drop a pin" autocomplete="off"><button type="button">Find</button><button type="button" class="mreset" data-map-reset>Reset</button></div>
-      <div class="pmap" id="map" data-profile-map data-bid-slug="park-slope-5th-avenue" data-point-lat="{lat}" data-point-lng="{lng}" data-point-zoom="17" data-point-icon="/site-icons/{slug}.png" data-point-icon-w="200" data-point-icon-h="200"></div>
-      <div class="mstat" data-map-status></div>
-      <button type="button" class="mtoggle" aria-expanded="false" data-map-toggle-btn><span style="flex:1;text-align:left">Add to the map</span><span class="marr">&#9660;</span></button>
-      <div class="mtools" data-map-toggles hidden></div>
-      <div class="mhint">Tap the map anywhere to drop a pin and open that lot.</div>
-    </div></details>
-  </div>
-
-{events}{numsec}{doessec}
+{wheresec}{events}{numsec}{doessec}
 {extra}
   <div class="sec"><h2>Contact</h2><div class="bio"><ul class="kv">
     {addrli}
@@ -442,6 +444,24 @@ EVJS = r"""
 </script>
 """
 
+def route_section(o):
+    r = o['route']
+    color = r.get('color') or (o.get('brand') or {}).get('accent', '#f47920')
+    return ('  <div class="sec"><h2>The route</h2>\n'
+            '    <div class="pmap" id="routemap" style="height:300px;border-radius:12px;overflow:hidden"></div>\n'
+            '    <div class="mhint">' + ' &middot; '.join('<b style="color:%s">&#9644;</b> %s' % (color, l['name']) for l in r['lines']) + '</div>\n'
+            '  </div>\n'
+            '  <script>(function(){var R=' + json.dumps(r, ensure_ascii=False) + ';'
+            'function go(){var m=L.map("routemap",{scrollWheelZoom:false});'
+            'L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e",{maxZoom:19,attribution:"&copy; OpenStreetMap &copy; CARTO"}).addTo(m);'
+            'var all=[];R.lines.forEach(function(l){L.polyline(l.coords,{color:"#fff",weight:12,opacity:.9}).addTo(m);'
+            'L.polyline(l.coords,{color:"' + color + '",weight:7,opacity:1}).bindTooltip(l.name).addTo(m);all=all.concat(l.coords);});'
+            'R.stops.forEach(function(s){L.circleMarker(s.c,{radius:6,color:"#1a1a1a",weight:2,fillColor:"#fff",fillOpacity:1})'
+            '.bindTooltip(s.name+(s.time?" &middot; "+s.time:""),{direction:"top"}).addTo(m);});'
+            'm.fitBounds(L.latLngBounds(all).pad(.06));}'
+            'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",go);else go();})();</script>\n\n')
+
+
 for _f in ('org-profiles-cal.json', 'gov-profiles.json', 'place-profiles.json'):
     _extra = os.path.join(ROOT, 'data', _f)
     if os.path.exists(_extra):
@@ -531,6 +551,10 @@ for o in ORGS:
                   kv=kv, links=links, mapjs=MAPJS, events=events, evjs=evjs,
                   doesbtns=doesbtns, extra=extra, flyer=flyer, going=going, ogmeta=ogmeta, brandcss=brandcss, does_title=does_title, sig=sig,
                   addrflat=(o.get('addr') or o.get('addr_note') or o['name']).replace('<br>', ', '))
+    if o.get('route'):
+        fields['wheresec'] = route_section(o)
+    else:
+        fields['wheresec'] = WHERE.format(lat=o['lat'], lng=o['lng'], slug=o['slug'], addrflat=fields['addrflat'])
     html = TPL.format(**fields)
     if o.get('logov'):
         html = html.replace('/site-icons/%s.png' % o['slug'], '/site-icons/%s.png?v=%s' % (o['slug'], o['logov']))
