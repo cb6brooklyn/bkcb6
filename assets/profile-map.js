@@ -227,6 +227,42 @@
 
     var homeBounds = null;
     var pin = null;
+    // data-cb6="1": draw Brooklyn Community Board 6 in its own navy and orange,
+    // with the CB6 logo as its label, and open on the district with the place in it
+    var withCb6 = el.getAttribute('data-cb6') === '1';
+    var cb6Bounds = null;
+    function viewHome() {
+      if (withCb6 && cb6Bounds) {
+        var b = L.latLngBounds(cb6Bounds.getSouthWest(), cb6Bounds.getNorthEast());
+        if (hasPoint) b.extend([ptLat, ptLng]);
+        map.fitBounds(b, { padding: [16, 16] });
+      } else if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
+      else if (homeBounds) map.fitBounds(homeBounds, { padding: [14, 14] });
+    }
+    if (withCb6) {
+      getJSON('/data/districts/cb-306.geojson').then(function (g) {
+        L.geoJSON(g, { pane: FILL_PANE || undefined, interactive: false,
+          style: { stroke: false, fillColor: '#0d1b4b', fillOpacity: 0.05 } }).addTo(map);
+        L.geoJSON(g, { pane: LINE_PANE || undefined, interactive: false,
+          style: { color: '#ffffff', weight: 6, opacity: 0.9, fill: false } }).addTo(map);
+        var cb = L.geoJSON(g, { pane: LINE_PANE || undefined, interactive: false,
+          style: { color: '#0d1b4b', weight: 3.5, opacity: 1, fill: false } }).addTo(map);
+        L.geoJSON(g, { pane: LINE_PANE || undefined, interactive: false,
+          style: { color: '#f47920', weight: 1.4, opacity: 1, fill: false, dashArray: '6 5' } }).addTo(map);
+        cb6Bounds = cb.getBounds();
+        // the logo sits in whichever part of the district is farthest from the place,
+        // so it never covers the place's own pin
+        var spots = [[40.6760, -74.0085], [40.6690, -73.9800], [40.6765, -73.9885], [40.6810, -73.9990]];
+        var at = spots[0];
+        if (hasPoint) { var best = -1; spots.forEach(function (sp) { var d = Math.pow(sp[0] - ptLat, 2) + Math.pow((sp[1] - ptLng) * 0.76, 2); if (d > best) { best = d; at = sp; } }); }
+        var logo = L.marker(at, { pane: LINE_PANE || undefined, interactive: false,
+          icon: L.divIcon({ className: '', iconSize: [46, 46], iconAnchor: [23, 23],
+            html: '<img src="/cb6-logo-square.png" alt="Brooklyn Community Board 6" style="width:46px;height:46px;display:block;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.3)">' }) });
+        function logoShow() { if (map.getZoom() <= 15) { if (!map.hasLayer(logo)) logo.addTo(map); } else if (map.hasLayer(logo)) map.removeLayer(logo); }
+        map.on('zoomend', logoShow);
+        viewHome(); logoShow();
+      }).catch(function () {});
+    }
     var layers = {};
     var status = el.parentNode.querySelector('[data-map-status]');
 
@@ -256,7 +292,8 @@
         : chamber === 'senate' ? 'Senate District ' + district : chamber === 'congress' ? 'NY-' + district : chamber === 'cb' ? (district.length === 3 ? ({ '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island' })[district.charAt(0)] + ' CB' + parseInt(district.slice(1), 10) : 'Brooklyn CB' + district) : chamber === 'borough' ? '' : '';
       withLabels(function (ML) { ML.add(map, { bounds: homeBounds, district: dl, boroughs: chamber === 'borough' ? ['Brooklyn'] : undefined }); });
       // a BID is a small shape in a small frame, so it can sit tighter
-      if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
+      if (withCb6) viewHome();
+      else if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
       else map.fitBounds(homeBounds, { padding: bidSlug ? [8, 8] : [14, 14] });
       if (!bidSlug) own.bringToBack();
       if (bidSlug) {
@@ -649,7 +686,8 @@
     var reset = el.parentNode.querySelector('[data-map-reset]');
     if (reset) reset.addEventListener('click', function () {
       if (pin) { map.removeLayer(pin); pin = null; }
-      if (homeBounds) map.fitBounds(homeBounds, { padding: [14, 14] });
+      if (withCb6) viewHome();
+      else if (homeBounds) map.fitBounds(homeBounds, { padding: [14, 14] });
     });
 
     // Hand the page a handle on the map so a directory alongside it can put its
@@ -672,7 +710,8 @@
         if (!fold.open) return;
         setTimeout(function () {
           map.invalidateSize();
-          if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
+          if (withCb6) viewHome();
+          else if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
           else if (homeBounds) map.fitBounds(homeBounds, { padding: [14, 14] });
         }, 60);
       });

@@ -11,7 +11,7 @@ import json
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 CSS = open(os.path.join(ROOT, 'assets/org-profile.css'), encoding='utf-8').read()
-MAPJS = 'v=20260830a'
+MAPJS = 'v=20260928cb6'
 
 ORGS = [
 {
@@ -260,7 +260,7 @@ WHERE = """  <div class="sec"><h2>Where it is</h2>
     <div class="mapinner">
       <div class="mapttl">{addrflat} <span>the building, its block and the zoning around it</span></div>
       <div class="msearch"><input type="search" placeholder="Search an address to drop a pin" autocomplete="off"><button type="button">Find</button><button type="button" class="mreset" data-map-reset>Reset</button></div>
-      <div class="pmap" id="map" data-profile-map data-bid-slug="park-slope-5th-avenue" data-point-lat="{lat}" data-point-lng="{lng}" data-point-zoom="17" data-point-icon="/site-icons/{slug}.png" data-point-icon-w="200" data-point-icon-h="200"></div>
+      <div class="pmap" id="map" data-profile-map data-bid-slug="park-slope-5th-avenue" data-point-lat="{lat}" data-point-lng="{lng}" data-point-zoom="17" data-point-icon="/site-icons/{slug}.png" data-point-icon-w="200" data-point-icon-h="200" data-cb6="1"></div>
       <div class="mstat" data-map-status></div>
       <button type="button" class="mtoggle" aria-expanded="false" data-map-toggle-btn><span style="flex:1;text-align:left">Add to the map</span><span class="marr">&#9660;</span></button>
       <div class="mtools" data-map-toggles hidden></div>
@@ -454,11 +454,20 @@ def route_section(o):
             '  <script>(function(){var R=' + json.dumps(r, ensure_ascii=False) + ';'
             'function go(){var m=L.map("routemap",{scrollWheelZoom:false});'
             'L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e",{maxZoom:19,attribution:"&copy; OpenStreetMap &copy; CARTO"}).addTo(m);'
-            'var all=[];R.lines.forEach(function(l){L.polyline(l.coords,{color:"#fff",weight:12,opacity:.9}).addTo(m);'
-            'L.polyline(l.coords,{color:"' + color + '",weight:7,opacity:1}).bindTooltip(l.name).addTo(m);all=all.concat(l.coords);});'
-            'R.stops.forEach(function(s){L.circleMarker(s.c,{radius:6,color:"#1a1a1a",weight:2,fillColor:"#fff",fillOpacity:1})'
-            '.bindTooltip(s.name+(s.time?" &middot; "+s.time:""),{direction:"top"}).addTo(m);});'
-            'm.fitBounds(L.latLngBounds(all).pad(.06));}'
+            'var all=[],top=[];R.lines.forEach(function(l){top.push(L.polyline(l.coords,{color:"#fff",weight:12,opacity:.9}).addTo(m));'
+            'top.push(L.polyline(l.coords,{color:"' + color + '",weight:7,opacity:1}).bindTooltip(l.name).addTo(m));all=all.concat(l.coords);});'
+            'R.stops.forEach(function(s){top.push(L.circleMarker(s.c,{radius:6,color:"#1a1a1a",weight:2,fillColor:"#fff",fillOpacity:1})'
+            '.bindTooltip(s.name+(s.time?" &middot; "+s.time:""),{direction:"top"}).addTo(m));});'
+            'var b=L.latLngBounds(all);'
+            'fetch("/data/districts/cb-306.geojson").then(function(r){return r.json();}).then(function(g){'
+            'L.geoJSON(g,{interactive:false,style:{stroke:false,fillColor:"#0d1b4b",fillOpacity:.05}}).addTo(m);'
+            'L.geoJSON(g,{interactive:false,style:{color:"#fff",weight:6,opacity:.9,fill:false}}).addTo(m);'
+            'var cb=L.geoJSON(g,{interactive:false,style:{color:"#0d1b4b",weight:3.5,fill:false}}).addTo(m);'
+            'L.geoJSON(g,{interactive:false,style:{color:"#f47920",weight:1.4,fill:false,dashArray:"6 5"}}).addTo(m);'
+            'L.marker([40.6760,-74.0085],{interactive:false,icon:L.divIcon({className:"",iconSize:[40,40],iconAnchor:[20,20],'
+            'html:\'<img src="/cb6-logo-square.png" alt="Brooklyn Community Board 6" style="width:40px;height:40px;display:block;border-radius:7px;box-shadow:0 2px 6px rgba(0,0,0,.3)">\'})}).addTo(m);'
+            'top.forEach(function(x){x.bringToFront();});m.fitBounds(b.extend(cb.getBounds()).pad(.04));}).catch(function(){});'
+            'm.fitBounds(b.pad(.06));}'
             'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",go);else go();})();</script>\n\n')
 
 
