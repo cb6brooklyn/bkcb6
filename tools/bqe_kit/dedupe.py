@@ -53,6 +53,8 @@ def run(page, scope):
         page = drop_all_li(page, 'fall inside this outline (calculated)')
         # outline names beyond the main six: explained once, in What this page means by CB6
         page = cut(page, ' Some CB6 blocks fall inside outlines named Greenwood Heights, South Slope, Boerum Hill, Brooklyn Heights, Prospect Heights or Prospect Park, and they are listed under those names.')
+        # the three sections and who owns them: in Who controls which part
+        for b in ('<b>BQE North:</b>', '<b>BQE Central:</b> "the 1.5-mile', '<b>BQE South:</b>', '<b>The rest of the highway:</b>'): page = drop_li(page, b)
         # the link to the Carroll Gardens page: kept in Enforcement
         page = cut_re(page, r'<p class="k">For a closer look at two neighborhoods, see .*?</p>')
     if scope == 'cg':
