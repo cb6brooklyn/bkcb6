@@ -1,5 +1,6 @@
 # The Dean/Bergen feature set, generalized for the BQE pages. apply(html, scope) returns the page with the kit added.
-import json, html as H, os, datetime, re
+import json, html as H, os, datetime, re, importlib.util as _iu0
+_tsp = _iu0.spec_from_file_location('bqe_timeline', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'timeline.py')); TL = _iu0.module_from_spec(_tsp); _tsp.loader.exec_module(TL)
 ROOT = '/home/claude/bkcb6'; HERE = os.path.dirname(os.path.abspath(__file__))
 def A(u, t): return '<a href="%s" target="_blank" rel="noopener">%s</a>' % (H.escape(u), t)
 def fmt(n): return f"{n:,}"
@@ -39,6 +40,7 @@ def intro(scope, KB, KT):
         y26 = f'''An approximately $4 billion, 10-year rehabilitation of BQE Central that keeps two lanes each way and breaks ground in 2030 ({A(MAYOR, "NYC Mayor's Office")}). <a href="#plan">The plan in detail</a>.'''
     else:
         y26 = f'''An approximately $4 billion, 10-year rehabilitation of BQE Central that breaks ground in 2030, with two temporary bypasses, one on Furman Street ({A(MAYOR, "NYC Mayor's Office")}). DOT says "The highway will remain two lanes and will not expand, nor will interchanges be altered" ({A(BQEC, 'NYC DOT')}).'''
+    y26f = '<b>August 2026: rehabilitate what is there.</b> ' + y26
     return f'''<section class="intro" id="intro"><h2>The story so far</h2>
 <p class="introlede">The city has been trying to fix the oldest stretch of the BQE for most of a decade. Three mayors have now put out plans for it: Bill de Blasio, Eric Adams and, this August, Zohran Mamdani.</p>
 <div class="sub2"><h3>What people may not know</h3></div>
@@ -53,15 +55,10 @@ def intro(scope, KB, KT):
 <div class="govc state"><span class="gl">State</span><b>BQE North and BQE South</b><p>"New York State owns the rest," the other 10.6 miles in Brooklyn ({A(BQEC, 'NYC DOT')}): BQE North, "from the Kosciuszko Bridge to Sands Street," and BQE South, "from Atlantic Avenue to the Verrazzano Bridge" ({A(BQEV, 'BQE Corridor Vision')}){SOUTH}. The city's plan is meant to let it "work with the State, which controls the northern and southern segments" ({A(MAYOR, "NYC Mayor's Office")}).</p></div>
 <div class="govc fed"><span class="gl">Federal</span><b>All of it, as Interstate 278</b><p>"The BQE is part of the federal interstate highway system," and "If we were to completely remove BQE Central, or alter even a single on- or off-ramp, it would require federal permission," DOT Commissioner Mike Flynn wrote. Among the reasons a bigger change is off the table now, he named "a federal administration with very different priorities" ({A(FLYNN, 'Streetsblog')}). The current plan stays inside what the city can do on its own: the interchanges will not be altered, and the project goes through the city's environmental review, CEQR, not a federal one ({A(BQEC, 'NYC DOT')}). The Adams plan had been headed for a federal review ({A(ADAMS22, "NYC Mayor's Office")}).</p></div>
 </div>
-<div class="sub2"><h3>Three mayors, one stretch of highway</h3></div>
-<ol class="tl">
-<li><span class="ty">2018</span><div><b>De Blasio: rebuild it, maybe by closing the Promenade.</b> DOT offered a "lane-by-lane reconstruction" or a "temporary 6-lane highway on the Promenade," and favored the second. Brooklyn Heights pushed back over "the loss of the Promenade for six or more years" ({A(BHA18, 'Brooklyn Heights Association')}).</div></li>
-<li><span class="ty">2019 to 2020</span><div><b>An expert panel.</b> The city convened a panel in 2019 ({A(DOTBQE, 'NYC DOT')}); its January 2020 report recommended cutting the highway to two lanes each way ({A(PANEL, 'BQE Expert Panel Report, p. 18')}).</div></li>
-<li><span class="ty">2021</span><div><b>De Blasio: keep it standing for 20 years.</b> A plan "to extend the life of the Brooklyn-Queens Expressway (BQE) cantilever for at least another 20 years," and the half mile from about Atlantic Avenue to the Brooklyn Bridge went "from three lanes in each direction to two lanes" ({A(DOTBQE, 'NYC DOT')}). It also called for "weigh-in-motion" sensors to ticket overweight trucks ({A(SB21, 'Streetsblog')}); they began enforcing in November 2023 ({A(AMNY, 'amNY')}).</div></li>
-<li><span class="ty">2022 to 2023</span><div><b>Adams: re-envision BQE Central.</b> "Preliminary design concepts for a re-envisioned BQE Central," with safety upgrades and better links between the Promenade and Brooklyn Bridge Park, and a plan to start the federal environmental review in spring 2023 ({A(ADAMS22, "NYC Mayor's Office")}). DOT's 2023 feedback maps drew {A(FMC, '118')} comments on BQE Central and {A(FMS, '122')} on BQE South.</div></li>
-<li><span class="ty">2026</span><div><b>Mamdani: rehabilitate what is there.</b> {y26}</div></li>
-<li><span class="ty">Sept. 2026</span><div><b>DOT makes its case.</b> Commissioner Mike Flynn wrote that the plan "isn't ideal" but that "We have years left, not decades" ({A(FLYNN, 'Streetsblog')}).</div></li>
-</ol>
+<div class="sub2"><h3>The BQE, from Robert Moses to three mayors</h3><p>It took 27 years to build. The city has been planning its repair since at least 2016, under three mayors.</p></div>
+{TL.graphic()}
+{TL.written(y26f)}
+{TL.plans()}
 <div class="sub2"><h3>What happens next</h3></div>
 <p>DOT's environmental review: scoping notice in September 2026, public scoping meetings in November 2026, a final scoping report early in 2027, a draft environmental impact statement with public meetings late in 2027, and the final statement early in 2028 ({A(BQEC, 'NYC DOT')}). This fall's sessions are listed at the top of the page.</p>
 </section>'''
