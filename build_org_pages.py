@@ -532,6 +532,8 @@ for o in ORGS:
                   doesbtns=doesbtns, extra=extra, flyer=flyer, going=going, ogmeta=ogmeta, brandcss=brandcss, does_title=does_title, sig=sig,
                   addrflat=(o.get('addr') or o.get('addr_note') or o['name']).replace('<br>', ', '))
     html = TPL.format(**fields)
+    if o.get('logov'):
+        html = html.replace('/site-icons/%s.png' % o['slug'], '/site-icons/%s.png?v=%s' % (o['slug'], o['logov']))
     d = os.path.join(ROOT, o['slug'])
     os.makedirs(d, exist_ok=True)
     open(os.path.join(d, 'index.html'), 'w', encoding='utf-8').write(html)
