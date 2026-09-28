@@ -41,8 +41,8 @@ def intro(scope, KB, KT):
     else:
         y26 = f'''An approximately $4 billion, 10-year rehabilitation of BQE Central that breaks ground in 2030, with two temporary bypasses, one on Furman Street ({A(MAYOR, "NYC Mayor's Office")}). DOT says "The highway will remain two lanes and will not expand, nor will interchanges be altered" ({A(BQEC, 'NYC DOT')}).'''
     y26f = '<b>August 2026: rehabilitate what is there.</b> ' + y26
-    return f'''<section class="intro" id="intro"><h2>The story so far</h2>
-<p class="introlede">The city has been trying to fix the oldest stretch of the BQE for most of a decade. Three mayors have now put out plans for it: Bill de Blasio, Eric Adams and, this August, Zohran Mamdani.</p>
+    return f'''<section class="intro" id="intro"><h2>From Moses to Mamdani</h2>
+<p class="introlede">Robert Moses planned the BQE's route through Brooklyn, and it was finished in 1964. Its oldest stretch is now past its design life, and three mayors have put out plans to fix it: Bill de Blasio, Eric Adams and, this August, Zohran Mamdani.</p>
 <details class="sfold"><summary><h3>What people may not know</h3><span>3 facts</span></summary>
 <div class="facts">
 <div class="fact"><b>The triple cantilever is a stacked highway.</b> For 0.4 miles, BQE Central is "two levels of highway with the Brooklyn Heights Promenade above and a local street, Furman Street, below" ({A(BQEC, 'NYC DOT')}).</div>
@@ -57,7 +57,7 @@ def intro(scope, KB, KT):
 <div class="govc fed"><span class="gl">Federal</span><b>All of it, as Interstate 278</b><p class="gsum">The whole BQE is Interstate 278, so changing it needs federal approval.</p><details class="gmore"><summary>More</summary><p>"The BQE is part of the federal interstate highway system," and "If we were to completely remove BQE Central, or alter even a single on- or off-ramp, it would require federal permission," DOT Commissioner Mike Flynn wrote. Among the reasons a bigger change is off the table now, he named "a federal administration with very different priorities" ({A(FLYNN, 'Streetsblog')}). The current plan stays inside what the city can do on its own: the interchanges will not be altered, and the project goes through the city's environmental review, CEQR, not a federal one ({A(BQEC, 'NYC DOT')}). The Adams plan had been headed for a federal review ({A(ADAMS22, "NYC Mayor's Office")}).</p></details></div>
 </div>
 </details>
-<div class="sub2"><h3>From Moses to Mamdani</h3><p>Tap any moment, or step through with the arrows.</p></div>
+<div class="sub2"><h3>The timeline, 1937 to 2040</h3><p>Tap any moment, or step through with the arrows.</p></div>
 {TL.stepper(y26)}
 <details class="sfold"><summary><h3>The story on film</h3><span>A 40-minute documentary</span></summary>{TL.film()}</details>
 {TL.plans()}
