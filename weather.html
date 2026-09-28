@@ -338,6 +338,15 @@ body.embed .wrap{padding:10px}
 .wx-fc-ic{font-size:13px;margin:1px 0}
 .wx-fc-t{font-size:10.5px;color:#28303f;font-weight:600}
 .wx-note{font-size:11.5px;color:#9aa3b2;margin-top:8px;line-height:1.45}
+.wx-storm{margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}
+.wx-storm-h{font-weight:800;font-size:15px;color:#0d1b4b;margin-bottom:4px}
+.wx-storm-sum{font-size:13px;line-height:1.45;color:#1f2733;margin-bottom:8px}
+.wx-storm-cv{position:relative;height:280px}
+.wx-storm-tb table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px}
+.wx-storm-tb th,.wx-storm-tb td{padding:6px 4px;border-top:1px solid #e5e7eb;text-align:right;font-family:'DM Mono',monospace}
+.wx-storm-tb th:first-child,.wx-storm-tb td:first-child{text-align:left;font-family:'DM Sans',sans-serif}
+.wx-storm-tb th{font-family:'DM Sans',sans-serif;font-size:11px;color:#475569;font-weight:700}
+.wx-storm-tb td.tot{font-weight:800;color:#0e7490}
 @media(max-width:560px){.wx-grid{grid-template-columns:repeat(2,1fr)}}
 
 #wxMap{height:360px;border-radius:12px;border:1px solid var(--line);z-index:0}
@@ -442,7 +451,13 @@ body.embed .wrap{padding:10px}
 </button>
 <div class="wx-body" id="wxBody">
 <div id="wxMap"></div>
-<div class="wx-note">Rain on the map is the forecast total for the next 48 hours, in inches. Tap a neighborhood for the past 24 hours and each day&rsquo;s forecast. Source: Open-Meteo. These neighborhoods are close together, so readings will be similar.</div>
+<div class="wx-note">Rain on the map is the nor&rsquo;easter total since Friday, in inches. Tap a neighborhood for the past 24 hours, the next 48 hours and each day&rsquo;s forecast. These neighborhoods are close together, so readings will be similar.</div>
+<div class="wx-storm" id="wxStorm">
+<div class="wx-storm-h">Nor&rsquo;easter rain totals across CB6 since Friday</div>
+<div class="wx-storm-sum" id="wxStormSum">Loading rain totals&hellip;</div>
+<div class="wx-storm-cv"><canvas id="wxStormChart"></canvas></div>
+<div class="wx-storm-tb" id="wxStormTb"></div>
+</div>
 </div>
 </div>
 <div class="tr-section" id="transit" style="scroll-margin-top:14px">
@@ -1008,6 +1023,7 @@ window.addEventListener("hashchange",handleAnchor);
     var ci=wxCode(d.cur.code);
     var html="<div class='wx-pop'><div class='wx-pop-name'>"+name+"</div>";
     html+="<div class='wx-pop-now'>"+ci[0]+" "+d.cur.temp+"\u00b0F \u00b7 "+ci[1]+"</div>";
+    if(STORM[name]) html+="<div class='wx-pop-now'>\u2614 Nor\u2019easter total since Friday: "+inch(STORM[name].total)+"</div>";
     if(d.rain) html+="<div class='wx-pop-now'>\u2614 Rain: "+inch(d.rain.past)+" past 24h \u00b7 "+inch(d.rain.next)+" next 48h</div>";
     if(d.daily&&d.daily.length){
       html+="<div class='wx-pop-fc'>";
@@ -1021,9 +1037,9 @@ window.addEventListener("hashchange",handleAnchor);
     return html;
   }
   function inch(v){ return (Math.round(v*100)/100).toFixed(2)+" in"; }
-  function makeLabelIcon(name,temp,rain){
+  function makeLabelIcon(name,temp,rain,storm){
     var html="<div class='wx-tlabel'><span class='wx-tl-name'>"+name+"</span><span class='wx-tl-temp'>"+(temp==null?"--":temp+"\u00b0")+"</span>"+
-      (rain?"<span class='wx-tl-rain'>\u2614 "+inch(rain.next)+"</span>":"")+"</div>";
+      (storm?"<span class='wx-tl-rain'>\u2614 "+inch(storm.total)+" since Fri</span>":(rain?"<span class='wx-tl-rain'>\u2614 "+inch(rain.next)+"</span>":""))+"</div>";
     return L.divIcon({className:"",html:html,iconSize:null});
   }
   function initWxMap(){
@@ -1062,7 +1078,7 @@ window.addEventListener("hashchange",handleAnchor);
         }
       }
       wxData[name]=d;
-      if(wxLabels[name]) wxLabels[name].setIcon(makeLabelIcon(name,d.cur.temp,d.rain));
+      if(wxLabels[name]) wxLabels[name].setIcon(makeLabelIcon(name,d.cur.temp,d.rain,STORM[name]));
   }
   function loadWx(){
     var names=Object.keys(HOODS);
@@ -1074,13 +1090,48 @@ window.addEventListener("hashchange",handleAnchor);
       names.forEach(function(n,i){ parseHood(n,arr[i]); });
     }).catch(function(){clearTimeout(to);});
   }
+  var STORM={},stormChart=null;
+  var FULLNAME={"Columbia Waterfront":"Columbia Street Waterfront District"};
+  function loadStorm(){
+    var names=Object.keys(HOODS);
+    var now=new Date(),y=now.getFullYear(),mo=("0"+(now.getMonth()+1)).slice(-2),dd=("0"+now.getDate()).slice(-2);
+    var url="https://api.open-meteo.com/v1/forecast?latitude="+names.map(function(n){return HOODS[n].lat;}).join(",")+"&longitude="+names.map(function(n){return HOODS[n].lon;}).join(",")+
+      "&hourly=precipitation&precipitation_unit=inch&timezone=America%2FNew_York&start_date=2026-09-25&end_date="+y+"-"+mo+"-"+dd+"&_="+Date.now();
+    fetch(url,{cache:"no-store"}).then(function(r){return r.json();}).then(function(arr){
+      if(!Array.isArray(arr)) arr=[arr];
+      var hk=now.getFullYear()+"-"+mo+"-"+dd+"T"+("0"+now.getHours()).slice(-2);
+      var days=[];
+      names.forEach(function(n,i){var j=arr[i];if(!j||!j.hourly)return;var byDay={},tot=0;
+        j.hourly.time.forEach(function(t,k){if(t.slice(0,13)>hk)return;var v=j.hourly.precipitation[k]||0,dk=t.slice(0,10);byDay[dk]=(byDay[dk]||0)+v;tot+=v;});
+        Object.keys(byDay).forEach(function(k){if(days.indexOf(k)<0)days.push(k);});
+        STORM[n]={total:tot,byDay:byDay};
+        if(wxLabels[n]&&wxData[n]) wxLabels[n].setIcon(makeLabelIcon(n,wxData[n].cur.temp,wxData[n].rain,STORM[n]));});
+      days.sort();
+      var hs=names.filter(function(n){return STORM[n];}).sort(function(a,b){return STORM[b].total-STORM[a].total;});
+      if(!hs.length) return;
+      var hi=STORM[hs[0]].total,lo=STORM[hs[hs.length-1]].total;
+      var dl=function(k){return new Date(k+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});};
+      document.getElementById("wxStormSum").textContent="From Friday, Sept 25 through "+now.toLocaleString("en-US",{weekday:"short",hour:"numeric",minute:"2-digit"})+", CB6 neighborhoods got between "+inch(lo)+" and "+inch(hi)+" of rain. NYC Emergency Management had called for 1 to 1.5 inches.";
+      var COLS=["#bae6fd","#38bdf8","#0284c7","#0c4a6e","#082f49"];
+      var nm=function(n){return FULLNAME[n]||n;};
+      if(window.Chart){
+        if(stormChart) stormChart.destroy();
+        stormChart=new Chart(document.getElementById("wxStormChart"),{type:"bar",data:{labels:hs.map(nm),datasets:days.map(function(k,i){return {label:dl(k),data:hs.map(function(n){return Math.round((STORM[n].byDay[k]||0)*100)/100;}),backgroundColor:COLS[i%COLS.length],borderWidth:0};})},
+          options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{font:{size:10},boxWidth:10}},tooltip:{callbacks:{label:function(c){return c.dataset.label+": "+c.parsed.x.toFixed(2)+" in";}}}},
+          scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:"inches",font:{size:10}},ticks:{font:{size:9}}},y:{stacked:true,ticks:{font:{size:10}}}}}});
+      }
+      var h="<table><tr><th>Neighborhood</th>"+days.map(function(k){return "<th>"+new Date(k+"T12:00:00").toLocaleDateString("en-US",{weekday:"short"})+"</th>";}).join("")+"<th>Total</th></tr>";
+      hs.forEach(function(n){h+="<tr><td>"+nm(n)+"</td>"+days.map(function(k){return "<td>"+(STORM[n].byDay[k]||0).toFixed(2)+"</td>";}).join("")+"<td class='tot'>"+STORM[n].total.toFixed(2)+"</td></tr>";});
+      document.getElementById("wxStormTb").innerHTML=h+"</table>";
+    }).catch(function(){document.getElementById("wxStormSum").textContent="Rain totals could not load right now. Reload the page to try again.";});
+  }
   var wxStarted=false;
   function startWx(){
     if(wxStarted) return; wxStarted=true;
     initWxMap();
-    loadWx();
-    setInterval(loadWx, 900000);
-    document.addEventListener("visibilitychange",function(){ if(!document.hidden && wxStarted) loadWx(); });
+    loadWx(); loadStorm();
+    setInterval(function(){loadWx();loadStorm();}, 900000);
+    document.addEventListener("visibilitychange",function(){ if(!document.hidden && wxStarted){ loadWx(); loadStorm(); } });
   }
   var wxT=document.getElementById("wxToggle");
   if(wxT){
@@ -1595,47 +1646,59 @@ document.getElementById("floodClear").addEventListener("click",function(){
   function inGeom(pt,g){var P=g.type==="Polygon"?[g.coordinates]:g.coordinates;for(var i=0;i<P.length;i++){if(pip(pt,P[i][0])){var hole=false;for(var h=1;h<P[i].length;h++)if(pip(pt,P[i][h]))hole=true;if(!hole)return true;}}return false;}
   function mk(c,px){return L.divIcon({className:"s3mk",html:'<span style="--rc:'+c+'"><img src="'+ICON+'" alt="311"></span>',iconSize:[px,px],iconAnchor:[px/2,px/2],popupAnchor:[0,-px/2]});}
   var sum=document.getElementById("st311Sum");
+  var map=null,mlayer=null,CH=[],GEO=null,lastKey="";
+  function load(){
+  var uu=u+"&_="+Date.now();
   Promise.all([
-    fetch(u).then(function(r){return r.json();}),
-    fetch("cb6_boundary.geojson").then(function(r){return r.json();}).catch(function(){return null;}),
-    fetch("data/city-neighborhoods.geojson").then(function(r){return r.json();}).catch(function(){return null;})
+    fetch(uu,{cache:"no-store"}).then(function(r){return r.json();}),
+    GEO?Promise.resolve(GEO[0]):fetch("cb6_boundary.geojson").then(function(r){return r.json();}).catch(function(){return null;}),
+    GEO?Promise.resolve(GEO[1]):fetch("data/city-neighborhoods.geojson").then(function(r){return r.json();}).catch(function(){return null;})
   ]).then(function(res){
-    var rows=res[0],cb=res[1],nbh=res[2];
+    var rows=res[0],cb=res[1],nbh=res[2];GEO=[cb,nbh];
+    if(!Array.isArray(rows))return;
+    var key=rows.length+"|"+(rows[0]?rows[0].unique_key:"");if(key===lastKey)return;lastKey=key;
     rows.forEach(function(r){r._c=cat(r);});
     if(!rows.length){sum.textContent="No nor’easter reports from CB6 have posted since Friday yet. New 311 reports reach the city’s open data about a day after they are filed.";return;}
     var counts={};CATS.forEach(function(c){counts[c.k]=0;});rows.forEach(function(r){counts[r._c.k]++;});
-    sum.textContent=rows.length+" reports filed in CB6 from Friday afternoon, Sept 25, when the rain started, through "+d(rows[0].created_date)+". New 311 reports reach the city’s open data about a day after they are filed, so these numbers keep growing.";
+    sum.textContent=rows.length+" reports filed in CB6 from Friday afternoon, Sept 25, when the rain started, through "+d(rows[0].created_date)+". New 311 reports reach the city’s open data about a day after they are filed, so these numbers keep growing, and this page updates on its own as they come in.";
     document.getElementById("st311Cats").innerHTML=CATS.filter(function(c){return counts[c.k];}).map(function(c){return '<div class="st311-cat"><span class="s3ic" style="--rc:'+c.c+'"><img src="'+ICON+'" alt=""></span><span><b>'+counts[c.k]+'</b>'+c.n+'</span></div>';}).join("");
     // map
-    var map=L.map("st311Map",{scrollWheelZoom:false,attributionControl:true,zoomSnap:0.25});
+    var first=!map;
+    if(first){map=L.map("st311Map",{scrollWheelZoom:false,attributionControl:true,zoomSnap:0.25});
     L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e",{maxZoom:19,attribution:"&copy; OpenStreetMap &copy; CARTO"}).addTo(map);
-    var b=null;
-    if(cb){var bl=L.geoJSON(cb,{style:{color:"#0d1b4b",weight:2.5,fill:true,fillColor:"#f47920",fillOpacity:.05},interactive:false}).addTo(map);b=bl.getBounds();}
+    if(cb){var bl=L.geoJSON(cb,{style:{color:"#0d1b4b",weight:2.5,fill:true,fillColor:"#f47920",fillOpacity:.05},interactive:false}).addTo(map);map._s3b=bl.getBounds();}
+    mlayer=L.layerGroup().addTo(map);}
+    mlayer.clearLayers();var b=map._s3b||null;
     var pts=[];
     rows.slice().reverse().forEach(function(r){var la=+r.latitude,lo=+r.longitude;if(!la||!lo)return;pts.push([la,lo]);
-      L.marker([la,lo],{icon:mk(r._c.c,26)}).bindPopup('<b>'+e(what(r))+'</b><br>'+e(where(r))+'<br>'+e(d(r.created_date))+' &middot; '+e(r.status)+'<br>Complaint number '+e(r.unique_key)).addTo(map);});
-    var fb=b||L.latLngBounds(pts);if(pts.length)fb=fb.extend(L.latLngBounds(pts));var fit=function(){map.invalidateSize();map.fitBounds(fb,{padding:[4,4],maxZoom:15});};fit();var moved=false;map.on("zoomstart movestart",function(ev){if(ev&&ev.hard===undefined&&map._s3u)moved=true;});map.getContainer().addEventListener("pointerdown",function(){map._s3u=1;});if(window.ResizeObserver){new ResizeObserver(function(){if(!map._s3u)fit();}).observe(map.getContainer());}
+      L.marker([la,lo],{icon:mk(r._c.c,26)}).bindPopup('<b>'+e(what(r))+'</b><br>'+e(where(r))+'<br>'+e(d(r.created_date))+' &middot; '+e(r.status)+'<br>Complaint number '+e(r.unique_key)).addTo(mlayer);});
+    var fb=b||L.latLngBounds(pts);if(pts.length)fb=fb.extend(L.latLngBounds(pts));var fit=function(){map.invalidateSize();map.fitBounds(fb,{padding:[4,4],maxZoom:15});};if(!map._s3u)fit();if(first){map.getContainer().addEventListener("pointerdown",function(){map._s3u=1;});if(window.ResizeObserver){new ResizeObserver(function(){if(!map._s3u)fit();}).observe(map.getContainer());}}
     // charts
     if(window.Chart){
+      CH.forEach(function(c){c.destroy();});CH=[];
       Chart.defaults.font.family="'DM Sans',system-ui,sans-serif";
       var days=[],dk={};var st=new Date("2026-09-25T12:00:00"),en=new Date(rows[0].created_date);
       for(var x=new Date(2026,8,25);x<=en;x.setDate(x.getDate()+1)){var key=x.toDateString();dk[key]=days.length;days.push({l:x.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})});}
       var ds=CATS.map(function(c){return {label:c.n,data:days.map(function(){return 0;}),backgroundColor:c.c,borderWidth:0};});
       rows.forEach(function(r){var i=dk[new Date(r.created_date).toDateString()];if(i!=null)ds[CATS.indexOf(r._c)].data[i]++;});
-      new Chart(document.getElementById("st311Day"),{type:"bar",data:{labels:days.map(function(v){return v.l;}),datasets:ds.filter(function(v,i){return counts[CATS[i].k];})},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{stacked:true,ticks:{font:{size:10}}},y:{stacked:true,beginAtZero:true,ticks:{precision:0,font:{size:9}}}}}});
+      CH[CH.length]=new Chart(document.getElementById("st311Day"),{type:"bar",data:{labels:days.map(function(v){return v.l;}),datasets:ds.filter(function(v,i){return counts[CATS[i].k];})},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{stacked:true,ticks:{font:{size:10}}},y:{stacked:true,beginAtZero:true,ticks:{precision:0,font:{size:9}}}}}});
       var SH={"Branch Cracked and Will Fall":"Branch cracked, will fall","Branch or Limb Has Fallen Down":"Branch or limb down","Entire Tree Has Fallen Down":"Whole tree down","Tree Leaning/Uprooted":"Tree leaning or uprooted","Remove Debris":"Tree debris left behind","Hitting Power Lines":"Branches on power lines","Flooding on Street":"Street flooding","Manhole Overflow":"Manhole overflow","Controller":"Traffic signal out","Street Light Out":"Street light out","Cave-in":"Street cave-in","Catch Basin Clogged/Flooding (Use Comments) (SC)":"Catch basin clogged"};
       var ty={};rows.forEach(function(r){var k=SH[what(r)]||what(r);(ty[k]=ty[k]||{n:0,c:r._c.c}).n++;});
       var te=Object.keys(ty).map(function(k){return [k,ty[k]];}).sort(function(a,b){return b[1].n-a[1].n;});
-      new Chart(document.getElementById("st311Type"),{type:"bar",data:{labels:te.map(function(v){return v[0];}),datasets:[{data:te.map(function(v){return v[1].n;}),backgroundColor:te.map(function(v){return v[1].c;}),borderWidth:0}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{precision:0,font:{size:9}}},y:{ticks:{font:{size:10}}}}}});
+      CH[CH.length]=new Chart(document.getElementById("st311Type"),{type:"bar",data:{labels:te.map(function(v){return v[0];}),datasets:[{data:te.map(function(v){return v[1].n;}),backgroundColor:te.map(function(v){return v[1].c;}),borderWidth:0}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{precision:0,font:{size:9}}},y:{ticks:{font:{size:10}}}}}});
       if(nbh){var nb={};rows.forEach(function(r){var la=+r.latitude,lo=+r.longitude;if(!la)return;var name=null;for(var i=0;i<nbh.features.length;i++){var f=nbh.features[i];if(f.properties.boro==="Brooklyn"&&inGeom([lo,la],f.geometry)){name=f.properties.nb;break;}}if(name)nb[name]=(nb[name]||0)+1;});
         var ne=Object.keys(nb).map(function(k){return [k,nb[k]];}).sort(function(a,b){return b[1]-a[1];});
-        new Chart(document.getElementById("st311Nb"),{type:"bar",data:{labels:ne.map(function(v){return v[0];}),datasets:[{data:ne.map(function(v){return v[1];}),backgroundColor:"rgba(13,27,75,0.8)",borderWidth:0}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{precision:0,font:{size:9}}},y:{ticks:{font:{size:10}}}}}});}
+        CH[CH.length]=new Chart(document.getElementById("st311Nb"),{type:"bar",data:{labels:ne.map(function(v){return v[0];}),datasets:[{data:ne.map(function(v){return v[1];}),backgroundColor:"rgba(13,27,75,0.8)",borderWidth:0}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{precision:0,font:{size:9}}},y:{ticks:{font:{size:10}}}}}});}
     }
     // full list
     document.getElementById("st311AllSum").textContent="Every report, with its complaint number ("+rows.length+")";
     document.getElementById("st311List").innerHTML=CATS.map(function(c){var rs=rows.filter(function(r){return r._c===c;});if(!rs.length)return "";
       return '<div class="st311-g" style="color:'+c.c+'">'+c.n+' ('+rs.length+')</div>'+rs.map(function(r){return '<div class="st311-r"><b>'+e(what(r))+'</b><br>'+e(where(r))+'<div class="st311-m">'+e(d(r.created_date))+' &middot; '+e(r.status)+' &middot; #'+e(r.unique_key)+'</div></div>';}).join("");}).join("");
-  }).catch(function(){sum.innerHTML='The 311 reports could not load right now. See all CB6 311 reports at <a href="/311.html">bkcb6.app/311</a>.';});
+  }).catch(function(){if(!lastKey)sum.innerHTML='The 311 reports could not load right now. See all CB6 311 reports at <a href="/311.html">bkcb6.app/311</a>.';});
+  }
+  load();
+  setInterval(load,600000);
+  document.addEventListener("visibilitychange",function(){if(!document.hidden)load();});
 })();
 </script>
 </body>
