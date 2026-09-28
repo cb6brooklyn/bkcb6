@@ -278,7 +278,7 @@ DIR_JS = DIR_JS[DIR_JS.rfind('<script>'):DIR_JS.rfind('</script>') + 9]
 
 n = len(agencies)
 directory = (head('NYC Agency Directory', f'Every one of the {n} agencies, offices, boards and commissions in the nyc.gov agency directory, who runs each one and where it sits in city government.', '/agencies', '/og-agencies.jpg')
-    + DIR_CSS + '\n' + CF + '\n</head><body>\n<div class="wrap">\n<header>\n'
+    + DIR_CSS + '\n' + CF + '\n</head><body><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a>\n<div class="wrap">\n<header>\n'
     '  <div class="crumb"><a href="/">CB6 &amp; Beyond</a> &middot; <a href="/government/">Government</a></div>\n'
     '  <h1>NYC Agency <span>Directory</span></h1>\n'
     f'  <div class="sub">{n} agencies, offices, boards and commissions, as listed by nyc.gov</div>\n</header>\n'
@@ -330,7 +330,7 @@ def profile(a):
     btns += '<a class="btn" href="/agencies/">Agency directory</a><a class="btn" href="/govhub.html">The Government Hub</a>'
     desc = (a['desc'][:150] + ('…' if len(a['desc']) > 150 else '')) if a['desc'] else f'{a["name"]}: who runs it, where it sits in city government, and how to reach it.'
     return (head(a['name'], desc, canon, f'/site-icons/agencies/{a["slug"]}.png')
-        + PROF_CSS + '\n' + CF + '\n</head><body>\n<div class="pwrap">\n  <div class="phead">\n'
+        + PROF_CSS + '\n' + CF + '\n</head><body><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a>\n<div class="pwrap">\n  <div class="phead">\n'
         f'    <span class="pmark"><img src="/site-icons/agencies/{a["slug"]}.png" alt="{E(a["name"])}"></span>\n    <span>\n'
         '      <div class="pcrumb"><a href="/" style="color:inherit">bkcb6.app</a> &middot; <a href="/agencies/" style="color:inherit">Agencies</a></div>\n'
         f'      <h1>{E(a["name"])}</h1>\n      <div class="pseat">{E(SINGULAR[a["type"]])}' + (f' &middot; {E(a["acronym"])}' if a['acronym'] else '') + '</div>\n    </span>\n  </div>\n'

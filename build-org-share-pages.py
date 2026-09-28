@@ -56,7 +56,7 @@ PAGE = """<!DOCTYPE html>
   a{{display:block;background:#FD890E;color:#fff;font-weight:700;font-size:1.05rem;padding:16px 32px;border-radius:10px;text-decoration:none;text-align:center}}
 </style>
 </head>
-<body>
+<body><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a>
 <h1>{name}</h1>
 <p>{desc}</p>
 <a href="{cal_url}">View these events on the CB6 Calendar &rarr;</a>

@@ -135,7 +135,7 @@ PAGE = """<!DOCTYPE html>
   a.alt{{color:rgba(255,255,255,.7);font-size:.8rem}}
 </style>
 </head>
-<body>
+<body><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a>
 <h1>{name}</h1>
 <p>{desc}</p>
 <a class="go" href="{cal_url}">Open this calendar &rarr;</a>
@@ -172,7 +172,7 @@ INDEX_HEAD = """<!DOCTYPE html>
   .back{{display:inline-block;margin-top:30px;color:var(--muted);font-size:.85rem}}
 </style>
 </head>
-<body>
+<body><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a>
 <div class="wrap">
 <h1>Government calendars</h1>
 <p class="sub">Each one opens on its own, so you see only that body&rsquo;s meetings.</p>
