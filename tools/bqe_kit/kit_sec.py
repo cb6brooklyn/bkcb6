@@ -59,7 +59,7 @@ def intro(scope, KB, KT):
 </details>
 <div class="sub2"><h3>From Moses to Mamdani</h3><p>Tap any moment, or step through with the arrows.</p></div>
 {TL.stepper(y26)}
-{TL.film()}
+<details class="sfold"><summary><h3>The story on film</h3><span>A 40-minute documentary</span></summary>{TL.film()}</details>
 {TL.plans()}
 </section>'''
 def cta_block():
@@ -138,7 +138,7 @@ def apply(page, scope):
     fb = page.index('<div class="findbar">'); fe = page.index('<section', page.index('<div class="map-shell">'))
     seg = page[fb:fe]; page = page[:fb] + page[fe:]
     top = page.index('<section', page.index('class="top-bar"'))
-    page = page[:top] + cta_block() + '\n' + seg + '\n' + twbar(KT) + '\n' + intro(scope, KB, KT) + '\n' + page[top:]
+    page = page[:top] + cta_block() + '\n' + seg + '\n' + '<details class="lwrap twwrap"><summary><h2>Time window</h2><span class="tw-sum">last 12 months</span></summary>' + twbar(KT) + '</details>' + '\n' + intro(scope, KB, KT) + '\n' + page[top:]
     # the record before Sources
     s = page.index('<section class="sec" id="sources">')
     page = page[:s] + record(KB, KT, scope) + '\n' + page[s:]
@@ -170,6 +170,18 @@ def apply(page, scope):
         page = page[:i] + '<details class="lwrap" id="layerswrap"><summary><h2>Map layers</h2><span>BQE sections, counts, tickets, truck routes, boundaries</span></summary>' + page[i:j] + '</details><details class="lwrap"><summary><h2>What am I looking at?</h2><span>Every layer explained</span></summary>' + page[j:j + len('<div class="explain" id="explain"></div>')] + '</details>' + page[j + len('<div class="explain" id="explain"></div>'):]
         e = page.rindex('</script>')
         page = page[:e] + '\n' + open(os.path.join(HERE, 'collapse.js')).read() + '\n' + page[e:]
+    i = page.index('<div class="legend-bar">'); j = page.index('</div>', i) + 6
+    page = page[:i] + '<details class="lwrap lgwrap"><summary><h2>Map key</h2><span>What each line and icon means</span></summary>' + page[i:j] + '</details>' + page[j:]
+    # one group below the map: layers, key and explanations
+    i = page.index('<details class="lwrap lgwrap">'); j = page.index('</details>', i) + 10; lg = page[i:j]; page = page[:i] + page[j:]
+    t = page.index('<details class="lwrap twwrap">'); page = page[:t] + lg + page[t:]
+    a = page.index('<details class="lwrap" id="kitlayerswrap">'); t = page.index('<details class="lwrap twwrap">')
+    page = page[:a] + '<details class="lwrap mapgrp"><summary><h2>Map layers and key</h2><span>Turn layers on and off; what each one means</span></summary>' + page[a:t] + '</details>' + page[t:]
+    if '<div class="street-row">' in page:
+        i = page.index('<div class="street-row">'); j = page.index('</div>', i) + 6
+        page = page[:i] + '<details class="lwrap"><summary><h2>Find a street</h2><span>Any borough, by cross streets</span></summary>' + page[i:j] + '</details>' + page[j:]
+    if '<nav class="toc">' in page:
+        i = page.index('<nav class="toc">'); j = page.index('</nav>', i) + 6; page = page[:i] + page[j:]
     # NYC DOT branding last, so it wins over the host styles
     b = page.rindex('</body>')
     page = page[:b] + '<style>' + open(os.path.join(HERE, 'dot_theme.css')).read() + '</style>\n' + page[b:]
