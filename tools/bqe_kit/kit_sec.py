@@ -1,5 +1,5 @@
 # The Dean/Bergen feature set, generalized for the BQE pages. apply(html, scope) returns the page with the kit added.
-import json, html as H, os, datetime
+import json, html as H, os, datetime, re
 ROOT = '/home/claude/bkcb6'; HERE = os.path.dirname(os.path.abspath(__file__))
 def A(u, t): return '<a href="%s" target="_blank" rel="noopener">%s</a>' % (H.escape(u), t)
 def fmt(n): return f"{n:,}"
@@ -32,33 +32,34 @@ SCOPES = {
 }
 def intro(scope, KB, KT):
     sc = SCOPES[scope]
+    ANN = (f'''On August 24, 2026, Mayor Zohran Mamdani announced an approximately $4 billion, 10-year rehabilitation of BQE Central, the city-owned stretch between Atlantic Avenue and Sands Street, keeping two lanes each way ({A(MAYOR, "NYC Mayor's Office")}). The details are in <a href="#plan">The city's plan for BQE Central</a> below.''' if scope == 'cb6' else f'''On August 24, 2026, Mayor Zohran Mamdani announced a rehabilitation of BQE Central, the city-owned section "between Atlantic Avenue and Sands Street," at about $4 billion, a 10-year project with groundbreaking in 2030, including repairs to the triple cantilever and two temporary bypass structures, one on Furman Street ({A(MAYOR, "NYC Mayor's Office, August 24, 2026")}). NYC DOT says "The highway will remain two lanes and will not expand, nor will interchanges be altered," and lists construction from 2029 to 2040 ({A(BQEC, 'NYC DOT, BQE Central')}).''')
     where = 'Carroll Gardens and Gowanus' if scope == 'cg' else 'CB6'
     return f'''<section class="intro" id="intro"><h2>The story so far</h2>
 <p class="introlede">In August the Mayor announced a plan to rebuild the city-owned stretch of the BQE. The environmental review that will shape it is only now starting, and no design or traffic plan for the streets around the highway has been published. In the meantime, this page gathers what is known about the BQE and the trucks that leave it for {where}: the history, the truck route rules, what DOT has counted, and what the public record shows block by block.</p>
-<p><b>What was announced.</b> On August 24, 2026, Mayor Zohran Mamdani announced a rehabilitation of BQE Central, the city-owned section "between Atlantic Avenue and Sands Street," at about $4 billion, a 10-year project with groundbreaking in 2030, including repairs to the triple cantilever and two temporary bypass structures, one on Furman Street ({A(MAYOR, "NYC Mayor's Office, August 24, 2026")}). NYC DOT says "The highway will remain two lanes and will not expand, nor will interchanges be altered," and lists construction from 2029 to 2040 ({A(BQEC, 'NYC DOT, BQE Central')}).</p>
-<p><b>The back story.</b> DOT says the BQE was "Built between 1937 and 1964" and is "Brooklyn's only interstate highway" ({A(BQEC, 'NYC DOT')}). The city-owned stretch between Atlantic Avenue and Sands Street, with the triple cantilever under the Brooklyn Heights Promenade, has had a plan from every mayor since 2018. South of Atlantic Avenue, next to Carroll Gardens, Gowanus and Red Hook, the highway is BQE South, owned by the state ({A(BQEV, 'BQE Corridor Vision')}).</p>
-<div class="sub2"><h3>Plans under three mayors</h3></div>
+
+
+<div class="sub2"><h3>Plans under three mayors since 2018</h3></div>
 <ul class="pts">
 <li><b>2018, Mayor de Blasio: two options.</b> DOT proposed a "lane-by-lane reconstruction" or a "temporary 6-lane highway on the Promenade to expedite reconstruction," and favored the second. The Brooklyn Heights Association objected to "the loss of the Promenade for six or more years" ({A(BHA18, 'Brooklyn Heights Association, October 2, 2018')}).</li>
 <li><b>2019 to 2020: the expert panel.</b> The city convened an expert panel in 2019 ({A(DOTBQE, 'NYC DOT, BQE')}); it reported on the cantilever and its options in January 2020 ({A(PANEL, 'BQE Expert Panel Report')}).</li>
-<li><b>2021, Mayor de Blasio: keep it standing for 20 years.</b> "On August 4, 2021 Mayor Bill de Blasio and NYC DOT Commissioner Hank Gutman released a comprehensive plan to extend the life of the Brooklyn-Queens Expressway (BQE) cantilever for at least another 20 years." DOT cut the half mile from about Atlantic Avenue to the Brooklyn Bridge "from three lanes in each direction to two lanes" ({A(DOTBQE, 'NYC DOT, BQE')}). The plan also called for "weigh-in-motion" technology to issue summonses to overweight trucks ({A(SB21, 'Streetsblog, August 4, 2021')}); the city began enforcing with those sensors in November 2023, and they are "only deployed on the city-owned section of the BQE between Atlantic Avenue and Sands Street" ({A(AMNY, 'amNY, November 9, 2023')}).</li>
+<li><b>2021, Mayor de Blasio: keep it standing for 20 years.</b> "On August 4, 2021 Mayor Bill de Blasio and NYC DOT Commissioner Hank Gutman released a comprehensive plan to extend the life of the Brooklyn-Queens Expressway (BQE) cantilever for at least another 20 years." DOT cut the half mile from about Atlantic Avenue to the Brooklyn Bridge "from three lanes in each direction to two lanes" ({A(DOTBQE, 'NYC DOT, BQE')}). The plan also called for "weigh-in-motion" technology to issue summonses to overweight trucks ({A(SB21, 'Streetsblog, August 4, 2021')}).</li>
 <li><b>2022 to 2023, Mayor Adams: a re-envisioned BQE Central.</b> On December 13, 2022 the Mayor released "preliminary design concepts for a re-envisioned BQE Central, the city-owned section of the BQE from Atlantic Avenue to Sands Street," with "safety upgrades for pedestrians, drivers, and cyclists" and plans for "better connecting the Brooklyn Heights Promenade and Brooklyn Bridge Park," and said workshops in February 2023 would let the city "begin the federal environmental review process in Spring 2023" ({A(ADAMS22, "NYC Mayor's Office, December 13, 2022")}). DOT's feedback maps for BQE Central and BQE South from that round are now closed, with {A(FMC, '118')} and {A(FMS, '122')} comments.</li>
-<li><b>2026, Mayor Mamdani: rehabilitate what is there.</b> The August 24, 2026 plan above: repair the structure, keep two lanes each way, do not change the interchanges ({A(MAYOR, "NYC Mayor's Office")}, {A(BQEC, 'NYC DOT')}).</li>
+<li><b>2026, Mayor Mamdani: rehabilitate what is there.</b> {ANN}</li>
 </ul>
 <p><b>DOT's case for it.</b> In a September 23, 2026 opinion piece, DOT Commissioner Mike Flynn says of the plan, "It isn't ideal," and that it is not what anyone would do starting from scratch. His argument is that time has run out: "We have years left, not decades," and "We are out of options," because removing the highway or changing its ramps would need federal, state and city agreement and money that do not exist. He puts the cost of waiting at $160 million a year in escalation alone, and says a sudden closure would force 13,000 daily truck trips onto local Brooklyn streets ({A(FLYNN, 'Mike Flynn, Streetsblog, September 23, 2026')}).</p>
-<p><b>Trucks and the streets.</b> A truck leaving the BQE is supposed to stay on designated truck routes until it is close to its destination (see the truck route rules below and the {A(TRMAP, 'bkcb6.app truck routes map')}). None of the 103 truck route changes DOT set for October 4, 2026 is in Community District 6 ({A(CHGPDF, 'NYC DOT list of changes')}). What the public record shows about trucks on these streets, the counts, 311 complaints, tickets and crashes, follows, every figure linked to its source.</p>
-<p><b>What happens next.</b> DOT's schedule for the environmental review: scoping notice in September 2026, public scoping meetings in November 2026, a final scoping report early in 2027, a draft environmental impact statement with public meetings late in 2027, and the final statement early in 2028 ({A(BQEC, 'NYC DOT, BQE Central')}). DOT says the statement will study "construction, traffic, noise, air quality" and more. During scoping, "the public can comment on what the EIS should study" ({A(BQEC, 'NYC DOT')}).</p>
+
+<p><b>What happens next.</b> DOT's schedule for the environmental review: scoping notice in September 2026, public scoping meetings in November 2026, a final scoping report early in 2027, a draft environmental impact statement with public meetings late in 2027, and the final statement early in 2028 ({A(BQEC, 'NYC DOT, BQE Central')}).</p>
 
 </section>'''
 def cta_block():
-    return f'''<section class="ctatop" id="meetings"><div class="dotbrand"><a class="dbl" href="{BQEC}" target="_blank" rel="noopener"><img src="/assets/bqe/nycdot-logo.png" alt="New York City DOT" width="130" height="78"></a><div class="dbx"><a class="dbw" href="{BQEC}" target="_blank" rel="noopener"><img src="/assets/bqe/bqe-central-wordmark.png" alt="BQE Central" width="260" height="64"></a><p>This is a New York City Department of Transportation project. It is not a Community Board 6 project: DOT runs the plan, the meetings and the environmental review. This page gathers DOT\'s plans and meetings and the public record for residents.</p></div></div>
+    return f'''<section class="ctatop" id="meetings"><div class="dotbrand"><a class="dbl" href="{BQEC}" target="_blank" rel="noopener"><img src="/assets/bqe/nycdot-logo.png" alt="New York City DOT" width="130" height="78"></a><div class="dbx"><a class="dbw" href="{BQEC}" target="_blank" rel="noopener"><img src="/assets/bqe/bqe-central-wordmark.png" alt="BQE Central" width="260" height="64"></a><p>This is a New York City Department of Transportation project. It is not a Community Board 6 project: DOT runs the plan, the meetings and the environmental review.</p></div></div>
 <h2>Upcoming DOT meetings on BQE Central</h2>
 <div class="cta" id="comment"><ul class="mtg">
 <li><b>Tue, Oct 6</b><span>7 to 8 p.m. &middot; Virtual Q&amp;A</span><a class="ctalink" href="https://bit.ly/bqecentral-oct6" target="_blank" rel="noopener">Join</a></li>
 <li><b>Tue, Oct 13</b><span>4 to 7 p.m. &middot; In person, Brooklyn Heights Library, 286 Cadman Plaza West</span></li>
 <li><b>Thu, Oct 22</b><span>11 a.m. to noon &middot; Virtual Q&amp;A</span><a class="ctalink" href="https://bit.ly/bqecentral-oct22" target="_blank" rel="noopener">Join</a></li>
 </ul>
-<div class="ctat">DOT's BQE Central sessions ({A(BQEC, 'NYC DOT')}). The formal comment period on what the environmental review should study opens with scoping later this fall. DOT's Red Hook Transportation Issues map is open now ({A(FMRH, 'DOT')}).</div>
+<div class="ctat">Dates and links from {A(BQEC, 'NYC DOT')}.</div>
 <div class="ctab"><a class="ctabtn" href="{BQEC}" target="_blank" rel="noopener">BQE Central: sessions and how to comment &rarr;</a><a class="ctalink" href="{FMRH}" target="_blank" rel="noopener">Red Hook Transportation Issues map</a><a class="ctalink" href="https://portal.311.nyc.gov/" target="_blank" rel="noopener">Report a truck off its route to 311</a></div></div>
 </section>'''
 def twbar(KT):
@@ -82,7 +83,7 @@ def record(KB, KT, scope):
     return f'''<section class="sec" id="record"><h2>The record, block by block</h2>
 <p class="lede">Every street block in {sc['name']}, {fmt(len(bl))} blocks on {ns} streets, {fmt(ft)} feet (calculated from the {CS}), with every NYPD crash, 311 request, 311 truck route complaint and NYPD truck route or size and weight ticket recorded within 100 feet of it, each counted once, on its nearest block, for the time window chosen at the top of the page ({BJ}, {TJ}, built by {PY}). Pick any block, stretch or address in the Find bar above the map to see its own record.</p></section>
 <div id="k-tab"></div>
-<div class="sub2"><h3>Trucks: 311 complaints and NYPD tickets by month</h3><p>"Truck Route Violation" requests to 311 ({A('https://data.cityofnewyork.us/Social-Services/311-Service-Requests-from-2020-to-Present/erm2-nwe9', '311')}), and NYPD summonses under VTL 413 (truck routes) and VTL 385 (size and weight) ({A('https://data.cityofnewyork.us/Public-Safety/Moving-Violation-B-Summons-Historic-/bme5-7ty4', 'NYPD summonses, historic')} and {A('https://data.cityofnewyork.us/Public-Safety/Moving-Violation-B-Summons-Year-to-Date-/57p3-pdcj', 'year to date')}). The summons files begin in 2018 and run to {datetime.date.fromisoformat(KT['tk_last']).strftime('%B %-d, %Y')}; months after that show no tickets because none are published yet.</p></div>
+<div class="sub2"><h3>Trucks: 311 complaints and NYPD tickets by month</h3><p>"Truck Route Violation" requests to 311 ({A('https://data.cityofnewyork.us/Social-Services/311-Service-Requests-from-2020-to-Present/erm2-nwe9', '311')}), and NYPD summonses under VTL 413 (truck routes) and VTL 385 (size and weight) ({A('https://data.cityofnewyork.us/Public-Safety/Moving-Violation-B-Summons-Historic-/bme5-7ty4', 'NYPD summonses, historic')} and {A('https://data.cityofnewyork.us/Public-Safety/Moving-Violation-B-Summons-Year-to-Date-/57p3-pdcj', 'year to date')}). The summons files begin in 2018; months after they end (see the time window above) show no tickets because none are published yet.</p></div>
 <div class="chartbox" id="k-tm"></div>
 <div class="sub2"><h3>Crashes by month</h3><p>All crashes, and those where NYPD recorded a truck among the vehicles (any vehicle type NYPD recorded that names a truck, tractor, trailer, dump truck, tanker, box truck, flatbed, delivery, concrete, garbage or tow vehicle; pick-up trucks and SUVs are not counted) ({A('https://data.cityofnewyork.us/Public-Safety/Motor-Vehicle-Collisions-Crashes/h9gi-nx95', 'NYPD crashes')}).</p></div>
 <div class="chartbox" id="k-cm"></div>
@@ -99,7 +100,7 @@ def record(KB, KT, scope):
 <ul class="pts">
 <li><b>Blocks.</b> The street centerline between two cross streets as the city draws it ({CS}); pedestrian paths and highway ramps do not count as cross streets.</li>
 <li><b>100 feet.</b> This page's own choice, not a city definition: it reaches across each intersection and to the building fronts on both sides. Records within 100 feet of two blocks count on the nearer one, so the blocks add up.</li>
-<li><b>Neighborhoods.</b> The outlines used across bkcb6.app ({A('https://github.com/cb6brooklyn/bkcb6/blob/main/data/city-neighborhoods.geojson', 'city-neighborhoods.geojson')}), which are not official boundaries; a block belongs to the outline its midpoint is in.</li>
+
 <li><b>Districts.</b> From the city's boundary files; a block is assigned to the district its midpoint falls in, and a block a boundary runs through lists both.</li>
 </ul>'''
 def layers_panel():
@@ -149,6 +150,15 @@ def apply(page, scope):
     page = page.replace(':escH(ci.lbl))', ':kCdLab(ci.lbl))')
     page = page.replace('function drawNb(){', 'function drawNb(){kNbReset();', 1)
     page = page.replace('if(z>=13){var c=L.geoJSON(f).getBounds().getCenter();', 'if(z>=13){var c=L.geoJSON(f).getBounds().getCenter();if(!kNbOk(c,f.properties.nb))return;', 1)
+    # the top bar: the road sign and bkcb6.app/bqe already say BQE, so the title does not repeat it
+    if scope == 'cb6':
+        page = re.sub(r'<div class="top-txt"><h1>The <span>BQE</span></h1><p>.*?</p></div>', '<div class="top-txt"><h1 class="ksr">The BQE</h1></div>', page, count=1)
+    else:
+        page = re.sub(r'<div class="top-txt"><h1>The BQE &amp; Trucks in <span>Carroll Gardens &amp; Gowanus</span></h1><p>.*?</p></div>', '<div class="top-txt"><h1>Trucks in <span>Carroll Gardens &amp; Gowanus</span></h1></div>', page, count=1)
+    # nothing said twice
+    import importlib.util as _iu
+    _sp = _iu.spec_from_file_location('dedupe', os.path.join(HERE, 'dedupe.py')); _dd = _iu.module_from_spec(_sp); _sp.loader.exec_module(_dd)
+    page = _dd.run(page, scope)
     # NYC DOT branding last, so it wins over the host styles
     b = page.rindex('</body>')
     page = page[:b] + '<style>' + open(os.path.join(HERE, 'dot_theme.css')).read() + '</style>\n' + page[b:]
