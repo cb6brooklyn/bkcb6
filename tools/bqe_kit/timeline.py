@@ -104,7 +104,7 @@ PLANS = [
 def plans():
     n = sum(len(p[2]) for p in PLANS)
     cols = ''.join('<div class="plc"><b>%s</b><span class="k">%s</span><ul>%s</ul></div>' % (m, yrs, ''.join('<li><span class="pd">%s</span> %s<br><span class="k">%s</span></li>' % (d, A(u, H.escape(t)), H.escape(w)) for d, t, u, w in items)) for m, yrs, items in PLANS)
-    return f'''<details class="plans" open><summary><h3>Every official plan and report, by mayor ({n})</h3><span>Each links to the document itself</span></summary><div class="plg">{cols}</div></details>'''
+    return f'''<details class="plans"><summary><h3>Every official plan and report, by mayor ({n})</h3><span>Each links to the document itself</span></summary><div class="plg">{cols}</div></details>'''
 
 # ---- one scrollable timeline, from Moses to Mamdani (same pattern as the Gowanus rezoning timeline)
 ERA = {'built': ('#6b6760', 'Building the BQE'), 'moses': ('#0d1b4b', 'Robert Moses'), 'fed': ('#b91c1c', 'Federal'),
@@ -137,3 +137,37 @@ def scroller(y26):
 
 def film():
     return f'''<p class="k">The story on film: <i>The Story of the Brooklyn-Queens Expressway</i>, a 40-minute documentary by Adam Paul Susaneck of Segregation by Design, produced by the Institute for Public Architecture and NYU Schack, on how the highway's construction divided and displaced neighborhoods ({A(FILM, 'watch')}, {A(IPA, 'Institute for Public Architecture')}, {A(RPA, 'Regional Plan Association screening, November 5, 2025')}).</p>'''
+
+# ---- compact stepper: a track of short titles; one entry's detail open at a time
+def stepper(y26):
+    import re
+    rows = []
+    kinds = ['built', 'moses', 'built', 'built', 'built', 'fed', 'built']
+    for (y, lab, t), k in zip(BUILT, kinds): rows.append((k,) + _split(t))
+    fk = ['db', 'db', 'db', 'db', 'db', 'ad', 'ad', 'ad', 'ad', 'ad', 'mm', 'mm']
+    for (y, lab, t), k in zip(FIXING, fk): rows.append((k,) + _split(t if t else '<b>August 2026: Mamdani: rehabilitate what is there.</b> ' + y26))
+    rows.append(('next', 'Late 2026 to early 2028', 'The environmental review', f'''Scoping notice in September 2026, public scoping meetings in November 2026, a final scoping report early in 2027, a draft environmental impact statement with public meetings late in 2027, and the final statement early in 2028 ({A(BQEC, 'NYC DOT')}). This fall's sessions are at the top of the page.'''))
+    rows.append(('next', '2029 or 2030 to 2040', 'Construction', f'''DOT expects construction "to begin in 2029 and finish by 2040" ({A(BQEC, 'NYC DOT')}); the Mayor's Office says it will "break ground in 2030" ({A(MAYOR, "NYC Mayor's Office")}).'''))
+    def yr(d):
+        m = re.findall(r'(\d{4})', d); return m[0] if m else ''
+    # era groups across the top
+    groups, last = [], None
+    ENAME = {'built': 'Moses builds it, 1937 to 1964', 'moses': 'Moses builds it, 1937 to 1964', 'fed': 'Moses builds it, 1937 to 1964', 'db': 'Mayor de Blasio', 'ad': 'Mayor Adams', 'mm': 'Mayor Mamdani', 'next': 'Next'}
+    ECOL = {'Moses builds it, 1937 to 1964': '#0d1b4b', 'Mayor de Blasio': '#64748b', 'Mayor Adams': '#0f766e', 'Mayor Mamdani': '#149a67', 'Next': '#b45309'}
+    for i, r in enumerate(rows):
+        n = ENAME[r[0]]
+        if n != last: groups.append([n, 0]); last = n
+        groups[-1][1] += 1
+    eras = ''.join('<span class="ser" style="width:%dpx;--ec:%s">%s</span>%s' % (n * 96 - 4, ECOL[g], g, '<span class="sgap" title="1964 to 2016">&hellip;</span>' if g.startswith('Moses') else '') for g, n in groups)
+    steps = []
+    for i, (k, d, title, body) in enumerate(rows):
+        c = ERA[k][0]; t = title[:1].upper() + title[1:]
+        steps.append('<button class="sst%s" data-i="%d" style="--c:%s" aria-controls="sdet-%d"><span class="sdot">%s</span><span class="stt">%s</span></button>%s' % (' on' if i == 0 else '', i, c, i, yr(d), H.escape(t), '<span class="sgap">&hellip;</span>' if i == 6 else ''))
+    dets = ''.join('<div class="sdet%s" id="sdet-%d" style="--c:%s"%s><span class="sdd">%s</span><h4>%s</h4><p>%s</p></div>' % (' on' if i == 0 else '', i, ERA[k][0], '' if i == 0 else ' hidden', H.escape(d), H.escape(title[:1].upper() + title[1:]), body) for i, (k, d, title, body) in enumerate(rows))
+    n = len(rows)
+    js = '''<script>(function(){var r=document.currentScript.parentNode,b=r.querySelectorAll('.sst'),d=r.querySelectorAll('.sdet'),c=r.querySelector('.scount'),cur=0;
+function go(i){if(i<0||i>=b.length)return;cur=i;b.forEach(function(x,j){x.classList.toggle('on',j===i);});d.forEach(function(x,j){x.hidden=j!==i;x.classList.toggle('on',j===i);});c.textContent=(i+1)+' of '+b.length;var s=r.querySelector('.strack'),e=b[i];s.scrollTo({left:e.offsetLeft-s.clientWidth/2+e.offsetWidth/2,behavior:'smooth'});}
+b.forEach(function(x){x.addEventListener('click',function(){go(+x.dataset.i);});});r.querySelector('.sprev').onclick=function(){go(cur-1);};r.querySelector('.snext').onclick=function(){go(cur+1);};
+r.addEventListener('keydown',function(e){if(e.key==='ArrowRight'){go(cur+1);e.preventDefault();}if(e.key==='ArrowLeft'){go(cur-1);e.preventDefault();}});})();</script>'''
+    return f'''<div class="stl" tabindex="0" aria-label="BQE timeline"><div class="strack"><div class="sin"><div class="seras">{eras}</div><div class="ssteps">{''.join(steps)}</div></div></div>
+<div class="sbox">{dets}<div class="snav"><button class="sprev" aria-label="Earlier">&larr; Earlier</button><span class="scount">1 of {n}</span><button class="snext" aria-label="Later">Later &rarr;</button></div></div>{js}</div>'''
