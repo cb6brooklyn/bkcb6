@@ -31,25 +31,31 @@ SCOPES = {
     'cb6': {'nbs': None, 'name': 'Community District 6', 'short': 'CB6', 'cds': ['306', '302', '307', '308'], 'page': '/BQE/'},
 }
 def intro(scope, KB, KT):
-    sc = SCOPES[scope]
-    ANN = (f'''On August 24, 2026, Mayor Zohran Mamdani announced an approximately $4 billion, 10-year rehabilitation of BQE Central, the city-owned stretch between Atlantic Avenue and Sands Street, keeping two lanes each way ({A(MAYOR, "NYC Mayor's Office")}). The details are in <a href="#plan">The city's plan for BQE Central</a> below.''' if scope == 'cb6' else f'''On August 24, 2026, Mayor Zohran Mamdani announced a rehabilitation of BQE Central, the city-owned section "between Atlantic Avenue and Sands Street," at about $4 billion, a 10-year project with groundbreaking in 2030, including repairs to the triple cantilever and two temporary bypass structures, one on Furman Street ({A(MAYOR, "NYC Mayor's Office, August 24, 2026")}). NYC DOT says "The highway will remain two lanes and will not expand, nor will interchanges be altered," and lists construction from 2029 to 2040 ({A(BQEC, 'NYC DOT, BQE Central')}).''')
-    where = 'Carroll Gardens and Gowanus' if scope == 'cg' else 'CB6'
+    here = 'Carroll Gardens and Gowanus' if scope == 'cg' else 'CB6'
+    if scope == 'cb6':
+        y26 = f'''An approximately $4 billion, 10-year rehabilitation of BQE Central that keeps two lanes each way and breaks ground in 2030 ({A(MAYOR, "NYC Mayor's Office")}). <a href="#plan">The plan in detail</a>.'''
+    else:
+        y26 = f'''An approximately $4 billion, 10-year rehabilitation of BQE Central that breaks ground in 2030, with two temporary bypasses, one on Furman Street ({A(MAYOR, "NYC Mayor's Office")}). DOT says "The highway will remain two lanes and will not expand, nor will interchanges be altered" ({A(BQEC, 'NYC DOT')}).'''
     return f'''<section class="intro" id="intro"><h2>The story so far</h2>
-<p class="introlede">In August the Mayor announced a plan to rebuild the city-owned stretch of the BQE. The environmental review that will shape it is only now starting, and no design or traffic plan for the streets around the highway has been published. In the meantime, this page gathers what is known about the BQE and the trucks that leave it for {where}: the history, the truck route rules, what DOT has counted, and what the public record shows block by block.</p>
-
-
-<div class="sub2"><h3>Plans under three mayors since 2018</h3></div>
-<ul class="pts">
-<li><b>2018, Mayor de Blasio: two options.</b> DOT proposed a "lane-by-lane reconstruction" or a "temporary 6-lane highway on the Promenade to expedite reconstruction," and favored the second. The Brooklyn Heights Association objected to "the loss of the Promenade for six or more years" ({A(BHA18, 'Brooklyn Heights Association, October 2, 2018')}).</li>
-<li><b>2019 to 2020: the expert panel.</b> The city convened an expert panel in 2019 ({A(DOTBQE, 'NYC DOT, BQE')}); it reported on the cantilever and its options in January 2020 ({A(PANEL, 'BQE Expert Panel Report')}).</li>
-<li><b>2021, Mayor de Blasio: keep it standing for 20 years.</b> "On August 4, 2021 Mayor Bill de Blasio and NYC DOT Commissioner Hank Gutman released a comprehensive plan to extend the life of the Brooklyn-Queens Expressway (BQE) cantilever for at least another 20 years." DOT cut the half mile from about Atlantic Avenue to the Brooklyn Bridge "from three lanes in each direction to two lanes" ({A(DOTBQE, 'NYC DOT, BQE')}). The plan also called for "weigh-in-motion" technology to issue summonses to overweight trucks ({A(SB21, 'Streetsblog, August 4, 2021')}).</li>
-<li><b>2022 to 2023, Mayor Adams: a re-envisioned BQE Central.</b> On December 13, 2022 the Mayor released "preliminary design concepts for a re-envisioned BQE Central, the city-owned section of the BQE from Atlantic Avenue to Sands Street," with "safety upgrades for pedestrians, drivers, and cyclists" and plans for "better connecting the Brooklyn Heights Promenade and Brooklyn Bridge Park," and said workshops in February 2023 would let the city "begin the federal environmental review process in Spring 2023" ({A(ADAMS22, "NYC Mayor's Office, December 13, 2022")}). DOT's feedback maps for BQE Central and BQE South from that round are now closed, with {A(FMC, '118')} and {A(FMS, '122')} comments.</li>
-<li><b>2026, Mayor Mamdani: rehabilitate what is there.</b> {ANN}</li>
-</ul>
-<p><b>DOT's case for it.</b> In a September 23, 2026 opinion piece, DOT Commissioner Mike Flynn says of the plan, "It isn't ideal," and that it is not what anyone would do starting from scratch. His argument is that time has run out: "We have years left, not decades," and "We are out of options," because removing the highway or changing its ramps would need federal, state and city agreement and money that do not exist. He puts the cost of waiting at $160 million a year in escalation alone, and says a sudden closure would force 13,000 daily truck trips onto local Brooklyn streets ({A(FLYNN, 'Mike Flynn, Streetsblog, September 23, 2026')}).</p>
-
-<p><b>What happens next.</b> DOT's schedule for the environmental review: scoping notice in September 2026, public scoping meetings in November 2026, a final scoping report early in 2027, a draft environmental impact statement with public meetings late in 2027, and the final statement early in 2028 ({A(BQEC, 'NYC DOT, BQE Central')}).</p>
-
+<p class="introlede">The city has been trying to fix the oldest stretch of the BQE for most of a decade. Three mayors have now put out plans for it: Bill de Blasio, Eric Adams and, this August, Zohran Mamdani.</p>
+<div class="sub2"><h3>What people may not know</h3></div>
+<div class="facts">
+<div class="fact"><b>The city owns only 1.5 miles of it.</b> The "approximately 1.5-mile City-owned section" runs from Atlantic Avenue to Sands Street. That is BQE Central, and it is the only part these plans cover ({A(BQEC, 'NYC DOT')}). The rest of the BQE in Brooklyn, including the stretch through {here}, is state-owned ({A(BQEV, 'BQE Corridor Vision')}).</div>
+<div class="fact"><b>The triple cantilever is a stacked highway.</b> For 0.4 miles, BQE Central is "two levels of highway with the Brooklyn Heights Promenade above and a local street, Furman Street, below" ({A(BQEC, 'NYC DOT')}).</div>
+<div class="fact"><b>It is past its design life.</b> DOT says the structure is "more than 70 years old" ({A(BQEC, 'NYC DOT')}).</div>
+<div class="fact"><b>Why it matters in {here}.</b> Limits on BQE Central, fewer lanes and weight enforcement, can push traffic off the highway and onto local streets. The rest of this page is what the public record shows about trucks on these streets.</div>
+</div>
+<div class="sub2"><h3>Three mayors, one stretch of highway</h3></div>
+<ol class="tl">
+<li><span class="ty">2018</span><div><b>De Blasio: rebuild it, maybe by closing the Promenade.</b> DOT offered a "lane-by-lane reconstruction" or a "temporary 6-lane highway on the Promenade," and favored the second. Brooklyn Heights pushed back over "the loss of the Promenade for six or more years" ({A(BHA18, 'Brooklyn Heights Association')}).</div></li>
+<li><span class="ty">2019 to 2020</span><div><b>An expert panel.</b> The city convened a panel in 2019 ({A(DOTBQE, 'NYC DOT')}); its January 2020 report recommended cutting the highway to two lanes each way ({A(PANEL, 'BQE Expert Panel Report, p. 18')}).</div></li>
+<li><span class="ty">2021</span><div><b>De Blasio: keep it standing for 20 years.</b> A plan "to extend the life of the Brooklyn-Queens Expressway (BQE) cantilever for at least another 20 years," and the half mile from about Atlantic Avenue to the Brooklyn Bridge went "from three lanes in each direction to two lanes" ({A(DOTBQE, 'NYC DOT')}). It also called for "weigh-in-motion" sensors to ticket overweight trucks ({A(SB21, 'Streetsblog')}); they began enforcing in November 2023 ({A(AMNY, 'amNY')}).</div></li>
+<li><span class="ty">2022 to 2023</span><div><b>Adams: re-envision BQE Central.</b> "Preliminary design concepts for a re-envisioned BQE Central," with safety upgrades and better links between the Promenade and Brooklyn Bridge Park, and a plan to start the federal environmental review in spring 2023 ({A(ADAMS22, "NYC Mayor's Office")}). DOT's 2023 feedback maps drew {A(FMC, '118')} comments on BQE Central and {A(FMS, '122')} on BQE South.</div></li>
+<li><span class="ty">2026</span><div><b>Mamdani: rehabilitate what is there.</b> {y26}</div></li>
+<li><span class="ty">Sept. 2026</span><div><b>DOT makes its case.</b> Commissioner Mike Flynn wrote that the plan "isn't ideal" but that "We have years left, not decades" and "We are out of options," since removing the highway or changing its ramps would need federal, state and city agreement and money that do not exist ({A(FLYNN, 'Streetsblog')}).</div></li>
+</ol>
+<div class="sub2"><h3>What happens next</h3></div>
+<p>DOT's environmental review: scoping notice in September 2026, public scoping meetings in November 2026, a final scoping report early in 2027, a draft environmental impact statement with public meetings late in 2027, and the final statement early in 2028 ({A(BQEC, 'NYC DOT')}). This fall's sessions are listed at the top of the page.</p>
 </section>'''
 def cta_block():
     return f'''<section class="ctatop" id="meetings"><div class="dotbrand"><a class="dbl" href="{BQEC}" target="_blank" rel="noopener"><img src="/assets/bqe/nycdot-logo.png" alt="New York City DOT" width="130" height="78"></a><div class="dbx"><a class="dbw" href="{BQEC}" target="_blank" rel="noopener"><img src="/assets/bqe/bqe-central-wordmark.png" alt="BQE Central" width="260" height="64"></a></div></div>
@@ -124,15 +130,10 @@ def apply(page, scope):
     ms = page.index('<div class="map-shell">'); ms_end = page.index('</div></div>', ms) + 12
     page = page[:ms_end] + '\n' + layers_panel() + page[ms_end:]
     # move the Find bar, map and layers to the top: after the top bar, behind the meetings box, with the time window
-    fb = page.index('<div class="findbar">'); fe = page.index('<section class="sec"', page.index('<div class="map-shell">'))
+    fb = page.index('<div class="findbar">'); fe = page.index('<section', page.index('<div class="map-shell">'))
     seg = page[fb:fe]; page = page[:fb] + page[fe:]
     top = page.index('<section', page.index('class="top-bar"'))
-    page = page[:top] + cta_block() + '\n' + seg + '\n' + twbar(KT) + '\n' + page[top:]
-    # the story so far: after Mike's note if present, else before the key numbers
-    if 'class="mnote"' in page: anchor = page.index('</section>', page.index('class="mnote"')) + 10
-    elif '<section class="mstrip"' in page: anchor = page.index('<section class="mstrip"')
-    else: anchor = page.index('<section class="sec"')
-    page = page[:anchor] + '\n' + intro(scope, KB, KT) + '\n' + page[anchor:]
+    page = page[:top] + cta_block() + '\n' + seg + '\n' + twbar(KT) + '\n' + intro(scope, KB, KT) + '\n' + page[top:]
     # the record before Sources
     s = page.index('<section class="sec" id="sources">')
     page = page[:s] + record(KB, KT, scope) + '\n' + page[s:]
