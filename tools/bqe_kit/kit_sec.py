@@ -123,7 +123,7 @@ def config(KB, scope):
     for f in L['districts']['features']:
         k, i = f['properties']['k'], f['properties']['id']; lg = logo(k, i)
         D.setdefault(k, {})[i] = [dname(k, i), lg if lg and os.path.exists(ROOT + lg) else '']
-    return 'var KSCOPE=%s;var KDIST=%s;\n' % (json.dumps({'id': scope, 'nbs': SCOPES[scope]['nbs'], 'name': SCOPES[scope]['name'], 'cds': SCOPES[scope]['cds'], 'cdOn': scope == 'cg'}), json.dumps(D))
+    return 'var KSCOPE=%s;var KDIST=%s;\n' % (json.dumps({'id': scope, 'nbs': SCOPES[scope]['nbs'], 'name': SCOPES[scope]['name'], 'cds': SCOPES[scope]['cds'], 'cdOn': True}), json.dumps(D))
 def apply(page, scope):
     KB = json.load(open(f'{ROOT}/data/bqe/kit/blocks.json')); KT = json.load(open(f'{ROOT}/data/bqe/kit/ts.json'))
     css = open(os.path.join(HERE, 'kit.css')).read()
@@ -183,6 +183,20 @@ def apply(page, scope):
         page = page[:i] + '<details class="lwrap"><summary><h2>Find a street</h2><span>Any borough, by cross streets</span></summary>' + page[i:j] + '</details>' + page[j:]
     if '<nav class="toc">' in page:
         i = page.index('<nav class="toc">'); j = page.index('</nav>', i) + 6; page = page[:i] + page[j:]
+    # the map opens with only the BQE and CB6; the BQE is marked with the I-278 sign
+    SIGN = '<img class="bqesignmk" src="/assets/bqe/bqe-road-sign.jpg" alt="I-278 Brooklyn-Queens Expressway">'
+    if scope == 'cg':
+        page = re.sub(r"def\('(?!bqes')(\w+)',\{([^}]*?)on:true\}\)", lambda m: "def('%s',{%son:false})" % (m.group(1), m.group(2)), page)
+        old = "html:'<div class=\"bqeb\"><img src=\"/site-icons/bqe-64.png\" alt=\"\"><div><b>'+t+'</b><span>'+sub+'</span></div></div>'"
+        assert old in page
+        page = page.replace(old, "html:'<div class=\"bqeb bqeb-sign\" title=\"'+sub.replace(/<br>/g,' · ')+'\">" + SIGN.replace("'", "\\'") + "</div>'")
+    else:
+        old = "function drawBQE(){bqeGroup.clearLayers();if(!LINES)return;"
+        assert old in page
+        page = page.replace(old, old + "L.geoJSON(LINES,{pane:'bqe',interactive:false,filter:function(f){var p=f.properties;return SECON[p.sec]&&p.k==='main';},style:{color:'#fff',weight:13,opacity:.95,lineCap:'round'}}).addTo(bqeGroup);", 1)
+        page = page.replace("return p.k==='main'?{color:c,weight:6,opacity:.9,lineCap:'round'}", "return p.k==='main'?{color:c,weight:8,opacity:1,lineCap:'round'}", 1)
+        for k in ('north', 'central', 'south'):
+            page = page.replace("%s:'BQE %s" % (k, k.capitalize()), "%s:'%sBQE %s" % (k, SIGN.replace("'", "\\'"), k.capitalize()), 1)
     # NYC DOT branding last, so it wins over the host styles
     b = page.rindex('</body>')
     page = page[:b] + '<style>' + open(os.path.join(HERE, 'dot_theme.css')).read() + '</style>\n' + page[b:]

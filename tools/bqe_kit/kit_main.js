@@ -220,6 +220,6 @@ var J=function(u){return fetch(u).then(function(r){if(!r.ok)throw new Error(u);r
 Promise.all([J('/data/bqe/kit/layers.json'),J('/data/bqe/kit/blocks.json'),J('/data/bqe/kit/ts.json'),J('/data/bqe/kit/daily.json')]).then(function(a){KL=a[0];KB=a[1];KT=a[2];KD=a[3];
   KB.blocks.forEach(function(b,i){if(!KSCOPE.nbs||KSCOPE.nbs.indexOf(b.nb)>=0){KIN.push(i);INSET[i]=1;}});
   CF=lastFull(KT.crash_last,KT.crash_months);SF=lastFull(KT.s311_last,KT.s311_months);
-  mkLayers();kBuild();setWin('12');KORD.forEach(kApply);fillStreets();renderAll();if(window.kSwapSwatches)kSwapSwatches(document);
+  mkLayers();kBuild();setWin('12');KORD.forEach(kApply);fillStreets();renderAll();if(KSCOPE.id==='cb6'){['togBqeCnt','togRamps','togStCnt','togComplaints','togNb','togBounds'].forEach(function(f){document.querySelectorAll('#layers button.active[onclick^="'+f+'("]').forEach(function(b){try{b.click();}catch(e){}});});}if(window.kSwapSwatches)kSwapSwatches(document);
 }).catch(function(e){var el=document.getElementById('k-tab');if(el)el.innerHTML='<p class="k">The block data could not be loaded.</p>';if(window.console)console.error(e);});
 })();
