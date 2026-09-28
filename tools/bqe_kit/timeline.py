@@ -40,8 +40,8 @@ FIXING = [
  (2018.75, 'Two options, one on the Promenade', f'''<b>2018: two options.</b> DOT offered a "lane-by-lane reconstruction" or a "temporary 6-lane highway on the Promenade," and favored the second; the Brooklyn Heights Association objected to "the loss of the Promenade for six or more years" ({A(BHA18, 'Brooklyn Heights Association')}).'''),
  (2019.3, 'Expert panel convened', f'''<b>2019: an expert panel.</b> The city convened an expert panel to review the options ({A(DOTBQE, 'NYC DOT')}).'''),
  (2020.05, 'Panel report', f'''<b>January 2020: the panel reports.</b> It recommended cutting the highway to two lanes each way ({A(PANEL, 'BQE Expert Panel Report, p. 18')}).'''),
- (2021.6, 'De Blasio 20-year plan; two lanes', f'''<b>August 2021: a 20-year fix.</b> A plan "to extend the life of the Brooklyn-Queens Expressway (BQE) cantilever for at least another 20 years" ({A(DOTBQE, 'NYC DOT')}); on August 30, 2021 the lanes from Atlantic Avenue to the Brooklyn Bridge went from three to two each way ({A(DOT21, 'NYC DOT')}). The plan also called for "weigh-in-motion" sensors ({A(SB21, 'Streetsblog')}).'''),
- (2022.95, 'Adams design concepts', f'''<b>December 2022: a re-envisioned BQE Central.</b> The Adams administration released "preliminary design concepts for a re-envisioned BQE Central" ({A(ADAMS22, "NYC Mayor's Office")}).'''),
+ (2021.6, 'De Blasio 20-year plan; two lanes', f'''<b>August 2021: de Blasio's 20-year fix.</b> A plan "to extend the life of the Brooklyn-Queens Expressway (BQE) cantilever for at least another 20 years" ({A(DOTBQE, 'NYC DOT')}); on August 30, 2021 the lanes from Atlantic Avenue to the Brooklyn Bridge went from three to two each way ({A(DOT21, 'NYC DOT')}). The plan also called for "weigh-in-motion" sensors ({A(SB21, 'Streetsblog')}).'''),
+ (2022.95, 'Adams design concepts', f'''<b>December 2022: Adams re-envisions BQE Central.</b> The Adams administration released "preliminary design concepts for a re-envisioned BQE Central" ({A(ADAMS22, "NYC Mayor's Office")}).'''),
  (2023.16, 'Three refined designs', f'''<b>February 2023: three designs.</b> DOT showed "The Terraces, The Lookout, and The Stoop" and announced "a comprehensive traffic study of both two- and three-lane configurations" ({A(DOT23, 'NYC DOT')}). Its feedback maps drew {A(FMC, '118')} comments on BQE Central and {A(FMS, '122')} on BQE South.'''),
  (2023.87, 'Weight enforcement begins', f'''<b>November 2023: weight enforcement.</b> Sensors on BQE Central began ticketing overweight trucks ({A(AMNY, 'amNY')}).'''),
  (2024.8, 'North and South report', f'''<b>October 2024: the state-owned sections.</b> DOT's BQE North and South report proposed "streetscape and intersection redesigns, dedicated bike and bus infrastructure, highway capping, and new plazas" ({A(NSREP, 'NYC DOT')}).'''),
@@ -105,3 +105,35 @@ def plans():
     n = sum(len(p[2]) for p in PLANS)
     cols = ''.join('<div class="plc"><b>%s</b><span class="k">%s</span><ul>%s</ul></div>' % (m, yrs, ''.join('<li><span class="pd">%s</span> %s<br><span class="k">%s</span></li>' % (d, A(u, H.escape(t)), H.escape(w)) for d, t, u, w in items)) for m, yrs, items in PLANS)
     return f'''<details class="plans" open><summary><h3>Every official plan and report, by mayor ({n})</h3><span>Each links to the document itself</span></summary><div class="plg">{cols}</div></details>'''
+
+# ---- one scrollable timeline, from Moses to Mamdani (same pattern as the Gowanus rezoning timeline)
+ERA = {'built': ('#6b6760', 'Building the BQE'), 'moses': ('#0d1b4b', 'Robert Moses'), 'fed': ('#b91c1c', 'Federal'),
+       'db': ('#64748b', 'Mayor de Blasio'), 'ad': ('#0f766e', 'Mayor Adams'), 'mm': ('#149a67', 'Mayor Mamdani'), 'next': ('#b45309', 'Next')}
+def _split(t):
+    import re
+    m = re.match(r'<b>(.*?)</b>\s*(.*)$', t, flags=re.S); lead, body = m.group(1), m.group(2)
+    d, _, title = lead.partition(': ')
+    return d, title.rstrip('.'), body
+def scroller(y26):
+    rows = []
+    kinds = ['built', 'moses', 'built', 'built', 'built', 'fed', 'built']
+    for (y, lab, t), k in zip(BUILT, kinds): rows.append((k,) + _split(t))
+    fk = ['db', 'db', 'db', 'db', 'db', 'ad', 'ad', 'ad', 'ad', 'ad', 'mm', 'mm']
+    for (y, lab, t), k in zip(FIXING, fk): rows.append((k,) + _split(t if t else '<b>August 2026: Mamdani: rehabilitate what is there.</b> ' + y26))
+    rows.append(('next', 'Late 2026 to early 2028', 'The environmental review', f'''Scoping notice in September 2026, public scoping meetings in November 2026, a final scoping report early in 2027, a draft environmental impact statement with public meetings late in 2027, and the final statement early in 2028 ({A(BQEC, 'NYC DOT')}). This fall's sessions are at the top of the page.'''))
+    rows.append(('next', '2029 or 2030 to 2040', 'Construction', f'''DOT expects construction "to begin in 2029 and finish by 2040" ({A(BQEC, 'NYC DOT')}); the Mayor's Office says it will "break ground in 2030" ({A(MAYOR, "NYC Mayor's Office")}).'''))
+    COL, TRACK, PAD = 170, 300, 140
+    cols = []
+    for i, (k, d, title, body) in enumerate(rows):
+        c = ERA[k][0]; cx = PAD + COL * i + COL // 2; above = i % 2 == 0
+        seg = '<span class="bseg" style="left:%dpx;width:%dpx;background:%s"></span>' % (PAD + COL * i, COL, c)
+        stem = '<span class="bstem %s" style="left:%dpx;background:%s"></span>' % ('up' if above else 'dn', cx - 1, c)
+        dot = '<span class="bdot" style="left:%dpx;background:%s" title="%s">%s</span>' % (cx - 22, c, H.escape(d), H.escape(d.split(' ')[-1].split('to')[0].strip()[-4:]) if any(ch.isdigit() for ch in d) else '')
+        card = '<div class="bcard %s" style="left:%dpx;--c:%s"><span class="bdate">%s</span><b>%s</b><p>%s</p></div>' % ('up' if above else 'dn', cx - 150, c, H.escape(d), H.escape(title[:1].upper() + title[1:]), body)
+        cols.append(seg + stem + dot + card)
+    legend = ''.join('<span><i style="background:%s"></i>%s</span>' % v for v in ERA.values())
+    w = COL * len(rows) + 2 * PAD
+    return f'''<div class="bqetl"><div class="blg">{legend}</div><div class="bscroll" tabindex="0" aria-label="BQE timeline, scroll sideways"><div class="btrack" style="min-width:{w}px;width:{w}px"><span class="bbar"></span>{''.join(cols)}</div></div><p class="k">Scroll sideways for the whole story, 1937 to 2040.</p></div>'''
+
+def film():
+    return f'''<p class="k">The story on film: <i>The Story of the Brooklyn-Queens Expressway</i>, a 40-minute documentary by Adam Paul Susaneck of Segregation by Design, produced by the Institute for Public Architecture and NYU Schack, on how the highway's construction divided and displaced neighborhoods ({A(FILM, 'watch')}, {A(IPA, 'Institute for Public Architecture')}, {A(RPA, 'Regional Plan Association screening, November 5, 2025')}).</p>'''
