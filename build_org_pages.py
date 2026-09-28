@@ -298,7 +298,7 @@ TPL = """<!DOCTYPE html>
     </div></details>
   </div>
 
-{events}{doessec}
+{events}{numsec}{doessec}
 {extra}
   <div class="sec"><h2>Contact</h2><div class="bio"><ul class="kv">
     {addrli}
@@ -357,7 +357,7 @@ EVJS = r"""
    clock and not just the date, so an event that started earlier today has
    already dropped off by the evening and the next one has taken its place. */
 (function(){
-  var ORG='__EVORG__', HREF='__EVHREF__', NAME='__EVNAME__', LOGO='/site-icons/__SLUG__.png', ALSO=__EVALSO__;
+  var ORG='__EVORG__', HREF='__EVHREF__', NAME='__EVNAME__', LOGO='/site-icons/__SLUG__.png', ALSO=__EVALSO__, LOC=__EVLOC__;
   var slot=document.getElementById('orgEvents'), more=document.getElementById('orgMore');
   if(!slot) return;
   var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -401,6 +401,7 @@ EVJS = r"""
     function add(date, ev){
       if(!ev || !ev.label) return;
       if(ev.type!==ORG && !ALSO.some(function(a){ return String(ev.label).toLowerCase().indexOf(a.toLowerCase())!==-1; })) return;
+      if(LOC && String(ev.location||'').toLowerCase().indexOf(LOC.toLowerCase())===-1) return;
       var k=date+'|'+String(ev.label).replace(/\s+/g,' ').trim().toLowerCase();
       if(seen[k]) return; seen[k]=1;
       rows.push({date:date, title:ev.label, time:ev.time||'', loc:ev.location||'', href:ev.href||'', link:ev.linkText||'', desc:ev.desc||''});
@@ -441,7 +442,7 @@ EVJS = r"""
 </script>
 """
 
-for _f in ('org-profiles-cal.json', 'gov-profiles.json'):
+for _f in ('org-profiles-cal.json', 'gov-profiles.json', 'place-profiles.json'):
     _extra = os.path.join(ROOT, 'data', _f)
     if os.path.exists(_extra):
         ORGS += json.load(open(_extra, encoding='utf-8'))
@@ -473,7 +474,7 @@ for o in ORGS:
                   '<div class="secnote" id="orgMore"></div></div>\n\n') % o['evtitle']
         evjs = (EVJS.replace('__EVORG__', o['evorg']).replace('__EVHREF__', o['evhref'])
                 .replace('__EVNAME__', o['evname']).replace('__SLUG__', o['slug'])
-                .replace('__EVALSO__', json.dumps(o.get('evalso', []))))
+                .replace('__EVALSO__', json.dumps(o.get('evalso', []))).replace('__EVLOC__', json.dumps(o.get('evloc', ''))))
     doesbtns = ('<div class="contact">' + cbtns(o['does_btns']) + '</div>') if o.get('does_btns') else ''
     extra = ''.join(
         '\n  <div class="sec"><h2>%s</h2><div class="contact" style="margin-top:0">%s</div></div>\n' % (title, cbtns(items))
@@ -523,7 +524,9 @@ for o in ORGS:
     doessec = ('  <div class="sec"><h2>%s</h2><div class="bio">%s%s</div></div>' % (does_title, does, doesbtns)) if (o.get('does') or doesbtns) else ''
     if not o.get('addr') and o.get('addr_note'):
         note = ''
-    fields.update(addrli=addrli, webli=webli, doessec=doessec)
+    numsec = ('  <div class="sec"><h2>By the numbers</h2><div class="bio"><div class="stats">%s</div></div></div>\n' % ''.join(
+        '<div class="stat"><div class="sv">%s</div><div class="sl">%s</div></div>' % (v, l) for v, l in o['nums'])) if o.get('nums') else ''
+    fields.update(addrli=addrli, webli=webli, doessec=doessec, numsec=numsec)
     fields.update(intro=intro, does=does, note=note, phone=phone, email=email,
                   kv=kv, links=links, mapjs=MAPJS, events=events, evjs=evjs,
                   doesbtns=doesbtns, extra=extra, flyer=flyer, going=going, ogmeta=ogmeta, brandcss=brandcss, does_title=does_title, sig=sig,
