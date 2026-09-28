@@ -397,10 +397,11 @@ body.embed .wrap{padding:10px}
 .dash-g{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 @media(min-width:720px){.dash-g{grid-template-columns:repeat(3,1fr)}}
 .dash-t{display:flex;flex-direction:column;gap:3px;background:#fff;border-radius:10px;padding:10px;text-decoration:none;color:#1f2733;border-top:3px solid #f47920}
-.dash-k{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:#475569}
+.dash-k{font-size:12px;font-weight:800;color:#0d1b4b}
 .dash-v{font-size:22px;font-weight:800;color:#0d1b4b;line-height:1.1}
 .dash-v.sm{font-size:14px;line-height:1.3}
 .dash-s{font-size:11.5px;line-height:1.35;color:#475569}
+.dash-n{font-size:11.5px;line-height:1.4;color:#c7d3e1;margin-top:8px}
 </style>
 <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b6e9b47ba0cf416388d72db8edaf4198"}'></script><!-- End Cloudflare Web Analytics -->
 </head>
@@ -416,30 +417,17 @@ body.embed .wrap{padding:10px}
 </header>
 <div class="wrap">
 <div class="dash" id="stormDash">
-<div class="dash-h">Nor&rsquo;easter at a glance</div>
-<div class="dash-g">
-<a class="dash-t" href="#wxStorm"><span class="dash-k">Rain since Friday</span><span class="dash-v" id="dRain">&hellip;</span><span class="dash-s" id="dRainS">Open-Meteo estimate for CB6</span></a>
-<a class="dash-t" href="#wxStorm"><span class="dash-k">Peak gust</span><span class="dash-v" id="dGust">&hellip;</span><span class="dash-s" id="dGustS">Open-Meteo estimate for CB6</span></a>
-<a class="dash-t" href="#st311"><span class="dash-k">Storm 311 reports in CB6</span><span class="dash-v" id="d311">&hellip;</span><span class="dash-s" id="d311S">Flooding, trees and storm damage since Friday</span></a>
-<a class="dash-t" href="#st311"><span class="dash-k">Flooding and sewer reports</span><span class="dash-v" id="d311F">&hellip;</span><span class="dash-s">Street flooding, manhole overflows and sewer backups in CB6 since Friday</span></a>
-<a class="dash-t" href="#st311"><span class="dash-k">Tree damage reports</span><span class="dash-v" id="d311T">&hellip;</span><span class="dash-s">Downed and cracked trees and limbs, branches on power lines and storm debris in CB6 since Friday</span></a>
-<a class="dash-t" href="#transit"><span class="dash-k">Trains &amp; buses</span><span class="dash-v sm" id="dTr">&hellip;</span><span class="dash-s">MTA service in CB6 right now</span></a>
-</div>
+<div class="dash-h">Nor&rsquo;easter rain and peak gusts since Friday</div>
+<div class="dash-g" id="dHoods"></div>
+<div class="dash-n" id="dNote">Loading Open-Meteo estimates&hellip;</div>
 </div>
 <script>
 (function(){
-  var S={};
-  function tm(x){return new Date(x).toLocaleString("en-US",{weekday:"short",hour:"numeric",minute:"2-digit"});}
-  function set(id,t){var el=document.getElementById(id);if(el&&t!=null)el.textContent=t;}
-  window.cb6Dash=function(o){for(var k in o)S[k]=o[k];
-    if(S.rain){set("dRain",S.rain[0]===S.rain[1]?S.rain[0].toFixed(2)+" in":S.rain[0].toFixed(2)+" to "+S.rain[1].toFixed(2)+" in");set("dRainS","Open-Meteo estimate for CB6 neighborhoods. The forecast called for 1 to 1.5 inches.");}
-    if(S.gust){set("dGust",Math.round(S.gust.v)+" mph");set("dGustS","Open-Meteo estimate for CB6, around "+new Date(S.gust.t).toLocaleString("en-US",{weekday:"short",hour:"numeric"})+".");}
-    if(S.s311){set("d311",S.s311.n);set("d311F",S.s311.c.flood||0);set("d311T",S.s311.c.tree||0);set("d311S","All storm-related reports filed since Friday afternoon, posted through "+tm(S.s311.latest)+".");}
+  window.cb6Dash=function(o){
+    if(!o.hoods)return;
+    document.getElementById("dHoods").innerHTML=o.hoods.map(function(h){return '<a class="dash-t" href="#wxStorm"><span class="dash-k">'+h.n+'</span><span class="dash-v">'+h.rain.toFixed(2)+' in</span><span class="dash-s">Gusts up to '+Math.round(h.gust)+' mph</span></a>';}).join("");
+    document.getElementById("dNote").textContent="Open-Meteo estimates from Friday, Sept 25 through "+o.at+". Tap a neighborhood for the day-by-day rain and hour-by-hour wind.";
   };
-  function watch(src,fn){var el=document.getElementById(src);if(!el)return;fn();new MutationObserver(fn).observe(el,{childList:true,characterData:true,subtree:true});}
-  document.addEventListener("DOMContentLoaded",function(){
-    watch("trHead",function(){var t=document.getElementById("trHead").textContent.trim();if(t&&!/Checking/i.test(t))set("dTr",t);});
-  });
 })();
 </script>
 <div id="codeRedBanner" class="banner codered topbanner" style="display:none">
@@ -1181,8 +1169,8 @@ window.addEventListener("hashchange",handleAnchor);
       var hi=STORM[hs[0]].total,lo=STORM[hs[hs.length-1]].total;
       var dl=function(k){return new Date(k+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});};
       var gmax=0,wmax=0,gb=null;hs.forEach(function(n){if(!gb||STORM[n].pg.v>gb.v)gb=STORM[n].pg;gmax=Math.max(gmax,STORM[n].pg.v);wmax=Math.max(wmax,STORM[n].pw.v);});
-      if(window.cb6Dash)cb6Dash({rain:[lo,hi],gust:gb});
-      document.getElementById("wxStormSum").textContent="From Friday, Sept 25 through "+now.toLocaleString("en-US",{weekday:"short",hour:"numeric",minute:"2-digit"})+", Open-Meteo estimates CB6 neighborhoods got between "+inch(lo)+" and "+inch(hi)+" of rain (NYC Emergency Management had called for 1 to 1.5 inches), with sustained winds up to "+Math.round(wmax)+" mph and gusts up to "+Math.round(gmax)+" mph.";
+      if(window.cb6Dash)cb6Dash({at:now.toLocaleString("en-US",{weekday:"short",hour:"numeric",minute:"2-digit"}),hoods:names.filter(function(n){return STORM[n];}).map(function(n){return {n:FULLNAME[n]||n,rain:STORM[n].total,gust:STORM[n].pg.v};})});
+      document.getElementById("wxStormSum").textContent="NYC Emergency Management had called for 1 to 1.5 inches of rain.";
       var COLS=["#bae6fd","#38bdf8","#0284c7","#0c4a6e","#082f49"];
       var nm=function(n){return FULLNAME[n]||n;};
       if(window.Chart){
@@ -1191,10 +1179,8 @@ window.addEventListener("hashchange",handleAnchor);
           options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{font:{size:10},boxWidth:10}},tooltip:{callbacks:{label:function(c){return c.dataset.label+": "+c.parsed.x.toFixed(2)+" in";}}}},
           scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:"inches",font:{size:10}},ticks:{font:{size:9}}},y:{stacked:true,ticks:{font:{size:10}}}}}});
       }
-      var h="<table><tr><th>Neighborhood</th>"+days.map(function(k){return "<th>"+new Date(k+"T12:00:00").toLocaleDateString("en-US",{weekday:"short"})+"</th>";}).join("")+"<th>Rain</th><th>Wind</th><th>Gust</th></tr>";
-      hs.forEach(function(n){h+="<tr><td>"+nm(n)+"</td>"+days.map(function(k){return "<td>"+(STORM[n].byDay[k]||0).toFixed(2)+"</td>";}).join("")+"<td class='tot'>"+STORM[n].total.toFixed(2)+"</td><td>"+Math.round(STORM[n].pw.v)+"</td><td>"+Math.round(STORM[n].pg.v)+"</td></tr>";});
       var pg0=STORM[hs[0]].pg;
-      document.getElementById("wxStormTb").innerHTML=h+"</table><div class='wx-storm-src' style='margin-top:6px'>Rain in inches. Wind is the highest hourly sustained wind and gust, in mph. The strongest gusts came around "+new Date(pg0.t).toLocaleString("en-US",{weekday:"short",hour:"numeric"})+" from the "+cmp(pg0.d)+".</div>";
+      document.getElementById("wxStormTb").innerHTML="<div class='wx-storm-src' style='margin-top:6px'>The strongest gusts came around "+new Date(pg0.t).toLocaleString("en-US",{weekday:"short",hour:"numeric"})+" from the "+cmp(pg0.d)+".</div>";
       if(window.Chart){
         if(windChart) windChart.destroy();
         var gl=Object.keys(grids).map(function(k){return grids[k];});var WC=["#0d1b4b","#f47920"];
@@ -1744,7 +1730,6 @@ document.getElementById("floodClear").addEventListener("click",function(){
     rows.forEach(function(r){r._c=cat(r);});
     if(!rows.length){sum.textContent="No nor’easter reports from CB6 have posted since Friday yet. New 311 reports reach the city’s open data about a day after they are filed.";return;}
     var counts={};CATS.forEach(function(c){counts[c.k]=0;});rows.forEach(function(r){counts[r._c.k]++;});
-    if(window.cb6Dash)cb6Dash({s311:{n:rows.length,c:counts,latest:rows[0].created_date,parts:CATS.filter(function(c){return counts[c.k];}).map(function(c){return counts[c.k]+" "+({flood:"flooding and sewers",tree:"trees and debris",street:"cave-ins",power:"lights, signals and signs"})[c.k];}).join(", ")}});
     sum.textContent=rows.length+" reports filed in CB6 from Friday afternoon, Sept 25, when the rain started, through "+d(rows[0].created_date)+". New 311 reports reach the city’s open data about a day after they are filed, so these numbers keep growing, and this page updates on its own as they come in.";
     document.getElementById("st311Cats").innerHTML=CATS.filter(function(c){return counts[c.k];}).map(function(c){return '<div class="st311-cat"><span class="s3ic" style="--rc:'+c.c+'"><img src="'+ICON+'" alt=""></span><span><b>'+counts[c.k]+'</b>'+c.n+'</span></div>';}).join("");
     // map
