@@ -426,7 +426,7 @@ body.embed .wrap{padding:10px}
   window.cb6Dash=function(o){
     if(!o.hoods)return;
     document.getElementById("dHoods").innerHTML=o.hoods.map(function(h){return '<a class="dash-t" href="#wxStorm"><span class="dash-k">'+h.n+'</span><span class="dash-v">'+h.rain.toFixed(2)+' in</span><span class="dash-s">Gusts up to '+Math.round(h.gust)+' mph</span></a>';}).join("");
-    document.getElementById("dNote").textContent="Open-Meteo estimates from Friday, Sept 25 through "+o.at+". Tap a neighborhood for the day-by-day rain and hour-by-hour wind.";
+    document.getElementById("dNote").innerHTML="Weather model estimates from Open-Meteo, Friday, Sept 25 through "+o.at+", not rain gauge readings. <a href='#wxGridNote' style='color:#f47920'>Where these numbers come from</a>.";
   };
 })();
 </script>
@@ -487,10 +487,9 @@ body.embed .wrap{padding:10px}
 <div class="wx-storm-sub">Wind and gusts, hour by hour</div>
 <div class="wx-storm-cv"><canvas id="wxWindChart"></canvas></div>
 <div class="wx-storm-src" id="wxWindKey" style="margin-top:6px"></div>
-<div class="wx-storm-sub">Measured at National Weather Service stations</div>
-<div class="wx-storm-sum" id="wxNwsSum">None of these stations is in CB6. They are the nearest official gauges.</div>
-<div class="wx-storm-tb" id="wxNwsTb">Loading station readings&hellip;</div>
-<div class="wx-storm-src">Neighborhood rain and wind: <a id="wxOmLink" href="https://open-meteo.com/en/docs" target="_blank" rel="noopener">Open-Meteo</a> model estimates. Station readings: National Weather Service, <a href="https://www.weather.gov/wrh/timeseries?site=KNYC" target="_blank" rel="noopener">Central Park</a>, <a href="https://www.weather.gov/wrh/timeseries?site=KJFK" target="_blank" rel="noopener">JFK</a>, <a href="https://www.weather.gov/wrh/timeseries?site=KLGA" target="_blank" rel="noopener">LaGuardia</a>.</div>
+<div class="wx-storm-sub">Where these numbers come from</div>
+<div class="wx-storm-sum" id="wxGridNote">These are estimates from a weather model, not rain gauges in each neighborhood.</div>
+<div class="wx-storm-src">Rain and wind: <a id="wxOmLink" href="https://open-meteo.com/en/docs" target="_blank" rel="noopener">Open-Meteo</a>.</div>
 </div>
 </div>
 </div>
@@ -1126,22 +1125,6 @@ window.addEventListener("hashchange",handleAnchor);
   }
   var STORM={},stormChart=null,windChart=null;
   function cmp(d){return ["north","northeast","east","southeast","south","southwest","west","northwest"][Math.round(((d%360)+360)%360/45)%8];}
-  function loadNws(){
-    var ST=[["KNYC","Central Park"],["KJFK","JFK"],["KLGA","LaGuardia"]],start=Date.parse("2026-09-25T04:00:00Z");
-    function page(u,acc){return fetch(u,{headers:{Accept:"application/geo+json"}}).then(function(r){return r.json();}).then(function(d){var f=d.features||[];acc=acc.concat(f);
-      var nx=d.pagination&&d.pagination.next,old=f.length?Date.parse(f[f.length-1].properties.timestamp):0;
-      if(nx&&f.length&&old>start&&acc.length<6000)return page(nx,acc);return acc;});}
-    Promise.all(ST.map(function(s){return page("https://api.weather.gov/stations/"+s[0]+"/observations?start=2026-09-25T04:00:00Z",[]).then(function(f){
-      var seen={};f.forEach(function(o){var p=o.properties;if(Date.parse(p.timestamp)>=start)seen[p.timestamp]=p;});
-      var ps=Object.keys(seen).sort().map(function(k){return seen[k];});var rain=0,w={v:0},g={v:0,t:""};
-      ps.forEach(function(p){if(p.timestamp.slice(14,16)==="51"){var v=p.precipitationLastHour&&p.precipitationLastHour.value;if(v)rain+=v;}
-        var ww=p.windSpeed&&p.windSpeed.value,gg=p.windGust&&p.windGust.value;if(ww&&ww/1.609>w.v)w={v:ww/1.609};if(gg&&gg/1.609>g.v)g={v:gg/1.609,t:p.timestamp};});
-      return {n:s[1],rain:rain/25.4,w:w.v,g:g,count:ps.length};});})).then(function(rs){
-      var h="<table><tr><th>Station</th><th>Rain</th><th>Wind</th><th>Gust</th><th>Peak gust</th></tr>";
-      rs.forEach(function(r){h+="<tr><td>"+r.n+"</td><td class='tot'>"+r.rain.toFixed(2)+"</td><td>"+Math.round(r.w)+"</td><td>"+Math.round(r.g.v)+"</td><td>"+(r.g.t?new Date(r.g.t).toLocaleString("en-US",{weekday:"short",hour:"numeric",minute:"2-digit"}):"")+"</td></tr>";});
-      document.getElementById("wxNwsTb").innerHTML=h+"</table><div class='wx-storm-src' style='margin-top:6px'>From Friday through the latest reading. Rain in inches, wind in mph.</div>";
-    }).catch(function(){document.getElementById("wxNwsTb").textContent="Station readings could not load right now. Reload the page to try again.";});
-  }
   var FULLNAME={"Columbia Waterfront":"Columbia Street Waterfront District"};
   function loadStorm(){
     var names=Object.keys(HOODS);
@@ -1180,6 +1163,11 @@ window.addEventListener("hashchange",handleAnchor);
           scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:"inches",font:{size:10}},ticks:{font:{size:9}}},y:{stacked:true,ticks:{font:{size:10}}}}}});
       }
       var pg0=STORM[hs[0]].pg;
+      var gks=Object.keys(grids),lj2=function(a){return a.length<2?a[0]:a.slice(0,-1).join(", ")+" and "+a[a.length-1];};
+      var ptl=function(k){var ll=k.split(",");return '<a href="https://www.openstreetmap.org/?mlat='+ll[0]+'&mlon='+ll[1]+'#map=15/'+ll[0]+'/'+ll[1]+'" target="_blank" rel="noopener">this spot</a>';};
+      var gn="These are estimates from a weather model, not rain gauges in each neighborhood. The model works on a grid, and it gave "+(gks.length===1?"one reading":(["","","two","three","four","five","six"][gks.length]||gks.length)+" different readings")+" for all six CB6 neighborhoods. ";
+      gks.forEach(function(k){var ns=grids[k].names.map(function(n){return FULLNAME[n]||n;});gn+=(ns.length>1?lj2(ns)+" all come from the same model point, at "+ptl(k)+", so they show the same numbers. ":ns[0]+" comes from a model point at "+ptl(k)+". ");});
+      document.getElementById("wxGridNote").innerHTML=gn+"Treat them as a rough picture of the storm across the district, not a measurement on your block.";
       document.getElementById("wxStormTb").innerHTML="<div class='wx-storm-src' style='margin-top:6px'>The strongest gusts came around "+new Date(pg0.t).toLocaleString("en-US",{weekday:"short",hour:"numeric"})+" from the "+cmp(pg0.d)+".</div>";
       if(window.Chart){
         if(windChart) windChart.destroy();
@@ -1199,9 +1187,9 @@ window.addEventListener("hashchange",handleAnchor);
   function startWx(){
     if(wxStarted) return; wxStarted=true;
     initWxMap();
-    loadWx(); loadStorm(); loadNws();
-    setInterval(function(){loadWx();loadStorm();loadNws();}, 900000);
-    document.addEventListener("visibilitychange",function(){ if(!document.hidden && wxStarted){ loadWx(); loadStorm(); loadNws(); } });
+    loadWx(); loadStorm();
+    setInterval(function(){loadWx();loadStorm();}, 900000);
+    document.addEventListener("visibilitychange",function(){ if(!document.hidden && wxStarted){ loadWx(); loadStorm(); } });
   }
   var wxT=document.getElementById("wxToggle");
   if(wxT){
