@@ -342,6 +342,8 @@ body.embed .wrap{padding:10px}
 .wx-storm-h{font-weight:800;font-size:15px;color:#0d1b4b;margin-bottom:4px}
 .wx-storm-sum{font-size:13px;line-height:1.45;color:#1f2733;margin-bottom:8px}
 .wx-storm-cv{position:relative;height:280px}
+.wx-storm-sub{font-weight:800;font-size:13px;color:#0d1b4b;margin:16px 0 6px}
+.wx-storm-src{font-size:12px;line-height:1.5;color:#475569;margin-top:12px}
 .wx-storm-tb table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px}
 .wx-storm-tb th,.wx-storm-tb td{padding:6px 4px;border-top:1px solid #e5e7eb;text-align:right;font-family:'DM Mono',monospace}
 .wx-storm-tb th:first-child,.wx-storm-tb td:first-child{text-align:left;font-family:'DM Sans',sans-serif}
@@ -453,10 +455,18 @@ body.embed .wrap{padding:10px}
 <div id="wxMap"></div>
 <div class="wx-note">Rain on the map is the nor&rsquo;easter total since Friday, in inches. Tap a neighborhood for the past 24 hours, the next 48 hours and each day&rsquo;s forecast. These neighborhoods are close together, so readings will be similar.</div>
 <div class="wx-storm" id="wxStorm">
-<div class="wx-storm-h">Nor&rsquo;easter rain totals across CB6 since Friday</div>
-<div class="wx-storm-sum" id="wxStormSum">Loading rain totals&hellip;</div>
+<div class="wx-storm-h">Nor&rsquo;easter rain and wind across CB6 since Friday</div>
+<div class="wx-storm-sum" id="wxStormSum">Loading rain and wind&hellip;</div>
+<div class="wx-storm-sub">Rain by neighborhood</div>
 <div class="wx-storm-cv"><canvas id="wxStormChart"></canvas></div>
 <div class="wx-storm-tb" id="wxStormTb"></div>
+<div class="wx-storm-sub">Wind and gusts, hour by hour</div>
+<div class="wx-storm-cv"><canvas id="wxWindChart"></canvas></div>
+<div class="wx-storm-src" id="wxWindKey" style="margin-top:6px"></div>
+<div class="wx-storm-sub">Measured at National Weather Service stations</div>
+<div class="wx-storm-sum" id="wxNwsSum">None of these stations is in CB6. They are the nearest official gauges.</div>
+<div class="wx-storm-tb" id="wxNwsTb">Loading station readings&hellip;</div>
+<div class="wx-storm-src">Neighborhood rain and wind: <a id="wxOmLink" href="https://open-meteo.com/en/docs" target="_blank" rel="noopener">Open-Meteo</a> model estimates. Station readings: National Weather Service, <a href="https://www.weather.gov/wrh/timeseries?site=KNYC" target="_blank" rel="noopener">Central Park</a>, <a href="https://www.weather.gov/wrh/timeseries?site=KJFK" target="_blank" rel="noopener">JFK</a>, <a href="https://www.weather.gov/wrh/timeseries?site=KLGA" target="_blank" rel="noopener">LaGuardia</a>.</div>
 </div>
 </div>
 </div>
@@ -1090,28 +1100,52 @@ window.addEventListener("hashchange",handleAnchor);
       names.forEach(function(n,i){ parseHood(n,arr[i]); });
     }).catch(function(){clearTimeout(to);});
   }
-  var STORM={},stormChart=null;
+  var STORM={},stormChart=null,windChart=null;
+  function cmp(d){return ["north","northeast","east","southeast","south","southwest","west","northwest"][Math.round(((d%360)+360)%360/45)%8];}
+  function loadNws(){
+    var ST=[["KNYC","Central Park"],["KJFK","JFK"],["KLGA","LaGuardia"]],start=Date.parse("2026-09-25T04:00:00Z");
+    function page(u,acc){return fetch(u,{headers:{Accept:"application/geo+json"}}).then(function(r){return r.json();}).then(function(d){var f=d.features||[];acc=acc.concat(f);
+      var nx=d.pagination&&d.pagination.next,old=f.length?Date.parse(f[f.length-1].properties.timestamp):0;
+      if(nx&&f.length&&old>start&&acc.length<6000)return page(nx,acc);return acc;});}
+    Promise.all(ST.map(function(s){return page("https://api.weather.gov/stations/"+s[0]+"/observations?start=2026-09-25T04:00:00Z",[]).then(function(f){
+      var seen={};f.forEach(function(o){var p=o.properties;if(Date.parse(p.timestamp)>=start)seen[p.timestamp]=p;});
+      var ps=Object.keys(seen).sort().map(function(k){return seen[k];});var rain=0,w={v:0},g={v:0,t:""};
+      ps.forEach(function(p){if(p.timestamp.slice(14,16)==="51"){var v=p.precipitationLastHour&&p.precipitationLastHour.value;if(v)rain+=v;}
+        var ww=p.windSpeed&&p.windSpeed.value,gg=p.windGust&&p.windGust.value;if(ww&&ww/1.609>w.v)w={v:ww/1.609};if(gg&&gg/1.609>g.v)g={v:gg/1.609,t:p.timestamp};});
+      return {n:s[1],rain:rain/25.4,w:w.v,g:g,count:ps.length};});})).then(function(rs){
+      var h="<table><tr><th>Station</th><th>Rain</th><th>Wind</th><th>Gust</th><th>Peak gust</th></tr>";
+      rs.forEach(function(r){h+="<tr><td>"+r.n+"</td><td class='tot'>"+r.rain.toFixed(2)+"</td><td>"+Math.round(r.w)+"</td><td>"+Math.round(r.g.v)+"</td><td>"+(r.g.t?new Date(r.g.t).toLocaleString("en-US",{weekday:"short",hour:"numeric",minute:"2-digit"}):"")+"</td></tr>";});
+      document.getElementById("wxNwsTb").innerHTML=h+"</table><div class='wx-storm-src' style='margin-top:6px'>From Friday through the latest reading. Rain in inches, wind in mph.</div>";
+    }).catch(function(){document.getElementById("wxNwsTb").textContent="Station readings could not load right now. Reload the page to try again.";});
+  }
   var FULLNAME={"Columbia Waterfront":"Columbia Street Waterfront District"};
   function loadStorm(){
     var names=Object.keys(HOODS);
     var now=new Date(),y=now.getFullYear(),mo=("0"+(now.getMonth()+1)).slice(-2),dd=("0"+now.getDate()).slice(-2);
     var url="https://api.open-meteo.com/v1/forecast?latitude="+names.map(function(n){return HOODS[n].lat;}).join(",")+"&longitude="+names.map(function(n){return HOODS[n].lon;}).join(",")+
-      "&hourly=precipitation&precipitation_unit=inch&timezone=America%2FNew_York&start_date=2026-09-25&end_date="+y+"-"+mo+"-"+dd+"&_="+Date.now();
+      "&hourly=precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m&precipitation_unit=inch&wind_speed_unit=mph&timezone=America%2FNew_York&start_date=2026-09-25&end_date="+y+"-"+mo+"-"+dd;
+    var ol=document.getElementById("wxOmLink");if(ol)ol.href=url;
+    url+="&_="+Date.now();
     fetch(url,{cache:"no-store"}).then(function(r){return r.json();}).then(function(arr){
-      if(!Array.isArray(arr)) arr=[arr];
+      if(!Array.isArray(arr)) arr=[arr];loadStorm.r=0;
       var hk=now.getFullYear()+"-"+mo+"-"+dd+"T"+("0"+now.getHours()).slice(-2);
       var days=[];
-      names.forEach(function(n,i){var j=arr[i];if(!j||!j.hourly)return;var byDay={},tot=0;
-        j.hourly.time.forEach(function(t,k){if(t.slice(0,13)>hk)return;var v=j.hourly.precipitation[k]||0,dk=t.slice(0,10);byDay[dk]=(byDay[dk]||0)+v;tot+=v;});
+      var grids={};
+      names.forEach(function(n,i){var j=arr[i];if(!j||!j.hourly)return;var byDay={},tot=0,pw={v:0,t:""},pg={v:0,t:"",d:0},hrs=[],ws=[],wg=[];
+        j.hourly.time.forEach(function(t,k){if(t.slice(0,13)>hk)return;var v=j.hourly.precipitation[k]||0,dk=t.slice(0,10);byDay[dk]=(byDay[dk]||0)+v;tot+=v;
+          var w=j.hourly.wind_speed_10m[k]||0,g=j.hourly.wind_gusts_10m[k]||0;hrs.push(t);ws.push(w);wg.push(g);
+          if(w>pw.v)pw={v:w,t:t};if(g>pg.v)pg={v:g,t:t,d:j.hourly.wind_direction_10m[k]};});
         Object.keys(byDay).forEach(function(k){if(days.indexOf(k)<0)days.push(k);});
-        STORM[n]={total:tot,byDay:byDay};
+        STORM[n]={total:tot,byDay:byDay,pw:pw,pg:pg};
+        var gk=j.latitude+","+j.longitude;(grids[gk]=grids[gk]||{names:[],hrs:hrs,ws:ws,wg:wg}).names.push(n);
         if(wxLabels[n]&&wxData[n]) wxLabels[n].setIcon(makeLabelIcon(n,wxData[n].cur.temp,wxData[n].rain,STORM[n]));});
       days.sort();
       var hs=names.filter(function(n){return STORM[n];}).sort(function(a,b){return STORM[b].total-STORM[a].total;});
       if(!hs.length) return;
       var hi=STORM[hs[0]].total,lo=STORM[hs[hs.length-1]].total;
       var dl=function(k){return new Date(k+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});};
-      document.getElementById("wxStormSum").textContent="From Friday, Sept 25 through "+now.toLocaleString("en-US",{weekday:"short",hour:"numeric",minute:"2-digit"})+", CB6 neighborhoods got between "+inch(lo)+" and "+inch(hi)+" of rain. NYC Emergency Management had called for 1 to 1.5 inches.";
+      var gmax=0,wmax=0;hs.forEach(function(n){gmax=Math.max(gmax,STORM[n].pg.v);wmax=Math.max(wmax,STORM[n].pw.v);});
+      document.getElementById("wxStormSum").textContent="From Friday, Sept 25 through "+now.toLocaleString("en-US",{weekday:"short",hour:"numeric",minute:"2-digit"})+", Open-Meteo estimates CB6 neighborhoods got between "+inch(lo)+" and "+inch(hi)+" of rain (NYC Emergency Management had called for 1 to 1.5 inches), with sustained winds up to "+Math.round(wmax)+" mph and gusts up to "+Math.round(gmax)+" mph.";
       var COLS=["#bae6fd","#38bdf8","#0284c7","#0c4a6e","#082f49"];
       var nm=function(n){return FULLNAME[n]||n;};
       if(window.Chart){
@@ -1120,18 +1154,31 @@ window.addEventListener("hashchange",handleAnchor);
           options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{font:{size:10},boxWidth:10}},tooltip:{callbacks:{label:function(c){return c.dataset.label+": "+c.parsed.x.toFixed(2)+" in";}}}},
           scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:"inches",font:{size:10}},ticks:{font:{size:9}}},y:{stacked:true,ticks:{font:{size:10}}}}}});
       }
-      var h="<table><tr><th>Neighborhood</th>"+days.map(function(k){return "<th>"+new Date(k+"T12:00:00").toLocaleDateString("en-US",{weekday:"short"})+"</th>";}).join("")+"<th>Total</th></tr>";
-      hs.forEach(function(n){h+="<tr><td>"+nm(n)+"</td>"+days.map(function(k){return "<td>"+(STORM[n].byDay[k]||0).toFixed(2)+"</td>";}).join("")+"<td class='tot'>"+STORM[n].total.toFixed(2)+"</td></tr>";});
-      document.getElementById("wxStormTb").innerHTML=h+"</table>";
-    }).catch(function(){document.getElementById("wxStormSum").textContent="Rain totals could not load right now. Reload the page to try again.";});
+      var h="<table><tr><th>Neighborhood</th>"+days.map(function(k){return "<th>"+new Date(k+"T12:00:00").toLocaleDateString("en-US",{weekday:"short"})+"</th>";}).join("")+"<th>Rain</th><th>Wind</th><th>Gust</th></tr>";
+      hs.forEach(function(n){h+="<tr><td>"+nm(n)+"</td>"+days.map(function(k){return "<td>"+(STORM[n].byDay[k]||0).toFixed(2)+"</td>";}).join("")+"<td class='tot'>"+STORM[n].total.toFixed(2)+"</td><td>"+Math.round(STORM[n].pw.v)+"</td><td>"+Math.round(STORM[n].pg.v)+"</td></tr>";});
+      var pg0=STORM[hs[0]].pg;
+      document.getElementById("wxStormTb").innerHTML=h+"</table><div class='wx-storm-src' style='margin-top:6px'>Rain in inches. Wind is the highest hourly sustained wind and gust, in mph. The strongest gusts came around "+new Date(pg0.t).toLocaleString("en-US",{weekday:"short",hour:"numeric"})+" from the "+cmp(pg0.d)+".</div>";
+      if(window.Chart){
+        if(windChart) windChart.destroy();
+        var gl=Object.keys(grids).map(function(k){return grids[k];});var WC=["#0d1b4b","#f47920"];
+        var ds=[];gl.forEach(function(g,i){var lab=g.names.length===names.length?"CB6":g.names.map(nm).join(", ");
+          ds.push({label:"Gusts: "+lab,data:g.wg,borderColor:WC[i%2],backgroundColor:WC[i%2],borderWidth:2,pointRadius:0,tension:.3});
+          ds.push({label:"Sustained: "+lab,data:g.ws,borderColor:WC[i%2],backgroundColor:WC[i%2],borderWidth:1.5,borderDash:[4,3],pointRadius:0,tension:.3});});
+        var CN=["navy","orange"],lj=function(a){return a.length<2?a[0]:a.slice(0,-1).join(", ")+" and "+a[a.length-1];};
+        document.getElementById("wxWindKey").textContent="Solid lines are gusts, dashed lines are sustained wind, in mph. "+gl.map(function(g,i){return (CN[i%2].charAt(0).toUpperCase()+CN[i%2].slice(1))+" is "+(g.names.length===names.length?"all of CB6":lj(g.names.map(nm)));}).join(". ")+".";
+        windChart=new Chart(document.getElementById("wxWindChart"),{type:"line",data:{labels:gl[0].hrs.map(function(t){return new Date(t).toLocaleString("en-US",{weekday:"short",hour:"numeric"});}),datasets:ds},
+          options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return c.dataset.label+": "+Math.round(c.parsed.y)+" mph";}}}},
+          scales:{x:{ticks:{font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:6}},y:{beginAtZero:true,title:{display:true,text:"mph",font:{size:10}},ticks:{font:{size:9}}}}}});
+      }
+    }).catch(function(){if((loadStorm.r=(loadStorm.r||0)+1)<4){setTimeout(loadStorm,4000);return;}document.getElementById("wxStormSum").textContent="Rain and wind could not load right now. Reload the page to try again.";});
   }
   var wxStarted=false;
   function startWx(){
     if(wxStarted) return; wxStarted=true;
     initWxMap();
-    loadWx(); loadStorm();
-    setInterval(function(){loadWx();loadStorm();}, 900000);
-    document.addEventListener("visibilitychange",function(){ if(!document.hidden && wxStarted){ loadWx(); loadStorm(); } });
+    loadWx(); loadStorm(); loadNws();
+    setInterval(function(){loadWx();loadStorm();loadNws();}, 900000);
+    document.addEventListener("visibilitychange",function(){ if(!document.hidden && wxStarted){ loadWx(); loadStorm(); loadNws(); } });
   }
   var wxT=document.getElementById("wxToggle");
   if(wxT){
