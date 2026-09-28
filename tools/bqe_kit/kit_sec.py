@@ -24,6 +24,8 @@ BHA18 = 'https://thebha.org/news/bha-statement-on-the-bqe-reconstruction-plan-by
 DOTBQE = 'https://www.nyc.gov/html/dot/html/infrastructure/bqe.shtml'
 SB21 = 'https://nyc.streetsblog.org/2021/08/04/analysis-the-mayors-bold-plan-for-the-bqe-is-not-bold-but-is-really-a-long-punt'
 ADAMS22 = 'https://www.nyc.gov/mayors-office/news/2022/12/mayor-adams-preliminary-design-concepts-re-envisioned-bqe-central-takes-major-step'
+TRR = 'https://www.nyc.gov/html/dot/html/motorist/truckrouting.shtml'
+SB23 = 'https://nyc.streetsblog.org/2023/03/20/analysis-city-ignored-bqe-panel-recs-to-ease-congestion-from-two-lane-conversion'
 FLYNN = 'https://nyc.streetsblog.org/2026/09/23/opinion-the-toughest-choice-was-the-only-choice-on-the-bqe'
 CHGPDF = 'https://www.nyc.gov/html/dot/downloads/pdf/truck-route-network-redesign-changes-2026.pdf'
 SCOPES = {
@@ -32,6 +34,7 @@ SCOPES = {
 }
 def intro(scope, KB, KT):
     here = 'Carroll Gardens and Gowanus' if scope == 'cg' else 'CB6'
+    SOUTH = (f', which in CB6 includes the below-ground stretch Streetsblog calls "the Carroll Gardens trench" ({A(SB23, "Streetsblog")})' if scope == 'cb6' else ', which runs past Carroll Gardens and Gowanus')
     if scope == 'cb6':
         y26 = f'''An approximately $4 billion, 10-year rehabilitation of BQE Central that keeps two lanes each way and breaks ground in 2030 ({A(MAYOR, "NYC Mayor's Office")}). <a href="#plan">The plan in detail</a>.'''
     else:
@@ -40,10 +43,15 @@ def intro(scope, KB, KT):
 <p class="introlede">The city has been trying to fix the oldest stretch of the BQE for most of a decade. Three mayors have now put out plans for it: Bill de Blasio, Eric Adams and, this August, Zohran Mamdani.</p>
 <div class="sub2"><h3>What people may not know</h3></div>
 <div class="facts">
-<div class="fact"><b>The city owns only 1.5 miles of it.</b> The "approximately 1.5-mile City-owned section" runs from Atlantic Avenue to Sands Street. That is BQE Central, and it is the only part these plans cover ({A(BQEC, 'NYC DOT')}). The rest of the BQE in Brooklyn, including the stretch through {here}, is state-owned ({A(BQEV, 'BQE Corridor Vision')}).</div>
 <div class="fact"><b>The triple cantilever is a stacked highway.</b> For 0.4 miles, BQE Central is "two levels of highway with the Brooklyn Heights Promenade above and a local street, Furman Street, below" ({A(BQEC, 'NYC DOT')}).</div>
 <div class="fact"><b>It is past its design life.</b> DOT says the structure is "more than 70 years old" ({A(BQEC, 'NYC DOT')}).</div>
 <div class="fact"><b>Why it matters in {here}.</b> Limits on BQE Central, fewer lanes and weight enforcement, can push traffic off the highway and onto local streets. The rest of this page is what the public record shows about trucks on these streets.</div>
+</div>
+<div class="sub2"><h3>Who controls which part</h3><p>The BQE in Brooklyn has three sections, and one highway answers to three levels of government.</p></div>
+<div class="gov">
+<div class="govc city"><span class="gl">City</span><b>BQE Central</b><p>About 1.5 miles, Atlantic Avenue to Sands Street, with the triple cantilever. "NYC DOT owns BQE Central (12% of the BQE in Brooklyn)" and leads this project and its city environmental review, CEQR ({A(BQEC, 'NYC DOT')}). The two lanes and the weight sensors on BQE Central are the city's ({A(AMNY, 'amNY')}). The city also sets the truck routes on local streets ({A(TRR, 'NYC DOT, Truck Routing')}).</p></div>
+<div class="govc state"><span class="gl">State</span><b>BQE North and BQE South</b><p>"New York State owns the rest," the other 10.6 miles in Brooklyn ({A(BQEC, 'NYC DOT')}): BQE North, "from the Kosciuszko Bridge to Sands Street," and BQE South, "from Atlantic Avenue to the Verrazzano Bridge" ({A(BQEV, 'BQE Corridor Vision')}){SOUTH}. The city's plan is meant to let it "work with the State, which controls the northern and southern segments" ({A(MAYOR, "NYC Mayor's Office")}).</p></div>
+<div class="govc fed"><span class="gl">Federal</span><b>All of it, as Interstate 278</b><p>"The BQE is part of the federal interstate highway system," and "Making any transformative changes to this interstate highway, or any of its intersections with city streets, requires federal approval," DOT's commissioner wrote ({A(FLYNN, 'Streetsblog')}). The Adams plan was to go through a federal environmental review ({A(ADAMS22, "NYC Mayor's Office")}); the current project is in the city's review ({A(BQEC, 'NYC DOT')}).</p></div>
 </div>
 <div class="sub2"><h3>Three mayors, one stretch of highway</h3></div>
 <ol class="tl">
@@ -52,7 +60,7 @@ def intro(scope, KB, KT):
 <li><span class="ty">2021</span><div><b>De Blasio: keep it standing for 20 years.</b> A plan "to extend the life of the Brooklyn-Queens Expressway (BQE) cantilever for at least another 20 years," and the half mile from about Atlantic Avenue to the Brooklyn Bridge went "from three lanes in each direction to two lanes" ({A(DOTBQE, 'NYC DOT')}). It also called for "weigh-in-motion" sensors to ticket overweight trucks ({A(SB21, 'Streetsblog')}); they began enforcing in November 2023 ({A(AMNY, 'amNY')}).</div></li>
 <li><span class="ty">2022 to 2023</span><div><b>Adams: re-envision BQE Central.</b> "Preliminary design concepts for a re-envisioned BQE Central," with safety upgrades and better links between the Promenade and Brooklyn Bridge Park, and a plan to start the federal environmental review in spring 2023 ({A(ADAMS22, "NYC Mayor's Office")}). DOT's 2023 feedback maps drew {A(FMC, '118')} comments on BQE Central and {A(FMS, '122')} on BQE South.</div></li>
 <li><span class="ty">2026</span><div><b>Mamdani: rehabilitate what is there.</b> {y26}</div></li>
-<li><span class="ty">Sept. 2026</span><div><b>DOT makes its case.</b> Commissioner Mike Flynn wrote that the plan "isn't ideal" but that "We have years left, not decades" and "We are out of options," since removing the highway or changing its ramps would need federal, state and city agreement and money that do not exist ({A(FLYNN, 'Streetsblog')}).</div></li>
+<li><span class="ty">Sept. 2026</span><div><b>DOT makes its case.</b> Commissioner Mike Flynn wrote that the plan "isn't ideal" but that "We have years left, not decades" ({A(FLYNN, 'Streetsblog')}).</div></li>
 </ol>
 <div class="sub2"><h3>What happens next</h3></div>
 <p>DOT's environmental review: scoping notice in September 2026, public scoping meetings in November 2026, a final scoping report early in 2027, a draft environmental impact statement with public meetings late in 2027, and the final statement early in 2028 ({A(BQEC, 'NYC DOT')}). This fall's sessions are listed at the top of the page.</p>
