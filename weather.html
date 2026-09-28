@@ -343,6 +343,7 @@ body.embed .wrap{padding:10px}
 .wx-storm-sum{font-size:13px;line-height:1.45;color:#1f2733;margin-bottom:8px}
 .wx-storm-cv{position:relative;height:280px}
 .wx-storm-sub{font-weight:800;font-size:13px;color:#0d1b4b;margin:16px 0 6px}
+.wx-gpt{width:16px;height:16px;border-radius:50%;background:#f47920;border:3px solid #0d1b4b;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.4);transform:translate(-50%,-50%);box-sizing:border-box}
 .wx-storm-src{font-size:12px;line-height:1.5;color:#475569;margin-top:12px}
 .wx-storm-tb table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px}
 .wx-storm-tb th,.wx-storm-tb td{padding:6px 4px;border-top:1px solid #e5e7eb;text-align:right;font-family:'DM Mono',monospace}
@@ -1124,7 +1125,7 @@ window.addEventListener("hashchange",handleAnchor);
       names.forEach(function(n,i){ parseHood(n,arr[i]); });
     }).catch(function(){clearTimeout(to);});
   }
-  var STORM={},stormChart=null,windChart=null;
+  var STORM={},stormChart=null,windChart=null,stormPts=null;
   function cmp(d){return ["north","northeast","east","southeast","south","southwest","west","northwest"][Math.round(((d%360)+360)%360/45)%8];}
   var FULLNAME={"Columbia Waterfront":"Columbia Street Waterfront District"};
   function loadStorm(){
@@ -1165,10 +1166,20 @@ window.addEventListener("hashchange",handleAnchor);
       }
       var pg0=STORM[hs[0]].pg;
       var gks=Object.keys(grids),lj2=function(a){return a.length<2?a[0]:a.slice(0,-1).join(", ")+" and "+a[a.length-1];};
-      var ptl=function(k){var ll=k.split(",");return '<a href="https://www.openstreetmap.org/?mlat='+ll[0]+'&mlon='+ll[1]+'#map=15/'+ll[0]+'/'+ll[1]+'" target="_blank" rel="noopener">this spot</a>';};
-      var gn="These are estimates from Open-Meteo\u2019s weather model, which works on a grid. It gave "+(gks.length===1?"one reading":(["","","two","three","four","five","six"][gks.length]||gks.length)+" readings")+" for the six CB6 neighborhoods. ";
-      gks.forEach(function(k){var ns=grids[k].names.map(function(n){return FULLNAME[n]||n;});gn+=(ns.length>1?lj2(ns)+" all come from the same model point, at "+ptl(k)+", so they show the same numbers. ":ns[0]+" comes from a model point at "+ptl(k)+". ");});
-      document.getElementById("wxGridNote").innerHTML=gn.trim();
+      var NUM=["","one","two","three","four","five","six"];
+      Promise.all(gks.map(function(k){var ll=k.split(",");
+        return fetch("https://geosearch.planninglabs.nyc/v2/reverse?point.lat="+ll[0]+"&point.lon="+ll[1]+"&size=1").then(function(r){return r.json();}).then(function(d){var f=d.features&&d.features[0];return f?{addr:f.properties.housenumber&&f.properties.street?f.properties.housenumber+" "+f.properties.street.replace(/\b\w+/g,function(w){return w.charAt(0)+w.slice(1).toLowerCase();}):"",nb:f.properties.neighbourhood||""}:{};}).catch(function(){return {};});
+      })).then(function(where){
+        var gn="These are estimates from Open-Meteo, which blends the National Weather Service’s HRRR model, a 3 km grid, with its GFS model. The model does not work out the weather address by address. It splits the area into grid squares a few kilometers across, and for each place you ask about, Open-Meteo picks a square on land with a similar elevation. The number shown is for the center of that square. For the six CB6 neighborhoods it picked "+(NUM[gks.length]||gks.length)+(gks.length===1?" square. ":" squares. ");
+        if(stormPts){stormPts.clearLayers();}else if(wxMap){stormPts=L.layerGroup().addTo(wxMap);}
+        gks.forEach(function(k,i){var ll=k.split(","),w=where[i]||{},ns=grids[k].names.map(function(n){return FULLNAME[n]||n;});
+          var at=w.addr?"near "+w.addr+(w.nb?" in "+w.nb:""):"at "+(+ll[0]).toFixed(4)+", "+(+ll[1]).toFixed(4);
+          var link='<a href="https://www.openstreetmap.org/?mlat='+ll[0]+'&mlon='+ll[1]+'#map=16/'+ll[0]+'/'+ll[1]+'" target="_blank" rel="noopener">'+at+'</a>';
+          gn+=(ns.length>1?lj2(ns)+" all read from the square centered "+link+", so they show the same numbers. ":ns[0]+" reads from the square centered "+link+". ");
+          if(stormPts)L.marker([+ll[0],+ll[1]],{icon:L.divIcon({className:"",iconSize:null,html:'<div class="wx-gpt" title="Open-Meteo model point"></div>'})}).bindPopup("<b>Open-Meteo model point</b><br>"+ns.join(", ")+"<br>"+(w.addr?w.addr+(w.nb?", "+w.nb:""):"")).addTo(stormPts);});
+        if(stormPts&&!stormPts._fit){stormPts._fit=1;var bb=L.geoJSON({type:"FeatureCollection",features:Object.keys(HOODS).map(function(n){return {type:"Feature",geometry:HOODS[n].geom,properties:{}};})}).getBounds();gks.forEach(function(k){var ll=k.split(",");bb.extend([+ll[0],+ll[1]]);});wxMap.invalidateSize();wxMap.fitBounds(bb,{padding:[10,10]});}
+        document.getElementById("wxGridNote").innerHTML=gn+(stormPts?(gks.length>1?"Both points are":"The point is")+" marked with orange dots on the neighborhood map above. Tap a dot for details.":"");
+      });
       document.getElementById("wxStormTb").innerHTML="<div class='wx-storm-src' style='margin-top:6px'>The strongest gusts came around "+new Date(pg0.t).toLocaleString("en-US",{weekday:"short",hour:"numeric"})+" from the "+cmp(pg0.d)+".</div>";
       if(window.Chart){
         if(windChart) windChart.destroy();
