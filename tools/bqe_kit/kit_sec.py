@@ -64,6 +64,7 @@ def intro(scope, KB, KT):
 </section>'''
 def cta_block():
     return f'''<section class="ctatop" id="meetings"><div class="dotbrand"><a class="dbl" href="{BQEC}" target="_blank" rel="noopener"><img src="/assets/bqe/nycdot-logo.png" alt="New York City DOT" width="130" height="78"></a><div class="dbx"><a class="dbw" href="{BQEC}" target="_blank" rel="noopener"><img src="/assets/bqe/bqe-central-wordmark.png" alt="BQE Central" width="260" height="64"></a></div></div>
+<p class="bqeblurb"><b>BQE Central</b> is the 1.5-mile, city-owned stretch of the BQE from Atlantic Avenue to Sands Street. The Mayor\'s plan: a $4 billion rehabilitation that keeps it at two lanes each way, breaking ground in 2030. <a href="{BQEC}" target="_blank" rel="noopener">BQE Central Project &rarr;</a></p>
 <h2>Upcoming DOT meetings on BQE Central</h2>
 <div class="cta" id="comment"><ul class="mtg">
 <li><b>Tue, Oct 6</b><span>7 to 8 p.m. &middot; Virtual Q&amp;A</span><a class="ctalink" href="https://bit.ly/bqecentral-oct6" target="_blank" rel="noopener">Join</a></li>
