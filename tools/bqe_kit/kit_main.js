@@ -80,7 +80,7 @@ window.kSetPreset=function(p){document.querySelectorAll('#twbar .tbtn').forEach(
   if(p==='custom'){var f=document.getElementById('tw-from'),t=document.getElementById('tw-to');if(!f.options.length){var o=KT.s311_months.map(function(m,i){return '<option value="'+i+'">'+mlab(m)+'</option>';}).join('');f.innerHTML=o;t.innerHTML=o;}f.value=WIN.s0;t.value=WIN.s1;}
   setWin(p);renderAll();};
 window.kCustom=function(){setWin('custom');renderAll();};
-function renderAll(){document.querySelectorAll('.tw-lc').forEach(function(e){e.textContent=winText('c');});document.querySelectorAll('.tw-ls').forEach(function(e){e.textContent=winText('s');});document.querySelectorAll('.tw-lt').forEach(function(e){e.textContent=tkText(1);});
+function renderAll(){document.querySelectorAll('.tw-sum').forEach(function(e){e.textContent='crashes '+winText('c')+'; 311 '+winText('s');});document.querySelectorAll('.tw-lc').forEach(function(e){e.textContent=winText('c');});document.querySelectorAll('.tw-ls').forEach(function(e){e.textContent=winText('s');});document.querySelectorAll('.tw-lt').forEach(function(e){e.textContent=tkText(1);});
   ['hc','ht'].forEach(function(k){if(KLY[k].on)drawHeat(k);});heatLegend();renderRecord();if(PICK.length)showCard(PICK,CARDT);}
 // ================================================================= find bar
 var STREETS=[],BYST={};
