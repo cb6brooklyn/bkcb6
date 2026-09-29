@@ -130,8 +130,9 @@ function match(v){
 }
 function color(v){return COLORS[v.cats[0]]||'#06024D'}
 function esc(s){return String(s).replace(/[\x26<>"]/g,function(c){return {'\x26':'\x26amp;','<':'\x26lt;','>':'\x26gt;','"':'\x26quot;'}[c]})}
-function tm(v){if(v.all)return 'All day';var h=+v.s.slice(11,13),mi=v.s.slice(14,16);return ((h%12)||12)+(mi!=='00'?':'+mi:'')+(h<12?'am':'pm')}
-function counts(field){var c={};S.ev.forEach(function(v){(field==='org'?[v.org]:v.cats).forEach(function(k){c[k]=(c[k]||0)+1})});(field==='org'?S.org:S.cat).forEach(function(k){if(!(k in c))c[k]=0});return c}
+function tm(v){if(v.all)return 'All day';if(v.s.slice(11,16)==='00:00')return '';var h=+v.s.slice(11,13),mi=v.s.slice(14,16);return ((h%12)||12)+(mi!=='00'?':'+mi:'')+(h<12?'am':'pm')}
+function inMo(v){return (+v.s.slice(0,4)===S.y)?(+v.s.slice(5,7)===S.m+1):false}
+function counts(field){var c={};S.ev.filter(inMo).forEach(function(v){(field==='org'?[v.org]:v.cats).forEach(function(k){c[k]=(c[k]||0)+1})});(field==='org'?S.org:S.cat).forEach(function(k){if(!(k in c))c[k]=0});return c}
 function opts(field){
  var box=R.querySelector('[data-f="'+field+'"] .c-list-opts'),c=counts(field),set=field==='org'?S.org:S.cat;
  var keys=Object.keys(c).sort(function(a,b){if(a==='Other'||a==='Uncategorized')return 1;if(b==='Other'||b==='Uncategorized')return -1;return a.localeCompare(b)});
@@ -163,14 +164,14 @@ function render(){
  var b=R.querySelector('.c-body');
  if(S.view==='list'){
   b.innerHTML=shown.length?shown.map(function(v){var d=new Date(v.s.slice(0,10)+'T12:00:00');
-   return '<a class="c-li" href="'+esc(v.url)+'"><div class="c-ld">'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+'<b>'+d.getDate()+'</b>'+MO[d.getMonth()].slice(0,3)+'</div><div><div class="c-lt">'+esc(v.t)+'</div><div class="c-lm">'+tm(v)+(v.venue?' · '+esc(v.venue):'')+'</div><div><span class="c-tag">'+esc(v.org)+'</span>'+v.cats.map(function(c){return '<span class="c-tag" style="border-color:'+(COLORS[c]||'#06024D')+'">'+esc(c)+'</span>'}).join('')+'</div></div></a>'}).join(''):'<div class="c-empty">No events match these filters this month.</div>';
+   return '<a class="c-li" href="'+esc(v.url)+'"><div class="c-ld">'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+'<b>'+d.getDate()+'</b>'+MO[d.getMonth()].slice(0,3)+'</div><div><div class="c-lt">'+esc(v.t)+'</div><div class="c-lm">'+[tm(v),esc(v.venue)].filter(Boolean).join(' · ')+'</div><div><span class="c-tag">'+esc(v.org)+'</span>'+v.cats.map(function(c){return '<span class="c-tag" style="border-color:'+(COLORS[c]||'#06024D')+'">'+esc(c)+'</span>'}).join('')+'</div></div></a>'}).join(''):'<div class="c-empty">No events match these filters this month.</div>';
  } else {
   var r=range(),by={};S.ev.filter(match).forEach(function(v){var k=v.s.slice(0,10);(by[k]=by[k]||[]).push(v)});
   var h='';['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(function(d){h+='<div class="c-dow">'+d+'</div>'});
   var today=ymd(new Date());
   for(var d=new Date(r[0]);d<=r[1];d.setDate(d.getDate()+1)){
    var k=ymd(d),list=by[k]||[],out=d.getMonth()!==S.m;
-   h+='<div class="c-day'+(out?' out':'')+(k===today?' today':'')+'"><div class="c-dn">'+d.getDate()+'</div>'+list.map(function(v,i){return '<a class="c-ev" data-i="'+i+'"'+(i>3?' hidden':'')+' href="'+esc(v.url)+'" title="'+esc(tm(v)+' · '+v.t+' · '+v.org)+'" style="border-left-color:'+color(v)+'">'+(v.all?'':tm(v)+' ')+esc(v.t)+'</a>'}).join('')+(list.length>4?'<button class="c-more">+'+(list.length-4)+' more</button>':'')+'</div>';
+   h+='<div class="c-day'+(out?' out':'')+(k===today?' today':'')+'"><div class="c-dn">'+d.getDate()+'</div>'+list.map(function(v,i){return '<a class="c-ev" data-i="'+i+'"'+(i>3?' hidden':'')+' href="'+esc(v.url)+'" title="'+esc([tm(v),v.t,v.org].filter(Boolean).join(' · '))+'" style="border-left-color:'+color(v)+'">'+(tm(v)?(v.all?'':tm(v)+' '):'')+esc(v.t)+'</a>'}).join('')+(list.length>4?'<button class="c-more">+'+(list.length-4)+' more</button>':'')+'</div>';
   }
   b.innerHTML='<div class="c-grid">'+h+'</div>';
  }
