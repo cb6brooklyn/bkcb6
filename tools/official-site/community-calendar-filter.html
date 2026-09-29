@@ -66,7 +66,7 @@
 (function(){
 var R=document.getElementById('cb6cal');
 var API='/wp-json/tribe/events/v1/events';
-var COLORS={'CB6 Meetings':'#06024D','Full Board Meetings':'#06024D','Upcoming Meetings':'#06024D','Government':'#3d5aad','Elections':'#b42318','City Notices':'#6b7280','Schools':'#0e7490','Public Safety':'#1d4ed8','Community':'#2d6a4f','Civic Associations':'#15803d','Arts & Culture':'#9333ea','Food & Markets':'#c2410c','Parks & Open Space':'#4d7c0f','Land Use':'#a16207','Uncategorized':'#9ca3af'};
+var COLORS={'CB6 Meetings':'#06024D','Full Board Meetings':'#06024D','Upcoming Meetings':'#06024D','Government':'#3d5aad','Elections':'#b42318','City Notices':'#6b7280','Schools':'#0e7490','Public Safety':'#1d4ed8','Community':'#2d6a4f','Civic Associations':'#15803d','Arts \x26 Culture':'#9333ea','Food \x26 Markets':'#c2410c','Parks \x26 Open Space':'#4d7c0f','Land Use':'#a16207','Uncategorized':'#9ca3af'};
 var RULES=[
 [/^CB6 |Community Board 6/i,'Brooklyn Community Board 6'],
 [/Alternate Side|^ASP /i,'Alternate Side Parking'],
@@ -94,9 +94,9 @@ var HOSTS={'gowanusdredgers.org':'Gowanus Dredgers Canoe Club','brooklynbp.nyc.g
 var NOPREFIX=/^(General|Applications due|Paying for College|City of Forest Day)$/i;
 function dec(s){var t=document.createElement('textarea');t.innerHTML=s||'';return t.value}
 function orgOf(e,t){
- if(e.organizer&&e.organizer.length&&e.organizer[0].organizer) return dec(e.organizer[0].organizer);
+ if(e.organizer?(e.organizer.length?e.organizer[0].organizer:0):0) return dec(e.organizer[0].organizer);
  for(var i=0;i<RULES.length;i++) if(RULES[i][0].test(t)) return RULES[i][1];
- var m=t.match(/^([^:—–]{2,40}):\s/); if(m&&!NOPREFIX.test(m[1].trim())) return m[1].trim();
+ var m=t.match(/^([^:—–]{2,40}):\s/); if(m){if(!NOPREFIX.test(m[1].trim())) return m[1].trim();}
  var h='';try{h=new URL(e.website).host.replace(/^www\./,'')}catch(x){}
  if(HOSTS[h]) return HOSTS[h];
  return 'Other';
@@ -115,21 +115,21 @@ function load(){
  R.querySelector('.c-body').innerHTML='<div class="c-empty">Loading events…</div>';
  var out=[],page=1;
  (function next(){
-  fetch(API+'?per_page=50&page='+page+'&start_date='+ymd(r[0])+'%2000:00:00&end_date='+ymd(r[1])+'%2023:59:59').then(function(x){return x.ok?x.json():{events:[]}}).then(function(j){
+  fetch(API+'?per_page=50\x26page='+page+'\x26start_date='+ymd(r[0])+'%2000:00:00\x26end_date='+ymd(r[1])+'%2023:59:59').then(function(x){return x.ok?x.json():{events:[]}}).then(function(j){
    (j.events||[]).forEach(function(e){var t=dec(e.title);var cats=(e.categories||[]).map(function(c){return dec(c.name)});if(!cats.length)cats=['Uncategorized'];
-    out.push({t:t,url:e.url,s:e.start_date,e:e.end_date,all:e.all_day,venue:e.venue&&e.venue.venue?dec(e.venue.venue):'',org:orgOf(e,t),cats:cats})});
-   if(j.next_rest_url&&(j.events||[]).length){page++;next()} else {out.sort(function(a,b){return a.s<b.s?-1:a.s>b.s?1:0});S.cache[key]=out;S.ev=out;render()}
+    out.push({t:t,url:e.url,s:e.start_date,e:e.end_date,all:e.all_day,venue:(e.venue?e.venue.venue:0)?dec(e.venue.venue):'',org:orgOf(e,t),cats:cats})});
+   if(j.next_rest_url?(j.events||[]).length:0){page++;next()} else {out.sort(function(a,b){return a.s<b.s?-1:a.s>b.s?1:0});S.cache[key]=out;S.ev=out;render()}
   }).catch(function(){R.querySelector('.c-body').innerHTML='<div class="c-empty">Events could not be loaded. Refresh to try again.</div>'});
  })();
 }
 function match(v){
- if(S.org.size&&!S.org.has(v.org)) return false;
- if(S.cat.size&&!v.cats.some(function(c){return S.cat.has(c)})) return false;
+ if(S.org.size){if(!S.org.has(v.org)) return false;}
+ if(S.cat.size){if(!v.cats.some(function(c){return S.cat.has(c)})) return false;}
  if(S.q){var q=S.q.toLowerCase();if((v.t+' '+v.venue+' '+v.org).toLowerCase().indexOf(q)<0) return false}
  return true;
 }
 function color(v){return COLORS[v.cats[0]]||'#06024D'}
-function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function esc(s){return String(s).replace(/[\x26<>"]/g,function(c){return {'\x26':'\x26amp;','<':'\x26lt;','>':'\x26gt;','"':'\x26quot;'}[c]})}
 function tm(v){if(v.all)return 'All day';var h=+v.s.slice(11,13),mi=v.s.slice(14,16);return ((h%12)||12)+(mi!=='00'?':'+mi:'')+(h<12?'am':'pm')}
 function counts(field){var c={};S.ev.forEach(function(v){(field==='org'?[v.org]:v.cats).forEach(function(k){c[k]=(c[k]||0)+1})});(field==='org'?S.org:S.cat).forEach(function(k){if(!(k in c))c[k]=0});return c}
 function opts(field){
@@ -157,7 +157,7 @@ function render(){
  opts('org');opts('cat');
  var chips=[];S.org.forEach(function(k){chips.push(['org',k])});S.cat.forEach(function(k){chips.push(['cat',k])});
  R.querySelector('.c-chips').innerHTML=chips.map(function(c){return '<span class="c-chip" data-rm="'+c[0]+'" data-k="'+esc(c[1])+'">'+esc(c[1])+'<b>×</b></span>'}).join('');
- var inMonth=S.ev.filter(function(v){return +v.s.slice(0,4)===S.y&&+v.s.slice(5,7)===S.m+1});
+ var inMonth=S.ev.filter(function(v){return (+v.s.slice(0,4)===S.y)?(+v.s.slice(5,7)===S.m+1):false});
  var shown=inMonth.filter(match);
  R.querySelector('.c-stat').textContent=shown.length+' of '+inMonth.length+' events in '+MO[S.m]+' '+S.y;
  var b=R.querySelector('.c-body');
@@ -183,10 +183,10 @@ R.addEventListener('click',function(e){
  if(rm){(rm.dataset.rm==='org'?S.org:S.cat).delete(rm.dataset.k);render()}
  if(t.matches('.c-more')){[].forEach.call(t.parentNode.querySelectorAll('.c-ev[hidden]'),function(x){x.hidden=false});t.remove()}
  var dd=t.closest('details.c-dd');
- if(dd&&(t.matches('[data-all]')||t.matches('[data-none]'))){e.preventDefault();var set=dd.dataset.f==='org'?S.org:S.cat;if(t.matches('[data-none]'))set.clear();else [].forEach.call(dd.querySelectorAll('.c-list-opts input'),function(i){set.add(i.value)});render();dd.open=true}
+ if(dd?(t.matches('[data-all]')||t.matches('[data-none]')):false){e.preventDefault();var set=dd.dataset.f==='org'?S.org:S.cat;if(t.matches('[data-none]'))set.clear();else [].forEach.call(dd.querySelectorAll('.c-list-opts input'),function(i){set.add(i.value)});render();dd.open=true}
  if(!t.closest('details.c-dd'))[].forEach.call(R.querySelectorAll('details.c-dd[open]'),function(x){x.open=false});
 });
-R.addEventListener('change',function(e){var t=e.target,dd=t.closest('details.c-dd');if(dd&&t.type==='checkbox'){var set=dd.dataset.f==='org'?S.org:S.cat;t.checked?set.add(t.value):set.delete(t.value);render();dd.open=true}});
+R.addEventListener('change',function(e){var t=e.target,dd=t.closest('details.c-dd');if(dd?t.type==='checkbox':false){var set=dd.dataset.f==='org'?S.org:S.cat;t.checked?set.add(t.value):set.delete(t.value);render();dd.open=true}});
 R.addEventListener('input',function(e){var t=e.target;if(t.matches('.c-q')){S.q=t.value.trim();render()}if(t.matches('.c-pq'))opts('org')});
 R.addEventListener('toggle',function(e){if(e.target.open)[].forEach.call(R.querySelectorAll('details.c-dd[open]'),function(x){if(x!==e.target)x.open=false})},true);
 document.addEventListener('click',function(e){if(!R.contains(e.target))[].forEach.call(R.querySelectorAll('details.c-dd[open]'),function(x){x.open=false})});
