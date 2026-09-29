@@ -70,6 +70,16 @@ rep("CDDATA=DATA=j.items; chips(); bchips(); shade(); render(); });", "CDDATA=DA
 s = s.replace("<a href=\"/food-stores-brooklyn.html\">Food stores only</a>",
               f"Places are put in {NAME} by point in polygon against the neighborhood outline on the bkcb6.app maps. <a href=\"/food-stores-brooklyn.html\">Food stores only</a>", 1)
 import os
+OG = f'og/food-drink/{SLUG}.jpg'
+if os.path.exists(OG):
+    from PIL import Image
+    w, h = Image.open(OG).size
+    url = f'https://bkcb6.app/{OG}?v=1'
+    rep(f'<meta property="og:url" content="https://bkcb6.app/food-drink/{SLUG}/">',
+        f'<meta property="og:url" content="https://bkcb6.app/food-drink/{SLUG}/"><meta property="og:type" content="website">'
+        f'<meta property="og:description" content="Every business in {NAME}, Brooklyn, on one map with a searchable directory.">'
+        f'<meta property="og:image" content="{url}"><meta property="og:image:width" content="{w}"><meta property="og:image:height" content="{h}">'
+        f'<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Food and Drink in {NAME}"><meta name="twitter:image" content="{url}">')
 os.makedirs(f'food-drink/{SLUG}', exist_ok=True)
 open(f'food-drink/{SLUG}/index.html', 'w', encoding='utf-8').write(s)
 print(SLUG, len(items), 'places', food, 'food', liq, 'liquor', both, 'both', new, 'new', logos, 'logos')
