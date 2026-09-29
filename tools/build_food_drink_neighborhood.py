@@ -41,15 +41,17 @@ def rep(a, b):
     assert s.count(a) == 1, a
     s = s.replace(a, b)
 num = lambda n: f'{n:,}'
-rep('<title>Food and Drink in Brooklyn Community District 6 &mdash; bkcb6.app</title>',
-    f'<title>Food and Drink in {NAME} &mdash; bkcb6.app</title>')
+rep('<title>Business in CB6 &mdash; bkcb6.app</title>',
+    f'<title>Business in {NAME} &mdash; bkcb6.app</title>')
 rep('content="Every state licensed food store and every active liquor license in Brooklyn Community District 6, on one map with a searchable directory."',
     f'content="Every business in {NAME}, Brooklyn: licensed food stores, liquor licenses, hardware stores and every other mapped business, on one map with a searchable directory."')
 rep('href="https://bkcb6.app/food-drink/cb6/"', f'href="https://bkcb6.app/food-drink/{SLUG}/"')
-rep('content="Food and Drink in Brooklyn Community District 6"', f'content="Food and Drink in {NAME}"')
+rep('<meta property="og:title" content="Business in CB6">', f'<meta property="og:title" content="Business in {NAME}">')
+# the CB6 page's own share card tags come out; this page gets its own below
+s = re.sub(r'<meta (?:property="og:(?:type|description|image(?::width|:height)?)"|name="twitter:[a-z]+") content="[^"]*">', '', s)
 rep('content="https://bkcb6.app/food-drink/cb6/"', f'content="https://bkcb6.app/food-drink/{SLUG}/"')
-rep('<h1>Brooklyn Community District 6</h1><p>Park Slope &middot; Carroll Gardens-Cobble Hill-Gowanus-Red Hook</p>',
-    f'<h1>{NAME}</h1><p>Every business in {NAME}, Brooklyn Community Board 6</p>')
+rep('<h1>Business in CB6</h1><p>Park Slope &middot; Carroll Gardens-Cobble Hill-Gowanus-Red Hook</p>',
+    f'<h1>Business in {NAME}</h1><p>Every business in {NAME}, Brooklyn Community Board 6</p>')
 rep('&rsaquo; Community District 6</div>',
     f'&rsaquo; <a href="/food-drink/cb6/">Community District 6</a> &rsaquo; {NAME}</div>')
 s = re.sub(r'<div class="tot">.*?</div></div>',
@@ -79,7 +81,7 @@ if os.path.exists(OG):
         f'<meta property="og:url" content="https://bkcb6.app/food-drink/{SLUG}/"><meta property="og:type" content="website">'
         f'<meta property="og:description" content="Every business in {NAME}, Brooklyn, on one map with a searchable directory.">'
         f'<meta property="og:image" content="{url}"><meta property="og:image:width" content="{w}"><meta property="og:image:height" content="{h}">'
-        f'<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Food and Drink in {NAME}"><meta name="twitter:image" content="{url}">')
+        f'<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Business in {NAME}"><meta name="twitter:image" content="{url}">')
 os.makedirs(f'food-drink/{SLUG}', exist_ok=True)
 open(f'food-drink/{SLUG}/index.html', 'w', encoding='utf-8').write(s)
 print(SLUG, len(items), 'places', food, 'food', liq, 'liquor', both, 'both', new, 'new', logos, 'logos')
