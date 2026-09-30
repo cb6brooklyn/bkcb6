@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Build middlehousing/thesis.json from the text export of
+"""Build middlehousingstillmissing/thesis.json from the text export of
 "Middle Housing Gone Missing" (Rebecca Kobert, Pratt Institute, 2025).
 
 Usage: python3 tools/build_middlehousing_text.py <text export .txt>
 The export is the Drive text rendering of the thesis PDF, with page markers
 of the form "| [**Page N**]() |". PDF page N is page N-1 of the page images
-served from /middlehousing/pages/ (the PDF opens with one blank page).
+served from /middlehousingstillmissing/pages/ (the PDF opens with one blank page).
 """
 import json, os, re, sys
 
@@ -211,7 +211,7 @@ for P in PAGES:
 
 out = dict(title="Middle Housing Gone Missing: Mediations of Neighborhood Change in Brooklyn Community District 6, 2003-2024",
            author="Rebecca J. Kobert", n=NPAGES, pages=[dict(n=P["n"], pr=P["pr"], t=P["t"]) for P in PAGES], secs=secs, figs=figs)
-json.dump(out, open(os.path.join(ROOT, "middlehousing", "thesis.json"), "w"), ensure_ascii=False, separators=(",", ":"))
+json.dump(out, open(os.path.join(ROOT, "middlehousingstillmissing", "thesis.json"), "w"), ensure_ascii=False, separators=(",", ":"))
 print("sections", len(secs), "figures", len(figs))
 for s in secs:
     print(s["l"], s["p"], s["t"], len(s.get("c", [])))
