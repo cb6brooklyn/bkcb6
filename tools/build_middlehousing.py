@@ -466,6 +466,30 @@ for c in sorted(set(hdb.councildst) | set(str(x) for x in IDX.cc if x), key=lamb
     if str(c).isdigit():
         ch["cc"][int(c)] = scope(hdb[hdb.councildst == str(c)])
 
+# Five boroughs, from the Housing Database aggregates on NYC Open Data (the same queries the page links).
+def hdb_json(params):
+    q = urllib.parse.urlencode(params)
+    req = urllib.request.Request("https://data.cityofnewyork.us/resource/br6q-ssj3.json?" + q, headers={"X-App-Token": TOKEN})
+    return json.loads(urllib.request.urlopen(req, timeout=300).read())
+
+
+DONE = "job_status like '5%'"
+ch["boro"] = {}
+for b in "12345":
+    w = "boro='%s'" % b
+    yrs = {}
+    for key, cond in [("loss", "job_type='Alteration' AND classanet<0"), ("gain", "job_type='Alteration' AND classanet>0"), ("nb", "job_type='New Building'"), ("demo", "job_type='Demolition'")]:
+        rows = hdb_json({"$select": "compltyear,sum(classanet) as units", "$where": w + " AND " + DONE + " AND " + cond, "$group": "compltyear", "$order": "compltyear"})
+        yrs[key] = {int(r["compltyear"]): abs(int(round(float(r["units"])))) for r in rows if r.get("compltyear")}
+    tot = lambda cond: abs(int(round(float((hdb_json({"$select": "sum(classanet) as units", "$where": w + " AND " + cond})[0].get("units") or 0)))))
+    ch["boro"][int(b)] = dict(
+        y=yrs,
+        loss_10_24=tot("job_type='Alteration' AND classanet<0 AND " + DONE + " AND compltyear between '2010' and '2024'"),
+        loss_20_24=tot("job_type='Alteration' AND classanet<0 AND " + DONE + " AND compltyear between '2020' and '2024'"),
+        loss_all_open=tot("job_type='Alteration' AND classanet<0 AND job_status not like '9%'"),
+    )
+print("boroughs", {k: v["loss_10_24"] for k, v in ch["boro"].items()}, flush=True)
+
 counts = dict(dob_now_rows=len(now), bis_rows=len(bis), dob_jobs=jobs_total, dob_matched=len(JOBS),
               dob_now_matched=int((JOBS.sys == "N").sum()), bis_matched=int((JOBS.sys == "B").sum()),
               now_permits=len(npm), bis_permits=len(bpm), hdb_rows=len(hdb), hdb_alt_loss=len(ALT), buildings=len(IDX),

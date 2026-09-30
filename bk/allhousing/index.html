@@ -76,6 +76,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
 .kpi .k{font-family:'DM Mono',monospace;font-size:.52rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
 .kpi .v{font-family:'DM Mono',monospace;font-size:1.3rem;font-weight:900;margin-top:3px;line-height:1}
 .kpi .d{font-size:.64rem;color:var(--muted);margin-top:3px;line-height:1.4}
+.lsbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.lsbar label span{display:block;font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:3px}
+.lsbar select{padding:7px 9px;border:1.5px solid var(--navy);border-radius:7px;font:500 .82rem 'DM Sans',sans-serif;color:var(--navy);background:#fff;max-width:100%}
+.lseq{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px 9px;margin-top:12px}
+.lsb{border:1px solid var(--border);border-radius:9px;padding:8px 10px;min-width:104px;background:#fff}
+.lsb.b{border-left:4px solid #1c4fa0}.lsb.l{border-left:4px solid #e8590c}.lsb.d{border-left:4px solid #a8327a}.lsb.n{border-left:4px solid #0b0b0b}
+.lsb .k{font-family:'DM Mono',monospace;font-size:.52rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.lsb .v{font-family:'DM Mono',monospace;font-size:1.15rem;font-weight:700;margin-top:2px}
+.lsb .v a{color:inherit;text-decoration:underline dotted;text-underline-offset:3px}
+.lsb .d{font-size:.68rem;color:#555;margin-top:2px}
+.lseq .op{font-family:'DM Mono',monospace;color:var(--muted);padding-bottom:16px}
+.lsbarv{display:flex;gap:2px;height:14px;margin-top:10px;border-radius:4px;overflow:hidden}
+.lsbarv i{display:block;height:100%}
+.lsq{font-size:.72rem;color:#555;line-height:1.6;margin-top:6px}
+.lsq a{color:var(--navy)}
 .sect{background:#fff;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden}
 .sect>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:11px;padding:12px 14px;background:#f8f7f4;border-left:4px solid var(--orange)}
 .sect>summary::-webkit-details-marker{display:none}
@@ -255,6 +270,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
     <span class="st">Every kind of build<small>New buildings, alterations that add units, and demolitions that remove them. The net of the three is the figure everything else on this page uses.</small></span><span class="sc"></span></summary>
     <div class="sb"><div class="cb"><canvas id="cTypes"></canvas></div><div class="nt" id="nTypes"></div>
       <div class="tsum" id="tSum"></div></div></details>
+
+  <details class="sect" id="lossSect" open><summary><span class="si">&#10134;</span>
+    <span class="st">What losses take from what gets built<small>Units built, minus units lost when alterations combine apartments and when buildings are demolished. Completed 2010 to 2024.</small></span><span class="sc"></span></summary>
+    <div class="sb">
+      <div class="lsbar"><label><span>Where</span><select id="lsScope"></select></label></div>
+      <div class="lseq" id="lsEq"></div>
+      <div class="lsbarv" id="lsBar"></div>
+      <div class="nt" id="lsNote"></div>
+      <div class="cb"><canvas id="cLoss"></canvas></div>
+      <div class="lsq" id="lsQ"></div>
+      <div class="lsbar" style="margin-top:14px"><label><span>Rank</span><select id="lsRank"><option value="cd">Every community district</option><option value="cc">Every council district</option><option value="boro">Every borough</option></select></label></div>
+      <div class="nt" style="margin-top:6px">Units lost to alterations for every 100 units built, completed 2010 to 2024. Tap a bar to open it above.</div>
+      <div class="cb tall" id="lsRankBox"><canvas id="cLossRank"></canvas></div>
+      <div class="lsq" id="lsSrc"></div>
+    </div></details>
   <details class="sect"><summary><span class="si">&#9878;</span>
     <span class="st">All housing against income regulated<small>How much of what gets built is affordable, year by year.</small></span><span class="sc"></span></summary>
     <div class="sb"><div class="cb"><canvas id="cAff"></canvas></div><div class="nt" id="nAff"></div></div></details>
@@ -690,6 +720,67 @@ body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy);mi
       '. There are more alteration jobs than new building jobs ('+n(T.jobsByType['Alteration'])+' against '+
       n(T.jobsByType['New Building'])+'), but each one adds far fewer units.';
   }).catch(function(){});
+})();
+
+/* ---- what losses take from what gets built ---- */
+(function(){
+  var $=function(i){return document.getElementById(i);};
+  var n=function(v){return Number(Math.round(v)).toLocaleString('en-US');};
+  var esc=function(x){return String(x==null?'':x).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+  var C={nb:'#1c4fa0',gain:'#2f8f5b',loss:'#e8590c',demo:'#a8327a'};
+  var BN={MN:'Manhattan',BX:'Bronx',BK:'Brooklyn',QN:'Queens',SI:'Staten Island'},BC={MN:'1',BX:'2',BK:'3',QN:'4',SI:'5'};
+  var L=null,CM={},chL=null,chR=null,YRS=[];for(var y=2010;y<=2024;y++)YRS.push(y);
+  var COND={nb:"job_type='New Building'",gain:"job_type='Alteration' AND classanet>0",loss:"job_type='Alteration' AND classanet<0",demo:"job_type='Demolition'"};
+  function where(sc){var p=sc.split(':');if(p[0]==='nyc')return '';if(p[0]==='boro')return "boro='"+BC[p[1]]+"' AND ";if(p[0]==='cd')return "commntydst='"+BC[p[1].slice(0,2)]+p[1].slice(3)+"' AND ";return "councildst='"+p[1]+"' AND ";}
+  function q(sc,k,byYear){var w=where(sc)+"job_status like '5%' AND "+COND[k]+(byYear?'':" AND compltyear between '2010' and '2024'");var o={'$select':(byYear?'compltyear,':'')+'sum(classanet) as units,count(*) as jobs','$where':w};if(byYear){o['$group']='compltyear';o['$order']='compltyear';}return 'https://data.cityofnewyork.us/resource/br6q-ssj3.json?'+Object.keys(o).map(function(k2){return encodeURIComponent(k2)+'='+encodeURIComponent(o[k2]);}).join('&');}
+  function get(sc){var p=sc.split(':');return p[0]==='nyc'?L.nyc:L[p[0]][p[1]];}
+  function lab(sc){var p=sc.split(':');if(p[0]==='nyc')return 'New York City';if(p[0]==='boro')return BN[p[1]];if(p[0]==='cd')return BN[p[1].slice(0,2)]+' Community District '+(+p[1].slice(3));return 'Council District '+p[1]+(CM[p[1]]?' ('+CM[p[1]].name+')':'');}
+  function tot(d,k){return YRS.reduce(function(a,y){return a+((d[k]||{})[y]||0);},0);}
+  function a(href,txt){return '<a href="'+esc(href)+'" target="_blank" rel="noopener">'+txt+'</a>';}
+  function draw(){
+    var sc=$('lsScope').value,d=get(sc);if(!d)return;
+    var nb=tot(d,'nb'),ga=tot(d,'gain'),lo=tot(d,'loss'),de=tot(d,'demo'),bu=nb+ga,net=bu-lo-de;
+    var box=function(cls,k,v,sub,key){return '<div class="lsb '+cls+'"><div class="k">'+k+'</div><div class="v">'+a(q(sc,key,false),n(v))+'</div><div class="d">'+sub+'</div></div>';};
+    $('lsEq').innerHTML=box('b','Built',nb,'new buildings','nb')+'<div class="op">+</div>'+box('b','&nbsp;',ga,'alterations that add units','gain')+'<div class="op">&minus;</div>'+box('l','Lost',lo,'alterations that remove units','loss')+'<div class="op">&minus;</div>'+box('d','&nbsp;',de,'demolitions','demo')+'<div class="op">=</div><div class="lsb n"><div class="k">Net</div><div class="v">'+n(net)+'</div><div class="d">units</div></div>';
+    $('lsBar').innerHTML=bu?'<i style="width:'+(100*net/bu).toFixed(2)+'%;background:#1c4fa0" title="Net"></i><i style="width:'+(100*lo/bu).toFixed(2)+'%;background:#e8590c" title="Lost to alterations"></i><i style="width:'+(100*de/bu).toFixed(2)+'%;background:#a8327a" title="Lost to demolitions"></i>':'';
+    $('lsNote').innerHTML=bu?('<b>'+esc(lab(sc))+'</b>: of every 100 units built, alterations that remove units took back <b>'+(100*lo/bu).toFixed(1)+'</b> and demolitions <b>'+(100*de/bu).toFixed(1)+'</b>, leaving <b>'+(100*net/bu).toFixed(1)+'</b>.'+(lo?' One unit lost to alterations for every <b>'+(bu/lo).toFixed(1)+'</b> built.':'')):'No completed jobs.';
+    var data={labels:YRS.map(String),datasets:[
+      {type:'line',label:'Net',data:YRS.map(function(y){return ((d.nb[y]||0)+(d.gain[y]||0))-((d.loss[y]||0)+(d.demo[y]||0));}),borderColor:'#0b0b0b',backgroundColor:'#0b0b0b',borderWidth:2,pointRadius:3,tension:0,order:0},
+      {label:'New buildings',data:YRS.map(function(y){return d.nb[y]||0;}),backgroundColor:C.nb,borderColor:'#fff',borderWidth:1,stack:'s',order:1},
+      {label:'Alterations that add units',data:YRS.map(function(y){return d.gain[y]||0;}),backgroundColor:C.gain,borderColor:'#fff',borderWidth:1,stack:'s',order:1},
+      {label:'Alterations that remove units',data:YRS.map(function(y){return -(d.loss[y]||0);}),backgroundColor:C.loss,borderColor:'#fff',borderWidth:1,stack:'s',order:1},
+      {label:'Demolitions',data:YRS.map(function(y){return -(d.demo[y]||0);}),backgroundColor:C.demo,borderColor:'#fff',borderWidth:1,stack:'s',order:1}]};
+    var opts={responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{boxWidth:10,font:{size:10}}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+n(Math.abs(c.parsed.y))+' units';}}}},
+      scales:{x:{stacked:true,ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760'},grid:{display:false}},
+              y:{stacked:true,ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760',callback:function(v){return n(v);}},grid:{color:function(c){return c.tick&&c.tick.value===0?'#9d998f':'#f0ede8';}}}}};
+    if(chL){chL.data=data;chL.update();}else chL=new Chart($('cLoss'),{type:'bar',data:data,options:opts});
+    $('lsQ').innerHTML='Source queries, by year: '+a(q(sc,'nb',true),'new buildings')+' &middot; '+a(q(sc,'gain',true),'alterations that add units')+' &middot; '+a(q(sc,'loss',true),'alterations that remove units')+' &middot; '+a(q(sc,'demo',true),'demolitions')+'. Built above the line, lost below it; the line is net.';
+    rank();
+  }
+  function rank(){
+    var kind=$('lsRank').value,cur=$('lsScope').value,keys=Object.keys(L[kind]);
+    var rows=keys.map(function(k){var d=L[kind][k],bu=tot(d,'nb')+tot(d,'gain'),lo=tot(d,'loss');return{sc:kind+':'+k,k:k,v:bu?Math.round(1000*lo/bu)/10:0,lo:lo,bu:bu};}).sort(function(x,y){return y.v-x.v;});
+    var lb=function(r){return kind==='cd'?r.k:kind==='boro'?BN[r.k]:'Council '+r.k+(CM[r.k]?' '+CM[r.k].name:'');};
+    $('lsRankBox').style.height=Math.max(160,rows.length*17+40)+'px';
+    var data={labels:rows.map(lb),datasets:[{data:rows.map(function(r){return r.v;}),backgroundColor:rows.map(function(r){return r.sc===cur?'#e8590c':(r.k==='BK-06'?'#b8431a':'#1c4fa0');}),borderRadius:3}]};
+    var opts={indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      onClick:function(e,els){if(!els.length)return;var r=rows[els[0].index];$('lsScope').value=r.sc;draw();$('lossSect').scrollIntoView({behavior:'smooth',block:'start'});},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){var r=rows[c.dataIndex];return r.v+' lost per 100 built ('+n(r.lo)+' lost, '+n(r.bu)+' built)';}}}},
+      scales:{x:{ticks:{font:{size:10,family:'DM Mono'},color:'#6b6760'},grid:{color:'#f2f0ec'},beginAtZero:true},y:{ticks:{font:{size:10,family:'DM Sans'},color:'#6b6760',autoSkip:false},grid:{display:false}}}};
+    if(chR)chR.destroy();chR=new Chart($('cLossRank'),{type:'bar',data:data,options:opts});
+    var cb6=rows.map(function(r){return r.k;}).indexOf('BK-06');
+    $('lsSrc').innerHTML=(kind==='cd'&&cb6>=0?'Brooklyn CB6 ranks <b>'+(cb6+1)+'</b> of '+rows.length+'. ':'')+'NYC Department of City Planning, Housing Database Project-Level Files, version '+esc(L.version)+' ('+a('https://data.cityofnewyork.us/d/br6q-ssj3','br6q-ssj3')+'), retrieved '+esc(L.built)+'. Completed jobs, counted by year completed. Council districts are whole districts, including parts in other boroughs.';
+  }
+  Promise.all([fetch('/data/housing-loss.json').then(function(r){return r.json();}),fetch('/data/council-members.json').then(function(r){return r.json();}).catch(function(){return {members:{}};})]).then(function(a2){
+    L=a2[0];CM=a2[1].members||{};if(!window.Chart||!$('cLoss'))return;
+    var o='<option value="nyc:all">New York City</option><optgroup label="Boroughs">'+['MN','BX','BK','QN','SI'].map(function(b){return '<option value="boro:'+b+'">'+BN[b]+'</option>';}).join('')+'</optgroup>';
+    ['MN','BX','BK','QN','SI'].forEach(function(b){o+='<optgroup label="'+BN[b]+' community districts">'+Object.keys(L.cd).filter(function(k){return k.indexOf(b)===0;}).sort().map(function(k){return '<option value="cd:'+k+'">'+k+': '+BN[b]+' Community District '+(+k.slice(3))+'</option>';}).join('')+'</optgroup>';});
+    o+='<optgroup label="Council districts">'+Object.keys(L.cc).sort(function(x,y){return x-y;}).map(function(k){return '<option value="cc:'+k+'">Council District '+k+(CM[k]?': '+esc(CM[k].name):'')+'</option>';}).join('')+'</optgroup>';
+    $('lsScope').innerHTML=o;$('lsScope').value='cd:BK-06';
+    $('lsScope').addEventListener('change',draw);$('lsRank').addEventListener('change',rank);
+    draw();
+  }).catch(function(){$('lsNote').textContent='The Housing Database figures did not load.';});
 })();
 
 /* ---- housing report ---- */
