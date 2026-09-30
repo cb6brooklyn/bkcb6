@@ -281,8 +281,11 @@ def bbl10_of(dj, ha):
 
 
 KEYBBL = {k: bbl10_of(jgroups.get(k, EMPTYJ), agroups.get(k, EMPTYA)) for k in keys}
-pl = pull_in("pluto_cd.csv", "64uk-42ks", "bbl", [b for b in KEYBBL.values() if b], "bbl,cd,version", "bbl")
+pl = pull_in("pluto_cdcc.csv", "64uk-42ks", "bbl", [b for b in KEYBBL.values() if b], "bbl,cd,council,version", "bbl")
 PLUTO = {str(r.bbl).split(".")[0]: str(r.cd) for r in pl.itertuples()}
+PLUTO_CC = {str(r.bbl).split(".")[0]: str(r.council).split(".")[0] for r in pl.itertuples()}
+CC = tree(load("data/council-districts.geojson"))
+CCSRC = {"hdb": 0, "pluto": 0, "map": 0, "none": 0}
 pluto_version = pl.version.mode().iloc[0] if len(pl) else ""
 print("PLUTO lots found", len(PLUTO), "of", len([b for b in KEYBBL.values() if b]), "version", pluto_version, flush=True)
 CDSRC = {"hdb": 0, "pluto": 0, "dob": 0, "map": 0}
@@ -319,6 +322,16 @@ for k in keys:
     if not cd and pt is not None:
         cd, src = hit(CD, pt, "cd") or "", "map"
     CDSRC[src if cd else "map"] += 1
+    # Council district, same order: Housing Database councildst, PLUTO council, then the council district map.
+    vcc = lambda c: bool(re.fullmatch(r"([1-9]|[1-4]\d|5[01])", str(c)))
+    ccs = [str(c) for c in ha.councildst if vcc(c)]
+    csrc = "hdb"
+    if not ccs and vcc(PLUTO_CC.get(KEYBBL[k], "")):
+        ccs, csrc = [PLUTO_CC[KEYBBL[k]]], "pluto"
+    cc = max(set(ccs), key=ccs.count) if ccs else ""
+    if not cc and pt is not None:
+        cc, csrc = str(hit(CC, pt, "cc") or ""), "map"
+    CCSRC[csrc if cc else "none"] += 1
     nb = hd = zn = ""
     if pt is not None:
         nb = hit(NB, pt, "nb") or nearest(NB, pt, "nb")
@@ -347,10 +360,10 @@ for k in keys:
                        {"one": 0, "fewer": 1, "check": 2}[cat], {"done": 0, "permitted": 1, "filed": 2, "withdrawn": 3}[stage],
                        int(filed[0][:4]) if filed else None, comp[0] if comp else (int(so[0][:4]) if so else None),
                        int(max(ub)) if ub else None, int(min(ua)) if ua else None, int(-ha.classanet.sum()) if len(ha) else 0,
-                       nb, hd, zn, " ".join(sorted(set(list(dj.job) + list(ha.job_number))))])
+                       nb, hd, zn, " ".join(sorted(set(list(dj.job) + list(ha.job_number)))), int(cc) if cc else 0])
     details.setdefault(cd or "3", {})[rid] = dict(d=desc, jobs=jl, hj=hl)
 
-FIELDS = ["id", "a", "bin", "bbl", "cd", "lat", "lon", "c", "g", "y", "cy", "ub", "ua", "lost", "nb", "hd", "zn", "jobs"]
+FIELDS = ["id", "a", "bin", "bbl", "cd", "lat", "lon", "c", "g", "y", "cy", "ub", "ua", "lost", "nb", "hd", "zn", "jobs", "cc"]
 IDX = pd.DataFrame(index_rows, columns=FIELDS)
 print("buildings", len(IDX), IDX.c.value_counts().to_dict(), "stages", IDX.g.value_counts().to_dict(), "no coords", IDX.lat.isna().sum(), "no cd", (IDX.cd == 0).sum(), flush=True)
 assert IDX.id.is_unique
@@ -426,12 +439,39 @@ for n in range(1, 19):
 bk_all = cd_stats(hdb)
 bk_all.pop("loss_by_year")
 
+
+def by_year(df):
+    c = df[df.job_status.str.startswith("5")]
+    a = c[c.job_type == "Alteration"]
+    return dict(
+        loss={int(y): int(-v) for y, v in a[a.classanet < 0].groupby("cy").classanet.sum().items()},
+        loss_jobs={int(y): int(v) for y, v in a[a.classanet < 0].groupby("cy").size().items()},
+        gain={int(y): int(v) for y, v in a[a.classanet > 0].groupby("cy").classanet.sum().items()},
+        nb={int(y): int(v) for y, v in c[c.job_type == "New Building"].groupby("cy").classanet.sum().items()},
+        demo={int(y): int(-v) for y, v in c[c.job_type == "Demolition"].groupby("cy").classanet.sum().items()},
+    )
+
+
+def scope(df):
+    s = cd_stats(df)
+    s.pop("loss_by_year")
+    s["y"] = by_year(df)
+    return s
+
+
+ch = dict(all=scope(hdb), cd={}, cc={})
+for n in range(1, 19):
+    ch["cd"][n] = scope(hdb[hdb.commntydst == "3%02d" % n])
+for c in sorted(set(hdb.councildst) | set(str(x) for x in IDX.cc if x), key=lambda x: int(x) if str(x).isdigit() else 999):
+    if str(c).isdigit():
+        ch["cc"][int(c)] = scope(hdb[hdb.councildst == str(c)])
+
 counts = dict(dob_now_rows=len(now), bis_rows=len(bis), dob_jobs=jobs_total, dob_matched=len(JOBS),
               dob_now_matched=int((JOBS.sys == "N").sum()), bis_matched=int((JOBS.sys == "B").sum()),
               now_permits=len(npm), bis_permits=len(bpm), hdb_rows=len(hdb), hdb_alt_loss=len(ALT), buildings=len(IDX),
-              bis_first=str(pd.to_datetime(bis.pre__filing_date, errors="coerce").min())[:10], pluto_version=pluto_version, cd_source=CDSRC,
+              bis_first=str(pd.to_datetime(bis.pre__filing_date, errors="coerce").min())[:10], pluto_version=pluto_version, cd_source=CDSRC, cc_source=CCSRC,
               now_first=str(pd.to_datetime(now.filing_date, errors="coerce").min())[:10])
-out = dict(built=time.strftime("%Y-%m-%d"), counts=counts, stats=stats, bk=bk, bk_all=bk_all)
+out = dict(built=time.strftime("%Y-%m-%d"), counts=counts, stats=stats, bk=bk, bk_all=bk_all, ch=ch)
 os.makedirs(os.path.join(ROOT, "middlehousing", "bk"), exist_ok=True)
 json.dump(out, open(os.path.join(ROOT, "middlehousing", "data.json"), "w"), separators=(",", ":"))
 rows_out = json.loads(IDX.to_json(orient="values"))
