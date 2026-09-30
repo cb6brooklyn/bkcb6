@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the Brooklyn-wide consolidation data for bkcb6.app/middlehousing/.
+"""Build the Brooklyn-wide consolidation data for bkcb6.app/middlehousingstillmissing/.
 
 Sources (all NYC Open Data, every Brooklyn record, nothing sampled):
   w9ak-ipjd  DOB NOW: Build, Job Application Filings   (borough = Brooklyn)
@@ -20,9 +20,9 @@ community district in PLUTO (64uk-42ks), else the DOB filing's community board;
 the district boundary map is used only when none of those is valid.
 
 Writes:
-  middlehousing/data.json          counts, CB6 figures, Brooklyn district table, ranks
-  middlehousing/bk/index.json      one row per building (map, list, search)
-  middlehousing/bk/cd3NN.json      every filing, permit and Housing Database job, per district
+  middlehousingstillmissing/data.json          counts, CB6 figures, Brooklyn district table, ranks
+  middlehousingstillmissing/bk/index.json      one row per building (map, list, search)
+  middlehousingstillmissing/bk/cd3NN.json      every filing, permit and Housing Database job, per district
 
 Usage: python3 tools/build_middlehousing.py <cache_dir>
 Files already in cache_dir are reused (bk_dobnow.csv, bk_bis.csv, hdb_bk.csv,
@@ -487,8 +487,22 @@ for b in "12345":
         loss_10_24=tot("job_type='Alteration' AND classanet<0 AND " + DONE + " AND compltyear between '2010' and '2024'"),
         loss_20_24=tot("job_type='Alteration' AND classanet<0 AND " + DONE + " AND compltyear between '2020' and '2024'"),
         loss_all_open=tot("job_type='Alteration' AND classanet<0 AND job_status not like '9%'"),
+        loss_to_one_10_24=tot("job_type='Alteration' AND classanet<0 AND classaprop=1 AND " + DONE + " AND compltyear between '2010' and '2024'"),
     )
-print("boroughs", {k: v["loss_10_24"] for k, v in ch["boro"].items()}, flush=True)
+NYCW = "boro in('1','2','3','4','5')"
+yrs = {}
+for key, cond in [("loss", "job_type='Alteration' AND classanet<0"), ("gain", "job_type='Alteration' AND classanet>0"), ("nb", "job_type='New Building'"), ("demo", "job_type='Demolition'")]:
+    rows = hdb_json({"$select": "compltyear,sum(classanet) as units", "$where": NYCW + " AND " + DONE + " AND " + cond, "$group": "compltyear", "$order": "compltyear"})
+    yrs[key] = {int(r["compltyear"]): abs(int(round(float(r["units"])))) for r in rows if r.get("compltyear")}
+tn = lambda cond: abs(int(round(float((hdb_json({"$select": "sum(classanet) as units", "$where": NYCW + " AND " + cond})[0].get("units") or 0)))))
+ch["nyc"] = dict(
+    y=yrs,
+    loss_10_24=tn("job_type='Alteration' AND classanet<0 AND " + DONE + " AND compltyear between '2010' and '2024'"),
+    loss_20_24=tn("job_type='Alteration' AND classanet<0 AND " + DONE + " AND compltyear between '2020' and '2024'"),
+    loss_all_open=tn("job_type='Alteration' AND classanet<0 AND job_status not like '9%'"),
+    loss_to_one_10_24=tn("job_type='Alteration' AND classanet<0 AND classaprop=1 AND " + DONE + " AND compltyear between '2010' and '2024'"),
+)
+print("boroughs", {k: v["loss_10_24"] for k, v in ch["boro"].items()}, "nyc", ch["nyc"]["loss_10_24"], flush=True)
 
 counts = dict(dob_now_rows=len(now), bis_rows=len(bis), dob_jobs=jobs_total, dob_matched=len(JOBS),
               dob_now_matched=int((JOBS.sys == "N").sum()), bis_matched=int((JOBS.sys == "B").sum()),
@@ -496,13 +510,13 @@ counts = dict(dob_now_rows=len(now), bis_rows=len(bis), dob_jobs=jobs_total, dob
               bis_first=str(pd.to_datetime(bis.pre__filing_date, errors="coerce").min())[:10], pluto_version=pluto_version, cd_source=CDSRC, cc_source=CCSRC,
               now_first=str(pd.to_datetime(now.filing_date, errors="coerce").min())[:10])
 out = dict(built=time.strftime("%Y-%m-%d"), counts=counts, stats=stats, bk=bk, bk_all=bk_all, ch=ch)
-os.makedirs(os.path.join(ROOT, "middlehousing", "bk"), exist_ok=True)
-json.dump(out, open(os.path.join(ROOT, "middlehousing", "data.json"), "w"), separators=(",", ":"))
+os.makedirs(os.path.join(ROOT, "middlehousingstillmissing", "bk"), exist_ok=True)
+json.dump(out, open(os.path.join(ROOT, "middlehousingstillmissing", "data.json"), "w"), separators=(",", ":"))
 rows_out = json.loads(IDX.to_json(orient="values"))
-json.dump(dict(f=FIELDS, r=rows_out), open(os.path.join(ROOT, "middlehousing", "bk", "index.json"), "w"), separators=(",", ":"), ensure_ascii=False)
+json.dump(dict(f=FIELDS, r=rows_out), open(os.path.join(ROOT, "middlehousingstillmissing", "bk", "index.json"), "w"), separators=(",", ":"), ensure_ascii=False)
 for cd, det in details.items():
-    json.dump(det, open(os.path.join(ROOT, "middlehousing", "bk", "cd%s.json" % cd), "w"), separators=(",", ":"), ensure_ascii=False)
-tot = sum(os.path.getsize(os.path.join(ROOT, "middlehousing", "bk", f)) for f in os.listdir(os.path.join(ROOT, "middlehousing", "bk")))
-print("wrote data.json, bk/index.json", os.path.getsize(os.path.join(ROOT, "middlehousing", "bk", "index.json")) // 1024, "KB, bk/ total", tot // 1024, "KB", flush=True)
+    json.dump(det, open(os.path.join(ROOT, "middlehousingstillmissing", "bk", "cd%s.json" % cd), "w"), separators=(",", ":"), ensure_ascii=False)
+tot = sum(os.path.getsize(os.path.join(ROOT, "middlehousingstillmissing", "bk", f)) for f in os.listdir(os.path.join(ROOT, "middlehousingstillmissing", "bk")))
+print("wrote data.json, bk/index.json", os.path.getsize(os.path.join(ROOT, "middlehousingstillmissing", "bk", "index.json")) // 1024, "KB, bk/ total", tot // 1024, "KB", flush=True)
 print(json.dumps(counts, indent=1))
 print(json.dumps({k: v for k, v in stats.items() if not isinstance(v, (dict, list))}, indent=1))
