@@ -150,6 +150,15 @@ a.qn:hover,a.q:hover{color:var(--orange)}
 .srcs{padding:0 16px 22px;font-size:.74rem;color:var(--muted);line-height:1.6}
 .srcs a{color:var(--navy)}
 
+.bsi{background:none;border:0}
+.bsi span{position:absolute;left:19px;top:0;font:700 11px/1 'DM Mono',monospace;color:#fff;background:var(--c);border-radius:3px;padding:2px 3px;white-space:nowrap}
+.bsi .bsv{filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+.famrow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:6px;font-size:.8rem;line-height:1.45;color:#333}
+.famrow .fi{display:flex;flex-wrap:wrap;gap:2px;align-items:center;max-width:100%}
+.famrow .fx{font-family:'DM Mono',monospace;font-size:.72rem;margin:0 4px 0 1px}
+.bsl{display:inline-flex;align-items:center;gap:3px;flex:none}
+.bsl b{font-family:'DM Mono',monospace;font-size:.72rem;color:#fff;background:var(--c);border-radius:3px;padding:1px 4px}
+.leaflet-tooltip.ftip{width:250px;white-space:normal}
 </style>
 </head>
 <body><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a>
@@ -164,9 +173,9 @@ a.qn:hover,a.q:hover{color:var(--orange)}
 
   <details class="scope" id="sec-cb6" open><summary><span class="sn">BKCB6</span><span class="ss">Brooklyn Community District 6</span></summary><div class="sbody">
     <div class="lede">Park Slope, Carroll Gardens, Cobble Hill, Gowanus, Red Hook and the Columbia Street Waterfront.</div>
-    <div class="key" style="margin-top:12px"><span><i style="--c:#e8590c"></i>Buildings with a filing or Housing Database job that lowers their units (<span id="m6n1">&hellip;</span>)</span><span><i style="--c:#2f8f5b"></i>HPD-financed new buildings with affordable units (<span id="m6n2">&hellip;</span>)</span></div>
+    <div class="key" style="margin-top:12px"><span><span id="kbs"></span>Buildings with a filing or Housing Database job that lowers their units, with the number of homes lost (<span id="m6n1">&hellip;</span>)</span><span><span id="kap"></span>HPD-financed new buildings, with their affordable units (<span id="m6n2">&hellip;</span>)</span></div>
     <div class="smap" id="m6" role="region" aria-label="Map of BKCB6"></div>
-    <p class="note">Orange: every CB6 building with a filing or Housing Database job that lowers its units, from <a href="/middlehousingstillmissing/#method">Middle Housing Still Missing</a>; tap one for its filings, permits and citation. Green: every HPD-financed new building in CB6 (<span id="m6src"></span>); filled when completed, open when not.</p>
+    <p class="note">Orange brownstones: every CB6 building with a filing or Housing Database job that lowers its units, marked with how many homes it lost (filled when the work is done). Zoom in to see each building; hover one to see the homes before and after. From <a href="/middlehousingstillmissing/#method">Middle Housing Still Missing</a>; tap one for its filings, permits and citation. Green buildings: every HPD-financed new building in CB6, marked with its affordable units (<span id="m6src"></span>); filled when completed, open when not.</p>
     <div id="p6"></div>
     <div class="cont"><button class="btn solid" type="button" data-go="sec-bk">Continue to Brooklyn &darr;</button></div>
   </div></details>
@@ -385,14 +394,42 @@ var M6=null;
 function cb6Map(){
   if(M6){M6.invalidateSize();return}
   M6=L.map('m6',{preferCanvas:true,scrollWheelZoom:false,zoomSnap:1}).setView([40.6755,-73.99],14);
+  var GI=L.layerGroup(),GD=L.layerGroup(),sw=function(){if(M6.getZoom()>=15){M6.removeLayer(GD);GI.addTo(M6)}else{M6.removeLayer(GI);GD.addTo(M6)}};M6.on('zoomend',sw);sw();
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{maxZoom:19,subdomains:'abcd',attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(M6);
   geo('/cd-boundaries-simple.geojson').then(function(g){var l=L.geoJSON({type:'FeatureCollection',features:g.features.filter(function(f){return String(f.properties.cd)==='306'})},{style:{color:'#0d1b4b',weight:3,fill:false},interactive:false}).addTo(M6);M6.fitBounds(l.getBounds(),{padding:[8,8]})});
   fetch('/middlehousingstillmissing/bk/index.json').then(function(r){return r.json()}).then(function(ix){var f=ix.f,n=0;ix.r.forEach(function(r){var b={};f.forEach(function(k,i){b[k]=r[i]});if(b.cd!==6||b.g===3||b.lat==null)return;n++;
-    L.circleMarker([b.lat,b.lon],{radius:4,color:'#e8590c',weight:1.5,fillColor:'#e8590c',fillOpacity:b.g===0?.9:.25}).bindTooltip(esc(b.a)+': lost units').on('click',function(){window.open('/middlehousingstillmissing/#b-'+encodeURIComponent(b.id),'_blank')}).addTo(M6)});$('m6n1').textContent=fmt(n)});
+    var ST=['Done','Approved or permitted','Filed'],tip='<b>'+esc(b.a)+'</b><br>'+ST[b.g]+(b.cy?' '+b.cy:'')+famHTML(b)+'<div class="mu" style="margin-top:4px">Tap for its filings, permits and citation</div>',go=function(){window.open('/middlehousingstillmissing/#b-'+encodeURIComponent(b.id),'_blank')};
+    L.circleMarker([b.lat,b.lon],{radius:4,color:'#e8590c',weight:1.5,fillColor:'#e8590c',fillOpacity:b.g===0?.9:.25}).bindTooltip(tip,{direction:'top',className:'ftip'}).on('click',go).addTo(GD);
+    L.marker([b.lat,b.lon],{icon:bsIcon(b,{c:'#e8590c'}),riseOnHover:true}).bindTooltip('<b>'+esc(b.a)+'</b><br>'+ST[b.g]+(b.cy?' '+b.cy:'')+famHTML(b)+'<div class="mu" style="margin-top:4px">Tap for its filings, permits and citation</div>',{direction:'top',className:'ftip'}).on('click',function(){window.open('/middlehousingstillmissing/#b-'+encodeURIComponent(b.id),'_blank')}).addTo(GI)});$('m6n1').textContent=fmt(n)});
   var u=odq('hg8x-zxpr',{'$select':'project_name,house_number,street_name,latitude,longitude,all_counted_units,reporting_construction_type,building_completion_date','$where':"community_board='BK-06' AND reporting_construction_type='New Construction' AND latitude IS NOT NULL",'$limit':'5000'});
   $('m6src').innerHTML=ext(u,'HPD buildings query');
-  fetch(u).then(function(r){return r.json()}).then(function(rows){rows.forEach(function(r){var done=!!r.building_completion_date;L.circleMarker([+r.latitude,+r.longitude],{radius:6,color:'#2f8f5b',weight:2,fillColor:'#2f8f5b',fillOpacity:done?.9:.2}).bindTooltip(esc(r.house_number+' '+r.street_name)+': '+fmt(r.all_counted_units)+' affordable units'+(done?', completed '+String(r.building_completion_date).slice(0,10):', not yet completed')).addTo(M6)});$('m6n2').textContent=fmt(rows.length)}).catch(function(){});
+  fetch(u).then(function(r){return r.json()}).then(function(rows){rows.forEach(function(r){var done=!!r.building_completion_date;var tp=['<b>'+esc(r.house_number+' '+r.street_name)+'</b><br>'+(r.all_counted_units?fmt(r.all_counted_units)+' affordable units':'Affordable units not listed')+(done?', completed '+String(r.building_completion_date).slice(0,10):', not yet completed')];L.circleMarker([+r.latitude,+r.longitude],{radius:6,color:'#2f8f5b',weight:2,fillColor:'#2f8f5b',fillOpacity:done?.9:.2}).bindTooltip(tp[0]).addTo(GD);L.marker([+r.latitude,+r.longitude],{icon:aptIcon('#2f8f5b',done,+r.all_counted_units),riseOnHover:true,zIndexOffset:500}).bindTooltip(tp[0]).addTo(GI)});$('m6n2').textContent=fmt(rows.length)}).catch(function(){});
 }
+/* ---------- brownstone and household icons (drawn for bkcb6.app) ---------- */
+function bsSVG(c,solid,w){w=w||22;var h=Math.round(w*1.3),f=solid?c:'#fff',k=solid?'#fff':c;
+  return '<svg class="bsv" width="'+w+'" height="'+h+'" viewBox="0 0 40 52" aria-hidden="true"><rect x="5" y="6" width="30" height="42" fill="'+f+'" stroke="'+c+'" stroke-width="2.5"/><rect x="2.5" y="2" width="35" height="5" rx="1" fill="'+c+'"/>'
+   +'<g fill="'+k+'"><rect x="9" y="11" width="7" height="9"/><rect x="20" y="10" width="12" height="12"/><rect x="20" y="25" width="12" height="11"/><path d="M9 36 v-8 a4 4 0 0 1 8 0 v8 z"/><rect x="22" y="40" width="9" height="5"/></g>'
+   +'<g stroke="'+f+'" stroke-width="1.2"><line x1="26" y1="10" x2="26" y2="22"/><line x1="26" y1="25" x2="26" y2="36"/></g>'
+   +'<g stroke="'+k+'" stroke-width="1.8" stroke-linecap="round"><line x1="8" y1="38.5" x2="18" y2="38.5"/><line x1="7" y1="41.5" x2="18.5" y2="41.5"/><line x1="6" y1="44.5" x2="19" y2="44.5"/><line x1="8" y1="37" x2="5.5" y2="47"/><line x1="18" y1="37" x2="19.5" y2="47"/></g></svg>'}
+function famSVG(c,lost,w){w=w||20;
+  return '<svg class="fam'+(lost?' lost':'')+'" width="'+w+'" height="'+w+'" viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="'+c+'" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="8" r="4.5"/><path d="M4 33 v-9 a8 8 0 0 1 16 0"/><circle cx="28" cy="8" r="4.5"/><path d="M20 24 a8 8 0 0 1 16 0 v9"/></g><g fill="#fff" stroke="'+c+'" stroke-width="2.6" stroke-linecap="round"><circle cx="20" cy="22" r="3.6"/><path d="M13.5 38 v-3 a6.5 6.5 0 0 1 13 0 v3"/></g>'+(lost?'<line x1="3" y1="37" x2="37" y2="3" stroke="'+c+'" stroke-width="2.6" stroke-linecap="round"/>':'')+'</svg>'}
+function unitsLost(b){return (b.ub!=null&&b.ua!=null)?b.ub-b.ua:(b.lost||null)}
+function bsIcon(b,cat){var c=cat.c,d=unitsLost(b),solid=b.g==='done'||b.g===0;
+  return L.divIcon({className:'bsi',html:bsSVG(c,solid,20)+'<span style="--c:'+c+'">'+(d!=null?'&minus;'+d:'?')+'</span>',iconSize:[34,28],iconAnchor:[10,26]})}
+function famHTML(b){
+  var ub=b.ub,ua=b.ua,d=unitsLost(b);
+  if(ub==null||ua==null){return d!=null?'<div class="famrow"><b>'+d+' fewer home'+(d===1?'':'s')+'</b> in the Housing Database.</div>':'<div class="famrow">The filings do not record how many homes were here before.</div>'}
+  var icons='';
+  if(ub<=24){for(var i=0;i<ub;i++)icons+=i<ua?famSVG('#0d1b4b',false,22):famSVG('#e8590c',true,22)}
+  else icons=famSVG('#0d1b4b',false,22)+'<span class="fx">&times;'+ua+'</span> '+famSVG('#e8590c',true,22)+'<span class="fx">&times;'+(ub-ua)+'</span>';
+  return '<div class="famrow"><div class="fi">'+icons+'</div><div><b>'+ub+' home'+(ub===1?'':'s')+' became '+ua+'.</b> '+(ub-ua)+' fewer home'+(ub-ua===1?'':'s')+' for households looking for a place to live.</div></div>';
+}
+function aptSVG(c,solid,w){w=w||22;var h=Math.round(w*1.3),f=solid?c:'#fff',k=solid?'#fff':c,win='';
+  for(var r=0;r<5;r++)for(var q=0;q<3;q++)win+='<rect x="'+(9+q*8)+'" y="'+(8+r*7)+'" width="5" height="4"/>';
+  return '<svg class="bsv" width="'+w+'" height="'+h+'" viewBox="0 0 40 52" aria-hidden="true"><rect x="5" y="3" width="30" height="45" fill="'+f+'" stroke="'+c+'" stroke-width="2.5"/><g fill="'+k+'">'+win+'<rect x="16" y="42" width="8" height="6"/></g></svg>'}
+function aptIcon(c,solid,n){return L.divIcon({className:'bsi',html:aptSVG(c,solid,20)+(isFinite(n)&&n>0?'<span style="--c:'+c+'">+'+fmt(n)+'</span>':''),iconSize:[40,28],iconAnchor:[10,26]})}
+function bsMini(b,cat){var d=unitsLost(b);return '<span class="bsl" style="--c:'+cat.c+'">'+bsSVG(cat.c,b.g==='done'||b.g===0,13)+'<b>'+(d!=null?'&minus;'+d:'?')+'</b></span>'}
+
 /* ---------- sections ---------- */
 var RS={
   'sec-cb6':function(){panel($('p6'),'cd:306',['boro:3','nyc']);cb6Map()},
@@ -428,7 +465,7 @@ window.addEventListener('hashchange',function(){var h=location.hash.slice(1);if(
 var RW=window.innerWidth,rT;window.addEventListener('resize',function(){clearTimeout(rT);rT=setTimeout(function(){if(!D||Math.abs(window.innerWidth-RW)<40)return;RW=window.innerWidth;Object.keys(RS).forEach(function(id){if($(id).open)RS[id]()})},200)});
 Promise.all([fetch('/data/truesum.json').then(function(r){return r.json()}),fetch('/middlehousingstillmissing/bk/council-members.json').then(function(r){return r.json()}).catch(function(){return null})]).then(function(a){
   D=a[0];CMJ=a[1];CM=(CMJ&&CMJ.members)||{};
-  glance();$('srcs').innerHTML=SRCNOTE();
+  glance();$('srcs').innerHTML=SRCNOTE();$('kbs').innerHTML=bsSVG('#e8590c',true,14);$('kap').innerHTML=aptSVG('#2f8f5b',true,14);
   Object.keys(RS).forEach(function(id){if($(id).open)RS[id]()});
   var h=location.hash.slice(1);if(RS[h])goSec(h);
 }).catch(function(e){$('glance').innerHTML='<div class="gs">The data did not load. Reload the page to try again.</div>';if(window.console)console.error(e)});
