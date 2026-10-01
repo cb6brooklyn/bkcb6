@@ -4,7 +4,7 @@ incl. block parties). Every record from the last 365 days inside Brooklyn Commun
 sampled. Output goes to app/data/civic/feeds/*.json and app/manifest.json is updated so installed apps download
 the new files. Run daily by .github/workflows/app-feeds.yml.
 """
-import datetime as dt, hashlib, json, os, sys, time, urllib.parse, urllib.request
+import collections, datetime as dt, hashlib, json, os, sys, time, urllib.parse, urllib.request
 
 ROOT = os.environ.get('ROOT', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT = os.path.join(ROOT, 'app/data/civic/feeds')
@@ -138,58 +138,156 @@ def build_tickets():
                                     note='Moving violation summonses written by NYPD, located inside the CB6 boundary. Parking tickets carry no location and are not included.'),
                                cols=['id', 'date', 'time', 'code', 'vehicle', 'command', 'lat', 'lon'], codes=C.vals, vehicles=V.vals, rows=rows))
 
-# permits: the daily feeds bkcb6.app already builds
+# permits: every permit in the last 365 days, straight from NYC Open Data
 def site_file(name):
     f = os.path.join(ROOT, 'data', name)
-    if os.path.exists(f): return json.load(open(f))
-    return get('https://bkcb6.app/data/' + name)
+    try:
+        if os.path.exists(f): return json.load(open(f))
+        return get('https://bkcb6.app/data/' + name, tries=2)
+    except BaseException:
+        return {'rows': []}
+
+def mdY(s):
+    try: return dt.datetime.strptime((s or '').strip()[:10], '%m/%d/%Y').strftime('%Y-%m-%d')
+    except Exception: return ''
+
+def has_cb6(s):
+    return '6' in [p.strip().lstrip('0') for p in (s or '').split(',')]
 
 def build_permits():
     rows, K = [], Table()
-    dob = site_file('cb6_dob_now_recent.json')
-    for x in dob['rows']:
-        rows.append(['dob-' + (x.get('tracking_number') or x.get('job_filing_number') or ''), day(x.get('issued_date')), day(x.get('expired_date')), K('Building (DOB)'),
-                     x.get('work_type') or '', f"{x.get('house_no') or ''} {(x.get('street_name') or '').title()}".strip(), x.get('permit_status') or '',
-                     ' '.join(p for p in [(x.get('applicant_first_name') or '').title(), (x.get('applicant_last_name') or '').title()] if p),
+    def name(*p): return ' '.join(x.strip().title() for x in p if x and x.strip())
+    # Building permits, DOB NOW
+    for x in fetch('rbx6-tga4', 'job_filing_number,work_permit,tracking_number,issued_date,expired_date,house_no,street_name,work_type,permit_status,applicant_first_name,applicant_last_name,applicant_business_name,job_description,latitude,longitude',
+                   f"c_b_no='306' AND issued_date >= '{START}'", 'issued_date DESC'):
+        what = x.get('work_type') or ''
+        if x.get('job_description'): what += ' · ' + x['job_description'].strip()[:240]
+        rows.append(['dob-' + (x.get('work_permit') or x.get('tracking_number') or x.get('job_filing_number') or ''), day(x.get('issued_date')), day(x.get('expired_date')), K('Building (DOB)'),
+                     what, name(x.get('house_no'), x.get('street_name')), x.get('permit_status') or '',
+                     name(x.get('applicant_business_name')) or name(x.get('applicant_first_name'), x.get('applicant_last_name')),
                      num(x.get('latitude')), num(x.get('longitude')), x.get('job_filing_number') or ''])
-    dot = site_file('cb6_dot_recent.json')
+    # Building permits, DOB BIS (older jobs still issuing and renewing permits there)
+    BIS_WORK = {'OT': 'Other', 'PL': 'Plumbing', 'MH': 'Mechanical', 'SP': 'Sprinkler', 'SD': 'Standpipe', 'BL': 'Boiler', 'FA': 'Fire alarm', 'EQ': 'Equipment', 'FB': 'Fuel burning', 'FP': 'Fire suppression', 'FS': 'Fuel storage', 'CC': 'Curb cut', 'NB': 'New building', 'DM': 'Demolition', 'EW': 'Equipment work', 'FO': 'Foundation', 'AL': 'Alteration'}
+    START_D = START[:10]
+    for x in fetch('ipu4-2q9a', 'job__,permit_si_no,issuance_date,expiration_date,house__,street_name,job_type,permit_type,work_type,permit_status,filing_status,permittee_s_first_name,permittee_s_last_name,permittee_s_business_name,gis_latitude,gis_longitude',
+                   "community_board='306' AND (issuance_date like '%/" + START[:4] + "' OR issuance_date like '%/" + str(int(START[:4]) + 1) + "')", 'job__ DESC'):
+        d = mdY(x.get('issuance_date'))
+        if d < START_D: continue
+        what = ' · '.join(p for p in [BIS_WORK.get(x.get('permit_type') or '', x.get('permit_type') or ''), BIS_WORK.get(x.get('work_type') or '', x.get('work_type') or ''), (x.get('filing_status') or '').title()] if p)
+        rows.append(['bis-' + (x.get('permit_si_no') or ''), d, mdY(x.get('expiration_date')), K('Building (DOB)'), what,
+                     name(x.get('house__'), ' '.join((x.get('street_name') or '').split())), (x.get('permit_status') or '').title(),
+                     name(x.get('permittee_s_business_name')) or name(x.get('permittee_s_first_name'), x.get('permittee_s_last_name')),
+                     num(x.get('gis_latitude')), num(x.get('gis_longitude')), 'BIS job ' + (x.get('job__') or '')])
+    # DOT street permits. NYC Open Data no longer carries their geometry, so each permit is placed on CB6's block
+    # faces by its street and cross streets (or house number), and NYC Streets' live map supplies exact locations for
+    # every permit active now.
+    from pyproj import Transformer
+    sp = Transformer.from_crs('EPSG:2263', 'EPSG:4326', always_xy=True)
+    to_sp = Transformer.from_crs('EPSG:4326', 'EPSG:2263', always_xy=True)
+    import re
+    ABBR = {'AVE': 'AVENUE', 'AV': 'AVENUE', 'ST': 'STREET', 'PL': 'PLACE', 'BLVD': 'BOULEVARD', 'PKWY': 'PARKWAY', 'RD': 'ROAD', 'DR': 'DRIVE',
+            'E': 'EAST', 'W': 'WEST', 'N': 'NORTH', 'S': 'SOUTH', 'EXPWY': 'EXPRESSWAY', 'EXPY': 'EXPRESSWAY', 'SQ': 'SQUARE', 'TER': 'TERRACE', 'LN': 'LANE', 'CT': 'COURT'}
+    def norm(s):
+        t = re.sub(r'[^A-Z0-9 ]', ' ', (s or '').upper()).split()
+        t = [re.sub(r'^(\d+)(ST|ND|RD|TH)$', r'\1', w) for w in t]
+        t = [ABBR.get(w, w) if i else ({'E': 'EAST', 'W': 'WEST'}.get(w, w)) for i, w in enumerate(t)]
+        if t and t[-1] in ('STREET',) and len(t) > 2 and t[-2] == 'STREET': t = t[:-1]
+        return ' '.join(t)
+    faces = json.load(open(os.path.join(ROOT, 'scripts', 'app_feeds_streets.json')))['rows']
+    corner, ranges = {}, collections.defaultdict(list)
+    for on, fr, to, la1, lo1, la2, lo2, lo_n, hi_n, _ in faces:
+        n_on, n_fr, n_to = norm(on), norm(fr), norm(to)
+        corner[(n_on, n_fr)] = (la1, lo1); corner[(n_fr, n_on)] = (la1, lo1)
+        corner[(n_on, n_to)] = (la2, lo2); corner[(n_to, n_on)] = (la2, lo2)
+        try: ranges[n_on].append((int(re.sub(r'\D.*', '', lo_n)), int(re.sub(r'\D.*', '', hi_n)), (la1 + la2) / 2, (lo1 + lo2) / 2))
+        except ValueError: pass
+    def hnum(s):
+        m = re.match(r'\s*(\d+)', s or '')
+        return int(m.group(1)) if m else None
+    def place(on, fr, to, house):
+        n_on = norm(on)
+        p1, p2 = corner.get((n_on, norm(fr))), corner.get((n_on, norm(to)))
+        if p1 and p2: return (p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2
+        if p1 or p2: return p1 or p2
+        h = hnum(house)
+        if h is not None:
+            for lo_n, hi_n, la, lo in ranges.get(n_on, []):
+                if min(lo_n, hi_n) - 1 <= h <= max(lo_n, hi_n) + 1: return la, lo
+        return None
+    def st(s):
+        t = ' '.join((s or '').split()).title()
+        return re.sub(r'\b(\d+)\b(?= (Street|Avenue|Place|Road|Drive|Terrace|Court))', lambda m: m.group(1) + ('th' if 10 <= int(m.group(1)) % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(int(m.group(1)) % 10, 'th')), t)
+    def ms(s):
+        m = re.search(r'Date\((\d+)\)', str(s or ''))
+        return dt.datetime.utcfromtimestamp(int(m.group(1)) / 1000).strftime('%Y-%m-%d') if m else ''
+    def wkt_pts(w):
+        nums = []
+        for v in (w or '').replace('(', ' ').replace(')', ' ').replace(',', ' ').split():
+            try: nums.append(float(v))
+            except ValueError: pass
+        return [sp.transform(a, b) for a, b in zip(nums[0::2], nums[1::2])]
+    dot = {}
+    def add_dot(pn, start, end, what, house, on, fr, to, status, who, la, lo):
+        where = ' '.join(v for v in [(house or '').strip(), st(on)] if v)
+        if fr and to: where += f' between {st(fr)} and {st(to)}'
+        elif fr: where += f' at {st(fr)}'
+        dot[pn] = ['dot-' + pn, start, end, K('Street work (DOT)'), (what or '').strip().capitalize(), where, (status or '').title(), st(who), round(la, 5), round(lo, 5), pn]
+    for x in fetch('tqtj-sjs8', 'permitnumber,permitissuedate,issuedworkstartdate,issuedworkenddate,permithousenumber,onstreetname,fromstreetname,tostreetname,permitteename,permitstatusshortdesc,permittypedesc,permitseriesshortdesc',
+                   f"boroughname='BROOKLYN' AND permitissuedate >= '{START}'", 'permitissuedate DESC'):
+        p = place(x.get('onstreetname'), x.get('fromstreetname'), x.get('tostreetname'), x.get('permithousenumber'))
+        if not p: continue
+        add_dot(x.get('permitnumber') or '', day(x.get('issuedworkstartdate') or x.get('permitissuedate')), day(x.get('issuedworkenddate')),
+                x.get('permittypedesc') or x.get('permitseriesshortdesc'), x.get('permithousenumber'), x.get('onstreetname'), x.get('fromstreetname'), x.get('tostreetname'),
+                x.get('permitstatusshortdesc'), x.get('permitteename'), p[0], p[1])
+    placed = len(dot)
     try:
-        from pyproj import Transformer
-        sp = Transformer.from_crs('EPSG:2263', 'EPSG:4326', always_xy=True)
-    except Exception:
-        sp = None
-    def wkt_mid(w):
-        # DOT gives the permit's street segment in State Plane feet; its midpoint marks the permit.
-        try:
-            nums = [float(v) for v in w.replace('(', ' ').replace(')', ' ').replace(',', ' ').split()[1:] if v.replace('.', '').replace('-', '').isdigit()]
-            pts = list(zip(nums[0::2], nums[1::2]))
-            x, y = pts[len(pts) // 2] if len(pts) > 2 else ((pts[0][0] + pts[-1][0]) / 2, (pts[0][1] + pts[-1][1]) / 2)
-            lo, la = sp.transform(x, y)
-            return round(la, 5), round(lo, 5)
-        except Exception:
-            return None, None
-    def msdate(s):
-        try: return dt.datetime.utcfromtimestamp(int(str(s).split('(')[1].split(')')[0][:10])).strftime('%Y-%m-%d')
-        except Exception: return ''
-    for x in dot['rows']:
-        where = (x.get('onstreetname') or '').title()
-        if x.get('fromstreetname'): where += f" between {(x.get('fromstreetname') or '').title()} and {(x.get('tostreetname') or '').title()}"
-        la, lo = wkt_mid(x.get('wkt') or '') if sp else (None, None)
-        rows.append(['dot-' + (x.get('permitnumber') or ''), x.get('permitissuedate') or msdate(x.get('PermitIssueDateFrom')), msdate(x.get('IssuedWorkEndDate')),
-                     K('Street work (DOT)'), (x.get('permittypedesc') or '').capitalize(), where, '', (x.get('permitteename') or '').title(), la, lo, x.get('permitnumber') or ''])
-    film = site_file('cb6_film_permits.json')
-    for x in film['rows']:
-        rows.append(['film-' + str(x.get('event_id')), day(x.get('start_datetime')), day(x.get('end_datetime')), K('Film'), ' · '.join(p for p in [x.get('category'), x.get('subcategory')] if p and p != 'Not Applicable'),
-                     x.get('parking_held') or '', x.get('event_type') or '', '', None, None, str(x.get('event_id'))])
-    ev = site_file('cb6_permitted_events.json')
-    for x in ev['rows']:
-        kind = 'Block party' if 'block party' in (x.get('event_type') or '').lower() else ('Street event' if (x.get('street_closure_type') or 'N/A') != 'N/A' else 'Event')
-        rows.append(['evt-' + str(x.get('event_id')), day(x.get('start_datetime')), day(x.get('end_datetime')), K(kind), f"{x.get('event_name') or ''} · {x.get('event_type') or ''}".strip(' ·'),
-                     x.get('event_location') or x.get('address') or '', x.get('street_closure_type') if x.get('street_closure_type') not in (None, 'N/A') else '', x.get('event_agency') or '',
-                     num(x.get('lat')), num(x.get('lng')), str(x.get('event_id'))])
+        xs, ys = zip(*[to_sp.transform(x, y) for x, y in zip(LONS, LATS)])
+        box = f'POLYGON(({min(xs)} {min(ys)}, {max(xs)} {min(ys)}, {max(xs)} {max(ys)}, {min(xs)} {max(ys)}, {min(xs)} {min(ys)}))'
+        live = get('https://nycstreets.net/Public/Permits/PermitSearchMobile/?' + urllib.parse.urlencode({'Wkt': box}), tries=3)
+    except BaseException as e:
+        print('  nycstreets.net unavailable:', e, file=sys.stderr); live = []
+    n_live = 0
+    for x in live:
+        pts = wkt_pts(x.get('Wkt'))
+        if len(pts) > 1: pts += [((pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2) for i in range(len(pts) - 1)]
+        hits = [q for q in pts if inside(q[0], q[1])]
+        if not hits: continue
+        lo, la = hits[len(hits) // 2]
+        pn = (x.get('PermitNumber') or '').strip()
+        old = dot.get(pn)
+        add_dot(pn, ms(x.get('IssuedWorkStartDate')) or ms(x.get('PermitIssueDateFrom')), ms(x.get('IssuedWorkEndDate')), x.get('PermitTypeDesc'), x.get('PermitHouseNumber'),
+                x.get('OnStreetName'), x.get('FromStreetName'), x.get('ToStreetName'), x.get('Status'), x.get('PermitteeName'), la, lo)
+        if old and old[1] and old[1] < dot[pn][1]: dot[pn][1] = old[1]
+        n_live += 1
+    print(f'  DOT: {placed} placed from Open Data, {n_live} from NYC Streets live, {len(dot)} total', file=sys.stderr)
+    rows += list(dot.values())
+    # Film permits (located by the streets where parking is held, not by point)
+    for x in fetch('tg4x-b46p', 'eventid,eventtype,startdatetime,enddatetime,parkingheld,communityboard_s,category,subcategoryname',
+                   f"borough='Brooklyn' AND startdatetime >= '{START}'", 'startdatetime DESC'):
+        if not has_cb6(x.get('communityboard_s')): continue
+        rows.append(['film-' + str(x.get('eventid')), day(x.get('startdatetime')), day(x.get('enddatetime')), K('Film'),
+                     ' · '.join(p for p in [x.get('category'), x.get('subcategoryname')] if p and p != 'Not Applicable'),
+                     ' '.join((x.get('parkingheld') or '').title().split()), x.get('eventtype') or '', "Mayor's Office of Media & Entertainment", None, None, str(x.get('eventid'))])
+    # Permitted events incl. block parties: current file plus the historical one
+    geo = {str(r.get('event_id')): (num(r.get('lat')), num(r.get('lng'))) for r in site_file('cb6_permitted_events.json').get('rows', [])}
+    seen = set()
+    sel = 'event_id,event_name,start_date_time,end_date_time,event_agency,event_type,event_location,street_closure_type,community_board'
+    for ds, where in (('tvpp-9vvx', "event_borough='Brooklyn'"), ('bkfu-528j', f"event_borough='Brooklyn' AND start_date_time >= '{START}'")):
+        for x in fetch(ds, sel, where, 'start_date_time DESC'):
+            eid = str(x.get('event_id'))
+            if eid in seen or not has_cb6(x.get('community_board')): continue
+            if day(x.get('start_date_time')) < START[:10]: continue
+            seen.add(eid)
+            et = x.get('event_type') or ''
+            closure = x.get('street_closure_type') or 'N/A'
+            kind = 'Block party' if 'block party' in et.lower() else ('Street event' if closure != 'N/A' else 'Event')
+            la, lo = geo.get(eid, (None, None))
+            rows.append(['evt-' + eid, day(x.get('start_date_time')), day(x.get('end_date_time')), K(kind), f"{x.get('event_name') or ''} · {et}".strip(' ·'),
+                         x.get('event_location') or '', closure if closure != 'N/A' else '', x.get('event_agency') or '', la, lo, eid])
     rows.sort(key=lambda r: r[1] or '', reverse=True)
-    write('permits.json', dict(meta('DOB NOW permits, DOT street permits, Film permits and Permitted Event Information', 'https://bkcb6.app/permits', rows,
-                                    sources={'Building (DOB)': dob.get('generated_at'), 'Street work (DOT)': dot.get('generated_at'), 'Film': film.get('generated_at'), 'Events': ev.get('generated_at')}),
+    stamp = NOW.strftime('%Y-%m-%dT%H:%MZ')
+    write('permits.json', dict(meta('DOB NOW and DOB BIS permits, DOT Street Construction Permits, Film Permits and NYC Permitted Event Information', 'https://bkcb6.app/permits', rows,
+                                    sources={'Building (DOB)': stamp, 'Street work (DOT)': stamp, 'Film': stamp, 'Events': stamp}),
                                cols=['id', 'start', 'end', 'kind', 'what', 'where', 'status', 'who', 'lat', 'lon', 'ref'], kinds=K.vals, rows=rows))
 
 def manifest():
