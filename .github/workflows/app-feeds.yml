@@ -1,0 +1,46 @@
+name: App feeds
+
+# Rebuilds the iOS app's CB6 feeds (311, crime, tickets, permits) in app/data/civic/feeds from NYC Open Data and
+# the daily permit feeds, and updates app/manifest.json so installed apps download the new files.
+on:
+  schedule:
+    - cron: '30 11 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: app-feeds
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pyproj
+
+      - name: Build the feeds
+        run: python scripts/build_app_feeds.py
+
+      - name: Commit
+        run: |
+          git config user.email "Mike@bkcb6.org"
+          git config user.name "Mike Racioppo"
+          git add app/data/civic/feeds app/manifest.json
+          git diff --cached --quiet && exit 0
+          git commit -m "App feeds refresh $(date -u +%Y-%m-%d)"
+          for i in 1 2 3 4 5; do
+            git pull --rebase --autostash -q origin main && git push && exit 0
+            echo "push attempt $i failed, retrying"
+            sleep 10
+          done
+          exit 1
