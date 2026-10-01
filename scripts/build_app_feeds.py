@@ -80,7 +80,7 @@ def write(name, obj):
     print(name, obj.get('count'), file=sys.stderr)
 
 def meta(source, url, rows, **kw):
-    return dict(generated=NOW.strftime('%Y-%m-%dT%H:%MZ'), since=START[:10], source=source, url=url, count=len(rows), **kw)
+    d = dict(generated=NOW.strftime('%Y-%m-%dT%H:%MZ'), since=START[:10], source=source, url=url, count=len(rows)); d.update(kw); return d
 
 # 311
 def build_311():
@@ -261,13 +261,36 @@ def build_permits():
         n_live += 1
     print(f'  DOT: {placed} placed from Open Data, {n_live} from NYC Streets live, {len(dot)} total', file=sys.stderr)
     rows += list(dot.values())
-    # Film permits (located by the streets where parking is held, not by point)
+    # Film permits: every Mayor's Office of Media & Entertainment notice CB6 has received (filmingpermits/permits.json,
+    # kept from the board's email), plus any CB6 film permit in NYC Open Data that has no notice on file.
+    def L(s): return ' '.join((s or '').split())
+    notices = []
+    for p in (os.path.join(ROOT, 'filmingpermits', 'permits.json'),):
+        try: notices = json.load(open(p))
+        except Exception: notices = get('https://bkcb6.app/filmingpermits/permits.json', tries=2)
+    have = set()
+    for x in notices:
+        locs = x.get('locations') or []
+        def lw(l):
+            if l.get('address'): s = re.sub(r',\s*Brooklyn$', '', l['address'], flags=re.I)
+            elif l.get('between'): s = f"{l['between'][0]} between {l['between'][1]} and {l['between'][2]}" if len(l['between']) == 3 else ' '.join(l['between'])
+            else: s = ''
+            return ': '.join(v for v in [L(l.get('name')), st(s)] if v)
+        park = [f"{st(q.get('street'))} between {st(q.get('from'))} and {st(q.get('to'))} ({', '.join(v for v in [q.get('side'), q.get('control')] if v)})" for l in locs for q in l.get('parking', [])]
+        pts = [(l['lat'], l['lng']) for l in locs if l.get('lat') is not None]
+        inn = [q for q in pts if inside(q[1], q[0])]
+        la, lo = (inn or pts or [(None, None)])[0]
+        ends = sorted(mdY(l.get('end', '')[:10]) for l in locs if l.get('end'))
+        rows.append(['film-' + str(x['permit']), x.get('shootDate', ''), ends[-1] if ends else x.get('shootDate', ''), K('Film'),
+                     ' · '.join(v for v in [L(x.get('production')), x.get('type')] if v), ' / '.join(lw(l) for l in locs),
+                     '; '.join(park), ('Locations Department ' + x['contact']) if x.get('contact') else '', la, lo, str(x['permit'])])
+        have.add(str(x['permit']))
     for x in fetch('tg4x-b46p', 'eventid,eventtype,startdatetime,enddatetime,parkingheld,communityboard_s,category,subcategoryname',
                    f"borough='Brooklyn' AND startdatetime >= '{START}'", 'startdatetime DESC'):
-        if not has_cb6(x.get('communityboard_s')): continue
+        if not has_cb6(x.get('communityboard_s')) or str(x.get('eventid')) in have: continue
         rows.append(['film-' + str(x.get('eventid')), day(x.get('startdatetime')), day(x.get('enddatetime')), K('Film'),
                      ' · '.join(p for p in [x.get('category'), x.get('subcategoryname')] if p and p != 'Not Applicable'),
-                     ' '.join((x.get('parkingheld') or '').title().split()), x.get('eventtype') or '', "Mayor's Office of Media & Entertainment", None, None, str(x.get('eventid'))])
+                     '', st(x.get('parkingheld')), "Mayor's Office of Media & Entertainment", None, None, str(x.get('eventid'))])
     # Permitted events incl. block parties: current file plus the historical one
     geo = {str(r.get('event_id')): (num(r.get('lat')), num(r.get('lng'))) for r in site_file('cb6_permitted_events.json').get('rows', [])}
     seen = set()
@@ -286,8 +309,9 @@ def build_permits():
                          x.get('event_location') or '', closure if closure != 'N/A' else '', x.get('event_agency') or '', la, lo, eid])
     rows.sort(key=lambda r: r[1] or '', reverse=True)
     stamp = NOW.strftime('%Y-%m-%dT%H:%MZ')
-    write('permits.json', dict(meta('DOB NOW and DOB BIS permits, DOT Street Construction Permits, Film Permits and NYC Permitted Event Information', 'https://bkcb6.app/permits', rows,
-                                    sources={'Building (DOB)': stamp, 'Street work (DOT)': stamp, 'Film': stamp, 'Events': stamp}),
+    first = min([START[:10]] + [x.get('shootDate') for x in notices if x.get('shootDate')])
+    write('permits.json', dict(meta('DOB NOW and DOB BIS permits, DOT Street Construction Permits, Mayor\'s Office of Media & Entertainment film notices to CB6, Film Permits and NYC Permitted Event Information', 'https://bkcb6.app/permits', rows,
+                                    sources={'Building (DOB)': stamp, 'Street work (DOT)': stamp, 'Film': stamp, 'Events': stamp}, since=first),
                                cols=['id', 'start', 'end', 'kind', 'what', 'where', 'status', 'who', 'lat', 'lon', 'ref'], kinds=K.vals, rows=rows))
 
 def manifest():
