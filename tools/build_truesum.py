@@ -2,9 +2,8 @@
 """data/truesum.json for bkcb6.app/truesum/: the true sum of housing built.
 
 All from NYC Open Data, pulled the same day:
-  br6q-ssj3  DCP Housing Database, project level (built, lost, net, by year completed)
-  dbdt-5s7j  DCP Housing Database by Community District (pipeline: filed, approved, permitted)
-  szq8-b4uy  DCP Housing Database by 2024 City Council district (pipeline)
+  br6q-ssj3  DCP Housing Database, project level (built, lost, net by year completed; jobs still
+             filed, approved or permitted by year filed)
   hg8x-zxpr  HPD Affordable Housing Production by Building (income-restricted units)
 Scopes: nyc, boro:1-5, cd:<3-digit district>, cc:<council district>. Every figure
 is built from grouped SoQL queries that the page links to.
@@ -21,7 +20,7 @@ def get(ds, params):
             req = urllib.request.Request(f"https://data.cityofnewyork.us/resource/{ds}.json?" + q, headers={"X-App-Token": TOKEN})
             return json.loads(urllib.request.urlopen(req, timeout=300).read())
         except Exception as e:
-            print("retry", ds, e, flush=True)
+            print("retry", ds, e, getattr(e, "read", lambda: b"")()[:200], params, flush=True)
             time.sleep(5 + 5 * a)
     raise SystemExit("failed " + ds)
 
@@ -40,6 +39,8 @@ VALID_CD = {b + "%02d" % i for b, m in [("1", 12), ("2", 12), ("3", 18), ("4", 1
 DONE = "job_status like '5%'"
 KINDS = {"nb": "job_type='New Building'", "gain": "job_type='Alteration' AND classanet>0", "loss": "job_type='Alteration' AND classanet<0", "demo": "job_type='Demolition'"}
 hdb_version = ",".join(r["version"] for r in get("br6q-ssj3", {"$select": "version", "$group": "version"}))
+HDB_END = get("br6q-ssj3", {"$select": "max(datecomplt) as d"})[0]["d"][:10]
+LAST_YEAR = int(HDB_END[:4])
 for kind, cond in KINDS.items():
     for dim, pre in [(None, "nyc"), ("boro", "boro"), ("commntydst", "cd"), ("councildst", "cc")]:
         sel = (dim + "," if dim else "") + "compltyear,sum(classanet) as units"
@@ -65,24 +66,28 @@ for kind, cond in KINDS.items():
             d[y] = d.get(y, 0) + abs(n(r["units"]))
     print("hdb", kind, flush=True)
 
-# ---- pipeline
-for ds, field, pre in [("dbdt-5s7j", "commntydst", "cd"), ("szq8-b4uy", "councildst", "cc")]:
-    rows = get(ds, {"$select": field + ",filed,approved,permitted", "$limit": 500})
-    for r in rows:
-        v = r.get(field)
-        if not v:
-            continue
-        p = {k: n(r.get(k)) for k in ("filed", "approved", "permitted")}
-        if pre == "cd":
-            if v in VALID_CD:
-                sc("cd:" + v)["pipe"] = p
-            for key in ("boro:" + v[0], "nyc"):
-                q = sc(key)["pipe"]
-                for k in p:
-                    q[k] = q.get(k, 0) + p[k]
-        else:
-            sc("cc:" + str(int(v)))["pipe"] = p
-print("pipeline", flush=True)
+# ---- pipeline: jobs not completed and not withdrawn, by status and year filed
+ST = {"1": "f", "2": "a", "3": "p", "4": "p"}
+for kind, cond in KINDS.items():
+    for dim, pre in [(None, "nyc"), ("boro", "boro"), ("commntydst", "cd"), ("councildst", "cc")]:
+        g = (dim + "," if dim else "") + "job_status"
+        rows = get("br6q-ssj3", {"$select": g + ",date_extract_y(datefiled) as fy,sum(classanet) as units,count(*) as jobs", "$where": "job_status not like '5%' AND job_status not like '9%' AND " + cond,
+                                 "$group": g + ",fy", "$limit": 50000})
+        for r in rows:
+            if not r.get("units") or not r.get("job_status"):
+                continue
+            if dim:
+                v = r.get(dim)
+                if not v or (dim == "boro" and v not in "12345") or (dim == "commntydst" and v not in VALID_CD):
+                    continue
+                key = pre + ":" + (str(int(v)) if dim == "councildst" else v)
+            else:
+                key = "nyc"
+            st = ST[r["job_status"][0]]
+            d = sc(key)["pipe"].setdefault(kind, {}).setdefault(st, {})
+            fy = r.get("fy") or "?"
+            d[fy] = d.get(fy, 0) + abs(n(r["units"]))
+    print("pipe", kind, flush=True)
 
 # ---- HPD
 BORO = {"Manhattan": "1", "Bronx": "2", "Brooklyn": "3", "Queens": "4", "Staten Island": "5"}
@@ -107,7 +112,7 @@ def hkey(dim, v):
 for dim in (None, "borough", "community_board", "council_district"):
     g = (dim + "," if dim else "")
     rows = get("hg8x-zxpr", {"$select": g + "reporting_construction_type,date_extract_y(building_completion_date) as y,sum(all_counted_units) as u",
-                             "$where": "building_completion_date IS NOT NULL", "$group": g + "reporting_construction_type,y", "$limit": 50000})
+                             "$where": "building_completion_date <= '" + HDB_END + "T23:59:59'", "$group": g + "reporting_construction_type,y", "$limit": 50000})
     for r in rows:
         k = hkey(dim, r.get(dim) if dim else None)
         if not k or not r.get("y"):
@@ -116,7 +121,7 @@ for dim in (None, "borough", "community_board", "council_district"):
         d = sc(k)["hpd"][t]
         d[r["y"]] = d.get(r["y"], 0) + n(r.get("u"))
     rows = get("hg8x-zxpr", {"$select": g + ",".join("sum(%s) as %s" % (c, c) for c in INC + BED),
-                             "$where": "building_completion_date between '2014-01-01T00:00:00' and '2024-12-31T23:59:59' AND reporting_construction_type='New Construction'",
+                             "$where": "building_completion_date between '2014-01-01T00:00:00' and '" + HDB_END + "T23:59:59' AND reporting_construction_type='New Construction'",
                              **({"$group": dim} if dim else {}), "$limit": 50000})
     for r in rows:
         k = hkey(dim, r.get(dim) if dim else None)
@@ -124,7 +129,7 @@ for dim in (None, "borough", "community_board", "council_district"):
             continue
         sc(k)["hpd"]["inc"] = {c: n(r.get(c)) for c in INC}
         sc(k)["hpd"]["bed"] = {c: n(r.get(c)) for c in BED}
-    rows = get("hg8x-zxpr", {"$select": g + "reporting_construction_type,sum(all_counted_units) as u", "$where": "building_completion_date IS NULL",
+    rows = get("hg8x-zxpr", {"$select": g + "reporting_construction_type,sum(all_counted_units) as u", "$where": "building_completion_date IS NULL OR building_completion_date > '" + HDB_END + "T23:59:59'",
                              "$group": g + "reporting_construction_type", "$limit": 50000})
     for r in rows:
         k = hkey(dim, r.get(dim) if dim else None)
@@ -133,11 +138,12 @@ for dim in (None, "borough", "community_board", "council_district"):
         sc(k)["hpd"]["prog"]["nc" if r["reporting_construction_type"] == "New Construction" else "pres"] = n(r.get("u"))
     print("hpd", dim, flush=True)
 
-out = dict(built=time.strftime("%Y-%m-%d"), hdb_version=hdb_version,
-           updated={d: meta(d) for d in ("br6q-ssj3", "dbdt-5s7j", "szq8-b4uy", "hg8x-zxpr")}, s=S)
+out = dict(built=time.strftime("%Y-%m-%d"), hdb_version=hdb_version, hdb_end=HDB_END, last_year=LAST_YEAR,
+           updated={d: meta(d) for d in ("br6q-ssj3", "hg8x-zxpr")}, s=S)
 json.dump(out, open(os.path.join(ROOT, "data", "truesum.json"), "w"), separators=(",", ":"))
-tot = lambda d, a, b: sum(v for y, v in d.items() if a <= int(y) <= b)
+tot = lambda d, a, b: sum(v for y, v in d.items() if y.isdigit() and a <= int(y) <= b)
 for k in ("nyc", "boro:3", "cd:306", "cc:39"):
-    h = S[k]["hdb"]; bu = tot(h["nb"], 2010, 2024) + tot(h["gain"], 2010, 2024); lo = tot(h["loss"], 2010, 2024) + tot(h["demo"], 2010, 2024)
-    print(k, "built", bu, "lost", lo, "net", bu - lo, "pipe", S[k]["pipe"], "hpd nc 14-24", tot(S[k]["hpd"]["nc"], 2014, 2024), "pres", tot(S[k]["hpd"]["pres"], 2014, 2024), "prog", S[k]["hpd"]["prog"])
-print("scopes", len(S), out["updated"])
+    h = S[k]["hdb"]; Y = LAST_YEAR; bu = tot(h["nb"], 2010, Y) + tot(h["gain"], 2010, Y); lo = tot(h["loss"], 2010, Y) + tot(h["demo"], 2010, Y)
+    pp = {kd: {st: sum(v.values()) for st, v in d.items()} for kd, d in S[k]["pipe"].items()}
+    print(k, "built", bu, "lost", lo, "net", bu - lo, "pipe", pp, "hpd nc", tot(S[k]["hpd"]["nc"], 2014, Y), "prog", S[k]["hpd"]["prog"])
+print("scopes", len(S), HDB_END, out["updated"])
