@@ -201,6 +201,9 @@ a.qn:hover,a.q:hover{color:var(--orange)}
 .tile .v{font-family:'DM Mono',monospace;font-size:1.25rem;font-weight:500;color:var(--navy)}
 .tile .k{font-size:.72rem;color:#555;line-height:1.4;margin-top:3px}
 .chart .ax.me{fill:#0d1b4b;font-weight:500}
+.ctx{margin-top:14px;max-width:76ch}
+.ctx p{font-size:.88rem;line-height:1.65;color:#333;margin-top:8px}
+.ctx p.rec2{font-size:.8rem;color:#555;background:var(--bg);border-left:3px solid var(--navy);padding:8px 10px;border-radius:0 6px 6px 0}
 .cut{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px 10px;margin-top:8px}
 .cut>div:not(.op){border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:#fff;min-width:110px}
 .cut span{display:block;font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
@@ -765,7 +768,8 @@ function renderTracker(tr){
   TR=tr;
   var S=D.stats,c=tr&&tr.cd&&tr.cd['BK-06'];
   if(!c){$('trLede').textContent='The housing tracker data did not load.';return}
-  $('trLede').innerHTML='<a href="/bk/allhousing/">All Housing Built</a> counts <b>'+fmt(c.total)+'</b> net units completed in CB6 from 2010 to 2024 ('+esc(tr.source||'NYC DCP Housing Database')+'). Net means losses to alterations and demolitions are already subtracted. The current Housing Database, version '+esc(S.version)+', shows '+qn(HW.net('306',2010,2024),S.net_10_24)+' net units for the same years. Year by year, tracker net units next to units lost to alterations in version '+esc(S.version)+':';
+  var t6=totals(D.ch.cd[6].y);
+  $('trLede').innerHTML='<a href="/bk/allhousing/">All Housing Built</a> counts <b>'+fmt(c.total)+'</b> net units completed in CB6 from 2010 to 2024, from the City&rsquo;s '+ext('https://data.cityofnewyork.us/d/dbdt-5s7j','Housing Database by Community District')+'. '+(c.total===t6.net?'That is the same <b>'+fmt(t6.net)+'</b> this page builds from the project-level files: '+fmt(t6.bu)+' units built, minus '+fmt(t6.la)+' lost to conversions and '+fmt(t6.ld)+' to demolitions.':'This page builds <b>'+fmt(t6.net)+'</b> from the project-level files.')+' Before the City&rsquo;s '+esc(S.version)+' update on September 30, 2026, the tracker showed 4,002. The update added three demolitions completed in 2018 at 165, 165A and 167 Fourth Avenue (jobs '+hdbJob('321714506')+', '+hdbJob('321714515')+' and '+hdbJob('321714524')+', 3 units each) and one alteration completed in 2021 at 363 5th Street that adds a unit (job '+hdbJob('321193141')+'): 4,002 &minus; 9 + 1 = 3,994. Year by year, net units completed next to units lost to conversions:';
   var ys=[];for(var y=2010;y<=2024;y++)ys.push(y);
   barChart($('chTr'),ys.map(function(y){return{k:String(y),v:[c.comp[y]||0,S.loss_by_year[y]||0]}}),{series:[{n:'Net units completed (tracker)',c:'#1c4fa0'},{n:'Units lost to alterations',c:'#e8590c'}],unit:'units',label:'CB6 net units completed and units lost to alterations by year'});
 }
@@ -854,7 +858,7 @@ function panel(el,pfx,t,n,withHeat){
   h+='<div class="fh" style="margin-top:22px">What losses take from what gets built, completed 2010 to 2024</div>';
   h+='<div class="cut"><div><span>Built</span><b>'+qn(HW.nb(w,2010,2024),ysum(Y.nb,2010,2024))+'</b><em>new buildings</em></div><div class="op">+</div><div><span>&nbsp;</span><b>'+qn(HW.gain(w,2010,2024),ysum(Y.gain,2010,2024))+'</b><em>alterations that add units</em></div><div class="op">&minus;</div><div class="l1"><span>Lost</span><b>'+qn(HW.loss(w,2010,2024),la)+'</b><em>alterations that remove units</em></div><div class="op">&minus;</div><div class="l2"><span>&nbsp;</span><b>'+qn(HW.demo(w,2010,2024),ld)+'</b><em>demolitions</em></div><div class="op">=</div><div class="nt2"><span>Net</span><b>'+qn(HW.net(w,2010,2024),net)+'</b><em>units</em></div></div>';
   h+='<div class="cutbar" aria-hidden="true"><i style="width:'+(built?(100*(built-la-ld)/built):0).toFixed(1)+'%;background:#1c4fa0"></i><i style="width:'+(built?100*la/built:0).toFixed(1)+'%;background:#e8590c"></i><i style="width:'+(built?100*ld/built:0).toFixed(1)+'%;background:#2f8f5b"></i></div>';
-  h+='<p class="note">Of every 100 units built, alterations that remove units took back <b>'+(built?(100*la/built).toFixed(1):'0')+'</b> and demolitions <b>'+(built?(100*ld/built).toFixed(1):'0')+'</b>: one unit lost to alterations for every <b>'+(la?(built/la).toFixed(1):'&mdash;')+'</b> built. <a class="lnk" href="/bk/allhousing/#lossSect">Every NYC district on All Housing Built</a></p>';
+  h+=ctxHTML(t,n,S,lab);
   h+='<div class="fh" style="margin-top:16px">Units built and units lost, by year completed</div><div class="chart" id="'+pfx+'c2"></div><p class="note">Source queries by year: '+ext(yq(w,'sum(classanet) as units,count(*) as jobs'," AND job_type='New Building'"),'new buildings','lnk')+' &middot; '+ext(yq(w,'sum(classanet) as units,count(*) as jobs'," AND job_type='Alteration' AND classanet>0"),'alterations that add units','lnk')+' &middot; '+ext(yq(w,'sum(classanet) as units,count(*) as jobs'," AND job_type='Alteration' AND classanet<0"),'alterations that remove units','lnk')+' &middot; '+ext(yq(w,'sum(classanet) as units,count(*) as jobs'," AND job_type='Demolition'"),'demolitions','lnk')+'</p>';
   h+='<div class="fh" style="margin-top:20px">Units lost to alterations, by year completed</div><div class="chart" id="'+pfx+'c1"></div><p class="note">'+ext(yq(w,'sum(classanet) as units,count(*) as jobs'," AND job_type='Alteration' AND classanet<0"),'Source query','lnk')+'</p>';
   if(hasB){
@@ -996,6 +1000,54 @@ function rsNY(){
     $('nyR3').insertAdjacentHTML('beforeend','<p class="note">From '+ext('/data/housing-loss.json','data/housing-loss.json')+', built from the same Housing Database ('+esc(HL.version)+') with the queries on '+'<a class="lnk" href="/bk/allhousing/#lossSect">All Housing Built</a>, where every district opens with its source queries.</p>');
   };
   if(HL)go();else fetch('/data/housing-loss.json').then(function(r){return r.json()}).then(function(j){HL=j;go()}).catch(function(){});
+}
+/* ---------------- context and reconciliation ---------------- */
+function totals(y){var nb=ysum(y.nb,2010,2024),ga=ysum(y.gain,2010,2024),la=ysum(y.loss,2010,2024),ld=ysum(y.demo,2010,2024);return{nb:nb,ga:ga,bu:nb+ga,la:la,ld:ld,lost:la+ld,net:nb+ga-la-ld,r:nb+ga?100*la/(nb+ga):0}}
+function pct(a,b){return b?(100*a/b).toFixed(1)+'%':'0%'}
+function times(a,b){return b?(a/b).toFixed(1):'0'}
+function hdbJob(j){return ext(odq(DS.hdb.id,{job_number:j}),esc(j))}
+function cityNet(t,n){
+  if(!TR||!TR.cd)return null;
+  var ks=Object.keys(TR.cd);
+  if(t==='nyc')return ks.reduce(function(a,k){return a+TR.cd[k].total},0);
+  if(t==='bo'){var ab={1:'MN',2:'BX',3:'BK',4:'QN',5:'SI'}[n];return ks.filter(function(k){return k.indexOf(ab)===0}).reduce(function(a,k){return a+TR.cd[k].total},0)}
+  if(t==='cd'){var c=TR.cd['BK-'+('0'+n).slice(-2)];return c?c.total:null}
+  return null;
+}
+function ctxHTML(t,n,S,lab){
+  var T0=totals(S.y),BK=totals(D.ch.boro[3].y),NY=totals(D.ch.nyc.y);
+  var inBK=t==='cd'||t==='cc'||(t==='bo'&&n===3)||n==='all',isBK=(t==='bo'&&n===3)||n==='all',isNY=t==='nyc';
+  var h='<div class="ctx"><div class="fh">What it means</div>';
+  h+='<p>From 2010 to 2024, '+esc(lab)+' added <b>'+fmt(T0.bu)+'</b> units: '+fmt(T0.nb)+' in new buildings and '+fmt(T0.ga)+' through alterations that add units. It lost <b>'+fmt(T0.lost)+'</b>: '+fmt(T0.la)+' when alterations combined or removed apartments (conversions) and '+fmt(T0.ld)+' to demolitions. That leaves a net of <b>'+fmt(T0.net)+'</b>.</p>';
+  var cmp='<p>Conversions took <b>'+T0.r.toFixed(1)+'</b> units for every 100 built';
+  if(inBK&&!isBK)cmp+=', against '+BK.r.toFixed(1)+' across Brooklyn and '+NY.r.toFixed(1)+' citywide: <b>'+times(T0.r,BK.r)+' times</b> the Brooklyn rate and <b>'+times(T0.r,NY.r)+' times</b> the city rate';
+  else if(!isNY)cmp+=', against '+NY.r.toFixed(1)+' citywide ('+times(T0.r,NY.r)+' times the city rate)';
+  cmp+='. ';
+  cmp+=(T0.la>T0.ld?'Here conversions removed more units than demolitions did ('+fmt(T0.la)+' to '+fmt(T0.ld)+').':'Here demolitions removed more units than conversions did ('+fmt(T0.ld)+' to '+fmt(T0.la)+').');
+  if(!isNY&&!isBK&&inBK)cmp+=' Across Brooklyn, demolitions removed '+fmt(BK.ld)+' and conversions '+fmt(BK.la)+'; citywide, '+fmt(NY.ld)+' and '+fmt(NY.la)+'.';
+  h+=cmp+'</p>';
+  if(inBK&&!isBK)h+='<p>'+esc(lab)+' accounts for <b>'+pct(T0.bu,BK.bu)+'</b> of the units built in Brooklyn and <b>'+pct(T0.la,BK.la)+'</b> of the units Brooklyn lost to conversions; citywide, '+pct(T0.bu,NY.bu)+' of units built and '+pct(T0.la,NY.la)+' of units lost to conversions.</p>';
+  else if(!isNY)h+='<p>'+esc(lab)+' accounts for <b>'+pct(T0.bu,NY.bu)+'</b> of the units built in New York City and <b>'+pct(T0.la,NY.la)+'</b> of the units the city lost to conversions.</p>';
+  if(isNY){
+    var bo=[1,2,3,4,5].map(function(k){var x=totals(D.ch.boro[k].y);return{k:k,la:x.la,r:x.r}});
+    var byLa=bo.slice().sort(function(a,b){return b.la-a.la}),byR=bo.slice().sort(function(a,b){return b.r-a.r});
+    h+='<p>By borough, conversions removed '+byLa.map(function(x){return BORO[x.k]+' '+fmt(x.la)}).join(', ')+' units. Per 100 built: '+byR.map(function(x){return BORO[x.k]+' '+x.r.toFixed(1)}).join(', ')+'. BKCB6 alone accounts for '+pct(totals(D.ch.cd[6].y).la,NY.la)+' of the city&rsquo;s units lost to conversions.</p>';
+  }
+  // reconciliation with the City's district totals
+  var cn=cityNet(t,n);
+  if(cn!=null){
+    var d=T0.net-cn,src='the City&rsquo;s '+ext('https://data.cityofnewyork.us/d/dbdt-5s7j','Housing Database by Community District')+' (the source of <a href="/bk/allhousing/">All Housing Built</a>)';
+    var r='<p class="rec2"><b>Checked against the district totals.</b> ';
+    if(d===0)r+='The net of '+fmt(T0.net)+' matches '+src+' exactly.';
+    else{
+      r+='The net here is '+fmt(T0.net)+'. Adding up the districts in '+src+' gives '+fmt(cn)+', '+fmt(Math.abs(d))+' units '+(d<0?'more':'fewer')+'. ';
+      if(isBK&&d===3)r+='The two City files differ in one place: BKCB8 in 2010, where the district file has 203 net units and the project-level files have 206.';
+      else if(isNY&&d===-609)r+='Three things account for it. The district file counts job '+hdbJob('122673776')+', 580 units at 70 Pine Street (MNCB1), as completed in 2017, while the project-level files record it as &ldquo;Partially Completed Construction.&rdquo; The project-level total includes 32 units removed in jobs recorded outside the 59 districts (district 595). And BKCB8 in 2010 differs by 3 units between the two files (203 in the district file, 206 in the project-level files).';
+      else r+='Both come from the same Housing Database release; the difference sits in how the City aggregated the district file.';
+    }
+    h+=r+'</p>';
+  }
+  return h+'<p><a class="lnk" href="/bk/allhousing/#lossSect">Every NYC district on All Housing Built</a></p></div>';
 }
 var RS={'sec-cb6':rsCB6,'sec-bk':rsBK,'sec-nyc':rsNY};
 function renderSections(){Object.keys(RS).forEach(function(id){var el=$(id);if(el&&el.open)RS[id]()})}
@@ -1245,7 +1297,7 @@ fetch('/data/council-members.json').then(function(r){return r.json()}).then(func
 Promise.all([fetch('/middlehousingstillmissing/thesis.json').then(function(r){return r.json()}),fetch('/middlehousingstillmissing/data.json').then(function(r){return r.json()}),fetch('/middlehousingstillmissing/bk/index.json').then(function(r){return r.json()})]).then(function(a){
   T=a[0];D=a[1];NPAGES=T.n||NPAGES;loadIndex(a[2]);
   buildIndex();renderQChips();renderAll();
-  fetch('/data/housing-db-cd.json').then(function(r){return r.json()}).then(renderTracker).catch(function(){renderTracker(null)});
+  fetch('/data/housing-db-cd.json').then(function(r){return r.json()}).then(function(j){renderTracker(j);renderSections()}).catch(function(){renderTracker(null)});
   if(location.hash)goTo(location.hash.slice(1));
 }).catch(function(err){$('app').innerHTML='<div class="loading">The data did not load. Reload the page to try again.</div>';if(window.console)console.error(err)});
 })();
