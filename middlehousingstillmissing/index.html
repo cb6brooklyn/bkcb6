@@ -412,6 +412,8 @@ var STAGE={done:'Done',permitted:'Approved or permitted',filed:'Filed',withdrawn
 var CATK=['one','fewer','check'],STK=['done','permitted','filed','withdrawn'];
 var B=[],BYID={},DET={},DETP={},SC=6,CDNAME={};
 var SITE='https://bkcb6.app/middlehousingstillmissing/';
+var Y2=2026,ENDL='',RG='',RG20='',MON=['Jan.','Feb.','March','April','May','June','July','Aug.','Sept.','Oct.','Nov.','Dec.'];
+function setEnd(d){var p=d.split('-');ENDL=MON[+p[1]-1]+' '+(+p[2])+', '+p[0];Y2=+p[0];RG='2010 through '+ENDL;RG20='2020 through '+ENDL;YL=[];var c=[];for(var y=2010;y<=Y2;y++){YL.push(y);c.push('comp'+y)}CDX=c.join('+')}
 var DS={
   now:{id:'w9ak-ipjd',n:'DOB NOW: Build, Job Application Filings',o:'NYC Department of Buildings'},
   bis:{id:'ic3t-wcy2',n:'DOB Job Application Filings',o:'NYC Department of Buildings'},
@@ -432,6 +434,7 @@ function doneW(a,b){return "job_status like '5%' AND compltyear between '"+a+"' 
 var HW={
   loss:function(cd,a,b){return scopeW(cd)+" AND job_type='Alteration' AND classanet<0 AND "+doneW(a,b)},
   open:function(cd){return scopeW(cd)+" AND job_type='Alteration' AND classanet<0 AND job_status not like '9%'"},
+  pend:function(cd){return scopeW(cd)+" AND job_type='Alteration' AND classanet<0 AND job_status not like '5%' AND job_status not like '9%'"},
   gain:function(cd,a,b){return scopeW(cd)+" AND job_type='Alteration' AND classanet>0 AND "+doneW(a,b)},
   nb:function(cd,a,b){return scopeW(cd)+" AND job_type='New Building' AND "+doneW(a,b)},
   demo:function(cd,a,b){return scopeW(cd)+" AND job_type='Demolition' AND "+doneW(a,b)},
@@ -442,7 +445,7 @@ var HW={
 };
 var COND={loss:"job_type='Alteration' AND classanet<0",built:"(job_type='New Building' OR (job_type='Alteration' AND classanet>0))"};
 function gq(pre,kind,field,a,b){return odq(DS.hdb.id,{'$select':field+',sum(classanet) as units,count(*) as jobs','$where':(pre?pre+' AND ':'')+COND[kind]+" AND "+doneW(a,b),'$group':field,'$order':field,'$limit':'1000'})}
-function gsrc(pre,field,lossOnly,a,b){a=a||2010;b=b||2024;return 'Source queries, NYC Open Data '+DS.hdb.id+', Housing Database '+esc(D.stats.version)+': '+ext(gq(pre,'loss',field,a,b),'units lost to alterations, '+a+' to '+b)+(lossOnly?'':' &middot; '+ext(gq(pre,'built',field,a,b),'units built, '+a+' to '+b))+'.'}
+function gsrc(pre,field,lossOnly,a,b){a=a||2010;b=b||Y2;return 'Source queries, NYC Open Data '+DS.hdb.id+', Housing Database '+esc(D.stats.version)+': '+ext(gq(pre,'loss',field,a,b),'units lost to alterations, '+a+' to '+b)+(lossOnly?'':' &middot; '+ext(gq(pre,'built',field,a,b),'units built, '+a+' to '+b))+'.'}
 var RECSRC='Counted from the building records on this page; each record lists the DOB filings, permits and Housing Database jobs behind it. <a href="#method">How buildings are counted</a>.';
 function cmSrc(){return CMJ?'Council member names: '+ext('https://data.cityofnewyork.us/d/'+CMJ.dataset,'City Council Members (1999 to Present)')+' ('+esc(CMJ.dataset)+'), terms starting in 2026, dataset updated '+esc(CMJ.updated)+'.':''}
 function hq(where){return odq('br6q-ssj3',{'$select':'sum(classanet) as units,count(*) as jobs','$where':where})}
@@ -706,7 +709,7 @@ function renderAll(){
   h+='<details class="more" style="margin-top:14px" id="listBox"><summary id="listSum">Every building</summary><div class="mbody"><input class="lsearch" id="lq" type="search" placeholder="Filter by address" style="width:100%;margin-top:6px;padding:8px 10px;font-size:.86rem"><div class="blist" id="blist"></div></div></details>';
   h+=methodHTML()+'</div>';
   // numbers
-  h+='<div class="sec" id="numbers"><h2>The numbers, side by side</h2><div class="lede">What the thesis reports next to what the City&rsquo;s Housing Database shows today (version '+esc(S.version)+'). The thesis cites the Department of City Planning&rsquo;s Housing Database and its 2025 Housing Snapshot. Completed jobs are counted by the year construction was completed. Every Housing Database number links to the query on NYC Open Data that returns it.</div>';
+  h+='<div class="sec" id="numbers"><h2>The numbers, side by side</h2><div class="lede">What the thesis reports next to what the City&rsquo;s Housing Database shows today (version '+esc(S.version)+'). The thesis cites the Department of City Planning&rsquo;s Housing Database and its 2025 Housing Snapshot. Completed jobs are counted by the year construction was completed. The thesis covers 2010 to 2024, so each row compares those years first, then adds what the Housing Database records since. Every Housing Database number links to the query on NYC Open Data that returns it.</div>';
   h+='<div class="tw"><table class="t cmp"><thead><tr><th>Page</th><th>The thesis</th><th>Housing Database '+esc(S.version)+'</th></tr></thead><tbody>'+cmpRows(S)+'</tbody></table></div>';
   h+='</div>';
   // before 2010
@@ -745,9 +748,9 @@ function cmpRows(S){
   var gained=S.nb_10_24+S.gain_10_24;
   var ahead=r10.slice(0,idx).map(function(r){return r[0]+' ('+fmt(r[1])+')'}).join(', ');
   var rows=[
-    [37,'&ldquo;Brooklyn CD6 lost over 1,500 units (Job Type &lsquo;Alt Loss&rsquo;) from 2010-2024.&rdquo;','<b>'+qn(HW.loss('306',2010,2024),S.loss_10_24)+'</b> units in '+fmt(S.loss_jobs_10_24)+' completed alterations, 2010 to 2024. Counting every alteration with a loss that is filed, approved, permitted or completed, not withdrawn: <b>'+qn(HW.open('306'),S.loss_all_open)+'</b> units in '+fmt(S.loss_all_open_jobs)+' jobs.'],
-    [8,'CD6 had &ldquo;the highest consolidation in Brooklyn and fourth-most in the city,&rdquo; after Manhattan CDs 2, 7 and 8.','Completed 2010 to 2024: <b>'+(bk===1?'1st':ord(bk))+' in Brooklyn, '+ord(idx+1)+' in NYC</b>, after '+ahead+'. '+ext(odq(DS.hdb.id,{'$select':'commntydst,sum(classanet) as units','$where':"job_type='Alteration' AND classanet<0 AND "+doneW(2010,2024),'$group':'commntydst','$order':'units','$limit':'100'}),'Source query','q')],
-    [9,'&ldquo;The district lost the most units to consolidation from 2020 to 2024 (approximately 400) than any other district in New York City.&rdquo;','<b>'+qn(HW.loss('306',2020,2024),r20[i20][1])+'</b> units, <b>'+ord(i20+1)+'</b> of the '+r20.length+' districts with a loss. Next: '+r20.filter(function(r){return r[0]!=='BKCB6'}).slice(0,2).map(function(r){return r[0]+' ('+fmt(r[1])+')'}).join(', ')+'. '+ext(odq(DS.hdb.id,{'$select':'commntydst,sum(classanet) as units','$where':"job_type='Alteration' AND classanet<0 AND "+doneW(2020,2024),'$group':'commntydst','$order':'units','$limit':'100'}),'Source query','q')],
+    [37,'&ldquo;Brooklyn CD6 lost over 1,500 units (Job Type &lsquo;Alt Loss&rsquo;) from 2010-2024.&rdquo;','<b>'+qn(HW.loss('306',2010,2024),S.loss_10_24)+'</b> units in '+fmt(S.loss_jobs_10_24)+' completed alterations, 2010 to 2024. Through '+ENDL+', the latest completion recorded: <b>'+qn(HW.loss('306',2010,Y2),S.loss_now)+'</b> units in '+fmt(S.loss_jobs_now)+' alterations. Still to come: <b>'+qn(HW.pend('306'),S.loss_pending)+'</b> more units in '+fmt(S.loss_jobs_pending)+' alterations filed, approved or permitted, not yet completed.'],
+    [8,'CD6 had &ldquo;the highest consolidation in Brooklyn and fourth-most in the city,&rdquo; after Manhattan CDs 2, 7 and 8.','Completed 2010 to 2024: <b>'+(bk===1?'1st':ord(bk))+' in Brooklyn, '+ord(idx+1)+' in NYC</b>, after '+ahead+'. '+ext(odq(DS.hdb.id,{'$select':'commntydst,sum(classanet) as units','$where':"job_type='Alteration' AND classanet<0 AND "+doneW(2010,2024),'$group':'commntydst','$order':'units','$limit':'100'}),'Source query','q')+' Through '+ENDL+': <b>'+rkTxt(S.rank_10_now)+'</b>. '+ext(odq(DS.hdb.id,{'$select':'commntydst,sum(classanet) as units','$where':"job_type='Alteration' AND classanet<0 AND "+doneW(2010,Y2),'$group':'commntydst','$order':'units','$limit':'100'}),'Source query','q')],
+    [9,'&ldquo;The district lost the most units to consolidation from 2020 to 2024 (approximately 400) than any other district in New York City.&rdquo;','<b>'+qn(HW.loss('306',2020,2024),r20[i20][1])+'</b> units, <b>'+ord(i20+1)+'</b> of the '+r20.length+' districts with a loss. Next: '+r20.filter(function(r){return r[0]!=='BKCB6'}).slice(0,2).map(function(r){return r[0]+' ('+fmt(r[1])+')'}).join(', ')+'. '+ext(odq(DS.hdb.id,{'$select':'commntydst,sum(classanet) as units','$where':"job_type='Alteration' AND classanet<0 AND "+doneW(2020,2024),'$group':'commntydst','$order':'units','$limit':'100'}),'Source query','q')+' 2020 through '+ENDL+': <b>'+qn(HW.loss('306',2020,Y2),S.loss_20_now)+'</b> units, <b>'+rkTxt(S.rank_20_now)+'</b>. '+ext(odq(DS.hdb.id,{'$select':'commntydst,sum(classanet) as units','$where':"job_type='Alteration' AND classanet<0 AND "+doneW(2020,Y2),'$group':'commntydst','$order':'units','$limit':'100'}),'Source query','q')],
     [37,'&ldquo;Roughly 500 units were added in that time through &lsquo;Alt Gain.&rsquo;&rdquo;','<b>'+qn(HW.gain('306',2010,2024),S.gain_10_24)+'</b> units added by alterations, completed 2010 to 2024.'],
     [38,'&ldquo;CD6 lost just under 650 units to demolition between 2010 and 2024&rdquo;','<b>'+qn(HW.demo('306',2010,2024),S.demo_10_24)+'</b> units, completed 2010 to 2024.'],
     [38,'&ldquo;6,000 from new buildings and 500 from alterations. The overall net unit change between 2010 and 2024 was 5,200 units&rdquo;','<b>'+qn(HW.nb('306',2010,2024),S.nb_10_24)+'</b> units from new buildings. Net: <b>'+qn(HW.net('306',2010,2024),S.net_10_24)+'</b> units.'],
@@ -756,25 +759,26 @@ function cmpRows(S){
   ];
   return rows.map(function(r){return '<tr><td class="pg">'+pgBtn(r[0])+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>'}).join('');
 }
+function rkTxt(r){var ix=r.map(function(x){return x[0]}).indexOf('BKCB6'),bk=r.filter(function(x){return x[0].indexOf('BK')===0}).map(function(x){return x[0]}).indexOf('BKCB6')+1;return ord(bk)+' in Brooklyn, '+ord(ix+1)+' in NYC'+(ix>0?', after '+r.slice(0,ix).map(function(x){return x[0]+' ('+fmt(x[1])+')'}).join(', '):'')}
 function ord(n){var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
-var RK='rank_10_24';
+var RK='rank_10_now';
 function renderRank(){
-  var S=D.stats,L={rank_10_24:'Completed 2010 to 2024',rank_20_24:'Completed 2020 to 2024',rank_open:'Filed through completed, not withdrawn'};
+  var S=D.stats,L={rank_10_now:'Completed '+RG+'',rank_20_now:'Completed '+RG20+'',rank_pending:'Filed, approved or permitted, not yet completed'};
   $('rkChips').innerHTML=Object.keys(L).map(function(k){return '<button class="chip" type="button" data-rk="'+k+'" aria-pressed="'+(RK===k)+'">'+L[k]+'</button>'}).join('');
   var r=S[RK],i6=r.map(function(x){return x[0]}).indexOf('BKCB6');
   var show=r;
-  var w=function(cd){return RK==='rank_open'?HW.open(cd):RK==='rank_20_24'?HW.loss(cd,2020,2024):HW.loss(cd,2010,2024)};
+  var w=function(cd){return RK==='rank_pending'?HW.pend(cd):RK==='rank_20_now'?HW.loss(cd,2020,Y2):HW.loss(cd,2010,Y2)};
   $('rkTable').innerHTML='<thead><tr><th>Rank</th><th>District</th><th>Units lost</th></tr></thead><tbody>'+show.map(function(x){var i=r.indexOf(x);return '<tr'+(x[0]==='BKCB6'?' class="me"':'')+'><td>'+(i+1)+'</td><td style="text-align:left">'+x[0]+'</td><td>'+qn(w(boroCode(x[0])),x[1])+'</td></tr>'}).join('')+'</tbody><tfoot><tr><td colspan="3" style="text-align:left;font-size:.72rem;color:#6b6760;padding-top:8px">'+r.length+' community districts with a loss, every one shown. Each number opens its query.</td></tr></tfoot>';
 }
 function renderBK(){
   var rows=[];
   for(var n=1;n<=18;n++){
     var s=D.bk[n],sub=B.filter(function(b){return b.cd===n});
-    rows.push('<tr'+(n===6?' class="me"':'')+'><td><button class="lnk dl" type="button" data-cd="'+n+'">'+cdLab(n)+'</button> <span class="mu">'+esc((CDNAME[n]||[]).slice(0,2).join(', '))+'</span></td><td>'+fmt(sub.filter(function(b){return b.c==='one'}).length)+'</td><td>'+fmt(sub.filter(function(b){return b.c==='fewer'}).length)+'</td><td>'+qn(HW.loss(cdCode(n),2010,2024),s.loss_10_24)+'</td><td>'+qn(HW.loss(cdCode(n),2020,2024),s.loss_20_24)+'</td><td>'+qn(HW.open(cdCode(n)),s.loss_all_open)+'</td></tr>');
+    rows.push('<tr'+(n===6?' class="me"':'')+'><td><button class="lnk dl" type="button" data-cd="'+n+'">'+cdLab(n)+'</button> <span class="mu">'+esc((CDNAME[n]||[]).slice(0,2).join(', '))+'</span></td><td>'+fmt(sub.filter(function(b){return b.c==='one'}).length)+'</td><td>'+fmt(sub.filter(function(b){return b.c==='fewer'}).length)+'</td><td>'+qn(HW.loss(cdCode(n),2010,Y2),s.loss_now)+'</td><td>'+qn(HW.loss(cdCode(n),2020,Y2),s.loss_20_now)+'</td><td>'+qn(HW.pend(cdCode(n)),s.loss_pending)+'</td></tr>');
   }
   var a=D.bk_all;
-  rows.push('<tr class="tot"><td><button class="lnk dl" type="button" data-cd="all">All of Brooklyn</button></td><td>'+fmt(B.filter(function(b){return b.c==='one'}).length)+'</td><td>'+fmt(B.filter(function(b){return b.c==='fewer'}).length)+'</td><td>'+qn(HW.loss(null,2010,2024),a.loss_10_24)+'</td><td>'+qn(HW.loss(null,2020,2024),a.loss_20_24)+'</td><td>'+qn(HW.open(null),a.loss_all_open)+'</td></tr>');
-  $('bkTable').innerHTML='<thead><tr><th>District</th><th>Buildings made one-family</th><th>Buildings with fewer units</th><th>Units lost, completed 2010 to 2024</th><th>Completed 2020 to 2024</th><th>Filed through completed</th></tr></thead><tbody>'+rows.join('')+'</tbody><tfoot><tr><td colspan="6" style="text-align:left;font-size:.72rem;color:#6b6760;padding-top:8px">Building counts are from the building records on this page, every year of filings (<a href="#method">how buildings are counted</a>). Units lost are Housing Database alterations; each number opens its query. The Brooklyn row also counts jobs recorded outside the 18 districts. Pick a district to see it on the map.</td></tr></tfoot>';
+  rows.push('<tr class="tot"><td><button class="lnk dl" type="button" data-cd="all">All of Brooklyn</button></td><td>'+fmt(B.filter(function(b){return b.c==='one'}).length)+'</td><td>'+fmt(B.filter(function(b){return b.c==='fewer'}).length)+'</td><td>'+qn(HW.loss(null,2010,Y2),a.loss_now)+'</td><td>'+qn(HW.loss(null,2020,Y2),a.loss_20_now)+'</td><td>'+qn(HW.pend(null),a.loss_pending)+'</td></tr>');
+  $('bkTable').innerHTML='<thead><tr><th>District</th><th>Buildings made one-family</th><th>Buildings with fewer units</th><th>Units lost, completed '+RG+'</th><th>Completed '+RG20+'</th><th>Filed, approved or permitted, not yet completed</th></tr></thead><tbody>'+rows.join('')+'</tbody><tfoot><tr><td colspan="6" style="text-align:left;font-size:.72rem;color:#6b6760;padding-top:8px">Building counts are from the building records on this page, every year of filings (<a href="#method">how buildings are counted</a>). Units lost are Housing Database alterations; each number opens its query. The Brooklyn row also counts jobs recorded outside the 18 districts. Pick a district to see it on the map.</td></tr></tfoot>';
 }
 function renderCharts(){
   var S=D.stats,ys=[];for(var y=2010;y<=2025;y++)ys.push(y);
@@ -787,10 +791,12 @@ function renderTracker(tr){
   TR=tr;
   var S=D.stats,c=tr&&tr.cd&&tr.cd['BK-06'];
   if(!c){$('trLede').textContent='The housing tracker data did not load.';return}
-  var t6=totals(D.ch.cd[6].y),W6=dWhere('cd',6);
-  $('trLede').innerHTML='<a href="/bk/allhousing/">All Housing Built</a> counts <b>'+qu(dbq("commntydst='306'"),c.total)+'</b> net units completed in CB6 from 2010 to 2024, from the City&rsquo;s '+ext('https://data.cityofnewyork.us/d/dbdt-5s7j','Housing Database by Community District')+' (dbdt-5s7j). '+(c.total===t6.net?'That is the same <b>'+fmt(t6.net)+'</b> this page builds from the project-level files: '+qn(HW.built(W6,2010,2024),t6.bu)+' units built, minus '+qn(HW.loss(W6,2010,2024),t6.la)+' lost to conversions and '+qn(HW.demo(W6,2010,2024),t6.ld)+' to demolitions.':'This page builds '+qn(HW.net(W6,2010,2024),t6.net)+' from the project-level files.')+' Year by year, net units completed ('+ext(odq('dbdt-5s7j',{'$select':'commntydst,'+CDX.split('+').join(','),'$where':"commntydst='306'"}),'source')+') next to units lost to conversions ('+ext(yq(W6,'sum(classanet) as units,count(*) as jobs'," AND job_type='Alteration' AND classanet<0"),'source')+'):';
-  var ys=[];for(var y=2010;y<=2024;y++)ys.push(y);
-  barChart($('chTr'),ys.map(function(y){return{k:String(y),v:[c.comp[y]||0,S.loss_by_year[y]||0]}}),{series:[{n:'Net units completed (tracker)',c:'#1c4fa0'},{n:'Units lost to alterations',c:'#e8590c'}],unit:'units',label:'CB6 net units completed and units lost to alterations by year'});
+  var t6=totals(D.ch.cd[6].y,2024),W6=dWhere('cd',6);
+  $('trLede').innerHTML='<a href="/bk/allhousing/">All Housing Built</a> counts <b>'+qu(dbq("commntydst='306'",CDX24),c.total)+'</b> net units completed in CB6 from 2010 to 2024, from the City&rsquo;s '+ext('https://data.cityofnewyork.us/d/dbdt-5s7j','Housing Database by Community District')+' (dbdt-5s7j). '+(c.total===t6.net?'That is the same <b>'+fmt(t6.net)+'</b> this page builds from the project-level files: '+qn(HW.built(W6,2010,2024),t6.bu)+' units built, minus '+qn(HW.loss(W6,2010,2024),t6.la)+' lost to conversions and '+qn(HW.demo(W6,2010,2024),t6.ld)+' to demolitions.':'This page builds '+qn(HW.net(W6,2010,2024),t6.net)+' from the project-level files.')+' Year by year, net units completed ('+ext(odq('dbdt-5s7j',{'$select':'commntydst,'+CDX24.split('+').join(','),'$where':"commntydst='306'"}),'source')+') next to units lost to conversions ('+ext(yq(W6,'sum(classanet) as units,count(*) as jobs'," AND job_type='Alteration' AND classanet<0"),'source')+'):';
+  var c25=dbq("commntydst='306'",CDX.split('+').filter(function(x){return +x.slice(4)>2024}).join('+')),n25=0;for(var yy=2025;yy<=Y2;yy++)n25+=(D.ch.cd[6].y.nb[yy]||0)+(D.ch.cd[6].y.gain[yy]||0)-(D.ch.cd[6].y.loss[yy]||0)-(D.ch.cd[6].y.demo[yy]||0);
+  $('trLede').innerHTML=$('trLede').innerHTML.replace(' Year by year,',' All Housing Built stops at 2024. The same City file now adds <b>'+qu(c25,n25)+'</b> net units completed in CB6 from 2025 through '+ENDL+'. Year by year, through '+ENDL+',');
+  var ys=YL.slice();
+  var cy=D.ch.cd[6].y;barChart($('chTr'),ys.map(function(y){return{k:String(y),v:[y<=2024?(c.comp[y]||0):(cy.nb[y]||0)+(cy.gain[y]||0)-(cy.loss[y]||0)-(cy.demo[y]||0),S.loss_by_year[y]||0]}}),{series:[{n:'Net units completed',c:'#1c4fa0'},{n:'Units lost to alterations',c:'#e8590c'}],unit:'units',label:'CB6 net units completed and units lost to alterations by year'});
 }
 function renderRecs(){
   var rs=T.secs.filter(function(s){return s.l===2&&s.p>=57&&s.p<68});
@@ -834,7 +840,7 @@ function dList(t){return t==='cd'?[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
 function ysum(o,a,b){var s=0;for(var y=a;y<=b;y++)s+=(o&&o[y])||0;return s}
 function heatCol(f){var a=[255,243,234],b=[160,52,6];return 'rgb('+a.map(function(x,i){return Math.round(x+(b[i]-x)*f)}).join(',')+')'}
 function heat(rows,max,title,t,src){
-  var h='<div class="fh" style="margin-top:26px">'+esc(title)+'</div><div class="tw"><table class="heat"><thead><tr><th></th>'+YL.map(function(y){return '<th>'+String(y).slice(2)+'</th>'}).join('')+'<th>2010 to 2024</th></tr></thead><tbody>';
+  var h='<div class="fh" style="margin-top:26px">'+esc(title)+'</div><div class="tw"><table class="heat"><thead><tr><th></th>'+YL.map(function(y){return '<th>'+String(y).slice(2)+'</th>'}).join('')+'<th>'+RG+'</th></tr></thead><tbody>';
   rows.forEach(function(r){
     h+='<tr><th><button class="lnk dl" type="button" data-dt2="'+t+'" data-dk2="'+r.k+'">'+esc(r.label)+'</button></th>'+YL.map(function(y,i){var v=r.vals[i],f=max?Math.sqrt(v/max):0;return '<td style="background:'+(v?heatCol(f):'#fff')+';color:'+(f>.62?'#fff':'#1b1b1f')+'" title="'+esc(r.label)+', '+y+': '+fmt(v)+' units lost">'+(v?fmt(v):'')+'</td>'}).join('')+'<td class="tt">'+fmt(r.tot)+'</td></tr>';
   });
@@ -859,24 +865,24 @@ function mini(rows,max,color){
   rows.forEach(function(v,i){var h=max?Math.round((H-4)*v/max):0;if(h>0)s+='<rect x="'+(i*bw+1).toFixed(1)+'" y="'+(H-h)+'" width="'+(bw-2).toFixed(1)+'" height="'+h+'" rx="1.5" fill="'+color+'"/>'});
   return s+'<line x1="0" x2="'+W+'" y1="'+(H-.5)+'" y2="'+(H-.5)+'" stroke="#9d998f"/></svg>';
 }
-var YL=[];for(var yy0=2010;yy0<=2025;yy0++)YL.push(yy0);
+var YL=[];
 function panel(el,pfx,t,n,withHeat){
   var S=dStats(t,n),w=dWhere(t,n),bs=dBuild(t,n),lab=dLab(t,n),hasB=t!=='nyc'&&!(t==='bo'&&n!==3);
   var one=bs.filter(function(b){return b.c==='one'}),few=bs.filter(function(b){return b.c==='fewer'}),chk=bs.filter(function(b){return b.c==='check'});
   var who=t==='cc'&&n!=='all'&&CM[n]?'<p class="note">Council Member '+esc(CM[n].name)+', term starting '+esc(CM[n].term_start)+' ('+ext(odq('uvw5-9znb',{'$where':"district='"+n+"' AND term_start>='2026-01-01'"}),'City Council Members, uvw5-9znb')+').</p>':'';
   var h='<h3 class="dh">'+esc(lab)+(t==='cd'&&n!=='all'&&CDNAME[n]&&CDNAME[n].length?' <span>'+esc(CDNAME[n].join(', '))+'</span>':'')+'</h3>'+who;
   if(!hasB)h+='<p class="note">DOB filings were read for Brooklyn only, so building counts cover Brooklyn and its districts. Every unit count below is from the Housing Database for '+esc(lab)+'.</p>';
-  var Y=S.y,built=ysum(Y.nb,2010,2024)+ysum(Y.gain,2010,2024),la=ysum(Y.loss,2010,2024),ld=ysum(Y.demo,2010,2024),net=built-la-ld;
+  var Y=S.y,built=ysum(Y.nb,2010,Y2)+ysum(Y.gain,2010,Y2),la=ysum(Y.loss,2010,Y2),ld=ysum(Y.demo,2010,Y2),net=built-la-ld;
   var tiles=[];
   if(hasB)tiles.push([fmt(one.length),'buildings made one-family, filings since '+Math.min.apply(null,B.map(function(b){return b.y||9999}))],[fmt(few.length),'buildings that lost units, 2 or more remain']);
-  tiles.push([qn(HW.loss(w,2010,2024),S.loss_10_24),'units lost to alterations, completed 2010 to 2024'],[qn(HW.loss(w,2020,2024),S.loss_20_24),'units lost, completed 2020 to 2024'],[qn(HW.open(w),S.loss_all_open),'units lost, filed through completed, not withdrawn']);
-  if(S.loss_to_one_10_24!=null)tiles.push([qn(HW.toone(w,2010,2024),S.loss_to_one_10_24),'of the 2010 to 2024 loss, in buildings left with one unit']);
+  tiles.push([qn(HW.loss(w,2010,Y2),S.loss_now),'units lost to alterations, completed '+RG+''],[qn(HW.loss(w,2020,Y2),S.loss_20_now),'units lost, completed '+RG20+''],[qn(HW.pend(w),S.loss_pending),'units set to be lost: filed, approved or permitted, not yet completed or withdrawn']);
+  if(S.loss_to_one_now!=null)tiles.push([qn(HW.toone(w,2010,Y2),S.loss_to_one_now),'of the units lost since 2010, in buildings left with one unit']);
   h+='<div class="tiles">'+tiles.map(function(x){return '<div class="tile"><div class="v">'+x[0]+'</div><div class="k">'+x[1]+'</div></div>'}).join('')+'</div>';
   if(hasB)h+='<p class="note">Building counts: '+RECSRC+' Unit counts open the Housing Database query that returns them.</p>';
   if(hasB&&chk.length)h+='<p class="note">'+fmt(chk.length)+' more building'+(chk.length===1?'':'s')+' to check: the filing text says one family, the unit counts do not.</p>';
   // what losses take from what is built
-  h+='<div class="fh" style="margin-top:22px">What losses take from what gets built, completed 2010 to 2024</div>';
-  h+='<div class="cut"><div><span>Built</span><b>'+qn(HW.nb(w,2010,2024),ysum(Y.nb,2010,2024))+'</b><em>new buildings</em></div><div class="op">+</div><div><span>&nbsp;</span><b>'+qn(HW.gain(w,2010,2024),ysum(Y.gain,2010,2024))+'</b><em>alterations that add units</em></div><div class="op">&minus;</div><div class="l1"><span>Lost</span><b>'+qn(HW.loss(w,2010,2024),la)+'</b><em>alterations that remove units</em></div><div class="op">&minus;</div><div class="l2"><span>&nbsp;</span><b>'+qn(HW.demo(w,2010,2024),ld)+'</b><em>demolitions</em></div><div class="op">=</div><div class="nt2"><span>Net</span><b>'+qn(HW.net(w,2010,2024),net)+'</b><em>units</em></div></div>';
+  h+='<div class="fh" style="margin-top:22px">What losses take from what gets built, completed '+RG+'</div>';
+  h+='<div class="cut"><div><span>Built</span><b>'+qn(HW.nb(w,2010,Y2),ysum(Y.nb,2010,Y2))+'</b><em>new buildings</em></div><div class="op">+</div><div><span>&nbsp;</span><b>'+qn(HW.gain(w,2010,Y2),ysum(Y.gain,2010,Y2))+'</b><em>alterations that add units</em></div><div class="op">&minus;</div><div class="l1"><span>Lost</span><b>'+qn(HW.loss(w,2010,Y2),la)+'</b><em>alterations that remove units</em></div><div class="op">&minus;</div><div class="l2"><span>&nbsp;</span><b>'+qn(HW.demo(w,2010,Y2),ld)+'</b><em>demolitions</em></div><div class="op">=</div><div class="nt2"><span>Net</span><b>'+qn(HW.net(w,2010,Y2),net)+'</b><em>units</em></div></div>';
   h+='<div class="cutbar" aria-hidden="true"><i style="width:'+(built?(100*(built-la-ld)/built):0).toFixed(1)+'%;background:#1c4fa0"></i><i style="width:'+(built?100*la/built:0).toFixed(1)+'%;background:#e8590c"></i><i style="width:'+(built?100*ld/built:0).toFixed(1)+'%;background:#2f8f5b"></i></div>';
   h+=ctxHTML(t,n,S,lab);
   h+='<div class="fh" style="margin-top:16px">Units built and units lost, by year completed</div><div class="chart" id="'+pfx+'c2"></div><p class="note">Source queries by year: '+ext(yq(w,'sum(classanet) as units,count(*) as jobs'," AND job_type='New Building'"),'new buildings','lnk')+' &middot; '+ext(yq(w,'sum(classanet) as units,count(*) as jobs'," AND job_type='Alteration' AND classanet>0"),'alterations that add units','lnk')+' &middot; '+ext(yq(w,'sum(classanet) as units,count(*) as jobs'," AND job_type='Alteration' AND classanet<0"),'alterations that remove units','lnk')+' &middot; '+ext(yq(w,'sum(classanet) as units,count(*) as jobs'," AND job_type='Demolition'"),'demolitions','lnk')+'</p>';
@@ -887,7 +893,7 @@ function panel(el,pfx,t,n,withHeat){
   }
   var bk=!!withHeat;
   if(bk){
-    var hr=function(tt){var L2=dList(tt),mx2=0,rows=L2.map(function(k){var s2=D.ch[tt][k],v=YL.map(function(y){return s2.y.loss[y]||0});v.forEach(function(x){mx2=Math.max(mx2,x)});return{k:k,label:tt==='cd'?cdLab(k):'Council '+k+(ccName(k)?' '+ccName(k):''),vals:v,tot:s2.loss_10_24}});return heat(rows,mx2,'Brooklyn, every '+(tt==='cd'?'community':'council')+' district by year',tt,'Source query: '+ext(odq(DS.hdb.id,{'$select':(tt==='cd'?'commntydst':'councildst')+',compltyear,sum(classanet) as units,count(*) as jobs','$where':"boro='3' AND "+COND.loss+" AND job_status like '5%'",'$group':(tt==='cd'?'commntydst':'councildst')+',compltyear','$order':(tt==='cd'?'commntydst':'councildst')+',compltyear','$limit':'5000'}),'units lost to alterations by district and year')+'.'+(tt==='cc'?' '+cmSrc():''))};
+    var hr=function(tt){var L2=dList(tt),mx2=0,rows=L2.map(function(k){var s2=D.ch[tt][k],v=YL.map(function(y){return s2.y.loss[y]||0});v.forEach(function(x){mx2=Math.max(mx2,x)});return{k:k,label:tt==='cd'?cdLab(k):'Council '+k+(ccName(k)?' '+ccName(k):''),vals:v,tot:s2.loss_now}});return heat(rows,mx2,'Brooklyn, every '+(tt==='cd'?'community':'council')+' district by year',tt,'Source query: '+ext(odq(DS.hdb.id,{'$select':(tt==='cd'?'commntydst':'councildst')+',compltyear,sum(classanet) as units,count(*) as jobs','$where':"boro='3' AND "+COND.loss+" AND job_status like '5%'",'$group':(tt==='cd'?'commntydst':'councildst')+',compltyear','$order':(tt==='cd'?'commntydst':'councildst')+',compltyear','$limit':'5000'}),'units lost to alterations by district and year')+'.'+(tt==='cc'?' '+cmSrc():''))};
     h+=hr('cd')+hr('cc');
   }
   el.innerHTML=h;
@@ -913,10 +919,10 @@ function renderDist(){
   var hl=function(k){return t==='cd'?cdLab(k):t==='bo'?BORO[k]:'District '+k+(wide&&ccName(k)?' '+ccName(k):'')};
   var lw=t==='cc'&&wide?250:110;
   var gpre=t==='bo'?'':"boro='3'",gfield=t==='cd'?'commntydst':t==='bo'?'boro':'councildst';
-  var r1=L.map(function(k){return{k:k,label:hl(k),v:src[k].loss_10_24,me:k===n}}).sort(function(a,b){return b.v-a.v});
-  hbar($('dCmp1'),r1,{c:'#e8590c',label:'Units lost to alterations 2010 to 2024 by '+tl,hasMe:n!=='all',lw:lw,title:'Units lost to alterations, completed 2010 to 2024',src:gsrc(gpre,gfield,true)+(t==='cc'?' '+cmSrc():'')});
-  var r2=L.map(function(k){var y2=src[k].y,bu=ysum(y2.nb,2010,2024)+ysum(y2.gain,2010,2024),lo=ysum(y2.loss,2010,2024);return{k:k,label:hl(k),v:bu?Math.round(1000*lo/bu)/10:0,me:k===n}}).sort(function(a,b){return b.v-a.v});
-  hbar($('dCmp2'),r2,{c:'#e8590c',label:'Units lost to alterations per 100 built by '+tl,hasMe:n!=='all',lw:lw,title:'Units lost to alterations for every 100 built, completed 2010 to 2024',src:'Units lost divided by units built (new buildings plus alterations that add units), times 100. '+gsrc(gpre,gfield,false)});
+  var r1=L.map(function(k){return{k:k,label:hl(k),v:src[k].loss_now,me:k===n}}).sort(function(a,b){return b.v-a.v});
+  hbar($('dCmp1'),r1,{c:'#e8590c',label:'Units lost to alterations '+RG+' by '+tl,hasMe:n!=='all',lw:lw,title:'Units lost to alterations, completed '+RG+'',src:gsrc(gpre,gfield,true)+(t==='cc'?' '+cmSrc():'')});
+  var r2=L.map(function(k){var y2=src[k].y,bu=ysum(y2.nb,2010,Y2)+ysum(y2.gain,2010,Y2),lo=ysum(y2.loss,2010,Y2);return{k:k,label:hl(k),v:bu?Math.round(1000*lo/bu)/10:0,me:k===n}}).sort(function(a,b){return b.v-a.v});
+  hbar($('dCmp2'),r2,{c:'#e8590c',label:'Units lost to alterations per 100 built by '+tl,hasMe:n!=='all',lw:lw,title:'Units lost to alterations for every 100 built, completed '+RG+'',src:'Units lost divided by units built (new buildings plus alterations that add units), times 100. '+gsrc(gpre,gfield,false)});
   if(t!=='bo'){
     var r3=L.map(function(k){return{k:k,label:hl(k),v:dBuild(t,k).filter(function(b){return b.c==='one'}).length,me:k===n}}).sort(function(a,b){return b.v-a.v});
     hbar($('dCmp3'),r3,{c:'#e8590c',label:'Buildings made one-family by '+tl,hasMe:n!=='all',lw:lw,title:'Buildings made one-family, every year of filings',src:RECSRC});
@@ -924,10 +930,10 @@ function renderDist(){
   // small multiples, one shared scale
   var all=(t==='bo'?[]:[{k:'all',S:D.ch.all}]).concat(L.map(function(k){return{k:k,S:src[k]}}));
   var mx=0;L.forEach(function(k){YL.forEach(function(y){mx=Math.max(mx,src[k].y.loss[y]||0)})});
-  $('dGridH').innerHTML=esc('Units lost to alterations by year, 2010 to 2025, every '+tl+' (same scale for every '+tl+')')+'<br><span style="text-transform:none;letter-spacing:0">'+ext(odq(DS.hdb.id,{'$select':gfield+',compltyear,sum(classanet) as units','$where':(gpre?gpre+' AND ':'')+COND.loss+" AND job_status like '5%' AND compltyear between '2010' and '2025'",'$group':gfield+',compltyear','$order':gfield+',compltyear','$limit':'5000'}),'Source query')+'</span>';
+  $('dGridH').innerHTML=esc('Units lost to alterations by year, '+RG+', every '+tl+' (same scale for every '+tl+')')+'<br><span style="text-transform:none;letter-spacing:0">'+ext(odq(DS.hdb.id,{'$select':gfield+',compltyear,sum(classanet) as units','$where':(gpre?gpre+' AND ':'')+COND.loss+" AND job_status like '5%' AND compltyear between '2010' and '"+Y2+"'",'$group':gfield+',compltyear','$order':gfield+',compltyear','$limit':'5000'}),'Source query')+'</span>';
   $('dGrid').innerHTML=all.map(function(x){
     var vals=YL.map(function(y){return x.S.y.loss[y]||0}),m=x.k==='all'?Math.max.apply(null,vals):mx;
-    return '<button class="mc'+(x.k===n?' on':'')+'" type="button" data-dk="'+x.k+'"><span class="mn">'+esc(dLab(t,x.k))+(x.k==='all'?' <em>own scale</em>':'')+'</span><span class="ms">'+esc(x.k==='all'||t==='bo'?'':t==='cd'?(CDNAME[x.k]||[]).slice(0,2).join(', '):ccName(x.k))+'</span>'+mini(vals,m,'#e8590c')+'<span class="mv">'+fmt(x.S.loss_10_24)+' <em>units lost, 2010 to 2024</em></span></button>'}).join('');
+    return '<button class="mc'+(x.k===n?' on':'')+'" type="button" data-dk="'+x.k+'"><span class="mn">'+esc(dLab(t,x.k))+(x.k==='all'?' <em>own scale</em>':'')+'</span><span class="ms">'+esc(x.k==='all'||t==='bo'?'':t==='cd'?(CDNAME[x.k]||[]).slice(0,2).join(', '):ccName(x.k))+'</span>'+mini(vals,m,'#e8590c')+'<span class="mv">'+fmt(x.S.loss_now)+' <em>units lost, '+RG+'</em></span></button>'}).join('');
 }
 var HL=null,GEO={};
 function geo(u){return GEO[u]||(GEO[u]=fetch(u).then(function(r){return r.json()}))}
@@ -935,16 +941,17 @@ function yOf(d){var y={};['nb','gain','loss','demo'].forEach(function(t){y[t]={}
 function rankQ(field,pre,a,b){return odq(DS.hdb.id,{'$select':field+',sum(classanet) as units','$where':(pre?pre+' AND ':'')+COND.loss+" AND "+doneW(a,b),'$group':field,'$order':'units','$limit':'100'})}
 function renderGlance(){
   var c6=D.ch.cd[6],bk=D.ch.boro[3],ny=D.ch.nyc;
-  var r20=D.stats.rank_20_24.map(function(r){return r[0]}).indexOf('BKCB6')+1,r10=D.stats.rank_10_24.map(function(r){return r[0]}).indexOf('BKCB6')+1;
-  var bos=[1,2,3,4,5].sort(function(a,b){return D.ch.boro[b].loss_10_24-D.ch.boro[a].loss_10_24}),bkr=bos.indexOf(3)+1;
+  var r20=D.stats.rank_20_now.map(function(r){return r[0]}).indexOf('BKCB6')+1,r10=D.stats.rank_10_now.map(function(r){return r[0]}).indexOf('BKCB6')+1;
+  var bos=[1,2,3,4,5].sort(function(a,b){return D.ch.boro[b].loss_now-D.ch.boro[a].loss_now}),bkr=bos.indexOf(3)+1;
   var W6=dWhere('cd',6),WB=dWhere('bo',3),WN=dWhere('nyc','all');
   var one=function(f){return B.filter(f).filter(function(b){return b.c==='one'}).length};
-  var rk=function(r,n,what,field,a){return '<small>'+ext(rankQ(field,'',a,2024),ord(r)+' of '+n+' '+what)+'</small>'};
-  var p1=function(W,y){var t=totals(y);return t.r.toFixed(1)+'<small>'+qn(HW.loss(W,2010,2024),t.la)+' lost &divide; '+qn(HW.built(W,2010,2024),t.bu)+' built</small>'};
+  var rk=function(r,n,what,field,a){return '<small>'+ext(rankQ(field,'',a,Y2),ord(r)+' of '+n+' '+what)+'</small>'};
+  var p1=function(W,y){var t=totals(y);return t.r.toFixed(1)+'<small>'+qn(HW.loss(W,2010,Y2),t.la)+' lost &divide; '+qn(HW.built(W,2010,Y2),t.bu)+' built</small>'};
   var rows=[
-    ['Units lost to alterations that combine or remove apartments, completed 2010 to 2024',[qn(HW.loss(W6,2010,2024),c6.loss_10_24)+rk(r10,D.stats.rank_10_24.length,'community districts','commntydst',2010),qn(HW.loss(WB,2010,2024),bk.loss_10_24)+rk(bkr,5,'boroughs','boro',2010),qn(HW.loss(WN,2010,2024),ny.loss_10_24)]],
-    ['The same, completed 2020 to 2024',[qn(HW.loss(W6,2020,2024),c6.loss_20_24)+rk(r20,D.stats.rank_20_24.length,'community districts','commntydst',2020),qn(HW.loss(WB,2020,2024),bk.loss_20_24),qn(HW.loss(WN,2020,2024),ny.loss_20_24)]],
-    ['Units lost to alterations for every 100 units built (new buildings plus alterations that add units), 2010 to 2024',[p1(W6,c6.y),p1(WB,bk.y),p1(WN,ny.y)]],
+    ['Units lost to alterations that combine or remove apartments, completed '+RG+'',[qn(HW.loss(W6,2010,Y2),c6.loss_now)+rk(r10,D.stats.rank_10_now.length,'community districts','commntydst',2010),qn(HW.loss(WB,2010,Y2),bk.loss_now)+rk(bkr,5,'boroughs','boro',2010),qn(HW.loss(WN,2010,Y2),ny.loss_now)]],
+    ['The same, completed '+RG20+'',[qn(HW.loss(W6,2020,Y2),c6.loss_20_now)+rk(r20,D.stats.rank_20_now.length,'community districts','commntydst',2020),qn(HW.loss(WB,2020,Y2),bk.loss_20_now),qn(HW.loss(WN,2020,Y2),ny.loss_20_now)]],
+    ['Units set to be lost to alterations: filed, approved or permitted, not yet completed or withdrawn',[qn(HW.pend(W6),c6.loss_pending),qn(HW.pend(WB),bk.loss_pending),qn(HW.pend(WN),ny.loss_pending)]],
+    ['Units lost to alterations for every 100 units built (new buildings plus alterations that add units), '+RG+'',[p1(W6,c6.y),p1(WB,bk.y),p1(WN,ny.y)]],
     ['Buildings with a DOB filing or Housing Database job that made them one-family, filings since 2000',['<a href="#method">'+fmt(one(function(b){return b.cd===6}))+'</a>','<a href="#method">'+fmt(one(function(){return true}))+'</a>','<span class="na">DOB filings read for Brooklyn only</span>']]
   ];
   $('numbar').innerHTML='<div class="gh"><a href="#sec-cb6" data-go="sec-cb6">BKCB6</a><a href="#sec-bk" data-go="sec-bk">Brooklyn</a><a href="#sec-nyc" data-go="sec-nyc">NYC</a></div>'+rows.map(function(r){return '<div class="gk">'+r[0]+'</div><div class="gv">'+r[1].map(function(v){return '<div'+(/class="na"/.test(v)?' class="na"':'')+'>'+v+'</div>'}).join('')+'</div>'}).join('')+'<div class="gs">Unit counts: NYC Department of City Planning, Housing Database Project-Level Files, version '+esc(D.stats.version)+' (NYC Open Data '+DS.hdb.id+'). Each underlined number opens the query that returns it; ranks open the ranking query. District ranks leave out the joint interest areas, district numbers above 18. Building counts come from the building records on this page.</div>';
@@ -952,27 +959,27 @@ function renderGlance(){
 var SM={};
 function choro(id,cfg){
   var st=SM[id]||(SM[id]={lens:cfg.lens0,m:'l10',map:null,lay:null});
-  var M=[['l10','Units lost, 2010 to 2024'],['l20','Units lost, 2020 to 2024'],['p100','Lost per 100 built']];
+  var M=[['l10','Units lost, '+RG+''],['l20','Units lost, '+RG20+''],['p100','Lost per 100 built']];
   $(id+'L').innerHTML=Object.keys(cfg.lenses).map(function(k){return '<button class="chip" type="button" data-ml="'+id+':'+k+'" aria-pressed="'+(st.lens===k)+'">'+cfg.lenses[k].name+'</button>'}).join('');
   $(id+'M').innerHTML=M.map(function(x){return '<button class="chip" type="button" data-mm="'+id+':'+x[0]+'" aria-pressed="'+(st.m===x[0])+'">'+x[1]+'</button>'}).join('');
   if(!st.map){st.map=L.map(id,{preferCanvas:false,scrollWheelZoom:false,zoomSnap:1}).setView(cfg.center,cfg.zoom);L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{maxZoom:19,subdomains:'abcd',attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(st.map)}
   var ln=cfg.lenses[st.lens];
   geo(ln.url).then(function(g){
     var feats=g.features.filter(ln.filter),vals={},max=0;
-    feats.forEach(function(f){var k=ln.key(f),y=ln.y(k);var v=!y?null:st.m==='l10'?ysum(y.loss,2010,2024):st.m==='l20'?ysum(y.loss,2020,2024):per100(y);vals[k]=v;if(v!=null)max=Math.max(max,v)});
+    feats.forEach(function(f){var k=ln.key(f),y=ln.y(k);var v=!y?null:st.m==='l10'?ysum(y.loss,2010,Y2):st.m==='l20'?ysum(y.loss,2020,Y2):per100(y);vals[k]=v;if(v!=null)max=Math.max(max,v)});
     var col=function(v){return v==null?'#e6e3dd':v===0?'#f4f2ee':heatCol(Math.sqrt(v/(max||1)))};
     if(st.lay)st.map.removeLayer(st.lay);
     st.lay=L.geoJSON({type:'FeatureCollection',features:feats},{style:function(f){var k=ln.key(f),me=ln.me&&ln.me(k);return{fillColor:col(vals[k]),fillOpacity:.88,color:me?'#0d1b4b':'#fff',weight:me?3:1}},
       onEachFeature:function(f,l){var k=ln.key(f),v=vals[k];l.bindTooltip('<b>'+esc(ln.label(k))+'</b><br>'+(v==null?'No data':(st.m==='p100'?v.toFixed(1)+' units lost per 100 built':fmt(v)+' units lost')),{sticky:true});if(ln.click)l.on('click',function(){ln.click(k)})}}).addTo(st.map);
     if(!st.fit){st.map.fitBounds(st.lay.getBounds(),{padding:[8,8]});st.fit=1}
     var gf=st.lens==='cd'?'commntydst':'councildst',pre=id==='mbk'?"boro='3'":'',a0=st.m==='l20'?2020:2010;
-    $(id+'G').innerHTML='<span>'+(st.m==='p100'?'0':'0 units')+'</span><span class="gr"></span><span>'+(st.m==='p100'?max.toFixed(1)+' per 100 built':fmt(max)+' units')+'</span><span>'+esc(ln.name.toLowerCase())+', completed jobs, Housing Database '+esc(D.stats.version)+'</span>'+'<span style="flex-basis:100%">'+gsrc(pre,gf,st.m!=='p100',a0,2024)+(st.lens==='cc'?' '+cmSrc():'')+'</span>';
+    $(id+'G').innerHTML='<span>'+(st.m==='p100'?'0':'0 units')+'</span><span class="gr"></span><span>'+(st.m==='p100'?max.toFixed(1)+' per 100 built':fmt(max)+' units')+'</span><span>'+esc(ln.name.toLowerCase())+', completed jobs, Housing Database '+esc(D.stats.version)+'</span>'+'<span style="flex-basis:100%">'+gsrc(pre,gf,st.m!=='p100',a0,Y2)+(st.lens==='cc'?' '+cmSrc():'')+'</span>';
   });
 }
 var CHORO={};
 function openD(t,k){DS2.t=t;DS2.n=k;renderDist();setHash('d-'+t+k);$('districts').scrollIntoView({behavior:'smooth',block:'start'})}
 function cdKey(code){return +String(code).slice(1)}
-function per100(y){var bu=ysum(y.nb,2010,2024)+ysum(y.gain,2010,2024),lo=ysum(y.loss,2010,2024);return bu?Math.round(1000*lo/bu)/10:0}
+function per100(y){var bu=ysum(y.nb,2010,Y2)+ysum(y.gain,2010,Y2),lo=ysum(y.loss,2010,Y2);return bu?Math.round(1000*lo/bu)/10:0}
 function rsCB6(){
   panel($('pCB6'),'s6','cd',6,false);
   $('k6').innerHTML=Object.keys(CAT).map(function(k){return '<span><i style="--c:'+CAT[k].c+'"></i>'+CAT[k].l+'</span>'}).join('')+'<span><i style="--c:var(--navy)"></i>Done</span><span><i class="ring"></i>Approved or permitted</span><span><i class="dot"></i>Filed</span>';
@@ -1006,32 +1013,32 @@ function rsBK(){
   var wide=($('bkR1').clientWidth||860)>=600,cds=dList('cd'),ccs=dList('cc');
   var cdl=function(k){return cdLab(k)+(wide&&CDNAME[k]&&CDNAME[k].length?' '+CDNAME[k][0]:'')};
   var ccl=function(k){return 'District '+k+(wide&&ccName(k)?' '+ccName(k):'')};
-  hbar($('bkR1'),srt(cds.map(function(k){return{k:k,label:cdl(k),v:D.ch.cd[k].loss_10_24,me:k===6}})),{c:'#e8590c',hasMe:true,lw:wide?220:90,dt:'cd',label:'Units lost to alterations by Brooklyn community district',title:'Units lost to alterations, completed 2010 to 2024',src:gsrc("boro='3'",'commntydst',true)});
-  hbar($('bkR2'),srt(cds.map(function(k){return{k:k,label:cdl(k),v:per100(D.ch.cd[k].y),me:k===6}})),{c:'#e8590c',hasMe:true,lw:wide?220:90,dt:'cd',label:'Units lost per 100 built by Brooklyn community district',title:'Units lost to alterations for every 100 built, completed 2010 to 2024',src:'Units lost divided by units built (new buildings plus alterations that add units), times 100. '+gsrc("boro='3'",'commntydst',false)});
+  hbar($('bkR1'),srt(cds.map(function(k){return{k:k,label:cdl(k),v:D.ch.cd[k].loss_now,me:k===6}})),{c:'#e8590c',hasMe:true,lw:wide?220:90,dt:'cd',label:'Units lost to alterations by Brooklyn community district',title:'Units lost to alterations, completed '+RG+'',src:gsrc("boro='3'",'commntydst',true)});
+  hbar($('bkR2'),srt(cds.map(function(k){return{k:k,label:cdl(k),v:per100(D.ch.cd[k].y),me:k===6}})),{c:'#e8590c',hasMe:true,lw:wide?220:90,dt:'cd',label:'Units lost per 100 built by Brooklyn community district',title:'Units lost to alterations for every 100 built, completed '+RG+'',src:'Units lost divided by units built (new buildings plus alterations that add units), times 100. '+gsrc("boro='3'",'commntydst',false)});
   hbar($('bkR3'),srt(cds.map(function(k){return{k:k,label:cdl(k),v:dBuild('cd',k).filter(function(b){return b.c==='one'}).length,me:k===6}})),{c:'#e8590c',hasMe:true,lw:wide?220:90,dt:'cd',label:'Buildings made one-family by Brooklyn community district',title:'Buildings made one-family, every year of filings',src:RECSRC});
-  hbar($('bkR4'),srt(ccs.map(function(k){return{k:k,label:ccl(k),v:D.ch.cc[k].loss_10_24,me:k===39}})),{c:'#e8590c',hasMe:true,lw:wide?250:90,dt:'cc',label:'Units lost to alterations by council district in Brooklyn',title:'Units lost to alterations, completed 2010 to 2024',src:gsrc("boro='3'",'councildst',true)+' '+cmSrc()});
+  hbar($('bkR4'),srt(ccs.map(function(k){return{k:k,label:ccl(k),v:D.ch.cc[k].loss_now,me:k===39}})),{c:'#e8590c',hasMe:true,lw:wide?250:90,dt:'cc',label:'Units lost to alterations by council district in Brooklyn',title:'Units lost to alterations, completed '+RG+'',src:gsrc("boro='3'",'councildst',true)+' '+cmSrc()});
   hbar($('bkR5'),srt(ccs.map(function(k){return{k:k,label:ccl(k),v:dBuild('cc',k).filter(function(b){return b.c==='one'}).length,me:k===39}})),{c:'#e8590c',hasMe:true,lw:wide?250:90,dt:'cc',label:'Buildings made one-family by council district in Brooklyn',title:'Buildings made one-family, every year of filings',src:RECSRC+' '+cmSrc()});
 }
 function rsNY(){
   mkChoro();
   panel($('pNY'),'sn','nyc','all',false);
   var bos=dList('bo');
-  hbar($('nyR1'),srt(bos.map(function(k){return{k:k,label:BORO[k],v:D.ch.boro[k].loss_10_24,me:k===3}})),{c:'#e8590c',hasMe:true,lw:110,dt:'bo',label:'Units lost to alterations by borough',title:'Units lost to alterations, completed 2010 to 2024',src:gsrc('','boro',true)});
-  hbar($('nyR2'),srt(bos.map(function(k){return{k:k,label:BORO[k],v:per100(D.ch.boro[k].y),me:k===3}})),{c:'#e8590c',hasMe:true,lw:110,dt:'bo',label:'Units lost per 100 built by borough',title:'Units lost to alterations for every 100 built, completed 2010 to 2024',src:'Units lost divided by units built, times 100. '+gsrc('','boro',false)});
+  hbar($('nyR1'),srt(bos.map(function(k){return{k:k,label:BORO[k],v:D.ch.boro[k].loss_now,me:k===3}})),{c:'#e8590c',hasMe:true,lw:110,dt:'bo',label:'Units lost to alterations by borough',title:'Units lost to alterations, completed '+RG+'',src:gsrc('','boro',true)});
+  hbar($('nyR2'),srt(bos.map(function(k){return{k:k,label:BORO[k],v:per100(D.ch.boro[k].y),me:k===3}})),{c:'#e8590c',hasMe:true,lw:110,dt:'bo',label:'Units lost per 100 built by borough',title:'Units lost to alterations for every 100 built, completed '+RG+'',src:'Units lost divided by units built, times 100. '+gsrc('','boro',false)});
   var go=function(){
     if(SM.mny)refit('mny');choro('mny',CHORO.mny);
     var rows=Object.keys(HL.cd).map(function(k){var bk=k.indexOf('BK-')===0;return{k:bk?+k.slice(3):k,label:k.slice(0,2)+'CB'+(+k.slice(3)),v:per100(yOf(HL.cd[k])),me:k==='BK-06'}});
-    hbar($('nyR3'),srt(rows),{c:'#e8590c',hasMe:true,lw:90,dt:null,label:'Units lost per 100 built by community district, New York City',title:'Every community district in New York City: units lost to alterations for every 100 built, completed 2010 to 2024',src:'Units lost divided by units built (new buildings plus alterations that add units), times 100. '+gsrc('','commntydst',false)});
+    hbar($('nyR3'),srt(rows),{c:'#e8590c',hasMe:true,lw:90,dt:null,label:'Units lost per 100 built by community district, New York City',title:'Every community district in New York City: units lost to alterations for every 100 built, completed '+RG+'',src:'Units lost divided by units built (new buildings plus alterations that add units), times 100. '+gsrc('','commntydst',false)});
   };
   if(HL)go();else fetch('/data/housing-loss.json').then(function(r){return r.json()}).then(function(j){HL=j;go()}).catch(function(){});
 }
 /* ---------------- context and reconciliation ---------------- */
-function totals(y){var nb=ysum(y.nb,2010,2024),ga=ysum(y.gain,2010,2024),la=ysum(y.loss,2010,2024),ld=ysum(y.demo,2010,2024);return{nb:nb,ga:ga,bu:nb+ga,la:la,ld:ld,lost:la+ld,net:nb+ga-la-ld,r:nb+ga?100*la/(nb+ga):0}}
+function totals(y,e){e=e||Y2;var nb=ysum(y.nb,2010,e),ga=ysum(y.gain,2010,e),la=ysum(y.loss,2010,e),ld=ysum(y.demo,2010,e);return{nb:nb,ga:ga,bu:nb+ga,la:la,ld:ld,lost:la+ld,net:nb+ga-la-ld,r:nb+ga?100*la/(nb+ga):0}}
 function pct(a,b){return b?(100*a/b).toFixed(1)+'%':'0%'}
 function times(a,b){return b?(a/b).toFixed(1):'0'}
 function hdbJob(j){return ext(odq(DS.hdb.id,{job_number:j}),esc(j))}
-var CDX="comp2010+comp2011+comp2012+comp2013+comp2014+comp2015+comp2016+comp2017+comp2018+comp2019+comp2020+comp2021+comp2022+comp2023+comp2024";
-function dbq(where){return odq('dbdt-5s7j',{'$select':'sum('+CDX+') as units','$where':where||"commntydst IS NOT NULL"})}
+var CDX='',CDX24="comp2010+comp2011+comp2012+comp2013+comp2014+comp2015+comp2016+comp2017+comp2018+comp2019+comp2020+comp2021+comp2022+comp2023+comp2024";
+function dbq(where,cx){return odq('dbdt-5s7j',{'$select':'sum('+(cx||CDX)+') as units','$where':where||"commntydst IS NOT NULL"})}
 function cityNet(t,n){
   if(!TR||!TR.cd)return null;
   var ks=Object.keys(TR.cd);
@@ -1043,9 +1050,9 @@ function cityNet(t,n){
 function ctxHTML(t,n,S,lab){
   var T0=totals(S.y),BK=totals(D.ch.boro[3].y),NY=totals(D.ch.nyc.y),w=dWhere(t,n),WB=dWhere('bo',3),WN=dWhere('nyc','all');
   var inBK=t==='cd'||t==='cc'||(t==='bo'&&n===3)||n==='all',isBK=(t==='bo'&&n===3)||n==='all',isNY=t==='nyc';
-  var L=function(f,W,v){return qn(f(W,2010,2024),v)};
+  var L=function(f,W,v){return qn(f(W,2010,Y2),v)};
   var h='<div class="ctx"><div class="fh">What it means</div>';
-  h+='<p>From 2010 to 2024, '+esc(lab)+' added <b>'+L(HW.built,w,T0.bu)+'</b> units: '+L(HW.nb,w,T0.nb)+' in new buildings and '+L(HW.gain,w,T0.ga)+' through alterations that add units. It lost <b>'+L(HW.lost,w,T0.lost)+'</b>: '+L(HW.loss,w,T0.la)+' when alterations combined or removed apartments (conversions) and '+L(HW.demo,w,T0.ld)+' to demolitions. That leaves a net of <b>'+L(HW.net,w,T0.net)+'</b>.</p>';
+  h+='<p>From '+RG+', '+esc(lab)+' added <b>'+L(HW.built,w,T0.bu)+'</b> units: '+L(HW.nb,w,T0.nb)+' in new buildings and '+L(HW.gain,w,T0.ga)+' through alterations that add units. It lost <b>'+L(HW.lost,w,T0.lost)+'</b>: '+L(HW.loss,w,T0.la)+' when alterations combined or removed apartments (conversions) and '+L(HW.demo,w,T0.ld)+' to demolitions. That leaves a net of <b>'+L(HW.net,w,T0.net)+'</b>.</p>';
   var cmp='<p>Conversions took <b>'+T0.r.toFixed(1)+'</b> units for every 100 built';
   if(inBK&&!isBK)cmp+=', against '+BK.r.toFixed(1)+' across Brooklyn ('+L(HW.loss,WB,BK.la)+' of '+L(HW.built,WB,BK.bu)+') and '+NY.r.toFixed(1)+' citywide ('+L(HW.loss,WN,NY.la)+' of '+L(HW.built,WN,NY.bu)+'): <b>'+times(T0.r,BK.r)+' times</b> the Brooklyn rate and <b>'+times(T0.r,NY.r)+' times</b> the city rate';
   else if(!isNY)cmp+=', against '+NY.r.toFixed(1)+' citywide ('+L(HW.loss,WN,NY.la)+' of '+L(HW.built,WN,NY.bu)+'), '+times(T0.r,NY.r)+' times the city rate';
@@ -1064,8 +1071,8 @@ function ctxHTML(t,n,S,lab){
   // checked against the City's district totals
   var dbl=ext('https://data.cityofnewyork.us/d/dbdt-5s7j','Housing Database by Community District')+' (dbdt-5s7j, the source of <a href="/bk/allhousing/">All Housing Built</a>)';
   var r='';
-  if(isNY&&T0.net===344537){
-    r='The City&rsquo;s '+dbl+' adds to '+qu(dbq(),345114)+' for the same years. The difference of 577 is two things: that file counts job '+hdbJob('122673776')+', 580 units at 70 Pine Street in MNCB1, as completed in 2017, while the project-level files record it as &ldquo;Partially Completed Construction&rdquo; ('+qu(odq(DS.hdb.id,{'$select':'sum(classanet) as units','$where':"job_status like '4%' AND compltyear='2017'"}),580)+' units); and BKCB8 in 2010 has '+qu(odq('dbdt-5s7j',{'$select':'comp2010 as units','$where':"commntydst='308'"}),203)+' net units there and '+qn(HW.net("commntydst='308'",2010,2010),206)+' in the project-level files. 344,537 + 580 &minus; 3 = 345,114.';
+  if(isNY&&T0.net===406745){
+    r='The City&rsquo;s '+dbl+' adds to '+qu(dbq(),407566)+' for the same years. The difference of 821 is two things. That file counts three jobs as completed that the project-level files record as &ldquo;Partially Completed Construction&rdquo; ('+qu(odq(DS.hdb.id,{'$select':'sum(classanet) as units','$where':"job_status like '4%' AND compltyear between '2010' and '"+Y2+"'"}),824)+' units): job '+hdbJob('122673776')+', 580 units at 70 Pine Street in MNCB1, completed 2017; job '+hdbJob('M00549294')+', 36 units at 454 Convent Avenue in MNCB9, 2025; and job '+hdbJob('421025982')+', 208 units at 33-71 Prince Street in QNCB7, 2026. And BKCB8 in 2010 has '+qu(odq('dbdt-5s7j',{'$select':'comp2010 as units','$where':"commntydst='308'"}),203)+' net units there and '+qn(HW.net("commntydst='308'",2010,2010),206)+' in the project-level files. 406,745 + 824 &minus; 3 = 407,566.';
   } else {
     var cn=cityNet(t,n);
     if(cn){
@@ -1363,7 +1370,7 @@ window.addEventListener('resize',function(){clearTimeout(rsT);rsT=setTimeout(fun
 try{var cp=new URLSearchParams(location.search).get('cd');if(cp==='all')SC='all';else if(cp&&+cp>=1&&+cp<=18)SC=+cp}catch(e){}
 fetch('/middlehousingstillmissing/bk/council-members.json').then(function(r){return r.json()}).then(function(j){CMJ=j;CM=j.members||{};if(D&&$('dBody')){renderDist();renderSections()}if(D&&$('ccSel'))renderCcSel()}).catch(function(){});
 Promise.all([fetch('/middlehousingstillmissing/thesis.json').then(function(r){return r.json()}),fetch('/middlehousingstillmissing/data.json').then(function(r){return r.json()}),fetch('/middlehousingstillmissing/bk/index.json').then(function(r){return r.json()})]).then(function(a){
-  T=a[0];D=a[1];NPAGES=T.n||NPAGES;loadIndex(a[2]);
+  T=a[0];D=a[1];setEnd(D.stats.hdb_end);NPAGES=T.n||NPAGES;loadIndex(a[2]);
   buildIndex();renderQChips();renderAll();
   fetch('/data/housing-db-cd.json').then(function(r){return r.json()}).then(function(j){renderTracker(j);renderSections()}).catch(function(){renderTracker(null)});
   if(location.hash)goTo(location.hash.slice(1));

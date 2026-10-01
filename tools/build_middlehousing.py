@@ -510,6 +510,10 @@ counts = dict(dob_now_rows=len(now), bis_rows=len(bis), dob_jobs=jobs_total, dob
               bis_first=str(pd.to_datetime(bis.pre__filing_date, errors="coerce").min())[:10], pluto_version=pluto_version, cd_source=CDSRC, cc_source=CCSRC,
               now_first=str(pd.to_datetime(now.filing_date, errors="coerce").min())[:10])
 out = dict(built=time.strftime("%Y-%m-%d"), counts=counts, stats=stats, bk=bk, bk_all=bk_all, ch=ch)
+out = json.loads(json.dumps(out))  # string keys, as on the page
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from mhsm_now import add_now
+out = add_now(out)
 os.makedirs(os.path.join(ROOT, "middlehousingstillmissing", "bk"), exist_ok=True)
 json.dump(out, open(os.path.join(ROOT, "middlehousingstillmissing", "data.json"), "w"), separators=(",", ":"))
 rows_out = json.loads(IDX.to_json(orient="values"))
