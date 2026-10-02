@@ -58,7 +58,7 @@ function mergeEntry(ev) {
   if (typeof ev.label === 'string' && /^Early Voting\s+—/.test(ev.label)) return;
   if (!EVENTS[ev.date]) EVENTS[ev.date] = [];
   if (EVENTS[ev.date].some(e => e._hardcoded && norm(e.label) === norm(ev.label))) return;
-  const idx = EVENTS[ev.date].findIndex(e => e.type === ev.type && e._hardcoded);
+  const idx = ev.type === "community" ? -1 : EVENTS[ev.date].findIndex(e => e.type === ev.type && e._hardcoded); // same rule as calendar.html
   if (idx !== -1) EVENTS[ev.date][idx] = ev;
   else if (!EVENTS[ev.date].some(e => e.type === ev.type && !e._hardcoded)) EVENTS[ev.date].push(ev);
 }
