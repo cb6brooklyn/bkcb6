@@ -15,8 +15,15 @@ OUT = os.path.join(ROOT, 'app/data/civic'); os.makedirs(OUT, exist_ok=True)
 NOW = datetime.now(timezone.utc)
 
 def fetch(url):
-    req = urllib.request.Request(url, headers={'User-Agent': 'bkcb6.app app pack'})
-    return urllib.request.urlopen(req, timeout=120).read()
+    # NYC Open Data answers with a 500 now and then; try again before giving up.
+    import time
+    for i in range(4):
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'bkcb6.app app pack'})
+            return urllib.request.urlopen(req, timeout=120).read()
+        except Exception as e:
+            if i == 3: raise
+            print('retry', i + 1, e); time.sleep(15 * (i + 1))
 
 def lpc_permits():
     rows, off = [], 0
@@ -110,5 +117,10 @@ def manifest():
 
 if __name__ == '__main__':
     only = sys.argv[1:] or ['lpc', 'liquor', 'applicants']
-    for k in only: {'lpc': lpc_permits, 'liquor': liquor, 'applicants': applicants}[k]()
+    failed = []
+    for k in only:
+        # One source being down keeps its last good file; the rest still publish.
+        try: {'lpc': lpc_permits, 'liquor': liquor, 'applicants': applicants}[k]()
+        except Exception as e: failed.append(k); print('FAILED', k, e)
     manifest()
+    if failed: print('kept the previous file for', ', '.join(failed))
