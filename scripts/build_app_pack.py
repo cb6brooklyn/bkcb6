@@ -101,10 +101,43 @@ def applicants():
            'applicants': apps}
     json.dump(out, open(os.path.join(OUT, 'liquor-applicants.json'), 'w'), separators=(',', ':'), ensure_ascii=False)
     print('applicants', date, len(apps))
+    # Each applicant's own logo, from the meeting page's logos/ folder, for the apps' map and list.
+    import shutil
+    ld = os.path.join(OUT, 'liquor-applicants/logos'); shutil.rmtree(ld, ignore_errors=True); os.makedirs(ld, exist_ok=True)
+    n = 0
+    for ap in apps:
+        src = os.path.join(os.path.dirname(f), 'logos', '%s.png' % ap.get('id', ''))
+        if os.path.exists(src): shutil.copyfile(src, os.path.join(ld, os.path.basename(src))); n += 1
+    print('applicant logos', n, 'of', len(apps))
+
+def minutes():
+    """Every set of minutes on bkcb6.app/minutes, in the app's format ({d, b, t}): the date from the file name,
+    the committee from the page header, and the text of the page, one line per paragraph or heading."""
+    import html as H
+    recs = []
+    for f in sorted(glob.glob(os.path.join(ROOT, 'minutes/*.html'))):
+        s = open(f, encoding='utf-8', errors='ignore').read()
+        m = re.match(r'(\d{4}-\d{2}-\d{2})-', os.path.basename(f))
+        art = re.search(r'<article>(.*?)</article>', s, re.S)
+        cm = re.search(r'<div class="cm">(.*?)</div>', s, re.S)
+        if not (m and art and cm): continue
+        lines = []
+        for blk in re.findall(r'<(?:h\d|p|li|pre|td|div)[^>]*>(.*?)</(?:h\d|p|li|pre|td|div)>', art.group(1), re.S):
+            for ln in re.sub(r'<br\s*/?>', '\n', blk).split('\n'):
+                t = H.unescape(re.sub(r'<[^>]+>', '', ln)).strip()
+                if t: lines.append(t)
+        b = re.sub(r'\s*\(formerly [^)]*\)', '', H.unescape(re.sub(r'<[^>]+>', '', cm.group(1)))).strip()
+        b = re.sub(r'\s*·\s*Draft$', '', b).replace('Committee minute scans (multiple committees)', 'Committee minutes (scans)')
+        recs.append({'d': m.group(1), 'b': b, 't': '\n'.join(lines)})
+    if len(recs) < 500: raise Exception('only %d minutes pages read' % len(recs))
+    json.dump(recs, open(os.path.join(OUT, 'minutes.json'), 'w'), separators=(',', ':'), ensure_ascii=False)
+    print('minutes', len(recs))
 
 def manifest():
     mp = os.path.join(ROOT, 'app/manifest.json')
     m = json.load(open(mp)) if os.path.exists(mp) else {'files': {}}
+    # Files removed from app/data (e.g. last meeting's logos) leave the manifest too.
+    m['files'] = {k: v for k, v in m.get('files', {}).items() if os.path.exists(os.path.join(ROOT, 'app/data', k))}
     base = os.path.join(ROOT, 'app/data')
     for dp, _, fs in os.walk(base):
         for n in fs:
@@ -116,11 +149,11 @@ def manifest():
     open(mp, 'w').write(txt); print('manifest', len(m['files']), 'files')
 
 if __name__ == '__main__':
-    only = sys.argv[1:] or ['lpc', 'liquor', 'applicants']
+    only = sys.argv[1:] or ['lpc', 'liquor', 'applicants', 'minutes']
     failed = []
     for k in only:
         # One source being down keeps its last good file; the rest still publish.
-        try: {'lpc': lpc_permits, 'liquor': liquor, 'applicants': applicants}[k]()
+        try: {'lpc': lpc_permits, 'liquor': liquor, 'applicants': applicants, 'minutes': minutes}[k]()
         except Exception as e: failed.append(k); print('FAILED', k, e)
     manifest()
     if failed: print('kept the previous file for', ', '.join(failed))
