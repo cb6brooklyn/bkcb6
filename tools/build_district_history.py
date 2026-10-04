@@ -24,14 +24,22 @@ MIN_SHARE = 0.005  # districts holding under half a percent of a board's residen
 OFFICES = [
     # key, label, file prefix, district field, NYS office name, elections (year, release year, served label)
     ('council', 'City Council', 'nycc', 'CounDist', None,
-     [(2005, '06', '2006–2009'), (2009, '10', '2010–2013'), (2013, '14', '2014–2017'),
+     # 2003 Council lines (DCP's first archived release, 2006, still carries them) for the 2004-2005 term;
+     # no digital map of the 1991 Council lines was found, so terms before 2004 are not shown
+     [(2003, '06', '2004–2005'), (2005, '06', '2006–2009'), (2009, '10', '2010–2013'), (2013, '14', '2014–2017'),
       (2017, '17', '2018–2021'), (2021, '21', '2022–2023'), (2023, '23', '2024–2025'),
       (2025, '25', '2026–2029')]),
     ('assembly', 'State Assembly', 'nyad', 'AssemDist', 'Member of Assembly',
+     # 2000: 1992 lines from Census 2000 cartographic boundaries; 2002 and 2004: 2002 lines, same as DCP's 2006 release
+     [(2000, 'census:sl36_d00_shp:SLDL', '2001–2002'), (2002, '06', '2003–2004'), (2004, '06', '2005–2006')] +
      [(y, str(y)[2:], f'{y+1}–{y+2}') for y in range(2006, 2025, 2)]),
     ('senate', 'State Senate', 'nyss', 'StSenDist', 'State Senator',
+     # 2000: 1992 lines from Census 2000 cartographic boundaries; 2002 and 2004: 2002 lines, same as DCP's 2006 release
+     [(2000, 'census:su36_d00_shp:SLDU', '2001–2002'), (2002, '06', '2003–2004'), (2004, '06', '2005–2006')] +
      [(y, str(y)[2:], f'{y+1}–{y+2}') for y in range(2006, 2025, 2)]),
     ('congress', 'Congress', 'nycg', 'CongDist', 'Representative in Congress',
+     # 2000: 1992 lines from Census 2000 cartographic boundaries; 2002 and 2004: 2002 lines, same as DCP's 2006 release
+     [(2000, 'census:cd36_107_shp:CD', '2001–2002'), (2002, '06', '2003–2004'), (2004, '06', '2005–2006')] +
      [(y, str(y)[2:], f'{y+1}–{y+2}') for y in range(2006, 2025, 2)]),
 ]
 
@@ -58,7 +66,7 @@ def load_blocks(block_zip):
     return np.asarray(xs), np.asarray(ys), pop, board
 
 
-def read_release(zpath, field):
+def read_release(zpath, field, crs_default=None):
     tmp = tempfile.mkdtemp()
     zipfile.ZipFile(zpath).extractall(tmp)
     shp = [p for p in glob.glob(tmp + '/**/*', recursive=True) if p.lower().endswith('.shp')][0]
@@ -71,7 +79,7 @@ def read_release(zpath, field):
             out[int(i)].append(wkb.loads(bytes(g)).buffer(0))
     from shapely.ops import unary_union
     tr = None
-    crs = meta['crs'] or ''
+    crs = meta['crs'] or crs_default or ''
     if '2263' not in crs and 'Lambert' not in crs and 'lambert' not in crs.lower():
         tr = Transformer.from_crs(crs, 'EPSG:2263', always_xy=True)
     res = {}
@@ -176,17 +184,23 @@ def main(dist_dir, council_csv, block_zip, land_zip):
     for key, label, prefix, field, nysname, elections in OFFICES:
         off = {'key': key, 'label': label, 'rows': []}
         for year, ry, served in elections:
-            z = sorted(glob.glob(os.path.join(dist_dir, f'{prefix}_{ry}*.zip')))
-            z = [p for p in z if os.path.basename(p).startswith(f'{prefix}_{ry}')]
-            if not z:
-                print('missing', prefix, ry)
-                continue
-            zp = z[-1]
-            release = re.sub(r'^[a-z]+_|\.zip$', '', os.path.basename(zp))
-            dists = read_release(zp, field)
+            if ry.startswith('census:'):
+                _, stem, cfield = ry.split(':')
+                zp = os.path.join(dist_dir, stem + '.zip')
+                release = 'Census 2000 ' + stem.split('_')[0]
+                dists = read_release(zp, cfield, 'EPSG:4269')
+            else:
+                z = sorted(glob.glob(os.path.join(dist_dir, f'{prefix}_{ry}*.zip')))
+                z = [p for p in z if os.path.basename(p).startswith(f'{prefix}_{ry}')]
+                if not z:
+                    print('missing', prefix, ry)
+                    continue
+                zp = z[-1]
+                release = re.sub(r'^[a-z]+_|\.zip$', '', os.path.basename(zp))
+                dists = read_release(zp, field)
             sig = geo_signature(dists)
             if sig not in sigs:
-                sigs[sig] = write_topo(dists, f'{key}_{release}')
+                sigs[sig] = write_topo(dists, f'{key}_' + re.sub(r'[^a-z0-9]+', '', release.lower()))
             # overlaps: share of each board's residents (2020 census blocks) living in each district
             import numpy as np
             from shapely import contains_xy
