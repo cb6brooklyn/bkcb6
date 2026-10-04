@@ -97,6 +97,19 @@ th.r{text-align:right}
 .cmp-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:20px;background:var(--off);border:1px solid var(--border);font-size:.78rem;font-weight:700;color:var(--navy)}
 .cmp-chip button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:.9rem;line-height:1}
 /* district history */
+.tl{margin-top:18px}
+.tl-h{font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:16px 0 6px}
+.tl-axis,.tl-row{display:grid;grid-template-columns:74px minmax(0,1fr);align-items:center}
+.tl-row{min-height:30px;border-bottom:1px solid #f0ede7}
+.tl-lbl{font-family:'DM Mono',monospace;font-size:.72rem;font-weight:700;color:var(--navy)}
+.tl-track{position:relative;height:30px}
+.tl-bar{position:absolute;top:4px;height:22px;border-radius:3px;overflow:hidden;cursor:pointer;display:flex;align-items:center;padding:0 5px;box-sizing:border-box;border-right:1px solid #fff}
+.tl-bar span{font-size:.64rem;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 0 2px rgba(0,0,0,.35)}
+.tl-years{position:relative;height:18px}
+.tl-years span{position:absolute;transform:translateX(-50%);font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted)}
+.tl-chg{position:absolute;top:0;bottom:0;width:0;border-left:2px dashed #f47920;pointer-events:none;z-index:2}
+.tl-tip{position:fixed;z-index:9999;background:rgba(17,24,39,.94);color:#fff;font-size:.74rem;padding:7px 9px;border-radius:7px;pointer-events:none;display:none;max-width:280px;line-height:1.45}
+
 .dh-sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
 .dh-sum .wm-stat-v{font-size:.86rem}
 .dh-ctrl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
@@ -219,6 +232,7 @@ th.r{text-align:right}
     <h3 id="dhTitle" style="font-size:1.1rem;font-weight:700;color:var(--navy)"></h3>
     <p id="dhSub" style="font-size:.78rem;color:var(--muted);margin-top:2px;line-height:1.55;max-width:80ch"></p>
     <div id="dhSummary" class="dh-sum"></div>
+    <div id="dhTimeline"></div>
     <div class="wm-card" style="margin-top:14px">
       <div class="dh-ctrl"><div class="dh-offs" id="dhOffs"></div><select id="dhTerm"></select></div>
       <div class="wm-layout">
@@ -258,13 +272,14 @@ function cbLong(c){c=String(c);return BORON[c[0]]+' Community Board '+(+c.slice(
 function isCB(c){return +String(c).slice(1)<=18;}
 function niceDate(d){var p=d.split('-');var M=['January','February','March','April','May','June','July','August','September','October','November','December'];return M[+p[1]-1]+' '+(+p[2])+', '+p[0];}
 function monthYear(d){var p=d.split('-');var M=['January','February','March','April','May','June','July','August','September','October','November','December'];return M[+p[1]-1]+' '+p[0];}
-function lastName(n){n=n.split(' / ')[0].replace(/,? (Jr\.|Sr\.|III|II|IV)$/,'');var a=n.trim().split(/\s+/);return a[a.length-1];}
+function lastName(n){n=n.split(' / ')[0].replace(/,? (Jr\.?|Sr\.?|III|II|IV)$/,'');var a=n.trim().split(/\s+/);var l=a[a.length-1];if(a.length>2&&/^(de|De|del|Del|van|Van|von|Von|La|Le|Di|Da)$/.test(a[a.length-2]))l=a[a.length-2]+' '+l;return l;}
 var PABBR={'Democratic':'DEM','Republican':'REP','Conservative':'CON','Working Families':'WFP','Green':'GRN','Independence':'IND','Libertarian':'LBT','Reform':'REF','Women\'s Equality':'WEP'};
 
 function boroOf(c){ // for countywide offices the BOE uses 10 to 14
   var d=String(c.district||'');if(DKBORO[d]&&/Borough President|President of the Borough|District Attorney|Surrogate|Civil Court|Supreme Court/i.test(c.office))return DKBORO[d];return '';}
 function shortLabel(c){
   var o=c.office,d=String(c.district||''),m;
+  if(!d){var mm=(c.title||'').match(/(\d+)(?:st|nd|rd|th)?\s+(?:Council|Assembly|Senat|Congress)/i)||(c.title||'').match(/\((\d+)\)/)||(c.title||'').match(/,\s*(?:District\s*)?(\d+)/);if(mm)d=mm[1];}
   var t=o;
   if(/^President/.test(o)&&!/Borough/.test(o))t='President';
   else if(/United States Senator/i.test(o))t='U.S. Senate';
@@ -320,13 +335,22 @@ function loadElection(eid,cid){
   j(BASE+'e/'+eid+'/index.json').then(function(ix){
     S.idx=ix;
     var ps=[];
+    if(ix.level==='ad'){
+      ix.release='ad:'+ix.adRelease;
+      if(!S.geo[ix.release])ps.push(j('/data/districthistory/'+ix.adGeo).then(function(t){var fc=topojson.feature(t,t.objects[Object.keys(t.objects)[0]]);fc.features.forEach(function(f){f.properties.e=String(f.properties.d);});S.geo[ix.release]=fc;}));
+      if(!DH.data)ps.push(j('/data/districthistory/overlap.json').then(function(d){DH.data=d;}));
+      return Promise.all(ps).then(function(){buildTabs(cid);});
+    }
     if(!S.geo[ix.release])ps.push(j(BASE+ix.geo).then(function(t){S.geo[ix.release]=topojson.feature(t,t.objects[Object.keys(t.objects)[0]]);}));
     if(!S.ed2cd[ix.release])ps.push(j(BASE+ix.ed2cd).then(function(m){S.ed2cd[ix.release]=m;}));
     return Promise.all(ps).then(function(){buildTabs(cid);});
   });
 }
 
-function contestsInCB(){return S.idx.contests.filter(function(c){return c.cds.indexOf(S.cb)>=0;});}
+function ADM(){return S.idx&&S.idx.level==='ad';}
+// Assembly districts covering the board in an AD-level election, from the district history (2020 residents)
+function boardADs(){var rows=DH.data.offices.filter(function(o){return o.key==='assembly';})[0].rows;var y=+S.idx.date.slice(0,4);var r=rows.filter(function(x){return x.geo===S.idx.adGeo&&x.election<=Math.max(y,rows[0].election);});r=r[r.length-1]||rows.filter(function(x){return x.geo===S.idx.adGeo;})[0];return (r&&r.cbs[S.cb])||[];}
+function contestsInCB(){if(ADM()){var a=boardADs().map(function(x){return String(x[0]);});return S.idx.contests.filter(function(c){return c.ads.some(function(d){return a.indexOf(d)>=0;});});}return S.idx.contests.filter(function(c){return c.cds.indexOf(S.cb)>=0;});}
 
 function buildTabs(cid){
   var list=contestsInCB();
@@ -361,6 +385,7 @@ function loadContest(cid){
     S.A=real[0]?real[0][0]:null;S.B=real[1]?real[1][0]:null;
     c.colors={};var k=0;
     c.cands.forEach(function(n){if(n===S.A)c.colors[n]=NAVY;else if(n===S.B)c.colors[n]=ORANGE;else if(NONCAND[n])c.colors[n]='#9a958c';else c.colors[n]=OTHER[k++%OTHER.length];});
+    if(ADM()){c.eds=c.ads;c.combined={};setURL();renderIntro();renderTitle();renderBoardMapAD();renderMapAD();renderScoreboardAD();renderBoardAD();renderCompare();return;}
     setURL();renderIntro();renderTitle();renderBoardMap();renderMap();renderScoreboard();renderBoard();renderCompare();
   });
 }
@@ -394,6 +419,11 @@ function fillFor(st,maxM){
 }
 
 function renderIntro(){
+  if(ADM()){renderDistricts();var cb=S.cb,list=boardADs();
+    document.getElementById('hTitle').innerHTML=esc(BORON[cb[0]])+' <span>Community Board '+(+cb.slice(1))+'</span>';
+    document.title=cbCode(cb)+' Election History · bkcb6.app';
+    document.getElementById('introText').textContent='Before 2014 the NYC Board of Elections published results only by Assembly district, so this election is shown by Assembly district. '+cbCode(cb)+' was covered by '+list.map(function(x){return 'AD '+x[0]+' ('+p1(x[1])+' of its residents)';}).join(', ')+'. Board totals cannot be computed from Assembly district results, so each Assembly district is shown in full.';
+    return;}
   var cb=S.cb,m=S.ed2cd[S.idx.release],ads={},n=0;
   Object.keys(m).forEach(function(e){if(m[e]===cb){n++;ads[e.slice(0,-3)]=1;}});
   var adl=Object.keys(ads).sort(function(a,b){return a-b;});
@@ -405,9 +435,9 @@ function renderIntro(){
 }
 function renderTitle(){
   var c=S.c,ev=S.idx;
-  var t=monthYear(ev.date)+' '+ev.label+' · '+fullTitle(c)+(c.party?' ('+c.party+')':'')+' · '+cbCode(S.cb)+' Results';
+  var t=monthYear(ev.date)+' '+ev.label+' · '+fullTitle(c)+(c.party?' ('+c.party+')':'')+' · '+(ADM()?'by Assembly district':cbCode(S.cb)+' Results');
   document.getElementById('raceTitle').textContent=t;
-  var sub=c.rcv?'First-choice (round 1) ranked choice votes by election district, from the NYC Board of Elections cast vote records.':(c.source==='openelections'?'Results by election district from OpenElections, compiled from the NYC Board of Elections.':'Results by election district. Source: NYC Board of Elections ED-level results.');
+  var sub=ADM()?'Results by Assembly district from the NYC Board of Elections Statement and Return Reports (recaps); election district results were not published for this election.':c.rcv?'First-choice (round 1) ranked choice votes by election district, from the NYC Board of Elections cast vote records.':(c.source==='openelections'?'Results by election district from OpenElections, compiled from the NYC Board of Elections.':'Results by election district. Source: NYC Board of Elections ED-level results.');
   document.getElementById('raceSubtitle').textContent=sub;
 }
 
@@ -422,6 +452,7 @@ function legend(maxM){
 }
 function renderMapOnly(){if(S.cdLayer){S.map.removeLayer(S.cdLayer);S.cdLayer=null;}document.getElementById('wmLegend').innerHTML='';document.getElementById('wmDetail').innerHTML='';document.getElementById('wmIntro').textContent='';}
 function renderMap(){
+  if(BD.outline2){S.map.removeLayer(BD.outline2);BD.outline2=null;}
   var c=S.c;
   if(S.cdLayer)S.map.removeLayer(S.cdLayer);
   var stats={},maxM=0,keys=[];
@@ -521,9 +552,10 @@ function renderBoard(){
 function applyFilters(){
   var q=document.getElementById('searchED').value.trim(),ad=document.getElementById('filterAD').value,fr=document.getElementById('filterResult').value;
   var qe=null,qa=null;if(q){var m=q.match(/(\d+)\s*[\/ ]\s*(\d+)/);if(m){qe=+m[1];qa=+m[2];}else qe=+q.replace(/\D/g,'');}
+  if(ADM()&&q){qa=+q.replace(/\D/g,'');qe=null;}
   S.filtered=S.rows.filter(function(r){
     if(ad&&r.ad!==+ad)return false;
-    if(q&&qe!=null&&r.ed!==qe)return false;if(qa!=null&&r.ad!==qa)return false;
+    if(q&&qe!=null&&!ADM()&&r.ed!==qe)return false;if(qa!=null&&r.ad!==qa)return false;
     if(fr==='close'&&!(r.t&&(r.wv-r.sv)/r.t<.05))return false;
     if(fr.indexOf('w:')===0&&r.win!==fr.slice(2))return false;
     return true;});
@@ -534,14 +566,14 @@ function applyFilters(){
 function pad(n){return ('00'+n).slice(-3);}
 function renderTable(hl){
   var body=document.getElementById('tableBody'),c=S.c;
-  document.getElementById('countPill').textContent=S.filtered.length+' EDs';
+  document.getElementById('countPill').textContent=S.filtered.length+(ADM()?' Assembly districts':' EDs');
   document.getElementById('noResults').style.display=S.filtered.length?'none':'block';
   body.innerHTML=S.filtered.map(function(r){
     var col=r.win===S.A?NAVY:r.win===S.B?ORANGE:(c.colors[r.win]||'#9a958c');
     var bg=r.win===S.A?'#f2f4fa':r.win===S.B?'#fff7f0':'#fff';
     var bw=r.t?r.wv/r.t*100:0;
     return '<tr class="ed-row'+(hl===r.e?' hl':'')+'" id="ed-'+r.e+'" style="background:'+bg+'">'+
-      '<td style="font-family:DM Mono,monospace;font-size:.8rem;font-weight:700;color:var(--navy)">'+pad(r.ed)+'/'+r.ad+'</td>'+
+      '<td style="font-family:DM Mono,monospace;font-size:.8rem;font-weight:700;color:var(--navy)">'+(ADM()?'AD '+r.ad+(r.inb?' <span style="font-family:DM Sans,sans-serif;font-size:.62rem;color:#c15200;font-weight:700">'+p1(r.inb)+' of '+cbCode(S.cb)+'</span>':''):pad(r.ed)+'/'+r.ad)+'</td>'+
       '<td style="text-align:right;font-family:DM Mono,monospace;font-size:.8rem;color:'+NAVY+';font-weight:600">'+fmt(r.a)+'<span style="color:var(--muted);font-weight:400;font-size:.68rem"> ('+(r.t?p1(r.a/r.t):'0%')+')</span></td>'+
       '<td style="text-align:right;font-family:DM Mono,monospace;font-size:.8rem;color:#c15200;font-weight:600">'+(S.B?fmt(r.b)+'<span style="color:var(--muted);font-weight:400;font-size:.68rem"> ('+(r.t?p1(r.b/r.t):'0%')+')</span>':'')+'</td>'+
       '<td style="font-family:DM Mono,monospace;font-size:.72rem;color:var(--muted)">'+fmt(r.ballots||r.t)+'</td>'+
@@ -554,10 +586,10 @@ var EDMAX=0.6;
 function edVec(e){var c=S.c;return c.eds[e]||(c.combined&&c.combined[e]&&c.eds[c.combined[e]])||null;}
 function edStat(v){if(!v)return null;var t=counted(v),r=ranked(v);if(!t||!r.length||r[0][1]===0)return {tot:t,none:true};return {tot:t,w:r[0][0],wv:r[0][1],sv:r[1]?r[1][1]:0,tie:r[1]&&r[1][1]===r[0][1],m:(r[0][1]-(r[1]?r[1][1]:0))/t};}
 function edFill(st){if(!st)return ['#e5e2db',.35];if(st.none)return ['#d1d5db',.5];if(st.tie)return ['#9a958c',.75];var col=S.c.colors[st.w],light=st.w===S.A?NAVY_LIGHT:st.w===S.B?ORANGE_LIGHT:lighten(col);return [mix(light,col,Math.max(.14,Math.min(1,st.m/EDMAX))),.8];}
-function unitEDs(u){var fc=S.geo[S.idx.release],m=S.ed2cd[S.idx.release];var k=u.slice(3);return fc.features.filter(function(f){var e=f.properties.e;return u.indexOf('cb:')===0?m[e]===k:e.slice(0,-3)===k;});}
+function unitEDs(u){var fc=S.geo[S.idx.release],m=S.ed2cd[S.idx.release]||{};var k=u.slice(3);if(ADM())return u.indexOf('ad:')===0?fc.features.filter(function(f){return f.properties.e===k;}):[];return fc.features.filter(function(f){var e=f.properties.e;return u.indexOf('cb:')===0?m[e]===k:e.slice(0,-3)===k;});}
 function unitName(u){return u.indexOf('cb:')===0?cbCode(u.slice(3)):'AD '+u.slice(3);}
 function unitStats(feats){var c=S.c,sum=null,eds=0,won={},n=0;feats.forEach(function(f){var e=f.properties.e;if(!c.eds[e])return;var v=c.eds[e];n++;if(!sum)sum=v.map(function(){return 0;});v.forEach(function(x,i){sum[i]=(sum[i]||0)+x;});var st=edStat(v);if(st&&!st.none){eds++;var k=st.tie?'Tie':st.w;won[k]=(won[k]||0)+1;}});return {sum:sum,eds:eds,won:won,n:n};}
-function edPopupHtml(e){var v=edVec(e),c=S.c,h='<div style="font-family:DM Sans,sans-serif;min-width:200px"><strong>ED '+pad(+e.slice(-3))+' / AD '+e.slice(0,-3)+'</strong>';
+function edPopupHtml(e){var v=edVec(e),c=S.c,h='<div style="font-family:DM Sans,sans-serif;min-width:200px"><strong>'+(ADM()?'Assembly District '+e+(c.county&&c.county[e]?' \u00b7 '+c.county[e].join(' and '):''):'ED '+pad(+e.slice(-3))+' / AD '+e.slice(0,-3))+'</strong>';
   if(c.combined&&c.combined[e])h+='<div style="font-size:.7rem;color:#666">counted with ED '+pad(+c.combined[e].slice(-3))+' / AD '+c.combined[e].slice(0,-3)+'</div>';
   if(!v)return h+'<div style="font-size:.75rem;color:#666;margin-top:4px">Not on the ballot here.</div></div>';
   var t=counted(v);h+='<table style="font-size:.75rem;margin-top:5px;border-collapse:collapse">';
@@ -574,6 +606,7 @@ function drawUnitMap(map,holder,feats,onHover){
 function newMap(id){var m=L.map(id,{zoomSnap:.25,scrollWheelZoom:false,preferCanvas:true});L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(m);return m;}
 var BD={map:null,h:{}};
 function renderBoardMap(){
+  if(BD.outline&&BD.map){BD.map.removeLayer(BD.outline);BD.outline=null;}
   var c=S.c,cb=S.cb,code=cbCode(cb);
   if(!BD.map)BD.map=newMap('bdMap');
   var feats=unitEDs('cb:'+cb),st=unitStats(feats);
@@ -600,7 +633,7 @@ function cmpURL(){var u=new URL(location.href);if(CMP.units.length)u.searchParam
 function cmpOptions(){
   var sel=document.getElementById('cmpPick'),h='';
   BORO_ORDER.forEach(function(b){h+='<optgroup label="'+BORON[b]+' community boards">';S.cdGeo.features.map(function(f){return f.properties.c;}).filter(function(c){return c[0]===b&&isCB(c);}).sort(function(a,c){return +a-+c;}).forEach(function(c){h+='<option value="cb:'+c+'">'+cbCode(c)+' · '+cbLong(c)+'</option>';});h+='</optgroup>';});
-  var ads={};S.geo[S.idx.release].features.forEach(function(f){ads[f.properties.e.slice(0,-3)]=1;});
+  var ads={};S.geo[S.idx.release].features.forEach(function(f){ads[ADM()?f.properties.e:f.properties.e.slice(0,-3)]=1;});
   h+='<optgroup label="Assembly districts">'+Object.keys(ads).sort(function(a,b){return a-b;}).map(function(a){return '<option value="ad:'+a+'">AD '+a+'</option>';}).join('')+'</optgroup>';
   var cur=sel.value;sel.innerHTML=h;if(cur)sel.value=cur;
 }
@@ -616,16 +649,112 @@ function renderCompare(){
   if(!CMP.units.length){grid.innerHTML='';tbl.innerHTML='';return;}
   var top=c.cands.filter(function(n){return !NONCAND[n];}).map(function(n){return [n,c.total[c.cands.indexOf(n)+1]||0];}).sort(function(a,b){return b[1]-a[1];}).slice(0,5).map(function(p){return p[0];});
   var rows=CMP.units.map(function(u){var f=unitEDs(u);return {u:u,f:f,st:unitStats(f)};});
-  var th='<thead><tr><th>Unit</th><th class="r">EDs</th><th class="r">Votes</th>'+top.map(function(n){return '<th class="r">'+esc(lastName(n))+'</th>';}).join('')+'<th>Winner</th><th class="r">Margin</th><th>EDs carried</th></tr></thead><tbody>';
+  var th='<thead><tr><th>Unit</th><th class="r">'+(ADM()?'ADs':'EDs')+'</th><th class="r">Votes</th>'+top.map(function(n){return '<th class="r">'+esc(lastName(n))+'</th>';}).join('')+'<th>Winner</th><th class="r">Margin</th><th>'+(ADM()?'ADs carried':'EDs carried')+'</th></tr></thead><tbody>';
   rows.forEach(function(r){var st=r.st;
-    if(!st.sum){th+='<tr><td class="u">'+esc(unitName(r.u))+'</td><td colspan="'+(top.length+5)+'" style="color:var(--muted)">Not on the ballot here</td></tr>';return;}
+    if(!st.sum){th+='<tr><td class="u">'+esc(unitName(r.u))+'</td><td colspan="'+(top.length+5)+'" style="color:var(--muted)">'+(ADM()&&r.u.indexOf('cb:')===0?'Not available: this election was published only by Assembly district':'Not on the ballot here')+'</td></tr>';return;}
     var t=counted(st.sum),rk=ranked(st.sum),w=rk[0],s2=rk[1]||['',0];
     th+='<tr><td class="u">'+esc(unitName(r.u))+'</td><td style="text-align:right">'+st.n+'</td><td style="text-align:right">'+fmt(t)+'</td>'+top.map(function(n){var v=st.sum[c.cands.indexOf(n)+1]||0;return '<td style="text-align:right;color:'+c.colors[n]+';font-weight:700">'+p1(v/t)+'</td>';}).join('')+
       '<td style="color:'+c.colors[w[0]]+';font-weight:700">'+esc(lastName(w[0]))+'</td><td style="text-align:right">'+p1((w[1]-s2[1])/t)+'</td><td>'+Object.keys(st.won).sort(function(a,b){return st.won[b]-st.won[a];}).map(function(n){return (n==='Tie'?'Tied':esc(lastName(n)))+' '+st.won[n];}).join(', ')+'</td></tr>';});
   tbl.innerHTML=th+'</tbody>';
-  grid.innerHTML=rows.map(function(r,i){var st=r.st,line='Not on the ballot here';if(st.sum){var t=counted(st.sum);line=ranked(st.sum).slice(0,3).filter(function(p){return p[1];}).map(function(p){return esc(lastName(p[0]))+' '+p1(p[1]/t);}).join(' · ')+'<br>'+st.n+' EDs · '+fmt(t)+' votes';}
+  grid.innerHTML=rows.map(function(r,i){var st=r.st,line=ADM()&&r.u.indexOf('cb:')===0?'Not available: published only by Assembly district':'Not on the ballot here';if(st.sum){var t=counted(st.sum);line=ranked(st.sum).slice(0,3).filter(function(p){return p[1];}).map(function(p){return esc(lastName(p[0]))+' '+p1(p[1]/t);}).join(' · ')+'<br>'+st.n+' EDs · '+fmt(t)+' votes';}
     return '<div class="cmp-card"><h4>'+esc(unitName(r.u))+'</h4><div class="s">'+line+'</div><div class="m" id="cmpMap'+i+'"></div></div>';}).join('');
   rows.forEach(function(r,i){var m=newMap('cmpMap'+i);CMP.maps.push(m);drawUnitMap(m,{},r.f,null);if(!r.f.length)m.setView([40.7,-73.94],10);});
+}
+
+// ---- elections before 2014, by Assembly district ----
+function renderBoardMapAD(){
+  var c=S.c,cb=S.cb,code=cbCode(cb),list=boardADs(),fc=S.geo[S.idx.release];
+  if(!BD.map)BD.map=newMap('bdMap');
+  var ids=list.map(function(x){return String(x[0]);});
+  var feats=fc.features.filter(function(f){return ids.indexOf(f.properties.e)>=0;});
+  document.getElementById('bdIntro').textContent='The Assembly districts that covered '+code+', each colored by who carried it; darker means a bigger margin. The orange line is '+code+'. Tap an Assembly district for its full results.';
+  var sumHtml=function(){return '<div class="eyebrow">'+S.idx.date.slice(0,4)+' '+esc(fullTitle(c))+(c.party?' ('+(PABBR[c.party]||c.party)+')':'')+'</div><h4>Assembly districts covering '+esc(code)+'</h4>'+list.map(function(x){var v=c.ads[String(x[0])],st=edStat(v);return '<div class="wm-chip" style="align-items:flex-start"><span class="wm-dot" style="background:'+(st&&!st.none?(st.tie?'#9a958c':c.colors[st.w]):'#d1d5db')+';margin-top:3px"></span><span><strong>AD '+x[0]+'</strong> · '+p1(x[1])+' of '+esc(code)+' residents<br><span style="font-weight:400">'+(v?ranked(v).slice(0,3).filter(function(p){return p[1];}).map(function(p){return esc(lastName(p[0]))+' '+p1(p[1]/counted(v));}).join(', '):'Not on the ballot here')+'</span></span></div>';}).join('')+'<div class="wm-note">Each Assembly district is shown in full; part of each lies outside '+esc(code)+'.</div>';};
+  drawUnitMap(BD.map,BD.h,feats,function(e){document.getElementById('bdDetail').innerHTML=e?'<div class="eyebrow">Assembly district</div>'+edPopupHtml(e):sumHtml();});
+  if(BD.outline)BD.map.removeLayer(BD.outline);
+  var board=S.cdGeo.features.filter(function(f){return f.properties.c===cb;})[0];
+  if(board)BD.outline=L.geoJSON(board,{interactive:false,style:{color:ORANGE,weight:3.5,fill:false}}).addTo(BD.map);
+  document.getElementById('bdDetail').innerHTML=sumHtml();
+  adLegend('bdLegend',feats,'Assembly district winners');
+}
+function adLegend(id,feats,title){
+  var c=S.c,won={};feats.forEach(function(f){var st=edStat(edVec(f.properties.e));if(st&&!st.none){var k=st.tie?'Tie':st.w;won[k]=(won[k]||0)+1;}});
+  var ws=Object.keys(won).filter(function(k){return k!=='Tie';}).sort(function(a,b){return won[b]-won[a];});
+  document.getElementById(id).innerHTML='<div class="wm-legend-t">'+esc(title)+'</div><div class="wm-legend-s">Color intensity runs from 0% up to '+(EDMAX*100)+'% margin or more.</div>'+
+    ws.map(function(n){var col=c.colors[n],light=n===S.A?NAVY_LIGHT:n===S.B?ORANGE_LIGHT:lighten(col);return '<div class="wm-legend-row"><span class="wm-legend-l">'+esc(n.split(' / ')[0])+' ('+won[n]+')</span><div class="wm-legend-bar" style="background:linear-gradient(90deg,'+light+' 0%,'+col+' 100%)"><span class="wm-tick" style="left:0%">0%</span><span class="wm-tick" style="left:50%">'+(EDMAX*50)+'%</span><span class="wm-tick" style="left:100%">'+(EDMAX*100)+'%+</span></div></div>';}).join('');
+}
+function renderMapAD(){
+  var c=S.c,fc=S.geo[S.idx.release];
+  if(BD.outline2)S.map.removeLayer(BD.outline2);
+  if(S.cdLayer){S.map.removeLayer(S.cdLayer);S.cdLayer=null;}
+  var feats=fc.features.filter(function(f){return c.ads[f.properties.e];});
+  var h={};drawUnitMap(S.map,h,feats,function(e){document.getElementById('wmDetail').innerHTML=e?'<div class="eyebrow">Assembly district</div>'+edPopupHtml(e):adWideSummary();});
+  S.cdLayer=h.layer;
+  var board=S.cdGeo.features.filter(function(f){return f.properties.c===S.cb;})[0];
+  if(board)BD.outline2=L.geoJSON(board,{interactive:false,style:{color:ORANGE,weight:3,fill:false}}).addTo(S.map);
+  document.getElementById('wmIntro').textContent='Every Assembly district in this contest, colored by who carried it'+(S.A&&S.B?': navy marks a '+lastName(S.A)+' win and orange a '+lastName(S.B)+' win':'')+'. The orange line is '+cbCode(S.cb)+'.';
+  document.getElementById('wmDetail').innerHTML=adWideSummary();
+  adLegend('wmLegend',feats,'Winner by Assembly district');
+}
+function adWideSummary(){var c=S.c,t=counted(c.total),n=Object.keys(c.ads).length;return '<div class="eyebrow">'+S.idx.date.slice(0,4)+' '+esc(fullTitle(c))+' · all Assembly districts</div><h4>'+n+' Assembly district'+(n===1?'':'s')+'</h4><p class="lead">'+ranked(c.total).slice(0,3).filter(function(p){return p[1];}).map(function(p){return esc(lastName(p[0]))+' '+p1(p[1]/t);}).join(', ')+' of '+fmt(t)+' votes.</p><div class="wm-note">Hover or tap an Assembly district to see its results here.</div>';}
+function renderScoreboardAD(){
+  var el=document.getElementById('cb-scoreboard'),c=S.c,B=['Manhattan','Bronx','Brooklyn','Queens','Staten Island'],rows=[],all={a:0,b:0,o:0,t:0};
+  B.forEach(function(b){var r={a:0,b:0,o:0,t:0};Object.keys(c.ads).forEach(function(ad){var cs=c.county&&c.county[ad];if(!cs||cs[0]!==b)return;var st=edStat(c.ads[ad]);if(!st||st.none)return;r.t++;if(st.tie)r.o++;else if(st.w===S.A)r.a++;else if(st.w===S.B)r.b++;else r.o++;});if(r.t){rows.push([b==='Bronx'?'The Bronx':b,r,false]);['a','b','o','t'].forEach(function(x){all[x]+=r[x];});}});
+  if(rows.length>1)rows.push(['New York City',all,true]);
+  if(!rows.length){el.innerHTML='';return;}
+  var h='<div class="eyelbl" style="margin-bottom:10px">Assembly district breakdown · '+esc(shortLabel(c))+'</div><div class="sb-chart">';
+  rows.forEach(function(rw){var r=rw[1];var pa=r.a/r.t*100,pb=r.b/r.t*100,po=r.o/r.t*100;var lead=r.a>=r.b?[lastName(S.A),r.a,NAVY]:[lastName(S.B),r.b,ORANGE];
+    h+='<div class="sb-chart-row'+(rw[2]?' sb-chart-total':'')+'"><div class="sb-chart-label">'+rw[0]+'</div><div class="sb-chart-bars"><div class="sb-chart-bar-wrap">'+(r.a?'<div class="sb-chart-seg" style="width:'+pa.toFixed(1)+'%;background:'+NAVY+'"><span class="sb-chart-num">'+r.a+'</span></div>':'')+(r.b?'<div class="sb-chart-seg" style="width:'+pb.toFixed(1)+'%;background:'+ORANGE+'"><span class="sb-chart-num">'+r.b+'</span></div>':'')+(r.o?'<div class="sb-chart-seg" style="width:'+po.toFixed(1)+'%;background:#9a958c"><span class="sb-chart-num">'+r.o+'</span></div>':'')+'</div><div class="sb-chart-legend-inline"><span style="color:'+lead[2]+'">'+esc(lead[0])+' '+lead[1]+'/'+r.t+'</span></div></div></div>';});
+  el.innerHTML=h+'</div>';
+}
+function renderBoardAD(){
+  var c=S.c,list=boardADs(),code=cbCode(S.cb);
+  document.getElementById('barsLbl').textContent='Results in every Assembly district in this contest';
+  var v=c.total,tot=counted(v);
+  var lst=c.cands.map(function(n,i){return [n,v[i+1]||0];});lst.sort(function(a,b){return (NONCAND[a[0]]?1:0)-(NONCAND[b[0]]?1:0)||b[1]-a[1];});
+  document.getElementById('candBars').innerHTML='<div style="margin-bottom:10px">'+lst.map(function(p){var pc=tot?p[1]/tot*100:0;var parties=c.parties&&c.parties[c.cands.indexOf(p[0])];return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><div style="width:190px;font-size:.88rem;font-weight:700;color:var(--navy);line-height:1.2">'+esc(p[0])+(parties&&parties.length?' <span style="font-family:DM Mono,monospace;font-size:.62rem;color:var(--muted);font-weight:400">'+esc(parties.join('/'))+'</span>':'')+'</div><div style="flex:1;background:#e8e8e4;border-radius:4px;height:32px;overflow:hidden;position:relative"><div style="height:100%;width:'+pc.toFixed(1)+'%;background:'+c.colors[p[0]]+';border-radius:4px"></div><span style="position:absolute;left:12px;top:0;bottom:0;display:flex;align-items:center;font-size:.78rem;font-weight:700;font-family:DM Mono,monospace;color:'+(pc>18?'#fff':'var(--navy)')+'">'+fmt(p[1])+' &nbsp;&middot;&nbsp; '+pc.toFixed(1)+'%</span></div></div>';}).join('')+'</div><div style="font-size:.7rem;font-family:DM Mono,monospace;color:var(--muted);margin-top:6px">'+(v[0]?fmt(v[0])+' total ballots · ':'')+fmt(tot)+' votes counted · '+Object.keys(c.ads).length+' Assembly districts</div>';
+  var iA=c.cands.indexOf(S.A)+1,iB=c.cands.indexOf(S.B)+1,share={};list.forEach(function(x){share[String(x[0])]=x[1];});
+  S.rows=Object.keys(c.ads).map(function(ad){var ev=c.ads[ad],t=counted(ev),r=ranked(ev);return {e:ad,ad:+ad,ed:0,a:ev[iA]||0,b:iB?(ev[iB]||0):0,t:t,ballots:ev[0]||0,win:r.length&&r[0][1]>0?(r[1]&&r[1][1]===r[0][1]?'Tie':r[0][0]):'',wv:r[0]?r[0][1]:0,sv:r[1]?r[1][1]:0,inb:share[ad]};});
+  S.rows.sort(function(a,b){return (b.inb?1:0)-(a.inb?1:0)||a.ad-b.ad;});
+  document.getElementById('th1').textContent=lastName(S.A);document.getElementById('th2').textContent=S.B?lastName(S.B):'';
+  document.getElementById('filterAD').innerHTML='<option value="">All Assembly Districts</option>';
+  var fr=document.getElementById('filterResult');fr.innerHTML='<option value="">All Assembly districts</option>';
+  var ws={};S.rows.forEach(function(r){if(r.win)ws[r.win]=(ws[r.win]||0)+1;});
+  Object.keys(ws).sort(function(a,b){return ws[b]-ws[a];}).forEach(function(n){fr.innerHTML+='<option value="w:'+esc(n)+'">'+(n==='Tie'?'Tied':esc(lastName(n))+' wins')+' ('+ws[n]+')</option>';});
+  fr.innerHTML+='<option value="close">Close (&lt;5%)</option>';
+  document.getElementById('searchED').value='';
+  applyFilters();
+}
+
+// ---- overlap timeline ----
+var TL0=2006,TL1=2030;
+function tlX(y){return ((y-TL0)/(TL1-TL0)*100).toFixed(3)+'%';}
+function renderTimeline(cb){
+  var d=DH.data,code=cbCode(cb),h='<div class="tl"><div class="dh-h" style="margin-top:4px">Timeline</div><p style="font-size:.76rem;color:var(--muted);line-height:1.5;max-width:80ch">Each bar is a district that covered '+esc(code)+' for that term, labeled with who held it; darker bars hold more of the board’s residents. Dashed orange lines mark the years the lines were redrawn for '+esc(code)+'. Tap a bar to see it on the map.</p>';
+  d.offices.forEach(function(o){
+    var rows={},order=[],chg=[],prev=null;
+    o.rows.forEach(function(r){var list=r.cbs[cb]||[];var sig=list.map(function(x){return x[0]+':'+Math.round(x[1]*100);}).join(',');
+      if(prev!==null&&sig!==prev)chg.push(+r.served.slice(0,4));prev=sig;
+      list.forEach(function(x){if(!rows[x[0]]){rows[x[0]]=[];order.push(x[0]);}rows[x[0]].push({r:r,share:x[1]});});});
+    var col={};order.forEach(function(k,i){col[k]=DH.pal[i%DH.pal.length];});
+    h+='<div class="tl-h">'+esc(o.label)+'</div>';
+    order.forEach(function(k){
+      h+='<div class="tl-row"><div class="tl-lbl">'+esc(dhLabel(o.key,k))+'</div><div class="tl-track">'+chg.map(function(y){return '<div class="tl-chg" style="left:'+tlX(y)+'"></div>';}).join('');
+      rows[k].forEach(function(t){var a=+t.r.served.slice(0,4),b=+t.r.served.slice(-4)+1;var ms=dhMembers(t.r,k);
+        var names=(t.r.members[String(k)]||[]).map(function(m){return lastName(m.name);}).join(' / ');
+        h+='<div class="tl-bar" data-o="'+o.key+'" data-e="'+t.r.election+'" data-tip="'+esc(dhLabel(o.key,k)+' · '+t.r.served+(ms.length?' · '+ms.join(', '):'')+' · '+(t.share*100).toFixed(1)+'% of '+code+' residents')+'" style="left:'+tlX(a)+';width:calc('+tlX(b)+' - '+tlX(a)+');background:'+col[k]+';opacity:'+(0.35+0.65*Math.min(1,t.share/0.6)).toFixed(2)+'"><span>'+esc(names)+'</span></div>';});
+      h+='</div></div>';
+    });
+  });
+  h+='<div class="tl-axis"><div></div><div class="tl-years">';
+  for(var y=TL0;y<TL1;y+=2)h+='<span style="left:'+tlX(y)+'">'+y+'</span>';
+  h+='</div></div></div>';
+  var el=document.getElementById('dhTimeline');el.innerHTML=h;
+  var tip=document.getElementById('tlTip');if(!tip){tip=document.createElement('div');tip.id='tlTip';tip.className='tl-tip';document.body.appendChild(tip);}
+  [].forEach.call(el.querySelectorAll('.tl-bar'),function(b){
+    b.onmousemove=function(ev){tip.textContent=b.dataset.tip;tip.style.display='block';tip.style.left=Math.min(ev.clientX+12,window.innerWidth-290)+'px';tip.style.top=(ev.clientY+14)+'px';};
+    b.onmouseleave=function(){tip.style.display='none';};
+    b.onclick=function(){tip.style.display='none';DH.office=b.dataset.o;DH.term=+b.dataset.e;dhControls();dhDraw();document.getElementById('dhMap').scrollIntoView({behavior:'smooth',block:'center'});};
+  });
 }
 
 // ---- district history: how the board's districts changed, 2006 to today ----
@@ -650,6 +779,7 @@ function renderDistricts(){
     sum+='<div class="wm-stat"><span class="wm-stat-l">'+esc(o.label)+'</span><span class="wm-stat-v">'+cur.n+' district'+(cur.n===1?'':'s')+' since '+cur.from+'</span>'+(hist?'<span style="display:block;font-size:.72rem;color:var(--muted);margin-top:3px">'+hist+'</span>':'')+'</div>';
   });
   document.getElementById('dhSummary').innerHTML=sum;
+  renderTimeline(cb);
   // tables
   var t='';
   d.offices.forEach(function(o){
@@ -711,8 +841,8 @@ function lookup(){
     var f=d.features[0],co=f.geometry.coordinates,fc=S.geo[S.idx.release],hit=null;
     for(var i=0;i<fc.features.length;i++){if(inGeom(co,fc.features[i].geometry)){hit=fc.features[i];break;}}
     if(!hit){out.textContent='That address is not inside an election district on this election’s map.';return;}
-    var e=hit.properties.e,cb=S.ed2cd[S.idx.release][e];
-    var label=esc(f.properties.label||q)+' is in ED '+pad(+e.slice(-3))+' of AD '+e.slice(0,-3)+(cb?', '+cbCode(cb):'')+'.';
+    var e=hit.properties.e,cb=ADM()?null:S.ed2cd[S.idx.release][e];
+    var label=ADM()?esc(f.properties.label||q)+' is in Assembly District '+e+' on the lines used for this election.':esc(f.properties.label||q)+' is in ED '+pad(+e.slice(-3))+' of AD '+e.slice(0,-3)+(cb?', '+cbCode(cb):'')+'.';
     var go=function(){
       out.innerHTML=label+(S.c&&S.c.eds[e]?'':' This contest was not on the ballot there.');
       document.getElementById('searchED').value='';document.getElementById('filterAD').value='';document.getElementById('filterResult').value='';
@@ -738,7 +868,7 @@ document.getElementById('addrInput').addEventListener('keydown',function(e){if(e
 function coverage(){
   var E=S.cat.elections,n=E.reduce(function(a,e){return a+e.contests;},0);
   var el=document.getElementById('coverage');
-  el.innerHTML=fmt(E.length)+' elections and '+fmt(n)+' contests: every primary, general and special election the NYC Board of Elections has published by election district, starting in 2014, plus the November 2012 general election (President, U.S. Senate, Congress, State Senate and Assembly). Before 2014 the Board of Elections publishes results only by Assembly district, so earlier elections cannot be shown by election district. Ranked choice primaries show first choices counted from the Board of Elections cast vote records. Community board totals add up every election district in the board, using the Department of City Planning election district map closest to each election.';
+  el.innerHTML=fmt(E.length)+' elections and '+fmt(n)+' contests: every primary, general and special election the NYC Board of Elections has published by election district, starting in 2014, plus the November 2012 general election (President, U.S. Senate, Congress, State Senate and Assembly). For May 2005 through 2013 the Board of Elections published results only by Assembly district (Statement and Return Report recaps), so those elections are shown by Assembly district, on the Assembly lines in force at the time. Ranked choice primaries show first choices counted from the Board of Elections cast vote records. Community board totals add up every election district in the board, using the Department of City Planning election district map closest to each election.';
   j(BASE+'audit.json').then(function(a){
     var seen={},li=[];(a.boe_unreadable_files||[]).forEach(function(f){var m=f.file.replace(/^\d{11}/,'').replace(/ EDLevel\.csv$/,'');var k=f.election.slice(0,8)+m.replace(/^(Citywide|New York|Bronx|Kings|Queens|Richmond|Crossover) /,'');if(seen[k])return;seen[k]=1;li.push(f.election.slice(0,4)+'-'+f.election.slice(4,6)+'-'+f.election.slice(6,8)+': '+m);});
     if(li.length)el.innerHTML+='<br><br>Missing because the Board of Elections download links are broken ('+li.length+'): '+li.map(esc).join('; ')+'.';
