@@ -27,69 +27,63 @@ def cd_label(boro_cd):
 
 
 # ---------------------------------------------------------------- geometry
-def geo(shp_root):
+def _read_eds(zpath):
+    """ED polygons in WGS84 from a DCP nyed zip (shoreline clipped)."""
     import pyogrio
     from shapely import wkb
-    from shapely.geometry import shape, mapping
     from shapely.ops import transform
-    from shapely.strtree import STRtree
     from pyproj import Transformer
+    z = zipfile.ZipFile(zpath)
+    shp = [n for n in z.namelist() if n.lower().endswith('.shp')][0]
+    meta, fids, geoms, fields = pyogrio.raw.read(f'/vsizip/{zpath}/{shp}')
+    names = list(meta['fields'])
+    eds = fields[names.index('ElectDist')]
+    tr = Transformer.from_crs(meta['crs'], 'EPSG:4326', always_xy=True)
+    out = []
+    for ed, g in zip(eds, geoms):
+        if g is not None:
+            out.append((str(int(ed)), transform(tr.transform, wkb.loads(bytes(g))).buffer(0)))
+    return out
 
+
+def geo(zip_dir):
+    """ED to community district for every DCP election district release (by largest land area)."""
+    from shapely.geometry import shape
+    from shapely.strtree import STRtree
     cds = json.load(open(os.path.join(ROOT, 'data', 'community-districts.geojson')))
-    cd_geoms, cd_ids = [], []
-    for f in cds['features']:
-        cd_geoms.append(shape(f['geometry']).buffer(0))
-        cd_ids.append(f['properties']['boro_cd'])
+    cd_geoms = [shape(f['geometry']).buffer(0) for f in cds['features']]
+    cd_ids = [f['properties']['boro_cd'] for f in cds['features']]
     tree = STRtree(cd_geoms)
     os.makedirs(os.path.join(OUT, 'geo'), exist_ok=True)
     versions = {}
-    # prefer shoreline-clipped nyed over nyedwi for the same release
-    rels = {}
-    for d in sorted(glob.glob(os.path.join(shp_root, '*'))):
-        name = os.path.basename(d)
-        m = re.match(r'nyed(wi)?_(\d\d[a-z]\d?)', name)
-        if not m:
-            continue
-        rel = m.group(2)
-        if rel in rels and m.group(1):
-            continue
-        rels[rel] = d
-    for rel, d in sorted(rels.items()):
-        f = [p for p in glob.glob(d + '/*') if p.lower().endswith(('.shp', '.tab'))][0]
-        meta, fids, geoms, fields = pyogrio.raw.read(f)
-        names = list(meta['fields'])
-        eds = fields[names.index('ElectDist')]
-        tr = Transformer.from_crs(meta['crs'], 'EPSG:4326', always_xy=True)
-        feats, ed2cd = [], {}
-        for ed, g in zip(eds, geoms):
-            if g is None:
-                continue
-            geom = wkb.loads(bytes(g))
-            ll = transform(tr.transform, geom).buffer(0)
-            key = str(int(ed))
-            pt = ll.representative_point()
+    for zp in sorted(glob.glob(os.path.join(zip_dir, 'nyed_*.zip'))):
+        rel = re.sub(r'^nyed_|av$|\.zip$', '', os.path.basename(zp)).replace('av', '')
+        z = zipfile.ZipFile(zp)
+        info = [i for i in z.infolist() if i.filename.lower().endswith('.shp')][0]
+        rdate = '%04d-%02d-%02d' % info.date_time[:3]
+        ed2cd = {}
+        for key, g in _read_eds(zp):
             best, area = None, 0
-            for i in tree.query(ll):
-                a = cd_geoms[i].intersection(ll).area
+            for i in tree.query(g):
+                a = cd_geoms[i].intersection(g).area
                 if a > area:
                     best, area = cd_ids[i], a
-            if best is None:
-                for i in tree.query(pt.buffer(0.01)):
-                    best = cd_ids[i]
-                    break
             ed2cd[key] = best
-            feats.append({'type': 'Feature', 'properties': {'e': key}, 'geometry': mapping(ll)})
-        tmp = os.path.join(OUT, 'geo', f'_tmp_{rel}.geojson')
-        json.dump({'type': 'FeatureCollection', 'features': feats}, open(tmp, 'w'))
-        dst = os.path.join(OUT, 'geo', f'ed{rel}.topo.json')
-        subprocess.run(['mapshaper', '-i', tmp, '-simplify', '12%', 'keep-shapes', '-o',
-                        'format=topojson', 'quantization=100000', dst], check=True,
-                       capture_output=True)
-        os.remove(tmp)
-        versions[rel] = {'eds': len(feats), 'file': f'geo/ed{rel}.topo.json', 'ed2cd': ed2cd}
-        print(rel, len(feats), os.path.getsize(dst) // 1024, 'KB', 'unassigned',
-              sum(1 for v in ed2cd.values() if v is None))
+        versions[rel] = {'eds': len(ed2cd), 'date': rdate, 'zip': zp, 'ed2cd': ed2cd}
+        print(rel, rdate, len(ed2cd), 'unassigned', sum(1 for v in ed2cd.values() if v is None))
     json.dump(versions, open(os.path.join(OUT, 'geo', 'versions.json'), 'w'), separators=(',', ':'))
+
+
+def write_topo(rel, zp):
+    from shapely.geometry import mapping
+    feats = [{'type': 'Feature', 'properties': {'e': k}, 'geometry': mapping(g)} for k, g in _read_eds(zp)]
+    tmp = os.path.join(OUT, 'geo', f'_tmp_{rel}.geojson')
+    json.dump({'type': 'FeatureCollection', 'features': feats}, open(tmp, 'w'))
+    dst = os.path.join(OUT, 'geo', f'ed{rel}.topo.json')
+    subprocess.run(['mapshaper', '-i', tmp, '-simplify', '12%', 'keep-shapes', '-o',
+                    'format=topojson', 'quantization=100000', dst], check=True, capture_output=True)
+    os.remove(tmp)
+    return f'geo/ed{rel}.topo.json'
 
 
 # ---------------------------------------------------------------- results
@@ -368,6 +362,7 @@ def results(csv_dir, cvr_dir, oe_dir, versions_path):
     load_2012(oe_dir, elections, meta)
     os.makedirs(os.path.join(OUT, 'e'), exist_ok=True)
     catalog = []
+    geo_files = {}
     audit = {'boe_unreadable_files': [{'election': a, 'file': b} for a, b in bad], 'elections': {}}
     for eid in sorted(elections, key=lambda e: (meta[e][0], e)):
         date, t, label = meta[eid]
@@ -383,13 +378,19 @@ def results(csv_dir, cvr_dir, oe_dir, versions_path):
         # clearly better (e.g. 2022 redistricting with no 2022 release on hand).
         # ED numbers are dense ranges reused across releases, so only releases drawn on the same
         # Assembly lines as the election are eligible: 2012 lines through May 2022, 2022 lines after.
-        era = ['13a', '13b', '17b', '18c', '18d'] if date < '2022-06-01' else ['23a', '23d', '24c1', '24d', '25a1', '25b']
-        era = [r for r in era if r in versions]
-        match = {rel: len(all_eds & set(versions[rel]['ed2cd'])) for rel in era}
+        # ED numbers are dense ranges reused across releases, so only releases DCP published before the
+        # election (by the date inside each zip) and on the same Assembly lines are eligible; among those the
+        # release matching the most result EDs wins, ties going to the most recent.
+        from datetime import date as _d, timedelta
+        lo = (_d.fromisoformat(date) - timedelta(days=400)).isoformat()
+        # 2022 Assembly lines first appear in release 22a1 (March 2022) and were first voted on in June 2022
+        era_ok = (lambda r: versions[r]['date'] < '2022-03-01') if date < '2022-06-01' else (lambda r: versions[r]['date'] >= '2022-03-01')
+        cand = [r for r in versions if lo <= versions[r]['date'] <= date and era_ok(r)]
+        if not cand:
+            cand = [r for r in versions if era_ok(r) and r[:2] == date[2:4]]
+        match = {r: len(all_eds & set(versions[r]['ed2cd'])) for r in cand}
         top = max(match.values())
-        from datetime import date as _d
-        days = lambda r: abs((_d.fromisoformat(RELEASE_DATE[r]) - _d.fromisoformat(date)).days)
-        best = min([r for r in era if match[r] == top], key=days)
+        best = max([r for r in cand if match[r] == top], key=lambda r: versions[r]['date'])
         score = match[best]
         ed2cd = versions[best]['ed2cd']
         edir = os.path.join(OUT, 'e', eid)
@@ -463,8 +464,10 @@ def results(csv_dir, cvr_dir, oe_dir, versions_path):
                                      if cands[i] not in ('Write-in', 'Undervote', 'Overvote')],
                              'cds': sorted(str(k) for k in cdt), 'um': sum(unm[1:]), 'tv': sum(rec['total'][1:])})
             e_audit['contests'] += 1
+        if best not in geo_files:
+            geo_files[best] = write_topo(best, versions[best]['zip'])
         idxrec = {'id': eid, 'date': date, 'type': t, 'label': label, 'release': best,
-                  'geo': versions[best]['file'], 'ed2cd': f'geo/ed2cd{best}.json',
+                  'geo': geo_files[best], 'ed2cd': f'geo/ed2cd{best}.json',
                   'unmatchedEDs': e_audit['unmatched_eds'], 'contests': contests}
         json.dump(idxrec, open(os.path.join(edir, 'index.json'), 'w'), separators=(',', ':'))
         catalog.append({'id': eid, 'date': date, 'type': t, 'label': label, 'contests': len(contests),
@@ -472,10 +475,11 @@ def results(csv_dir, cvr_dir, oe_dir, versions_path):
         audit['elections'][eid] = e_audit
         print(eid, best, f'{score}/{len(all_eds)}', len(contests))
     json.dump({'elections': catalog,
-               'ed2cd': {rel: {'file': v['file'], 'eds': v['eds']} for rel, v in versions.items()}},
+               'releases': {rel: {'file': geo_files[rel], 'eds': versions[rel]['eds'], 'date': versions[rel]['date']} for rel in geo_files}},
               open(os.path.join(OUT, 'catalog.json'), 'w'), separators=(',', ':'))
     # ed -> cd lookup per release, compact
-    for rel, v in versions.items():
+    for rel in geo_files:
+        v = versions[rel]
         json.dump(v['ed2cd'], open(os.path.join(OUT, 'geo', f'ed2cd{rel}.json'), 'w'), separators=(',', ':'))
     json.dump(audit, open(os.path.join(OUT, 'audit.json'), 'w'), indent=1)
 

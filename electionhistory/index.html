@@ -84,6 +84,27 @@ select:focus,input:focus{outline:none;border-color:var(--orange)}
 .ed-row.hl td{background:#fff4ea!important}
 th{padding:8px 14px;font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.6);font-weight:500;text-align:left}
 th.r{text-align:right}
+/* district history */
+.dh-sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+.dh-sum .wm-stat-v{font-size:.86rem}
+.dh-ctrl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.dh-offs{display:flex;gap:6px;flex-wrap:wrap}
+.dh-off{padding:7px 12px;border:1.5px solid var(--border);border-radius:20px;background:#fff;font:inherit;font-size:.8rem;font-weight:600;color:var(--navy);cursor:pointer}
+.dh-off.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.dh-tbl{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:6px}
+.dh-tbl th{background:var(--navy)}
+.dh-tbl td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+.dh-tbl tr.cur td{background:#fff7f0}
+.dh-tbl tr{cursor:pointer}
+.dh-chip{display:inline-flex;flex-direction:column;gap:3px;margin:0 8px 8px 0;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;min-width:150px;vertical-align:top}
+.dh-chip b{font-size:.8rem;color:var(--navy)}
+.dh-chip span{font-size:.72rem;color:#374151;line-height:1.35}
+.dh-bar{height:6px;border-radius:3px;background:#e8e8e4;overflow:hidden}
+.dh-bar i{display:block;height:100%}
+.dh-n{font-family:'DM Mono',monospace;font-size:.8rem;font-weight:700;color:var(--orange);white-space:nowrap}
+.dh-h{font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:22px 0 4px}
+.dh-lbl{background:none;border:0;box-shadow:none;font-family:'DM Mono',monospace;font-weight:700;font-size:.72rem;color:var(--navy);text-shadow:0 0 3px #fff,0 0 3px #fff}
+@media(max-width:760px){.dh-sum{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:960px){.wm-layout{grid-template-columns:1fr}.wm-map{height:420px}.wm-detail{min-height:0}}
 @media(max-width:600px){.q-tabs{padding:0 10px}.q-tab{padding:10px 10px}.pickers select{min-width:0;width:100%}.pickers label{width:100%}.sec{padding-left:14px!important;padding-right:14px!important}}
 </style>
@@ -101,6 +122,7 @@ th.r{text-align:right}
   <div class="intro">
     <h3>Elections</h3>
     <p id="introText">Loading&hellip;</p>
+    <p style="margin-top:8px"><a href="#dhSec" id="dhJump" style="font-size:.82rem;font-weight:700;color:var(--orange);text-decoration:none">How this board&rsquo;s Council, Assembly, State Senate and Congressional districts changed since 2006 &darr;</a></p>
   </div>
 
   <div class="pickers">
@@ -156,6 +178,20 @@ th.r{text-align:right}
       <tbody id="tableBody"></tbody>
     </table>
     <div id="noResults" style="display:none;padding:40px;text-align:center;color:var(--muted);font-size:.85rem">No matching election districts.</div>
+  </div>
+
+  <div class="sec" id="dhSec" style="padding:20px 24px 24px;background:#fff;border-top:2px solid var(--orange);border-bottom:1px solid var(--border)">
+    <h3 id="dhTitle" style="font-size:1.1rem;font-weight:700;color:var(--navy)"></h3>
+    <p id="dhSub" style="font-size:.78rem;color:var(--muted);margin-top:2px;line-height:1.55;max-width:80ch"></p>
+    <div id="dhSummary" class="dh-sum"></div>
+    <div class="wm-card" style="margin-top:14px">
+      <div class="dh-ctrl"><div class="dh-offs" id="dhOffs"></div><select id="dhTerm"></select></div>
+      <div class="wm-layout">
+        <div><div class="wm-map" id="dhMap" style="height:460px"></div></div>
+        <div class="wm-detail" id="dhDetail"></div>
+      </div>
+    </div>
+    <div id="dhTables"></div>
   </div>
 
   <div class="sec" style="padding:18px 24px 40px;background:#fff">
@@ -329,6 +365,7 @@ function renderIntro(){
   var adTxt=adl.length>1?adl.slice(0,-1).join(', ')+(adl.length>2?',':'')+' and '+adl[adl.length-1]:adl.join('');
   document.getElementById('hTitle').innerHTML=esc(BORON[cb[0]])+' <span>Community Board '+(+cb.slice(1))+'</span>';
   document.title=cbCode(cb)+' Election History · bkcb6.app';
+  renderDistricts();
   document.getElementById('introText').textContent=cbCode(cb)+' covered '+n+' election districts across Assembly District'+(adl.length>1?'s ':' ')+adTxt+' on the election district map used for the '+niceDate(S.idx.date)+' '+S.idx.label.toLowerCase()+'. Pick any community board and any election since 2014, plus the November 2012 general, to see how the board voted, how every other board voted, and how each election district voted.';
 }
 function renderTitle(){
@@ -475,6 +512,78 @@ function renderTable(hl){
       '<td style="font-family:DM Mono,monospace;font-size:.72rem;color:var(--muted)">'+fmt(r.ballots||r.t)+'</td>'+
       '<td style="min-width:180px"><div style="background:#ddd;border-radius:3px;height:14px;overflow:hidden"><div style="height:100%;width:'+bw.toFixed(0)+'%;background:'+col+';border-radius:3px"></div></div>'+
       '<div style="font-size:.65rem;color:'+col+';font-weight:700;margin-top:3px">'+(r.win?esc(r.win==='Tie'?'Tie':lastName(r.win))+(r.t&&r.win!=='Tie'?' '+p1(r.wv/r.t):''):'No votes')+'</div></td></tr>';}).join('');
+}
+
+// ---- district history: how the board's districts changed, 2006 to today ----
+var DH={data:null,office:'council',term:null,map:null,layer:null,cb:null,geo:{},pal:['#0d1b4b','#f47920','#2d6a4f','#8e2b20','#7b6cd0','#b8860b','#2e7d8f','#c2508f']};
+var DHNAME={council:'Council District',assembly:'Assembly District',senate:'State Senate District',congress:'Congressional District'};
+var DHSHORT={council:'CD',assembly:'AD',senate:'SD',congress:'NY-'};
+function dhLabel(o,d){return o==='congress'?'NY-'+d:DHSHORT[o]+' '+d;}
+function dhMembers(row,d){var ms=row.members[String(d)]||[];return ms.map(function(m){return m.name+(m.type==='special'?' (special, '+m.elected.slice(0,4)+')':'')+(m.from&&m.to&&(m.from.slice(0,4)!==row.served.slice(0,4)||m.to.slice(0,4)!==row.served.slice(-4))?' ('+m.from.slice(0,4)+'–'+m.to.slice(0,4)+')':'');});}
+function renderDistricts(){
+  if(!DH.data){j('/data/districthistory/overlap.json').then(function(d){DH.data=d;renderDistricts();});return;}
+  if(DH.cb===S.cb)return;DH.cb=S.cb;
+  var cb=S.cb,code=cbCode(cb),d=DH.data;
+  document.getElementById('dhTitle').textContent=code+'’s districts since 2006';
+  document.getElementById('dhJump').innerHTML='How '+esc(code)+'’s Council, Assembly, State Senate and Congressional districts changed since 2006 &darr;';
+  document.getElementById('dhSub').textContent='Which Council, Assembly, State Senate and Congressional districts cover '+code+' in each term, who represented them, and what share of the board’s '+fmt(d.boardPop[cb]||0)+' residents (2020 census) lives in each. Lines come from the Department of City Planning district file for each election; members from the City Council roster and New York State Board of Elections results. Districts holding under half a percent of the board’s residents are left out.';
+  // summary
+  var sum='';
+  d.offices.forEach(function(o){
+    var runs=[];o.rows.forEach(function(r){var n=(r.cbs[cb]||[]).length;var last=runs[runs.length-1];if(last&&last.n===n)last.to=r.served.slice(-4);else runs.push({n:n,from:r.served.slice(0,4),to:r.served.slice(-4)});});
+    var cur=runs[runs.length-1];
+    var hist=runs.slice(0,-1).reverse().map(function(x){return x.n+' in '+x.from+'–'+x.to;}).join(', ');
+    sum+='<div class="wm-stat"><span class="wm-stat-l">'+esc(o.label)+'</span><span class="wm-stat-v">'+cur.n+' district'+(cur.n===1?'':'s')+' since '+cur.from+'</span>'+(hist?'<span style="display:block;font-size:.72rem;color:var(--muted);margin-top:3px">'+hist+'</span>':'')+'</div>';
+  });
+  document.getElementById('dhSummary').innerHTML=sum;
+  // tables
+  var t='';
+  d.offices.forEach(function(o){
+    t+='<div class="dh-h">'+esc(o.label)+'</div><div style="overflow-x:auto"><table class="dh-tbl"><thead><tr><th>Term</th><th>Districts covering '+esc(code)+'</th><th class="r">Count</th></tr></thead><tbody>';
+    o.rows.slice().reverse().forEach(function(r,ri){
+      var list=r.cbs[cb]||[];
+      t+='<tr data-o="'+o.key+'" data-e="'+r.election+'"><td style="white-space:nowrap"><b style="color:var(--navy)">'+esc(r.served)+'</b><div style="font-size:.68rem;color:var(--muted);font-family:DM Mono,monospace">elected '+r.election+'</div></td><td>'+
+        list.map(function(x,i){var ms=dhMembers(r,x[0]);return '<div class="dh-chip"><b>'+esc(dhLabel(o.key,x[0]))+'</b><span>'+(ms.length?esc(ms.join(', ')):'')+'</span><div class="dh-bar"><i style="width:'+(x[1]*100).toFixed(1)+'%;background:'+DH.pal[i%DH.pal.length]+'"></i></div><span style="font-family:DM Mono,monospace;font-size:.66rem;color:var(--muted)">'+(x[1]*100).toFixed(1)+'% of residents</span></div>';}).join('')+
+        '</td><td class="dh-n" style="text-align:right">'+list.length+'</td></tr>';
+    });
+    t+='</tbody></table></div>';
+  });
+  var tb=document.getElementById('dhTables');tb.innerHTML=t;
+  [].forEach.call(tb.querySelectorAll('tr[data-o]'),function(tr){tr.onclick=function(){DH.office=tr.dataset.o;DH.term=+tr.dataset.e;dhControls();dhDraw();document.getElementById('dhMap').scrollIntoView({behavior:'smooth',block:'center'});};});
+  dhControls();dhDraw();
+}
+function dhOffice(){return DH.data.offices.filter(function(o){return o.key===DH.office;})[0];}
+function dhControls(){
+  var offs=document.getElementById('dhOffs');
+  offs.innerHTML=DH.data.offices.map(function(o){return '<button class="dh-off'+(o.key===DH.office?' on':'')+'" data-k="'+o.key+'">'+esc(o.label)+'</button>';}).join('');
+  [].forEach.call(offs.querySelectorAll('.dh-off'),function(b){b.onclick=function(){DH.office=b.dataset.k;DH.term=null;dhControls();dhDraw();};});
+  var o=dhOffice(),sel=document.getElementById('dhTerm');
+  if(DH.term==null||!o.rows.some(function(r){return r.election===DH.term;}))DH.term=o.rows[o.rows.length-1].election;
+  sel.innerHTML=o.rows.slice().reverse().map(function(r){return '<option value="'+r.election+'">'+esc(r.served)+' (elected '+r.election+')</option>';}).join('');
+  sel.value=String(DH.term);sel.onchange=function(){DH.term=+sel.value;dhDraw();};
+  [].forEach.call(document.querySelectorAll('#dhTables tr[data-o]'),function(tr){tr.classList.toggle('cur',tr.dataset.o===DH.office&&+tr.dataset.e===DH.term);});
+}
+function dhDraw(){
+  var o=dhOffice(),r=o.rows.filter(function(x){return x.election===DH.term;})[0],cb=S.cb;
+  [].forEach.call(document.querySelectorAll('#dhTables tr[data-o]'),function(tr){tr.classList.toggle('cur',tr.dataset.o===DH.office&&+tr.dataset.e===DH.term);});
+  if(!DH.map){DH.map=L.map('dhMap',{zoomSnap:.25,scrollWheelZoom:false});L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(DH.map);}
+  var list=r.cbs[cb]||[],col={};list.forEach(function(x,i){col[x[0]]=DH.pal[i%DH.pal.length];});
+  var go=function(fc){
+    if(DH.layer)DH.map.removeLayer(DH.layer);
+    var board=S.cdGeo.features.filter(function(f){return f.properties.c===cb;})[0];
+    var lbls=[];
+    var dl=L.geoJSON(fc,{filter:function(f){return col[f.properties.d]!=null;},style:function(f){return {color:'#fff',weight:2,fillColor:col[f.properties.d],fillOpacity:.38};},
+      onEachFeature:function(f,l){var ms=dhMembers(r,f.properties.d);l.bindTooltip('<strong>'+esc(dhLabel(o.key,f.properties.d))+'</strong>'+(ms.length?'<br>'+esc(ms.join(', ')):''),{sticky:true});
+        lbls.push(L.marker(l.getBounds().getCenter(),{icon:L.divIcon({className:'dh-lbl',html:esc(dhLabel(o.key,f.properties.d)),iconSize:[60,14]}),interactive:false}));}});
+    var bl=board?L.geoJSON(board,{interactive:false,style:{color:ORANGE,weight:3.5,fill:false}}):null;
+    DH.layer=L.featureGroup([dl].concat(bl?[bl]:[]).concat(lbls)).addTo(DH.map);
+    if(bl)DH.map.fitBounds(bl.getBounds(),{padding:[30,30]});
+  };
+  if(DH.geo[r.geo])go(DH.geo[r.geo]);else j('/data/districthistory/'+r.geo).then(function(t){DH.geo[r.geo]=topojson.feature(t,t.objects[Object.keys(t.objects)[0]]);go(DH.geo[r.geo]);});
+  var code=cbCode(cb);
+  document.getElementById('dhDetail').innerHTML='<div class="eyebrow">'+esc(o.label)+' · '+esc(r.served)+'</div><h4>'+list.length+' district'+(list.length===1?'':'s')+' in '+esc(code)+'</h4>'+
+    list.map(function(x){var ms=dhMembers(r,x[0]);return '<div class="wm-chip" style="align-items:flex-start"><span class="wm-dot" style="background:'+col[x[0]]+';margin-top:3px"></span><span><strong>'+esc(dhLabel(o.key,x[0]))+'</strong> · '+(x[1]*100).toFixed(1)+'% of residents'+(ms.length?'<br><span style="font-weight:400">'+esc(ms.join(', '))+'</span>':'')+'</span></div>';}).join('')+
+    '<div class="wm-note">The orange outline is '+esc(code)+'. Lines are the Department of City Planning '+esc(o.label)+' file used for the '+r.election+' election (release '+esc(r.release)+'). Pick another term or office above, or tap a row in the tables below.</div>';
 }
 
 // address lookup
