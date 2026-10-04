@@ -84,6 +84,18 @@ select:focus,input:focus{outline:none;border-color:var(--orange)}
 .ed-row.hl td{background:#fff4ea!important}
 th{padding:8px 14px;font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.6);font-weight:500;text-align:left}
 th.r{text-align:right}
+/* isolated maps and compare */
+.cmp-tbl{width:100%;border-collapse:collapse;font-size:.8rem}
+.cmp-tbl th{background:var(--navy)}
+.cmp-tbl td{padding:8px 12px;border-bottom:1px solid var(--border);font-family:'DM Mono',monospace;font-size:.76rem;white-space:nowrap}
+.cmp-tbl td.u{font-family:'DM Sans',sans-serif;font-weight:700;color:var(--navy);font-size:.82rem}
+.cmp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-top:14px}
+.cmp-card{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff}
+.cmp-card h4{font-size:.95rem;color:var(--navy);padding:10px 12px 2px}
+.cmp-card .s{font-size:.72rem;color:var(--muted);padding:0 12px 8px;font-family:'DM Mono',monospace;line-height:1.5}
+.cmp-card .m{height:280px;background:#edf2f7}
+.cmp-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:20px;background:var(--off);border:1px solid var(--border);font-size:.78rem;font-weight:700;color:var(--navy)}
+.cmp-chip button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:.9rem;line-height:1}
 /* district history */
 .dh-sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
 .dh-sum .wm-stat-v{font-size:.86rem}
@@ -137,6 +149,16 @@ th.r{text-align:right}
     <p id="raceSubtitle" style="font-size:.78rem;color:var(--muted);margin-top:2px"></p>
   </div>
 
+  <div style="padding:12px 24px 0;background:#fff" class="sec">
+    <div class="wm-card">
+      <p id="bdIntro"></p>
+      <div class="wm-layout">
+        <div><div class="wm-map" id="bdMap"></div><div class="wm-legend" id="bdLegend"></div></div>
+        <div class="wm-detail" id="bdDetail"></div>
+      </div>
+    </div>
+  </div>
+
   <div style="padding:12px 24px 18px;background:#fff;border-bottom:1px solid var(--border)" class="sec">
     <div class="wm-card">
       <p id="wmIntro"></p>
@@ -148,6 +170,19 @@ th.r{text-align:right}
   </div>
 
   <div id="cb-scoreboard" class="sec" style="padding:16px 24px;background:#fff;border-bottom:1px solid var(--border)"></div>
+
+  <div class="sec" id="cmpSec" style="padding:20px 24px;background:#fff;border-bottom:1px solid var(--border)">
+    <div class="eyelbl" style="margin-bottom:6px">Compare</div>
+    <p style="font-size:.8rem;color:var(--muted);line-height:1.55;margin-bottom:10px;max-width:80ch">Add as many community boards or Assembly districts as you want. Each one is mapped on its own, by election district, for the contest above.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+      <select id="cmpPick"></select>
+      <button id="cmpAdd" style="padding:8px 14px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif">Add</button>
+      <button id="cmpClear" style="padding:8px 12px;background:#fff;color:var(--navy);border:1.5px solid var(--border);border-radius:8px;font-size:.8rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Clear</button>
+      <span id="cmpChips" style="display:flex;gap:6px;flex-wrap:wrap"></span>
+    </div>
+    <div style="overflow-x:auto"><table class="cmp-tbl" id="cmpTable"></table></div>
+    <div class="cmp-grid" id="cmpGrid"></div>
+  </div>
 
   <div class="sec" style="padding:20px 24px;background:#fff;border-bottom:1px solid var(--border)">
     <div class="eyelbl" id="barsLbl">Results</div>
@@ -298,7 +333,7 @@ function buildTabs(cid){
   var el=document.getElementById('qTabs');el.innerHTML='';
   if(!list.length){
     el.innerHTML='<div class="q-tab" style="cursor:default">No contest in this election was on the ballot in '+cbCode(S.cb)+'</div>';
-    S.c=null;renderIntro();clearBoard();renderMapOnly(null);return;
+    S.c=null;renderIntro();clearBoard();renderMapOnly(null);if(BD.h.layer){BD.map.removeLayer(BD.h.layer);BD.h.layer=null;}document.getElementById('bdDetail').innerHTML='';document.getElementById('bdLegend').innerHTML='';document.getElementById('bdIntro').textContent='';CMP.maps.forEach(function(m){m.remove();});CMP.maps=[];document.getElementById('cmpGrid').innerHTML='';document.getElementById('cmpTable').innerHTML='';return;
   }
   var main=list.filter(function(c){return c.rank<40;}).slice(0,5);
   if(!main.length)main=list.slice(0,4);
@@ -326,7 +361,7 @@ function loadContest(cid){
     S.A=real[0]?real[0][0]:null;S.B=real[1]?real[1][0]:null;
     c.colors={};var k=0;
     c.cands.forEach(function(n){if(n===S.A)c.colors[n]=NAVY;else if(n===S.B)c.colors[n]=ORANGE;else if(NONCAND[n])c.colors[n]='#9a958c';else c.colors[n]=OTHER[k++%OTHER.length];});
-    setURL();renderIntro();renderTitle();renderMap();renderScoreboard();renderBoard();
+    setURL();renderIntro();renderTitle();renderBoardMap();renderMap();renderScoreboard();renderBoard();renderCompare();
   });
 }
 
@@ -512,6 +547,85 @@ function renderTable(hl){
       '<td style="font-family:DM Mono,monospace;font-size:.72rem;color:var(--muted)">'+fmt(r.ballots||r.t)+'</td>'+
       '<td style="min-width:180px"><div style="background:#ddd;border-radius:3px;height:14px;overflow:hidden"><div style="height:100%;width:'+bw.toFixed(0)+'%;background:'+col+';border-radius:3px"></div></div>'+
       '<div style="font-size:.65rem;color:'+col+';font-weight:700;margin-top:3px">'+(r.win?esc(r.win==='Tie'?'Tie':lastName(r.win))+(r.t&&r.win!=='Tie'?' '+p1(r.wv/r.t):''):'No votes')+'</div></td></tr>';}).join('');
+}
+
+// ---- isolated ED maps: one board (or Assembly district) on its own ----
+var EDMAX=0.6;
+function edVec(e){var c=S.c;return c.eds[e]||(c.combined&&c.combined[e]&&c.eds[c.combined[e]])||null;}
+function edStat(v){if(!v)return null;var t=counted(v),r=ranked(v);if(!t||!r.length||r[0][1]===0)return {tot:t,none:true};return {tot:t,w:r[0][0],wv:r[0][1],sv:r[1]?r[1][1]:0,tie:r[1]&&r[1][1]===r[0][1],m:(r[0][1]-(r[1]?r[1][1]:0))/t};}
+function edFill(st){if(!st)return ['#e5e2db',.35];if(st.none)return ['#d1d5db',.5];if(st.tie)return ['#9a958c',.75];var col=S.c.colors[st.w],light=st.w===S.A?NAVY_LIGHT:st.w===S.B?ORANGE_LIGHT:lighten(col);return [mix(light,col,Math.max(.14,Math.min(1,st.m/EDMAX))),.8];}
+function unitEDs(u){var fc=S.geo[S.idx.release],m=S.ed2cd[S.idx.release];var k=u.slice(3);return fc.features.filter(function(f){var e=f.properties.e;return u.indexOf('cb:')===0?m[e]===k:e.slice(0,-3)===k;});}
+function unitName(u){return u.indexOf('cb:')===0?cbCode(u.slice(3)):'AD '+u.slice(3);}
+function unitStats(feats){var c=S.c,sum=null,eds=0,won={},n=0;feats.forEach(function(f){var e=f.properties.e;if(!c.eds[e])return;var v=c.eds[e];n++;if(!sum)sum=v.map(function(){return 0;});v.forEach(function(x,i){sum[i]=(sum[i]||0)+x;});var st=edStat(v);if(st&&!st.none){eds++;var k=st.tie?'Tie':st.w;won[k]=(won[k]||0)+1;}});return {sum:sum,eds:eds,won:won,n:n};}
+function edPopupHtml(e){var v=edVec(e),c=S.c,h='<div style="font-family:DM Sans,sans-serif;min-width:200px"><strong>ED '+pad(+e.slice(-3))+' / AD '+e.slice(0,-3)+'</strong>';
+  if(c.combined&&c.combined[e])h+='<div style="font-size:.7rem;color:#666">counted with ED '+pad(+c.combined[e].slice(-3))+' / AD '+c.combined[e].slice(0,-3)+'</div>';
+  if(!v)return h+'<div style="font-size:.75rem;color:#666;margin-top:4px">Not on the ballot here.</div></div>';
+  var t=counted(v);h+='<table style="font-size:.75rem;margin-top:5px;border-collapse:collapse">';
+  ranked(v).forEach(function(p){if(!p[1])return;h+='<tr><td style="padding:1px 6px 1px 0"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:'+c.colors[p[0]]+';margin-right:5px"></span>'+esc(p[0])+'</td><td style="text-align:right;font-family:DM Mono,monospace">'+fmt(p[1])+'</td><td style="text-align:right;font-family:DM Mono,monospace;padding-left:6px">'+p1(p[1]/t)+'</td></tr>';});
+  return h+'</table><div style="font-size:.68rem;color:#666;margin-top:3px">'+(v[0]?fmt(v[0])+' ballots · ':'')+fmt(t)+' votes</div></div>';}
+function drawUnitMap(map,holder,feats,onHover){
+  if(holder.layer)map.removeLayer(holder.layer);
+  var lyr=L.geoJSON({type:'FeatureCollection',features:feats},{style:function(f){var st=edStat(edVec(f.properties.e)),fl=edFill(st);return {color:'#fff',weight:.8,fillColor:fl[0],fillOpacity:fl[1]};},
+    onEachFeature:function(f,l){var e=f.properties.e;l.bindPopup(function(){return edPopupHtml(e);},{maxWidth:320});
+      l.on('mouseover',function(){l.setStyle({weight:2.2,color:'#111827'});if(onHover)onHover(e);});l.on('mouseout',function(){l.setStyle({weight:.8,color:'#fff'});if(onHover)onHover(null);});}});
+  holder.layer=lyr.addTo(map);
+  if(feats.length)map.fitBounds(lyr.getBounds(),{padding:[12,12]});
+}
+function newMap(id){var m=L.map(id,{zoomSnap:.25,scrollWheelZoom:false,preferCanvas:true});L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(m);return m;}
+var BD={map:null,h:{}};
+function renderBoardMap(){
+  var c=S.c,cb=S.cb,code=cbCode(cb);
+  if(!BD.map)BD.map=newMap('bdMap');
+  var feats=unitEDs('cb:'+cb),st=unitStats(feats);
+  document.getElementById('bdIntro').textContent=code+' on its own, by election district. Each election district is colored by who carried it; darker means a bigger margin. Tap any election district for its full results.';
+  drawUnitMap(BD.map,BD.h,feats,function(e){document.getElementById('bdDetail').innerHTML=e?'<div class="eyebrow">'+esc(code)+' · election district</div>'+edPopupHtml(e):bdSummary(code,st);});
+  document.getElementById('bdDetail').innerHTML=bdSummary(code,st);
+  var ws=Object.keys(st.won).filter(function(k){return k!=='Tie';}).sort(function(a,b){return st.won[b]-st.won[a];});
+  document.getElementById('bdLegend').innerHTML='<div class="wm-legend-t">Election district winners in '+esc(code)+'</div><div class="wm-legend-s">Color intensity runs from 0% up to '+(EDMAX*100)+'% margin or more.</div>'+
+    ws.map(function(n){var col=c.colors[n],light=n===S.A?NAVY_LIGHT:n===S.B?ORANGE_LIGHT:lighten(col);return '<div class="wm-legend-row"><span class="wm-legend-l">'+esc(n.split(' / ')[0])+' ('+st.won[n]+')</span><div class="wm-legend-bar" style="background:linear-gradient(90deg,'+light+' 0%,'+col+' 100%)"><span class="wm-tick" style="left:0%">0%</span><span class="wm-tick" style="left:50%">'+(EDMAX*50)+'%</span><span class="wm-tick" style="left:100%">'+(EDMAX*100)+'%+</span></div></div>';}).join('')+(st.won.Tie?'<div class="wm-legend-s">'+st.won.Tie+' tied election district'+(st.won.Tie>1?'s':'')+' in gray.</div>':'');
+}
+function bdSummary(code,st){
+  var c=S.c,title=fullTitle(c)+(c.party?' ('+(PABBR[c.party]||c.party)+')':'');
+  if(!st.sum)return '<div class="eyebrow">'+S.idx.date.slice(0,4)+' '+esc(title)+'</div><h4>'+esc(code)+'</h4><p class="lead">This contest was not on the ballot in '+esc(code)+'.</p>';
+  var t=counted(st.sum),r=ranked(st.sum);
+  return '<div class="eyebrow">'+S.idx.date.slice(0,4)+' '+esc(title)+' · by election district</div><h4>'+esc(code)+'</h4>'+
+    '<p class="lead">'+r.slice(0,3).filter(function(p){return p[1];}).map(function(p){return esc(lastName(p[0]))+' '+p1(p[1]/t);}).join(', ')+' of '+fmt(t)+' votes in '+st.n+' election districts.</p>'+
+    '<div class="wm-grid">'+Object.keys(st.won).sort(function(a,b){return st.won[b]-st.won[a];}).map(function(n){return '<div class="wm-stat"><span class="wm-stat-l">'+(n==='Tie'?'Tied':esc(lastName(n))+' carried')+'</span><span class="wm-stat-v">'+st.won[n]+' of '+st.eds+' EDs</span></div>';}).join('')+'</div>'+
+    '<div class="wm-note">Hover or tap an election district to see its results here.</div>';
+}
+
+// ---- compare any number of boards or Assembly districts ----
+var CMP={units:(params.get('cmp')||'').split(',').filter(Boolean),maps:[]};
+function cmpURL(){var u=new URL(location.href);if(CMP.units.length)u.searchParams.set('cmp',CMP.units.join(','));else u.searchParams.delete('cmp');history.replaceState(null,'',u);}
+function cmpOptions(){
+  var sel=document.getElementById('cmpPick'),h='';
+  BORO_ORDER.forEach(function(b){h+='<optgroup label="'+BORON[b]+' community boards">';S.cdGeo.features.map(function(f){return f.properties.c;}).filter(function(c){return c[0]===b&&isCB(c);}).sort(function(a,c){return +a-+c;}).forEach(function(c){h+='<option value="cb:'+c+'">'+cbCode(c)+' · '+cbLong(c)+'</option>';});h+='</optgroup>';});
+  var ads={};S.geo[S.idx.release].features.forEach(function(f){ads[f.properties.e.slice(0,-3)]=1;});
+  h+='<optgroup label="Assembly districts">'+Object.keys(ads).sort(function(a,b){return a-b;}).map(function(a){return '<option value="ad:'+a+'">AD '+a+'</option>';}).join('')+'</optgroup>';
+  var cur=sel.value;sel.innerHTML=h;if(cur)sel.value=cur;
+}
+document.getElementById('cmpAdd').onclick=function(){var v=document.getElementById('cmpPick').value;if(v&&CMP.units.indexOf(v)<0){CMP.units.push(v);cmpURL();renderCompare();}};
+document.getElementById('cmpClear').onclick=function(){CMP.units=[];cmpURL();renderCompare();};
+function renderCompare(){
+  cmpOptions();
+  var c=S.c;
+  document.getElementById('cmpChips').innerHTML=CMP.units.map(function(u){return '<span class="cmp-chip">'+esc(unitName(u))+'<button data-u="'+u+'" aria-label="Remove">&times;</button></span>';}).join('');
+  [].forEach.call(document.querySelectorAll('#cmpChips button'),function(b){b.onclick=function(){CMP.units=CMP.units.filter(function(x){return x!==b.dataset.u;});cmpURL();renderCompare();};});
+  CMP.maps.forEach(function(m){m.remove();});CMP.maps=[];
+  var grid=document.getElementById('cmpGrid'),tbl=document.getElementById('cmpTable');
+  if(!CMP.units.length){grid.innerHTML='';tbl.innerHTML='';return;}
+  var top=c.cands.filter(function(n){return !NONCAND[n];}).map(function(n){return [n,c.total[c.cands.indexOf(n)+1]||0];}).sort(function(a,b){return b[1]-a[1];}).slice(0,5).map(function(p){return p[0];});
+  var rows=CMP.units.map(function(u){var f=unitEDs(u);return {u:u,f:f,st:unitStats(f)};});
+  var th='<thead><tr><th>Unit</th><th class="r">EDs</th><th class="r">Votes</th>'+top.map(function(n){return '<th class="r">'+esc(lastName(n))+'</th>';}).join('')+'<th>Winner</th><th class="r">Margin</th><th>EDs carried</th></tr></thead><tbody>';
+  rows.forEach(function(r){var st=r.st;
+    if(!st.sum){th+='<tr><td class="u">'+esc(unitName(r.u))+'</td><td colspan="'+(top.length+5)+'" style="color:var(--muted)">Not on the ballot here</td></tr>';return;}
+    var t=counted(st.sum),rk=ranked(st.sum),w=rk[0],s2=rk[1]||['',0];
+    th+='<tr><td class="u">'+esc(unitName(r.u))+'</td><td style="text-align:right">'+st.n+'</td><td style="text-align:right">'+fmt(t)+'</td>'+top.map(function(n){var v=st.sum[c.cands.indexOf(n)+1]||0;return '<td style="text-align:right;color:'+c.colors[n]+';font-weight:700">'+p1(v/t)+'</td>';}).join('')+
+      '<td style="color:'+c.colors[w[0]]+';font-weight:700">'+esc(lastName(w[0]))+'</td><td style="text-align:right">'+p1((w[1]-s2[1])/t)+'</td><td>'+Object.keys(st.won).sort(function(a,b){return st.won[b]-st.won[a];}).map(function(n){return (n==='Tie'?'Tied':esc(lastName(n)))+' '+st.won[n];}).join(', ')+'</td></tr>';});
+  tbl.innerHTML=th+'</tbody>';
+  grid.innerHTML=rows.map(function(r,i){var st=r.st,line='Not on the ballot here';if(st.sum){var t=counted(st.sum);line=ranked(st.sum).slice(0,3).filter(function(p){return p[1];}).map(function(p){return esc(lastName(p[0]))+' '+p1(p[1]/t);}).join(' · ')+'<br>'+st.n+' EDs · '+fmt(t)+' votes';}
+    return '<div class="cmp-card"><h4>'+esc(unitName(r.u))+'</h4><div class="s">'+line+'</div><div class="m" id="cmpMap'+i+'"></div></div>';}).join('');
+  rows.forEach(function(r,i){var m=newMap('cmpMap'+i);CMP.maps.push(m);drawUnitMap(m,{},r.f,null);if(!r.f.length)m.setView([40.7,-73.94],10);});
 }
 
 // ---- district history: how the board's districts changed, 2006 to today ----
