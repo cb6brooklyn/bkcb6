@@ -153,6 +153,8 @@ const flyerName = u => {
 // ---------- CB6 calendar events ----------
 const types = { ...oldBk.types };
 const out = [];
+// Calendar events tagged with other boards (cds) belong to those boards: BKCB's citywide file only, not CB6's.
+const elsewhere = [];
 for (const [d, list] of Object.entries(EVENTS)) {
   if (!inWindow(d)) continue;
   for (const e of list || []) {
@@ -168,7 +170,11 @@ for (const [d, list] of Object.entries(EVENTS)) {
     if (fl && packFile('civic/cal/flyers', fl)) row.f = fl;
     if (tm.ty === CB6.ty) row.cd = '306';
     row.org = tm.org;
-    out.push(row);
+    if (Array.isArray(e.cds) && e.cds.length && !e.cds.includes('306')) {
+      row.cd = String(e.cds[0]);
+      if (e.cds.length > 1) row.cds = e.cds.map(String);
+      elsewhere.push(row);
+    } else out.push(row);
     if (!types[tm.ty]) {
       const t = { name: tm.org };
       const icon = ORG_ICONS[e.type];
@@ -242,7 +248,7 @@ for (const e of oldCity.events || []) {
   if (bkBoardsHaveData && String(e.cd || '').startsWith('3')) continue;
   boards.push(e);
 }
-const city = [...bk, ...boards].sort(order);
+const city = [...bk, ...boards, ...elsewhere].sort(order);
 
 // ---------- write only when something changed ----------
 const write = (rel, obj) => {
