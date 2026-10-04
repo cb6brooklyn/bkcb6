@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Every NYC Election by Election District and Community Board &middot; bkcb6.app</title>
+<meta name="description" content="Every New York City primary, general and special election since 2014, plus the 2012 general, mapped by election district and rolled up by community board.">
+<link rel="canonical" href="https://bkcb6.app/electionhistory/">
+<meta property="og:site_name" content="CB6 &amp; Beyond"><meta property="og:type" content="website">
+<meta property="og:title" content="Every NYC Election by Election District and Community Board">
+<meta property="og:description" content="Every primary, general and special election since 2014, plus the 2012 general, by election district and community board.">
+<meta property="og:url" content="https://bkcb6.app/electionhistory/">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<style>
+:root{--navy:#0d1b4b;--orange:#f47920;--off:#f8f7f4;--border:#e5e2db;--muted:#6b6760}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--navy)}
+.wrap{max-width:1100px;margin:0 auto;background:#fff;min-height:100vh}
+header{background:var(--navy);color:#fff;padding:14px 16px 14px;border-bottom:4px solid var(--orange)}
+.crumb{font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.55)}
+.crumb a{color:rgba(255,255,255,.78);text-decoration:none}
+h1{font-size:1.55rem;font-weight:900;letter-spacing:-.02em;margin-top:5px;line-height:1.12}
+h1 span{color:var(--orange)}
+.find{display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid var(--border);background:#faf9f6}
+.find input{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:.88rem;background:#fff}
+.find button{padding:9px 14px;border:0;border-radius:8px;background:var(--orange);color:#fff;font:inherit;font-weight:700;font-size:.85rem;cursor:pointer}
+.legend{padding:8px 12px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;min-height:38px}
+.legend .ttl{font-weight:900;font-size:.9rem;width:100%;line-height:1.25}
+.legend .ttl small{font-family:'DM Mono',monospace;font-weight:400;font-size:.66rem;color:var(--muted);display:block;margin-top:2px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:.76rem;color:#333;border:1px solid var(--border);border-radius:20px;padding:3px 9px 3px 6px;background:#fff;cursor:pointer;font-family:inherit}
+.chip i{width:12px;height:12px;border-radius:3px;display:inline-block;flex:none}
+.chip.on{border-color:var(--navy);box-shadow:inset 0 0 0 1px var(--navy);font-weight:700}
+.ramp{display:inline-flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:.64rem;color:var(--muted)}
+.ramp b{display:inline-block;width:110px;height:10px;border-radius:3px}
+#map{height:62vh;min-height:380px;width:100%;background:#eceff3}
+.controls{padding:12px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.controls label{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);display:block;margin-bottom:4px}
+.controls select,.controls input{width:100%;padding:8px 9px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:.85rem;background:#fff;color:var(--navy)}
+.seg{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.seg button{flex:1;padding:8px 6px;border:0;background:#fff;font:inherit;font-size:.8rem;color:var(--navy);cursor:pointer}
+.seg button.on{background:var(--navy);color:#fff;font-weight:700}
+.full{grid-column:1/-1}
+.sec{padding:14px 12px 6px}
+.sec h2{font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.11em;color:var(--muted);font-weight:500;margin-bottom:6px}
+.note{font-size:.8rem;color:#555;line-height:1.55;max-width:75ch}
+.note.warn{color:#8e2b20}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:500;text-align:left;padding:6px 6px;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap}
+td{padding:6px 6px;border-bottom:1px solid #f0ede7;vertical-align:middle}
+td.n{font-family:'DM Mono',monospace;text-align:right;white-space:nowrap}
+th.n{text-align:right}
+.bar{height:8px;border-radius:2px;background:#eee;position:relative;min-width:60px}
+.bar span{position:absolute;left:0;top:0;bottom:0;border-radius:2px}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+tr.cdrow{cursor:pointer}
+tr.cdrow:hover td{background:#faf9f6}
+tr.sel td{background:#fff4ea}
+.cbpick{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.cbpick select{padding:7px 9px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:.85rem}
+.pop h4{font-size:.9rem;margin-bottom:3px;color:var(--navy)}
+.pop .s{font-family:'DM Mono',monospace;font-size:.62rem;color:#666;margin-bottom:6px}
+.pop table{font-size:.76rem}
+.pop td{padding:3px 4px}
+.cb6lbl{background:none;border:0}
+.foot{padding:16px 12px 30px;font-family:'DM Mono',monospace;font-size:.66rem;color:var(--muted);line-height:1.7;border-top:1px solid var(--border)}
+.foot a{color:var(--navy)}
+.loading{font-family:'DM Mono',monospace;font-size:.7rem;color:var(--muted)}
+@media(max-width:640px){.controls{grid-template-columns:1fr}h1{font-size:1.25rem}#map{height:55vh}}
+</style>
+</head>
+<body><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a>
+<div class="wrap">
+<header>
+  <div class="crumb"><a href="/">CB6 &amp; Beyond</a> &middot; <a href="/elections/">Elections</a></div>
+  <h1>Every NYC election, <span>by election district and community board</span></h1>
+</header>
+
+<div class="find">
+  <input id="addr" type="search" placeholder="Search an address to find its election district" autocomplete="off">
+  <button id="go">Find</button>
+</div>
+<div class="legend" id="legend"><span class="loading">Loading elections&hellip;</span></div>
+<div id="map"></div>
+
+<div class="controls">
+  <div><label for="selE">Election</label><select id="selE"></select></div>
+  <div><label for="selC">Contest</label><select id="selC"></select></div>
+  <div><label for="q">Find a contest in this election</label><input id="q" type="search" placeholder="Mayor, Council District 39, Question 1&hellip;"></div>
+  <div><label>Map by</label><div class="seg" id="seg"><button data-v="ed" class="on">Election district</button><button data-v="cd">Community board</button></div></div>
+</div>
+
+<div class="sec" id="totSec"><h2 id="totH">Results</h2><div id="tot"></div></div>
+<div class="sec" id="cbSec"><h2>By community board</h2>
+  <div class="cbpick"><select id="selCB"><option value="">Pick a community board</option></select><span class="note" id="cbHint">Tap a row or a board on the map to see its totals.</span></div>
+  <div id="cbOne"></div>
+  <div id="cbTable"></div>
+</div>
+<div class="sec"><h2>What&rsquo;s here</h2>
+  <p class="note" id="coverage"></p>
+</div>
+<div class="foot" id="foot"></div>
+</div>
+
+<script>
+(function(){
+var NAVY='#0d1b4b',ORANGE='#f47920';
+var PAL=[NAVY,ORANGE,'#5a9e6f','#8e2b20','#7b6cd0','#b8860b','#2e7d8f','#c2508f','#6d8b2f','#a0522d','#4b6cb7','#b8b2a4'];
+var NONCAND={'Write-in':1,'Undervote':1,'Overvote':1};
+var BORO={'1':'MN','2':'BX','3':'BK','4':'QN','5':'SI'};
+var BORON={'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
+function cdName(c){c=String(c);var n=+c.slice(1);return n<50?BORO[c[0]]+'CB'+n:BORON[c[0]]+' park/airport area '+n;}
+function esc(s){return String(s).replace(/[&<>"]/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];});}
+function fmt(n){return (n||0).toLocaleString('en-US');}
+function pct(a,b){return b?(100*a/b).toFixed(1)+'%':'';}
+function niceDate(d){var p=d.split('-');var M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return M[+p[1]-1]+' '+(+p[2])+', '+p[0];}
+
+var map=L.map('map',{preferCanvas:true,zoomSnap:.25}).setView([40.7,-73.94],10.5);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
+map.createPane('lbl');map.getPane('lbl').style.zIndex=450;map.getPane('lbl').style.pointerEvents='none';
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{maxZoom:19,pane:'lbl'}).addTo(map);
+map.createPane('cdl');map.getPane('cdl').style.zIndex=440;map.getPane('cdl').style.pointerEvents='none';
+
+var S={cat:null,idx:null,c:null,view:'ed',focus:null,cb:'',geo:{},ed2cd:{},cdGeo:null,edLayer:null,cdLayer:null,cdLines:null,pin:null};
+var params=new URLSearchParams(location.search);
+
+function j(u){return fetch(u).then(function(r){if(!r.ok)throw new Error(u+' '+r.status);return r.json();});}
+var BASE='/data/edhistory/';
+
+Promise.all([j(BASE+'catalog.json'),j('/data/cd-boundaries-lite.geojson')]).then(function(r){
+  S.cat=r[0];S.cdGeo=r[1];
+  S.cdLines=L.geoJSON(S.cdGeo,{pane:'cdl',interactive:false,style:function(f){var c=f.properties.c;return c==='306'?{color:ORANGE,weight:2.6,fill:false}:{color:NAVY,weight:.8,opacity:.55,fill:false};}}).addTo(map);
+  var cb6=S.cdGeo.features.filter(function(f){return f.properties.c==='306';})[0];
+  if(cb6){var ctr=L.geoJSON(cb6).getBounds().getCenter();var cbm=L.marker(ctr,{icon:L.icon({iconUrl:'/cb6-logo-square.png',iconSize:[34,34]}),interactive:false,pane:'lbl'});
+    map.on('zoomend',function(){if(map.getZoom()>=12)cbm.addTo(map);else cbm.remove();});}
+  var sel=document.getElementById('selCB');
+  S.cdGeo.features.map(function(f){return f.properties.c;}).filter(function(c){return +c.slice(1)<50;}).sort().forEach(function(c){var o=document.createElement('option');o.value=c;o.textContent=cdName(c);sel.appendChild(o);});
+  buildElectionSelect();
+  var e=params.get('e')||S.cat.elections[S.cat.elections.length-1].id;
+  loadElection(e,params.get('c'));
+  coverage();
+}).catch(function(err){document.getElementById('legend').innerHTML='<span class="note warn">Could not load: '+esc(err.message)+'</span>';});
+
+function buildElectionSelect(){
+  var s=document.getElementById('selE');s.innerHTML='';
+  var byYear={};S.cat.elections.forEach(function(e){(byYear[e.date.slice(0,4)]=byYear[e.date.slice(0,4)]||[]).push(e);});
+  Object.keys(byYear).sort().reverse().forEach(function(y){
+    var g=document.createElement('optgroup');g.label=y;
+    byYear[y].slice().reverse().forEach(function(e){var o=document.createElement('option');o.value=e.id;o.textContent=niceDate(e.date)+' · '+e.label+' ('+e.contests+')';g.appendChild(o);});
+    s.appendChild(g);
+  });
+  s.onchange=function(){loadElection(s.value,null);};
+}
+
+function loadElection(eid,cid){
+  document.getElementById('selE').value=eid;
+  j(BASE+'e/'+eid+'/index.json').then(function(ix){
+    S.idx=ix;
+    return Promise.all([loadGeo(ix),loadEd2cd(ix)]).then(function(){
+      fillContests('');
+      var first=cid!=null&&ix.contests.some(function(c){return String(c.id)===String(cid);})?cid:ix.contests[0].id;
+      document.getElementById('selC').value=String(first);
+      loadContest(first);
+    });
+  });
+}
+function loadGeo(ix){
+  if(S.geo[ix.release])return Promise.resolve();
+  return j(BASE+ix.geo).then(function(t){var k=Object.keys(t.objects)[0];S.geo[ix.release]=topojson.feature(t,t.objects[k]);});
+}
+function loadEd2cd(ix){
+  if(S.ed2cd[ix.release])return Promise.resolve();
+  return j(BASE+ix.ed2cd).then(function(m){S.ed2cd[ix.release]=m;});
+}
+function fillContests(q){
+  var s=document.getElementById('selC');var cur=s.value;s.innerHTML='';
+  q=(q||'').toLowerCase();
+  var groups=[['Top of the ticket',function(r){return r<10;}],['Congress and state legislature',function(r){return r>=14&&r<17;}],['City Council',function(r){return r===17;}],['Ballot questions',function(r){return r===40;}],['Judges',function(r){return r===50;}],['Other offices',function(r){return r===60||(r>=10&&r<14);}],['Party positions',function(r){return r===70;}]];
+  var n=0;
+  groups.forEach(function(g){
+    var og=document.createElement('optgroup');og.label=g[0];
+    S.idx.contests.forEach(function(c){
+      if(!g[1](c.rank))return;
+      var label=c.title+(c.party?' · '+c.party:'')+(c.rcv?' · first choices':'');
+      if(q&&label.toLowerCase().indexOf(q)<0)return;
+      var o=document.createElement('option');o.value=c.id;o.textContent=label;og.appendChild(o);n++;
+    });
+    if(og.children.length)s.appendChild(og);
+  });
+  if(!n){var o=document.createElement('option');o.textContent='No contest matches';o.disabled=true;s.appendChild(o);}
+  if(cur&&[].some.call(s.options,function(o){return o.value===cur;}))s.value=cur;
+}
+document.getElementById('q').addEventListener('input',function(){fillContests(this.value);var s=document.getElementById('selC');if(s.value&&s.value!==String(S.c&&S.c.id))loadContest(s.value);});
+document.getElementById('selC').onchange=function(){loadContest(this.value);};
+[].forEach.call(document.querySelectorAll('#seg button'),function(b){b.onclick=function(){[].forEach.call(document.querySelectorAll('#seg button'),function(x){x.classList.toggle('on',x===b);});S.view=b.dataset.v;draw();};});
+document.getElementById('selCB').onchange=function(){pickCB(this.value,true);};
+
+function loadContest(cid){
+  j(BASE+'e/'+S.idx.id+'/'+cid+'.json').then(function(c){
+    S.c=c;S.focus=null;
+    c.colors={};var k=0;c.cands.forEach(function(n){var i=k;c.colors[n]=NONCAND[n]?'#b8b2a4':(i<PAL.length-1?PAL[i]:'hsl('+((i*67)%360)+',42%,'+(i%2?38:52)+'%)');if(!NONCAND[n])k++;});
+    var u=new URL(location.href);u.searchParams.set('e',S.idx.id);u.searchParams.set('c',cid);if(S.cb)u.searchParams.set('cb',S.cb);history.replaceState(null,'',u);
+    draw(true);renderTotals();renderCBTable();
+    var pcb=params.get('cb');if(pcb&&!S.cb){pickCB(pcb,false);}else if(S.cb)pickCB(S.cb,false);
+  });
+}
+
+// vector helpers: v[0]=ballots, v[1..]=votes in cands order
+function counted(v){var t=0;for(var i=1;i<v.length;i++){var n=S.c.cands[i-1];if(n!=='Undervote'&&n!=='Overvote')t+=v[i]||0;}return t;}
+function leader(v){var best=-1,bv=-1,second=-1;for(var i=1;i<v.length;i++){var n=S.c.cands[i-1];if(NONCAND[n])continue;var x=v[i]||0;if(x>bv){second=bv;bv=x;best=i-1;}else if(x>second)second=x;}return {i:best,v:bv,second:Math.max(second,0)};}
+function rowFor(ed){var c=S.c;if(c.eds[ed])return c.eds[ed];if(c.combined&&c.combined[ed]&&c.eds[c.combined[ed]])return c.eds[c.combined[ed]];return null;}
+
+function styleFor(v){
+  if(!v)return {stroke:true,color:'#fff',weight:.3,fillColor:'#dcd8cf',fillOpacity:.25};
+  var tot=counted(v);if(!tot)return {stroke:true,color:'#fff',weight:.3,fillColor:'#dcd8cf',fillOpacity:.45};
+  if(S.focus!=null){var i=S.c.cands.indexOf(S.focus);var sh=(v[i+1]||0)/tot;return {stroke:true,color:'#fff',weight:.3,fillColor:S.c.colors[S.focus],fillOpacity:Math.max(.04,Math.min(.92,sh*1.05))};}
+  var L1=leader(v);if(L1.v<=0)return {stroke:true,color:'#fff',weight:.3,fillColor:'#dcd8cf',fillOpacity:.45};
+  var share=L1.v/tot;var tie=L1.v===L1.second;
+  return {stroke:true,color:'#fff',weight:.3,fillColor:tie?'#999':S.c.colors[S.c.cands[L1.i]],fillOpacity:.3+.62*Math.min(1,(share-.2)/.6)};
+}
+
+function draw(fit){
+  if(S.edLayer){map.removeLayer(S.edLayer);S.edLayer=null;}
+  if(S.cdLayer){map.removeLayer(S.cdLayer);S.cdLayer=null;}
+  var c=S.c;if(!c)return;
+  var fc=S.geo[S.idx.release];
+  if(S.view==='ed'){
+    var withData=[];
+    S.edLayer=L.geoJSON(fc,{style:function(f){var v=rowFor(f.properties.e);return styleFor(v);},
+      filter:function(f){return true;},
+      onEachFeature:function(f,l){var e=f.properties.e;if(rowFor(e))withData.push(l);l.on('click',function(ev){edPopup(e,ev.latlng);});}}).addTo(map);
+    if(fit&&withData.length){var b=L.featureGroup(withData).getBounds();if(b.isValid())map.fitBounds(b,{padding:[10,10],maxZoom:15});}
+  }else{
+    S.cdLayer=L.geoJSON(S.cdGeo,{style:function(f){var v=c.cd[f.properties.c];return styleFor(v);},
+      onEachFeature:function(f,l){l.on('click',function(ev){pickCB(f.properties.c,false);cdPopup(f.properties.c,ev.latlng);});}}).addTo(map);
+    if(fit){var ks=Object.keys(c.cd);var ls=[];S.cdLayer.eachLayer(function(l){if(ks.indexOf(l.feature.properties.c)>=0)ls.push(l);});if(ls.length)map.fitBounds(L.featureGroup(ls).getBounds(),{padding:[10,10]});}
+  }
+  renderLegend();
+}
+
+function resultTable(v,small){
+  var tot=counted(v),h='<table><tbody>';
+  var order=S.c.cands.map(function(n,i){return [n,v[i+1]||0];});
+  order.sort(function(a,b){var na=NONCAND[a[0]]?1:0,nb=NONCAND[b[0]]?1:0;return na-nb||b[1]-a[1];});
+  order.forEach(function(p){
+    if(small&&!p[1]&&NONCAND[p[0]])return;
+    var isU=p[0]==='Undervote'||p[0]==='Overvote';
+    h+='<tr><td><span class="sw" style="background:'+S.c.colors[p[0]]+'"></span>'+esc(p[0])+partyTag(p[0])+'</td><td class="n">'+fmt(p[1])+'</td><td class="n">'+(isU?'':pct(p[1],tot))+'</td>'+(small?'':'<td style="width:28%"><div class="bar"><span style="width:'+(isU||!tot?0:100*p[1]/tot)+'%;background:'+S.c.colors[p[0]]+'"></span></div></td>')+'</tr>';
+  });
+  h+='</tbody></table>';
+  var meta=[];if(v[0])meta.push(fmt(v[0])+' ballots cast');meta.push(fmt(tot)+' votes counted');
+  return h+'<p class="note" style="margin-top:6px">'+meta.join(' · ')+'</p>';
+}
+function partyTag(n){var i=S.c.cands.indexOf(n);var p=S.c.parties&&S.c.parties[i];return p&&p.length?' <span style="font-family:DM Mono,monospace;font-size:.62rem;color:#888">'+esc(p.join('/'))+'</span>':'';}
+
+function edPopup(e,ll){
+  var v=rowFor(e),cd=S.ed2cd[S.idx.release][e];
+  var ad=e.slice(0,-3),ed=e.slice(-3);
+  var h='<div class="pop"><h4>AD '+ad+' &middot; ED '+ed+'</h4><div class="s">'+(cd?cdName(cd):'')+(S.c.combined&&S.c.combined[e]?' &middot; counted with ED '+S.c.combined[e].slice(-3)+' (AD '+S.c.combined[e].slice(0,-3)+')':'')+'</div>';
+  h+=v?resultTable(v,true):'<p class="note">This contest was not on the ballot here.</p>';
+  L.popup({maxWidth:300}).setLatLng(ll).setContent(h+'</div>').openOn(map);
+}
+function cdPopup(cd,ll){
+  var v=S.c.cd[cd];
+  L.popup({maxWidth:300}).setLatLng(ll).setContent('<div class="pop"><h4>'+cdName(cd)+'</h4><div class="s">Sum of its election districts</div>'+(v?resultTable(v,true):'<p class="note">This contest was not on the ballot here.</p>')+'</div>').openOn(map);
+}
+
+function renderLegend(){
+  var c=S.c,ix=S.idx,ev=S.cat.elections.filter(function(e){return e.id===ix.id;})[0];
+  var h='<div class="ttl">'+esc(c.title)+(c.party?' &middot; '+esc(c.party)+' primary':'')+(c.rcv?' &middot; first choices':'')+'<small>'+niceDate(ix.date)+' '+esc(ev.label)+' &middot; ED map release '+esc(ix.release)+' &middot; '+(S.focus?'share for '+esc(S.focus)+'; tap again for leader':'color shows the leader, darker means a bigger share; tap a name to map its share')+'</small></div>';
+  var tv=leader(c.total);
+  c.cands.forEach(function(n){if(n==='Undervote'||n==='Overvote')return;h+='<button class="chip'+(S.focus===n?' on':'')+'" data-n="'+esc(n)+'"><i style="background:'+c.colors[n]+'"></i>'+esc(n)+'</button>';});
+  if(S.focus)h+='<span class="ramp"><span>0%</span><b style="background:linear-gradient(90deg,rgba(255,255,255,1),'+c.colors[S.focus]+')"></b><span>90%+</span></span>';
+  var lg=document.getElementById('legend');lg.innerHTML=h;
+  [].forEach.call(lg.querySelectorAll('.chip'),function(b){b.onclick=function(){var n=b.dataset.n;S.focus=S.focus===n?null:n;draw(false);};});
+}
+
+function renderTotals(){
+  var c=S.c,h='';
+  document.getElementById('totH').textContent=(c.title+(c.party?' · '+c.party:''))+' · all election districts';
+  if(c.note)h+='<p class="note warn" style="margin-bottom:8px">'+esc(c.note)+'</p>';
+  if(c.rcv)h+='<p class="note" style="margin-bottom:8px">Ranked choice contest. These are first choices on every ballot in the Board of Elections cast vote records, counted by election district; they are not the final round.</p>';
+  h+=resultTable(c.total,false);
+  var um=c.unmappedEDs||[];var umv=0;for(var i=1;i<um.length;i++)umv+=um[i]||0;
+  if(umv)h+='<p class="note" style="margin-top:4px">'+fmt(umv)+' of these votes were cast in election districts that are not in the boundary file used for this election, so they are in the totals above but not on the map or in any community board.</p>';
+  document.getElementById('tot').innerHTML=h;
+}
+
+function renderCBTable(sortKey){
+  var c=S.c,rows=Object.keys(c.cd).map(function(cd){var v=c.cd[cd];var t=counted(v),L1=leader(v);return {cd:cd,v:v,t:t,lead:L1.i>=0?c.cands[L1.i]:'',share:t?L1.v/t:0};});
+  sortKey=sortKey||S.cbSort||'cd';S.cbSort=sortKey;
+  rows.sort(function(a,b){return sortKey==='cd'?(a.cd<b.cd?-1:1):sortKey==='t'?b.t-a.t:sortKey==='lead'?(a.lead<b.lead?-1:a.lead>b.lead?1:b.share-a.share):b.share-a.share;});
+  var top=c.cands.filter(function(n){return !NONCAND[n];}).slice(0,4);
+  var h='<table><thead><tr><th data-k="cd">Board</th><th data-k="lead">Leader</th><th class="n" data-k="share">Share</th>'+top.map(function(n){return '<th class="n">'+esc(n.split(' ').slice(-1)[0])+'</th>';}).join('')+'<th class="n" data-k="t">Votes</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    h+='<tr class="cdrow'+(S.cb===r.cd?' sel':'')+'" data-cd="'+r.cd+'"><td>'+(r.cd==='306'?'<b>'+cdName(r.cd)+'</b>':cdName(r.cd))+'</td><td><span class="sw" style="background:'+(c.colors[r.lead]||'#ccc')+'"></span>'+esc(r.lead)+'</td><td class="n">'+(r.share*100).toFixed(1)+'%</td>'+top.map(function(n){return '<td class="n">'+pct(r.v[c.cands.indexOf(n)+1]||0,r.t)+'</td>';}).join('')+'<td class="n">'+fmt(r.t)+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  if(!rows.length)h='<p class="note">No election districts in this contest could be placed in a community board.</p>';
+  var el=document.getElementById('cbTable');el.innerHTML=h;
+  [].forEach.call(el.querySelectorAll('th[data-k]'),function(th){th.onclick=function(){renderCBTable(th.dataset.k);};});
+  [].forEach.call(el.querySelectorAll('tr.cdrow'),function(tr){tr.onclick=function(){pickCB(tr.dataset.cd,true);};});
+}
+
+function pickCB(cd,zoom){
+  S.cb=cd||'';document.getElementById('selCB').value=S.cb;
+  var u=new URL(location.href);if(S.cb)u.searchParams.set('cb',S.cb);else u.searchParams.delete('cb');history.replaceState(null,'',u);
+  var box=document.getElementById('cbOne');
+  if(!S.cb){box.innerHTML='';renderCBTable();return;}
+  var v=S.c&&S.c.cd[S.cb];
+  box.innerHTML='<h3 style="font-size:1rem;font-weight:900;margin:2px 0 6px">'+cdName(S.cb)+'</h3>'+(v?resultTable(v,false):'<p class="note">This contest was not on the ballot in '+cdName(S.cb)+'.</p>');
+  renderCBTable();
+  if(zoom){S.cdGeo.features.forEach(function(f){if(f.properties.c===S.cb)map.fitBounds(L.geoJSON(f).getBounds(),{padding:[10,10]});});document.getElementById('map').scrollIntoView({behavior:'smooth'});}
+}
+
+// address search
+function pip(pt,ring){var x=pt[0],y=pt[1],ins=false;for(var i=0,j=ring.length-1;i<ring.length;j=i++){var xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))ins=!ins;}return ins;}
+function inGeom(pt,g){var polys=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];for(var p=0;p<polys.length;p++){if(pip(pt,polys[p][0])){var hole=false;for(var h=1;h<polys[p].length;h++)if(pip(pt,polys[p][h]))hole=true;if(!hole)return true;}}return false;}
+function search(){
+  var q=document.getElementById('addr').value.trim();if(!q)return;
+  fetch('https://geosearch.planninglabs.nyc/v2/search?size=1&text='+encodeURIComponent(q)).then(function(r){return r.json();}).then(function(d){
+    if(!d.features||!d.features.length){document.getElementById('addr').value='';document.getElementById('addr').placeholder='Address not found, try again';return;}
+    var co=d.features[0].geometry.coordinates,ll=L.latLng(co[1],co[0]);
+    if(S.pin)map.removeLayer(S.pin);
+    S.pin=L.circleMarker(ll,{radius:7,color:'#fff',weight:3,fillColor:ORANGE,fillOpacity:1}).addTo(map);
+    map.setView(ll,15);
+    var fc=S.geo[S.idx.release],hit=null;
+    for(var i=0;i<fc.features.length;i++){if(inGeom(co,fc.features[i].geometry)){hit=fc.features[i].properties.e;break;}}
+    if(hit){edPopup(hit,ll);var cd=S.ed2cd[S.idx.release][hit];if(cd)pickCB(cd,false);}
+  });
+}
+document.getElementById('go').onclick=search;
+document.getElementById('addr').addEventListener('keydown',function(e){if(e.key==='Enter')search();});
+
+function coverage(){
+  var E=S.cat.elections,n=E.reduce(function(a,e){return a+e.contests;},0);
+  document.getElementById('coverage').innerHTML=
+    fmt(E.length)+' elections and '+fmt(n)+' contests: every primary, general and special election the city Board of Elections has published at the election district level, starting in 2014, plus the November 2012 general election (President, U.S. Senate, Congress, State Senate and Assembly). '+
+    'Before 2014 the Board of Elections publishes results only by Assembly district, so earlier elections cannot be mapped by election district. '+
+    'Ranked choice primaries (2021 on) show first choices counted from the Board of Elections cast vote records. '+
+    'Each election is drawn on the Department of City Planning election district release closest to it (named under the map title); community board totals add up each election district in the board it falls in.';
+  j(BASE+'audit.json').then(function(a){
+    var seen={},li=[];(a.boe_unreadable_files||[]).forEach(function(f){var m=f.file.replace(/^\d{11}/,'').replace(/ EDLevel\.csv$/,'');var k=f.election.slice(0,8)+m.replace(/^(Citywide|New York|Bronx|Kings|Queens|Richmond|Crossover) /,'');if(seen[k])return;seen[k]=1;li.push(f.election.slice(0,4)+'-'+f.election.slice(4,6)+'-'+f.election.slice(6,8)+': '+m);});
+    if(li.length)document.getElementById('coverage').innerHTML+='<br><br>Missing because the Board of Elections download links are broken ('+li.length+'): '+li.map(esc).join('; ')+'.';
+  });
+  document.getElementById('foot').innerHTML='<a href="/elections/">More elections pages</a>';
+}
+})();
+</script>
+</body></html>
