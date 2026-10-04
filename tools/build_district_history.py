@@ -7,7 +7,7 @@ Inputs
   nys csvs: NYS Board of Elections results exports (results.elections.ny.gov "Search Results CSV"), 2006 to 2026
   council csv: City Council Members 1999 to Present (NYC Open Data export)
 
-Usage: python3 tools/build_district_history.py <dist_dir> <council_members.csv> <Census TIGER 2020 tl_2020_36_tabblock20.zip>
+Usage: python3 tools/build_district_history.py <dist_dir> <council_members.csv> <Census TIGER 2020 tl_2020_36_tabblock20.zip> <shoreline-clipped DCP nyed zip, for drawing>
 Output: data/districthistory/
 """
 import csv, glob, hashlib, json, os, re, subprocess, sys, zipfile, collections, tempfile
@@ -87,14 +87,34 @@ def geo_signature(dists):
     return hashlib.md5(json.dumps(sorted((k, round(g.area / 1e5)) for k, g in dists.items())).encode()).hexdigest()[:10]
 
 
+LAND = None
+
+
+def land():
+    """Shoreline for drawing: union of a shoreline-clipped DCP election district release."""
+    global LAND
+    if LAND is None:
+        from shapely.ops import unary_union
+        z = zipfile.ZipFile(LAND_ZIP)
+        shp = [n for n in z.namelist() if n.lower().endswith('.shp')][0]
+        meta, fids, geoms, fields = pyogrio.raw.read(f'/vsizip/{LAND_ZIP}/{shp}')
+        LAND = unary_union([wkb.loads(bytes(g)).buffer(0) for g in geoms if g is not None]).buffer(1)
+    return LAND
+
+
 def write_topo(dists, name):
     tr = Transformer.from_crs('EPSG:2263', 'EPSG:4326', always_xy=True)
-    feats = [{'type': 'Feature', 'properties': {'d': k}, 'geometry': mapping(transform(tr.transform, g.simplify(20)))}
-             for k, g in sorted(dists.items())]
+    L_ = land()
+    feats = []
+    for k, g in sorted(dists.items()):
+        g = g.intersection(L_).buffer(-3).buffer(3)  # drawn on land only, slivers dropped; shares come from census blocks
+        if g.is_empty:
+            continue
+        feats.append({'type': 'Feature', 'properties': {'d': k}, 'geometry': mapping(transform(tr.transform, g.simplify(6)))})
     tmp = os.path.join(OUT, 'geo', f'_{name}.geojson')
     json.dump({'type': 'FeatureCollection', 'features': feats}, open(tmp, 'w'))
     dst = os.path.join(OUT, 'geo', f'{name}.topo.json')
-    subprocess.run(['mapshaper', '-i', tmp, '-simplify', '20%', 'keep-shapes', '-o', 'format=topojson',
+    subprocess.run(['mapshaper', '-i', tmp, '-simplify', '35%', 'keep-shapes', '-o', 'format=topojson',
                     'quantization=100000', dst], check=True, capture_output=True)
     os.remove(tmp)
     return f'geo/{name}.topo.json'
@@ -142,7 +162,9 @@ def council_members(path):
     return by
 
 
-def main(dist_dir, council_csv, block_zip):
+def main(dist_dir, council_csv, block_zip, land_zip):
+    global LAND_ZIP
+    LAND_ZIP = land_zip
     os.makedirs(os.path.join(OUT, 'geo'), exist_ok=True)
     global BX, BY, BPOP, BOARD
     BX, BY, BPOP, BOARD = load_blocks(block_zip)
@@ -220,4 +242,4 @@ def main(dist_dir, council_csv, block_zip):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2], sys.argv[3])
+    main(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
