@@ -41,6 +41,7 @@ def parse(path):
     event = date = county = party = title = vote_for = None
     out = []  # (event, date, county, party, title, voteFor, ad, unit, value)
     ad = None
+    group = ''
     i = 0
     while i < len(lines):
         ln = lines[i]
@@ -65,22 +66,26 @@ def parse(path):
             elif m3:
                 title, vote_for = m3.group(1).strip(), m3.group(2)
             ad = None
+            group = ''
             i = j + 1
             continue
-        a = re.match(r'^\s?(?:Assembly District|ASSEMBLY DISTRICT)\s+(\d+)\s*$', ln)
+        a = re.match(r'^\s{0,6}(?:Assembly District|ASSEMBLY DISTRICT)\s+(\d+)\s*$', ln)
         if a:
             ad = int(a.group(1))
             i += 1
             continue
-        if re.match(r'^\s?\S', ln) and not ln.startswith('  '):
-            # any other block header (county name in crossover files, page headers)
-            if not re.match(r'^\s?(?:Assembly District|ASSEMBLY DISTRICT)', ln):
-                if ln.strip() and not ln.strip().startswith(('BOARD OF ELECTIONS', 'PRINTED AS OF', 'IN THE CITY')):
-                    ad = None
+        g = re.match(r'^\s?(\d+)(?:st|nd|rd|th) (Congressional|Senatorial|Council|Judicial|Municipal Court) District\s*$', ln)
+        if g:
+            group = g.group(0).strip()  # results nested by another district (2008 presidential primary): AD parts summed
+            ad = None
+            i += 1
+            continue
         n = NUM.match(ln)
+        if ln.strip() and not n:
+            ad = None  # any other heading (county subtotal, 'Total for ...', page header) ends the AD block
         if n and ad is not None and title:
             unit = re.sub(r'\s+', ' ', n.group(1)).strip()
-            out.append((event, date, county, party, title, vote_for, ad, unit, int(n.group(2).replace(',', ''))))
+            out.append((event, date, (county or '') + ('|' + group if group else ''), party, title, vote_for, ad, unit, int(n.group(2).replace(',', ''))))
         i += 1
     return out
 
@@ -149,10 +154,11 @@ def main(txt_dir):
             ttl = norm_title(title, pty)
             C = data[eid][(pty, ttl)]
             C['party'], C['title'], C['vf'] = pty, ttl, vf
-            if county in COUNTIES:
+            cname = county.split('|')[0]
+            if cname in COUNTIES:
                 C['county'].setdefault(ad, [])
-                if COUNTIES[county] not in C['county'][ad]:
-                    C['county'][ad].append(COUNTIES[county])
+                if COUNTIES[cname] not in C['county'][ad]:
+                    C['county'][ad].append(COUNTIES[cname])
             # an Assembly district can cross a county line (AD 60 in 2002 to 2012), so each county's part is kept
             # separately and the parts are added together below
             cur = C['rows'][(county, ad)]
