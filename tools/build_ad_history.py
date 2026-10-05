@@ -24,6 +24,76 @@ COUNTIES = {'New York County': 'Manhattan', 'Bronx County': 'Bronx', 'Kings Coun
 NUM = re.compile(r'^\s{2,}(.+?)\s{2,}([\d,]+)\s*$')
 
 
+def is_ballot(u):
+    return u.upper() in BALLOT or u.startswith('__ballot')
+
+
+def is_skip(u):
+    return u.upper() in SKIP or u in ('__total', '__unrec')
+
+
+# 2000 to 2004: one PDF per election in the older wide-table format (tools/parse_old_recaps.py).
+# Dates are the election days (the PDFs print only certification dates); where no source gives the day
+# of a special election, only the year is used.
+OLD_FILES = {
+    '2000__presprimary__alldempp2000': ('2000-03-07', 'presidential-primary', 'Presidential Primary'),
+    '2000__presprimary__allreppp2000': ('2000-03-07', 'presidential-primary', 'Presidential Primary'),
+    '2000__presprimary__allgreenpp2000': ('2000-03-07', 'presidential-primary', 'Presidential Primary'),
+    '2000__generalelection__allg2000': ('2000-11-07', 'general', 'General Election'),
+    '2001__special__bxcon15': ('2001', 'special', 'Special Election'),
+    '2001__primaryelection__2001p': ('2001-09-25', 'primary', 'Primary Election'),
+    '2001__primaryelection__2001runoff': ('2001-10-11', 'runoff', 'Primary Runoff'),
+    '2001__generalelection__general2001': ('2001-11-06', 'general', 'General Election'),
+    '2002__special__s2002results20s': ('2002-02-12', 'special', 'Special Election'),
+    '2002__special__s2002results26s': ('2002-02-12', 'special', 'Special Election'),
+    '2002__special__s2002results56s': ('2002-02-12', 'special', 'Special Election'),
+    '2002__special__s2002results60s': ('2002-02-12', 'special', 'Special Election'),
+    '2002__special__queens_assembly_31st_dist': ('2002', 'special', 'Special Election'),
+    '2002__primaryelection__2002primaryrecapsall': ('2002-09-10', 'primary', 'Primary Election'),
+    '2002__general__g2002generalrecapsall': ('2002-11-05', 'general', 'General Election'),
+    '2003__special__s2003resultsbk43council': ('2003', 'special', 'Special Election'),
+    '2003__special__s2003resultsbx18council': ('2003', 'special', 'Special Election'),
+    '2003__special__s2003resultsbk55ad': ('2003', 'special', 'Special Election'),
+    '2003__special__s2003resultsbx79ad': ('2003', 'special', 'Special Election'),
+    '2003__primary__2003primaryrecapsall': ('2003-09-09', 'primary', 'Primary Election'),
+    '2003__general__g2003recaps': ('2003-11-04', 'general', 'General Election'),
+    '2004__presidentialprimary__pp2004': ('2004-03-02', 'presidential-primary', 'Presidential Primary'),
+    '2004__primary__p2004bronx': ('2004-09-14', 'primary', 'Primary Election'),
+    '2004__primary__p2004crossover': ('2004-09-14', 'primary', 'Primary Election'),
+    '2004__primary__p2004kings': ('2004-09-14', 'primary', 'Primary Election'),
+    '2004__primary__p2004newyork': ('2004-09-14', 'primary', 'Primary Election'),
+    '2004__primary__p2004queens': ('2004-09-14', 'primary', 'Primary Election'),
+    '2004__primary__p2004richmond': ('2004-09-14', 'primary', 'Primary Election'),
+    '2004__general__g2004recaps': ('2004-11-02', 'general', 'General Election'),
+    '2004__general__g2004aded': ('2004-11-02', 'general', 'General Election'),
+}
+
+
+def old_title(t):
+    parts = [p.strip() for p in t.split(' / ') if p.strip() and not set(p.strip()) <= set('_ ')]
+    parts = [re.sub(r'^_+\s*', '', p).strip() for p in parts]
+    head = parts[0] if parts else t
+    rest = ' '.join(parts[1:])
+    H = head.upper()
+    fixed = {'MAYOR': 'Mayor', 'PUBLIC ADVOCATE': 'Public Advocate', 'COMPTROLLER': 'Comptroller',
+             'PRESIDENT AND VICE PRESIDENT': 'President/Vice President', 'GOVERNOR AND LIEUTENANT GOVERNOR': 'Governor/Lieutenant Governor',
+             'UNITED STATE SENATOR': 'United States Senator', 'UNITED STATES SENATOR': 'United States Senator',
+             'STATE COMPTROLLER': 'State Comptroller', 'ATTORNEY GENERAL': 'Attorney General'}
+    if H in fixed and re.search(r'CITY OF NEW YORK|UNITED STATES|STATE OF NEW YORK|^$', rest.upper()):
+        return fixed[H]
+    m = re.search(r'(\d+)(ST|ND|RD|TH) (COUNCILMANIC|ASSEMBLY|SENATORIAL|CONGRESSIONAL) DISTRICT', rest.upper())
+    if m:
+        kind = {'COUNCILMANIC': 'Council', 'ASSEMBLY': 'Assembly', 'SENATORIAL': 'Senate', 'CONGRESSIONAL': 'Congressional'}[m.group(3)]
+        office = {'MEMBER OF THE CITY COUNCIL': 'Member of the City Council', 'MEMBER OF THE STATE ASSEMBLY': 'Member of the Assembly',
+                  'MEMBER OF ASSEMBLY': 'Member of the Assembly', 'STATE SENATOR': 'State Senator',
+                  'REPRESENTATIVE IN CONGRESS': 'Representative in Congress'}.get(H, title_case(head))
+        return f'{office} ({m.group(1)}{m.group(2).lower()} {kind} District)'
+    if H == 'BOROUGH PRESIDENT':
+        b = re.sub(r'^BOROUGH OF ', '', rest.upper()).strip()
+        return 'Borough President (' + title_case(b) + ')'
+    return title_case(head) + (' (' + title_case(rest) + ')' if rest else '')
+
+
 def title_case(n):
     def fix(w):
         if re.fullmatch(r'[IVX]+', w) and len(w) <= 4:
@@ -124,7 +194,7 @@ def norm_title(title, party):
     return t.strip()
 
 
-def main(txt_dir):
+def main(txt_dir, old_dir=None):
     existing = json.load(open(os.path.join(OUT, 'catalog.json')))
     have = {e['id'] for e in existing['elections'] if e.get('level') != 'ad'}
     overlap = json.load(open(os.path.join(ROOT, 'data', 'districthistory', 'overlap.json')))
@@ -166,7 +236,80 @@ def main(txt_dir):
                 C['conf'] += 1
                 continue
             cur[unit] = v
-    catalog_add, audit = [], {'unparsed_files': unparsed, 'elections': {}}
+    # older format (2000 to 2004), keeping only contests whose every Assembly or election district row adds up
+    # to the printed total for that row
+    from parse_old_recaps import parse as parse_old, county_totals
+    excluded = []
+    pieces = collections.defaultdict(lambda: collections.defaultdict(lambda: {'rows': collections.defaultdict(collections.Counter), 'ok': True}))
+    for stem, (date, t, label) in OLD_FILES.items():
+        path = os.path.join(old_dir, stem + '.txt') if old_dir else None
+        if not path or not os.path.exists(path):
+            continue
+        eid = f'{date}-{t}' if len(date) == 10 else f'{date}-special-' + stem.split('__')[-1]
+        meta_old = (date, t, label)
+        unit_tot = collections.defaultdict(collections.Counter)
+        for (year, kind, title, party, county, ad, unit, v, pid, ed) in parse_old(path):
+            key = (eid, norm_party(party.title() + ' Party') if party else '', old_title(title))
+            P = pieces[key][(stem, county)]
+            P['rows'][ad][unit] += v
+            ut = unit_tot[(key, county, ad, ed)]
+            if unit == '__total':
+                ut['T'] += v
+            elif unit == '__unrec':
+                ut['U'] += v
+            elif not unit.startswith('__'):
+                ut['C'] += v
+            meta[eid] = meta_old
+        for (key, county, ad, ed), x in unit_tot.items():
+            if 'T' not in x or x['T'] not in (x['C'] + x['U'], x['C']):
+                pieces[key][(stem, county)]['ok'] = False
+        # and each county's Assembly district rows must add up to that county's line on the recap page
+        printed = county_totals(path)
+        raw_key = {}
+        for (year, kind, title, party, county, ad, unit, v, pid, ed) in parse_old(path):
+            key = (eid, norm_party(party.title() + ' Party') if party else '', old_title(title))
+            raw_key[(key, county)] = (title, party, county)
+        for (key, county), rk in raw_key.items():
+            P = pieces[key][(stem, county)]
+            got = sum(u.get('__total', 0) for u in P['rows'].values())
+            if rk in printed and printed[rk] != got:
+                P['ok'] = False
+            P['checked'] = rk in printed
+    for key, srcs in pieces.items():
+        eid, pty, ttl = key
+        if eid in have:
+            continue
+        by_county = collections.defaultdict(list)
+        for (stem, county), P in srcs.items():
+            by_county[county].append((stem, P))
+        chosen, bad = [], []
+        for county, lst in by_county.items():
+            good = [P for stem, P in lst if P['ok']]
+            if good:
+                chosen.append((county, good[0]))
+            else:
+                bad.append(county)
+        if bad or not chosen:
+            excluded.append({'election': eid, 'party': pty, 'title': ttl})
+            continue
+        C = data[eid][(pty, ttl)]
+        C['party'], C['title'] = pty, ttl
+        for county, P in chosen:
+            for ad, units in P['rows'].items():
+                if county in COUNTIES:
+                    C['county'].setdefault(ad, [])
+                    if COUNTIES[county] not in C['county'][ad]:
+                        C['county'][ad].append(COUNTIES[county])
+                cur = C['rows'][(county, ad)]
+                for u, v in units.items():
+                    # the older recaps' ballot columns run together under shared headings, so the printed
+                    # "total vote this office" (votes cast plus unrecorded) stands for ballots
+                    if u.startswith('__ballot'):
+                        continue
+                    if u == '__total':
+                        u = '__ballot:total'
+                    cur[u] = cur.get(u, 0) + v
+    catalog_add, audit = [], {'unparsed_files': unparsed, 'elections': {}, 'excluded_old_contests': excluded}
     for eid in sorted(data, key=lambda e: meta[e][0]):
         date, t, label = meta[eid]
         geo, release = ad_geo(int(date[:4]))
@@ -186,7 +329,7 @@ def main(txt_dir):
                     merged[ad][u] += v
             for ad, units in merged.items():
                 for u, v in units.items():
-                    if u.upper() in BALLOT or u.upper() in SKIP:
+                    if is_ballot(u) or is_skip(u):
                         continue
                     m = re.match(r'^(.*?)\s*\(([^()]*)\)\s*$', u)
                     nm, p = (m.group(1), m.group(2)) if m else (u, '')
@@ -202,9 +345,9 @@ def main(txt_dir):
             allb = 0
             for ad, units in merged.items():
                 vec = [0] * (len(cands) + 1)
-                vec[0] = sum(v for u, v in units.items() if u.upper() in BALLOT)
+                vec[0] = sum(v for u, v in units.items() if is_ballot(u))
                 for u, v in units.items():
-                    if u.upper() in BALLOT or u.upper() in SKIP:
+                    if is_ballot(u) or is_skip(u):
                         continue
                     m = re.match(r'^(.*?)\s*\(([^()]*)\)\s*$', u)
                     nm, p = (m.group(1), m.group(2)) if m else (u, '')
@@ -244,4 +387,4 @@ def main(txt_dir):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1])
+    main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)
