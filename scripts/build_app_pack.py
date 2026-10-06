@@ -64,6 +64,40 @@ def rents():
         src = os.path.join(ROOT, 'data', f)
         if os.path.exists(src): open(os.path.join(rd, f), 'wb').write(open(src, 'rb').read()); n += 1
     print('rents', n, 'files')
+    # The three files the Renting in CB6 screen reads, same names and shapes as the copies built into the app.
+    # rent-trends.json: CB6 vs Brooklyn vs NYC, straight from the site.
+    open(os.path.join(OUT, 'rent-trends.json'), 'wb').write(open(os.path.join(ROOT, 'data/cb6-rent-trends.json'), 'rb').read())
+    # rents.geojson: the six CB6 neighborhood outlines the app ships, with this month's figures from the site's neighborhood rent map.
+    gp = os.path.join(OUT, 'rents.geojson'); g = json.load(open(gp))
+    site = {f['properties'].get('nb'): f['properties'] for f in json.load(open(os.path.join(ROOT, 'data/neighborhood-rents.geojson')))['features']
+            if f['properties'].get('cd') == 'BKCB6'}
+    for f in g['features']:
+        nb = f['properties']['nb']
+        if nb not in site: raise Exception('no site rent figures for ' + nb)
+        f['properties'] = site[nb]
+    json.dump(g, open(gp, 'w'), separators=(',', ':'))
+    # rent-history.json: every month for every CB6 neighborhood, CB6, Brooklyn and NYC, by unit size, from the site's rent explorer.
+    ex = json.load(open(os.path.join(ROOT, 'data/rent-explorer.json'))); months = ex['months']; A = {a['id']: a for a in ex['areas']}
+    ib = json.load(open(os.path.join(ROOT, 'data/inventory-by-bed.json')))
+    def full(s):
+        if not s: return [None] * len(months)
+        st, v = s; out = [None] * st + list(v); return (out + [None] * len(months))[:len(months)]
+    alias = {'Columbia Street Waterfront District': 'Columbia St Waterfront District'}
+    beds = ['studio', 'br1', 'br2', 'br3']
+    hoods = {}
+    for f in g['features']:
+        nb = f['properties']['nb']; se = alias.get(nb, nb); a = A.get('n:' + se)
+        if not a: raise Exception('no rent history for ' + nb)
+        d = {k: full(a['s'].get(k)) for k in beds}
+        d['rent'] = full(a['s'].get('all')); d['inv'] = full(a['s'].get('inv'))
+        for k in beds: d['inv_' + k] = full(ib['nb'].get(se, {}).get(k))
+        hoods[nb] = d
+    def area(i): a = A[i]; return {k: full(a['s'].get(k)) for k in beds + ['all']}
+    hist = {'months': months, 'beds': [['studio', 'Studio'], ['br1', '1 BR'], ['br2', '2 BR'], ['br3', '3+ BR'], ['all', 'Overall']],
+            'neighborhoods': hoods, 'cb6': area('c:BKCB6'),
+            'compare': {'Brooklyn': {'rent': area('b:Brooklyn')}, 'NYC': {'rent': area('x:NYC')}}, 'last': ex['meta'].get('last')}
+    json.dump(hist, open(os.path.join(OUT, 'rent-history.json'), 'w'), separators=(',', ':'))
+    print('rent screen files', len(hoods), 'neighborhoods,', len(months), 'months, last', ex['meta'].get('last'))
 
 def js_object(txt):
     """A JS object/array literal with bare keys and either quote style, as JSON (walked character by character)."""
