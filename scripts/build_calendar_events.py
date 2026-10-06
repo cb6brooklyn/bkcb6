@@ -84,6 +84,21 @@ OVERRIDES = [
 ]
 
 
+# ADDITIONS — events added by hand. Multi-day events get one entry per day so
+# they show on every day they run. If a feed later carries the same date and
+# title, the duplicate merge below collapses the two into one entry.
+_POWER_BROKER = {
+    "type": "community",
+    "label": "A Marathon Reading of The Power Broker",
+    "time": "All day",
+    "location": "Judgy Baby, 170 2nd Avenue, Gowanus, Brooklyn",
+    "desc": "A marathon reading of Robert A. Caro\u2019s The Power Broker, November 12-15, 2026. Volunteer readers take 10-minute slots across the full 1,100+ page book.",
+    "href": "https://brooklyncb6.cityofnewyork.us/event/a-marathon-reading-of-the-power-broker/",
+    "linkText": "Full details \u2197",
+}
+ADDITIONS = [dict(_POWER_BROKER, date=d) for d in ("2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15")]
+
+
 def apply_manual_layer(events):
     kept = []
     for ev in events:
@@ -355,6 +370,7 @@ def main():
         if carried:
             print(f"  Carried over {carried} events from the previous run for: {', '.join(sorted(set(failed_types)))}")
 
+    all_events.extend(dict(a) for a in ADDITIONS)
     all_events = apply_manual_layer(all_events)
 
     # The same meeting can arrive from more than one feed (a venue feed and the
