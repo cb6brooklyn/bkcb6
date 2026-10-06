@@ -88,7 +88,7 @@ OVERRIDES = [
 # they show on every day they run. If a feed later carries the same date and
 # title, the duplicate merge below collapses the two into one entry.
 _POWER_BROKER = {
-    "type": "community",
+    "type": "judgybaby",
     "label": "A Marathon Reading of The Power Broker",
     "time": "All day",
     "location": "Judgy Baby, 170 2nd Avenue, Gowanus, Brooklyn",
