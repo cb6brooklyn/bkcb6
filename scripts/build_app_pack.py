@@ -57,6 +57,14 @@ def liquor():
     if os.path.exists(src):
         open(os.path.join(OUT, 'liquor_cb6.json'), 'wb').write(open(src, 'rb').read()); print('liquor_cb6 copied')
 
+def rents():
+    # Rent history (every month since Jan 2010, every unit size, every neighborhood, board and borough) and the rent maps, copied from the site's rent files.
+    rd = os.path.join(OUT, 'rents'); os.makedirs(rd, exist_ok=True); n = 0
+    for f in ['rent-explorer.json', 'neighborhood-rents.geojson', 'borough-rents.geojson', 'cc-rents.json', 'bk-rents.geojson', 'rental-index.json', 'built-vs-rent.json']:
+        src = os.path.join(ROOT, 'data', f)
+        if os.path.exists(src): open(os.path.join(rd, f), 'wb').write(open(src, 'rb').read()); n += 1
+    print('rents', n, 'files')
+
 def js_object(txt):
     """A JS object/array literal with bare keys and either quote style, as JSON (walked character by character)."""
     out, i, n = [], 0, len(txt)
@@ -149,11 +157,11 @@ def manifest():
     open(mp, 'w').write(txt); print('manifest', len(m['files']), 'files')
 
 if __name__ == '__main__':
-    only = sys.argv[1:] or ['lpc', 'liquor', 'applicants', 'minutes']
+    only = sys.argv[1:] or ['lpc', 'liquor', 'applicants', 'minutes', 'rents']
     failed = []
     for k in only:
         # One source being down keeps its last good file; the rest still publish.
-        try: {'lpc': lpc_permits, 'liquor': liquor, 'applicants': applicants, 'minutes': minutes}[k]()
+        try: {'lpc': lpc_permits, 'liquor': liquor, 'applicants': applicants, 'minutes': minutes, 'rents': rents}[k]()
         except Exception as e: failed.append(k); print('FAILED', k, e)
     manifest()
     if failed: print('kept the previous file for', ', '.join(failed))
