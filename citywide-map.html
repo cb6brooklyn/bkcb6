@@ -1110,7 +1110,7 @@ function removeOverlayLayer(name){
 
 function refreshDistrictFilteredOverlays(){
   var builders = {
-    nypd:buildNYPD, fire:buildFire, busroutes:buildBusRoutes, busstops:buildBusStops, speedlimits:buildSpeedLimits, landuse:buildLandUseLots, zoning:buildZoning, parks:buildParks,
+    nypd:buildNYPD, fire:buildFire, busroutes:buildBusRoutes, busstops:buildBusStops, speedlimits:function(){loadSpeedLimitsForSelection();}, landuse:buildLandUseLots, zoning:buildZoning, parks:buildParks,
     schools:buildSchools, childcare:buildChildcare, schooldistricts:function(){ buildSchoolDistrictsCombined(); },
     gowanus:buildGowanus, historic:buildHistoric, rents:buildRents
   };
@@ -1361,13 +1361,38 @@ function buildCitibikeCombined(){
 
 function speedLimitColor(speed){
   speed = String(speed||'').replace(/[^0-9]/g,'');
-  var colors = {'15':'#dc2626','20':'#2ecc71','25':'#3498db','30':'#f1c40f','40':'#e67e22','45':'#e74c3c','50':'#8e44ad'};
-  return colors[speed] || '#111827';
+  var colors = {'10':'#166534','15':'#dc2626','20':'#2ecc71','25':'#3498db','30':'#f1c40f','35':'#f97316','40':'#e67e22','45':'#e74c3c','50':'#8e44ad','0':'#9ca3af'};
+  return colors[speed] || '#9ca3af';
 }
 function speedLimitLabel(p){
-  var label = p.speed_limit_label || p.speed_limit || 'Speed limit';
-  if(String(label).toLowerCase().indexOf('mph') === -1 && /[0-9]/.test(String(label))) label = label + ' MPH';
-  return label;
+  return p.sl ? p.sl + ' MPH' : 'No posted limit in DOT data';
+}
+var _speedIdx = null, _speedCache = {};
+function _speedBBox(geom){
+  var b=[180,90,-180,-90];
+  (function walk(c){ if(typeof c[0]==='number'){ if(c[0]<b[0])b[0]=c[0]; if(c[1]<b[1])b[1]=c[1]; if(c[0]>b[2])b[2]=c[0]; if(c[1]>b[3])b[3]=c[1]; } else c.forEach(walk); })(geom.coordinates||[]);
+  return b;
+}
+function loadSpeedLimitsForSelection(){
+  var sel = window._selectedCBFeature;
+  if(!sel || !sel.geometry || !(sel.geometry.coordinates||[]).length){ setTimeout(loadSpeedLimitsForSelection, 400); return; }
+  var sb = _speedBBox(sel.geometry);
+  (_speedIdx ? Promise.resolve(_speedIdx) : fetch('/data/speed-limits/index.json').then(function(r){return r.json();}).then(function(d){_speedIdx=d;return d;})).then(function(ix){
+    var cds = Object.keys(ix.groups||{}).filter(function(cd){
+      var b = ix.groups[cd].bbox; return b && b[0]<=sb[2] && b[2]>=sb[0] && b[1]<=sb[3] && b[3]>=sb[1];
+    });
+    return Promise.all(cds.map(function(cd){
+      if(_speedCache[cd]) return _speedCache[cd];
+      _speedCache[cd] = fetch('/data/speed-limits/'+cd+'.json').then(function(r){return r.json();});
+      return _speedCache[cd];
+    }));
+  }).then(function(parts){
+    var features = [];
+    parts.forEach(function(d){ features = features.concat(d.features||[]); });
+    var fc = {type:'FeatureCollection',features:features};
+    window['_overlayData_speedlimits'] = fc;
+    buildSpeedLimits(fc);
+  }).catch(function(e){ console.log('speedlimits load failed', e); });
 }
 function buildSpeedLimits(d){
   if(speedLimitsLayer) map.removeLayer(speedLimitsLayer);
@@ -1375,18 +1400,16 @@ function buildSpeedLimits(d){
   features = filteredBySelectedDistricts(features, false);
   speedLimitsLayer = L.geoJSON({type:'FeatureCollection',features:features},{
     style:function(f){
-      var p=f.properties||{}, speed=p.speed_limit_mph||p.speed_limit;
-      var width = Number(p['stroke-width']) || (String(speed).indexOf('15')>-1 ? 5 : 3.4);
-      return {color:p.stroke||speedLimitColor(speed),weight:width,opacity:Number(p['stroke-opacity'])||.88,lineCap:'round',lineJoin:'round',dashArray:p.speed_limit_status==='Proposed School Zone'?'7 5':null};
+      var p=f.properties||{};
+      if(p.sz) return {color:'#dc2626',weight:5,opacity:.95,lineCap:'round',lineJoin:'round'};
+      return {color:speedLimitColor(p.sl),weight:p.sl>=40?4:3.4,opacity:p.sl?.88:.7,lineCap:'round',lineJoin:'round'};
     },
     onEachFeature:function(f,l){
       var p=f.properties||{};
-      var label=speedLimitLabel(p);
-      var status=p.speed_limit_status||'Current';
-      var former=p.pending_former_speed_limit?'<br>Former/current: '+escH(p.pending_former_speed_limit):'';
-      var signage=p.signage?'<br>Signage: '+escH(p.signage):'';
-      l.bindTooltip('<strong>'+escH(label)+'</strong><br>'+escH(p.street||'Street segment')+'<br>'+escH(status)+former+signage,{sticky:true});
-      l.bindPopup('<h4>'+escH(label)+'</h4><p>'+escH(p.street||'Street segment')+'</p><div class="small">'+escH(status)+former+signage+'</div>');
+      var label=p.sz ? "Sammy's Law 15 mph school zone" : speedLimitLabel(p);
+      var detail=(p.sz && p.sl && p.sl!==15 ? 'Currently posted '+p.sl+' MPH<br>' : '')+(p.sg==='Y'?'Signed':'Unsigned');
+      l.bindTooltip('<strong>'+escH(label)+'</strong><br>'+escH(p.street||'Street segment')+'<br>'+detail,{sticky:true});
+      l.bindPopup('<h4>'+escH(label)+'</h4><p>'+escH(p.street||'Street segment')+'</p><div class="small">'+detail+'</div>');
     }
   });
   speedLimitsLayer._speedLimitFeatureCount = features.length;
@@ -2075,7 +2098,7 @@ function toggleOverlay(name, on){
     bus:()=>buildBusCombined(),
     busroutes:()=>loadOverlay('busroutes','transport-data/'+_boroKey+'.json',buildBusRoutes),
     busstops:()=>loadOverlay('busstops','transport-data/'+_boroKey+'.json',buildBusStops),
-    speedlimits:()=>loadOverlay('speedlimits','data/speed-limits.geojson',buildSpeedLimits),
+    speedlimits:()=>loadSpeedLimitsForSelection(),
     landuse:()=>{ promptBoroughForData('landuse'); },
     zoning:()=>{ promptBoroughForData('zoning'); },
     parks:()=>loadOverlay('parks','data/topmap-parks-'+_boroKey+'.geojson',buildParks),
@@ -2245,7 +2268,7 @@ function updateLegend(){
     [['#2563eb','Commercial'],['#0d9488','Mixed Use'],['#f59e0b','Residential'],['#7c3aed','Manufacturing']].forEach(function(item){html+=`<span class="li"><span class="ls" style="background:${item[0]}"></span>${item[1]} Zoning</span>`;});
   }
   if(subState.speedlimits){
-    [['#dc2626','15 MPH proposed school zone'],['#2ecc71','20 MPH'],['#3498db','25 MPH'],['#f1c40f','30 MPH'],['#e67e22','40 MPH'],['#e74c3c','45 MPH'],['#8e44ad','50 MPH']].forEach(function(item){html+=`<span class="li"><span class="ls" style="background:${item[0]}"></span>${item[1]}</span>`;});
+    [['#dc2626',"Sammy's Law 15 mph school zones"],['#166534','10 MPH'],['#2ecc71','20 MPH'],['#3498db','25 MPH'],['#f1c40f','30 MPH'],['#f97316','35 MPH'],['#e67e22','40 MPH'],['#e74c3c','45 MPH'],['#8e44ad','50 MPH'],['#9ca3af','No posted limit in DOT data']].forEach(function(item){html+=`<span class="li"><span class="ls" style="background:${item[0]}"></span>${item[1]}</span>`;});
   }
   if(cbOverlapLayer)
   Object.keys(districtToggleState).forEach(function(type){
