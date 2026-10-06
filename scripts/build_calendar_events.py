@@ -95,6 +95,7 @@ _POWER_BROKER = {
     "desc": "A marathon reading of Robert A. Caro\u2019s The Power Broker, November 12-15, 2026. Volunteer readers take 10-minute slots across the full 1,100+ page book.",
     "href": "https://brooklyncb6.cityofnewyork.us/event/a-marathon-reading-of-the-power-broker/",
     "linkText": "Full details \u2197",
+    "flyer": "https://bkcb6.app/flyer-power-broker-marathon-reading-2026-11-12.jpg",
 }
 ADDITIONS = [dict(_POWER_BROKER, date=d) for d in ("2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15")]
 
