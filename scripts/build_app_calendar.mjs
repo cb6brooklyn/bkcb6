@@ -181,6 +181,8 @@ for (const [d, list] of Object.entries(EVENTS)) {
       if (icon && packFile('civic/cal/icons', icon)) t.icon = icon;
       if (TYPES[e.type] && TYPES[e.type].bg) t.bg = TYPES[e.type].bg;
       types[tm.ty] = t;
+    } else if (!types[tm.ty].icon && ORG_ICONS[e.type] && packFile('civic/cal/icons', ORG_ICONS[e.type])) {
+      types[tm.ty].icon = ORG_ICONS[e.type];
     }
   }
 }
@@ -222,7 +224,10 @@ const bk = [...out, ...civic].sort(order);
 
 // ---------- citywide file: the same CB6, Council and hearing events, plus every community board ----------
 const cityTypes = { ...oldCity.types };
-for (const [k, v] of Object.entries(types)) if (!cityTypes[k]) cityTypes[k] = v;
+for (const [k, v] of Object.entries(types)) {
+  if (!cityTypes[k]) cityTypes[k] = v;
+  else if (v.icon && !cityTypes[k].icon) cityTypes[k].icon = v.icon;
+}
 const boards = [];
 const bkcbs = readJSON('data/civic-calendar/brooklyn-cbs.json', { boards: {} });
 const bkBoardsHaveData = Object.keys(bkcbs.boards || {}).length > 0;
