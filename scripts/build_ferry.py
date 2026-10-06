@@ -1,5 +1,5 @@
 import csv, json, collections
-D='/tmp/ferry/'
+import sys; D=sys.argv[1] if len(sys.argv)>1 else "/tmp/ferry/"
 def rd(f): return list(csv.DictReader(open(D+f, encoding='utf-8-sig')))
 routes={r['route_id']:r for r in rd('routes.txt')}
 trips=rd('trips.txt'); stops={s['stop_id']:s for s in rd('stops.txt')}
@@ -10,7 +10,7 @@ trip_route={}
 for t in trips: route_shapes[t['route_id']].add(t['shape_id']); trip_route[t['trip_id']]=t['route_id']
 stop_routes=collections.defaultdict(set)
 for st in rd('stop_times.txt'): stop_routes[st['stop_id']].add(trip_route.get(st['trip_id'],''))
-out={'source':'NYC Ferry GTFS feed (nycferry.connexionz.net), fetched 2026-10-02','routes':[],'stops':[]}
+out={'source':'NYC Ferry GTFS feed (nycferry.connexionz.net), fetched 2026-10-06','routes':[],'stops':[]}
 for rid,r in routes.items():
     lines=[]
     for sid in sorted(route_shapes[rid]):
@@ -25,6 +25,6 @@ for sid,s in stops.items():
     rs=sorted(x for x in stop_routes[sid] if x)
     if not any(routes[x]['route_type']=='4' for x in rs): continue
     out['stops'].append({'name':s['stop_name'],'lat':float(s['stop_lat']),'lng':float(s['stop_lon']),'routes':rs,'ada':s.get('wheelchair_boarding','')=='1'})
-json.dump(out,open('/tmp/ferry/ferry.json','w'),separators=(',',':'))
+json.dump(out,open(D+'ferry.json','w'),separators=(',',':'))
 print('routes',len(out['routes']),'stops',len(out['stops']),'shape points',sum(len(l) for r in out['routes'] for l in r['lines']))
 print([ (r['id'],len(r['lines'])) for r in out['routes']]); print([s['name'] for s in out['stops']])
