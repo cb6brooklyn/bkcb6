@@ -30,6 +30,7 @@ files = sorted(glob.glob(os.path.join(ROOT, 'app/data/civic/blocks/*.json.gz')))
 changed = total = 0
 for f in files:
     d = json.load(gzip.open(f))
+    if 'blocks' not in d: continue   # the address indexes carry no ballot lines
     blocks = d['blocks']; items = blocks.values() if isinstance(blocks, dict) else blocks
     n = 0
     for b in items:
