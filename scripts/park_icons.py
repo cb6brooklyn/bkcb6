@@ -6,16 +6,17 @@ Re-runnable: pages already carrying parkIconMarker are left alone."""
 import glob, os, re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CSS = ('.resource-marker-icon.resource-marker-parks{width:36px;height:36px;border-radius:10px;padding:2px;box-sizing:border-box;background:rgba(255,255,255,.98);'
-       'border:2px solid rgba(255,255,255,.98);box-shadow:0 3px 11px rgba(15,23,42,.24)}\n'
-       '.resource-marker-icon.resource-marker-parks img{max-width:30px;max-height:30px;width:100%;height:100%;object-fit:contain;border-radius:7px}\n')
+CSS = ('.resource-marker-icon.resource-marker-parks{display:flex;align-items:center;gap:6px;width:max-content;height:auto;min-height:36px;padding:3px 9px 3px 4px;border-radius:12px;box-sizing:border-box;'
+       'background:rgba(255,255,255,.98);border:2px solid rgba(255,255,255,.98);box-shadow:0 3px 11px rgba(15,23,42,.24);white-space:nowrap}\n'
+       '.resource-marker-icon.resource-marker-parks img{width:28px;height:28px;max-width:28px;max-height:28px;flex:0 0 28px;object-fit:contain;border-radius:7px}\n'
+       '.resource-marker-icon.resource-marker-parks .park-name{font:700 11px/1.15 "DM Sans",system-ui,sans-serif;color:#0d1b4b;max-width:130px;white-space:normal;text-align:left}\n')
 JS = '''var PARK_ICON_SKIP = {'Strip':1,'Undeveloped':1,'Lot':1,'Parkway':1,'Mall':1,'Managed Sites':1,'Operations':1,'Retired N/A':1};
 function parkIconMarker(f, l, seen){
   var p = f.properties || {}; if(p._supplemental_park) return null;
   var name = parkTooltipName(p); if(!name || name === 'Park' || PARK_ICON_SKIP[p.typecategory]) return null;
   if(seen[name]) return null; seen[name] = 1;
   var c; try { c = l.getBounds().getCenter(); } catch(e) { return null; }
-  var icon = L.divIcon({className:'resource-icon-wrap', html:'<div class="resource-marker-icon resource-marker-parks" title="'+escH(name)+'"><img src="assets/map-icons/nyc-parks-logo.png" alt="NYC Parks"></div>', iconSize:[36,36], iconAnchor:[18,18], popupAnchor:[0,-16], tooltipAnchor:[0,-16]});
+  var icon = L.divIcon({className:'resource-icon-wrap', html:'<div class="resource-marker-icon resource-marker-parks" title="'+escH(name)+'"><img src="assets/map-icons/nyc-parks-logo.png" alt="NYC Parks"><span class="park-name">'+escH(name)+'</span></div>', iconSize:[0,0], iconAnchor:[0,0], popupAnchor:[0,-20], tooltipAnchor:[0,-20]});
   var m = L.marker(c, {icon:icon, riseOnHover:true});
   m.bindTooltip('<strong>'+escH(name)+'</strong><br>'+escH(p.typecategory||'NYC Parks'), {sticky:true});
   m.bindPopup('<h4>'+escH(name)+'</h4><p>'+escH(p.address||p.location||'NYC Parks property')+'</p><div class="small">'+escH((p.typecategory||'Park')+(p.acres?' · '+(Math.round(Number(p.acres)*10)/10)+' acres':''))+'</div>');
@@ -33,7 +34,11 @@ done = skipped = 0
 for path in sorted(glob.glob(os.path.join(ROOT, '*.html')) + glob.glob(os.path.join(ROOT, '*/*.html'))):
     s = open(path, errors='surrogateescape').read()
     if 'function buildParks(d){' not in s: continue
-    if 'function parkIconMarker' in s: skipped += 1; continue
+    if 'function parkIconMarker' in s:
+        s2 = re.sub(r"var PARK_ICON_SKIP = .*?\nfunction parkIconMarker\(f, l, seen\)\{.*?\n\}\n", JS, s, count=1, flags=re.S)
+        s2 = re.sub(r"\.resource-marker-icon\.resource-marker-parks\{[^\n]*\n(\.resource-marker-icon\.resource-marker-parks[^\n]*\n)*", CSS, s2, count=1)
+        if s2 != s: open(path, 'w', errors='surrogateescape').write(s2); skipped += 1
+        continue
     m = PAT.search(s)
     if not m or 'function escH' not in s and 'escH=' not in s and 'escH =' not in s:
         print('NOT PATCHED', os.path.relpath(path, ROOT)); continue
@@ -58,4 +63,4 @@ for path in sorted(glob.glob(os.path.join(ROOT, '*.html')) + glob.glob(os.path.j
         else:
             s = s.replace('</style>', '<style>' + CSS + '</style></style>', 1).replace('</style></style>', '</style>', 1)
     open(path, 'w', errors='surrogateescape').write(s); done += 1
-print('patched', done, 'already', skipped)
+print('patched', done, 'updated', skipped)
