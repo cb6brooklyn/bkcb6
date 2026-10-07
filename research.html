@@ -119,6 +119,8 @@ body{display:flex;flex-direction:column}
 #map.bus-stop-labels-full .bus-stop-name{display:block}
 .cb-overlap-fragment{mix-blend-mode:multiply}
 
+<style>.resource-marker-icon.resource-marker-parks{width:36px;height:36px;border-radius:10px;padding:2px;box-sizing:border-box;background:rgba(255,255,255,.98);border:2px solid rgba(255,255,255,.98);box-shadow:0 3px 11px rgba(15,23,42,.24)}
+.resource-marker-icon.resource-marker-parks img{max-width:30px;max-height:30px;width:100%;height:100%;object-fit:contain;border-radius:7px}
 </style>
 
 <style id="bkcb6-embed-modal-css">
@@ -942,13 +944,31 @@ function buildLandUseLots(d){
   if(subState.landuse) landUseLotsLayer.addTo(map);
 }
 
+function parkTooltipName(p){
+  p = p || {};
+  return p.signname || p.name || p.name311 || p.Name || 'Park';
+}
+var PARK_ICON_SKIP = {'Strip':1,'Undeveloped':1,'Lot':1,'Parkway':1,'Mall':1,'Managed Sites':1,'Operations':1,'Retired N/A':1};
+function parkIconMarker(f, l, seen){
+  var p = f.properties || {}; if(p._supplemental_park) return null;
+  var name = parkTooltipName(p); if(!name || name === 'Park' || PARK_ICON_SKIP[p.typecategory]) return null;
+  if(seen[name]) return null; seen[name] = 1;
+  var c; try { c = l.getBounds().getCenter(); } catch(e) { return null; }
+  var icon = L.divIcon({className:'resource-icon-wrap', html:'<div class="resource-marker-icon resource-marker-parks" title="'+escH(name)+'"><img src="assets/map-icons/nyc-parks-logo.png" alt="NYC Parks"></div>', iconSize:[36,36], iconAnchor:[18,18], popupAnchor:[0,-16], tooltipAnchor:[0,-16]});
+  var m = L.marker(c, {icon:icon, riseOnHover:true});
+  m.bindTooltip('<strong>'+escH(name)+'</strong><br>'+escH(p.typecategory||'NYC Parks'), {sticky:true});
+  m.bindPopup('<h4>'+escH(name)+'</h4><p>'+escH(p.address||p.location||'NYC Parks property')+'</p><div class="small">'+escH((p.typecategory||'Park')+(p.acres?' · '+(Math.round(Number(p.acres)*10)/10)+' acres':''))+'</div>');
+  return m;
+}
 function buildParks(d){
   var pkFeatures = filterByView(d.features, f=>{try{var r=f.geometry.type==='Polygon'?f.geometry.coordinates[0]:f.geometry.coordinates[0][0];return r.reduce((s,c)=>s+c[1],0)/r.length;}catch(e){return 0;}}, f=>{try{var r=f.geometry.type==='Polygon'?f.geometry.coordinates[0]:f.geometry.coordinates[0][0];return r.reduce((s,c)=>s+c[0],0)/r.length;}catch(e){return 0;}});
   pkFeatures = filteredBySelectedDistricts(pkFeatures, true);
-  parksLayer = L.geoJSON({type:'FeatureCollection',features:pkFeatures},{
+  var parkIcons = L.layerGroup(), parkIconNames = {};
+  var parkPolys = L.geoJSON({type:'FeatureCollection',features:pkFeatures},{
     style:{color:'#16a34a',weight:1,fillColor:'#16a34a',fillOpacity:.3},
-    onEachFeature:(f,l)=>l.bindTooltip(f.properties.signname||f.properties.name||f.properties.name311||'Park',{sticky:true})
+    onEachFeature:(f,l)=>{ l.bindTooltip(parkTooltipName(f.properties),{sticky:true}); var pm = parkIconMarker(f, l, parkIconNames); if(pm) parkIcons.addLayer(pm); }
   });
+  parksLayer = L.featureGroup([parkPolys, parkIcons]);
   if(subState.parks) parksLayer.addTo(map);
 }
 function researchNote(text){var el=document.getElementById('note'); if(el) el.textContent=text||'';}

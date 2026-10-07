@@ -25,6 +25,11 @@ def fix(path, pfx):
                         + '\n      </div>\n      <div class="leg-section-header"><div>Queens</div></div>\n      <div class="leg-grid">'
                         + '\n        <div class="leg-cell"><div class="dist">SD 10</div><div class="name">' + L('sensanders', 'James Sanders Jr.') + m.group(2), s)
     assert n == 1 or 'SD 36</div>' in s, path
+    # 1b. AD 23 (Queens) was missing from the Assembly grid
+    if 'AD 23</div>' not in s:
+        s = s.replace('        <div class="leg-cell"><div class="dist">AD 24</div>',
+                      '        <div class="leg-cell"><div class="dist">AD 23</div><div class="name">' + L('amamato', 'Stacey Pheffer Amato') + ' <span style="font-size:.6rem;color:#1d4ed8">D</span></div></div>\n'
+                      + '        <div class="leg-cell"><div class="dist">AD 24</div>', 1)
     # 2. the apps' copy: root links become relative, so the app's web view can open them, and the two seals are
     #    inlined, because the page is served from the app's cache once it has been updated, where no logo file sits.
     if pfx == '':
