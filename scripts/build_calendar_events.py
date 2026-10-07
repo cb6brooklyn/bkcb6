@@ -70,6 +70,10 @@ OVERRIDES = [
      "set": {"date": "2026-11-18"}},
     {"date": "2026-12-17", "label_contains": "Transportation, Parks and Public Infrastructure",
      "set": {"date": "2026-12-16"}},
+    # Landmarks, Land Use & Housing meets on Thursday. The official feed has the
+    # Oct 2026 meeting on Friday the 23rd; it is Thursday the 22nd.
+    {"date": "2026-10-23", "label_contains": "Landmarks, Land Use",
+     "set": {"date": "2026-10-22", "label": "CB6 Committee Meeting- Landmarks, Land Use & Housing"}},
     # June 25, 2026 Landmarks, Land Use & Housing — meeting is on Zoom.
     {
         "date": "2026-06-25",
@@ -98,6 +102,19 @@ _POWER_BROKER = {
     "flyer": "https://bkcb6.app/flyer-power-broker-marathon-reading-2026-11-12.jpg",
 }
 ADDITIONS = [dict(_POWER_BROKER, date=d) for d in ("2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15")]
+# Oct 22, 2026 Landmarks, Land Use & Housing committee meeting. The official
+# feed carries it on the wrong day (Friday the 23rd); the override above moves
+# that copy to the 22nd and the duplicate merge folds it into this one.
+ADDITIONS.append({
+    "date": "2026-10-22",
+    "type": "committee",
+    "label": "CB6 Committee Meeting- Landmarks, Land Use & Housing",
+    "time": "6:30 PM",
+    "location": None,
+    "desc": "Agenda TBD",
+    "href": "https://brooklyncb6.cityofnewyork.us/event/cb6-committee-meeting-landmarks-land-use-housing-8/",
+    "linkText": "Full details \u2197",
+})
 
 
 def apply_manual_layer(events):
