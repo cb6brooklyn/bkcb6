@@ -6,6 +6,7 @@ changed from the pack (`app/data/civic/...`), with the code's own value as the f
 | What | File | Keys |
 |---|---|---|
 | Tables (categories, labels, aliases, routes, colors, lookups, tuples, structs) | `civic/lists.json` | `<File>.<name>` |
+| Every SF symbol (icons on rows, buttons, tabs, chevrons) | `civic/mapstyle.json` `symbols` | `<File>.s.<id>` |
 | Colors, theme colors, map badges, type scale, font names | `civic/mapstyle.json` (colors, icons, numbers, labels; `where` says the file and line) | `<File>.c.<id>`, `theme.<name>`, `<File>.i.<id>`, `theme.textScale`, `theme.font.*` |
 | Screen text | `civic/copy.json` | `<File>.<id>` |
 | New badge layers on any map | `civic/markers.json` | per layer |
@@ -22,10 +23,12 @@ and `scripts/merge_app_keys.py` wrote every key with its default into the pack f
 (the block card lists DOT street construction permits, the same dataset the Permits tab maps), `fix_landmarks.py`,
 `fix_bkhome.py` (BKCB) and `fix_beyondhome.py` (CBNYC) (the top of Home as home.json sections), `fix_mapfold.py`
 `fix_strip.py` `fix_pinned.py` `fix_home2.py` `fix_foldicon.py` `fix_web.py` `fix_blocksources.py` `fix_nearby.py`
-`fix_blockbuttons.py` `fix_ballot.py` (Home sections: folds, the map strip, pinned, `home@2`, fold icons, web pages and text folds;
-the block card's sources, buttons, hidden rows and the sample ballot row from the file), then `audit_strings.py`
+`fix_blockbuttons.py` `fix_ballot.py` `fix_rows.py` `fix_place.py` (Home sections: folds, the map strip, pinned, `home@2`, fold icons, web pages and text
+folds; the block card's sources, buttons, hidden rows, and every row of the card from lists.json `MyBlock.rows`, data rows, buttons, text and site
+pages in any order; site pages in the app get the saved address, `{ADDRESS} {SLUG} {CD}`... in the path and `window.__bkcbPlace`), then `audit_strings.py`
 (every visible string → `Copy.t` / `Copy.f`, enum raw values shown as `<File>.<Enum>.<case>`). `Shared/` is left alone
-because the widget extension compiles it without `Copy`. The registries each step writes (`lists-*.json`,
+because the widget extension compiles it without `Copy`. `audit_symbols.py` then `audit_symbols2.py` (every SF symbol name →
+`MapStyle.symbol("<File>.s.<id>", "name")`, overridden by mapstyle.json `symbols`; registries `symbols-<app>.json` here). The registries each step writes (`lists-*.json`,
 `style-keys-<app>.json`, `copy-audit-<app>.json`) go through `scripts/merge_app_keys.py <dir>`.
 
 What stays in code: layout and logic, keys and identifiers (dataset ids, symbol names, file names, settings keys), date
