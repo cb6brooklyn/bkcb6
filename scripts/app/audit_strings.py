@@ -14,7 +14,7 @@ def h8(t): return hashlib.sha1(t.encode()).hexdigest()[:8]
 
 # contexts whose string argument is a key, a name, a pattern, not words on the screen
 KEY_CTX = re.compile(r'\b(systemName|forKey|key|id|named|forResource|withExtension|subdirectory|rawValue|string|of|separator|separatedBy|with|prefix|suffix|identifier|tag|format|dateFormat|locale|scheme|host|path|anchor|pattern|font|family|url|href|slug|layer|screen|section|cal|file|image|logo|icon|symbol|cover|tile|route|dest|destination|content|when|cd|boro|ad|ed|sd|op|target|source|src|base|ext|dir|folder|by|as|to|from|into|at|for|in|where|select|order|query|q|filter|sql|fields|sortBy|group|groupBy)\s*:\s*$|\b(dateFormat|format|pattern|select|order|where|query|regex)\s*=\s*$')
-KEY_FN = re.compile(r'(AppStorage|SceneStorage|hasPrefix|hasSuffix|contains|replacingOccurrences|components|split|firstIndex|lastIndex|trimmingCharacters|starts|range|index|Notification\.Name|UserDefaults|URL|Hook\.value|Hook\.flag|DK\.json|DK\.str|DK\.num|DataPack\.url|DataPack\.has|Bundle\.main\.url|NSPredicate|String\(format|Image|UIImage|Color\(|Font\.custom|\.custom|Date\(|DateFormatter|ISO8601|Calendar|TimeZone|Locale|CharacterSet|NSLocalizedString|print|fatalError|assert|precondition|os_log|Logger|NSRegularExpression|NSSortDescriptor|exists|matches|lowercased\(\) ==|uppercased\(\) ==|== |!= |case |import |@objc|#selector|init\(rawValue|coder|Swift\.print|UIApplication\.shared\.open|openURL)\s*\(?\s*$')
+KEY_FN = re.compile(r'(AppStorage|SceneStorage|\.id|\.tag|accessibilityIdentifier|NSLog|hasPrefix|hasSuffix|contains|replacingOccurrences|components|split|firstIndex|lastIndex|trimmingCharacters|starts|range|index|Notification\.Name|UserDefaults|URL|Hook\.value|Hook\.flag|DK\.json|DK\.str|DK\.num|DataPack\.url|DataPack\.has|Bundle\.main\.url|NSPredicate|String\(format|Image|UIImage|Color\(|Font\.custom|\.custom|Date\(|DateFormatter|ISO8601|Calendar|TimeZone|Locale|CharacterSet|NSLocalizedString|print|fatalError|assert|precondition|os_log|Logger|NSRegularExpression|NSSortDescriptor|exists|matches|lowercased\(\) ==|uppercased\(\) ==|== |!= |case |import |@objc|#selector|init\(rawValue|coder|Swift\.print|UIApplication\.shared\.open|openURL)\s*\(?\s*$')
 WRAPPED = re.compile(r'(Copy\.[tf]|\bT|UIConfig\.shared\.(string|text|label)|MapStyle\.(label|icon|color)|Lists\.\w+|DKMarkers\.icon)\(\s*$|(Copy\.[tf]|T)\("[^"]*",\s*$')
 VISIBLE_HINT = re.compile(r'[A-Za-z]{2,}')
 
@@ -22,7 +22,7 @@ def visible(t):
     """A literal that reads as words on the screen rather than a code key."""
     if not VISIBLE_HINT.search(t): return False
     if '\\(' in t and len(t.replace('\\(', '')) < 4: return False
-    if re.fullmatch(r'[a-z0-9_.:/\-\\()$?&=#%+,]*', t): return False           # keys, slugs, routes, paths
+    if re.fullmatch(r'[a-z0-9_.:/\-\\()$?&=#%+,{}]*', t): return False         # keys, slugs, routes, paths, "map-{0}"
     if re.fullmatch(r'[A-Za-z0-9_]+', t) and not t[0].isupper(): return False   # camelCase identifiers
     if re.fullmatch(r'[a-z]+(\.[a-z]+)+', t): return False                       # SF Symbols "house.fill"
     if re.fullmatch(r'[a-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+', t): return False      # dotted keys "cb6map.setupSeen"
