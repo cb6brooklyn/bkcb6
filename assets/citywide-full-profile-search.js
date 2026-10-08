@@ -2483,8 +2483,9 @@
   }
   function injectSiteNote(result){
     if(!result || result.querySelector('.site-note')) return;
-    var txt=(result.textContent||'');
-    if(txt.indexOf('250 BALTIC STREET')<0 && txt.indexOf('250 Baltic Street')<0) return;
+    // Only the card for 250 Baltic Street itself, not every CB6 card that names the district office.
+    var head=(result.firstElementChild&&result.firstElementChild.textContent)||'';
+    if(!/250\s+BALTIC\s+ST/i.test(head)) return;
     var box=document.createElement('div');
     box.className='site-note';
     box.setAttribute('style','margin:12px 0;padding:13px 14px;background:#0d1b4b;border:2px solid #f47920;border-radius:12px');
