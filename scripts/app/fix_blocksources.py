@@ -22,7 +22,7 @@ assert old in s, 'out'; s = s.replace(old, new, 1)
 # 2. the file's own sources, run before the result is returned
 old2 = '        guard anyOK else { return nil }\n        return out.sorted { ($0.start ?? .distantFuture) < ($1.start ?? .distantFuture) }\n    }\n}'
 new2 = '''        // Sources the file adds: each a NYC Open Data dataset with a filter and field names (see lists.json "about").
-        for src in Lists.dictList("MyBlock.sources", []) {
+        for src in Lists.objects("MyBlock.sources", []) {
             func f(_ k: String) -> String { DK.str(src[k]) }
             let blk = place.bbl.count == 10 ? String(Int(place.bbl.dropFirst().prefix(5)) ?? 0) : ""
             let since = CityStatus.keyFmt.string(from: Date().addingTimeInterval(-30 * 86400))
@@ -65,10 +65,12 @@ new2 = '''        // Sources the file adds: each a NYC Open Data dataset with a 
 }'''
 assert old2 in s, 'tail'; s = s.replace(old2, new2, 1)
 open(p, 'w').write(s)
-# 3. Lists.dictList: a list of dictionaries from the file
+# 3. Lists.objects: a list of objects from the file
 dk = os.path.join(sys.argv[1], 'App/Views/DistrictKit.swift'); d = open(dk).read()
-if 'static func dictList(' not in d:
-    old3 = '    static func dictRows(_ key: String) -> [String: [[Any]]]? { entry(key) as? [String: [[Any]]] }\n'
-    new3 = old3 + '    /// A list of objects from the file (sources, rules), the code\'s list when the file has none.\n    static func dictList(_ key: String, _ fallback: [[String: Any]]) -> [[String: Any]] { (entry(key) as? [[String: Any]]) ?? fallback }\n'
-    assert old3 in d, 'Lists'; d = d.replace(old3, new3, 1); open(dk, 'w').write(d)
+if 'static func objects(' not in d:
+    import re
+    m = re.search(r'\n( *)static func dictRows\(_ key: String\)[^\n]*\n', d)
+    assert m, 'Lists'
+    d = d[:m.end()] + m.group(1) + "/// A list of objects from the file (sources, rules), the code's list when the file has none.\n" + m.group(1) + 'static func objects(_ key: String, _ fallback: [[String: Any]]) -> [[String: Any]] { (entry(key) as? [[String: Any]]) ?? fallback }\n' + d[m.end():]
+    open(dk, 'w').write(d)
 print('block sources ok')

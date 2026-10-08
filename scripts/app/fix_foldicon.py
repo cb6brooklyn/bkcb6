@@ -16,7 +16,7 @@ if 'var icon: String = ""' not in s:
 print('UIConfig icon ok')
 # 2. the fold view
 hv = os.path.join(R, 'App/Views/HomeView.swift'); s = open(hv).read()
-if 'let icon: String' not in s:
+if 'pinned: Bool = false, icon: String = ""' not in s:
     old = '''    let pinned: Bool
     @State var open: Bool
     @ViewBuilder var content: Content
