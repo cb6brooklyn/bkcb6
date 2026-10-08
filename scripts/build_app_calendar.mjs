@@ -173,6 +173,8 @@ for (const [d, list] of Object.entries(EVENTS)) {
     if (Array.isArray(e.cds) && e.cds.length && !e.cds.includes('306')) {
       row.cd = String(e.cds[0]);
       if (e.cds.length > 1) row.cds = e.cds.map(String);
+      // A community event in another board's district is not that board's meeting: its group is "community", not "cb6".
+      row.g = 'community';
       elsewhere.push(row);
     } else out.push(row);
     if (!types[tm.ty]) {
