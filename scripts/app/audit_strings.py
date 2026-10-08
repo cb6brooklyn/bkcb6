@@ -24,6 +24,7 @@ def visible(t):
     if '\\(' in t and len(t.replace('\\(', '')) < 4: return False
     if re.fullmatch(r'[a-z0-9_.:/\-\\()$?&=#%+,{}]*', t): return False         # keys, slugs, routes, paths, "map-{0}"
     if re.fullmatch(r'[A-Za-z0-9_]+', t) and not t[0].isupper(): return False   # camelCase identifiers
+    if ' ' not in t and re.fullmatch(r'[\w{}.:/\-]+', t) and '{' in t: return False  # key templates "{0}Header"
     if re.fullmatch(r'[a-z]+(\.[a-z]+)+', t): return False                       # SF Symbols "house.fill"
     if re.fullmatch(r'[a-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+', t): return False      # dotted keys "cb6map.setupSeen"
     if t.startswith('http') or t.startswith('mailto:') or t.startswith('tel:'): return False
