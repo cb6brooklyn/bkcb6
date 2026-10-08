@@ -57,7 +57,9 @@ if os.path.exists(bk):
     print('BKHome icon', 'icon: s.icon' in s2)
 # 3. the community board card: no seal when the logo name is blank
 ev = os.path.join(R, 'App/Views/ExploreViews.swift'); s = open(ev).read()
-old3 = '                    LogoImage(name: Copy.t("ExploreViews.900333f1", "CB6_540"), size: 40)\n'
-new3 = '                    let aboutLogo = Copy.t("ExploreViews.900333f1", "CB6_540")\n                    if !aboutLogo.isEmpty { LogoImage(name: aboutLogo, size: 40) }\n'
-if old3 in s: s = s.replace(old3, new3, 1); open(ev, 'w').write(s)
+import re
+m = re.search(r'( *)LogoImage\(name: (Copy\.t\("ExploreViews\.[0-9a-f]{8}", "[^"]*"\)), size: 40\)\n', s)
+if m and 'aboutLogo' not in s:
+    s = s[:m.start()] + f'{m.group(1)}let aboutLogo = {m.group(2)}\n{m.group(1)}if !aboutLogo.isEmpty {{ LogoImage(name: aboutLogo, size: 40) }}\n' + s[m.end():]
+    open(ev, 'w').write(s)
 print('about card logo', 'aboutLogo' in s)
