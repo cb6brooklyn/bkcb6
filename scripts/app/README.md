@@ -6,6 +6,7 @@ changed from the pack (`app/data/civic/...`), with the code's own value as the f
 | What | File | Keys |
 |---|---|---|
 | Tables (categories, labels, aliases, routes, colors, lookups, tuples, structs) | `civic/lists.json` | `<File>.<name>` |
+| Every screen's parts (order, folds, hidden, inserted text, pages, buttons, tools), screen replacement, the tab bar | `civic/ui/<app>/screens.json` | `screens.<key>`, `replace`, `tabs` |
 | Every SF symbol (icons on rows, buttons, tabs, chevrons) | `civic/mapstyle.json` `symbols` | `<File>.s.<id>` |
 | Colors, theme colors, map badges, type scale, font names | `civic/mapstyle.json` (colors, icons, numbers, labels; `where` says the file and line) | `<File>.c.<id>`, `theme.<name>`, `<File>.i.<id>`, `theme.textScale`, `theme.font.*` |
 | Screen text | `civic/copy.json` | `<File>.<id>` |
@@ -28,7 +29,10 @@ folds; the block card's sources, buttons, hidden rows, and every row of the card
 pages in any order; site pages in the app get the saved address, `{ADDRESS} {SLUG} {CD}`... in the path and `window.__bkcbPlace`), then `audit_strings.py`
 (every visible string → `Copy.t` / `Copy.f`, enum raw values shown as `<File>.<Enum>.<case>`). `Shared/` is left alone
 because the widget extension compiles it without `Copy`. `audit_symbols.py` then `audit_symbols2.py` (every SF symbol name →
-`MapStyle.symbol("<File>.s.<id>", "name")`, overridden by mapstyle.json `symbols`; registries `symbols-<app>.json` here). The registries each step writes (`lists-*.json`,
+`MapStyle.symbol("<File>.s.<id>", "name")`, overridden by mapstyle.json `symbols`; registries `symbols-<app>.json` here). Last,
+`fix_screens.py <app> screens-<app>.json` (builds from 118): every `ScrollView { VStack { ... } }` screen becomes `FileParts("<screen>", [parts])`,
+one named part per statement, drawn in the order `civic/ui/<app>/screens.json` lists them, with folds, text, site pages, buttons and tool grids
+inserted anywhere; every screen key goes through `ScreenRouter` (the file's `replace` table); the tab bar reads `tabs`; registries `screens-<app>.json`. The registries each step writes (`lists-*.json`,
 `style-keys-<app>.json`, `copy-audit-<app>.json`) go through `scripts/merge_app_keys.py <dir>`.
 
 What stays in code: layout and logic, keys and identifiers (dataset ids, symbol names, file names, settings keys), date
