@@ -20,7 +20,10 @@ and `scripts/merge_app_keys.py` wrote every key with its default into the pack f
 `patch_tables2.py` (tables), `fix1.py` `fix2.py` `fix3.py` (coordinate tables, string-keyed dictionaries), `patch_style2.py`
 (colors, badges, theme, type scale), `fix_blockhead3.py` (Home's block card: the block is the headline), `fix_blockwork.py`
 (the block card lists DOT street construction permits, the same dataset the Permits tab maps), `fix_landmarks.py`,
-`fix_bkhome.py` (BKCB) and `fix_beyondhome.py` (CBNYC) (the top of Home as home.json sections), then `audit_strings.py`
+`fix_bkhome.py` (BKCB) and `fix_beyondhome.py` (CBNYC) (the top of Home as home.json sections), `fix_mapfold.py`
+`fix_strip.py` `fix_pinned.py` `fix_home2.py` `fix_foldicon.py` `fix_web.py` `fix_blocksources.py` `fix_nearby.py`
+`fix_blockbuttons.py` `fix_ballot.py` (Home sections: folds, the map strip, pinned, `home@2`, fold icons, web pages and text folds;
+the block card's sources, buttons, hidden rows and the sample ballot row from the file), then `audit_strings.py`
 (every visible string → `Copy.t` / `Copy.f`, enum raw values shown as `<File>.<Enum>.<case>`). `Shared/` is left alone
 because the widget extension compiles it without `Copy`. The registries each step writes (`lists-*.json`,
 `style-keys-<app>.json`, `copy-audit-<app>.json`) go through `scripts/merge_app_keys.py <dir>`.
