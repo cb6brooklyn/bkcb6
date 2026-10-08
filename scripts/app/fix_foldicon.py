@@ -43,11 +43,13 @@ if 'pinned: Bool = false, icon: String = ""' not in s:
                     Spacer()
                     if !pinned {'''
     assert old2 in s, 'HomeFold header'; s = s.replace(old2, new2, 1)
-    # the map's own fold header takes the icon too
-    s = s.replace('HomeFold(title: s.title.isEmpty ? Copy.t("HomeView.ad87f8e3", "The map") : s.title, id: s.id, open: s.open || Hook.flag("-openAll")) {',
-                  'HomeFold(title: s.title.isEmpty ? Copy.t("HomeView.ad87f8e3", "The map") : s.title, id: s.id, open: s.open || Hook.flag("-openAll"), icon: s.icon) {', 1)
     open(hv, 'w').write(s)
-print('HomeFold icon ok')
+# the map's own fold header takes the icon too
+s = open(hv).read()
+s = s.replace('HomeFold(title: s.title.isEmpty ? Copy.t("HomeView.ad87f8e3", "The map") : s.title, id: s.id, open: s.open || Hook.flag("-openAll")) {',
+              'HomeFold(title: s.title.isEmpty ? Copy.t("HomeView.ad87f8e3", "The map") : s.title, id: s.id, open: s.open || Hook.flag("-openAll"), icon: s.icon) {', 1)
+open(hv, 'w').write(s)
+print('HomeFold icon ok', 'icon: s.icon' in s)
 bk = os.path.join(R, 'App/Views/BKHome.swift')
 if os.path.exists(bk):
     s = open(bk).read()
