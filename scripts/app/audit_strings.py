@@ -82,7 +82,11 @@ for fn in FILES:
         if WRAPPED.search(before): out += s[i:end]; i = end; continue
         if re.search(r'(Copy\.[tf]|T)\("$', before): out += s[i:end]; i = end; continue
         one_line_enum = re.match(r'\s*(?:\w+\s+)*enum\s+\w+\s*:\s*String', line) is not None and re.search(r'=\s*$', s[line_start:i]) is not None
-        if KEY_CTX.search(before) or KEY_FN.search(before) or line.strip().startswith('case ') or one_line_enum or re.search(r'(enum |case )[^"]*=\s*$', s[line_start:i]) or 'static let' in line and '= "' in line and ':' not in line.split('=')[0]:
+        sofar = s[line_start:i]
+        # on a "case" line only the pattern (before the colon that ends it) is a key; what follows the colon is shown
+        case_pattern = line.strip().startswith('case ') and not re.search(r'(?<!\?):(?!:)', sofar.split('case ', 1)[1] if 'case ' in sofar else '')
+        key_name = re.search(r'static (let|var) \w*(key|Key|id|ID|Id|name|Name|slug|Slug|url|URL|path|Path|file|File|prefix|Prefix|suffix|Suffix|scheme|host|format|Format)\w* *(: *String)? *= *$', sofar) is not None
+        if KEY_CTX.search(before) or KEY_FN.search(before) or case_pattern or one_line_enum or key_name or re.search(r'(enum |case )[^"]*=\s*$', sofar):
             if visible(tpl): left.append((stem, tpl[:60], 'key context')); kept += 1
             out += s[i:end]; i = end; continue
         if 'Lists.' in line or 'DK.json(' in line or 'Hook.' in line or 'UserDefaults' in line or 'Notification.Name' in line or 'print(' in line or 'assert' in line or 'fatalError' in line:
@@ -100,11 +104,20 @@ for fn in FILES:
             if isText: call = 'LocalizedStringKey(' + call + ')'
         out += call; i = end; n += 1
     # enum raw values shown as they are: chips, titles, labels read the file by <File>.<Enum>.<case>
-    RAW = re.compile(r'(DKChip\(text: |Text\(|title: |text: |label: |subtitle: |name: )([a-zA-Z_][\w.]*)\.rawValue(\.uppercased\(\))?')
+    RAW = re.compile(r'(DKChip\(text: |Text\(|Button\(|menuChrome\(|legendEntry\(|title: |text: |label: |subtitle: |name: |caption: )(\$0|[a-zA-Z_][\w.]*)\.rawValue(\.uppercased\(\))?')
     def raw_sub(m):
         v = m.group(2)
         return f'{m.group(1)}Copy.t("{stem}.\\(type(of: {v})).\\({v})", {v}.rawValue){m.group(3) or ""}'
     out2, nr = RAW.subn(raw_sub, out)
+    # the same on Copy.f arguments, interpolations and tuple cells, on lines that show the value rather than key on it
+    SKIP_RAW = re.compile(r'==|!=|<|>|sorted|signature|sig =|key|id:|\.tag\(|init\(rawValue|hasPrefix|hasSuffix|contains\(|UserDefaults|AppStorage|Hook\.|DK\.json|Lists\.|joined|map\(\\\.rawValue\)|\+ |\.lowercased|replacingOccurrences|split|components|filter')
+    RAW2 = re.compile(r'(Copy\.f\([^\n]*?, |\\\(|\(|, )(\$0|[a-zA-Z_][\w]*)\.rawValue(\.uppercased\(\))?(?=[,)\s])')
+    lines2 = out2.split('\n'); n2 = 0
+    for li, ln in enumerate(lines2):
+        if '.rawValue' not in ln or 'type(of:' in ln and ln.count('.rawValue') == ln.count('type(of:') or SKIP_RAW.search(ln): continue
+        new_ln, k2 = RAW2.subn(lambda m: f'{m.group(1)}Copy.t("{stem}.\\(type(of: {m.group(2)})).\\({m.group(2)})", {m.group(2)}.rawValue){m.group(3) or ""}', ln)
+        if k2: lines2[li] = new_ln; n2 += k2
+    if n2: out2 = '\n'.join(lines2); nr += n2
     if nr:
         out = out2; n += nr
         for em in re.finditer(r'enum (\w+)\s*:\s*String[^{]*\{', out):
