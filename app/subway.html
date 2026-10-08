@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Subway changes and delays</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+  :root { --navy:#06024d; --orange:#f47920; --ink:#14141c; --muted:#626470; --rule:#e1dfd8; --paper:#f8f7f4; --alert:#bf2e33; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font-family:'DM Sans', system-ui, sans-serif; }
+  .wrap { padding:12px 14px 16px; }
+  .k { font-family:'DM Mono', monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+  .ok { font-weight:700; font-size:15px; color:var(--ink); }
+  .ok .lines { display:inline-flex; gap:4px; margin-left:6px; vertical-align:middle; }
+  .line { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:var(--navy); color:#fff; font-weight:700; font-size:12px; }
+  .card { background:#fff; border:1px solid var(--rule); border-radius:12px; padding:10px 12px; margin:0 0 8px; }
+  .card.active { border-color:rgba(191,46,51,.5); }
+  .head { display:flex; align-items:center; gap:6px; margin-bottom:5px; }
+  .kind { font-family:'DM Mono', monospace; font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--alert); }
+  .kind.later { color:var(--muted); }
+  .when { font-family:'DM Mono', monospace; font-size:10px; color:var(--muted); margin-left:auto; }
+  .h { font-weight:700; font-size:14px; line-height:1.3; }
+  .d { font-size:13px; line-height:1.4; color:var(--ink); margin-top:6px; display:none; white-space:pre-line; }
+  .card.open .d { display:block; }
+  .more { font-size:12px; color:var(--orange); font-weight:700; margin-top:5px; cursor:pointer; }
+  .note { font-size:11px; color:var(--muted); margin-top:8px; }
+  .err { font-size:13px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="k" id="title">Subway changes and delays</p>
+  <div id="out"><span class="err">Checking the MTA's alerts</span></div>
+  <p class="note">From the MTA's service alerts. Tap an alert for the details.</p>
+</div>
+<script>
+(function(){
+  var q = new URLSearchParams(location.search);
+  var LINES = (q.get('lines') || 'F,G,R,D,N,Q,B').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+  var out = document.getElementById('out');
+  if (q.get('title')) document.getElementById('title').textContent = q.get('title');
+  function esc(s){ return String(s||'').replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function text(t){
+    var tr = (t && t.translation) || [];
+    var en = tr.filter(function(x){ return !x.language || x.language === 'en'; })[0] || tr[0];
+    return en ? en.text || '' : '';
+  }
+  function lineBadges(ls){ return '<span class="lines">' + ls.map(function(l){ return '<span class="line">' + esc(l) + '</span>'; }).join('') + '</span>'; }
+  function fmt(ts){ var d = new Date(ts*1000); return d.toLocaleString('en-US', {weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}); }
+  function render(j){
+    var now = Date.now()/1000, items = [];
+    (j.entity || []).forEach(function(e){
+      var a = e.alert; if (!a) return;
+      var mine = (a.informed_entity || []).map(function(i){ return i.route_id; }).filter(function(r){ return r && LINES.indexOf(r) >= 0; });
+      if (!mine.length) return;
+      var periods = a.active_period || [], active = !periods.length, soon = false, start = null;
+      periods.forEach(function(p){ var s = p.start || 0, en = p.end || 0; if (s <= now && (!en || now <= en)) active = true; if (s > now && s - now < 86400) { soon = true; if (!start || s < start) start = s; } });
+      if (!active && !soon) return;
+      var m = a['transit_realtime.mercury_alert'] || {};
+      var kind = (m.alert_type || '').replace(/_/g, ' ') || 'service change';
+      var h = text(a.header_text), d = text(a.description_text);
+      if (!h) return;
+      items.push({ routes: LINES.filter(function(l){ return mine.indexOf(l) >= 0; }), kind: kind, h: h, d: d, active: active, start: start });
+    });
+    items.sort(function(x, y){ return (x.active ? 0 : 1) - (y.active ? 0 : 1); });
+    if (!items.length) {
+      out.innerHTML = '<div class="ok">Good service' + lineBadges(LINES) + '</div>';
+      return;
+    }
+    out.innerHTML = items.map(function(it, i){
+      return '<div class="card' + (it.active ? ' active' : '') + '" data-i="' + i + '">' +
+        '<div class="head">' + lineBadges(it.routes) + '<span class="kind' + (it.active ? '' : ' later') + '">' + esc(it.kind) + '</span>' +
+        (it.active ? '' : '<span class="when">from ' + esc(fmt(it.start)) + '</span>') + '</div>' +
+        '<div class="h">' + esc(it.h) + '</div>' +
+        (it.d ? '<div class="d">' + esc(it.d) + '</div><div class="more">Details</div>' : '') +
+      '</div>';
+    }).join('');
+    Array.prototype.forEach.call(out.querySelectorAll('.card'), function(c){
+      c.addEventListener('click', function(){ c.classList.toggle('open'); var m = c.querySelector('.more'); if (m) m.textContent = c.classList.contains('open') ? 'Less' : 'Details'; });
+    });
+  }
+  fetch('https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts.json')
+    .then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(render)
+    .catch(function(){ out.innerHTML = '<span class="err">The MTA\'s alerts are not reachable right now. Try again with a connection.</span>'; });
+})();
+</script>
+</body>
+</html>
