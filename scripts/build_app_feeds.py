@@ -311,7 +311,8 @@ def build_permits():
     stamp = NOW.strftime('%Y-%m-%dT%H:%MZ')
     first = min([START[:10]] + [x.get('shootDate') for x in notices if x.get('shootDate')])
     write('permits.json', dict(meta('DOB NOW and DOB BIS permits, DOT Street Construction Permits, Mayor\'s Office of Media & Entertainment film notices to CB6, Film Permits and NYC Permitted Event Information', 'https://bkcb6.app/permits', rows,
-                                    sources={'Building (DOB)': stamp, 'Street work (DOT)': stamp, 'Film': stamp, 'Events': stamp}, since=first),
+                                    sources={'Building (DOB)': stamp, 'Street work (DOT)': stamp, 'Film': stamp, 'Events': stamp}, since=first,
+                                    note='Building permits (DOB), street construction permits (DOT), film shoots and permitted events, placed where the permit says. The map shows every permit in the month picked, on any block within the radius; the block card on Home lists only what is permitted on your own block in the next 30 days.'),
                                cols=['id', 'start', 'end', 'kind', 'what', 'where', 'status', 'who', 'lat', 'lon', 'ref'], kinds=K.vals, rows=rows))
 
 def manifest():
