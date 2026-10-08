@@ -41,7 +41,7 @@ for f in sorted(glob.glob(os.path.join(R, 'App', '**', '*.swift'), recursive=Tru
         if parts[0] not in ROOTS or parts[-1] in NOT_LAST: return m.group(0)
         before = s[max(0, m.start() - 40):m.start()]
         if BAD_BEFORE.search(before): return m.group(0)
-        if 'symbol("' in before[-10:]: return m.group(0)
+        if 'MapStyle.symbol("' in before[-60:] or 'MapStyle.icon(' in before[-60:]: return m.group(0)
         key = f'{name}.s.{h8(lit)}'; reg[key] = lit; n += 1
         return f'MapStyle.symbol("{key}", "{lit}")'
     s = DOTTED.sub(rep, s)
