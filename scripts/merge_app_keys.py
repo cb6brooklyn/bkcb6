@@ -15,7 +15,8 @@ lists = json.load(open(lp)) if os.path.exists(lp) else {}
 tables = lists.get('lists', {})
 n_new = 0
 for f in sorted(glob.glob(os.path.join(SRC, 'lists-*.json'))):
-    for k, v in json.load(open(f)).items():
+    d = json.load(open(f))
+    for k, v in (d['lists'] if 'lists' in d and 'structs' in d else d).items():
         if k not in tables: tables[k] = v; n_new += 1
 lists['about'] = ("Every table the apps' code once carried, by <File>.<name>: categories, labels, aliases, route lists, colors (#hex), "
                   "lookup tables, tuples as rows of cells, structs as objects. Edit a value and the apps pick it up on their next refresh; "
@@ -55,6 +56,10 @@ json.dump(ms, open(mp, 'w'), ensure_ascii=False, indent=1)
 # 3. strings
 cp = os.path.join(C, 'copy.json'); copy = json.load(open(cp)); strings = copy['strings']; s_new = 0
 for f in sorted(glob.glob(os.path.join(SRC, 'style-keys-*.json'))):
+    for k, v in json.load(open(f))['strings'].items():
+        if k not in strings: strings[k] = v; s_new += 1
+# every visible literal the audit routed through the file (copy-audit-<app>.json, from scripts/app/audit_strings.py)
+for f in sorted(glob.glob(os.path.join(SRC, 'copy-audit-*.json'))):
     for k, v in json.load(open(f))['strings'].items():
         if k not in strings: strings[k] = v; s_new += 1
 copy['strings'] = dict(sorted(strings.items()))
