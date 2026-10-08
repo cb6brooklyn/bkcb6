@@ -58,8 +58,9 @@ if os.path.exists(bk):
 # 3. the community board card: no seal when the logo name is blank
 ev = os.path.join(R, 'App/Views/ExploreViews.swift'); s = open(ev).read()
 import re
-m = re.search(r'( *)LogoImage\(name: (Copy\.t\("ExploreViews\.[0-9a-f]{8}", "[^"]*"\)), size: 40\)\n', s)
+m = re.search(r'( *)LogoImage\(name: ((?:DK\.isBeyond \? "CBB" : )?Copy\.t\("ExploreViews\.[0-9a-f]{8}", "[^"]*"\)), size: 40\)\n', s)
 if m and 'aboutLogo' not in s:
-    s = s[:m.start()] + f'{m.group(1)}let aboutLogo = {m.group(2)}\n{m.group(1)}if !aboutLogo.isEmpty {{ LogoImage(name: aboutLogo, size: 40) }}\n' + s[m.end():]
+    expr = m.group(2).replace('DK.isBeyond ? "CBB" : ', 'DK.isBeyond ? Copy.t("ExploreViews.cbb0a0a0", "CBB") : ')
+    s = s[:m.start()] + f'{m.group(1)}let aboutLogo = {expr}\n{m.group(1)}if !aboutLogo.isEmpty {{ LogoImage(name: aboutLogo, size: 40) }}\n' + s[m.end():]
     open(ev, 'w').write(s)
 print('about card logo', 'aboutLogo' in s)
