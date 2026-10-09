@@ -1,6 +1,5 @@
-"""Local businesses in the Organizations tab, by business improvement district: each BID (and the Gowanus BID formation
-effort) heads its own subsection with the businesses inside it; businesses outside a BID sit under their neighborhood.
-The business's category is its subtitle. Edits app/data/civic/orgs/orgs-profiles.json in place."""
+"""Local businesses in the Organizations tab, by kind (restaurants, stores, markets, venues), each with its BID or
+neighborhood in its subtitle; the BIDs have their own heading. Edits app/data/civic/orgs/orgs-profiles.json in place."""
 import json
 P = 'app/data/civic/orgs/orgs-profiles.json'
 d = json.load(open(P))
@@ -8,7 +7,12 @@ PS, AA, NF, GW = 'In the Park Slope Fifth Avenue BID', 'In the Atlantic Avenue B
 BIDS = 'Business improvement districts'
 GO = 'Gowanus, outside the proposed BID'
 RH, CG, PO = 'Red Hook: no BID', 'Carroll Gardens and Columbia Street: no BID', 'Park Slope, outside the BID'
-TOPICS = [PS, AA, NF, GW, GO, RH, CG, PO]
+# the headings under Local businesses: by kind of business; where it is (its BID, or none) goes in the subtitle
+FOOD, STORES, MARKETS, VENUES = 'Restaurants, cafes and food', 'Stores', 'Markets', 'Venues'
+TOPICS = [FOOD, STORES, MARKETS, VENUES]
+KIND = {'red-hook-lobster-pound': FOOD, 'principles-gi-coffee-house': FOOD, 'strong-rope-brewery': FOOD, 'house-pepper': FOOD,
+        'bark-slope': STORES, 'bird-collective': STORES, 'books-are-magic': STORES, 'record-shop': STORES,
+        'park-slope-farmers-market': MARKETS, 'brooklyn-pop-up': MARKETS, 'nitehawk-prospect-park': VENUES, 'jalopy-theatre': VENUES}
 # where each business is (from bids.geojson for the BIDs; the address for the rest)
 WHERE = {'bark-slope': PS, 'park-slope-farmers-market': PO, 'nitehawk-prospect-park': PO, 'bird-collective': PO,
          'principles-gi-coffee-house': GO, 'strong-rope-brewery': GW,
@@ -27,7 +31,11 @@ prof = [p for p in d['profiles'] if p['slug'] not in WHERE and p['slug'] not in 
 # the businesses join the profiles, under Local businesses, by BID
 for b in d['businesses']:
     b = dict(b); nb = b['seat'].split(' · ')[-1].replace(', Brooklyn', '')
-    b.update(group='Local businesses', topic=WHERE[b['slug']], sort=0, kind='org', seat=f"{CAT[b['slug']]} · {nb}")
+    w = {'bark-slope': 'Park Slope Fifth Avenue BID', 'strong-rope-brewery': 'Proposed Gowanus BID', 'principles-gi-coffee-house': 'Gowanus, no BID',
+         'park-slope-farmers-market': 'Park Slope, no BID', 'nitehawk-prospect-park': 'Park Slope, no BID', 'bird-collective': 'Park Slope, no BID',
+         'record-shop': 'Red Hook, no BID', 'red-hook-lobster-pound': 'Red Hook, no BID', 'brooklyn-pop-up': 'Red Hook, no BID', 'house-pepper': 'Red Hook, no BID',
+         'books-are-magic': 'Carroll Gardens, no BID', 'jalopy-theatre': 'Columbia Street Waterfront, no BID'}[b['slug']]
+    b.update(group='Local businesses', topic=KIND[b['slug']], sort=0, kind='org', seat=f"{CAT[b['slug']]} · {w}")
     prof.append(b)
 # the BIDs and business groups head their subsections
 for p in prof:
