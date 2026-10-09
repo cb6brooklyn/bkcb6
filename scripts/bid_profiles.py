@@ -91,7 +91,7 @@ for p in d['profiles']:
         g = bids[PAGES[s]]; pts = inside(g); img = f'bid-{s}.png'
         draw(True, g, pts, f'{C}/orgs/going/{img}')
         p['going'] = [{'img': img, 'kicker': 'The district', 'title': f"{p['name']}: where it is",
-                       'text': f"Orange: the BID. Dashed navy line: Community Board 6. Dots: the {len(pts)} businesses in the CB6 business directory inside the BID, listed under Details.",
+                       'text': f"Orange: the BID. Dashed navy line: Community Board 6. Dots: the {len(pts)} businesses in the CB6 business directory inside the BID, listed below.",
                        'until': '', 'btns': []}]
         p['kv'] = [['Community board', 'Brooklyn Community Board 6'], ['Businesses', f'{len(pts)} in the CB6 business directory inside the BID, below']] + directory(pts)
     if s == 'gowanus-bid-formation-effort':
@@ -100,7 +100,7 @@ for p in d['profiles']:
         img = f'bid-{s}.png'
         draw(True, g, pts, f'{C}/orgs/going/{img}', pad=0.0015)
         p['going'] = [{'img': img, 'kicker': 'The district', 'title': 'The proposed Gowanus BID: where it is',
-                       'text': f"Orange: the proposed BID, the same as the Gowanus rezoning area. Dashed navy line: Community Board 6. Dots: the {len(pts)} businesses in the CB6 business directory inside it, listed under Details.",
+                       'text': f"Orange: the proposed BID, the same as the Gowanus rezoning area. Dashed navy line: Community Board 6. Dots: the {len(pts)} businesses in the CB6 business directory inside it, listed below.",
                        'until': '', 'btns': []}]
         p['kv'] = [['Community board', 'Brooklyn Community Board 6'], ['Businesses', f'{len(pts)} in the CB6 business directory inside the proposed BID, below']] + directory(pts)
     if s in PAGES or s == 'gowanus-bid-formation-effort':
