@@ -32,7 +32,7 @@
 <div class="wrap">
   <p class="k" id="title">Subway and bus changes and delays</p>
   <div id="out"><span class="err">Checking the MTA's alerts</span></div>
-  <p class="note">From the MTA's service alerts. Tap an alert for the details.</p>
+  <p class="note">Tap an alert for the details.</p>
 </div>
 <script>
 (function(){
@@ -86,9 +86,23 @@
   }
   var MTA = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2F';
   function get(u){ return fetch(u).then(function(r){ if (!r.ok) throw r.status; return r.json(); }).catch(function(){ return null; }); }
-  Promise.all([get(MTA + 'subway-alerts.json'), BUSES.length ? get(MTA + 'bus-alerts.json') : Promise.resolve(null)]).then(function(r){
-    if (!r[0] && !r[1]) { out.innerHTML = '<span class="err">The MTA\'s alerts are not reachable right now. Try again with a connection.</span>'; return; }
+  var FERRY = q.get('ferry') === '1', ONLYFERRY = q.get('only') === 'ferry';
+  var NEAR = /south brooklyn|atlantic ave|pier 6|red hook|atlantic basin|brooklyn bridge park|governors island/i;
+  function ferryHTML(list){
+    if (!list) return '<p class="k" style="margin-top:14px">NYC Ferry</p><div class="err">NYC Ferry\'s alerts are not reachable right now.</div>';
+    if (!list.length) return '<p class="k" style="margin-top:14px">NYC Ferry</p><div class="ok">No ferry alerts posted. Nearest landings: Atlantic Ave/BBP Pier 6 and Red Hook/Atlantic Basin, South Brooklyn route.</div>';
+    list.sort(function(a, b){ return (NEAR.test((b.notificationTitle||'') + (b.notificationBody||'')) ? 1 : 0) - (NEAR.test((a.notificationTitle||'') + (a.notificationBody||'')) ? 1 : 0); });
+    return '<p class="k" style="margin-top:14px">NYC Ferry</p>' + list.map(function(a){
+      var near = NEAR.test((a.notificationTitle||'') + (a.notificationBody||''));
+      return '<div class="card' + (near ? ' active' : '') + '"><div class="head"><span class="kind">' + (near ? 'Near CB6' : 'Ferry') + '</span></div><div class="h">' + esc(String(a.notificationTitle||'').replace(/<[^>]+>/g,'')) + '</div><div class="d" style="display:block">' + esc(String(a.notificationBody||'').replace(/<[^>]+>/g,' ')) + '</div></div>';
+    }).join('');
+  }
+  if (ONLYFERRY) { document.getElementById('title').textContent = 'NYC Ferry alerts'; get('https://us-central1-nyc-ferry.cloudfunctions.net/nycf_service_alerts?lang=en').then(function(f){ out.innerHTML = ferryHTML(f).replace(/^<p class="k"[^<]*<\/p>/, ''); }); return; }
+  Promise.all([get(MTA + 'subway-alerts.json'), BUSES.length ? get(MTA + 'bus-alerts.json') : Promise.resolve(null), FERRY ? get('https://us-central1-nyc-ferry.cloudfunctions.net/nycf_service_alerts?lang=en') : Promise.resolve(null)]).then(function(r){
+    var fh = FERRY ? ferryHTML(r[2]) : '';
+    if (!r[0] && !r[1]) { out.innerHTML = '<span class="err">The MTA\'s alerts are not reachable right now. Try again with a connection.</span>' + fh; return; }
     render([{ j: r[0], list: LINES }, { j: r[1], list: BUSES }]);
+    if (fh) out.insertAdjacentHTML('beforeend', fh);
   });
 })();
 </script>
