@@ -118,6 +118,27 @@
     return '<div class="row" data-id="' + esc(i.id) + '">' + lg + '<div class="rt"><div class="rn">' + esc(i.name) + '</div><div class="rs">' + esc(i.sub) + '</div>' +
       (n ? '<div class="rc">' + n + ' upcoming on the calendar</div>' : '') + '</div><span class="go">&rsaquo;</span></div>';
   }
+  function bizRow(r){ var lb = r[3] ? r[0] + ' \u00b7 ' + r[3] : r[0]; return '<div class="biz" data-biz="' + esc(lb) + '"><div class="rt"><div class="bn">' + esc(r[0]) + '</div><div class="ba">' + esc([r[2] || r[1], r[3], r[4]].filter(Boolean).join(' \u00b7 ')) + '</div></div><span class="go">&rsaquo;</span></div>'; }
+  function bizFromLabel(lb){ var parts = lb.split(' \u00b7 '), name = parts[0], addr = parts.slice(1).join(' \u00b7 '); return biz.filter(function(r){ return r[0] === name && (!addr || r[3] === addr); })[0] || [name, '', '', addr, '']; }
+  // the business directory, by BID and by category: each a closed heading, its rows drawn when it opens
+  var DIR = {};
+  function dirLists(){
+    var out = [];
+    data.profiles.filter(function(p){ return p.group === 'Business improvement districts' && (p.kv || []).length > 2; }).forEach(function(p){
+      var rows = p.kv.slice(2).map(function(x){ return bizFromLabel(x[1]); });
+      var key = 'bid:' + p.slug; DIR[key] = rows;
+      out.push({ key:key, title:(p.slug === 'gowanus-bid-formation-effort' ? 'In the proposed Gowanus BID' : 'In the ' + p.name), n:rows.length });
+    });
+    var cats = {};
+    biz.forEach(function(r){ var c = r[1] || 'Other businesses'; (cats[c] = cats[c] || []).push(r); });
+    Object.keys(cats).sort().forEach(function(c){
+      var rows = cats[c].slice().sort(function(a, b){ return a[0].localeCompare(b[0]); });
+      DIR['cat:' + c] = rows; out.push({ key:'cat:' + c, title:c, n:rows.length, all:true });
+    });
+    return out;
+  }
+  var LISTS = [];
+  function fold(key, title, n, body){ return '<div class="grp" data-dir="' + esc(key) + '" style="margin-top:8px"><div class="gh"><span class="ch">&rsaquo;</span>' + esc(title) + '<span class="n">' + n.toLocaleString() + '</span></div><div class="gb">' + (body || '') + '</div></div>'; }
   function drawList(){
     var q = document.getElementById('q').value.trim().toLowerCase();
     var r = ALL.filter(function(i){
@@ -126,15 +147,20 @@
       var p = i.p || {};
       return [i.name, i.topic, i.group, i.sub, p.desc, p.addr].join(' ').toLowerCase().indexOf(q) >= 0;
     });
+    var bizHits = q.length >= 2 && (!groupOn || groupOn === 'Local businesses') ? biz.filter(function(b){ return [b[0], b[1], b[2], b[3], b[4]].join(' ').toLowerCase().indexOf(q) >= 0; }) : [];
+    var count = function(g){ return ALL.filter(function(i){ return i.group === g; }).length + (g === 'Local businesses' ? biz.length : 0); };
+    var total = ALL.length + biz.length;
     var gs = data.groups.map(function(g){ return g.name; });
-    document.getElementById('chips').innerHTML = '<button class="chip' + (groupOn ? '' : ' on') + '" data-g="">All ' + ALL.length + '</button>' +
-      gs.map(function(g){ var n = ALL.filter(function(i){ return i.group === g; }).length; return n ? '<button class="chip' + (groupOn === g ? ' on' : '') + '" data-g="' + esc(g) + '">' + esc(g) + ' ' + n + '</button>' : ''; }).join('');
+    document.getElementById('chips').innerHTML = '<button class="chip' + (groupOn ? '' : ' on') + '" data-g="">All ' + total.toLocaleString() + '</button>' +
+      gs.map(function(g){ var n = count(g); return n ? '<button class="chip' + (groupOn === g ? ' on' : '') + '" data-g="' + esc(g) + '">' + esc(g) + ' ' + n.toLocaleString() + '</button>' : ''; }).join('');
     var html = '';
     data.groups.forEach(function(g){
+      var lb = g.name === 'Local businesses';
       var inG = r.filter(function(i){ return i.group === g.name; });
-      if (!inG.length) return;
-      // closed by default; a search or a chosen heading opens what matches
-      var open = openG[g.name] || !!q || groupOn === g.name;
+      if (!inG.length && !(lb && (!q || bizHits.length))) return;
+      if (lb && groupOn && groupOn !== g.name) return;
+      // every heading starts closed; a search opens what matches
+      var open = openG[g.name] || !!q;
       var listed = (g.topics || []).filter(function(t){ return inG.some(function(i){ return i.topic === t; }); });
       inG.forEach(function(i){ if (i.topic && listed.indexOf(i.topic) < 0) listed.push(i.topic); });
       var body = '';
@@ -143,9 +169,19 @@
         listed.forEach(function(t){ body += '<div class="sub">' + esc(t) + '</div>' + inG.filter(function(i){ return i.topic === t; }).map(rowHTML).join(''); });
         body += inG.filter(function(i){ return !i.topic; }).map(rowHTML).join('');
       }
-      html += '<div class="grp' + (open ? ' open' : '') + '" data-g="' + esc(g.name) + '"><div class="gh"><span class="ch">&rsaquo;</span>' + esc(g.name) + '<span class="n">' + inG.length + '</span></div><div class="gb">' + body + '</div></div>';
+      var n = inG.length;
+      if (lb) {
+        if (q) { body += bizHits.length ? '<div class="sub">The business directory \u00b7 ' + bizHits.length + '</div><div class="card">' + bizHits.map(bizRow).join('') + '</div>' : ''; n += bizHits.length; }
+        else {
+          if (inG.length) body = '<div class="sub">With a profile</div>' + body;
+          body += '<div class="sub">By business improvement district</div>' + LISTS.filter(function(x){ return !x.all; }).map(function(x){ return fold(x.key, x.title, x.n); }).join('');
+          body += '<div class="sub">Every business in CB6, by kind \u00b7 ' + biz.length.toLocaleString() + '</div>' + LISTS.filter(function(x){ return x.all; }).map(function(x){ return fold(x.key, x.title, x.n); }).join('');
+          n += biz.length;
+        }
+      }
+      html += '<div class="grp' + (open ? ' open' : '') + '" data-g="' + esc(g.name) + '"><div class="gh"><span class="ch">&rsaquo;</span>' + esc(g.name) + '<span class="n">' + n.toLocaleString() + '</span></div><div class="gb">' + body + '</div></div>';
     });
-    document.getElementById('groups').innerHTML = html || '<p class="muted">Nothing matches “' + esc(q) + '”.</p>';
+    document.getElementById('groups').innerHTML = html || '<p class="muted">Nothing matches \u201C' + esc(q) + '\u201D.</p>';
   }
   function kv(k, v, href){ return '<div class="kv"><div class="k">' + esc(k) + '</div>' + (href ? '<a class="v" href="' + esc(href) + '">' + esc(v) + '</a>' : '<div class="v">' + esc(v) + '</div>') + '</div>'; }
   function eventsHTML(list, name){
@@ -227,7 +263,9 @@
     var t = ev.target.closest('[data-back],.row,.gh,.chip,.biz,.ev'); if (!t) return;
     if (t.dataset.back) { ev.preventDefault(); back(); return; }
     if (t.classList.contains('chip')) { groupOn = groupOn === t.dataset.g ? '' : t.dataset.g; drawList(); return; }
-    if (t.classList.contains('gh')) { var g = t.parentNode; g.classList.toggle('open'); if (g.closest('#groups')) openG[g.dataset.g] = g.classList.contains('open'); return; }
+    if (t.classList.contains('gh')) { var g = t.parentNode; g.classList.toggle('open');
+      if (g.dataset.dir) { var gb = g.querySelector('.gb'); if (!gb.innerHTML) gb.innerHTML = '<div class="card">' + (DIR[g.dataset.dir] || []).map(bizRow).join('') + '</div>'; return; }
+      if (g.dataset.g && g.closest('#groups')) openG[g.dataset.g] = g.classList.contains('open'); return; }
     if (t.classList.contains('ev')) { t.classList.toggle('open'); return; }
     if (t.classList.contains('biz')) { var lb = t.dataset.biz; open(function(){ business(lb); }); return; }
     if (t.classList.contains('row')) {
@@ -242,7 +280,7 @@
     J(D + 'business/business-cb6.json').catch(function(){ return { rows: [] }; })
   ]).then(function(r){
     data = r[0]; cal = r[1].events || []; biz = r[2].rows || [];
-    ALL = items(); drawList();
+    ALL = items(); LISTS = dirLists(); drawList();
   }).catch(function(){ document.getElementById('groups').innerHTML = '<p class="muted">The organizations list did not load.</p>'; });
 })();
 </script>
