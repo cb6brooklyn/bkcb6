@@ -4,7 +4,8 @@ The business's category is its subtitle. Edits app/data/civic/orgs/orgs-profiles
 import json
 P = 'app/data/civic/orgs/orgs-profiles.json'
 d = json.load(open(P))
-PS, AA, NF, GW = 'Park Slope Fifth Avenue BID', 'Atlantic Avenue BID', 'North Flatbush BID', 'Gowanus: BID being formed'
+PS, AA, NF, GW = 'In the Park Slope Fifth Avenue BID', 'In the Atlantic Avenue BID', 'In the North Flatbush BID', 'In the proposed Gowanus BID'
+BIDS = 'Business improvement districts'
 GO = 'Gowanus, outside the proposed BID'
 RH, CG, PO = 'Red Hook: no BID', 'Carroll Gardens and Columbia Street: no BID', 'Park Slope, outside the BID'
 TOPICS = [PS, AA, NF, GW, GO, RH, CG, PO]
@@ -30,22 +31,22 @@ for b in d['businesses']:
     prof.append(b)
 # the BIDs and business groups head their subsections
 for p in prof:
-    if p['slug'] == 'park-slope-fifth-avenue-bid': p.update(group='Local businesses', topic=PS, sort=-1)
-    if p['slug'] == 'atlantic-avenue-ldc': p.update(group='Local businesses', topic=AA, sort=-1)
-    if p['slug'] == 'red-hook-business-alliance': p.update(group='Local businesses', topic=RH, sort=-1)
+    if p['slug'] == 'park-slope-fifth-avenue-bid': p.update(group=BIDS, topic='', sort=1)
+    if p['slug'] == 'atlantic-avenue-ldc': p.update(group='Community groups', topic='Business and economic development', sort=0)
+    if p['slug'] == 'red-hook-business-alliance': p.update(group='Community groups', topic='Business and economic development', sort=0)
 aa = base('atlantic-avenue-bid', 'atlanticavebid', 'Atlantic Avenue BID', 'Business improvement district · Atlantic Avenue',
           'Atlantic Avenue Business Improvement District, established 2011. Atlantic Avenue from Fourth Avenue to the BQE, one block north and south, in Community Boards 2 and 6.',
           40.690567, -73.997197, 'Atlantic Avenue, Fourth Avenue to the BQE', 'http://www.atlanticavebid.org/', since='2011',
           intro=['The Atlantic Avenue Business Improvement District runs along Atlantic Avenue from Fourth Avenue to the Brooklyn-Queens Expressway, with the side streets one block north and south. The north side between Court and Smith Streets is in the Court-Livingston-Schermerhorn BID instead.',
                  'It was established in 2011 and spans Community Boards 2 and 6.'],
           links=[['Their site', 'http://www.atlanticavebid.org/']])
-aa.update(group='Local businesses', topic=AA, sort=-2)
+aa.update(group=BIDS, topic='', sort=1)
 nf = base('north-flatbush-bid', 'northflatbushbid', 'North Flatbush BID', 'Business improvement district · Flatbush Avenue',
           'North Flatbush Avenue Business Improvement District, established 1986, along Flatbush Avenue in Community Boards 2, 6 and 8.',
           40.682724, -73.975324, 'Flatbush Avenue, Atlantic Avenue to Grand Army Plaza', 'https://northflatbushbid.nyc/', since='1986',
           intro=['The North Flatbush Business Improvement District runs along Flatbush Avenue between Atlantic Avenue and Grand Army Plaza, in Community Boards 2, 6 and 8. It was established in 1986.'],
           links=[['Their site', 'https://northflatbushbid.nyc/']])
-nf.update(group='Local businesses', topic=NF, sort=-2)
+nf.update(group=BIDS, topic='', sort=1)
 gw = base('gowanus-bid-formation-effort', 'gowanusbid', 'Gowanus BID Formation Effort', 'A business improvement district being formed · Gowanus',
           'Gowanus BID Formation Effort. A steering committee of local stakeholders, facilitated by the Gowanus Canal Conservancy and working with the Department of Small Business Services, is forming a business improvement district in Gowanus.',
           40.6745, -73.9886, 'Gowanus Canal Conservancy, 248 Third Street', 'https://gowanusimprovementdistrict.org',
@@ -53,7 +54,7 @@ gw = base('gowanus-bid-formation-effort', 'gowanusbid', 'Gowanus BID Formation E
           intro=['A steering committee of local stakeholders, facilitated by the Gowanus Canal Conservancy and working with the Department of Small Business Services, is forming a business improvement district in Gowanus, covering the Gowanus rezoning area. Its co-chairs are Andrea Parker, Chris Papamichael, Lisa Lightbody and Sam Alison-Mayne.',
                  'The effort began outreach in fall 2024 and is collecting ballots from property owners and commercial tenants; the BID needs 51 percent support before it goes to the city for approval. Public meetings: October 14 (virtual) and November 4 at Wyckoff Gardens Community Center.'],
           links=[['Their site', 'https://gowanusimprovementdistrict.org'], ['About', 'https://gowanusimprovementdistrict.org/about'], ['Questions and answers', 'https://gowanusimprovementdistrict.org/faq']])
-gw['cal'] = 'gowanusbid'; gw.update(group='Local businesses', topic=GW, sort=-2)
+gw['cal'] = 'gowanusbid'; gw.update(group=BIDS, topic='', sort=2)
 prof += [aa, nf, gw]
 d['profiles'] = prof
 # calendar entries: the stray Knicks entry goes; the businesses' calendar entries come back so their profiles show their events
@@ -62,10 +63,18 @@ have = {o['slug'] for o in d['orgs']}
 for o in d['businessOrgs']:
     if o['slug'] not in have: d['orgs'].append(dict(o, topic=''))
 if 'gowanusbid' not in have:
-    d['orgs'].append({'slug': 'gowanusbid', 'name': 'Gowanus BID Formation Effort', 'logo': 'gcc.png', 'site': 'https://gowanusimprovementdistrict.org', 'cal': 'gowanus-bid-formation-effort', 'n': 2, 'group': 'Local businesses', 'topic': GW, 'sort': -2})
+    d['orgs'].append({'slug': 'gowanusbid', 'name': 'Gowanus BID Formation Effort', 'logo': 'gcc.png', 'site': 'https://gowanusimprovementdistrict.org', 'cal': 'gowanus-bid-formation-effort', 'n': 2, 'group': BIDS, 'topic': '', 'sort': 2})
 for g in d['groups']:
     if g['name'] == 'Local businesses': g['topics'] = TOPICS
+if not any(g['name'] == BIDS for g in d['groups']):
+    i = [g['name'] for g in d['groups']].index('Local businesses')
+    d['groups'].insert(i, {'name': BIDS, 'topics': []})
 d['about'] = d['about'].replace('Local businesses sit in businesses (and their calendar entries in businessOrgs), apart from the community groups, and are listed in the Local businesses directory (civic/business/business-cb6.json).',
     'Local businesses are profiles with group Local businesses; their topic is the business improvement district they are in (or their neighborhood when outside one), and the BID itself heads that subsection with sort -2 or -1. businesses and businessOrgs keep the earlier copies.')
 json.dump(d, open(P, 'w'), ensure_ascii=False, indent=1)
 print(len(prof), 'profiles;', len(d['orgs']), 'calendar entries')
+# the BIDs' calendar entries carry the same heading
+d = json.load(open(P))
+for o in d['orgs']:
+    if o['slug'] in ('gowanusbid', 'ps5bid'): o.update(group=BIDS, topic='')
+json.dump(d, open(P, 'w'), ensure_ascii=False, indent=1)
