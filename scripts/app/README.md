@@ -7,6 +7,11 @@ changed from the pack (`app/data/civic/...`), with the code's own value as the f
 |---|---|---|
 | Tables (categories, labels, aliases, routes, colors, lookups, tuples, structs) | `civic/lists.json` | `<File>.<name>` |
 | Every screen's parts (order, folds, hidden, inserted text, pages, buttons, tools), screen replacement, the tab bar | `civic/ui/<app>/screens.json` | `screens.<key>`, `replace`, `tabs` |
+| The code's tunable numbers (list caps, day windows, radii) | `civic/mapstyle.json` `numbers` | `<File>.n.<name>` |
+| Every NYC Open Data dataset a screen reads | `civic/lists.json` | `<File>.ds.<id>` |
+| Every button: where it goes, or hidden; anything made a button | `civic/ui/<app>/screens.json` `buttons`, parts' `dest` | `<File>.<id>` |
+| The day's strip on Home | `civic/lists.json` `HomeStatus.tiles` | |
+| The home-screen widget's words, colors, date formats | `civic/widget.json` | |
 | Every SF symbol (icons on rows, buttons, tabs, chevrons) | `civic/mapstyle.json` `symbols` | `<File>.s.<id>` |
 | Colors, theme colors, map badges, type scale, font names | `civic/mapstyle.json` (colors, icons, numbers, labels; `where` says the file and line) | `<File>.c.<id>`, `theme.<name>`, `<File>.i.<id>`, `theme.textScale`, `theme.font.*` |
 | Screen text | `civic/copy.json` | `<File>.<id>` |
@@ -37,3 +42,6 @@ inserted anywhere; every screen key goes through `ScreenRouter` (the file's `rep
 
 What stays in code: layout and logic, keys and identifiers (dataset ids, symbol names, file names, settings keys), date
 formats, and anything compared or matched rather than shown.
+
+Then (builds from 120 and 121): `fix_tiles.py` (the strip and parts' `dest`), `audit_numbers.py <app> numbers-<app>.json`, `audit_datasets.py <app> datasets-<app>.json`,
+`fix_widget.py ~/bkcb6app` (the widget reads civic/widget.json), `fix_boardmeeting.py`, `fix_bknext.py`, `fix_subway.py`. `today.sh` runs the whole chain in order.
