@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Today in CB6</title>
+<style>
+  @font-face { font-family:'DMS'; src:url('bkcb://font/DMSans-Regular.ttf'); font-weight:400; }
+  @font-face { font-family:'DMS'; src:url('bkcb://font/DMSans-Bold.ttf'); font-weight:700; }
+  @font-face { font-family:'DMM'; src:url('bkcb://font/DMMono-Medium.ttf'); font-weight:500; }
+  :root { --navy:#06024d; --orange:#f47920; --ink:#14141c; --muted:#626470; --rule:#e1dfd8; --paper:#f8f7f4; --alert:#bf2e33; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; background:var(--paper); font-family:'DMS','DM Sans',system-ui,sans-serif; color:var(--ink); }
+  .row { display:flex; gap:8px; overflow-x:auto; padding:8px 10px; scrollbar-width:none; }
+  .row::-webkit-scrollbar { display:none; }
+  .t { flex:0 0 auto; display:flex; align-items:center; gap:7px; padding:6px 9px; background:#fff; border:1px solid var(--rule); border-radius:10px; text-decoration:none; color:inherit; }
+  .t.bad { border-color:rgba(191,46,51,.5); }
+  .t img, .t svg { width:28px; height:28px; object-fit:contain; border-radius:6px; }
+  .k { font-family:'DMM','DM Mono',monospace; font-size:9px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); white-space:nowrap; }
+  .v { font-weight:700; font-size:13px; white-space:nowrap; }
+  .t.bad .v { color:var(--alert); }
+  .today { background:var(--navy); border-color:var(--navy); padding:7px 10px; }
+  .today .k { color:var(--orange); }
+  .today .v { color:#fff; font-size:14px; }
+  .go { font-size:11px; color:var(--orange); margin-left:2px; }
+</style>
+</head>
+<body>
+<div class="row" id="row"></div>
+<script>
+(function(){
+  var q = new URLSearchParams(location.search);
+  var LINES = (q.get('lines') || 'F,G,R,D,N,Q,B').split(',');
+  var AREA = q.get('area') || 'CB6';
+  var SITE = 'https://bkcb6.app';
+  var tz = 'America/New_York';
+  var now = new Date();
+  var parts = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit' }).format(now);
+  var today = parts; // YYYY-MM-DD
+  var wd = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday:'short' }).format(now);
+  var dayLabel = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday:'short', month:'short', day:'numeric' }).format(now);
+  var state = { asp:['In effect',true], san:['Normal schedule',true], sch:['Open',true], sub:['Checking',true], wx:['Checking',true], wxIcon:'sun' };
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function icon(name){
+    if (name === 'sun') return '<svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="6" fill="#f6c343"/><g stroke="#f6c343" stroke-width="2" stroke-linecap="round"><path d="M14 2v3M14 23v3M2 14h3M23 14h3M5.5 5.5l2 2M20.5 20.5l2 2M5.5 22.5l2-2M20.5 7.5l2-2"/></g></svg>';
+    if (name === 'cloud') return '<svg viewBox="0 0 28 28"><path d="M8 21h13a5 5 0 0 0 0-10 7 7 0 0 0-13 2 4 4 0 0 0 0 8z" fill="#9aa3b2"/></svg>';
+    if (name === 'rain') return '<svg viewBox="0 0 28 28"><path d="M8 17h13a5 5 0 0 0 0-10 7 7 0 0 0-13 2 4 4 0 0 0 0 8z" fill="#9aa3b2"/><g stroke="#3a7bd5" stroke-width="2" stroke-linecap="round"><path d="M10 20l-1 4M15 20l-1 4M20 20l-1 4"/></g></svg>';
+    return '<svg viewBox="0 0 28 28"><path d="M8 21h13a5 5 0 0 0 0-10 7 7 0 0 0-13 2 4 4 0 0 0 0 8z" fill="#c7cbd3"/></svg>';
+  }
+  function tile(img, title, s, href){
+    var inner = img + '<div><div class="k">' + esc(title) + '</div><div class="v">' + esc(s[0]) + (href ? '<span class="go">&rsaquo;</span>' : '') + '</div></div>';
+    return href ? '<a class="t' + (s[1] ? '' : ' bad') + '" href="' + href + '">' + inner + '</a>' : '<div class="t' + (s[1] ? '' : ' bad') + '">' + inner + '</div>';
+  }
+  function draw(){
+    document.getElementById('row').innerHTML =
+      '<div class="t today"><div><div class="k">Today</div><div class="v">' + esc(dayLabel) + '</div></div></div>' +
+      tile('<img src="/app/data/civic/cal/icons/altside.png" alt="">', 'Alternate side parking', state.asp) +
+      tile('<img src="/site-icons/agencies/dsny.png" alt="">', 'Sanitation', state.san) +
+      tile('<img src="/assets/blocks/school-nycps.png" alt="">', 'Schools', state.sch) +
+      tile('<img src="/site-icons/mta.png" alt="">', 'Subway in ' + AREA, state.sub, SITE + '/app/subway.html?lines=' + encodeURIComponent(LINES.join(','))) +
+      tile(icon(state.wxIcon), 'Weather', state.wx, SITE + '/weather.html');
+  }
+  draw();
+  // Parking, sanitation and schools: the day of the week, the calendar's suspensions and closings, and the no-collection days.
+  Promise.all([
+    fetch('/app/data/civic/cal/calendar-bk.json').then(function(r){ return r.json(); }).catch(function(){ return null; }),
+    fetch('/app/data/civic/lists.json').then(function(r){ return r.json(); }).catch(function(){ return null; })
+  ]).then(function(res){
+    var ev = (res[0] && res[0].events || []).filter(function(e){ return e.d === today; });
+    var noCol = (res[1] && res[1].lists && res[1].lists['HomeStatus.noCollection']) || [];
+    var has = function(t){ return ev.some(function(e){ return (e.l || '').toLowerCase().indexOf(t) >= 0; }); };
+    if (wd === 'Sun') state.asp = ['Not in effect Sundays', false];
+    else if (has('asp suspended')) state.asp = ['Suspended today', false];
+    if (noCol.indexOf(today) >= 0) state.san = ['No collection today', false];
+    else if (wd === 'Sun') state.san = ['No Sunday collection', false];
+    if (wd === 'Sat' || wd === 'Sun') state.sch = ['Closed for the weekend', false];
+    else if (has('schools closed')) state.sch = ['Closed today', false];
+    draw();
+  });
+  // The subway: delays, suspensions and service changes running now on the lines.
+  fetch('https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts.json').then(function(r){ if (!r.ok) throw r.status; return r.json(); }).then(function(j){
+    var t = Date.now() / 1000, hit = {};
+    (j.entity || []).forEach(function(e){
+      var a = e.alert; if (!a) return;
+      var active = (a.active_period || []).some(function(p){ var s = p.start || 0, en = p.end || 0; return s <= t && (!en || t <= en); });
+      if (!active) return;
+      var kind = ((a['transit_realtime.mercury_alert'] || {}).alert_type || '').toLowerCase();
+      if (!(kind.indexOf('delay') >= 0 || kind.indexOf('suspend') >= 0 || kind.indexOf('no service') >= 0 || kind.indexOf('reduced') >= 0)) return;
+      (a.informed_entity || []).forEach(function(i){ if (i.route_id && LINES.indexOf(i.route_id) >= 0) hit[i.route_id] = 1; });
+    });
+    var on = LINES.filter(function(l){ return hit[l]; });
+    state.sub = on.length ? ['Changes on ' + on.join(' '), false] : ['Good service', true];
+    draw();
+  }).catch(function(){ state.sub = ['Tap for alerts', true]; draw(); });
+  // The weather.
+  fetch('https://api.open-meteo.com/v1/forecast?latitude=40.677&longitude=-73.99&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=America%2FNew_York').then(function(r){ if (!r.ok) throw r.status; return r.json(); }).then(function(o){
+    var c = o.current || {}; var code = c.weather_code;
+    if (typeof c.temperature_2m !== 'number') throw 'no temp';
+    state.wx = [Math.round(c.temperature_2m) + '°F', true];
+    state.wxIcon = code <= 1 ? 'sun' : (code >= 51 && code <= 82 ? 'rain' : 'cloud');
+    draw();
+  }).catch(function(){ state.wx = ['Tap for forecast', true]; draw(); });
+})();
+</script>
+</body>
+</html>
