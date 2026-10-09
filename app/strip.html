@@ -31,6 +31,7 @@
 (function(){
   var q = new URLSearchParams(location.search);
   var LINES = (q.get('lines') || 'F,G,R,D,N,Q,B').split(',');
+  var BUSES = (q.get('buses') || 'B37,B41,B57,B61,B63,B65,B67,B69,B103,B116,X37,SIM2,SIM4,SIM4C,SIM5,SIM31,SIM34,SIM35').split(',');
   var AREA = q.get('area') || 'CB6';
   var SITE = 'https://bkcb6.app';
   var tz = 'America/New_York';
@@ -41,7 +42,7 @@
   var dayLabel = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday:'short', month:'short', day:'numeric' }).format(now);
   // A service update for days without collection: lists.json "HomeStatus.sanitationUpdate" (a link); the tile is a button on those days once it is set.
   var sanLink = '';
-  var state = { asp:['In effect',true], san:['Normal schedule',true], sch:['Open',true], sub:['Checking',true], wx:['Checking',true], wxIcon:'sun' };
+  var state = { asp:['In effect',true], san:['Normal schedule',true], sch:['Open',true], sub:['Checking',true], subHit:[], busHit:[], wx:['Checking',true], wxIcon:'sun' };
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function icon(name){
     if (name === 'sun') return '<svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="6" fill="#f6c343"/><g stroke="#f6c343" stroke-width="2" stroke-linecap="round"><path d="M14 2v3M14 23v3M2 14h3M23 14h3M5.5 5.5l2 2M20.5 20.5l2 2M5.5 22.5l2-2M20.5 7.5l2-2"/></g></svg>';
@@ -59,8 +60,9 @@
       tile('<img src="/assets/blocks/asp-symbol.png" alt="">', 'Alternate side parking', state.asp) +
       tile('<img src="/assets/blocks/dsny-truck.png" alt="">', 'Sanitation', state.san, state.san[1] ? '' : sanLink) +
       tile('<img src="/assets/blocks/school-nycps.png" alt="">', 'Schools', state.sch) +
-      tile('<img src="/site-icons/mta.png" alt="">', 'Subway in ' + AREA, state.sub, SITE + '/app/subway.html?lines=' + encodeURIComponent(LINES.join(','))) +
-      tile(icon(state.wxIcon), 'Weather', state.wx, SITE + '/weather.html');
+      tile('<img src="/site-icons/mta.png" alt="">', 'Subway and buses in ' + AREA, state.sub, SITE + '/app/subway.html?lines=' + encodeURIComponent(LINES.join(',')) + '&buses=' + encodeURIComponent(BUSES.join(','))) +
+      tile(icon(state.wxIcon), 'Weather', state.wx, SITE + '/weather.html') +
+      tile('<img src="/assets/blocks/nyc-ferry.png" alt="">', 'NYC Ferry', ['Service alerts', true], 'https://static.ferry.nyc/service-alerts/');
   }
   draw();
   // Parking, sanitation and schools: the day of the week, the calendar's suspensions and closings, and the no-collection days.
@@ -80,21 +82,29 @@
     else if (has('schools closed')) state.sch = ['Closed today', false];
     draw();
   });
-  // The subway: delays, suspensions and service changes running now on the lines.
-  fetch('https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts.json').then(function(r){ if (!r.ok) throw r.status; return r.json(); }).then(function(j){
-    var t = Date.now() / 1000, hit = {};
-    (j.entity || []).forEach(function(e){
-      var a = e.alert; if (!a) return;
-      var active = (a.active_period || []).some(function(p){ var s = p.start || 0, en = p.end || 0; return s <= t && (!en || t <= en); });
-      if (!active) return;
-      var kind = ((a['transit_realtime.mercury_alert'] || {}).alert_type || '').toLowerCase();
-      if (!(kind.indexOf('delay') >= 0 || kind.indexOf('suspend') >= 0 || kind.indexOf('no service') >= 0 || kind.indexOf('reduced') >= 0)) return;
-      (a.informed_entity || []).forEach(function(i){ if (i.route_id && LINES.indexOf(i.route_id) >= 0) hit[i.route_id] = 1; });
+  // The subway and the buses: delays, suspensions and service changes running now on the lines and routes.
+  function hits(url, list){
+    return fetch(url).then(function(r){ if (!r.ok) throw r.status; return r.json(); }).then(function(j){
+      var t = Date.now() / 1000, hit = {};
+      (j.entity || []).forEach(function(e){
+        var a = e.alert; if (!a) return;
+        var active = (a.active_period || []).some(function(p){ var s = p.start || 0, en = p.end || 0; return s <= t && (!en || t <= en); });
+        if (!active) return;
+        var kind = ((a['transit_realtime.mercury_alert'] || {}).alert_type || '').toLowerCase();
+        if (!(kind.indexOf('delay') >= 0 || kind.indexOf('suspend') >= 0 || kind.indexOf('no service') >= 0 || kind.indexOf('reduced') >= 0 || kind.indexOf('detour') >= 0)) return;
+        (a.informed_entity || []).forEach(function(i){ var r = String(i.route_id || '').split('_').pop().replace(/\+$/, ''); if (r && list.indexOf(r) >= 0) hit[r] = 1; });
+      });
+      return list.filter(function(l){ return hit[l]; });
     });
-    var on = LINES.filter(function(l){ return hit[l]; });
-    state.sub = on.length ? ['Changes on ' + on.join(' '), false] : ['Good service', true];
+  }
+  var MTA = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2F';
+  Promise.all([hits(MTA + 'subway-alerts.json', LINES).catch(function(){ return null; }), hits(MTA + 'bus-alerts.json', BUSES).catch(function(){ return null; })]).then(function(r){
+    if (r[0] === null && r[1] === null) { state.sub = ['Tap for alerts', true]; draw(); return; }
+    var on = (r[0] || []).concat(r[1] || []);
+    var shown = on.slice(0, 4).join(' ') + (on.length > 4 ? ' +' + (on.length - 4) : '');
+    state.sub = on.length ? ['Changes on ' + shown, false] : ['Good service', true];
     draw();
-  }).catch(function(){ state.sub = ['Tap for alerts', true]; draw(); });
+  });
   // The weather.
   fetch('https://api.open-meteo.com/v1/forecast?latitude=40.677&longitude=-73.99&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=America%2FNew_York').then(function(r){ if (!r.ok) throw r.status; return r.json(); }).then(function(o){
     var c = o.current || {}; var code = c.weather_code;

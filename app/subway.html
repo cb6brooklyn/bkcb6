@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Subway changes and delays</title>
+<title>Subway and bus changes and delays</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap">
 <style>
   :root { --navy:#06024d; --orange:#f47920; --ink:#14141c; --muted:#626470; --rule:#e1dfd8; --paper:#f8f7f4; --alert:#bf2e33; }
@@ -13,7 +13,7 @@
   .k { font-family:'DM Mono', monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
   .ok { font-weight:700; font-size:15px; color:var(--ink); }
   .ok .lines { display:inline-flex; gap:4px; margin-left:6px; vertical-align:middle; }
-  .line { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:var(--navy); color:#fff; font-weight:700; font-size:12px; }
+  .line { min-width:24px; padding:0 4px; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:var(--navy); color:#fff; font-weight:700; font-size:12px; }
   .card { background:#fff; border:1px solid var(--rule); border-radius:12px; padding:10px 12px; margin:0 0 8px; }
   .card.active { border-color:rgba(191,46,51,.5); }
   .head { display:flex; align-items:center; gap:6px; margin-bottom:5px; }
@@ -30,7 +30,7 @@
 </head>
 <body>
 <div class="wrap">
-  <p class="k" id="title">Subway changes and delays</p>
+  <p class="k" id="title">Subway and bus changes and delays</p>
   <div id="out"><span class="err">Checking the MTA's alerts</span></div>
   <p class="note">From the MTA's service alerts. Tap an alert for the details.</p>
 </div>
@@ -39,6 +39,7 @@
   var q = new URLSearchParams(location.search);
   var ALL = ['1','2','3','4','5','6','7','A','C','E','B','D','F','M','G','J','Z','L','N','Q','R','W','S','SI'];
   var LINES = q.get('lines') ? q.get('lines').split(',').map(function(s){ return s.trim(); }).filter(Boolean) : ALL;
+  var BUSES = q.get('buses') ? q.get('buses').split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
   var out = document.getElementById('out');
   if (q.get('title')) document.getElementById('title').textContent = q.get('title');
   function esc(s){ return String(s||'').replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -49,11 +50,12 @@
   }
   function lineBadges(ls){ return '<span class="lines">' + ls.map(function(l){ return '<span class="line">' + esc(l) + '</span>'; }).join('') + '</span>'; }
   function fmt(ts){ var d = new Date(ts*1000); return d.toLocaleString('en-US', {weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}); }
-  function render(j){
+  function render(feeds){
     var now = Date.now()/1000, items = [];
+    feeds.forEach(function(f){ var j = f.j, LIST = f.list; if (!j) return;
     (j.entity || []).forEach(function(e){
       var a = e.alert; if (!a) return;
-      var mine = (a.informed_entity || []).map(function(i){ return i.route_id; }).filter(function(r){ return r && LINES.indexOf(r) >= 0; });
+      var mine = (a.informed_entity || []).map(function(i){ return String(i.route_id || '').split('_').pop().replace(/\+$/, ''); }).filter(function(r, k, arr){ return r && LIST.indexOf(r) >= 0 && arr.indexOf(r) === k; });
       if (!mine.length) return;
       var periods = a.active_period || [], active = !periods.length, soon = false, start = null;
       periods.forEach(function(p){ var s = p.start || 0, en = p.end || 0; if (s <= now && (!en || now <= en)) active = true; if (s > now && s - now < 86400) { soon = true; if (!start || s < start) start = s; } });
@@ -62,11 +64,12 @@
       var kind = (m.alert_type || '').replace(/_/g, ' ') || 'service change';
       var h = text(a.header_text), d = text(a.description_text);
       if (!h) return;
-      items.push({ routes: LINES.filter(function(l){ return mine.indexOf(l) >= 0; }), kind: kind, h: h, d: d, active: active, start: start });
+      items.push({ routes: LIST.filter(function(l){ return mine.indexOf(l) >= 0; }), kind: kind, h: h, d: d, active: active, start: start });
+    });
     });
     items.sort(function(x, y){ return (x.active ? 0 : 1) - (y.active ? 0 : 1); });
     if (!items.length) {
-      out.innerHTML = '<div class="ok">Good service' + (LINES.length <= 12 ? lineBadges(LINES) : ' on every line') + '</div>';
+      out.innerHTML = '<div class="ok">Good service on every line' + (BUSES.length ? ' and bus route' : '') + '</div>';
       return;
     }
     out.innerHTML = items.map(function(it, i){
@@ -81,10 +84,12 @@
       c.addEventListener('click', function(){ c.classList.toggle('open'); var m = c.querySelector('.more'); if (m) m.textContent = c.classList.contains('open') ? 'Less' : 'Details'; });
     });
   }
-  fetch('https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts.json')
-    .then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(render)
-    .catch(function(){ out.innerHTML = '<span class="err">The MTA\'s alerts are not reachable right now. Try again with a connection.</span>'; });
+  var MTA = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2F';
+  function get(u){ return fetch(u).then(function(r){ if (!r.ok) throw r.status; return r.json(); }).catch(function(){ return null; }); }
+  Promise.all([get(MTA + 'subway-alerts.json'), BUSES.length ? get(MTA + 'bus-alerts.json') : Promise.resolve(null)]).then(function(r){
+    if (!r[0] && !r[1]) { out.innerHTML = '<span class="err">The MTA\'s alerts are not reachable right now. Try again with a connection.</span>'; return; }
+    render([{ j: r[0], list: LINES }, { j: r[1], list: BUSES }]);
+  });
 })();
 </script>
 </body>
