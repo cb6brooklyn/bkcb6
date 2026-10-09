@@ -4,7 +4,11 @@ import os, re, sys
 BANNER = ('<a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" '
           'style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none">'
           '<img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" '
-          'style="height:40px;width:auto;border:0;display:inline-block"></a>')
+          'style="height:40px;width:auto;border:0;display:inline-block"></a>'
+          # hidden inside the apps: pages served by the app (bkcb:), or opened from it (?app=1, kept for the session)
+          '<script>(function(){try{var a=document.getElementById("asb"),q=/[?&]app=1\\b/.test(location.search);'
+          'if(q)sessionStorage.setItem("bkapp","1");'
+          'if(location.protocol==="bkcb:"||q||sessionStorage.getItem("bkapp")==="1"||/^bkcb:/.test(document.referrer)){a.style.display="none"}}catch(e){}})();</script>')
 BODY = re.compile(rb'<body\b[^>]*>', re.I)
 def inject(b):
     if b'id="asb"' in b: return None
