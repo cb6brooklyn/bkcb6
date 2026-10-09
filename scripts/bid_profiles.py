@@ -1,7 +1,7 @@
 """The BID profile pages in the apps' Organizations tab: each BID's logo, a map of the district (the BID in orange, Community
 Board 6's line in navy, the directory's businesses as dots) as the page's first card, and the directory of every business
-inside the district from the CB6 business directory (civic/business/business-cb6.json) in the page's details. The Gowanus BID
-Formation Effort has not published a proposed boundary, so its map and list are the businesses in Gowanus.
+inside the district from the CB6 business directory (civic/business/business-cb6.json) in the page's details. The proposed
+Gowanus BID covers the Gowanus rezoning area.
 Writes civic/orgs/logos/*.png, civic/orgs/going/bid-*.png and the profiles in civic/orgs/orgs-profiles.json."""
 import json, os
 from PIL import Image
@@ -95,15 +95,14 @@ for p in d['profiles']:
                        'until': '', 'btns': []}]
         p['kv'] = [['Community board', 'Brooklyn Community Board 6'], ['Businesses', f'{len(pts)} in the CB6 business directory inside the BID, below']] + directory(pts)
     if s == 'gowanus-bid-formation-effort':
-        pts = [r for r in rows if r[4] == 'Gowanus']
-        from shapely.geometry import MultiPoint
-        area = MultiPoint([(r[6], r[5]) for r in pts]).convex_hull
+        # the proposed BID covers the Gowanus rezoning area (data/gowanus_rezoning_boundary.geojson)
+        g = shape(json.load(open('data/gowanus_rezoning_boundary.geojson'))['features'][0]['geometry']); pts = inside(g)
         img = f'bid-{s}.png'
-        draw(False, area, pts, f'{C}/orgs/going/{img}', pad=0.0015)
-        p['going'] = [{'img': img, 'kicker': 'Gowanus', 'title': 'The businesses in Gowanus',
-                       'text': f"The Formation Effort has not published its proposed boundary. Dots: the {len(pts)} businesses in Gowanus in the CB6 business directory, listed under Details. Dashed navy line: Community Board 6.",
+        draw(True, g, pts, f'{C}/orgs/going/{img}', pad=0.0015)
+        p['going'] = [{'img': img, 'kicker': 'The district', 'title': 'The proposed Gowanus BID: where it is',
+                       'text': f"Orange: the proposed BID, the same as the Gowanus rezoning area. Dashed navy line: Community Board 6. Dots: the {len(pts)} businesses in the CB6 business directory inside it, listed under Details.",
                        'until': '', 'btns': []}]
-        p['kv'] = [['Community board', 'Brooklyn Community Board 6'], ['Businesses', f'{len(pts)} in Gowanus in the CB6 business directory, below']] + directory(pts)
+        p['kv'] = [['Community board', 'Brooklyn Community Board 6'], ['Businesses', f'{len(pts)} in the CB6 business directory inside the proposed BID, below']] + directory(pts)
     if s in PAGES or s == 'gowanus-bid-formation-effort':
         print(s, p['logo'], len(p['kv']) - 2, 'businesses')
 json.dump(d, open(P, 'w'), ensure_ascii=False, indent=1)

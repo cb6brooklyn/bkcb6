@@ -5,11 +5,12 @@ import json
 P = 'app/data/civic/orgs/orgs-profiles.json'
 d = json.load(open(P))
 PS, AA, NF, GW = 'Park Slope Fifth Avenue BID', 'Atlantic Avenue BID', 'North Flatbush BID', 'Gowanus: BID being formed'
+GO = 'Gowanus, outside the proposed BID'
 RH, CG, PO = 'Red Hook: no BID', 'Carroll Gardens and Columbia Street: no BID', 'Park Slope, outside the BID'
-TOPICS = [PS, AA, NF, GW, RH, CG, PO]
+TOPICS = [PS, AA, NF, GW, GO, RH, CG, PO]
 # where each business is (from bids.geojson for the BIDs; the address for the rest)
 WHERE = {'bark-slope': PS, 'park-slope-farmers-market': PO, 'nitehawk-prospect-park': PO, 'bird-collective': PO,
-         'principles-gi-coffee-house': GW, 'strong-rope-brewery': GW,
+         'principles-gi-coffee-house': GO, 'strong-rope-brewery': GW,
          'record-shop': RH, 'red-hook-lobster-pound': RH, 'brooklyn-pop-up': RH, 'house-pepper': RH,
          'books-are-magic': CG, 'jalopy-theatre': CG}
 CAT = {'bark-slope': 'Pet grooming and supplies', 'park-slope-farmers-market': 'Farmers market', 'nitehawk-prospect-park': 'Movie theater',
@@ -49,7 +50,7 @@ gw = base('gowanus-bid-formation-effort', 'gowanusbid', 'Gowanus BID Formation E
           'Gowanus BID Formation Effort. A steering committee of local stakeholders, facilitated by the Gowanus Canal Conservancy and working with the Department of Small Business Services, is forming a business improvement district in Gowanus.',
           40.6745, -73.9886, 'Gowanus Canal Conservancy, 248 Third Street', 'https://gowanusimprovementdistrict.org',
           email='gowanusimprovementdistrict@gmail.com', phone='718-541-4378', logo='gcc.png',
-          intro=['A steering committee of local stakeholders, facilitated by the Gowanus Canal Conservancy and working with the Department of Small Business Services, is forming a business improvement district in Gowanus. Its co-chairs are Andrea Parker, Chris Papamichael, Lisa Lightbody and Sam Alison-Mayne.',
+          intro=['A steering committee of local stakeholders, facilitated by the Gowanus Canal Conservancy and working with the Department of Small Business Services, is forming a business improvement district in Gowanus, covering the Gowanus rezoning area. Its co-chairs are Andrea Parker, Chris Papamichael, Lisa Lightbody and Sam Alison-Mayne.',
                  'The effort began outreach in fall 2024 and is collecting ballots from property owners and commercial tenants; the BID needs 51 percent support before it goes to the city for approval. Public meetings: October 14 (virtual) and November 4 at Wyckoff Gardens Community Center.'],
           links=[['Their site', 'https://gowanusimprovementdistrict.org'], ['About', 'https://gowanusimprovementdistrict.org/about'], ['Questions and answers', 'https://gowanusimprovementdistrict.org/faq']])
 gw['cal'] = 'gowanusbid'; gw.update(group='Local businesses', topic=GW, sort=-2)
