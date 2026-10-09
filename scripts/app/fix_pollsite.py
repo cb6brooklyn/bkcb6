@@ -92,7 +92,7 @@ assert old3 in s, 'hits'; s = s.replace(old3, new3, 1)
 old3b = '''                if !d.pollLookupHint.isEmpty {
                     Text(d.pollLookupHint)
                         .font(DM.sans(12))'''
-new3b = '''                let hint = d.pollLookupHint.isEmpty ? Copy.t("November2026View.pollhint", "Type your address. Your election district number from the Board of Elections' poll site notice works too.") : d.pollLookupHint
+new3b = '''                let hint = d.pollLookupHint.isEmpty ? Copy.t("November2026View.pollhint", "Type your address and pick it from the list.") : d.pollLookupHint
                 if !hint.isEmpty {
                     Text(hint)
                         .font(DM.sans(12))'''
@@ -101,6 +101,7 @@ assert old3b in s, 'hint'; s = s.replace(old3b, new3b, 1)
 old4 = '''    private var suggestions: [String] {
         guard match == nil, !d.edKeys.isEmpty else { return [] }'''
 new4 = '''    private var suggestions: [String] {
+        return []  // election district chips are gone: people search by address
         guard match == nil, !d.edKeys.isEmpty, !edQuery.isEmpty else { return [] }'''
 assert old4 in s, 'suggestions'; s = s.replace(old4, new4, 1)
 # the saved address, on open
