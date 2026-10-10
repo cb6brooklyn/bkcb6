@@ -50,7 +50,7 @@ print('open/closed:', n_open, 'places now read the file')
 # 2. the tab bar
 ap = glob.glob(os.path.join(R, 'BKCB6/App/*App.swift')); assert len(ap) == 1, ap
 ap = ap[0]; a = rd(ap)
-if 'case x1, x2, x3' not in a:
+if ', x1, x2, x3' not in a:
     m = re.search(r'    enum Tab: String, CaseIterable \{ case ([a-z0-9, ]+)\n', a); assert m, 'Tab enum'
     a = a[:m.start()] + f'    enum Tab: String, CaseIterable {{ case {m.group(1)}, x1, x2, x3\n' + a[m.end():]
     a = re.sub(r'(        var title: String \{\n)(            switch self \{)', r'\1            if let t = UIConfig.shared.tab(rawValue)?["title"] as? String, !t.isEmpty { return t }\n\2', a, count=1)
@@ -65,8 +65,10 @@ if 'case x1, x2, x3' not in a:
             b2 = body.rstrip(); assert b2.endswith('}'), prop
             b2 = b2[:-1].rstrip() + ('; default: return rawValue }' if prop == 'title' else '; default: return "square.grid.2x2.fill" }')
             a = a[:mm.start(1)] + b2 + a[mm.end(1):]
-    if '@ObservedObject private var uiFiles' not in a:
-        a = a.replace('    @State private var tab: Tab = ContentView.launchTab()', '    @ObservedObject private var uiFiles = UIConfig.shared   // redraws the bar when the files change\n    @State private var tab: Tab = ContentView.launchTab()', 1)
+    wr(ap, a)
+if '@ObservedObject private var uiFiles' not in a:
+    if True:
+        a = re.sub(r'(    @State private var tab: Tab = \w+\.launchTab\(\)\n)', r'    @ObservedObject private var uiFiles = UIConfig.shared   // redraws the bar when the files change\n\1', a, count=1)
         assert 'uiFiles' in a, 'ContentView tab state'
     wr(ap, a)
 print('tab bar from the file')
