@@ -11,9 +11,9 @@ d = json.load(open(P))
 rows = json.load(open(f'{C}/business/business-cb6.json'))['rows']  # name, category, kind, address, nb, lat, lng, web, logo, dark, new, newdate, legal, license, source
 
 # the districts
-bids = {f['properties']['name']: shape(f['geometry']).buffer(0.00018) for f in json.load(open(f'{C}/bids.geojson'))['features']}
+bids = {f['properties']['name']: shape(f['geometry']).buffer(0.00018) for f in json.load(open(f'{C}/bids.geojson'))['features'] if f['properties'].get('slug') != 'red-hook-business-alliance'}
 gowanus = shape(json.load(open('data/gowanus_rezoning_boundary.geojson'))['features'][0]['geometry']).buffer(0.00018)
-BIDNAME = {'Park Slope 5th Avenue': 'Park Slope Fifth Avenue BID', 'Atlantic Avenue': 'Atlantic Avenue BID', 'North Flatbush': 'North Flatbush BID'}
+BIDNAME = {'Park Slope 5th Avenue': 'Park Slope Fifth Avenue BID', 'Atlantic Avenue': 'Atlantic Avenue BID', 'North Flatbush': 'North Flatbush BID', 'Gowanus BID, proposed': 'Proposed Gowanus BID'}
 def district(lat, lng):
     p = Point(lng, lat)
     for n, g in bids.items():

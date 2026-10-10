@@ -24,7 +24,7 @@ LOGOS = {'atlanticavebid.png': 'site-icons/bid-atlantic-avenue.png', 'northflatb
 for out, src in LOGOS.items():
     im = Image.open(src).convert('RGBA'); im.thumbnail((400, 400)); im.save(f'{C}/orgs/logos/{out}', optimize=True)
 
-bids = {f['properties']['name']: shape(f['geometry']) for f in json.load(open(f'{C}/bids.geojson'))['features']}
+bids = {f['properties']['name']: shape(f['geometry']) for f in json.load(open(f'{C}/bids.geojson'))['features'] if f['properties'].get('year')}
 cb6 = shape(json.load(open('data/cb6_boundary.geojson'))['features'][0]['geometry'])
 base = json.load(open(f'{C}/basemap/cb6-basemap.json'))
 rows = json.load(open(f'{C}/business/business-cb6.json'))['rows']  # name, category, kind, address, nb, lat, lng, ...
