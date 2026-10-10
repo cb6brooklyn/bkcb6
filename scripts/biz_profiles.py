@@ -97,6 +97,9 @@ for p in d['profiles']:
 print(linked, 'BID page rows linked to profiles')
 for g in d['groups']:
     if g['name'] == 'Local businesses': g['topics'] = ORDER
+# the business directory is long, and the apps that draw every heading open draw it last
+lb = [g for g in d['groups'] if g['name'] == 'Local businesses']
+d['groups'] = [g for g in d['groups'] if g['name'] != 'Local businesses'] + lb
 note = ' Every business in the CB6 business directory is a profile too (slug biz-*, scripts/biz_profiles.py), under Local businesses by kind, with its district in seat.'
 if 'biz_profiles.py' not in d['about']: d['about'] += note
 json.dump(d, open(P, 'w'), ensure_ascii=False, indent=1)
