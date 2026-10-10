@@ -27,30 +27,37 @@ for f in sorted(glob.glob(os.path.join(V, '*.swift'))):
             before = l[:m.start()]
             if before.rstrip().endswith('String(') or 'String(' in before[-24:] or '.count >' in l: return m.group(0)
             k = key(f'cap{N}', i); reg[k] = (N, i); n += 1
-            return f'.prefix(Int(MapStyle.number("{k}", {N})))'
+            return f'.prefix(MapStyle.int("{k}", {N}))'
         l = re.sub(r'\.prefix\((\d+)\)', cap, l)
         # day windows
         def days(m):
             global n
             sign, N = m.group(1), int(m.group(2))
             k = key(f'days{N}', i); reg[k] = (N, i); n += 1
-            return f'{sign}MapStyle.number("{k}", {N}) * 86400'
+            return f'{sign}MapStyle.number("{k}", Double({N})) * 86400'
         l = re.sub(r'(-?)(\d+) \* 86400\b', days, l)
         def byday(m):
             global n
             sign, N = m.group(1), int(m.group(2))
             k = key(f'days{N}', i); reg[k] = (N, i); n += 1
-            return f'byAdding: .day, value: {sign}Int(MapStyle.number("{k}", {N}))'
+            return f'byAdding: .day, value: {sign}MapStyle.int("{k}", {N})'
         l = re.sub(r'byAdding: \.day, value: (-?)(\d+)\b', byday, l)
         # the radius and the park limit
         if '<= 150 * 150' in l:
             k = key('radiusMeters', i); reg[k] = (150, i); n += 1
-            l = l.replace('<= 150 * 150', f'<= MapStyle.number("{k}", 150) * MapStyle.number("{k}", 150)')
+            l = l.replace('<= 150 * 150', f'<= MapStyle.number("{k}", Double(150)) * MapStyle.number("{k}", Double(150))')
         if 'p.meters < 3000' in l:
             k = key('parkMeters', i); reg[k] = (3000, i); n += 1
-            l = l.replace('p.meters < 3000', f'p.meters < Int(MapStyle.number("{k}", 3000))')
+            l = l.replace('p.meters < 3000', f'p.meters < MapStyle.int("{k}", 3000)')
         out.append(l)
     s = '\n'.join(out)
     if s != o: open(f, 'w').write(s)
+# the whole-number lookup
+dk = os.path.join(V, 'DistrictKit.swift'); d = open(dk).read()
+if 'static func int(_ key: String, _ fallback: Int) -> Int' not in d:
+    anchor = '    static func number(_ key: String, _ fallback: CGFloat) -> CGFloat { CGFloat(number(key, Double(fallback))) }\n'
+    assert anchor in d, 'MapStyle.number'
+    d = d.replace(anchor, anchor + '    static func int(_ key: String, _ fallback: Int) -> Int { Int(number(key, Double(fallback))) }\n', 1)
+    open(dk, 'w').write(d)
 json.dump({k: v[0] for k, v in reg.items()}, open(OUT, 'w'), indent=1, sort_keys=True)
 print('numbers', n, 'wrapped,', len(reg), 'keys')

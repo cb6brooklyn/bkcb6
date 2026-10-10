@@ -84,7 +84,7 @@ def part_id(stmt, used):
     used.add(pid); return pid
 
 TARGETS = ["OrgsView", "BlockCardView", "CPSectionView", "OfficialProfileView", "FHPageViewer", "LotRecordListView", "NYCHAView",
-           "November2026View", "ProjectPageView", "ReadingView", "SiteSearchView", "FAQView", "UseOfLandHubView", "VisionZeroView",
+           "November2026View", "ProjectPageView", "ReadingView", "SiteSearchView", "UseOfLandHubView", "VisionZeroView",
            "HousingReportSection", "ProductionReportSection", "HCRProjectsSection"]
 STACK = re.compile(r'(?:Lazy)?VStack(\([^\n]*?\))?\s*\{\n')
 def cs(x): return '\n'.join(l for l in x.split('\n') if not l.strip().startswith('//'))
