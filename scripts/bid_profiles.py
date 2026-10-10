@@ -103,6 +103,16 @@ for p in d['profiles']:
                        'text': f"Orange: the proposed BID, the same as the Gowanus rezoning area. Dashed navy line: Community Board 6. Dots: the {len(pts)} businesses in the CB6 business directory inside it, listed below.",
                        'until': '', 'btns': []}]
         p['kv'] = [['Community board', 'Brooklyn Community Board 6'], ['Businesses', f'{len(pts)} in the CB6 business directory inside the proposed BID, below']] + directory(pts)
-    if s in PAGES or s == 'gowanus-bid-formation-effort':
+    if s == 'red-hook-business-alliance':
+        # Red Hook has no BID; the Alliance's page maps the neighborhood (civic/hoods-cb6.json) and its businesses
+        from shapely.geometry import Polygon
+        g = Polygon(json.load(open(f'{C}/hoods-cb6.json'))['Red Hook'][0]).intersection(cb6); pts = inside(g)
+        img = f'bid-{s}.png'
+        draw(True, g, pts, f'{C}/orgs/going/{img}', pad=0.0015)
+        p['going'] = [{'img': img, 'kicker': 'Red Hook', 'title': 'Red Hook: where its businesses are',
+                       'text': f"Red Hook has no BID. Orange: the Red Hook neighborhood. Dashed navy line: Community Board 6. Dots: the {len(pts)} businesses in the CB6 business directory in Red Hook, listed below.",
+                       'until': '', 'btns': []}]
+        p['kv'] = [['Founded', '2019'], ['Businesses', f'{len(pts)} in the CB6 business directory in Red Hook, below']] + directory(pts)
+    if s in PAGES or s in ('gowanus-bid-formation-effort', 'red-hook-business-alliance'):
         print(s, p['logo'], len(p['kv']) - 2, 'businesses')
 json.dump(d, open(P, 'w'), ensure_ascii=False, indent=1)

@@ -41,7 +41,7 @@ for b in d['businesses']:
 for p in prof:
     if p['slug'] == 'park-slope-fifth-avenue-bid': p.update(group=BIDS, topic='', sort=1)
     if p['slug'] == 'atlantic-avenue-ldc': p.update(group='Community groups', topic='Business and economic development', sort=0)
-    if p['slug'] == 'red-hook-business-alliance': p.update(group='Community groups', topic='Business and economic development', sort=0)
+    if p['slug'] == 'red-hook-business-alliance': p.update(group=BIDS, topic='', sort=3, logo='rhba-logo.png', seat='Business alliance \u00b7 Red Hook, no BID')
 aa = base('atlantic-avenue-bid', 'atlanticavebid', 'Atlantic Avenue BID', 'Business improvement district · Atlantic Avenue',
           'Atlantic Avenue Business Improvement District, established 2011. Atlantic Avenue from Fourth Avenue to the BQE, one block north and south, in Community Boards 2 and 6.',
           40.690567, -73.997197, 'Atlantic Avenue, Fourth Avenue to the BQE', 'http://www.atlanticavebid.org/', since='2011',
