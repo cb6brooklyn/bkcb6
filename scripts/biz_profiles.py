@@ -82,6 +82,19 @@ for r in rows:
                  'since': '', 'intro': [], 'does': [], 'kv': kv, 'links': [], 'logo': lf, 'cal': None, 'n': 0, 'going': [],
                  'kind': 'org', 'official': '', 'group': 'Local businesses', 'topic': TOPIC.get(cat, 'Other businesses'), 'sort': 0})
 d['profiles'] = keep + made
+# the BID pages' business lists open each business's profile ("kvdest": {"<row value>": "org:<slug>"}, read from 1.17 on)
+by_key = {(m['name'].lower(), m['addr'].lower()): m['slug'] for m in made}
+by_name = {p['name'].lower(): p['slug'] for p in keep if p.get('group') == 'Local businesses'}
+linked = 0
+for p in d['profiles']:
+    if p.get('group') != 'Business improvement districts' or len(p.get('kv', [])) <= 2: continue
+    dest = {}
+    for k, v in p['kv'][2:]:
+        parts = v.split(' \u00b7 '); name = parts[0].strip().lower(); addr = ' \u00b7 '.join(parts[1:]).strip().lower()
+        slug = by_key.get((name, addr)) or by_name.get(name)
+        if slug: dest[v] = 'org:' + slug; linked += 1
+    p['kvdest'] = dest
+print(linked, 'BID page rows linked to profiles')
 for g in d['groups']:
     if g['name'] == 'Local businesses': g['topics'] = ORDER
 note = ' Every business in the CB6 business directory is a profile too (slug biz-*, scripts/biz_profiles.py), under Local businesses by kind, with its district in seat.'
