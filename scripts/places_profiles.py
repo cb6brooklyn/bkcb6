@@ -247,6 +247,23 @@ for p in d['profiles']:
         p['seat'] = p['seat'].replace('Fitness centre', 'Gym').replace('Sports centre', 'Sports center')
         gyms += 1
 
+# the business directory's logo and website for the same place
+import os, shutil
+rowsb = json.load(open(f'{C}/business/business-cb6.json'))['rows']
+byname = {}
+for r in rowsb:
+    byname.setdefault(norm(r[0]), r)
+logos = 0
+for m in made:
+    r = byname.get(norm(m['name']))
+    if not r: continue
+    if r[8] and not m['logo'] and os.path.exists(f'{C}/business/logos/{r[8]}.png'):
+        lf = f'biz-{r[8]}.png'; dst = f'{C}/orgs/logos/{lf}'
+        if not os.path.exists(dst): shutil.copyfile(f'{C}/business/logos/{r[8]}.png', dst)
+        m['logo'] = lf; logos += 1
+    if r[7] and not m['weburl']:
+        m['weburl'] = r[7].strip(); m['web'] = m['weburl'].replace('https://', '').replace('http://', '').strip('/')
+print(logos, 'logos from the business directory')
 d['profiles'] = [p for p in d['profiles'] if not p['slug'].startswith('place-')] + made
 gs = [g for g in d['groups'] if g['name'] != GROUP]
 i = next(k for k, g in enumerate(gs) if g['name'] == 'Local businesses')
