@@ -112,3 +112,6 @@ note = ' Every business in the CB6 business directory is a profile too (slug biz
 if 'biz_profiles.py' not in d['about']: d['about'] += note
 json.dump(d, open(P, 'w'), ensure_ascii=False, indent=1)
 print(len(made), 'businesses as profiles,', logos, 'with logos;', len(d['profiles']), 'profiles in all')
+# schools, libraries, child care, parks, health care, gyms and athletic facilities (moves the gyms out of Local businesses)
+import subprocess, sys
+subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'places_profiles.py')], check=True)
