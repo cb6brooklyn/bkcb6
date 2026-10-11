@@ -25,6 +25,14 @@ FEEDS = [
         "venue": "The Bell House \u00b7 149 7th Street",
     },
     {
+        # Powerhouse Arts' calendar (a Webflow list, two or more pages): classes, workshops, events and exhibitions.
+        "name": "Powerhouse Arts",
+        "url": "https://powerhousearts.org/calendar",
+        "kind": "powerhouse",
+        "type": "powerhouse",
+        "venue": "Powerhouse Arts \u00b7 322 3rd Avenue",
+    },
+    {
         # Littlefield's all-shows page lists its Eventbrite shows as cards (wfea-venue__event).
         "name": "Littlefield",
         "url": "https://littlefieldnyc.com/all-shows/",
@@ -355,6 +363,84 @@ def fetch_eventbrite_org(url, venue, pages=6):
     return out
 
 
+def fetch_powerhouse_events(url, venue):
+    """Powerhouse Arts' calendar pages. A class or exhibition that runs over several weeks is one entry, on its first day
+    (or today, while it is running), with its dates in the description."""
+    import html as _html
+    from urllib.parse import urljoin
+    MON = {m: i for i, m in enumerate(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], 1)}
+    today = datetime.now().date()
+    def day(txt):
+        m = re.match(r"([A-Z][a-z]{2})[a-z]*\.?\s+(\d{1,2})", txt.strip())
+        if not m or m.group(1) not in MON:
+            return None
+        mo, dd = MON[m.group(1)], int(m.group(2))
+        y = today.year + (1 if mo < today.month - 6 else 0) - (1 if mo > today.month + 6 else 0)
+        try:
+            return datetime(y, mo, dd).date()
+        except ValueError:
+            return None
+    out, seen, page, pages = [], set(), 1, 1
+    while page <= pages and page <= 20:
+        u = url if page == 1 else f"{url}?10962f75_page={page}"
+        try:
+            r = requests.get(u, timeout=30, headers=dict(BROWSER_HEADERS, Accept="text/html,*/*"))
+        except Exception as e:
+            print(f"  Unusable {u}: {type(e).__name__}: {e}")
+            break
+        if not r.ok:
+            print(f"  Unusable {u}: HTTP {r.status_code}")
+            break
+        s = r.text
+        pages = max([pages] + [int(n) for n in re.findall(r"10962f75_page=(\d+)", s)])
+        T = list(re.finditer(r'<h2[^>]*><span>([^<]*)</span></h2>', s))
+        D = [m.start() for m in re.finditer(r"event_day", s)]
+        prev = 0
+        for t in T:
+            before = s[prev:t.start()]
+            days = [x for x in re.findall(r'event_day[^"]*"><span>([^<]*)<', before) if x.strip() != "-"]
+            times = [x for x in re.findall(r'event_(?:start|end)_time[^"]*"><span>([^<]*)<', before) if x.strip() != "-"]
+            if not days:
+                prev = t.end()
+                continue
+            nxt = min([d for d in D if d > t.end()] + [len(s)])
+            after = s[t.end():nxt]
+            prev = nxt
+            start, end = day(days[0]), day(days[1]) if len(days) > 1 else None
+            if not start:
+                continue
+            if end and end < start:
+                end = end.replace(year=end.year + 1)
+            if (end or start) < today:
+                continue
+            name = _html.unescape(t.group(1)).strip()
+            if (start, name.lower()) in seen:
+                continue
+            seen.add((start, name.lower()))
+            link = re.search(r'href="([^"]+)"[^>]*class="clickable_link', after) or re.search(r'clickable_link[^>]*href="([^"]+)"', after)
+            cat = re.search(r'filter_reference_text[^>]*>([^<]*)<', after)
+            ds = re.search(r'w-richtext[^>]*>(.*?)</div>', after, re.S)
+            desc = _html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", ds.group(1)))).strip() if ds else ""
+            when = f"{start:%b} {start.day} to {end:%b} {end.day}. " if end else ""
+            kind = _html.unescape(cat.group(1)).strip().capitalize() + ". " if cat else ""
+            out.append({
+                "date": max(start, today).isoformat(),
+                "summary": name + (f" (through {end:%b} {end.day})" if end else ""),
+                "url": urljoin(url, _html.unescape(link.group(1))) if link else url,
+                "cats": "",
+                "location": venue,
+                "desc": (kind + when + desc).strip(),
+                "time": _clock_text(times[0]) if times else None,
+            })
+        page += 1
+    return out
+
+
+def _clock_text(t):
+    m = re.match(r"(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m", t.strip(), re.I)
+    return f"{int(m.group(1))}:{m.group(2) or '00'} {m.group(3).upper()}M" if m else None
+
+
 def fetch_wfea_events(url, venue):
     """Events from a WordPress page of Eventbrite cards (the wfea plugin), in parse_ics's shape."""
     try:
@@ -507,8 +593,8 @@ def main():
 
     for feed in FEEDS:
         print(f"Fetching {feed['name']}...")
-        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea"):
-            raw = {"eventbrite_org": fetch_eventbrite_org, "ldjson": fetch_ldjson_events, "wfea": fetch_wfea_events}[feed["kind"]](feed["url"], feed["venue"])
+        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse"):
+            raw = {"eventbrite_org": fetch_eventbrite_org, "ldjson": fetch_ldjson_events, "wfea": fetch_wfea_events, "powerhouse": fetch_powerhouse_events}[feed["kind"]](feed["url"], feed["venue"])
             if not raw:
                 print(f"  FAILED \u2014 no data")
                 failed_types.append(feed["type"])
@@ -517,7 +603,7 @@ def main():
             text = None
         else:
             text = fetch_feed(feed["url"], feed.get("fallback"))
-        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea"):
+        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse"):
             pass
         elif not text and not feed.get("api_url") and not feed.get("type"):
             # the CB6 feed (its events are classified by content): keep last run's board, committee and community events

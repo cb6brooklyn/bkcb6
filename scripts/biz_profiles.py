@@ -3,6 +3,7 @@ tab, under Local businesses by kind of business, each with its logo, address, ma
 business improvement district it is in. Run after orgs_by_bid.py and bid_profiles.py; rerunnable (its own entries are
 replaced). Writes civic/orgs/orgs-profiles.json and copies the directory's logos into civic/orgs/logos/biz-*.png."""
 import json, os, hashlib, shutil
+from biz_kind import special
 from shapely.geometry import shape, Point
 
 C = 'app/data/civic'
@@ -33,7 +34,7 @@ TOPIC = {
     'Trades and workshops': 'Trades, workshops and industrial', 'Warehouses, logistics and industrial': 'Trades, workshops and industrial',
     'Wholesale or temporary liquor license': 'Trades, workshops and industrial', 'Auto and transportation': 'Auto and transportation',
     'Hotels and tourism': 'Hotels and tourism', 'Other businesses': 'Other businesses', 'Government offices': 'Other businesses'}
-ORDER = ['Restaurants, cafes and food', 'Groceries and food stores', 'Stores', 'Markets', 'Venues', 'Health and medical',
+ORDER = ['Restaurants, cafes and food', 'Supermarkets', 'Groceries and food stores', 'Stores', 'Smoke, vape and cannabis shops', 'Markets', 'Venues', 'Health and medical',
          'Hair, beauty and personal care', 'Fitness and recreation', 'Services and offices', 'Trades, workshops and industrial',
          'Auto and transportation', 'Hotels and tourism', 'Other businesses']
 SHORT = {'Bar or restaurant (liquor license)': 'Bar or restaurant', 'Food stores with beer or liquor license': 'Food store with a beer or liquor license',
@@ -60,6 +61,8 @@ for r in rows:
     bid = district(lat, lng)
     where = bid if bid else (f'{nb}, no BID' if nb else 'No BID')
     label = kind or SHORT.get(cat, cat)
+    sp = special(name, cat, kind)
+    if sp: label = sp[1]
     lf = ''
     if logo:
         src = f'{C}/business/logos/{logo}.png'
@@ -80,7 +83,12 @@ for r in rows:
                  'desc': f'{name}. {cat}. {addr}, {nb}.', 'lat': lat, 'lng': lng, 'addr': addr, 'zip': '', 'addr_note': '',
                  'phone': '', 'email': '', 'web': w.replace('https://', '').replace('http://', '').strip('/'), 'weburl': w,
                  'since': '', 'intro': [], 'does': [], 'kv': kv, 'links': [], 'logo': lf, 'cal': None, 'n': 0, 'going': [],
-                 'kind': 'org', 'official': '', 'group': 'Local businesses', 'topic': TOPIC.get(cat, 'Other businesses'), 'sort': 0})
+                 'kind': 'org', 'official': '', 'group': 'Local businesses', 'topic': sp[0] if sp else TOPIC.get(cat, 'Other businesses'), 'sort': 0})
+# the Park Slope Food Coop is a supermarket, with C-Town, Key Food and Union Market
+for p in keep:
+    if p['slug'] == 'park-slope-food-coop':
+        b = district(p['lat'], p['lng'])
+        p.update(group='Local businesses', topic='Supermarkets', seat=f"Supermarket, member-owned co-op · {b if b else 'Park Slope, no BID'}")
 d['profiles'] = keep + made
 # the BID pages' business lists open each business's profile ("kvdest": {"<row value>": "org:<slug>"}, read from 1.17 on)
 by_key = {(m['name'].lower(), m['addr'].lower()): m['slug'] for m in made}

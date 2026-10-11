@@ -4,6 +4,7 @@ inside the district from the CB6 business directory (civic/business/business-cb6
 Gowanus BID covers the Gowanus rezoning area.
 Writes civic/orgs/logos/*.png, civic/orgs/going/bid-*.png and the profiles in civic/orgs/orgs-profiles.json."""
 import json, os
+from biz_kind import special
 from PIL import Image
 from shapely.geometry import shape, Point, LineString, box
 import matplotlib
@@ -77,9 +78,13 @@ def draw(name, area, pts, out, pad=0.0028):
     fig.savefig(out, dpi=100); plt.close(fig)
     im = Image.open(out).convert('RGB'); im.save(out, optimize=True)
 
+def lab(r):
+    sp = special(r[0], r[1], r[2])
+    return sp[1] if sp else SHORT.get(r[1], r[1] or 'Other')
+
 def directory(pts):
-    pts = sorted(pts, key=lambda r: (SHORT.get(r[1], r[1] or 'Other'), r[0].lower()))
-    return [[SHORT.get(r[1], r[1] or 'Other'), f'{r[0]} · {r[3]}' if r[3] else r[0]] for r in pts]
+    pts = sorted(pts, key=lambda r: (lab(r), r[0].lower()))
+    return [[lab(r), f'{r[0]} · {r[3]}' if r[3] else r[0]] for r in pts]
 
 PAGES = {'park-slope-fifth-avenue-bid': 'Park Slope 5th Avenue', 'atlantic-avenue-bid': 'Atlantic Avenue', 'north-flatbush-bid': 'North Flatbush'}
 LOGO = {'atlantic-avenue-bid': 'atlanticavebid.png', 'north-flatbush-bid': 'northflatbushbid.png', 'gowanus-bid-formation-effort': 'gowanusbid.png'}

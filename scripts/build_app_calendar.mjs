@@ -52,6 +52,7 @@ for (const m of html.matchAll(/<div class="leg" data-type="([^"]+)"[^>]*>(?:<img
 
 // ---------- merge the live CB6 feed exactly as calendar.html's loadLiveEvents does ----------
 const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+const MANY_A_DAY = new Set(['unionhall', 'bellhouse', 'littlefield', 'powerhouse']); // as calendar.html
 function mergeEntry(ev) {
   if (!ev || !ev.date) return;
   if (SUPPRESSED_LIVE.has(ev.date + '|' + (ev.label || '').replace(/\s+/g, ' ').trim())) return;
@@ -60,7 +61,7 @@ function mergeEntry(ev) {
   if (EVENTS[ev.date].some(e => e._hardcoded && norm(e.label) === norm(ev.label))) return;
   const idx = ev.type === "community" ? -1 : EVENTS[ev.date].findIndex(e => e.type === ev.type && e._hardcoded); // same rule as calendar.html
   if (idx !== -1) EVENTS[ev.date][idx] = ev;
-  else if (!EVENTS[ev.date].some(e => e.type === ev.type && !e._hardcoded)) EVENTS[ev.date].push(ev);
+  else if (!EVENTS[ev.date].some(e => e.type === ev.type && !e._hardcoded && (!MANY_A_DAY.has(ev.type) || e.label === ev.label))) EVENTS[ev.date].push(ev); // same rule as calendar.html
 }
 const readJSON = (p, fallback) => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, p), 'utf8')); } catch { return fallback; } };
 const live = readJSON('data/calendar-events.json', { events: [] });
