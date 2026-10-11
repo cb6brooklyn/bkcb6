@@ -266,7 +266,7 @@ for m in made:
         m['weburl'] = r[7].strip(); m['web'] = m['weburl'].replace('https://', '').replace('http://', '').strip('/')
 print(logos, 'logos from the business directory')
 # Brooklyn Bridge Park, all of it: the park's own size and extent (85 acres, Atlantic Avenue to Jay Street), not the 21 acre
-# NYC Parks parcel; NYC Parks lists it in community boards 2 and 6 (communityboard 302306)
+# NYC Parks parcel; no community board line
 for m in made:
     if m['name'] == 'Brooklyn Bridge Park':
         m['logo'] = 'bbp.png'
@@ -274,10 +274,11 @@ for m in made:
         m['seat'] = 'Waterfront park, 85 acres'
         m['kv'] = [k for k in m['kv'] if k[0] not in ('Size', 'Where', 'Community board')]
         m['kv'][1:1] = [['Size', '85 acres'], ['Where', 'East River waterfront, Atlantic Avenue to Jay Street']]
-        m['kv'].append(['Community board', 'Brooklyn Community Boards 6 and 2'])
+for m in made:
+    if m['name'].startswith('Brooklyn Bridge Park'): m['kv'] = [k for k in m['kv'] if k[0] != 'Community board']
 for p in d['profiles']:
     if p['slug'] == 'brooklyn-bridge-park':
-        p['kv'] = [k for k in p['kv'] if k[0] != 'Community board'] + [['Community board', 'Brooklyn Community Boards 6 and 2']]
+        p['kv'] = [k for k in p['kv'] if k[0] != 'Community board']
 d['profiles'] = [p for p in d['profiles'] if not p['slug'].startswith('place-')] + made
 gs = [g for g in d['groups'] if g['name'] != GROUP]
 i = next(k for k, g in enumerate(gs) if g['name'] == 'Local businesses')
