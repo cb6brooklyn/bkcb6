@@ -12,16 +12,17 @@ FOOD, STORES, MARKETS, VENUES = 'Restaurants, cafes and food', 'Stores', 'Market
 TOPICS = [FOOD, STORES, MARKETS, VENUES]
 KIND = {'red-hook-lobster-pound': FOOD, 'principles-gi-coffee-house': FOOD, 'strong-rope-brewery': FOOD, 'house-pepper': FOOD,
         'bark-slope': STORES, 'bird-collective': STORES, 'books-are-magic': STORES, 'record-shop': STORES,
-        'park-slope-farmers-market': MARKETS, 'brooklyn-pop-up': MARKETS, 'nitehawk-prospect-park': VENUES, 'jalopy-theatre': VENUES}
+        'park-slope-farmers-market': MARKETS, 'brooklyn-pop-up': MARKETS, 'nitehawk-prospect-park': VENUES, 'jalopy-theatre': VENUES, 'union-hall': VENUES, 'the-bell-house': VENUES}
 # where each business is (from bids.geojson for the BIDs; the address for the rest)
 WHERE = {'bark-slope': PS, 'park-slope-farmers-market': PO, 'nitehawk-prospect-park': PO, 'bird-collective': PO,
          'principles-gi-coffee-house': GO, 'strong-rope-brewery': GW,
          'record-shop': RH, 'red-hook-lobster-pound': RH, 'brooklyn-pop-up': RH, 'house-pepper': RH,
-         'books-are-magic': CG, 'jalopy-theatre': CG}
+         'books-are-magic': CG, 'jalopy-theatre': CG, 'union-hall': PS, 'the-bell-house': GW}
 CAT = {'bark-slope': 'Pet grooming and supplies', 'park-slope-farmers-market': 'Farmers market', 'nitehawk-prospect-park': 'Movie theater',
        'bird-collective': 'Apparel shop and bird walks', 'principles-gi-coffee-house': 'Cafe and event space', 'strong-rope-brewery': 'Brewery and taproom',
        'record-shop': 'Record store and music venue', 'red-hook-lobster-pound': 'Seafood restaurant', 'brooklyn-pop-up': 'Artisan market',
-       'house-pepper': 'Culinary business', 'books-are-magic': 'Bookstore', 'jalopy-theatre': 'Music venue and school'}
+       'house-pepper': 'Culinary business', 'books-are-magic': 'Bookstore', 'jalopy-theatre': 'Music venue and school',
+       'union-hall': 'Bar, comedy and music venue', 'the-bell-house': 'Music and comedy venue'}
 def base(slug, typ, name, seat, desc, lat, lng, addr, web='', intro=(), links=(), logo='', email='', phone='', since='', kv=()):
     return {'slug': slug, 'type': typ, 'name': name, 'seat': seat, 'desc': desc, 'lat': lat, 'lng': lng, 'addr': addr, 'zip': '',
             'addr_note': '', 'phone': phone, 'email': email, 'web': web.replace('https://', '').replace('http://', '').strip('/'),
@@ -34,7 +35,8 @@ for b in d['businesses']:
     w = {'bark-slope': 'Park Slope Fifth Avenue BID', 'strong-rope-brewery': 'Proposed Gowanus BID', 'principles-gi-coffee-house': 'Gowanus, no BID',
          'park-slope-farmers-market': 'Park Slope, no BID', 'nitehawk-prospect-park': 'Park Slope, no BID', 'bird-collective': 'Park Slope, no BID',
          'record-shop': 'Red Hook, no BID', 'red-hook-lobster-pound': 'Red Hook, no BID', 'brooklyn-pop-up': 'Red Hook, no BID', 'house-pepper': 'Red Hook, no BID',
-         'books-are-magic': 'Carroll Gardens, no BID', 'jalopy-theatre': 'Columbia Street Waterfront, no BID'}[b['slug']]
+         'books-are-magic': 'Carroll Gardens, no BID', 'jalopy-theatre': 'Columbia Street Waterfront, no BID',
+         'union-hall': 'Park Slope Fifth Avenue BID', 'the-bell-house': 'Proposed Gowanus BID'}[b['slug']]
     b.update(group='Local businesses', topic=KIND[b['slug']], sort=0, kind='org', seat=f"{CAT[b['slug']]} · {w}")
     prof.append(b)
 # the BIDs and business groups head their subsections
