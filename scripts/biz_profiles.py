@@ -34,7 +34,7 @@ TOPIC = {
     'Trades and workshops': 'Trades, workshops and industrial', 'Warehouses, logistics and industrial': 'Trades, workshops and industrial',
     'Wholesale or temporary liquor license': 'Trades, workshops and industrial', 'Auto and transportation': 'Auto and transportation',
     'Hotels and tourism': 'Hotels and tourism', 'Other businesses': 'Other businesses', 'Government offices': 'Other businesses'}
-ORDER = ['Restaurants, cafes and food', 'Supermarkets', 'Groceries and food stores', 'Stores', 'Smoke, vape and cannabis shops', 'Markets', 'Venues', 'Health and medical',
+ORDER = ['Restaurants, cafes and food', 'Supermarkets', 'Delis and bodegas', 'Groceries and food stores', 'Stores', 'Smoke, vape and cannabis shops', 'Markets', 'Venues', 'Health and medical',
          'Hair, beauty and personal care', 'Fitness and recreation', 'Services and offices', 'Trades, workshops and industrial',
          'Auto and transportation', 'Hotels and tourism', 'Other businesses']
 SHORT = {'Bar or restaurant (liquor license)': 'Bar or restaurant', 'Food stores with beer or liquor license': 'Food store with a beer or liquor license',
