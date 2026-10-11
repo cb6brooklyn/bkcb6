@@ -25,6 +25,14 @@ FEEDS = [
         "venue": "The Bell House \u00b7 149 7th Street",
     },
     {
+        # Littlefield's all-shows page lists its Eventbrite shows as cards (wfea-venue__event).
+        "name": "Littlefield",
+        "url": "https://littlefieldnyc.com/all-shows/",
+        "kind": "wfea",
+        "type": "littlefield",
+        "venue": "Littlefield \u00b7 635 Sackett Street",
+    },
+    {
         "name": "CB6",
         "url": "https://brooklyncb6.cityofnewyork.us/events/list/?shortcode=f0b1cb7d&ical=1",
         "type": None,  # classified by content
@@ -347,6 +355,45 @@ def fetch_eventbrite_org(url, venue, pages=6):
     return out
 
 
+def fetch_wfea_events(url, venue):
+    """Events from a WordPress page of Eventbrite cards (the wfea plugin), in parse_ics's shape."""
+    try:
+        r = requests.get(url, timeout=30, headers=dict(BROWSER_HEADERS, Accept="text/html,*/*"))
+    except Exception as e:
+        print(f"  Unusable {url}: {type(e).__name__}: {e}")
+        return []
+    if not r.ok:
+        print(f"  Unusable {url}: HTTP {r.status_code}")
+        return []
+    import html as _html
+    from urllib.parse import urljoin
+    out, seen = [], set()
+    for a in re.findall(r'<article class="wfea-venue__event.*?</article>', r.text, re.S):
+        if "status-live" not in a[:200]:
+            continue
+        t = re.search(r'datetime="([^"]+)"', a)
+        h = re.search(r'<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>', a, re.S)
+        if not t or not h:
+            continue
+        start = t.group(1)
+        name = _html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", h.group(2)))).strip()
+        key = (start[:10], name.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        ex = re.search(r'wfea-venue__excerpt[^>]*>(.*?)<a', a, re.S)
+        out.append({
+            "date": start[:10],
+            "summary": name,
+            "url": urljoin(url, _html.unescape(h.group(1))),
+            "cats": "",
+            "location": venue,
+            "desc": _html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", ex.group(1)))).strip() if ex else "",
+            "time": _clock(start) if "T" in start else None,
+        })
+    return out
+
+
 def fetch_ldjson_events(url, venue):
     """Events from a page's schema.org Event blocks, in parse_ics's shape."""
     try:
@@ -460,8 +507,8 @@ def main():
 
     for feed in FEEDS:
         print(f"Fetching {feed['name']}...")
-        if feed.get("kind") in ("eventbrite_org", "ldjson"):
-            raw = fetch_eventbrite_org(feed["url"], feed["venue"]) if feed["kind"] == "eventbrite_org" else fetch_ldjson_events(feed["url"], feed["venue"])
+        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea"):
+            raw = {"eventbrite_org": fetch_eventbrite_org, "ldjson": fetch_ldjson_events, "wfea": fetch_wfea_events}[feed["kind"]](feed["url"], feed["venue"])
             if not raw:
                 print(f"  FAILED \u2014 no data")
                 failed_types.append(feed["type"])
@@ -470,7 +517,7 @@ def main():
             text = None
         else:
             text = fetch_feed(feed["url"], feed.get("fallback"))
-        if feed.get("kind") in ("eventbrite_org", "ldjson"):
+        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea"):
             pass
         elif not text and not feed.get("api_url") and not feed.get("type"):
             # the CB6 feed (its events are classified by content): keep last run's board, committee and community events
