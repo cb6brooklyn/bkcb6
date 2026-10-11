@@ -171,7 +171,8 @@ SPORT = {'HDB': 'Handball courts', 'BKB': 'Basketball courts', 'SFB': 'Softball 
 ath = collections.defaultdict(collections.Counter)
 for x in feats:
     p = x['properties']
-    if p['layer'] == 'athletic_facility' and p.get('status', 'Active') == 'Active':
+    # Brooklyn Bridge Park's courts and fields are all kept (the city's records mark them inactive; the park runs them itself)
+    if p['layer'] == 'athletic_facility' and (p.get('status', 'Active') == 'Active' or p['name'] == 'Brooklyn Bridge Park'):
         ath[p['name']][SPORT.get(p['sport'], title(p.get('facility_type') or 'Other'))] += 1
 pools = collections.defaultdict(list)
 for pl in json.load(open('data/parks-pools-cb6.json')): pools[pl['gispropnum']].append(pl)
@@ -202,7 +203,7 @@ for name, cnt in ath.items():
     if name not in parks: continue
     x = parks[name][0]; p = x['properties']
     pts = [shape(f['geometry']).centroid for f in feats if f['properties']['layer'] == 'athletic_facility' and f['properties']['name'] == name]
-    pts = [q for q in pts if cb6.buffer(0.0006).contains(q)] or pts
+    if name != 'Brooklyn Bridge Park': pts = [q for q in pts if cb6.buffer(0.0006).contains(q)] or pts
     lat = sum(q.y for q in pts) / len(pts); lng = sum(q.x for q in pts) / len(pts)
     kv = [[k, str(v)] for k, v in sorted(cnt.items())] + [['Park', name], ['Run by', 'NYC Parks' if name not in ('Brooklyn Bridge Park',) else 'Brooklyn Bridge Park Corporation'],
                                                          ['Source', 'NYC Parks athletic facilities']]
@@ -264,6 +265,19 @@ for m in made:
     if r[7] and not m['weburl']:
         m['weburl'] = r[7].strip(); m['web'] = m['weburl'].replace('https://', '').replace('http://', '').strip('/')
 print(logos, 'logos from the business directory')
+# Brooklyn Bridge Park, all of it: the park's own size and extent (85 acres, Atlantic Avenue to Jay Street), not the 21 acre
+# NYC Parks parcel; NYC Parks lists it in community boards 2 and 6 (communityboard 302306)
+for m in made:
+    if m['name'] == 'Brooklyn Bridge Park':
+        m['logo'] = 'bbp.png'
+        m['addr'] = 'East River waterfront, Atlantic Avenue to Jay Street'
+        m['seat'] = 'Waterfront park, 85 acres'
+        m['kv'] = [k for k in m['kv'] if k[0] not in ('Size', 'Where', 'Community board')]
+        m['kv'][1:1] = [['Size', '85 acres'], ['Where', 'East River waterfront, Atlantic Avenue to Jay Street']]
+        m['kv'].append(['Community board', 'Brooklyn Community Boards 6 and 2'])
+for p in d['profiles']:
+    if p['slug'] == 'brooklyn-bridge-park':
+        p['kv'] = [k for k in p['kv'] if k[0] != 'Community board'] + [['Community board', 'Brooklyn Community Boards 6 and 2']]
 d['profiles'] = [p for p in d['profiles'] if not p['slug'].startswith('place-')] + made
 gs = [g for g in d['groups'] if g['name'] != GROUP]
 i = next(k for k, g in enumerate(gs) if g['name'] == 'Local businesses')
