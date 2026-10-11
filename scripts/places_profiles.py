@@ -105,6 +105,30 @@ upk_addr = {norm(f.get('address')) for f in fac if f['factype'] == 'DOE UNIVERSA
 clinics = collections.defaultdict(list)
 for f in fac:
     if f['factype'] == 'SCHOOL BASED HOSPITAL EXTENSION CLINIC': clinics[norm(f.get('address'))].append(title(f['opname']))
+# school districts and parent councils: data/doe-schools-cb6.json (NYC Public Schools school locations, wg9x-4ke6, community
+# district 306). The district that runs a public school is its code's first two digits (75 is District 75, citywide special
+# education; 84 is a charter school). Community Education Councils cover the public elementary and middle grades of their
+# district; the Citywide Council on High Schools covers public high school grades; the Citywide Council for District 75 covers
+# District 75 schools. Charter and private schools have no council; they show the district they are in.
+DOE = {norm(x['location_name']): x for x in json.load(open('data/doe-schools-cb6.json'))}
+def grades(t):
+    g = [x for x in t.split(',') if x not in ('SE',)]
+    lab = lambda x: {'PK': 'Pre-K', '0K': 'K'}[x] if x in ('PK', '0K') else str(int(x))
+    return f"{lab(g[0])} to {lab(g[-1])}" if len(g) > 1 else lab(g[0])
+def councils(f, doe):
+    geo = f.get('schooldist') or (doe or {}).get('geographical_district_code')
+    if not doe or (doe.get('managed_by_name') == 'Charter'):
+        return [['School district', f'District {geo}']] if geo else []
+    run = doe['system_code'][:2]
+    g = [x for x in (doe.get('grades_final_text') or '').split(',') if x not in ('SE', 'NULL', '')]
+    lower = any(x in ('PK', '0K') or (x.isdigit() and int(x) <= 8) for x in g)
+    upper = any(x.isdigit() and int(x) >= 9 for x in g)
+    if run == '75':
+        return [['School district', f'District 75, citywide special education (in District {geo})'], ['Parent council', 'Citywide Council for District 75']]
+    out = [['School district', f'District {int(run)}']]
+    if lower or not upper: out.append(['Community Education Council', f'CEC District {int(run)}'])
+    if upper: out.append(['High school parent council', 'Citywide Council on High Schools'])
+    return out
 for f in sorted((f for f in fac if f['facgroup'] == 'SCHOOLS (K-12)'), key=lambda f: f['facname']):
     name = title(f['facname']).replace('P.S. 0', 'P.S. ')
     ty = SCHOOL_TYPE.get(f['factype'], title(f['factype']))
@@ -112,7 +136,9 @@ for f in sorted((f for f in fac if f['facgroup'] == 'SCHOOLS (K-12)'), key=lambd
     if f.get('capacity') not in (None, '0') and f.get('captype') == 'seats': kv.append(['Seats', f['capacity']])
     if f.get('opname') and 'Department of Education' not in f['opname'] and norm(f['opname']) != norm(f['facname']): kv.append(['Run by', title(f['opname'])])
     elif 'Department of Education' in (f.get('opname') or ''): kv.append(['Run by', 'NYC Public Schools'])
-    if f.get('schooldist'): kv.append(['School district', f"District {f['schooldist']}"])
+    doe = DOE.get(norm(f['facname']))
+    if doe and doe.get('grades_final_text') not in (None, 'NULL'): kv.append(['Grades', grades(doe['grades_final_text'])])
+    for k, v in councils(f, doe): kv.append([k, v])
     if norm(f['facname']) in upk or (ty.startswith('Public elementary') and norm(f.get('address')) in upk_addr): kv.append(['Pre-K', 'Pre-K for All at this school'])
     if clinics.get(norm(f.get('address'))): kv.append(['School-based health clinic', ', '.join(sorted(set(clinics[norm(f.get('address'))])))])
     kv.append(['Source', 'NYC Facilities Database'])
@@ -279,6 +305,9 @@ for m in made:
 for p in d['profiles']:
     if p['slug'] == 'brooklyn-bridge-park':
         p['kv'] = [k for k in p['kv'] if k[0] != 'Community board']
+for m in made:
+    for k, v in m['kv']:
+        if k == 'Community Education Council' and v == 'CEC District 15': m['kvdest'] = {v: 'org:cec-district-15'}
 d['profiles'] = [p for p in d['profiles'] if not p['slug'].startswith('place-')] + made
 gs = [g for g in d['groups'] if g['name'] != GROUP]
 i = next(k for k, g in enumerate(gs) if g['name'] == 'Local businesses')
