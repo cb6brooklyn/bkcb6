@@ -9,6 +9,22 @@ from datetime import datetime, timezone
 
 FEEDS = [
     {
+        # Union Hall lists on Eventbrite; its organizer page carries the upcoming events as JSON.
+        "name": "Union Hall",
+        "url": "https://www.eventbrite.com/o/union-hall-17899496497",
+        "kind": "eventbrite_org",
+        "type": "unionhall",
+        "venue": "Union Hall \u00b7 702 Union Street",
+    },
+    {
+        # The Bell House's shows page carries each show as schema.org Event data.
+        "name": "The Bell House",
+        "url": "https://www.thebellhouseny.com/shows",
+        "kind": "ldjson",
+        "type": "bellhouse",
+        "venue": "The Bell House \u00b7 149 7th Street",
+    },
+    {
         "name": "CB6",
         "url": "https://brooklyncb6.cityofnewyork.us/events/list/?shortcode=f0b1cb7d&ical=1",
         "type": None,  # classified by content
@@ -272,6 +288,108 @@ def fetch_feed(url, fallback=None, attempts=3):
     return None
 
 
+def _clock(hhmm):
+    """"22:00:00" or "2026-10-10T18:00:00-04:00" -> "10:00 PM"."""
+    m = re.search(r"(\d{2}):(\d{2})(?::\d{2})?(?!.*T)", hhmm) if "T" not in hhmm else re.search(r"T(\d{2}):(\d{2})", hhmm)
+    if not m:
+        return None
+    return parse_ics_time("T" + m.group(1) + m.group(2))
+
+
+def fetch_eventbrite_org(url, venue, pages=6):
+    """Every upcoming event of an Eventbrite organizer, in parse_ics's shape: the organizer's events API, reached with the
+    cookies its public page sets (90 events for Union Hall); the page's own first-page data when the API fails."""
+    oid = re.search(r"(\d{6,})", url).group(1)
+    out, seen = [], set()
+    def add(date, name, href, desc, clock):
+        key = (date, name.lower())
+        if key in seen or not date or not name:
+            return
+        seen.add(key)
+        out.append({"date": date, "summary": name, "url": (href or "").split("?")[0], "cats": "", "location": venue,
+                    "desc": re.sub(r"\s+", " ", desc or "").strip(), "time": clock})
+    sess = requests.Session()
+    sess.headers.update(dict(BROWSER_HEADERS, Accept="text/html,*/*"))
+    try:
+        page_html = sess.get(url, timeout=30).text
+    except Exception as e:
+        print(f"  Unusable {url}: {type(e).__name__}: {e}")
+        return []
+    api = {"Accept": "application/json", "Referer": url, "X-Requested-With": "XMLHttpRequest", "X-CSRFToken": sess.cookies.get("csrftoken", "")}
+    for page in range(1, pages + 1):
+        try:
+            r = sess.get(f"https://www.eventbrite.com/api/v3/organizers/{oid}/events/?status=live&order_by=start_asc&page={page}", timeout=30, headers=api)
+            j = r.json() if r.ok else {}
+        except Exception as e:
+            print(f"  Eventbrite events API: {type(e).__name__}: {e}")
+            j = {}
+        evs = j.get("events") or []
+        for e in evs:
+            if e.get("status") not in (None, "live") or e.get("listed") is False:
+                continue
+            start = ((e.get("start") or {}).get("local") or "")
+            add(start[:10], re.sub(r"\s+", " ", ((e.get("name") or {}).get("text") or "")).strip(), e.get("url"),
+                ((e.get("description") or {}).get("text") or ""), _clock(start) if "T" in start else None)
+        if not evs or not (j.get("pagination") or {}).get("has_more_items"):
+            break
+    if not out:
+        m = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', page_html, re.S)
+        try:
+            evs = json.loads(m.group(1))["props"]["pageProps"].get("upcomingEvents") or [] if m else []
+        except Exception:
+            evs = []
+        for e in evs:
+            if e.get("is_cancelled"):
+                continue
+            add(e.get("start_date") or "", (e.get("name") or "").strip(), e.get("url"), e.get("summary") or "", _clock(e.get("start_time") or ""))
+        if evs:
+            print("  (first page only: the events API did not answer)")
+    return out
+
+
+def fetch_ldjson_events(url, venue):
+    """Events from a page's schema.org Event blocks, in parse_ics's shape."""
+    try:
+        r = requests.get(url, timeout=30, headers=dict(BROWSER_HEADERS, Accept="text/html,*/*"))
+    except Exception as e:
+        print(f"  Unusable {url}: {type(e).__name__}: {e}")
+        return []
+    if not r.ok:
+        print(f"  Unusable {url}: HTTP {r.status_code}")
+        return []
+    out, seen = [], set()
+    for block in re.findall(r'<script type="application/ld\+json">(.*?)</script>', r.text, re.S):
+        try:
+            o = json.loads(block)
+        except Exception:
+            continue
+        for it in (o if isinstance(o, list) else [o]):
+            if not isinstance(it, dict) or "Event" not in str(it.get("@type")) or not it.get("startDate") or not it.get("name"):
+                continue
+            start = it["startDate"]
+            date = start[:10]
+            name = re.sub(r"\s+", " ", it["name"]).strip()
+            key = (date, name.lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            status = str(it.get("eventStatus") or "")
+            if "Cancelled" in status or "Postponed" in status:
+                continue
+            offers = it.get("offers") or {}
+            href = it.get("url") or (offers.get("url") if isinstance(offers, dict) else "")
+            out.append({
+                "date": date,
+                "summary": name,
+                "url": href or "",
+                "cats": "",
+                "location": venue,
+                "desc": re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", it.get("description") or "")).strip(),
+                "time": _clock(start) if "T" in start else None,
+            })
+    return out
+
+
 def fetch_api(base_url, limit=200):
     """Read events from The Events Calendar REST API and return them in the
     same shape parse_ics produces. Used when a site's ICS endpoint is blocked
@@ -342,8 +460,24 @@ def main():
 
     for feed in FEEDS:
         print(f"Fetching {feed['name']}...")
-        text = fetch_feed(feed["url"], feed.get("fallback"))
-        if text:
+        if feed.get("kind") in ("eventbrite_org", "ldjson"):
+            raw = fetch_eventbrite_org(feed["url"], feed["venue"]) if feed["kind"] == "eventbrite_org" else fetch_ldjson_events(feed["url"], feed["venue"])
+            if not raw:
+                print(f"  FAILED \u2014 no data")
+                failed_types.append(feed["type"])
+                continue
+            print(f"  Got {len(raw)} events")
+            text = None
+        else:
+            text = fetch_feed(feed["url"], feed.get("fallback"))
+        if feed.get("kind") in ("eventbrite_org", "ldjson"):
+            pass
+        elif not text and not feed.get("api_url") and not feed.get("type"):
+            # the CB6 feed (its events are classified by content): keep last run's board, committee and community events
+            print(f"  FAILED \u2014 no data; keeping last run's events")
+            failed_types.append(None)
+            continue
+        elif text:
             raw = parse_ics(text)
             print(f"  Got {len(raw)} events")
         elif feed.get("api_url"):
@@ -380,13 +514,15 @@ def main():
     # temporary block or outage at the source does not wipe events off the site.
     if failed_types:
         have = {(e.get("date"), e.get("label")) for e in all_events}
+        forced = {f.get("type") for f in FEEDS if f.get("type")}
         carried = 0
         for e in previous:
-            if e.get("type") in failed_types and (e.get("date"), e.get("label")) not in have:
+            keep = e.get("type") in failed_types or (None in failed_types and e.get("type") not in forced)
+            if keep and (e.get("date"), e.get("label")) not in have:
                 all_events.append(e)
                 carried += 1
         if carried:
-            print(f"  Carried over {carried} events from the previous run for: {', '.join(sorted(set(failed_types)))}")
+            print(f"  Carried over {carried} events from the previous run for: {', '.join(sorted(str(t) for t in set(failed_types)))}")
 
     all_events.extend(dict(a) for a in ADDITIONS)
     all_events = apply_manual_layer(all_events)
