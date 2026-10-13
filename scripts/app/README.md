@@ -45,3 +45,12 @@ formats, and anything compared or matched rather than shown.
 
 Then (builds from 120 and 121): `fix_tiles.py` (the strip and parts' `dest`), `audit_numbers.py <app> numbers-<app>.json`, `audit_datasets.py <app> datasets-<app>.json`,
 `fix_widget.py ~/bkcb6app` (the widget reads civic/widget.json), `fix_boardmeeting.py`, `fix_bknext.py`, `fix_subway.py`. `today.sh` runs the whole chain in order.
+
+## Oct 13, 2026: file-driven buttons take the tap (`filelink_patch.py`)
+
+Through build 124, every button that comes from a file (the day's strip tiles, the block card's `MyBlock.rows` button rows and
+`MyBlock.buttons` pills) drew but did nothing when tapped: `FileLink` in `Tools.swift` marked its label `allowsHitTesting(false)`,
+which makes a plain-style Button or NavigationLink untappable in SwiftUI. `filelink_patch.py <app>` swaps that for
+`contentShape(Rectangle())`. In BKCB6 from build 125; BKCB and CBNYC get it with their next builds. `StripUITests.swift` is the
+XCUITest that found it: it taps a tile on the simulator and checks that a screen opened (run from a copy of the project with a
+`bundle.ui-testing` target).
