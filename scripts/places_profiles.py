@@ -308,6 +308,14 @@ for p in d['profiles']:
 for m in made:
     for k, v in m['kv']:
         if k == 'Community Education Council' and v == 'CEC District 15': m['kvdest'] = {v: 'org:cec-district-15'}
+# the schools' own logos (assets/school-logos, from Mike's Drive folder of cleaned 1080 px logos; logos.json maps profile name to file)
+SCHOOL_LOGOS = {norm(k): v for k, v in json.load(open('assets/school-logos/logos.json')).items()}
+n_school_logos = 0
+for m in made:
+    f = SCHOOL_LOGOS.get(norm(m['name']))
+    if f:
+        shutil.copyfile(f'assets/school-logos/{f}', f'{C}/orgs/logos/{f}'); m['logo'] = f; n_school_logos += 1
+print(n_school_logos, 'school logos')
 d['profiles'] = [p for p in d['profiles'] if not p['slug'].startswith('place-')] + made
 gs = [g for g in d['groups'] if g['name'] != GROUP]
 i = next(k for k, g in enumerate(gs) if g['name'] == 'Local businesses')
