@@ -110,6 +110,19 @@ EXCLUDES = [
 ]
 
 OVERRIDES = [
+    # Oct 14, 2026 Full Board: the meeting graphic, Zoom, and the agenda map embedded under the event.
+    {"date": "2026-10-14", "label_contains": "CB6 Full Board Meeting",
+     "set": {"flyer": "https://bkcb6.app/101426/meeting.png", "embed": "https://bkcb6.app/101426/?embed=map",
+             "href": "https://zoom.us/j/97336327750", "linkText": "Join on Zoom \u2197",
+             "desc": ("At Van Alen Institute, 303 Bond Street, and on Zoom (Webinar ID 973 3632 7750). "
+                      "Agenda: I. Adoption of minutes. II. Chairperson\u2019s report. III. District Manager\u2019s report. "
+                      "IV. Committee reports. A. Business Affairs & Licenses: motion to approve liquor licenses for 508 Degraw Street, "
+                      "744 Clinton Street, 446A Dean Street, 420 Carroll Street, 348 Douglass Street, 381 7th Avenue and 256 5th Avenue. "
+                      "C. Transportation: motion to approve changes presented by DOT, supporting the Public E-Bike Charging program "
+                      "and its two CB6 locations, Dean Street and 5th Avenue (northwest corner) and Court Street and 1st Place "
+                      "(northeast corner), and asking for more. V. New/other business. VI. Community session. VII. Adjournment. "
+                      "The agenda mapped out: https://bkcb6.app/101426/")},
+     "append_desc": None},
     # Transportation, Parks and Public Infrastructure meets the third WEDNESDAY.
     # The official feed has published these on Thursdays. These move them to the
     # correct date; once the feed carries the right date they simply stop matching.
@@ -177,7 +190,9 @@ def apply_manual_layer(events):
             continue
         for ov in OVERRIDES:
             if ov["date"] == ev.get("date") and ov["label_contains"] in (ev.get("label") or ""):
-                ev.update(ov["set"])
+                ev.update(ov.get("set", {}))
+                if ov.get("append_desc") and ov["append_desc"] not in (ev.get("desc") or ""):
+                    ev["desc"] = ((ev.get("desc") or "").rstrip() + " " + ov["append_desc"]).strip()
                 print(f"  Overrode: {ev.get('date')} {ev.get('label')}")
         kept.append(ev)
     return kept
