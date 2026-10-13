@@ -119,7 +119,7 @@ function orgFor(d, e) {
     if (k && !['board', 'committee', 'ulurp', 'budget', 'altside', 'community'].includes(k)) t = k;
   }
   const o = oldIndex.get(d + '|' + norm(ent(e.label)));
-  if (o && o.g === 'cb6' && o.ty) return { ty: o.ty, org: o.org, k: t };
+  if (o && o.g === 'cb6' && o.ty && !typeMap[t]) return { ty: o.ty, org: o.org, k: t };   // a type the map names goes where the map says
   if (t === 'community') return { ...COMMUNITY, k: t };
   return { ...typeFor(t), k: t };
 }
