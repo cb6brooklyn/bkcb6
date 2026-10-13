@@ -206,6 +206,7 @@ PTYPE = {'Garden': 'Community garden', 'Playground': 'Playground', 'Jointly Oper
          'Triangle/Plaza': 'Plaza or triangle', 'Neighborhood Park': 'Neighborhood park', 'Community Park': 'Community park',
          'Flagship Park': 'Flagship park', 'Recreational Field/Courts': 'Fields and courts', 'Strip': 'Park strip', 'Undeveloped': 'Undeveloped park land'}
 park_slug = {}
+PARK_CAL = {}   # calendar type park-<property> -> this park's profile
 for name, xs in parks.items():
     xs.sort(key=lambda x: -float(x['properties'].get('acres') or 0))
     p = xs[0]['properties']
@@ -223,6 +224,11 @@ for name, xs in parks.items():
     web = {'Prospect Park': 'https://www.prospectpark.org', 'Brooklyn Bridge Park': 'https://www.brooklynbridgepark.org'}.get(name, f"https://www.nycgovparks.org/parks/{p['gispropnum']}")
     slug = slugify(name); park_slug[name] = slug
     made.append(base(slug, name, PARKS, ty, pt.y, pt.x, addr(p.get('address')) if p.get('address') and not re.search(r'[a-z]', p['address']) else (p.get('address') or ''), kv, web=web))
+    # The park's own calendar: NYC Parks events there (scripts/build_calendar_events.py, type park-<property>), or its operator's.
+    made[-1]['cal'] = {'Prospect Park': 'prospect-park-alliance', 'Brooklyn Bridge Park': 'brooklyn-bridge-park'}.get(name, slug)
+    for x in xs:
+        g_ = x['properties'].get('gispropnum')
+        if g_ and name not in ('Prospect Park', 'Brooklyn Bridge Park'): PARK_CAL[f'park-{g_.lower()}'] = {'ty': slug, 'org': name}
 
 # athletic facilities: each park's courts and fields, the pools, the recreation center
 for name, cnt in ath.items():
@@ -391,4 +397,11 @@ d['groups'] = gs[:i] + [{'name': GROUP, 'topics': TOPICS}] + gs[i:]
 note = ' Schools, libraries, child care, parks, hospitals and health care, and gyms and athletic facilities are profiles too (slug place-*, scripts/places_profiles.py), under Schools, parks and facilities.'
 if 'places_profiles.py' not in d['about']: d['about'] += note
 json.dump(d, open(P, 'w'), ensure_ascii=False, indent=1)
+# Each park's calendar type, for the app calendar (scripts/build_app_calendar.mjs reads scripts/app-calendar-types.json).
+TM = 'scripts/app-calendar-types.json'
+tm = {k: v for k, v in json.load(open(TM)).items() if not k.startswith('park-')}
+tm.update(PARK_CAL)
+json.dump(tm, open(TM, 'w'), ensure_ascii=False, indent=1)
+json.dump(sorted(k[5:].upper() for k in PARK_CAL) + ['B073', 'B431'], open('data/cb6-park-ids.json', 'w'))
+print('park calendars', len(PARK_CAL))
 print(collections.Counter(m['topic'] for m in made), gyms, 'gyms moved')

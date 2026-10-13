@@ -52,7 +52,7 @@ for (const m of html.matchAll(/<div class="leg" data-type="([^"]+)"[^>]*>(?:<img
 
 // ---------- merge the live CB6 feed exactly as calendar.html's loadLiveEvents does ----------
 const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
-const MANY_A_DAY = new Set(['unionhall', 'bellhouse', 'littlefield', 'powerhouse']); // as calendar.html
+const MANY_A_DAY = { has: t => ['unionhall', 'bellhouse', 'littlefield', 'powerhouse', 'prospect', 'bbp', 'dredgers', 'osh'].includes(t) || String(t).startsWith('park-') }; // as calendar.html
 function mergeEntry(ev) {
   if (!ev || !ev.date) return;
   if (SUPPRESSED_LIVE.has(ev.date + '|' + (ev.label || '').replace(/\s+/g, ' ').trim())) return;
@@ -180,12 +180,12 @@ for (const [d, list] of Object.entries(EVENTS)) {
     } else out.push(row);
     if (!types[tm.ty]) {
       const t = { name: tm.org };
-      const icon = ORG_ICONS[e.type];
+      const icon = ORG_ICONS[e.type] || (String(e.type).startsWith('park-') ? 'dpr.png' : undefined);
       if (icon && packFile('civic/cal/icons', icon)) t.icon = icon;
       if (TYPES[e.type] && TYPES[e.type].bg) t.bg = TYPES[e.type].bg;
       types[tm.ty] = t;
-    } else if (!types[tm.ty].icon && ORG_ICONS[e.type] && packFile('civic/cal/icons', ORG_ICONS[e.type])) {
-      types[tm.ty].icon = ORG_ICONS[e.type];
+    } else if (!types[tm.ty].icon && (ORG_ICONS[e.type] || String(e.type).startsWith('park-')) && packFile('civic/cal/icons', ORG_ICONS[e.type] || 'dpr.png')) {
+      types[tm.ty].icon = ORG_ICONS[e.type] || 'dpr.png';
     }
   }
 }

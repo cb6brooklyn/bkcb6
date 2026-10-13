@@ -41,6 +41,22 @@ FEEDS = [
         "venue": "Littlefield \u00b7 635 Sackett Street",
     },
     {
+        # Brooklyn Bridge Park's events (a WordPress post type, with each event's date and any repeat dates in its fields).
+        "name": "Brooklyn Bridge Park",
+        "url": "https://brooklynbridgepark.org/wp-json/wp/v2/events",
+        "kind": "bbp",
+        "type": "bbp",
+        "venue": "Brooklyn Bridge Park",
+    },
+    {
+        # NYC Parks' events feed (the next two weeks, citywide), kept to the parks in CB6; each event goes to its park's calendar.
+        "name": "NYC Parks",
+        "url": "https://www.nycgovparks.org/xml/events_300_rss.json",
+        "kind": "nycparks",
+        "type": "nycparks",
+        "venue": "",
+    },
+    {
         "name": "CB6",
         "url": "https://brooklyncb6.cityofnewyork.us/events/list/?shortcode=f0b1cb7d&ical=1",
         "type": None,  # classified by content
@@ -56,6 +72,7 @@ FEEDS = [
         # Their CDN returns 403 to datacenter IPs (GitHub Actions included),
         # so fall back to The Events Calendar REST API on the same site.
         "api_url": "https://www.prospectpark.org/wp-json/tribe/events/v1/events",
+        "api_first": True,   # the ICS list stops at 30 events; the REST API has every one
         "type": "prospect",
     },
     {
@@ -441,6 +458,72 @@ def _clock_text(t):
     return f"{int(m.group(1))}:{m.group(2) or '00'} {m.group(3).upper()}M" if m else None
 
 
+def fetch_bbp_events(url, venue):
+    """Brooklyn Bridge Park's events from its WordPress API, every upcoming date of each (repeat dates included)."""
+    import html as _html
+    today = datetime.now().strftime("%Y%m%d")
+    out, seen = [], set()
+    for page in range(1, 20):
+        try:
+            r = requests.get(f"{url}?per_page=100&page={page}&_fields=id,link,title,acf", timeout=40, headers=BROWSER_HEADERS)
+        except Exception as e:
+            print(f"  Unusable {url}: {type(e).__name__}: {e}")
+            break
+        if not r.ok:
+            break
+        items = r.json()
+        if not items:
+            break
+        for it in items:
+            a = it.get("acf") or {}
+            if (a.get("status") or "").lower() in ("canceled", "cancelled", "postponed"):
+                continue
+            full = _html.unescape(re.sub(r"<[^>]+>", "", (it.get("title") or {}).get("rendered", ""))).strip()
+            # One post per date of a series ("Open Hours ... – February 5"): the date is the post's own; the series list names its siblings.
+            name = re.sub(r"\s+[\u2013-]\s+[A-Z][a-z]+ \d{1,2}$", "", full)
+            days = set()
+            if re.fullmatch(r"\d{8}", a.get("date") or ""):
+                days.add(a["date"])
+            if name == full:
+                for m in re.finditer(r"\(([A-Z][a-z]+ \d{1,2}, \d{4})\)", a.get("recurring_events_list") or ""):
+                    try: days.add(datetime.strptime(m.group(1), "%B %d, %Y").strftime("%Y%m%d"))
+                    except ValueError: pass
+            desc = _html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", a.get("description") or ""))).strip()
+            for d in sorted(days):
+                if d < today or (d, name.lower()) in seen:
+                    continue
+                seen.add((d, name.lower()))
+                out.append({"date": f"{d[:4]}-{d[4:6]}-{d[6:]}", "summary": name, "url": it.get("link") or "", "cats": "",
+                            "location": venue, "desc": desc[:600], "time": _clock(a.get("start_time") or "") if a.get("start_time") else None})
+    return out
+
+
+def fetch_nycparks_events(url, venue):
+    """NYC Parks' events feed, kept to CB6's parks (data/cb6-park-ids.json); each event's type is its park's calendar."""
+    import html as _html
+    try:
+        ids = set(json.load(open("data/cb6-park-ids.json")))
+        r = requests.get(url, timeout=60, headers=BROWSER_HEADERS)
+        items = r.json() if r.ok else []
+    except Exception as e:
+        print(f"  Unusable {url}: {type(e).__name__}: {e}")
+        return []
+    out = []
+    for it in items:
+        pids = [p.strip() for p in str(it.get("parkids") or "").split(",")]
+        hit = next((p for p in pids if p in ids), None)
+        if not hit:
+            continue
+        ty = "prospect" if hit == "B073" else "bbp" if hit == "B431" else f"park-{hit.lower()}"
+        st = (it.get("starttime") or "").strip()
+        out.append({"date": it.get("startdate") or "", "summary": _html.unescape(it.get("title") or "").strip(),
+                    "url": (it.get("link") or "").replace("http://", "https://"), "cats": it.get("categories") or "",
+                    "location": _html.unescape(", ".join(x for x in [it.get("location"), it.get("parknames")] if x)),
+                    "desc": _html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", it.get("description") or ""))).strip()[:600],
+                    "time": None if st.startswith("0:00") else _clock(st), "type": ty})
+    return out
+
+
 def fetch_wfea_events(url, venue):
     """Events from a WordPress page of Eventbrite cards (the wfea plugin), in parse_ics's shape."""
     try:
@@ -523,7 +606,7 @@ def fetch_ldjson_events(url, venue):
     return out
 
 
-def fetch_api(base_url, limit=200):
+def fetch_api(base_url, limit=2000):
     """Read events from The Events Calendar REST API and return them in the
     same shape parse_ics produces. Used when a site's ICS endpoint is blocked
     or empty but its REST API answers."""
@@ -593,17 +676,19 @@ def main():
 
     for feed in FEEDS:
         print(f"Fetching {feed['name']}...")
-        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse"):
-            raw = {"eventbrite_org": fetch_eventbrite_org, "ldjson": fetch_ldjson_events, "wfea": fetch_wfea_events, "powerhouse": fetch_powerhouse_events}[feed["kind"]](feed["url"], feed["venue"])
+        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse", "bbp", "nycparks"):
+            raw = {"eventbrite_org": fetch_eventbrite_org, "ldjson": fetch_ldjson_events, "wfea": fetch_wfea_events, "powerhouse": fetch_powerhouse_events, "bbp": fetch_bbp_events, "nycparks": fetch_nycparks_events}[feed["kind"]](feed["url"], feed["venue"])
             if not raw:
                 print(f"  FAILED \u2014 no data")
                 failed_types.append(feed["type"])
                 continue
             print(f"  Got {len(raw)} events")
             text = None
+        elif feed.get("api_first"):
+            text = None
         else:
             text = fetch_feed(feed["url"], feed.get("fallback"))
-        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse"):
+        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse", "bbp", "nycparks"):
             pass
         elif not text and not feed.get("api_url") and not feed.get("type"):
             # the CB6 feed (its events are classified by content): keep last run's board, committee and community events
@@ -627,7 +712,7 @@ def main():
                 failed_types.append(feed["type"])
             continue
         for ev in raw:
-            etype = classify_event(ev["summary"], ev["cats"], ev["url"], feed.get("type"))
+            etype = ev.get("type") or classify_event(ev["summary"], ev["cats"], ev["url"], feed.get("type"))
             # Skip CB6 board/committee if coming from Dredgers feed etc.
             display_time = ev["time"]
             if not display_time and etype in ("board", "committee"):
