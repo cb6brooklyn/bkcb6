@@ -15,7 +15,7 @@ C = 'app/data/civic'
 P = f'{C}/orgs/orgs-profiles.json'
 GROUP = 'Schools, parks and facilities'
 SCHOOLS, LIBS, CARE, PARKS, FIELDS, HEALTH, GYMS = ('Schools', 'Libraries', 'Child care and pre-K', 'Parks, playgrounds and gardens',
-                                                    'Courts, fields, pools and recreation centers', 'Hospitals and health care', 'Gyms and fitness')
+                                                    'Courts, fields, pools and recreation centers', 'Hospitals and health care', 'Gyms, yoga, Pilates and fitness')
 TOPICS = [SCHOOLS, LIBS, CARE, PARKS, FIELDS, HEALTH, GYMS]
 
 d = json.load(open(P))
@@ -269,9 +269,11 @@ for f in sorted((f for f in fac if f['facgroup'] == 'HEALTH CARE' and f['factype
 # ---------- gyms: the business directory's fitness and sports centres ----------
 gyms = 0
 for p in d['profiles']:
-    if p['slug'].startswith('biz-') and any(k == 'Kind' and v in ('Fitness centre', 'Sports centre') for k, v in p['kv']):
+    if p['slug'].startswith('biz-') and any(k == 'Kind' and v in ('Fitness centre', 'Sports centre', 'Dojo') for k, v in p['kv']):
         p['group'], p['topic'] = GROUP, GYMS
-        p['seat'] = p['seat'].replace('Fitness centre', 'Gym').replace('Sports centre', 'Sports center')
+        p['seat'] = p['seat'].replace('Fitness centre', 'Gym').replace('Sports centre', 'Sports center').replace('Dojo', 'Martial arts')
+        for kv in p['kv']:
+            if kv[0] == 'Kind' and kv[1] == 'Dojo': kv[1] = 'Martial arts'
         gyms += 1
 
 # the business directory's logo and website for the same place
@@ -368,6 +370,11 @@ for m in made:
     if not src and m['topic'] in (PARKS, FIELDS): src = NYC_PARKS
     if src and (not m['logo'] or src != NYC_PARKS):
         m['logo'] = place_logo(src, m['slug']); n_place_logos += 1
+# gyms' logos Mike sent (assets/place-logos, logos.json maps name to file)
+SENT = {norm(k): f'assets/place-logos/{v}' for k, v in json.load(open('assets/place-logos/logos.json')).items()}
+for p in d['profiles']:
+    if p.get('topic') == GYMS and SENT.get(norm(p['name'])):
+        p['logo'] = place_logo(SENT[norm(p['name'])], p['slug']); n_place_logos += 1
 for p in d['profiles']:
     if p.get('topic') == GYMS and not p['logo'] and BIZ_LOGO.get(norm(p['name'])):
         p['logo'] = place_logo(BIZ_LOGO[norm(p['name'])], p['slug']); n_place_logos += 1
