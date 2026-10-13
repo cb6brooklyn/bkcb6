@@ -117,7 +117,7 @@ OVERRIDES = [
              "desc": ("At Van Alen Institute, 303 Bond Street, and on Zoom (Webinar ID 973 3632 7750). "
                       "Agenda: I. Adoption of minutes. II. Chairperson\u2019s report. III. District Manager\u2019s report. "
                       "IV. Committee reports. A. Business Affairs & Licenses: motion to approve liquor licenses for 508 Degraw Street, "
-                      "744 Clinton Street, 446A Dean Street, 420 Carroll Street, 348 Douglass Street, 381 7th Avenue and 256 5th Avenue. "
+                      "744 Clinton Street, 446A Dean Street, 420 Carroll Street, 348 Douglass Street, 381 7th Avenue and 254 5th Avenue. "
                       "C. Transportation: motion to approve changes presented by DOT, supporting the Public E-Bike Charging program "
                       "and its two CB6 locations, Dean Street and 5th Avenue (northwest corner) and Court Street and 1st Place "
                       "(northeast corner), and asking for more. V. New/other business. VI. Community session. VII. Adjournment. "
