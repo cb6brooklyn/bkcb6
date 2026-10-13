@@ -316,6 +316,67 @@ for m in made:
     if f:
         shutil.copyfile(f'assets/school-logos/{f}', f'{C}/orgs/logos/{f}'); m['logo'] = f; n_school_logos += 1
 print(n_school_logos, 'school logos')
+# every other place's logo: the ones Mike compiled (site-icons, the business directory, the organizations' logos), by name;
+# NYC Parks' logo for any park, court, field, pool or recreation center without its own; Brooklyn Public Library's for the libraries
+from PIL import Image
+BIZ_LOGO = {}
+for r in rowsb:
+    if r[8] and os.path.exists(f'{C}/business/logos/{r[8]}.png'): BIZ_LOGO.setdefault(norm(r[0]), f'{C}/business/logos/{r[8]}.png')
+SI = lambda n: f'site-icons/{n}.png'
+OL = lambda n: f'{C}/orgs/logos/{n}'
+PLACE_LOGOS = {
+    # child care and pre-K
+    '14th Street Preschool': SI('14th-street-preschool'), 'Alonzo A. Daughtry Memorial Day Care': SI('alonzo-daughtry-day-care'),
+    'BBRU 8th Street': SI('bumblebeesrus-8th-street'), 'Bumblebees R Us': SI('bumblebeesrus-8th-street'),
+    'BBRU Lorraine': SI('bumblebeesrus-red-hook'), 'Bumblebees-R-Us': SI('bumblebeesrus-red-hook'),
+    'Chai Tots': SI('chai-tots-park-slope'), "Charlotte's Place": SI('charlottes-place'), 'Cobble Hill Playschool': SI('cobble-hill-playschool'),
+    "Eladia's Kids": SI('eladias-kids'), "Eladia's Kids 266 Flatbush Avenue": SI('eladias-kids'), 'Kane Street Kids': SI('kane-street-kids'),
+    'Lady Bug Preschool': SI('ladybug-smith-street'), 'Ladybug Playgroup': SI('ladybug-union-street'),
+    'Learning Wheel Childcare': SI('learning-wheel-childcare'), 'Maven Valley Prep': SI('maven-valley-prep'),
+    'Brooklyn Free Space': SI('brooklyn-free-space'), 'Brooklyn Preschool of Science': SI('brooklyn-preschool-of-science-park-slope'),
+    'Wonderforest Nature Preschool': SI('wonderforest-nature-preschool'), 'Smith Street Workshop': SI('smith-street-workshop-carroll-street'),
+    'The Little Brooklyn Pre-K Center at 305-307 Third Avenue': f'{C}/icons/nyc-public-schools-logo.png',
+    'Beansprouts': BIZ_LOGO.get('beansprouts'), 'Beansprouts of Brooklyn': BIZ_LOGO.get('beansprouts'),
+    'Congregation Beth Elohim ECC': BIZ_LOGO.get('congregationbethelohim'), 'Open House Nursery School': BIZ_LOGO.get('openhouse'),
+    'NY Kids Club': BIZ_LOGO.get('nypreschoolkidsclub'), 'Al-Madinah': BIZ_LOGO.get('almadinahschool'),
+    # libraries
+    'Central Library': OL('bpl.png'), 'Park Slope Library': OL('bpl.png'), 'Carroll Gardens Library': OL('bpl.png'), 'Red Hook Library': OL('bpl.png'),
+    'Red Hook pop-up Library': OL('bpl.png'), 'Carroll Gardens pop-up Library': OL('bpl.png'),
+    # parks
+    'Prospect Park': OL('prospect-park.png'), 'Brooklyn Bridge Park': OL('bbp.png'), 'Brooklyn Bridge Park: courts and fields': OL('bbp.png'),
+    # hospitals and health care
+    'Center for Community Health': BIZ_LOGO.get('newyorkpresbyterianbrooklynmethodisthospital'),
+    'NewYork-Presbyterian Brooklyn Methodist Hospital Infusion Services': BIZ_LOGO.get('newyorkpresbyterianbrooklynmethodisthospital'),
+    "NewYork-Presbyterian Brooklyn Methodist Hospital, Rehab Center and Women & Children's Clinics": BIZ_LOGO.get('newyorkpresbyterianbrooklynmethodisthospital'),
+    'NewYork-Presbyterian Brooklyn Methodist Hospital Psychiatry': BIZ_LOGO.get('newyorkpresbyterianbrooklynmethodisthospital'),
+    'NYU Langone Hospital - Joseph S. and Diane H. Steinberg Ambulatory Care Center': BIZ_LOGO.get('nyulangonepremierimaging'),
+    'NYU Langone Health Red Hook Family Health Center': BIZ_LOGO.get('nyulangonepremierimaging'),
+    # gyms
+    'Stretch Lab': BIZ_LOGO.get('stretchlab'),
+}
+PLACE_LOGOS = {norm(k): v for k, v in PLACE_LOGOS.items() if v}
+NYC_PARKS = SI('nyc-parks-brooklyn')
+def place_logo(src, slug):
+    out = 'place-' + os.path.basename(src).rsplit('.', 1)[0] + '.png'
+    dst = f'{C}/orgs/logos/{out}'
+    if not os.path.exists(dst):
+        im = Image.open(src).convert('RGBA'); im.thumbnail((400, 400)); im.save(dst, optimize=True)
+    return out
+n_place_logos = 0
+for m in made:
+    src = PLACE_LOGOS.get(norm(m['name']))
+    if not src and m['topic'] in (PARKS, FIELDS): src = NYC_PARKS
+    if src and (not m['logo'] or src != NYC_PARKS):
+        m['logo'] = place_logo(src, m['slug']); n_place_logos += 1
+for p in d['profiles']:
+    if p.get('topic') == GYMS and not p['logo'] and BIZ_LOGO.get(norm(p['name'])):
+        p['logo'] = place_logo(BIZ_LOGO[norm(p['name'])], p['slug']); n_place_logos += 1
+print(n_place_logos, 'other place logos')
+# the business directory's own copies of park facilities (OSM) are the NYC Parks entries above
+DUPES = {'carroll park athletic field', 'dimattina field', 'sol goldman recreation center and pool', 'douglass & degraw pool'}
+d['profiles'] = [p for p in d['profiles'] if not (p['slug'].startswith('biz-') and p['name'].lower() in DUPES)]
+for m in made:
+    if m['name'] == 'Red Hook Recreation Center': m['kv'].insert(1, ['Also called', 'Sol Goldman Recreation Center and Pool'])
 d['profiles'] = [p for p in d['profiles'] if not p['slug'].startswith('place-')] + made
 gs = [g for g in d['groups'] if g['name'] != GROUP]
 i = next(k for k, g in enumerate(gs) if g['name'] == 'Local businesses')
