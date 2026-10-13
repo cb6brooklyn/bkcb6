@@ -305,7 +305,9 @@ def fetch_feed(url, fallback=None, attempts=3):
             continue
         for attempt in range(1, attempts + 1):
             try:
-                r = requests.get(u, timeout=30, headers=BROWSER_HEADERS, allow_redirects=True)
+                # The official site's host caches the feed; a fresh query string gets the current events.
+                fresh = u + ("&" if "?" in u else "?") + f"_={int(time.time())}" if "cityofnewyork.us" in u else u
+                r = requests.get(fresh, timeout=30, headers=BROWSER_HEADERS, allow_redirects=True)
                 if r.ok and "BEGIN:VCALENDAR" in r.text:
                     return r.text
                 ctype = r.headers.get("content-type", "")
