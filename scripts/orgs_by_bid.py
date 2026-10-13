@@ -32,18 +32,23 @@ prof = [p for p in d['profiles'] if p['slug'] not in WHERE and p['slug'] not in 
 # the businesses join the profiles, under Local businesses, by BID
 for b in d['businesses']:
     b = dict(b); nb = b['seat'].split(' · ')[-1].replace(', Brooklyn', '')
-    w = {'bark-slope': 'Park Slope Fifth Avenue BID', 'strong-rope-brewery': 'Proposed Gowanus BID', 'principles-gi-coffee-house': 'Gowanus, no BID',
-         'park-slope-farmers-market': 'Park Slope, no BID', 'nitehawk-prospect-park': 'Park Slope, no BID', 'bird-collective': 'Park Slope, no BID',
-         'record-shop': 'Red Hook, no BID', 'red-hook-lobster-pound': 'Red Hook, no BID', 'brooklyn-pop-up': 'Red Hook, no BID', 'house-pepper': 'Red Hook, no BID',
-         'books-are-magic': 'Carroll Gardens, no BID', 'jalopy-theatre': 'Columbia Street Waterfront, no BID',
-         'union-hall': 'Park Slope Fifth Avenue BID', 'the-bell-house': 'Proposed Gowanus BID', 'littlefield': 'Proposed Gowanus BID'}[b['slug']]
-    b.update(group='Local businesses', topic=KIND[b['slug']], sort=0, kind='org', seat=f"{CAT[b['slug']]} · {w}")
+    w = {'bark-slope': 'Park Slope', 'strong-rope-brewery': 'Gowanus', 'principles-gi-coffee-house': 'Gowanus',
+         'park-slope-farmers-market': 'Park Slope', 'nitehawk-prospect-park': 'Park Slope', 'bird-collective': 'Park Slope',
+         'record-shop': 'Red Hook', 'red-hook-lobster-pound': 'Red Hook', 'brooklyn-pop-up': 'Red Hook', 'house-pepper': 'Red Hook',
+         'books-are-magic': 'Carroll Gardens', 'jalopy-theatre': 'Columbia Street Waterfront District',
+         'union-hall': 'Park Slope', 'the-bell-house': 'Gowanus', 'littlefield': 'Gowanus'}[b['slug']]
+    # the BID a business is in: a row on its profile, not in the listing
+    bid = {'bark-slope': 'Park Slope Fifth Avenue BID', 'union-hall': 'Park Slope Fifth Avenue BID', 'strong-rope-brewery': 'Proposed Gowanus BID',
+           'the-bell-house': 'Proposed Gowanus BID', 'littlefield': 'Proposed Gowanus BID'}.get(b['slug'])
+    kv = [k for k in b.get('kv', []) if k[0] != 'Business improvement district']
+    if bid: kv.append(['Business improvement district', bid])
+    b.update(group='Local businesses', topic=KIND[b['slug']], sort=0, kind='org', seat=f"{CAT[b['slug']]} · {w}", kv=kv)
     prof.append(b)
 # the BIDs and business groups head their subsections
 for p in prof:
     if p['slug'] == 'park-slope-fifth-avenue-bid': p.update(group=BIDS, topic='Established BIDs', sort=1)
     if p['slug'] == 'atlantic-avenue-ldc': p.update(group='Community groups', topic='Business and economic development', sort=0)
-    if p['slug'] == 'red-hook-business-alliance': p.update(group=BIDS, topic='Business alliances', sort=3, logo='rhba-logo.png', seat='Business alliance \u00b7 Red Hook, no BID')
+    if p['slug'] == 'red-hook-business-alliance': p.update(group=BIDS, topic='Business alliances', sort=3, logo='rhba-logo.png', seat='Business alliance \u00b7 Red Hook')
 aa = base('atlantic-avenue-bid', 'atlanticavebid', 'Atlantic Avenue BID', 'Business improvement district · Atlantic Avenue',
           'Atlantic Avenue Business Improvement District, established 2011. Atlantic Avenue from Fourth Avenue to the BQE, one block north and south, in Community Boards 2 and 6.',
           40.690567, -73.997197, 'Atlantic Avenue, Fourth Avenue to the BQE', 'http://www.atlanticavebid.org/', since='2011',

@@ -14,9 +14,9 @@ from shapely.geometry import shape, Point
 C = 'app/data/civic'
 P = f'{C}/orgs/orgs-profiles.json'
 GROUP = 'Schools, parks and facilities'
-SCHOOLS, LIBS, CARE, PARKS, HEALTH, GYMS = ('Schools', 'Libraries', 'Child care and pre-K', 'Parks, playgrounds and gardens',
-                                            'Hospitals and health care', 'Gyms and athletic facilities')
-TOPICS = [SCHOOLS, LIBS, CARE, PARKS, HEALTH, GYMS]
+SCHOOLS, LIBS, CARE, PARKS, FIELDS, HEALTH, GYMS = ('Schools', 'Libraries', 'Child care and pre-K', 'Parks, playgrounds and gardens',
+                                                    'Courts, fields, pools and recreation centers', 'Hospitals and health care', 'Gyms and fitness')
+TOPICS = [SCHOOLS, LIBS, CARE, PARKS, FIELDS, HEALTH, GYMS]
 
 d = json.load(open(P))
 cb6 = shape(json.load(open('data/cb6_boundary.geojson'))['features'][0]['geometry'])
@@ -234,7 +234,7 @@ for name, cnt in ath.items():
     kv = [[k, str(v)] for k, v in sorted(cnt.items())] + [['Park', name], ['Run by', 'NYC Parks' if name not in ('Brooklyn Bridge Park',) else 'Brooklyn Bridge Park Corporation'],
                                                          ['Source', 'NYC Parks athletic facilities']]
     total = sum(cnt.values())
-    made.append(base(slugify(name + ' courts and fields'), f'{name}: courts and fields', GYMS, f'{total} courts and fields in the park' if total > 1 else '1 court or field in the park',
+    made.append(base(slugify(name + ' courts and fields'), f'{name}: courts and fields', FIELDS, f'{total} courts and fields in the park' if total > 1 else '1 court or field in the park',
                      lat, lng, '', kv, web=f"https://www.nycgovparks.org/parks/{p['gispropnum']}/facilities" if name != 'Brooklyn Bridge Park' else 'https://www.brooklynbridgepark.org'))
 by_prop = {x[0]['properties']['gispropnum']: n for n, x in parks.items()}
 for prop, pls in pools.items():
@@ -242,12 +242,12 @@ for prop, pls in pools.items():
     c = shape(main['polygon']).centroid
     kv = [['Pools', ', '.join(f"{pl['name']} ({pl['pooltype'].lower()})" for pl in pls)], ['Indoor or outdoor', main['location']],
           ['Park', by_prop.get(prop, '')], ['Run by', 'NYC Parks'], ['Source', 'NYC Parks pools']]
-    made.append(base(slugify(main['name']), main['name'], GYMS, f"{main['location']} public pool", c.y, c.x, '', kv,
+    made.append(base(slugify(main['name']), main['name'], FIELDS, f"{main['location']} public pool", c.y, c.x, '', kv,
                      web=f'https://www.nycgovparks.org/parks/{prop}/facilities/outdoor-pools'))
 for r in json.load(open('data/parks-reccenters-cb6.json')):
     kv = [['Type', 'NYC Parks recreation center'], ['Park', by_prop.get(r['gispropnum'], '')], ['Built', r.get('built') or ''],
           ['Run by', 'NYC Parks'], ['Source', 'NYC Parks structures']]
-    made.append(base(slugify(r['name']), r['name'], GYMS, 'NYC Parks recreation center', r['lat'], r['lng'], r['address'], [k for k in kv if k[1]],
+    made.append(base(slugify(r['name']), r['name'], FIELDS, 'NYC Parks recreation center', r['lat'], r['lng'], r['address'], [k for k in kv if k[1]],
                      web=f"https://www.nycgovparks.org/parks/{r['gispropnum']}/facilities/recreation-centers"))
 
 # ---------- hospitals and health care ----------

@@ -59,7 +59,7 @@ for r in rows:
     seen.add(key)
     slug = 'biz-' + hashlib.sha1(f'{name}|{addr}'.encode()).hexdigest()[:10]
     bid = district(lat, lng)
-    where = bid if bid else (f'{nb}, no BID' if nb else 'No BID')
+    where = nb or ''
     label = kind or SHORT.get(cat, cat)
     sp = special(name, cat, kind)
     if sp: label = sp[1]
@@ -73,13 +73,13 @@ for r in rows:
     kv = [['Category', cat]]
     if kind: kv.append(['Kind', kind])
     if nb: kv.append(['Neighborhood', nb])
-    kv.append(['Business improvement district', bid if bid else 'None'])
+    if bid: kv.append(['Business improvement district', bid])
     if legal and legal.strip().lower() != name.lower(): kv.append(['Legal name', legal])
     if license: kv.append(['License', license])
     if new: kv.append(['Liquor license', f'Applied for in {newdate[:4]}' if newdate else 'Applied for recently'])
     kv += [['Community board', 'Brooklyn Community Board 6'], ['Source', SOURCE.get(source, source)]]
     w = (web or '').strip()
-    made.append({'slug': slug, 'type': slug, 'name': name, 'seat': f'{label} · {where}',
+    made.append({'slug': slug, 'type': slug, 'name': name, 'seat': f'{label} · {where}' if where else label,
                  'desc': f'{name}. {cat}. {addr}, {nb}.', 'lat': lat, 'lng': lng, 'addr': addr, 'zip': '', 'addr_note': '',
                  'phone': '', 'email': '', 'web': w.replace('https://', '').replace('http://', '').strip('/'), 'weburl': w,
                  'since': '', 'intro': [], 'does': [], 'kv': kv, 'links': [], 'logo': lf, 'cal': None, 'n': 0, 'going': [],
@@ -88,7 +88,8 @@ for r in rows:
 for p in keep:
     if p['slug'] == 'park-slope-food-coop':
         b = district(p['lat'], p['lng'])
-        p.update(group='Local businesses', topic='Supermarkets', seat=f"Supermarket, member-owned co-op · {b if b else 'Park Slope, no BID'}")
+        p.update(group='Local businesses', topic='Supermarkets', seat='Supermarket, member-owned co-op · Park Slope')
+        if b: p['kv'] = [k for k in p['kv'] if k[0] != 'Business improvement district'] + [['Business improvement district', b]]
 d['profiles'] = keep + made
 # the BID pages' business lists open each business's profile ("kvdest": {"<row value>": "org:<slug>"}, read from 1.17 on)
 by_key = {(m['name'].lower(), m['addr'].lower()): m['slug'] for m in made}
@@ -108,7 +109,7 @@ for g in d['groups']:
 # the business directory is long, and the apps that draw every heading open draw it last
 lb = [g for g in d['groups'] if g['name'] == 'Local businesses']
 d['groups'] = [g for g in d['groups'] if g['name'] != 'Local businesses'] + lb
-note = ' Every business in the CB6 business directory is a profile too (slug biz-*, scripts/biz_profiles.py), under Local businesses by kind, with its district in seat.'
+note = ' Every business in the CB6 business directory is a profile too (slug biz-*, scripts/biz_profiles.py), under Local businesses by kind, with its neighborhood in seat and its BID, when it is in one, in kv.'
 if 'biz_profiles.py' not in d['about']: d['about'] += note
 json.dump(d, open(P, 'w'), ensure_ascii=False, indent=1)
 print(len(made), 'businesses as profiles,', logos, 'with logos;', len(d['profiles']), 'profiles in all')
