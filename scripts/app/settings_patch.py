@@ -5,14 +5,35 @@ P = sys.argv[1].rstrip('/')
 V = f'{P}/BKCB6/App/Views'
 changed = []
 
+KEY = re.compile(r'((?:Sz|Copy\.t|Copy\.f|MapStyle\.symbol|MapStyle\.color)\(")([^"]+)(")')
+
+def pattern(old):
+    """The block as a regex: the copy and size keys, and FeedsView's arguments, may differ from app to app."""
+    out, pos = '', 0
+    for m in re.finditer(KEY.pattern + r'|FeedsView\([^)]*\)', old):
+        out += re.escape(old[pos:m.start()])
+        out += (re.escape(m.group(1)) + r'[^"]+' + re.escape(m.group(3))) if m.group(1) else r'FeedsView\([^)]*\)'
+        pos = m.end()
+    return out + re.escape(old[pos:])
+
+def adapt(old, new, got):
+    """The replacement with this app's own keys and FeedsView call."""
+    ko = [m.group(2) for m in KEY.finditer(old)]; kg = [m.group(2) for m in KEY.finditer(got)]
+    for a, b in zip(ko, kg):
+        if a != b: new = new.replace('"' + a + '"', '"' + b + '"')
+    fo = re.findall(r'FeedsView\([^)]*\)', old); fg = re.findall(r'FeedsView\([^)]*\)', got)
+    for a, b in zip(fo, fg): new = new.replace(a, b)
+    return new
+
 def edit(path, pairs, must=True):
     s = open(path).read(); orig = s
     for old, new in pairs:
-        if new in s and old not in s: continue   # already applied
-        if old not in s:
+        if re.search(pattern(new), s): continue   # already applied
+        m = re.search(pattern(old), s)
+        if not m:
             if must: raise SystemExit(f'NOT FOUND in {path}:\n{old[:200]}')
-            continue
-        s = s.replace(old, new, 1)
+            print('skipped in', os.path.basename(path), ':', old.strip().splitlines()[0][:80]); continue
+        s = s[:m.start()] + adapt(old, new, m.group(0)) + s[m.end():]
     if s != orig: open(path, 'w').write(s); changed.append(os.path.basename(path))
 
 # 1. The block card's rows, pills and chips: off when Settings turns them off.
