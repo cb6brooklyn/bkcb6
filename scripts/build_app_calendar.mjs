@@ -52,7 +52,7 @@ for (const m of html.matchAll(/<div class="leg" data-type="([^"]+)"[^>]*>(?:<img
 
 // ---------- merge the live CB6 feed exactly as calendar.html's loadLiveEvents does ----------
 const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
-const MANY_A_DAY = { has: t => ['unionhall', 'bellhouse', 'littlefield', 'powerhouse', 'prospect', 'bbp', 'dredgers', 'osh'].includes(t) || String(t).startsWith('park-') }; // as calendar.html
+const MANY_A_DAY = { has: t => ['unionhall', 'bellhouse', 'littlefield', 'powerhouse', 'prospect', 'bbp', 'dredgers', 'osh'].includes(t) || String(t).startsWith('park-') || String(t).startsWith('lib-') }; // as calendar.html
 function mergeEntry(ev) {
   if (!ev || !ev.date) return;
   if (SUPPRESSED_LIVE.has(ev.date + '|' + (ev.label || '').replace(/\s+/g, ' ').trim())) return;
@@ -61,7 +61,7 @@ function mergeEntry(ev) {
   if (EVENTS[ev.date].some(e => e._hardcoded && norm(e.label) === norm(ev.label))) return;
   const idx = ev.type === "community" ? -1 : EVENTS[ev.date].findIndex(e => e.type === ev.type && e._hardcoded); // same rule as calendar.html
   if (idx !== -1) EVENTS[ev.date][idx] = ev;
-  else if (!EVENTS[ev.date].some(e => e.type === ev.type && !e._hardcoded && (!MANY_A_DAY.has(ev.type) || e.label === ev.label))) EVENTS[ev.date].push(ev); // same rule as calendar.html
+  else if (!EVENTS[ev.date].some(e => e.type === ev.type && !e._hardcoded && (!MANY_A_DAY.has(ev.type) || (e.label === ev.label && e.time === ev.time)))) EVENTS[ev.date].push(ev); // same rule as calendar.html
 }
 const readJSON = (p, fallback) => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, p), 'utf8')); } catch { return fallback; } };
 const live = readJSON('data/calendar-events.json', { events: [] });
@@ -180,12 +180,12 @@ for (const [d, list] of Object.entries(EVENTS)) {
     } else out.push(row);
     if (!types[tm.ty]) {
       const t = { name: tm.org };
-      const icon = ORG_ICONS[e.type] || (String(e.type).startsWith('park-') ? 'dpr.png' : undefined);
+      const icon = ORG_ICONS[e.type] || (String(e.type).startsWith('park-') ? 'dpr.png' : String(e.type).startsWith('lib-') ? 'bpl.png' : undefined);
       if (icon && packFile('civic/cal/icons', icon)) t.icon = icon;
       if (TYPES[e.type] && TYPES[e.type].bg) t.bg = TYPES[e.type].bg;
       types[tm.ty] = t;
-    } else if (!types[tm.ty].icon && (ORG_ICONS[e.type] || String(e.type).startsWith('park-')) && packFile('civic/cal/icons', ORG_ICONS[e.type] || 'dpr.png')) {
-      types[tm.ty].icon = ORG_ICONS[e.type] || 'dpr.png';
+    } else if (!types[tm.ty].icon && (ORG_ICONS[e.type] || /^(park|lib)-/.test(String(e.type))) && packFile('civic/cal/icons', ORG_ICONS[e.type] || (String(e.type).startsWith('lib-') ? 'bpl.png' : 'dpr.png'))) {
+      types[tm.ty].icon = ORG_ICONS[e.type] || (String(e.type).startsWith('lib-') ? 'bpl.png' : 'dpr.png');
     }
   }
 }

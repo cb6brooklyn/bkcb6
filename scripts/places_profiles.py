@@ -161,6 +161,7 @@ for f in fac:
 for l in LIBS_LIST:
     kv = [['Type', l['type']], ['Run by', 'Brooklyn Public Library'], ['Source', 'Brooklyn Public Library and the NYC Facilities Database']]
     made.append(base(slugify(l['name']), l['name'], LIBS, l['type'], l['lat'], l['lng'], l['address'], kv, web=l['web']))
+    made[-1]['cal'] = made[-1]['slug']   # the library's own calendar (scripts/build_calendar_events.py, type lib-<branch>)
 
 # ---------- child care and pre-K ----------
 CARE_TYPE = {'DAY CARE': 'Licensed child care', 'EARLY EDUCATION PROGRAM': '3-K or Pre-K for All program', 'DOE UNIVERSAL PRE-K': 'Pre-K for All',

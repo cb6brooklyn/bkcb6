@@ -164,6 +164,11 @@ _POWER_BROKER = {
     "flyer": "https://bkcb6.app/flyer-power-broker-marathon-reading-2026-11-12.jpg",
 }
 ADDITIONS = [dict(_POWER_BROKER, date=d) for d in ("2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15")]
+# Brooklyn Public Library events at the CB6 branches (data/bpl-events.json), each on its library's calendar.
+try:
+    ADDITIONS.extend(json.load(open("data/bpl-events.json"))["events"])
+except Exception as _e:
+    print("  bpl-events.json unreadable:", _e)
 # Oct 22, 2026 Landmarks, Land Use & Housing committee meeting. The official
 # feed carries it on the wrong day (Friday the 23rd); the override above moves
 # that copy to the 22nd and the duplicate merge folds it into this one.
@@ -769,6 +774,8 @@ def main():
     order = []
     for e in all_events:
         key = (e.get("date"), re.sub(r"\s+", " ", (e.get("label") or "")).strip().lower())
+        if str(e.get("type") or "").startswith("lib-"):
+            key += (e.get("type"), e.get("time"))   # each branch's sessions are their own events
         if key not in best:
             best[key] = dict(e)
             order.append(key)
