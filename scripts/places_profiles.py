@@ -162,6 +162,8 @@ for l in LIBS_LIST:
     kv = [['Type', l['type']], ['Run by', 'Brooklyn Public Library'], ['Source', 'Brooklyn Public Library and the NYC Facilities Database']]
     made.append(base(slugify(l['name']), l['name'], LIBS, l['type'], l['lat'], l['lng'], l['address'], kv, web=l['web']))
     made[-1]['cal'] = made[-1]['slug']   # the library's own calendar (scripts/build_calendar_events.py, type lib-<branch>)
+    if l['name'] in ('Carroll Gardens Library', 'Carroll Gardens pop-up Library'):
+        made[-1]['intro'] = ['FALL 2026 UPDATE: Major renovation milestones are complete and BPL is well into the final, six-month second phase of the project, which includes elevator upgrades, renovated bathrooms, a water fountain, new and restored shelving, and interior improvements. Carroll Gardens Library will reopen in Fall 2026.']
 
 # ---------- child care and pre-K ----------
 CARE_TYPE = {'DAY CARE': 'Licensed child care', 'EARLY EDUCATION PROGRAM': '3-K or Pre-K for All program', 'DOE UNIVERSAL PRE-K': 'Pre-K for All',
