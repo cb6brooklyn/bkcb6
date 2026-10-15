@@ -470,9 +470,36 @@ def fetch_powerhouse_events(url, venue):
                 "location": venue,
                 "desc": (kind + when + desc).strip(),
                 "time": _clock_text(times[0]) if times else None,
+                "_running": start < today,
+                "_kind": _html.unescape(cat.group(1)).strip().lower() if cat else "",
             })
         page += 1
-    return out
+    return condense_running(out, "Powerhouse Arts", url, venue, today)
+
+
+def condense_running(out, org, url, venue, today):
+    """Classes, workshops and exhibitions that started earlier and are still running would each sit on today's date,
+    every day, so one organization could fill a day with a dozen entries. They become one entry a day instead:
+    "<org>: N classes & workshops and exhibitions in session", listing each with its last day."""
+    running = [e for e in out if e.get("_running")]
+    kinds = sorted({e.get("_kind", "") for e in running} - {""})
+    for e in out:
+        e.pop("_running", None)
+        e.pop("_kind", None)
+    if len(running) < 2:
+        return out
+    rest = [e for e in out if e not in running]
+    names = "; ".join(e["summary"] for e in running)
+    label = f"{org}: {len(running)} " + (" and ".join(kinds) if kinds else "classes and exhibitions") + " in session"
+    return rest + [{
+        "date": today.isoformat(),
+        "summary": label,
+        "url": url,
+        "cats": "",
+        "location": venue,
+        "desc": f"In session now, each listed with its last day: {names}. New sessions and shows are on the calendar on their first day.",
+        "time": None,
+    }]
 
 
 def _clock_text(t):
