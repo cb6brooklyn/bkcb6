@@ -99,9 +99,17 @@
     if (!src) return '<div class="ph">' + ini + '</div>';
     return '<img class="logo" src="' + esc(src) + '" alt="" onerror="this.outerHTML=\'<div class=&quot;ph&quot;>' + ini + '</div>\'">';
   }
-  function eventsFor(keys){
+  function eventsFor(keys, also){
+    // An event belongs to a profile when its calendar key or its organization type is one of the profile's keys,
+    // or when its title carries one of the profile's "also" phrases (CB6's committee meetings, for example).
     var today = new Intl.DateTimeFormat('en-CA', { timeZone:'America/New_York' }).format(new Date());
-    return cal.filter(function(e){ return e.d >= today && keys.indexOf(e.k) >= 0; }).sort(function(a, b){ return (a.d + (a.t || '')).localeCompare(b.d + (b.t || '')); });
+    var ks = (keys || []).filter(Boolean), al = (also || []).map(function(a){ return String(a).toLowerCase(); });
+    return cal.filter(function(e){
+      if (e.d < today) return false;
+      if (ks.indexOf(e.k) >= 0 || ks.indexOf(e.ty) >= 0) return true;
+      var l = String(e.l || '').toLowerCase();
+      return al.some(function(a){ return l.indexOf(a) >= 0; });
+    }).sort(function(a, b){ return (a.d + (a.t || '')).localeCompare(b.d + (b.t || '')); });
   }
   function items(){
     var out = [];
@@ -119,7 +127,7 @@
   var ALL = [];
   function rowHTML(i){
     var keys = i.p ? [i.p.type, i.p.cal] : [i.c.slug, i.c.cal];
-    var n = eventsFor(keys).length;
+    var n = eventsFor(keys, i.p ? i.p.also : null).length;
     var lg = i.p ? logoHTML(i.p.logo, i.name, i.p.kind, i.p.official) : logoHTML(i.c.logo, i.name);
     return '<div class="row" data-id="' + esc(i.id) + '">' + lg + '<div class="rt"><div class="rn">' + esc(i.name) + '</div><div class="rs">' + esc(i.sub) + '</div>' +
       (n ? '<div class="rc">' + n + ' upcoming on the calendar</div>' : '') + '</div><span class="go">&rsaquo;</span></div>';
@@ -213,7 +221,7 @@
   function profile(p){
     var h = '<div class="hd">' + logoHTML(p.logo, p.name, p.kind, p.official) + '<div><h1>' + esc(p.name) + '</h1><div class="seat">' + esc(p.seat) + '</div>' + (p.since ? '<div class="since">SINCE ' + esc(p.since) + '</div>' : '') + '</div></div>';
     // The next flyer on their calendar, above the intro, as on the site's profile pages
-    var nextFlyer = eventsFor([p.type, p.cal]).slice(0, 4).filter(function(e){ return e.f; })[0];
+    var nextFlyer = eventsFor([p.type, p.cal], p.also).slice(0, 4).filter(function(e){ return e.f; })[0];
     if (nextFlyer) h += '<a class="topflyer" href="#coming"><img src="' + esc(D + 'cal/flyers/' + nextFlyer.f) + '" alt="' + esc(nextFlyer.l) + '"></a>';
     (p.intro || []).forEach(function(t){ h += '<p>' + esc(t) + '</p>'; });
     var going = (p.going || []).filter(function(g){ return !g.until || g.until >= new Intl.DateTimeFormat('en-CA', { timeZone:'America/New_York' }).format(new Date()); });
@@ -243,7 +251,7 @@
           rows.map(function(x){ var parts = x[1].split(' · '); return '<div class="biz" data-biz="' + esc(x[1]) + '"><div class="rt"><div class="bn">' + esc(parts[0]) + '</div><div class="ba">' + esc(parts.slice(1).join(' · ')) + '</div></div><span class="go">&rsaquo;</span></div>'; }).join('') + '</div></div></div>';
       });
     }
-    h += '<div class="sh" id="coming">Coming up</div>' + eventsHTML(eventsFor([p.type, p.cal]), p.name);
+    h += '<div class="sh" id="coming">Coming up</div>' + eventsHTML(eventsFor([p.type, p.cal], p.also), p.name);
     show(h);
   }
   function calOrg(o){

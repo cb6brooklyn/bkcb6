@@ -37,8 +37,10 @@ ORGS = [
  ],
  'kv':[('Founded','1894'),('Community board','<a href="/cb-bk-6.html">Brooklyn Community Board 6</a>'),
        ('CB6 meetings','Brooklyn Community Board 6 holds its meetings here')],
+ 'evorg':'vanalen','evhref':'/o/vanalen.html','evname':'The Van Alen Institute calendar','evtitle':'Coming up with Van Alen Institute',
  'links':[('Their site','https://www.vanalen.org',True),
           ('The CB6 calendar','/calendar.html',False),
+          ('Their calendar','/o/vanalen.html',False),
           ('Brooklyn CB6','/cb-bk-6.html',False),
           ('The Gowanus rezoning','/gowanus.html',False)],
 },
@@ -248,9 +250,11 @@ ORGS = [
  'kv':[('Founded','1978'),('Executive Director','Michelle de la Uz'),
        ('Community board','<a href="/cb-bk-6.html">Brooklyn Community Board 6</a>'),
        ('Second office','132 32nd Street, Suite 106, Brooklyn, NY 11232')],
+ 'evorg':'fac','evhref':'/o/fac.html','evname':'The Fifth Avenue Committee calendar','evtitle':'Coming up with Fifth Avenue Committee',
  'links':[('Their site','https://fifthave.org',True),
           ('Brooklyn CB6','/cb-bk-6.html',False),
           ('Park Slope 5th Avenue BID','/bid-park-slope-5th-avenue/',False),
+          ('Their calendar','/o/fac.html',False),
           ('Search an address','/citywide-search.html',False)],
 },
 ]
@@ -286,7 +290,7 @@ TPL = """<!DOCTYPE html>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,700;9..40,800;9..40,900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/org-profile.css?v=1">{brandcss}
 </head>
-<body><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a>
+<body><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a><script>(function(){{try{{var a=document.getElementById("asb"),q=/[?&]app=1\\b/.test(location.search);if(q)sessionStorage.setItem("bkapp","1");if(location.protocol==="bkcb:"||q||sessionStorage.getItem("bkapp")==="1"||/^bkcb:/.test(document.referrer)){{a.style.display="none"}}}}catch(e){{}}}})();</script>
 <div class="pwrap">
 
   <div class="phead">
@@ -406,7 +410,7 @@ EVJS = r"""
       if(LOC && String(ev.location||'').toLowerCase().indexOf(LOC.toLowerCase())===-1) return;
       var k=date+'|'+String(ev.label).replace(/\s+/g,' ').trim().toLowerCase();
       if(seen[k]) return; seen[k]=1;
-      rows.push({date:date, title:ev.label, time:ev.time||'', loc:ev.location||'', href:ev.href||'', link:ev.linkText||'', desc:ev.desc||''});
+      rows.push({date:date, title:ev.label, time:ev.time||'', loc:ev.location||'', href:ev.href||'', link:ev.linkText||'', desc:ev.desc||'', flyer:ev.flyer||''});
     }
     Object.keys(EVENTS).forEach(function(d){ (EVENTS[d]||[]).forEach(function(ev){ add(d, ev); }); });
     if(live && Array.isArray(live.events)) live.events.forEach(function(ev){ if(ev && ev.date) add(ev.date, ev); });
@@ -416,6 +420,12 @@ EVJS = r"""
       .sort(function(a,b){ return a.__at-b.__at; });
     if(!prog.length){ empty('Nothing on the calendar right now.'); return; }
     var e=prog[0];
+    // The next flyer on their calendar, above the intro, linked to that event (pages that place one by hand keep theirs).
+    if(!document.getElementById('orgFlyer')){ var fe=prog.slice(0,AHEAD).filter(function(x){ return x.flyer; })[0]; var intro=document.querySelector('.introsec');
+      if(fe && intro){ var slugify=function(s){ return String(s||'').toLowerCase().replace(/[\u2018\u2019']/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80); };
+        var fd=document.createElement('div'); fd.className='sec flyersec'; fd.id='orgFlyer';
+        fd.innerHTML='<a href="/calendar.html?event='+esc(fe.date+'-'+slugify(fe.title))+'" style="display:block"><img src="'+esc(fe.flyer)+'" alt="'+esc(fe.title)+'" style="display:block;width:100%;max-width:560px;margin:0 auto;border-radius:10px;box-shadow:0 3px 14px rgba(0,0,0,.18)"></a>';
+        intro.parentNode.insertBefore(fd, intro); } }
     var html='<div class="evcard"><div class="evkick">Next up</div>'
       +'<div class="evhead"><span class="evlogo"><img src="'+LOGO+'" alt=""></span><span class="evttl">'+esc(e.title)+'</span></div>'
       +'<div class="evline">\uD83D\uDD52 '+label(e.__at, e.time)+'</div>'
