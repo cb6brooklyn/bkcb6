@@ -59,7 +59,10 @@
   .ev .ed { font-family:'DMM','DM Mono',monospace; font-size:10px; color:var(--orange); text-transform:uppercase; }
   .ev .et { font-weight:700; font-size:15px; margin-top:2px; }
   .ev .el { font-size:12px; color:var(--muted); margin-top:2px; }
-  .ev .ex { display:none; font-size:13px; margin-top:6px; line-height:1.4; }
+  .topflyer { display:block; margin:0 0 14px; } .topflyer img { display:block; width:100%; max-width:560px; margin:0 auto; border-radius:10px; box-shadow:0 3px 14px rgba(0,0,0,.18); }
+  .ev .evf { display:block; width:100%; max-width:420px; margin:8px 0 6px; border-radius:8px; }
+  .evl { display:inline-block; margin-top:6px; color:var(--orange,#f47920); font-weight:700; text-decoration:none; }
+  .ex { display:none; font-size:13px; margin-top:6px; line-height:1.4; }
   .ev.open .ex { display:block; }
   .biz { display:flex; align-items:center; gap:10px; padding:10px 0; }
   .biz + .biz { border-top:1px solid var(--rule); }
@@ -191,7 +194,8 @@
     if (!list.length) return '<p class="muted">Nothing from ' + esc(name) + ' on the community calendar right now.</p>';
     return '<div class="card">' + list.map(function(e){
       var day = new Date(e.d + 'T12:00:00').toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
-      return '<div class="ev"><div class="ed">' + esc(day) + (e.t ? ' · ' + esc(e.t) : '') + '</div><div class="et">' + esc(e.l) + '</div>' + (e.loc ? '<div class="el">' + esc(e.loc) + '</div>' : '') + (e.desc ? '<div class="ex">' + esc(e.desc) + '</div>' : '') + '</div>';
+      var more = (e.f ? '<img class="evf" src="' + esc(D + 'cal/flyers/' + e.f) + '" alt="">' : '') + (e.desc ? '<div>' + esc(e.desc) + '</div>' : '') + (e.h ? '<a class="evl" href="' + esc(e.h) + '" target="_blank" rel="noopener">' + esc(e.lt || 'Details') + ' \u2197</a>' : '');
+      return '<div class="ev"><div class="ed">' + esc(day) + (e.t ? ' · ' + esc(e.t) : '') + (e.e ? ' to ' + esc(e.e) : '') + '</div><div class="et">' + esc(e.l) + '</div>' + (e.loc ? '<div class="el">' + esc(e.loc) + '</div>' : '') + (more ? '<div class="ex">' + more + '</div>' : '') + '</div>';
     }).join('') + '</div>';
   }
   function show(html){
@@ -208,6 +212,9 @@
   }
   function profile(p){
     var h = '<div class="hd">' + logoHTML(p.logo, p.name, p.kind, p.official) + '<div><h1>' + esc(p.name) + '</h1><div class="seat">' + esc(p.seat) + '</div>' + (p.since ? '<div class="since">SINCE ' + esc(p.since) + '</div>' : '') + '</div></div>';
+    // The next flyer on their calendar, above the intro, as on the site's profile pages
+    var nextFlyer = eventsFor([p.type, p.cal]).slice(0, 4).filter(function(e){ return e.f; })[0];
+    if (nextFlyer) h += '<a class="topflyer" href="#coming"><img src="' + esc(D + 'cal/flyers/' + nextFlyer.f) + '" alt="' + esc(nextFlyer.l) + '"></a>';
     (p.intro || []).forEach(function(t){ h += '<p>' + esc(t) + '</p>'; });
     var going = (p.going || []).filter(function(g){ return !g.until || g.until >= new Intl.DateTimeFormat('en-CA', { timeZone:'America/New_York' }).format(new Date()); });
     if (going.length) {
@@ -236,7 +243,7 @@
           rows.map(function(x){ var parts = x[1].split(' · '); return '<div class="biz" data-biz="' + esc(x[1]) + '"><div class="rt"><div class="bn">' + esc(parts[0]) + '</div><div class="ba">' + esc(parts.slice(1).join(' · ')) + '</div></div><span class="go">&rsaquo;</span></div>'; }).join('') + '</div></div></div>';
       });
     }
-    h += '<div class="sh">Coming up</div>' + eventsHTML(eventsFor([p.type, p.cal]), p.name);
+    h += '<div class="sh" id="coming">Coming up</div>' + eventsHTML(eventsFor([p.type, p.cal]), p.name);
     show(h);
   }
   function calOrg(o){
@@ -263,6 +270,8 @@
     show(h);
   }
   document.addEventListener('click', function(ev){
+    if (ev.target.closest('a.evl')) return;
+    if (ev.target.closest('a.topflyer')) { ev.preventDefault(); var c = document.getElementById('coming'); if (c) c.scrollIntoView({ behavior:'smooth' }); return; }
     var t = ev.target.closest('[data-back],.row,.gh,.chip,.biz,.ev'); if (!t) return;
     if (t.dataset.back) { ev.preventDefault(); back(); return; }
     if (t.classList.contains('chip')) { groupOn = groupOn === t.dataset.g ? '' : t.dataset.g; drawList(); return; }
