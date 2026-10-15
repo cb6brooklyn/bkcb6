@@ -170,7 +170,9 @@ def minutes():
                 if t: lines.append(t)
         b = re.sub(r'\s*\(formerly [^)]*\)', '', H.unescape(re.sub(r'<[^>]+>', '', cm.group(1)))).strip()
         b = re.sub(r'\s*·\s*Draft$', '', b).replace('Committee minute scans (multiple committees)', 'Committee minutes (scans)')
-        recs.append({'d': m.group(1), 'b': b, 't': '\n'.join(lines)})
+        rec = {'d': m.group(1), 'b': b, 't': '\n'.join(lines)}
+        if rec in recs: continue   # the site lists some meetings twice from two identical files; the app carries one
+        recs.append(rec)
     if len(recs) < 500: raise Exception('only %d minutes pages read' % len(recs))
     json.dump(recs, open(os.path.join(OUT, 'minutes.json'), 'w'), separators=(',', ':'), ensure_ascii=False)
     print('minutes', len(recs))
