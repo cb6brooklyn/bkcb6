@@ -13,7 +13,9 @@ if(el){
     map.fitBounds(pl.getBounds().pad(.45),{maxZoom:18});
     // a pin for something happening on this block (a sign ceremony, say), from the card's data-pin
     var pin=el.getAttribute('data-pin');if(pin){var pp=pin.split(',').map(parseFloat);var lab=el.getAttribute('data-pin-label')||'';
-      L.circleMarker(pp,{radius:9,color:'#fff',weight:3,fillColor:'#0d1b4b',fillOpacity:1}).addTo(map).bindTooltip(lab,{permanent:true,direction:'bottom',offset:[0,38],className:'pintip'});
+      var pimg=el.getAttribute('data-pin-img')||'',phref=el.getAttribute('data-pin-href')||'#';
+      if(pimg){map.createPane('evpin');map.getPane('evpin').style.zIndex=700;L.marker(pp,{pane:'evpin',zIndexOffset:1000,icon:L.divIcon({className:'',iconSize:[78,78],iconAnchor:[82,-4],html:'<a href="'+phref+'" style="display:block"><img src="'+pimg+'" alt="" style="width:78px;height:78px;object-fit:cover;object-position:top;display:block;background:#fff;border:3px solid #f47920;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.3)"></a>'})}).addTo(map).bindTooltip(lab,{permanent:true,direction:'bottom',offset:[-43,84],className:'pintip',pane:'evpin'});L.circleMarker(pp,{pane:'evpin',radius:5,color:'#fff',weight:2,fillColor:'#f47920',fillOpacity:1}).addTo(map);}
+      else L.circleMarker(pp,{radius:9,color:'#fff',weight:3,fillColor:'#0d1b4b',fillOpacity:1}).addTo(map).bindTooltip(lab,{permanent:true,direction:'bottom',offset:[0,38],className:'pintip'});
       map.fitBounds(pl.getBounds().extend(L.latLng(pp[0],pp[1])).pad(.35),{maxZoom:18});}
     var lg=ll.reduce(function(a,b){return b.length>a.length?b:a;},ll[0]);var A=lg[0],B=lg[lg.length-1];var mid=[(A[0]+B[0])/2,(A[1]+B[1])/2];
     (function(){

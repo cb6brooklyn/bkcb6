@@ -225,6 +225,23 @@
       }
     }
 
+    // an event on the map: its flyer as the marker, linked to the calendar entry, until the day is over
+    var evLat = parseFloat(el.getAttribute('data-event-lat')), evLng = parseFloat(el.getAttribute('data-event-lng'));
+    var evImg = el.getAttribute('data-event-img') || '', evHref = el.getAttribute('data-event-href') || '#', evLabel = el.getAttribute('data-event-label') || '', evUntil = el.getAttribute('data-event-until') || '';
+    var evOn = !isNaN(evLat) && !isNaN(evLng) && evImg;
+    if (evOn && evUntil) { var u = evUntil.split('-'); evOn = new Date() <= new Date(+u[0], +u[1] - 1, +u[2], 23, 59, 59); }
+    if (evOn && L.divIcon) {
+      var ew = 72, eh = 72;
+      map.createPane('evpin'); map.getPane('evpin').style.zIndex = 700;
+      var evm = L.marker([evLat, evLng], { pane: 'evpin', zIndexOffset: 1000,
+        icon: L.divIcon({ className: '', iconSize: [ew, eh], iconAnchor: [-6, eh / 2],
+          html: '<a href="' + evHref + '" style="display:block;text-align:center;text-decoration:none">'
+            + '<img src="' + evImg + '" alt="' + evLabel.replace(/"/g, '&quot;') + '" style="width:' + ew + 'px;height:' + eh + 'px;object-fit:cover;object-position:top;display:block;background:#fff;border:3px solid #f47920;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.3)">'
+            + '</a>' })
+      }).addTo(map);
+      if (evLabel && evm.bindTooltip) evm.bindTooltip(evLabel, { permanent: true, direction: 'right', offset: [4, eh / 2 + 16], className: 'pmap-place', pane: 'evpin' });
+      L.circleMarker([evLat, evLng], { pane: 'evpin', radius: 5, color: '#fff', weight: 2, fillColor: '#f47920', fillOpacity: 1 }).addTo(map);
+    }
     var homeBounds = null;
     var pin = null;
     // data-cb6="1": draw Brooklyn Community Board 6 in its own navy and orange,

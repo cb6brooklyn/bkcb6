@@ -264,7 +264,7 @@ WHERE = """  <div class="sec"><h2>Where it is</h2>
     <div class="mapinner">
       <div class="mapttl">{addrflat} <span>the building, its block and the zoning around it</span></div>
       <div class="msearch"><input type="search" placeholder="Search an address to drop a pin" autocomplete="off"><button type="button">Find</button><button type="button" class="mreset" data-map-reset>Reset</button></div>
-      <div class="pmap" id="map" data-profile-map data-bid-slug="park-slope-5th-avenue" data-point-lat="{lat}" data-point-lng="{lng}" data-point-zoom="17" data-point-icon="/site-icons/{slug}.png" data-point-icon-w="200" data-point-icon-h="200" data-cb6="1"></div>
+      <div class="pmap" id="map" data-profile-map data-bid-slug="park-slope-5th-avenue" data-point-lat="{lat}" data-point-lng="{lng}" data-point-zoom="17" data-point-icon="/site-icons/{slug}.png" data-point-icon-w="200" data-point-icon-h="200" data-cb6="1"{evpin}></div>
       <div class="mstat" data-map-status></div>
       <button type="button" class="mtoggle" aria-expanded="false" data-map-toggle-btn><span style="flex:1;text-align:left">Add to the map</span><span class="marr">&#9660;</span></button>
       <div class="mtools" data-map-toggles hidden></div>
@@ -573,7 +573,10 @@ for o in ORGS:
     if o.get('route'):
         fields['wheresec'] = route_section(o)
     else:
-        fields['wheresec'] = WHERE.format(lat=o['lat'], lng=o['lng'], slug=o['slug'], addrflat=fields['addrflat'])
+        ep = o.get('evpin')
+        evpin = (' data-event-lat="%s" data-event-lng="%s" data-event-img="%s" data-event-href="%s" data-event-label="%s" data-event-until="%s"'
+                 % (ep['lat'], ep['lng'], ep['img'], ep['href'], ep['label'], ep['until'])) if ep else ''
+        fields['wheresec'] = WHERE.format(lat=o['lat'], lng=o['lng'], slug=o['slug'], addrflat=fields['addrflat'], evpin=evpin)
     html = TPL.format(**fields)
     if o.get('logov'):
         html = html.replace('/site-icons/%s.png' % o['slug'], '/site-icons/%s.png?v=%s' % (o['slug'], o['logov']))
