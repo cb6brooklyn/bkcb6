@@ -11,7 +11,7 @@ import json
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 CSS = open(os.path.join(ROOT, 'assets/org-profile.css'), encoding='utf-8').read()
-MAPJS = 'v=20260928cb6'
+MAPJS = 'v=20261016ev'
 
 ORGS = [
 {
