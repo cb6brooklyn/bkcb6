@@ -589,3 +589,7 @@ for o in ORGS:
     os.makedirs(d, exist_ok=True)
     open(os.path.join(d, 'index.html'), 'w', encoding='utf-8').write(html)
     print('built /%s' % o['slug'])
+
+# One page per official and agency: the Directory pages just built forward to the one page (scripts/one_profile.py).
+import subprocess, sys as _sys
+subprocess.run([_sys.executable, os.path.join(ROOT, "scripts/one_profile.py")], check=False)
