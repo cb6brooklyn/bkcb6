@@ -1,0 +1,37 @@
+name: Board feeds
+
+# Every morning: the four feeds (311, crime, tickets, permits; every record of the last 365 days) for all 59 community
+# boards, built by scripts/build_board_feeds.py and published as assets of the release "board-feeds", which the
+# BKCB and CBNYC apps pull for any board (FeedFetch.pull). Release assets, not commits, so the repo does not grow.
+on:
+  schedule:
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: board-feeds
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build the feeds for every board
+        env:
+          WORKERS: '6'
+        run: python scripts/build_board_feeds.py out
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view board-feeds >/dev/null 2>&1 || gh release create board-feeds --title "Board feeds" --notes "311, crime, tickets and permits for every community board, rebuilt daily for the BKCB and CBNYC apps."
+          cd out
+          ls *.json.gz index.json | xargs -n 20 gh release upload board-feeds --clobber
