@@ -158,6 +158,10 @@ ORGS = [
  'og':'/og-artsgowanus.jpg',
  'flyer':{'img':'/flyer-arts-gowanus-open-studios-2026-10-17.jpg','href':'/calendar.html?event=2026-10-17-arts-gowanus-open-studios-30th-annual-day-1-of-2','alt':'30th Annual Arts Gowanus Open Studios, October 17 and 18, 2026, noon to 6 PM','until':'2026-10-18'},
  'going':[
+   {'img':'','alt':'','kicker':'Saturday and Sunday, October 17 and 18, noon to 6 PM',
+    'title':'Open Studios: the map of all 102 stops',
+    'text':'The 30th annual Gowanus Open Studios. Every location on the Arts Gowanus map, numbered as on their map, with the artists, studios and venues at each, on one map you can search by name or address.',
+    'btns':[('Open the map','/openstudios/','hot'),('Details','https://www.artsgowanus.org/gowanus-open-studios')],'until':'2026-10-18'},
    {'img':'/artsgowanus-threes-briggs.jpg','alt':'Painting by David Briggs','kicker':'On view through December',
     'title':'David Briggs at Threes Brewing',
     'text':'The Threes Brewing curatorial partnership, the quarterly series Arts Gowanus curates at Threes Brewing, 333 Douglass Street, shows work by David Briggs, an architect, artist and community activist in Brooklyn.',
@@ -168,7 +172,8 @@ ORGS = [
     'btns':[('Apply for a studio','https://form.jotform.com/243084023820043','hot'),('How it works','https://www.artsgowanus.org/studio-allocation')]},
  ],
  'evorg':'artsgowanus','evtitle':'Coming up at Arts Gowanus','evhref':'/o/artsgowanus.html','evname':'The Arts Gowanus calendar',
- 'does_btns':[('Gowanus Open Studios','https://www.artsgowanus.org/gowanus-open-studios',True),
+ 'does_btns':[('Open Studios map','/openstudios/',False),
+              ('Gowanus Open Studios','https://www.artsgowanus.org/gowanus-open-studios',True),
               ('Their advocacy','https://www.artsgowanus.org/advocacy',True),
               ('What is coming up','/o/artsgowanus.html',False),
               ('Zoning and land use for the lot','/citywide-search.html?address=543%20Union%20Street%2C%20Brooklyn',False)],
@@ -530,7 +535,7 @@ for o in ORGS:
         cards = ''
         for g in o['going']:
             hotcss = 'background:%s;border-color:%s;color:#fff;font-weight:700' % ((o.get('brand') or {}).get('accent', '#f47920'), (o.get('brand') or {}).get('accent', '#f47920'))
-            btns = ''.join('<a class="cbtn" href="%s" target="_blank" rel="noopener"%s>%s &#8599;</a>' % (b[1], ' style="%s"' % hotcss if len(b) > 2 else '', b[0]) for b in g['btns'])
+            btns = ''.join('<a class="cbtn" href="%s"%s%s>%s%s</a>' % (b[1], '' if b[1].startswith('/') else ' target="_blank" rel="noopener"', ' style="%s"' % hotcss if len(b) > 2 else '', b[0], '' if b[1].startswith('/') else ' &#8599;') for b in g['btns'])
             gimg = '<img src="%s" alt="%s">' % (g['img'], g['alt']) if g.get('img') else ''
             cards += ('<div class="gocard"%s>%s<div class="gobody"><div class="gokick">%s</div>'
                       '<div class="gottl">%s</div><p>%s</p><div class="contact">%s</div></div></div>') % (
