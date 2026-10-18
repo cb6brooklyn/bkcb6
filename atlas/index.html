@@ -19,6 +19,8 @@ header{background:var(--navy);border-bottom:4px solid var(--orange);color:#fff}
 .hd img{width:54px;height:54px;border-radius:6px;flex:none}
 .hd h1{font-size:1.25rem;font-weight:800;line-height:1.15}
 .hd h1 span{color:var(--orange)}
+.brand{font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--orange);font-size:.95rem;line-height:1.1}
+.hd img{border:3px solid var(--orange);border-radius:4px}
 .hd p{font-size:.8rem;opacity:.85;margin-top:3px;line-height:1.4}
 .crumb{font-family:'DM Mono',monospace;font-size:.68rem;opacity:.7;margin-bottom:3px}
 .crumb a{color:#fff}
@@ -71,21 +73,25 @@ select,input[type=search]{font-family:'DM Sans',sans-serif;font-size:.86rem;padd
 .tabs button{font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:700;padding:5px 10px;border-radius:999px;border:1.5px solid var(--rule);background:#fff;color:var(--navy);cursor:pointer}
 .tabs button.on{border-color:var(--navy);background:var(--navy);color:#fff}
 .leaflet-container{font-family:'DM Sans',sans-serif}
+.plab{background:rgba(255,255,255,.92);border:0;border-left:3px solid var(--orange);border-radius:4px;box-shadow:0 1px 4px rgba(13,27,75,.25);font-size:.68rem;line-height:1.25;color:var(--ink);padding:2px 6px;text-align:center;white-space:normal;width:max-content;max-width:150px}
+.plab b{color:var(--navy)}
+.plab:before{display:none}
 footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;font-size:.72rem;color:var(--muted);line-height:1.55}
 </style>
 </head>
 <body>
 <header><div class="hd">
-  <a href="/"><img src="/cb6-logo-square.png" alt="Brooklyn Community Board 6"></a>
+  <a href="/"><img src="/cb6-logo-card.png" alt="Brooklyn Community Board 6"></a>
   <div><div class="crumb"><a href="/">bkcb6.app</a> &middot; Census Atlas</div>
-  <h1>Census Atlas <span>&middot; every community district</span></h1>
+  <div class="brand" id="brandLine">Brooklyn Community District 6</div>
+  <h1>Census Atlas</h1>
   <p>Every community district, neighborhood and census tract in New York City, mapped, ranked and compared. American Community Survey, 2020 to 2024.</p></div>
 </div></header>
 <main>
   <div class="bar">
     <select id="mSel" aria-label="Measure"></select>
     <div class="seg" id="unitSeg" role="group" aria-label="Map by">
-      <button data-u="cb" class="on">Districts</button><button data-u="nb">Neighborhoods</button><button data-u="nta">Census neighborhoods</button><button data-u="tract">Tracts</button>
+      <button data-u="focus" class="on" id="focusBtn">CB6</button><button data-u="cb">All districts</button><button data-u="nb">Neighborhoods</button><button data-u="nta">Census neighborhoods</button><button data-u="tract">Tracts</button>
     </div>
     <select id="cbSel" aria-label="Community district"></select>
   </div>
@@ -159,12 +165,12 @@ var COMPS=[
  {t:'How workers get to work',k:['com_transit','com_drive','com_walk','com_bike','com_home'],n:['Transit','Car','Walk','Bike','From home'],rest:'Other'},
  {t:'Renters and owners',k:['renters'],n:['Rent'],rest:'Own'}
 ];
-var CH=null,D=null,TR=null,TG=null,NG=null,CG=null,SG=null,state={m:'inc_median',unit:'cb',cb:'306',boro:'all',cmp:null};
+var CH=null,D=null,TR=null,TG=null,NG=null,CG=null,SG=null,state={m:'inc_median',unit:'focus',cb:'306',boro:'all',cmp:null};
 var p=new URLSearchParams(location.search);
 if(p.get('m')&&MK[p.get('m')])state.m=p.get('m');
 if(p.get('cb'))state.cb=p.get('cb');
 else if(window.__bkcbPlace&&window.__bkcbPlace.cd&&+String(window.__bkcbPlace.cd).slice(1)<=18)state.cb=String(window.__bkcbPlace.cd);
-if(['cb','nb','nta','tract'].indexOf(p.get('unit'))>=0)state.unit=p.get('unit');
+if(['focus','cb','nb','nta','tract'].indexOf(p.get('unit'))>=0)state.unit=p.get('unit');
 if(p.get('cmp'))state.cmp=p.get('cmp').split(',');
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];});}
 function code(c){return BORO[String(c)[0]]+'CB'+(+String(c).slice(1));}
@@ -186,7 +192,7 @@ function j(u){return fetch(u).then(function(r){if(!r.ok)throw new Error(u);retur
 var mSel=document.getElementById('mSel'),last='';
 M.forEach(function(x){if(x[0]!==last){var g=document.createElement('optgroup');g.label=x[0];mSel.appendChild(g);last=x[0];}var o=document.createElement('option');o.value=x[1];o.textContent=x[2];mSel.lastChild.appendChild(o);});
 mSel.onchange=function(){state.m=mSel.value;renderAll();};
-Array.prototype.forEach.call(document.querySelectorAll('#unitSeg button'),function(b){b.onclick=function(){state.unit=b.getAttribute('data-u');Array.prototype.forEach.call(document.querySelectorAll('#unitSeg button'),function(x){x.classList.toggle('on',x===b);});drawMap();save();};});
+Array.prototype.forEach.call(document.querySelectorAll('#unitSeg button'),function(b){b.onclick=function(){state.unit=b.getAttribute('data-u');Array.prototype.forEach.call(document.querySelectorAll('#unitSeg button'),function(x){x.classList.toggle('on',x===b);});drawMap();save();var f=CG.features.filter(function(x){return String(x.properties.cd)===state.cb;});if(state.unit==='focus'&&f.length)map.fitBounds(L.geoJSON(f[0]).getBounds(),{padding:[20,20]});else if(state.unit!=='focus'&&map.getZoom()>12)map.setZoom(11);};});
 Array.prototype.forEach.call(document.querySelectorAll('#rankTabs button'),function(b){b.onclick=function(){state.boro=b.getAttribute('data-b');Array.prototype.forEach.call(document.querySelectorAll('#rankTabs button'),function(x){x.classList.toggle('on',x===b);});drawRank();};});
 
 // ---- map ----
@@ -204,18 +210,19 @@ function drawMap(){
   if(layer)map.removeLayer(layer);var m=state.m,f=MK[m].f;
   if(state.unit==='tract'&&!TG){document.getElementById('mapnote').textContent='Loading 2,324 census tracts…';Promise.all([j('/data/atlas/tracts.geojson'),j('/data/atlas/tracts.json')]).then(function(r){TG=r[0];TR=r[1];drawMap();});return;}
   var feats,getv,name,click;
-  if(state.unit==='cb'){feats=CG.features.filter(function(x){return +String(x.properties.cd).slice(1)<=18;});getv=function(x){return val('cb:'+x.properties.cd,m);};name=function(x){return code(x.properties.cd);};click=function(x){setFocus(String(x.properties.cd));};}
+  if(state.unit==='focus'){var cdta=BORO[state.cb[0]]+state.cb.slice(1);feats=NG.features.filter(function(x){return x.properties.cdta===cdta;});getv=function(x){return val('nta:'+x.properties.id,m);};name=function(x){return esc(x.properties.name)+' &middot; part of '+code(state.cb);};click=function(x){addCmp('nta:'+x.properties.id);};}
+  else if(state.unit==='cb'){feats=CG.features.filter(function(x){return +String(x.properties.cd).slice(1)<=18;});getv=function(x){return val('cb:'+x.properties.cd,m);};name=function(x){return code(x.properties.cd);};click=function(x){setFocus(String(x.properties.cd));};}
   else if(state.unit==='nb'){feats=SG.features;getv=function(x){return val('nb:'+x.properties.boro+'|'+x.properties.nb,m);};name=function(x){return esc(x.properties.nb)+' &middot; '+esc(x.properties.boro);};click=function(x){var k='nb:'+x.properties.boro+'|'+x.properties.nb;if(D.units[k]&&D.units[k].m.pop)addCmp(k);};}
   else if(state.unit==='nta'){feats=NG.features;getv=function(x){return val('nta:'+x.properties.id,m);};name=function(x){return x.properties.name;};click=function(x){addCmp('nta:'+x.properties.id);};}
   else{feats=TG.features;getv=function(x){var t=TR[x.properties.g];return t?t[m]:null;};name=function(x){var t=TR[x.properties.g];return 'Census tract '+x.properties.g.slice(5,9).replace(/^0+/,'')+(x.properties.g.slice(9)!=='00'?'.'+x.properties.g.slice(9):'')+(t?' &middot; '+code(t.cd):'');};click=function(x){var t=TR[x.properties.g];if(t&&+t.cd.slice(1)<=18)setFocus(t.cd);};}
   function popOf(x){return state.unit==='tract'?(TR[x.properties.g]||{}).pop:state.unit==='nb'?((D.units['nb:'+x.properties.boro+'|'+x.properties.nb]||{m:{}}).m.pop):1;}
-  breaks=quantiles(feats.map(function(x){return popOf(x)?getv(x):null;}));
+  breaks=state.unit==='focus'?quantiles(NG.features.map(function(x){return val('nta:'+x.properties.id,m);})):quantiles(feats.map(function(x){return popOf(x)?getv(x):null;}));
   layer=L.geoJSON({type:'FeatureCollection',features:feats},{
-    style:function(x){var v=getv(x);if(!popOf(x))v=null;return {color:'#fff',weight:state.unit==='tract'?0.4:1,fillColor:color(v),fillOpacity:.85};},
-    onEachFeature:function(x,l){l.on('mousemove',function(e){var t=state.unit==='tract'?(TR[x.properties.g]||{})[m+'_top']:state.unit==='cb'?top('cb:'+x.properties.cd,m):state.unit==='nb'?top('nb:'+x.properties.boro+'|'+x.properties.nb,m):top('nta:'+x.properties.id,m);showTip(e.originalEvent,'<b>'+name(x)+'</b><br>'+esc(MK[m].label)+': <b>'+(popOf(x)?fmt(getv(x),f)+(t?' or more':''):'no residents')+'</b>');});l.on('mouseout',hideTip);l.on('click',function(){hideTip();click(x);});}
+    style:function(x){var v=getv(x);if(!popOf(x))v=null;return {color:'#fff',weight:state.unit==='tract'?0.4:state.unit==='focus'?2.5:1,fillColor:color(v),fillOpacity:.85};},
+    onEachFeature:function(x,l){l.on('mousemove',function(e){var t=state.unit==='tract'?(TR[x.properties.g]||{})[m+'_top']:state.unit==='cb'?top('cb:'+x.properties.cd,m):state.unit==='nb'?top('nb:'+x.properties.boro+'|'+x.properties.nb,m):top('nta:'+x.properties.id,m);showTip(e.originalEvent,'<b>'+name(x)+'</b><br>'+esc(MK[m].label)+': <b>'+(popOf(x)?fmt(getv(x),f)+(t?' or more':''):'no residents')+'</b>');});l.on('mouseout',hideTip);l.on('click',function(){hideTip();click(x);});if(state.unit==='focus')l.bindTooltip('<b>'+esc(x.properties.name)+'</b><br>'+(popOf(x)?fmt(getv(x),f)+(top('nta:'+x.properties.id,m)?' or more':''):''),{permanent:true,direction:'center',className:'plab'});}
   }).addTo(map);
   drawOutline();drawLegend();
-  document.getElementById('mapnote').textContent=state.unit==='cb'?'Colored in six groups of about 10 districts each, from lowest to highest. Tap a district to pick it.':state.unit==='nb'?'The neighborhoods on the bkcb6.app maps. A census tract that crosses a neighborhood line is split by land area, so these are estimates. Tap one to add it to the comparison.':state.unit==='nta'?'Census neighborhoods are the Census Bureau and City Planning 2020 neighborhood tabulation areas, the portions the Census divides each community district into; CB6 is two of them, Park Slope and Carroll Gardens-Cobble Hill-Gowanus-Red Hook. Tap one to add it to the comparison.':'Census tracts: the smallest areas the Census reports these numbers for, so the margins of error are wider. Tap a tract to pick its district.';
+  document.getElementById('mapnote').textContent=state.unit==='focus'?code(state.cb)+' is '+(feats.length===1?'one census neighborhood':feats.length+' census neighborhoods')+', each shaded on the same scale as every census neighborhood in the city. Tap one to add it to the comparison, or pick All districts to see the city.':state.unit==='cb'?'Colored in six groups of about 10 districts each, from lowest to highest. Tap a district to pick it.':state.unit==='nb'?'The neighborhoods on the bkcb6.app maps. A census tract that crosses a neighborhood line is split by land area, so these are estimates. Tap one to add it to the comparison.':state.unit==='nta'?'Census neighborhoods are the Census Bureau and City Planning 2020 neighborhood tabulation areas, the portions the Census divides each community district into; CB6 is two of them, Park Slope and Carroll Gardens-Cobble Hill-Gowanus-Red Hook. Tap one to add it to the comparison.':'Census tracts: the smallest areas the Census reports these numbers for, so the margins of error are wider. Tap a tract to pick its district.';
   save();
 }
 function drawOutline(){
@@ -234,7 +241,8 @@ function pip(pt,ring){var x=pt[0],y=pt[1],ins=false;for(var i=0,k=ring.length-1;
 function inPoly(pt,g){var ps=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];for(var i=0;i<ps.length;i++){if(pip(pt,ps[i][0])){var hole=false;for(var h=1;h<ps[i].length;h++)if(pip(pt,ps[i][h]))hole=true;if(!hole)return true;}}return false;}
 
 // ---- focus card ----
-function setFocus(cb,keepView){state.cb=cb;document.getElementById('cbSel').value=cb;var k='cb:'+cb;state.cmp=defaultCmp();drawOutline();renderAll(true);if(!keepView){var f=CG.features.filter(function(x){return String(x.properties.cd)===cb;});if(f.length)map.fitBounds(L.geoJSON(f[0]).getBounds(),{padding:[30,30],maxZoom:13});}}
+function setFocus(cb,keepView){state.cb=cb;setBrand();document.getElementById('cbSel').value=cb;var k='cb:'+cb;state.cmp=defaultCmp();renderAll(true);if(!keepView){var f=CG.features.filter(function(x){return String(x.properties.cd)===cb;});if(f.length)map.fitBounds(L.geoJSON(f[0]).getBounds(),{padding:[30,30],maxZoom:13});}}
+function setBrand(){document.getElementById('focusBtn').textContent=code(state.cb);document.getElementById('brandLine').textContent=BORON[state.cb[0]]+' Community District '+(+state.cb.slice(1));}
 function defaultCmp(){var b=state.cb;return ['cb:'+b].concat(ntasOf(b)).concat(['boro:'+b[0],'nyc']);}
 function drawFocus(){
   var k='cb:'+state.cb,m=state.m,mk=MK[m],v=val(k,m),r=rankOf(k,m),u=D.units[k];
@@ -342,8 +350,9 @@ Promise.all([Promise.all([j('/data/atlas/charts.json'),j('/data/atlas/extra.json
   D=r[1];NG=r[2];CG=r[3];SG=r[4];
   if(!D.units['cb:'+state.cb])state.cb='306';
   state.cmp=(state.cmp||defaultCmp()).filter(function(k){return D.units[k];});
+  setBrand();
   fillAdd();Array.prototype.forEach.call(document.querySelectorAll('#unitSeg button'),function(x){x.classList.toggle('on',x.getAttribute('data-u')===state.unit);});
-  renderAll();
+  renderAll();var fit=function(){map.invalidateSize();var f=CG.features.filter(function(x){return String(x.properties.cd)===state.cb;});if(f.length&&state.unit==='focus')map.fitBounds(L.geoJSON(f[0]).getBounds(),{padding:[16,16]});};fit();setTimeout(fit,400);
   var f=CG.features.filter(function(x){return String(x.properties.cd)===state.cb;});if(f.length)map.fitBounds(L.geoJSON(f[0]).getBounds().pad(1.2));
   document.getElementById('foot').innerHTML='Source: U.S. Census Bureau, American Community Survey 2020–2024 5-year estimates, every census tract in the five boroughs ('+D.tables.length+' tables, from the Census Bureau’s summary files). Districts, neighborhoods, boroughs and the city are the sum of their tracts; each tract is placed by the Census Bureau’s center point for it. These are survey estimates with margins of error, widest for single tracts.';
 });
