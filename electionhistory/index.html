@@ -97,6 +97,22 @@ th.r{text-align:right}
 .cmp-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:20px;background:var(--off);border:1px solid var(--border);font-size:.78rem;font-weight:700;color:var(--navy)}
 .cmp-chip button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:.9rem;line-height:1}
 /* district history */
+.dh-on{margin:14px 0 6px;border:1.5px solid var(--navy);border-radius:10px;overflow:hidden;background:#fff}
+.dh-on-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:var(--navy);color:#fff;padding:10px 14px}
+.dh-on-t{font-weight:700;font-size:.95rem}
+.dh-on-ctl{display:flex;gap:6px;align-items:center}
+.dh-on-ctl input{font-family:'DM Mono',monospace;font-size:.82rem;padding:6px 8px;border-radius:6px;border:0}
+.dh-on-ctl button{font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;padding:6px 10px;border-radius:6px;border:0;background:var(--orange);color:#fff;cursor:pointer}
+.dh-on-g{padding:10px 14px 4px}
+.dh-on-gh{font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:6px 0 4px}
+.dh-on-r{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px;padding:6px 0;border-bottom:1px solid #f0ede7;font-size:.84rem;align-items:baseline}
+.dh-on-r:last-child{border-bottom:0}
+.dh-on-o{font-weight:700;color:var(--navy);font-size:.78rem}
+.dh-on-n div{margin:1px 0}
+.dh-on-n b{color:var(--navy)}
+.dh-on-n small{color:var(--muted);font-family:'DM Mono',monospace;font-size:.68rem;margin-left:4px}
+@media(max-width:560px){.dh-on-r{grid-template-columns:1fr;gap:2px}}
+
 .tl{margin-top:18px}
 .tl-h{font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:16px 0 6px}
 .tl-axis,.tl-row{display:grid;grid-template-columns:74px minmax(0,1fr);align-items:center}
@@ -231,6 +247,10 @@ th.r{text-align:right}
   <div class="sec" id="dhSec" style="padding:20px 24px 24px;background:#fff;border-top:2px solid var(--orange);border-bottom:1px solid var(--border)">
     <h3 id="dhTitle" style="font-size:1.1rem;font-weight:700;color:var(--navy)"></h3>
     <p id="dhSub" style="font-size:.78rem;color:var(--muted);margin-top:2px;line-height:1.55;max-width:80ch"></p>
+    <div id="dhOn" class="dh-on">
+      <div class="dh-on-head"><span id="dhOnTitle" class="dh-on-t"></span><span class="dh-on-ctl"><input type="date" id="dhOnDate" min="2000-01-01"><button id="dhOnToday" type="button">Today</button></span></div>
+      <div id="dhOnBody"></div>
+    </div>
     <div id="dhSummary" class="dh-sum"></div>
     <div id="dhTimeline"></div>
     <div class="wm-card" style="margin-top:14px">
@@ -761,6 +781,46 @@ function renderTimeline(cb){
   });
 }
 
+
+// ---- who represented the board on a given date ----
+var AL=null;
+function dhOnDefault(){var p=new URLSearchParams(location.search).get('on');if(p&&/^\d{4}-\d{2}-\d{2}$/.test(p))return p;var t=new Date();return t.getFullYear()+'-'+('0'+(t.getMonth()+1)).slice(-2)+'-'+('0'+t.getDate()).slice(-2);}
+function alPick(hs,dt){var h=null;hs.forEach(function(x){if(x.from<=dt)h=x;});if(!h||(h.to&&dt>h.to))return null;return h;}
+function dhSince(x){return x.from?'since '+niceDate(x.from):'';}
+function renderOnDate(){
+  if(!DH.data||!AL){Promise.all([DH.data?0:j('/data/districthistory/overlap.json').then(function(d){DH.data=d;}),AL?0:j('/data/districthistory/at-large.json').then(function(d){AL=d;})]).then(renderOnDate);return;}
+  var inp=document.getElementById('dhOnDate'),dt=inp.value||dhOnDefault();inp.value=dt;inp.max=dhOnDefault().slice(0,4)+'-12-31';
+  var cb=String(S.cb),code=cbCode(cb),y=+dt.slice(0,4);
+  document.getElementById('dhOnTitle').textContent='Who represented '+code+' on '+niceDate(dt);
+  var h='<div class="dh-on-g"><div class="dh-on-gh">Districts covering '+esc(code)+' (share of the board’s residents)</div>';
+  DH.data.offices.forEach(function(o){
+    var r=o.rows.filter(function(x){return +x.served.slice(0,4)<=y&&y<=+x.served.slice(-4);})[0];
+    var cell;
+    if(!r){cell='<span style="color:var(--muted)">Not in this record before '+o.rows[0].served.slice(0,4)+'</span>';}
+    else{
+      cell=(r.cbs[cb]||[]).map(function(x){
+        var ms=r.members[String(x[0])]||[],who=[];
+        if(o.key==='council'){ms.forEach(function(m){if(m.from<=dt&&dt<=m.to)who.push(m);});}
+        else{var cur=null;ms.forEach(function(m){var st=m.type==='special'?m.elected:r.served.slice(0,4)+'-01-01';if(st<=dt)cur={name:m.name,special:m.type==='special'?m.elected:null};});if(cur)who.push(cur);}
+        var nm=who.length?who.map(function(m){return '<b>'+esc(m.name)+'</b>'+(m.special?'<small>won special election '+esc(niceDate(m.special))+'</small>':'');}).join(', '):'<span style="color:var(--muted)">Vacant</span>';
+        return '<div>'+esc(dhLabel(o.key,x[0]))+': '+nm+'<small>'+p1(x[1])+'</small></div>';
+      }).join('');
+    }
+    h+='<div class="dh-on-r"><span class="dh-on-o">'+esc(o.label)+'</span><span class="dh-on-n">'+cell+'</span></div>';
+  });
+  h+='</div>';
+  var grp={boro:BORON[cb[0]],city:'New York City',state:'New York State',us:'United States'},last=null;
+  AL.offices.forEach(function(o){
+    if(o.scope!==last){h+=(last?'</div>':'')+'<div class="dh-on-g"><div class="dh-on-gh">'+esc(grp[o.scope])+'</div>';last=o.scope;}
+    var lists=o.seats?o.seats:[o.scope==='boro'?o.holders[cb[0]]:o.holders];
+    var cell=lists.map(function(hs){var x=alPick(hs||[],dt);return '<div>'+(x?'<b>'+esc(x.name)+'</b><small>'+esc(dhSince(x))+'</small>':'<span style="color:var(--muted)">Vacant</span>')+'</div>';}).join('');
+    h+='<div class="dh-on-r"><span class="dh-on-o">'+esc(o.label)+'</span><span class="dh-on-n">'+cell+'</span></div>';
+  });
+  h+='</div>';
+  document.getElementById('dhOnBody').innerHTML=h;
+}
+document.getElementById('dhOnDate').addEventListener('change',function(){var u=new URL(location.href);u.searchParams.set('on',this.value);history.replaceState(null,'',u);renderOnDate();});
+document.getElementById('dhOnToday').addEventListener('click',function(){var u=new URL(location.href);u.searchParams.delete('on');history.replaceState(null,'',u);document.getElementById('dhOnDate').value=dhOnDefault();renderOnDate();});
 // ---- district history: how the board's districts changed, 2006 to today ----
 var DH={data:null,office:'council',term:null,map:null,layer:null,cb:null,geo:{},pal:['#0d1b4b','#f47920','#2d6a4f','#8e2b20','#7b6cd0','#b8860b','#2e7d8f','#c2508f']};
 var DHNAME={council:'Council District',assembly:'Assembly District',senate:'State Senate District',congress:'Congressional District'};
@@ -769,6 +829,7 @@ function dhLabel(o,d){return o==='congress'?'NY-'+d:DHSHORT[o]+' '+d;}
 function dhMembers(row,d){var ms=row.members[String(d)]||[];return ms.map(function(m){return m.name+(m.type==='special'?' (special, '+m.elected.slice(0,4)+')':'')+(m.from&&m.to&&(m.from.slice(0,4)!==row.served.slice(0,4)||m.to.slice(0,4)!==row.served.slice(-4))?' ('+m.from.slice(0,4)+'–'+m.to.slice(0,4)+')':'');});}
 function renderDistricts(){
   if(!DH.data){j('/data/districthistory/overlap.json').then(function(d){DH.data=d;renderDistricts();});return;}
+  renderOnDate();
   if(DH.cb===S.cb)return;DH.cb=S.cb;
   var cb=S.cb,code=cbCode(cb),d=DH.data;
   document.getElementById('dhTitle').textContent=code+'’s districts and who represented them since 2001';
