@@ -14,7 +14,7 @@ Idempotent: each block sits between markers and is rebuilt on every run. python3
 import json, os, re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-V = '20261018a'
+V = '20261018b'
 pages = json.load(open(os.path.join(ROOT, 'data/profile-index.json')))['pages']
 BORON = {'1': 'Manhattan', '2': 'the Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island'}
 # offices with no district map: what map they get and what seat history

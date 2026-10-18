@@ -47,7 +47,7 @@
   function renderBoard(el) {
     var cb = String(el.getAttribute('data-rep-board')), c = code(cb), y0 = '2000-01-01';
     el.innerHTML = '<div class="rh"><div class="rh-head"><span class="rh-t"></span><span class="rh-ctl"><input type="date" min="' + y0 + '" max="' + today() + '" value="' + today() + '"><button type="button">Today</button></span></div><div class="rh-body"></div>' +
-      '<div class="rh-foot"><a class="rh-go" href="/electionhistory/?cb=' + cb + '">Every election since 2000 in ' + esc(c) + ', by election district &rarr;</a></div></div>';
+      '<div class="rh-foot" style="display:flex;flex-wrap:wrap;gap:8px"><a class="rh-go" href="/electionhistory/?cb=' + cb + '">Every election since 2000 in ' + esc(c) + ', by election district &rarr;</a><a class="rh-go" style="background:#0d1b4b" href="/atlas/?cb=' + cb + '">' + esc(c) + ' in the Census Atlas: mapped, ranked and compared &rarr;</a></div></div>';
     var inp = el.querySelector('input'), body = el.querySelector('.rh-body'), ttl = el.querySelector('.rh-t');
     function draw() {
       var dt = inp.value || today(), y = +dt.slice(0, 4);
