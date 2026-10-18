@@ -114,7 +114,14 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;font-size:.72rem;color
     <div class="svgwrap" id="cmpBars"></div>
   </div>
 
-  <div class="grid" id="comp"></div>
+  <div class="card full" id="prof">
+    <h2>Every chart</h2>
+    <div class="sub">Every place in the comparison, side by side. Bars are shares of each chart's group (residents, households, workers); switch to counts for the number of people or homes. Hover or tap a bar for its number.</div>
+    <div class="bar" style="padding:4px 0"><div class="seg" id="pcSeg"><button data-v="p" class="on">Percent</button><button data-v="n">Count</button></div></div>
+    <div class="tabs" id="secTabs"></div>
+    <div class="chips" id="profKey"></div>
+    <div class="grid" id="charts" style="margin-top:4px"></div>
+  </div>
 
   <div class="card full">
     <h2>Every measure</h2>
@@ -152,7 +159,7 @@ var COMPS=[
  {t:'How workers get to work',k:['com_transit','com_drive','com_walk','com_bike','com_home'],n:['Transit','Car','Walk','Bike','From home'],rest:'Other'},
  {t:'Renters and owners',k:['renters'],n:['Rent'],rest:'Own'}
 ];
-var D=null,TR=null,TG=null,NG=null,CG=null,SG=null,state={m:'inc_median',unit:'cb',cb:'306',boro:'all',cmp:null};
+var CH=null,D=null,TR=null,TG=null,NG=null,CG=null,SG=null,state={m:'inc_median',unit:'cb',cb:'306',boro:'all',cmp:null};
 var p=new URLSearchParams(location.search);
 if(p.get('m')&&MK[p.get('m')])state.m=p.get('m');
 if(p.get('cb'))state.cb=p.get('cb');
@@ -274,7 +281,7 @@ function drawCmpBars(){
   s+='</svg>';var el=document.getElementById('cmpBars');el.innerHTML=s;
   Array.prototype.forEach.call(el.querySelectorAll('.cb'),function(g){var k=g.getAttribute('data-k');g.addEventListener('mousemove',function(e){showTip(e,'<b>'+esc(uname(k))+'</b><br>'+esc(mk.label)+': <b>'+fv(k,m)+'</b>'+(k.indexOf('cb:')===0?'<br>#'+rankOf(k,m)+' of 59':''));});g.addEventListener('mouseleave',hideTip);});
 }
-function drawComps(){
+function drawComps(){return;
   var h='';COMPS.forEach(function(c,ci){h+='<div class="card"><h2>'+esc(c.t)+'</h2><div class="sub">Share of '+(ci===2?'workers':ci===3?'households':'residents')+'. Hover a segment for its number.</div><div class="chips">';
     var names=c.n.slice();if(c.rest)names.push(c.rest);
     names.forEach(function(n,i){h+='<span class="chip" style="border:0;padding:2px 4px"><i style="background:'+(i<CAT.length?['#22397a','#f47920','#0f8f84','#8b5cf6','#c2185b','#9ca3af'][i]:'#ccc')+'"></i>'+esc(n)+'</span>';});
@@ -288,6 +295,32 @@ function drawComps(){
       vals.forEach(function(v,j){var w=(W-lab-4)*v/100;if(w<=0)return;s+='<g class="seg2" data-t="'+esc(uname(k))+'" data-n="'+esc(names[j])+'" data-v="'+v.toFixed(1)+'"><rect x="'+x+'" y="'+(y+3)+'" width="'+Math.max(0,w-2)+'" height="20" fill="'+PAL[j]+'"/>'+(w>34?'<text x="'+(x+4)+'" y="'+(y+17)+'" font-size="10" fill="#fff" font-weight="700">'+Math.round(v)+'%</text>':'')+'</g>';x+=w;});});
     s+='</svg>';var box=el.querySelector('[data-comp="'+ci+'"]');box.innerHTML=s;
     Array.prototype.forEach.call(box.querySelectorAll('.seg2'),function(g){g.addEventListener('mousemove',function(e){showTip(e,'<b>'+g.getAttribute('data-t')+'</b><br>'+g.getAttribute('data-n')+': <b>'+g.getAttribute('data-v')+'%</b>');});g.addEventListener('mouseleave',hideTip);});});
+}
+
+// ---- every chart, for every place in the comparison ----
+var SECS=[],secOn=null,pc='p';
+function drawCharts(){
+  if(!CH)return;
+  if(!SECS.length){CH.charts.forEach(function(c){if(SECS.indexOf(c.sec)<0)SECS.push(c.sec);});secOn=SECS[0];
+    var t=document.getElementById('secTabs');t.innerHTML=SECS.map(function(x){return '<button data-s="'+esc(x)+'"'+(x===secOn?' class="on"':'')+'>'+esc(x)+'</button>';}).join('');
+    Array.prototype.forEach.call(t.querySelectorAll('button'),function(b){b.onclick=function(){secOn=b.getAttribute('data-s');Array.prototype.forEach.call(t.querySelectorAll('button'),function(x){x.classList.toggle('on',x===b);});drawCharts();};});
+    Array.prototype.forEach.call(document.querySelectorAll('#pcSeg button'),function(b){b.onclick=function(){pc=b.getAttribute('data-v');Array.prototype.forEach.call(document.querySelectorAll('#pcSeg button'),function(x){x.classList.toggle('on',x===b);});drawCharts();};});}
+  var ks=state.cmp.filter(function(k){return CH.units[k];});
+  document.getElementById('profKey').innerHTML=ks.map(function(k,i){return '<span class="chip"><i style="background:'+cmpColor(k,state.cmp.indexOf(k))+'"></i>'+esc(uname(k))+'</span>';}).join('');
+  var h='';CH.charts.forEach(function(c,ci){if(c.sec!==secOn)return;h+='<div class="card"><h2>'+esc(c.title)+'</h2><div class="sub">'+esc(c.universe)+(c.share_of?' &middot; shares of all households; a household can count in several rows':'')+'</div><div class="svgwrap" data-ch="'+ci+'"></div></div>';});
+  var box=document.getElementById('charts');box.innerHTML=h;
+  CH.charts.forEach(function(c,ci){if(c.sec!==secOn)return;
+    var series=ks.map(function(k){var xs=CH.units[k][c.id]||[],tot=c.share_of?((CH.units[k]['_u_'+c.id]||[0])[0]):xs.reduce(function(a,b){return a+b;},0);return {k:k,xs:xs,tot:tot};});
+    var n=series.length,bh=Math.max(7,Math.min(14,Math.floor(64/Math.max(1,n)))),gap=8,lab=170,W=560,pad=54,rowH=n*bh+gap+16,H=c.cats.length*rowH+4,max=0;
+    series.forEach(function(s){s.xs.forEach(function(x){var v=pc==='p'?(s.tot?100*x/s.tot:0):x;if(v>max)max=v;});});
+    var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(c.title)+'">';
+    c.cats.forEach(function(cat,j){var y0=j*rowH;
+      svg+='<text x="0" y="'+(y0+11)+'" font-size="10.5" fill="#1a1a1a" font-weight="700">'+esc(cat.length>80?cat.slice(0,79)+'…':cat)+'</text>';
+      series.forEach(function(s,i){var x=s.xs[j]||0,v=pc==='p'?(s.tot?100*x/s.tot:0):x,w=(W-pad)*(v/(max||1)),y=y0+15+i*bh,ci2=state.cmp.indexOf(s.k);
+        svg+='<g class="cbar" data-t="'+esc(uname(s.k))+'" data-c="'+esc(cat)+'" data-n="'+Math.round(x).toLocaleString('en-US')+'" data-p="'+(s.tot?(100*x/s.tot).toFixed(1):'0')+'"><rect x="0" y="'+(y-1)+'" width="'+W+'" height="'+bh+'" fill="transparent"/><rect x="0" y="'+y+'" width="'+Math.max(1,w)+'" height="'+(bh-2)+'" rx="2" fill="'+cmpColor(s.k,ci2)+'"/>'+(bh>=10?'<text x="'+(w+4)+'" y="'+(y+bh-3)+'" font-size="9" fill="#1a1a1a">'+(pc==='p'?(s.tot?(100*x/s.tot).toFixed(1).replace(/\.0$/,''):'0')+'%':Math.round(x).toLocaleString('en-US'))+'</text>':'')+'</g>';});});
+    svg+='</svg>';var el=box.querySelector('[data-ch="'+ci+'"]');el.innerHTML=svg;
+    Array.prototype.forEach.call(el.querySelectorAll('.cbar'),function(g){g.addEventListener('mousemove',function(e){showTip(e,'<b>'+g.getAttribute('data-t')+'</b><br>'+g.getAttribute('data-c')+'<br><b>'+g.getAttribute('data-p')+'%</b> &middot; '+g.getAttribute('data-n'));});g.addEventListener('mouseleave',hideTip);g.addEventListener('click',function(e){showTip(e,'<b>'+g.getAttribute('data-t')+'</b><br>'+g.getAttribute('data-c')+'<br><b>'+g.getAttribute('data-p')+'%</b> &middot; '+g.getAttribute('data-n'));});});
+  });
 }
 function drawTable(){
   var ks=state.cmp,h='<thead><tr><th>Measure</th>'+ks.map(function(k,i){return '<th style="color:'+cmpColor(k,i)+'">'+esc(uname(k))+'</th>';}).join('')+'</tr></thead><tbody>',last='';
@@ -303,9 +336,9 @@ function fillAdd(){var s=document.getElementById('addSel'),h='<option value="">+
   s.innerHTML=h;s.onchange=function(){if(s.value)addCmp(s.value);s.value='';};
   var c=document.getElementById('cbSel'),hh='';'12345'.split('').forEach(function(b){hh+='<optgroup label="'+BORON[b]+'">';boards().filter(function(k){return k.charAt(3)===b;}).sort(function(a,x){return +a.slice(4)-+x.slice(4);}).forEach(function(k){hh+='<option value="'+k.slice(3)+'">'+code(k.slice(3))+'</option>';});hh+='</optgroup>';});
   c.innerHTML=hh;c.value=state.cb;c.onchange=function(){setFocus(c.value);};}
-function renderAll(noMap){mSel.value=state.m;if(!noMap)drawMap();else{drawMap();}drawFocus();drawRank();drawChips();drawCmpBars();drawComps();drawTable();save();}
-Promise.all([j('/data/atlas/acs.json'),j('/data/nta-boundaries.geojson'),j('/cd-boundaries-simple.geojson'),j('/data/city-neighborhoods.geojson')]).then(function(r){
-  D=r[0];NG=r[1];CG=r[2];SG=r[3];
+function renderAll(noMap){mSel.value=state.m;if(!noMap)drawMap();else{drawMap();}drawFocus();drawRank();drawChips();drawCmpBars();drawCharts();drawTable();save();}
+Promise.all([j('/data/atlas/charts.json').then(function(c){CH=c;}),j('/data/atlas/acs.json'),j('/data/nta-boundaries.geojson'),j('/cd-boundaries-simple.geojson'),j('/data/city-neighborhoods.geojson')]).then(function(r){
+  D=r[1];NG=r[2];CG=r[3];SG=r[4];
   if(!D.units['cb:'+state.cb])state.cb='306';
   state.cmp=(state.cmp||defaultCmp()).filter(function(k){return D.units[k];});
   fillAdd();Array.prototype.forEach.call(document.querySelectorAll('#unitSeg button'),function(x){x.classList.toggle('on',x.getAttribute('data-u')===state.unit);});
