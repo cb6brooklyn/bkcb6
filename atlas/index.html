@@ -192,11 +192,11 @@ function j(u){return fetch(u).then(function(r){if(!r.ok)throw new Error(u);retur
 var mSel=document.getElementById('mSel'),last='';
 M.forEach(function(x){if(x[0]!==last){var g=document.createElement('optgroup');g.label=x[0];mSel.appendChild(g);last=x[0];}var o=document.createElement('option');o.value=x[1];o.textContent=x[2];mSel.lastChild.appendChild(o);});
 mSel.onchange=function(){state.m=mSel.value;renderAll();};
-Array.prototype.forEach.call(document.querySelectorAll('#unitSeg button'),function(b){b.onclick=function(){state.unit=b.getAttribute('data-u');Array.prototype.forEach.call(document.querySelectorAll('#unitSeg button'),function(x){x.classList.toggle('on',x===b);});drawMap();save();var f=CG.features.filter(function(x){return String(x.properties.cd)===state.cb;});if(state.unit==='focus'&&f.length)map.fitBounds(L.geoJSON(f[0]).getBounds(),{padding:[20,20]});else if(state.unit!=='focus'&&map.getZoom()>12)map.setZoom(11);};});
+Array.prototype.forEach.call(document.querySelectorAll('#unitSeg button'),function(b){b.onclick=function(){state.unit=b.getAttribute('data-u');Array.prototype.forEach.call(document.querySelectorAll('#unitSeg button'),function(x){x.classList.toggle('on',x===b);});drawMap();save();var f=CG.features.filter(function(x){return String(x.properties.cd)===state.cb;});if(state.unit==='focus'&&f.length)map.fitBounds(L.geoJSON(f[0]).getBounds(),{padding:[20,20],animate:false});else if(state.unit!=='focus'&&map.getZoom()>12)map.setZoom(11);};});
 Array.prototype.forEach.call(document.querySelectorAll('#rankTabs button'),function(b){b.onclick=function(){state.boro=b.getAttribute('data-b');Array.prototype.forEach.call(document.querySelectorAll('#rankTabs button'),function(x){x.classList.toggle('on',x===b);});drawRank();};});
 
 // ---- map ----
-var map=L.map('map',{scrollWheelZoom:false,zoomControl:true}).setView([40.7,-73.95],10);
+var map=L.map('map',{scrollWheelZoom:false,zoomControl:true,zoomAnimation:!/[?&]app=1/.test(location.search)}).setView([40.7,-73.95],10);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{maxZoom:19,maxNativeZoom:18,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
 map.createPane('lbl');map.getPane('lbl').style.zIndex=650;map.getPane('lbl').style.pointerEvents='none';
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{pane:'lbl',maxZoom:19}).addTo(map);
@@ -241,7 +241,7 @@ function pip(pt,ring){var x=pt[0],y=pt[1],ins=false;for(var i=0,k=ring.length-1;
 function inPoly(pt,g){var ps=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];for(var i=0;i<ps.length;i++){if(pip(pt,ps[i][0])){var hole=false;for(var h=1;h<ps[i].length;h++)if(pip(pt,ps[i][h]))hole=true;if(!hole)return true;}}return false;}
 
 // ---- focus card ----
-function setFocus(cb,keepView){state.cb=cb;setBrand();document.getElementById('cbSel').value=cb;var k='cb:'+cb;state.cmp=defaultCmp();renderAll(true);if(!keepView){var f=CG.features.filter(function(x){return String(x.properties.cd)===cb;});if(f.length)map.fitBounds(L.geoJSON(f[0]).getBounds(),{padding:[30,30],maxZoom:13});}}
+function setFocus(cb,keepView){state.cb=cb;setBrand();document.getElementById('cbSel').value=cb;var k='cb:'+cb;state.cmp=defaultCmp();renderAll(true);if(!keepView){var f=CG.features.filter(function(x){return String(x.properties.cd)===cb;});if(f.length)map.fitBounds(L.geoJSON(f[0]).getBounds(),{padding:[30,30],maxZoom:13,animate:false});}}
 function setBrand(){document.getElementById('focusBtn').textContent=code(state.cb);document.getElementById('brandLine').textContent=BORON[state.cb[0]]+' Community District '+(+state.cb.slice(1));}
 function defaultCmp(){var b=state.cb;return ['cb:'+b].concat(ntasOf(b)).concat(['boro:'+b[0],'nyc']);}
 function drawFocus(){
@@ -352,8 +352,9 @@ Promise.all([Promise.all([j('/data/atlas/charts.json'),j('/data/atlas/extra.json
   state.cmp=(state.cmp||defaultCmp()).filter(function(k){return D.units[k];});
   setBrand();
   fillAdd();Array.prototype.forEach.call(document.querySelectorAll('#unitSeg button'),function(x){x.classList.toggle('on',x.getAttribute('data-u')===state.unit);});
-  renderAll();var fit=function(){map.invalidateSize();var f=CG.features.filter(function(x){return String(x.properties.cd)===state.cb;});if(f.length&&state.unit==='focus')map.fitBounds(L.geoJSON(f[0]).getBounds(),{padding:[16,16]});};fit();setTimeout(fit,400);
-  var f=CG.features.filter(function(x){return String(x.properties.cd)===state.cb;});if(f.length)map.fitBounds(L.geoJSON(f[0]).getBounds().pad(1.2));
+  renderAll();var moved=false,fitting=false,fit=function(){if(moved)return;fitting=true;map.invalidateSize({animate:false});var f=CG.features.filter(function(x){return String(x.properties.cd)===state.cb;});if(f.length&&state.unit==='focus')map.fitBounds(L.geoJSON(f[0]).getBounds(),{padding:[16,16],animate:false});fitting=false;};fit();
+  map.on('dragstart',function(){moved=true;});map.on('zoomstart',function(){if(!fitting)moved=true;});
+  if(window.ResizeObserver)new ResizeObserver(function(){fit();}).observe(document.getElementById('map'));window.addEventListener('pageshow',fit);document.addEventListener('visibilitychange',function(){if(!document.hidden)fit();});
   document.getElementById('foot').innerHTML='Source: U.S. Census Bureau, American Community Survey 2020–2024 5-year estimates, every census tract in the five boroughs ('+D.tables.length+' tables, from the Census Bureau’s summary files). Districts, neighborhoods, boroughs and the city are the sum of their tracts; each tract is placed by the Census Bureau’s center point for it. These are survey estimates with margins of error, widest for single tracts.';
 });
 })();
