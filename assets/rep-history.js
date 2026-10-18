@@ -87,7 +87,7 @@
     var o = OV.offices.filter(function (x) { return x.key === kind; })[0];
     if (o) {
       var title = NAME[kind] + ' ' + d;
-      h = '<div class="rh"><div class="rh-head"><span class="rh-t">Who has held ' + esc(kind === 'congress' ? 'NY-' + d : title) + '</span></div><div class="rh-g" style="overflow-x:auto"><table class="rh-tbl"><thead><tr><th>Term</th><th>Held by</th><th>Community boards in the district (share of the district’s residents)</th></tr></thead><tbody>';
+      h = '<div class="rh"><div class="rh-head"><span class="rh-t">Who has held ' + esc(kind === 'congress' ? 'NY-' + d : title) + '</span></div><div class="rh-g" style="overflow-x:auto"><table class="rh-tbl"><thead><tr><th>Term</th><th>Held by</th><th>Boards in the district</th></tr></thead><tbody>';
       o.rows.slice().reverse().forEach(function (r) {
         var ms = r.members[String(d)];
         var boards = [], tot = 0;
