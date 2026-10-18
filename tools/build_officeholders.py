@@ -34,6 +34,7 @@ def table_list(w, sec=None):
         res = []
         for r in rows(t):
             p, d = person(r), dates(r)
+            if p and re.match(r'^\d{4}', p): p = None  # a continuation row whose only link is an election year
             if p and d: res.append([p, d[0], d[1] if len(d) > 1 else None])
             elif d and res and not p: res[-1][2] = d[-1]
         if res and (best is None or len(res) > len(best)): best = res
