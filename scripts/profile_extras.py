@@ -122,6 +122,8 @@ for path, kind in pages.items():
     else:
         s, _ = strip_block(s, '<!--rephistory-->', '<!--/rephistory-->')
         s, _ = strip_block(s, '<!--atlas-->', '<!--/atlas-->')
+        while '<!--compplan-->' in s:
+            s, _ = strip_block(s, '<!--compplan-->', '<!--/compplan-->')
         i = s.find('id="sec-results"')
         if i < 0:
             i = s.find('id="sec-health-profile"')
@@ -134,7 +136,16 @@ for path, kind in pages.items():
                'style="width:100%%;height:1150px;border:1px solid #e5e2db;border-radius:12px;background:#f8f7f4;display:block"></iframe>'
                '<script>window.addEventListener("message",function(e){if(e.data&&e.data.atlasH){var f=document.getElementById("atlasFrame");if(f&&e.source===f.contentWindow)f.style.height=(e.data.atlasH+4)+"px";}});</script>'
                '</div><!--/atlas-->\n') % (ident, ident)
-        s = s[:a] + atl + blk + s[a:]
+        cpb = ''
+        if ident.startswith('3') and int(ident[1:]) <= 18:
+            lbl = 'CB6' if ident == '306' else 'BKCB%d' % int(ident[1:])
+            cpb = ('<!--compplan--><div id="sec-compplan" style="max-width:1400px;margin:16px auto;padding:0 16px">'
+                   '<h2 style="font-family:\'DM Sans\',sans-serif;font-weight:800;color:#0d1b4b;font-size:1.25rem;margin:0 0 8px">%s in the Comprehensive Plan for Brooklyn</h2>'
+                   '<iframe id="cpFrame" src="/bkcompplan/?embed=1&amp;cb=%s" title="%s in the Comprehensive Plan for Brooklyn" loading="lazy" '
+                   'style="width:100%%;height:2600px;border:1px solid #e5e2db;border-radius:12px;background:#fff;display:block"></iframe>'
+                   '<script>window.addEventListener("message",function(e){if(e.data&&e.data.cpH){var f=document.getElementById("cpFrame");if(f&&e.source===f.contentWindow)f.style.height=(e.data.cpH+4)+"px";}});</script>'
+                   '</div><!--/compplan-->\n') % (lbl, ident, lbl)
+        s = s[:a] + atl + cpb + blk + s[a:]
     s = add_script(s, '/assets/rep-history.js?v=' + V)
     s = re.sub(r'/assets/profile-map\.js\?v=[0-9a-z]+', '/assets/profile-map.js?v=' + V, s)
     open(f, 'w', encoding='utf-8').write(s)
