@@ -139,4 +139,21 @@ for path, kind in pages.items():
     s = re.sub(r'/assets/profile-map\.js\?v=[0-9a-z]+', '/assets/profile-map.js?v=' + V, s)
     open(f, 'w', encoding='utf-8').write(s)
     done[k] += 1
+# the five borough pages: the borough in the Census Atlas, before the description
+for d, slug in (('1', 'manhattan'), ('2', 'bronx'), ('3', 'brooklyn'), ('4', 'queens'), ('5', 'statenisland')):
+    f = os.path.join(ROOT, slug + '.html')
+    s = open(f, encoding='utf-8').read()
+    s, _ = strip_block(s, '<!--atlas-->', '<!--/atlas-->')
+    i = s.find('id="sec-description"')
+    a = s.rfind('<', 0, i)
+    nm = BORON[d].replace('the Bronx', 'The Bronx')
+    atl = ('<!--atlas--><div id="sec-atlas" style="max-width:1400px;margin:16px auto;padding:0 16px">'
+           '<h2 style="font-family:\'DM Sans\',sans-serif;font-weight:800;color:#0d1b4b;font-size:1.25rem;margin:0 0 8px">%s in numbers</h2>'
+           '<iframe id="atlasFrame" src="/atlas/?embed=1&amp;boro=%s" title="Census Atlas: %s" loading="lazy" '
+           'style="width:100%%;height:1150px;border:1px solid #e5e2db;border-radius:12px;background:#f8f7f4;display:block"></iframe>'
+           '<script>window.addEventListener("message",function(e){if(e.data&&e.data.atlasH){var f=document.getElementById("atlasFrame");if(f&&e.source===f.contentWindow)f.style.height=(e.data.atlasH+4)+"px";}});</script>'
+           '</div><!--/atlas-->\n') % (nm, d, nm)
+    s = s[:a] + atl + s[a:]
+    open(f, 'w', encoding='utf-8').write(s)
+    done['borough'] = done.get('borough', 0) + 1
 print(done)
