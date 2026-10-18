@@ -121,13 +121,20 @@ for path, kind in pages.items():
         assert s.count('data-profile-map') <= 1, f
     else:
         s, _ = strip_block(s, '<!--rephistory-->', '<!--/rephistory-->')
+        s, _ = strip_block(s, '<!--atlas-->', '<!--/atlas-->')
         i = s.find('id="sec-results"')
         if i < 0:
             i = s.find('id="sec-health-profile"')
         a = s.rfind('<div', 0, i)
         blk = ('<!--rephistory--><div id="sec-rephistory" style="max-width:1400px;margin:16px auto;padding:0 16px">'
                '<div data-rep-board="%s"></div></div><!--/rephistory-->\n' % ident)
-        s = s[:a] + blk + s[a:]
+        atl = ('<!--atlas--><div id="sec-atlas" style="max-width:1400px;margin:16px auto;padding:0 16px">'
+               '<h2 style="font-family:\'DM Sans\',sans-serif;font-weight:800;color:#0d1b4b;font-size:1.25rem;margin:0 0 8px">The district in numbers</h2>'
+               '<iframe id="atlasFrame" src="/atlas/?embed=1&amp;cb=%s" title="Census Atlas: %s" loading="lazy" '
+               'style="width:100%%;height:1150px;border:1px solid #e5e2db;border-radius:12px;background:#f8f7f4;display:block"></iframe>'
+               '<script>window.addEventListener("message",function(e){if(e.data&&e.data.atlasH){var f=document.getElementById("atlasFrame");if(f&&e.source===f.contentWindow)f.style.height=(e.data.atlasH+4)+"px";}});</script>'
+               '</div><!--/atlas-->\n') % (ident, ident)
+        s = s[:a] + atl + blk + s[a:]
     s = add_script(s, '/assets/rep-history.js?v=' + V)
     s = re.sub(r'/assets/profile-map\.js\?v=[0-9a-z]+', '/assets/profile-map.js?v=' + V, s)
     open(f, 'w', encoding='utf-8').write(s)
