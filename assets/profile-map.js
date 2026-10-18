@@ -12,7 +12,8 @@
     senate: { label: 'Senate districts', folder: 'senate', color: '#0f766e', count: 28 },
     congress: { label: 'Congressional districts', folder: 'congress', color: '#b45309', count: 13 },
     cb: { label: 'Community boards', folder: 'cb', color: '#be185d', count: 0, codes: ["101", "102", "103", "104", "105", "106", "107", "108", "109", "110", "111", "112", "201", "202", "203", "204", "205", "206", "207", "208", "209", "210", "211", "212", "301", "302", "303", "304", "305", "306", "307", "308", "309", "310", "311", "312", "313", "314", "315", "316", "317", "318", "401", "402", "403", "404", "405", "406", "407", "408", "409", "410", "411", "412", "413", "414", "501", "502", "503"] },
-    borough: { label: 'Borough', folder: 'borough', color: '#0d1b4b', count: 1 }
+    borough: { label: 'Borough', folder: 'borough', color: '#0d1b4b', count: 1 },
+    city: { label: 'New York City', folder: 'city', color: '#0d1b4b', count: 0 }
   };
   // the chambers offered as overlays on any district page
   var OVERLAPS = ['council', 'assembly', 'senate', 'congress', 'cb'];
@@ -307,7 +308,7 @@
       // neighborhoods, the district and the borough, so the map reads at a glance
       var dl = bidSlug ? '' : chamber === 'council' ? 'Council District ' + district : chamber === 'assembly' ? 'Assembly District ' + district
         : chamber === 'senate' ? 'Senate District ' + district : chamber === 'congress' ? 'NY-' + district : chamber === 'cb' ? (district.length === 3 ? ({ '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island' })[district.charAt(0)] + ' CB' + parseInt(district.slice(1), 10) : 'Brooklyn CB' + district) : chamber === 'borough' ? '' : '';
-      withLabels(function (ML) { ML.add(map, { bounds: homeBounds, district: dl, boroughs: chamber === 'borough' ? ['Brooklyn'] : undefined }); });
+      withLabels(function (ML) { ML.add(map, { bounds: homeBounds, district: dl, boroughs: chamber === 'borough' ? [({ '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island', 'brooklyn': 'Brooklyn' })[district] || 'Brooklyn'] : chamber === 'city' ? ['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'] : undefined }); });
       // a BID is a small shape in a small frame, so it can sit tighter
       if (withCb6) viewHome();
       else if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
@@ -563,6 +564,141 @@
       };
     })();
 
+    // ---- the rest of the BKCB6 map's layers, citywide, drawn for what is in view ----
+    function bboxOf(g) { var b = [180, 90, -180, -90]; (function w(c) { if (typeof c[0] === 'number') { if (c[0] < b[0]) b[0] = c[0]; if (c[1] < b[1]) b[1] = c[1]; if (c[0] > b[2]) b[2] = c[0]; if (c[1] > b[3]) b[3] = c[1]; } else c.forEach(w); })(g.coordinates || []); return b; }
+    function featsIn(fs, b) { return (fs || []).filter(function (f) { if (!f || !f.geometry) return false; if (!f._bb) f._bb = bboxOf(f.geometry); return !(f._bb[2] < b.getWest() || f._bb[0] > b.getEast() || f._bb[3] < b.getSouth() || f._bb[1] > b.getNorth()); }); }
+    function ico(url, w, h) { return L.icon({ iconUrl: url, iconSize: [w, h || w], iconAnchor: [w / 2, (h || w) / 2], className: 'pmap-ico' }); }
+    function escT(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]; }); }
+    var TRANSPORT = null;
+    function transportData() {
+      if (!TRANSPORT) TRANSPORT = Promise.all(['brooklyn', 'manhattan', 'queens', 'bronx', 'statenisland'].map(function (b) {
+        return getJSON('/transport-data/' + b + '.json').catch(function () { return null; });
+      }));
+      return TRANSPORT;
+    }
+    function viewLayer(o) {
+      var group = L.layerGroup(), data = null;
+      function draw() {
+        group.clearLayers();
+        if (o.minZoom && map.getZoom() < o.minZoom) { say('Zoom in to see ' + o.label + '.'); return; }
+        o.draw(group, data, map.getBounds().pad(0.2));
+      }
+      return {
+        group: group,
+        load: function () {
+          if (data) { draw(); return Promise.resolve(); }
+          say('Loading ' + o.label + '…');
+          return Promise.resolve(o.fetch()).then(function (d) { data = d; say(''); draw(); })
+            .catch(function () { say(o.label.charAt(0).toUpperCase() + o.label.slice(1) + ' did not load.'); });
+        },
+        refresh: function () { if (data) draw(); }
+      };
+    }
+    function speedColor(v) {
+      v = String(v || '').replace(/[^0-9]/g, '');
+      return { '10': '#166534', '15': '#dc2626', '20': '#2ecc71', '25': '#3498db', '30': '#f1c40f', '35': '#f97316', '40': '#e67e22', '45': '#e74c3c', '50': '#8e44ad' }[v] || '#9ca3af';
+    }
+    layers.busroutes = viewLayer({ label: 'bus routes', fetch: transportData, draw: function (g, all, b) {
+      all.forEach(function (t) { if (!t || !t.bus) return; featsIn(t.bus.features, b).forEach(function (f) {
+        var p = f.properties || {};
+        L.geoJSON(f, { style: { color: p.display_color || '#2563eb', weight: 3, opacity: 0.85 } })
+          .bindTooltip('<b>' + escT(p.route_short_name || p.route_id || 'Bus') + '</b> ' + escT(p.route_long_name || ''), { sticky: true }).addTo(g);
+      }); });
+    } });
+    layers.busstops = viewLayer({ label: 'bus stops', minZoom: 15, fetch: transportData, draw: function (g, all, b) {
+      all.forEach(function (t) { if (!t || !t.busstops) return; featsIn(t.busstops.features, b).forEach(function (f) {
+        var p = f.properties || {}, c = f.geometry.coordinates;
+        L.circleMarker([c[1], c[0]], { radius: 4, color: '#fff', weight: 1.5, fillColor: '#2563eb', fillOpacity: 1 })
+          .bindTooltip('<b>' + escT((p.routes || []).join(', ')) + '</b> ' + escT(p.stop_name || ''), { sticky: true }).addTo(g);
+      }); });
+    } });
+    layers.citibike = viewLayer({ label: 'Citi Bike stations', minZoom: 14, fetch: function () { return getJSON('/data/citibike_station_information.json'); }, draw: function (g, d, b) {
+      (((d || {}).data || {}).stations || []).forEach(function (s) {
+        if (!b.contains([s.lat, s.lon])) return;
+        L.marker([s.lat, s.lon], { icon: ico('/assets/map-icons/citibike.png', 18) }).bindTooltip(escT(s.name) + (s.capacity ? ' &middot; ' + s.capacity + ' docks' : ''), { sticky: true }).addTo(g);
+      });
+    } });
+    layers.speed = viewLayer({ label: 'speed limits', minZoom: 14, fetch: transportData, draw: function (g, all, b) {
+      all.forEach(function (t) { if (!t || !t.speed) return; featsIn(t.speed.features, b).forEach(function (f) {
+        var p = f.properties || {}, v = p.postvz_sl || p.sl;
+        L.geoJSON(f, { style: { color: speedColor(v), weight: 3, opacity: 0.9 } })
+          .bindTooltip(escT(p.street || '') + ' &middot; ' + (v ? escT(v) + ' MPH' : 'No posted limit in DOT data'), { sticky: true }).addTo(g);
+      }); });
+    } });
+    layers.parks = viewLayer({ label: 'parks', fetch: function () { return getJSON('/data/parks-citywide.geojson'); }, draw: function (g, d, b) {
+      featsIn(d.features, b).forEach(function (f) {
+        var p = f.properties || {};
+        L.geoJSON(f, { style: { color: '#15803d', weight: 1, fillColor: '#22c55e', fillOpacity: 0.32 } })
+          .bindTooltip('<b>' + escT(p.n || 'Park') + '</b>' + (p.t ? '<br>' + escT(p.t) : '') + (p.ac ? ' &middot; ' + escT(p.ac) + ' acres' : ''), { sticky: true }).addTo(g);
+      });
+    } });
+    var SCHOOLLOGOS = null;
+    function schoolIcon(name, type) {
+      var L0 = SCHOOLLOGOS || { exact: {}, patterns: [] }, n = String(name || ''), k = n.toLowerCase();
+      if (L0.exact[k]) return L0.exact[k];
+      for (var i = 0; i < L0.patterns.length; i++) if (new RegExp(L0.patterns[i][0], 'i').test(n)) return L0.patterns[i][1];
+      if (/- PUBLIC|SPECIAL EDUCATION|DISABILITIES/.test(type || '')) return L0.public;
+      return null;
+    }
+    layers.schools = viewLayer({ label: 'schools', minZoom: 13, fetch: function () {
+      return Promise.all([getJSON('/data/nyc-facdb-schools.json'), getJSON('/assets/profile-school-logos.json').catch(function () { return null; })])
+        .then(function (r) { SCHOOLLOGOS = r[1]; return r[0]; });
+    }, draw: function (g, d, b) {
+      d.rows.forEach(function (r) {
+        if (!b.contains([r[3], r[4]])) return;
+        var u = schoolIcon(r[0], r[1]);
+        var m = u ? L.marker([r[3], r[4]], { icon: ico(u, 26) }) : L.circleMarker([r[3], r[4]], { radius: 5, color: '#fff', weight: 1.5, fillColor: '#7c3aed', fillOpacity: 1 });
+        m.bindTooltip('<b>' + escT(r[0]) + '</b><br>' + escT(r[1].toLowerCase()) + (r[2] ? '<br>' + escT(r[2]) : ''), { sticky: true }).addTo(g);
+      });
+    } });
+    layers.childcare = viewLayer({ label: 'child care and pre-K', minZoom: 14, fetch: function () { return getJSON('/data/nyc-facdb-childcare.json'); }, draw: function (g, d, b) {
+      d.rows.forEach(function (r) {
+        if (!b.contains([r[3], r[4]])) return;
+        L.marker([r[3], r[4]], { icon: ico('/assets/map-icons/childcare-nyc.png', 20) })
+          .bindTooltip('<b>' + escT(r[0]) + '</b><br>' + escT(r[1].toLowerCase()) + (r[2] ? '<br>' + escT(r[2]) : ''), { sticky: true }).addTo(g);
+      });
+    } });
+    layers.libraries = viewLayer({ label: 'libraries', fetch: function () { return getJSON('/data/nyc_libraries.geojson'); }, draw: function (g, d, b) {
+      (d.features || []).forEach(function (f) {
+        var p = f.properties || {}, lat = p.latitude, lng = p.longitude;
+        if (!isFinite(lat) || !isFinite(lng) || !b.contains([lat, lng])) return;
+        L.marker([lat, lng], { icon: ico(p.system === 'BPL' ? '/assets/map-icons/library-bpl.png' : '/assets/map-icons/libraries.png', 24) })
+          .bindTooltip('<b>' + escT(p.name) + '</b><br>' + escT(p.system_name || '') + (p.address ? '<br>' + escT(p.address) : ''), { sticky: true }).addTo(g);
+      });
+    } });
+    layers.schooldistricts = viewLayer({ label: 'school districts', fetch: function () {
+      return Promise.all(['manhattan', 'bronx', 'brooklyn', 'queens', 'statenisland'].map(function (b) { return getJSON('/data/school-districts-' + b + '.geojson').catch(function () { return null; }); }));
+    }, draw: function (g, all, b) {
+      all.forEach(function (d) { if (!d) return; featsIn(d.features, b).forEach(function (f) {
+        var n = (f.properties || {}).schooldist;
+        L.geoJSON(f, { style: { color: '#7c3aed', weight: 2.2, dashArray: '6 4', fillColor: '#7c3aed', fillOpacity: 0.05 } })
+          .bindTooltip('Community School District ' + escT(n), { sticky: true }).addTo(g);
+      }); });
+    } });
+    layers.nypd = viewLayer({ label: 'NYPD precincts', fetch: function () { return getJSON('/data/police-precincts-lite.geojson'); }, draw: function (g, d, b) {
+      featsIn(d.features, b).forEach(function (f) {
+        var n = (f.properties || {}).precinct;
+        var lyr = L.geoJSON(f, { style: { color: '#1e3a8a', weight: 2, fillColor: '#1e3a8a', fillOpacity: 0.05 } })
+          .bindTooltip('NYPD ' + escT(n) + ' Precinct', { sticky: true }).addTo(g);
+        if (map.getZoom() >= 12) {
+          try { L.marker(lyr.getBounds().getCenter(), { icon: ico('/assets/precinct-logos/' + n + '.jpg', 30), interactive: false }).addTo(g); } catch (e) {}
+        }
+      });
+    } });
+    layers.fire = viewLayer({ label: 'fire battalions', fetch: function () { return getJSON('/data/fire_battalions.geojson'); }, draw: function (g, d, b) {
+      featsIn(d.features, b).forEach(function (f) {
+        L.geoJSON(f, { style: { color: '#b91c1c', weight: 2, fillColor: '#b91c1c', fillOpacity: 0.05 } })
+          .bindTooltip('FDNY Battalion ' + escT((f.properties || {}).fire_bn), { sticky: true }).addTo(g);
+      });
+    } });
+    layers.rents = viewLayer({ label: 'rents', fetch: function () { return getJSON('/data/citywide-rents.geojson'); }, draw: function (g, d, b) {
+      featsIn(d.features, b).forEach(function (f) {
+        var p = f.properties || {};
+        L.geoJSON(f, { style: { color: '#ffffff', weight: 1, fillColor: p.city_fill_all || p.fill_color || '#999', fillOpacity: 0.55 } })
+          .bindTooltip('<b>' + escT(p.cb_code) + '</b><br>' + escT(p['All Units'] || '') + (p.neighborhoods ? '<br>' + escT(p.neighborhoods) : ''), { sticky: true }).addTo(g);
+      });
+    } });
+
     // ---- legend, shown only while a layer that needs one is on ----
     var legend = null;
     function legendHtml() {
@@ -652,11 +788,23 @@
         togBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
       });
     }
-    addToggle('zoning', 'Zoning');
+    addToggle('transport', 'Subway and bike lanes');
+    addToggle('busroutes', 'Bus routes');
+    addToggle('busstops', 'Bus stops');
+    addToggle('citibike', 'Citi Bike');
+    addToggle('speed', 'Speed limits');
     addToggle('landuse', 'Land use');
+    addToggle('zoning', 'Zoning');
+    addToggle('parks', 'Parks');
+    addToggle('schools', 'Schools');
+    addToggle('childcare', 'Child care and pre-K');
+    addToggle('libraries', 'Libraries');
+    addToggle('schooldistricts', 'School districts');
     addToggle('landmarks', 'Landmarks');
+    addToggle('nypd', 'NYPD precincts');
+    addToggle('fire', 'Fire battalions');
     addToggle('bids', 'Business improvement districts');
-    addToggle('transport', 'Transportation');
+    addToggle('rents', 'Rents');
 
     // ---- address search and pin drop ----
     var form = el.parentNode.querySelector('[data-map-search]') || el.parentNode.querySelector('.msearch');
