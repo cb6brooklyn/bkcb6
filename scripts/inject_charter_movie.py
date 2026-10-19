@@ -1,7 +1,7 @@
 """Put the charter org chart movie (assets/charter-movie.js) under the NYC org chart header:
 govhub.html loads the script; the app copy (app/data/civic/orgchart/orgchart.html) gets the script and the officeholder data inline so it works offline."""
 import json, re
-V = '20261018b'
+V = '20261018c'
 A, B = '<!--chartermovie-->', '<!--/chartermovie-->'
 ANCHOR = re.compile(r'(<h2>🏛️ How NYC Government Is Organized</h2>.*?<p>Tap any section to expand\. Tap an agency to see what it does\.</p>\s*</div>)', re.S)
 def put(path, block):
