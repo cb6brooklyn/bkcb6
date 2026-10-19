@@ -120,7 +120,7 @@
     css();
     var O = {}; AL.offices.forEach(function (o) { O[o.key] = o; });
     var max = toIdx(today()), evIdx = EVENTS.map(function (e) { return toIdx(e[0]); });
-    el.innerHTML = '<div class="cm"><div class="cm-top"><div class="cm-h"><span class="cm-t">The charter org chart through time</span><span class="cm-date"></span></div>' +
+    el.innerHTML = '<div class="cm"><div class="cm-top"><div class="cm-h"><span class="cm-t">' + esc(el.getAttribute('data-cm-title') || 'The charter org chart through time') + '</span><span class="cm-date"></span></div>' +
       '<div class="cm-ctl"><button class="cm-play">▶ Play</button><button class="g cm-prev">⏮ Prev change</button><button class="g cm-next">Next change ⏭</button>' +
       '<select class="cm-spd" aria-label="Speed"><option value="6">Slow</option><option value="18" selected>Normal</option><option value="60">Fast</option></select>' +
       '<input type="date" class="cm-in" min="1898-01-01" aria-label="Date"><button class="g cm-now">Today</button></div>' +

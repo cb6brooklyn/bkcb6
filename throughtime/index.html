@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NYC Government on Any Date &middot; bkcb6.app</title>
+<title>Any Address, Any Date &middot; bkcb6.app</title>
 <meta name="description" content="Pick any day since January 1, 1898 and see who held every office from President and Governor to Mayor and Borough President, how the city charter was organized, and the district maps.">
 <link rel="canonical" href="https://bkcb6.app/throughtime/">
 <meta property="og:site_name" content="CB6 &amp; Beyond"><meta property="og:type" content="website">
@@ -49,32 +49,55 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 .leaflet-tooltip.dl{background:transparent;border:0;box-shadow:none;font:700 .66rem 'DM Mono',monospace;color:#0d1b4b;text-shadow:0 0 3px #fff,0 0 3px #fff}
 .leaflet-tooltip.dl:before,.leaflet-tooltip.bl:before{display:none}
 .app #asb,.app header,.app .homebar{display:none}
-@media(max-width:600px){#map{height:420px}}
+.srch{position:relative;display:flex;gap:6px;margin:12px 0 8px}
+.srch input{flex:1;min-width:0;font:600 .9rem 'DM Sans',sans-serif;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;color:var(--navy);background:#fff}
+.srch input:focus{outline:none;border-color:var(--orange)}
+.srch button{font:800 .82rem 'DM Sans',sans-serif;border:0;border-radius:10px;padding:0 14px;background:var(--orange);color:#fff;cursor:pointer}
+.sugg{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:10px;margin-top:4px;z-index:2000;box-shadow:0 8px 24px rgba(13,27,75,.15);display:none;overflow:hidden}
+.sugg div{padding:9px 12px;font-size:.84rem;cursor:pointer;border-bottom:1px solid #f0ede8}.sugg div:hover,.sugg div.on{background:#fff7f0}
+.tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between;margin:0 0 6px}
+.base{display:flex;gap:4px}.base button{font:700 .74rem 'DM Sans',sans-serif;border:1.5px solid var(--border);background:#fff;color:var(--navy);border-radius:8px;padding:5px 10px;cursor:pointer}.base button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+#map{height:62vh;min-height:380px}
+.hint{font-size:.76rem;color:var(--muted);margin:6px 2px 0}
+#pin{display:none;background:#fff;border:2px solid var(--navy);border-radius:12px;margin:10px 0 14px;overflow:hidden}
+#pin .ph{background:var(--navy);color:#fff;padding:10px 14px;display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
+#pin .ph b{font-size:.98rem}#pin .ph span{font:500 .72rem 'DM Mono',monospace;color:#f9b27a}
+#pin .ph a{color:#fff;font-size:.74rem}
+.pr{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px;padding:8px 14px;border-bottom:1px solid #f0ede7;font-size:.84rem;align-items:baseline}
+.pr:last-child{border-bottom:0}.pr .k{font:700 .62rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.pr .v b{color:var(--navy)}.pr .v small{color:var(--muted);font-size:.72rem}.pr .v .gap{color:#92400e}
+.pr .v a{color:var(--navy)}
+.alt{margin:2px 0;font-size:.8rem}.alt.later{opacity:.55}
+.pinicon{background:var(--orange);width:18px;height:18px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+@media(max-width:600px){#map{height:56vh}.pr{grid-template-columns:1fr;gap:2px}}
 </style>
 </head>
 <body>
 <script>if(/[?&]app=1/.test(location.search))document.body.classList.add('app');</script>
 <a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40"></a>
-<header><div class="hdr-text"><h1>NYC Government <span>on Any Date</span></h1><p>1898 to today</p></div></header>
+<header><div class="hdr-text"><h1>Any Address, <span>Any Date</span></h1><p>Who represented it, the lines and the street map, 1898 to today</p></div></header>
 <div class="homebar"><a href="/govhub.html#sec-city-org">&#8592; Government org chart</a></div>
 <div id="bar"></div>
 <div class="wrap">
-  <p class="intro">Pick any day since Greater New York was consolidated on January 1, 1898, or press Play. Everything below changes with the date. Each section opens and closes.</p>
+  <div class="srch"><input id="q" type="search" placeholder="Address, BBL, or &ldquo;Brooklyn block 393&rdquo;" autocomplete="off" aria-label="Search an address or block"><button id="qGo" type="button">Find</button><div class="sugg" id="sugg"></div></div>
+  <div class="tools">
+    <div class="lyr" id="lyr" style="margin:0"><button data-k="bp" class="on">Boroughs</button><button data-k="cb">Community Districts</button><button data-k="council">City Council</button><button data-k="senate">State Senate</button><button data-k="assembly">Assembly</button><button data-k="congress">Congress</button></div>
+    <div class="base" id="base"><button data-b="street" class="on">Street map</button><button data-b="aerial">Aerial for this date</button></div>
+  </div>
+  <label id="cbOn" style="display:none;font-size:.78rem;margin:0 0 6px;align-items:center;gap:6px"><input type="checkbox" id="cbLines"> Show community district lines</label>
+  <div id="map"></div><div id="mapNote" class="mapnote"></div>
+  <p class="hint">Search or tap the map to drop a pin. Change the date above, or press Play, and everything here follows it back to 1898.</p>
+  <div id="pin"></div>
 
-  <details class="fold" open id="fOffices"><summary><span>Who held each office <small id="offDate"></small></span></summary><div class="fb" id="offices"></div></details>
-
-  <details class="fold" open id="fMap"><summary><span>Map <small id="mapDate"></small></span></summary><div class="fb">
-    <div class="lyr" id="lyr"><button data-k="bp" class="on">Borough Presidents</button><button data-k="cb">Community Boards</button><button data-k="council">City Council</button><button data-k="senate">State Senate</button><button data-k="assembly">Assembly</button><button data-k="congress">Congress</button></div>
-    <label id="cbOn" style="display:none;font-size:.78rem;margin:0 0 8px;align-items:center;gap:6px"><input type="checkbox" id="cbLines"> Show community board lines</label><div id="map"></div><div id="mapNote" class="mapnote"></div>
-  </div></details>
+  <details class="fold" id="fOffices"><summary><span>Every office on this date <small id="offDate"></small></span></summary><div class="fb" id="offices"></div></details>
 
   <details class="fold" id="fChart"><summary><span>The charter org chart <small>Board of Estimate, the Council&rsquo;s seats, who presided</small></span></summary>
-    <div data-charter-movie data-cm-bar="#bar" data-cm-start="today"></div>
+    <div data-charter-movie data-cm-bar="#bar" data-cm-start="today" data-cm-title="Pick a date, or press Play"></div>
   </details>
 
   <p class="note">Officeholders: each person&rsquo;s Wikipedia article (<a href="/electionhistory/">election history by community board</a>, where you can also see who represented one board on a date). District lines and members: NYC Department of City Planning district files and the election results used on the election history page; they start with the 2000 to 2003 elections. Borough and community district lines: NYC Department of City Planning. Community boards: <a href="https://www.nyc.gov/site/communityboards/about/history.page">NYC Community Boards history</a>; the 62 districts of 1968: City Planning Commission, <a href="https://archive.org/details/communityplannin00newy_0"><i>Community Planning Districts: Boundaries and Procedures for Modification</i></a> (March 1968), drawn here street by street on 2020 census blocks; City Planning Commission minutes, June 7, 1967 (hearing on Community Planning District boundaries); Marci Reaven, <i>Citizen Participation in City Planning: New York City, 1945-1975</i> (NYU dissertation, 2009), pp. 301-302 (1968 boundaries).</p>
 </div>
-<script src="/assets/charter-movie.js?v=20261018c"></script>
+<script src="/assets/charter-movie.js?v=20261018d"></script>
 <script>
 (function(){
   var BORO=[['1','Manhattan'],['2','The Bronx'],['3','Brooklyn'],['4','Queens'],['5','Staten Island']];
@@ -137,18 +160,19 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   var NAME={council:'City Council',senate:'State Senate',assembly:'Assembly',congress:'Congress'};
   function lab(k,d){return k==='congress'?'NY-'+d:({council:'CD',assembly:'AD',senate:'SD'})[k]+' '+d;}
   function rowFor(o,dt){var y=+dt.slice(0,4),r=null;o.rows.forEach(function(x){var p=x.served.split(/[–-]/);if(+p[0]<=y&&y<=+p[1])r=x;});return r;}
-  function members(r,d,dt){return ((r.members||{})[String(d)]||[]).filter(function(m){return m.from<=dt&&dt<=(m.to||'9999');}).map(function(m){return m.name;});}
+  function members(r,d,dt){var ms=(r.members||{})[String(d)]||[];
+    if(ms.length&&!ms[0].from){var sp=ms.filter(function(m){return m.type==='special'&&m.elected<=dt;}).pop();if(sp)return [sp.name];return ms.filter(function(m){return m.type!=='special';}).map(function(m){return m.name;});}
+    return ms.filter(function(m){return m.from<=dt&&dt<=(m.to||'9999');}).map(function(m){return m.name;});}
   function setLabels(){var z=map.getZoom();labels.forEach(function(l){var on=lk==='bp'||z>=12;if(on&&!map.hasLayer(l))l.addTo(map);if(!on&&map.hasLayer(l))map.removeLayer(l);});}
   map.on('zoomend',setLabels);
   function clear(){if(layer)map.removeLayer(layer);labels.forEach(function(l){map.removeLayer(l);});labels=[];layer=null;}
   function drawMap(dt){
     var note=document.getElementById('mapNote');
-    document.getElementById('mapDate').textContent=nice(dt);
     if(lk==='bp'){
       document.getElementById('cbOn').style.display='flex';
       var key='bp|'+BORO.map(function(b){var x=pick(O.bp.holders[b[0]],dt);return x?x.name:'';}).join('|')+'|'+(dt<'1975-01-01');
       if(key===curKey)return;curKey=key;clear();
-      layer=L.geoJSON(BG,{style:function(f){return{color:'#fff',weight:2,fillColor:PAL[+f.properties.borocode%PAL.length],fillOpacity:.28};},
+      layer=L.geoJSON(BG,{style:function(f){return{color:'#fff',weight:2,fillColor:PAL[+f.properties.borocode%PAL.length],fillOpacity:FO(.28)};},
         onEachFeature:function(f,l){var b=f.properties.borocode,x=pick(O.bp.holders[b],dt);
           var t=L.tooltip({permanent:true,direction:'center',className:'bl',interactive:false}).setLatLng(l.getBounds().getCenter()).setContent(esc(boroName(b,dt))+'<small>'+esc(x?x.name:'Vacant')+'</small>');labels.push(t);}}).addTo(map);
       setLabels();
@@ -167,7 +191,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
       note.className='mapnote';
       note.innerHTML=st===2?'The 62 Community Planning Districts adopted by the City Planning Commission on March 1, 1968, drawn from the boundary streets in its report (<a href="'+SRC68+'" target="_blank" rel="noopener">Community Planning Districts: Boundaries and Procedures for Modification</a>). Parks, cemeteries and other Joint Interest Areas belonged to no single district. Tap a district for its 1968 boundaries.':'The 59 community boards, established in 1975 by the Charter Revision Commission. Tap a district for its board profile. Board numbers show as you zoom in.';
       if(curKey===k2)return;curKey=k2;clear();
-      layer=L.geoJSON(src,{style:function(f){return{color:'#f47920',weight:1.6,fillColor:PAL[+f.properties.c[0]%PAL.length],fillOpacity:.2};},
+      layer=L.geoJSON(src,{style:function(f){return{color:'#f47920',weight:1.6,fillColor:PAL[+f.properties.c[0]%PAL.length],fillOpacity:FO(.2)};},
         onEachFeature:function(f,l){var c=f.properties.c,n=+c.slice(1),nm=(st===2&&c[0]==='5'?'RI':BA[c[0]])+' '+n;
           if(st===2)l.bindPopup('<strong>'+(c[0]==='5'?'Richmond':c[0]==='2'?'Bronx':BORO[+c[0]-1][1])+' Community Planning District '+n+' (1968)</strong>'+(f.properties.text?'<br><span style="font-size:.78rem;white-space:pre-line">'+esc(f.properties.text)+'</span>':''));
           else l.bindPopup('<strong>'+(c[0]==='2'?'Bronx':BORO[+c[0]-1][1])+' Community Board '+n+'</strong><br><a href="/cb-'+BC[c[0]]+'-'+n+'.html">Board profile &rarr;</a>');
@@ -187,7 +211,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     if(key===curKey)return;curKey=key;
     var go=function(fc){
       if(curKey!==key)return;clear();
-      layer=L.geoJSON(fc,{style:function(f){return{color:'#0d1b4b',weight:1.2,fillColor:PAL[f.properties.d%PAL.length],fillOpacity:.22};},
+      layer=L.geoJSON(fc,{style:function(f){return{color:'#0d1b4b',weight:1.2,fillColor:PAL[f.properties.d%PAL.length],fillOpacity:FO(.22)};},
         onEachFeature:function(f,l){var ms=members(r,f.properties.d,dt);
           l.bindTooltip('<strong>'+esc(lab(lk,f.properties.d))+'</strong><br>'+(ms.length?esc(ms.join(', ')):'No member on record for this date'),{sticky:true});
           labels.push(L.tooltip({permanent:true,direction:'center',className:'dl',interactive:false}).setLatLng(l.getBounds().getCenter()).setContent(esc(lab(lk,f.properties.d))));}}).addTo(map);
@@ -204,15 +228,126 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     if(want&&!cbOver){cbOverSt=st;cbOver=L.geoJSON(st===2?CD68:CD,{interactive:false,style:{color:'#f47920',weight:2.2,fill:false,dashArray:'5 4'}});}
     if(cbOver){if(want&&!map.hasLayer(cbOver))cbOver.addTo(map);if(!want&&map.hasLayer(cbOver))map.removeLayer(cbOver);if(want)cbOver.bringToFront();}}
   document.getElementById('cbLines').onchange=overlay;
-  function update(d){dt=d;offices(d);drawMap(d);overlay();var u=new URL(location.href);u.searchParams.set('on',d);history.replaceState(null,'',u);}
+
+  // ---- basemap: today's street map, or the city's aerial photo closest to (not after) the date ----
+  function FO(x){return baseMode==='aerial'?x/4:x;}
+  var AER=[[1924,'Ortho_1924_Mosaic'],[1951,'NYC_Orthos_1951'],[1996,'Ortho_1996_Mosaic'],[2001,'NYC_Orthos_2001_2'],[2004,'NYC_Ortho_2004'],[2006,'NYC_Orthos_2006'],[2008,'NYC_Orthos_2008'],[2010,'NYC_Orthos_2010'],[2012,'NYC_Orthos_2012'],[2014,'NYC_Orthos_2014'],[2016,'NYC_Orthos_2016'],[2018,'NYC_Orthos_2018'],[2020,'NYC_Orthos_-_2020'],[2022,'NYC_Orthos_2022'],[2024,'NYC_Orthos_2024']];
+  var street=map.eachLayer?null:null,baseMode='street',aerLayer=null,aerYear=null;
+  map.eachLayer(function(l){if(l instanceof L.TileLayer)street=l;});
+  function aerFor(dt){var y=+dt.slice(0,4),a=AER[0];AER.forEach(function(x){if(x[0]<=y)a=x;});return a;}
+  function setBase(){
+    if(baseMode==='street'){if(aerLayer){map.removeLayer(aerLayer);aerLayer=null;aerYear=null;}if(!map.hasLayer(street))street.addTo(map);return;}
+    var a=aerFor(dt);if(aerYear===a[0])return;
+    var nl=L.tileLayer('https://tiles.arcgis.com/tiles/yG5s3afENB5iO9fj/arcgis/rest/services/'+a[1]+'/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,maxNativeZoom:19,attribution:'Aerial '+a[0]+': NYC Office of Technology and Innovation'}).addTo(map);
+    nl.bringToBack();if(aerLayer)map.removeLayer(aerLayer);aerLayer=nl;aerYear=a[0];if(map.hasLayer(street))map.removeLayer(street);
+  }
+  [].forEach.call(document.querySelectorAll('#base button'),function(b){b.onclick=function(){[].forEach.call(document.querySelectorAll('#base button'),function(x){x.classList.toggle('on',x===b);});baseMode=b.dataset.b;setBase();curKey=null;drawMap(dt);if(pin)pinCard();};});
+
+  // ---- the pin ----
+  var pin=null,pinM=null,pinAddr=null,pinCache={},pinTok=0;
+  var CARTO='https://planninglabs.carto.com/api/v2/sql?q=',GS='https://geosearch.planninglabs.nyc/v2/';
+  function inRing(x,y,r){var c=false;for(var i=0,k=r.length-1;i<r.length;k=i++){var a=r[i],b=r[k];if(((a[1]>y)!==(b[1]>y))&&(x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]))c=!c;}return c;}
+  function inGeom(x,y,g){if(!g)return false;var ps=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];return ps.some(function(p){if(!inRing(x,y,p[0]))return false;for(var i=1;i<p.length;i++)if(inRing(x,y,p[i]))return false;return true;});}
+  function hit(fc,ll){var f=null;(fc.features||[]).some(function(x){if(inGeom(ll[1],ll[0],x.geometry)){f=x;return true;}});return f;}
+  function geoFor(r){return GEO[r.geo]?Promise.resolve(GEO[r.geo]):j('/data/districthistory/'+r.geo).then(function(t){GEO[r.geo]=topojson.feature(t,t.objects[Object.keys(t.objects)[0]]);return GEO[r.geo];});}
+  function sql(q){return fetch(CARTO+encodeURIComponent(q)).then(function(r){return r.json();}).then(function(d){return d.rows||[];});}
+  function placeInfo(ll){
+    var k=ll[0].toFixed(6)+','+ll[1].toFixed(6);if(pinCache[k])return pinCache[k];
+    var pt='ST_SetSRID(ST_MakePoint('+ll[1]+','+ll[0]+'),4326)';
+    pinCache[k]=Promise.all([
+      sql("SELECT altmappdf, to_char(effect_dt,'YYYY-MM-DD') d, status FROM dcp_dcm_city_map_alterations WHERE (effect_dt IS NOT NULL OR status='13') AND ST_Intersects(the_geom,"+pt+") ORDER BY effect_dt").catch(function(){return null;}),
+      sql("SELECT do_path, to_char(last_date,'YYYY-MM-DD') d FROM dcp_final_section_map_index WHERE ST_Intersects(the_geom,"+pt+")").catch(function(){return null;}),
+      sql("SELECT bbl, address FROM dcp_mappluto WHERE ST_Intersects(the_geom,"+pt+") LIMIT 1").catch(function(){return null;}),
+      pinAddr?Promise.resolve(pinAddr):fetch(GS+'reverse?point.lat='+ll[0]+'&point.lon='+ll[1]+'&size=1').then(function(r){return r.json();}).then(function(d){var f=d.features&&d.features[0];return f?f.properties.label:null;}).catch(function(){return null;})
+    ]);
+    return pinCache[k];
+  }
+  function row(k,v){return '<div class="pr"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>';}
+  function dropPin(ll,addr,zoom){
+    pin=ll;pinAddr=addr||null;
+    if(!pinM){pinM=L.marker(ll,{icon:L.divIcon({className:'',html:'<div class="pinicon"></div>',iconSize:[18,18],iconAnchor:[9,18]}),draggable:true,zIndexOffset:1000}).addTo(map);pinM.on('dragend',function(){var p=pinM.getLatLng();dropPin([p.lat,p.lng]);});}
+    else pinM.setLatLng(ll);
+    if(zoom)map.setView(ll,Math.max(map.getZoom(),15));
+    var u=new URL(location.href);u.searchParams.set('ll',ll[0].toFixed(5)+','+ll[1].toFixed(5));history.replaceState(null,'',u);
+    pinCard();
+  }
+  map.on('click',function(e){dropPin([e.latlng.lat,e.latlng.lng]);});
+  function pinCard(){
+    if(!pin||!AL)return;var ll=pin,d=dt,tok=++pinTok,box=document.getElementById('pin');box.style.display='block';
+    var bf=hit(BG,ll),b=bf?String(bf.properties.borocode):null;
+    var offs=OV.offices.map(function(o){var r=rowFor(o,d);return r?geoFor(r).then(function(fc){var f=hit(fc,ll);return {o:o,r:r,d:f?f.properties.d:null};}):Promise.resolve({o:o,r:null});});
+    var cdP=cbStage(d)===2?(CD68?Promise.resolve(CD68):j('/data/cd1968.geojson').then(function(x){CD68=x;return x;})):Promise.resolve(CD);
+    Promise.all([Promise.all(offs),cdP,placeInfo(ll)]).then(function(a){
+      if(tok!==pinTok)return;
+      var ds=a[0],info=a[2],alts=info[0],fs=info[1],lot=info[2],addr=info[3];
+      var h='<div class="ph"><b>'+esc(addr||(lot&&lot[0]&&lot[0].address)||(ll[0].toFixed(5)+', '+ll[1].toFixed(5)))+'</b><span>'+esc(nice(d))+'</span></div>';
+      if(!b){box.innerHTML=h+row('Place','This spot is outside the five boroughs’ land. Tap on land.');return;}
+      h+=row('Borough',esc(boroName(b,d))+(function(){var x=pick(O.bp.holders[b],d);return '<br><small>Borough President</small> <b>'+(x?esc(x.name):'Vacant')+'</b>'+(x?' <small>'+esc(since(x))+'</small>':'');})());
+      // community district
+      var st=cbStage(d),cv;
+      if(st>=2){var f=hit(a[1],ll);
+        if(!f)cv='<span class="gap">'+(st===2?'Not in a 1968 district: this spot is in a Joint Interest Area (a park, cemetery or similar) the 1968 map shared between districts.':'Not in a community district: a park, airport or other joint interest area.')+'</span>';
+        else{var c=f.properties.c,n=+c.slice(1);cv=st===2?'<b>'+(c[0]==='5'?'Richmond':boroName(c[0],d))+' Community Planning District '+n+'</b> <small>(map of March 1, 1968)</small>'+(f.properties.text?'<br><small style="white-space:pre-line">'+esc(f.properties.text)+'</small>':''):'<b><a href="/cb-'+BC[c[0]]+'-'+n+'.html">'+esc(boroName(c[0],d))+' Community Board '+n+'</a></b>';}
+      } else cv='<span class="gap">'+(st===1?'Before the first official map (March 1, 1968). Interim boards then: '+esc(interim(d).join('; '))+'.':'No community boards yet; the first were Manhattan’s, in 1951.')+'</span>';
+      h+=row('Community district',cv);
+      // district seats
+      var NM={council:'City Council',senate:'State Senate',assembly:'State Assembly',congress:'Congress'};
+      ds.forEach(function(x){
+        var v;
+        if(!x.r)v='<span class="gap">District lines and members here start with the '+esc(x.o.rows[0].served)+' term.</span>';
+        else if(x.d==null)v='<span class="gap">No district found at this spot.</span>';
+        else{var ms=members(x.r,x.d,d);v='<b>'+esc(lab(x.o.key,x.d))+'</b> '+(ms.length?esc(ms.join(', ')):'<small>no member on record for this date</small>')+' <small>('+esc(x.r.served)+' lines)</small>';}
+        h+=row(NM[x.o.key]||x.o.label,v);
+      });
+      var al=O.atlarge;
+      if(al.eras.some(function(e){return e[0]<=d&&d<=e[1];})){var hs=(al.holders[b]||[]).filter(function(x){return x.from<=d&&d<=(x.to||'9999');});
+        h+=row('Council, borough-wide',(hs.length?hs.map(function(x){return '<b>'+esc(x.name)+'</b>';}).join(', '):'<small>none on record</small>')+'<br><small>Only members whose own Wikipedia article gives their term; incomplete.</small>');}
+      h+=row('Citywide','<small>Mayor</small> <b>'+esc((pick(O.mayor.holders,d)||{}).name||'Vacant')+'</b> &middot; <small>'+esc(labelOn(O.pa,d))+'</small> <b>'+esc((pick(O.pa.holders,d)||{}).name||'Vacant')+'</b> &middot; <small>Comptroller</small> <b>'+esc((pick(O.comptroller.holders,d)||{}).name||'Vacant')+'</b><br><small><a href="#fOffices" onclick="document.getElementById(\'fOffices\').open=true">Every office on this date &darr;</a></small>');
+      // street map history
+      var sv='';
+      if(alts===null)sv='<small>Could not reach the City Map service.</small>';
+      else{
+        sv=alts.length?alts.map(function(x){var later=x.d&&x.d>d;return '<div class="alt'+(later?' later':'')+'">'+(x.d?esc(nice(x.d)):'Pending')+' &middot; <a href="https://nycdcp-dcm-alteration-maps.nyc3.digitaloceanspaces.com/'+encodeURIComponent(x.altmappdf)+'" target="_blank" rel="noopener">alteration map</a>'+(later?' <small>(after this date)</small>':'')+'</div>';}).join(''):'<small>No City Map alteration on record at this spot.</small>';
+        if(fs&&fs[0])sv+='<div class="alt"><a href="'+esc(fs[0].do_path)+'" target="_blank" rel="noopener">Final section map</a> <small>(last updated '+esc(nice(fs[0].d))+')</small></div>';
+        sv+='<div class="alt"><a href="https://streets.planning.nyc.gov/about?zoom=17&lat='+ll[0].toFixed(6)+'&lng='+ll[1].toFixed(6)+'" target="_blank" rel="noopener">Open NYC Street Map</a></div>';
+      }
+      h+=row('Street map history',sv);
+      if(lot&&lot[0])h+=row('Tax lot today','<b>'+esc(lot[0].address||'')+'</b> <small>BBL '+esc(String(Math.round(lot[0].bbl)))+'</small>');
+      if(baseMode==='aerial')h+=row('Photo','Aerial photograph from '+aerYear+(+d.slice(0,4)<1924?' (the earliest the city has)':'')+'.');
+      box.innerHTML=h;
+    });
+  }
+
+  // ---- search: address (NYC GeoSearch), BBL, or borough + block ----
+  var qi=document.getElementById('q'),sg=document.getElementById('sugg'),sgT=null,sgList=[];
+  var BN={manhattan:1,mn:1,'new york':1,bronx:2,bx:2,'the bronx':2,brooklyn:3,bk:3,kings:3,queens:4,qn:4,'staten island':5,si:5,richmond:5};
+  function lotGo(where,label){sql('SELECT bbl,address,ST_Y(ST_Centroid(the_geom)) y,ST_X(ST_Centroid(the_geom)) x FROM dcp_mappluto WHERE '+where+' ORDER BY bbl LIMIT 1').then(function(r){if(r[0])dropPin([r[0].y,r[0].x],label||r[0].address,true);else alert('No tax lot found.');});}
+  function go(){
+    var t=qi.value.trim();sg.style.display='none';if(!t)return;
+    var m=/^(\d)\D?(\d{5})\D?(\d{4})$/.exec(t);
+    if(m)return lotGo('bbl='+(+(m[1]+m[2]+m[3])));
+    m=/^(manhattan|mn|new york|the bronx|bronx|bx|brooklyn|bk|kings|queens|qn|staten island|si|richmond)\s*,?\s*block\s*(\d+)(?:\s*,?\s*lot\s*(\d+))?$/i.exec(t);
+    if(m){var bc=BN[m[1].toLowerCase()];return lotGo('borocode='+bc+' AND block='+(+m[2])+(m[3]?' AND lot='+(+m[3]):''),(m[1]+' block '+m[2]+(m[3]?' lot '+m[3]:'')));}
+    var pick1=sgList[0];if(pick1)return choose(pick1);
+    fetch(GS+'search?text='+encodeURIComponent(t)+'&size=1').then(function(r){return r.json();}).then(function(d){var f=d.features&&d.features[0];if(f)choose(f);else alert('No match.');});
+  }
+  function choose(f){sg.style.display='none';qi.value=f.properties.label;dropPin([f.geometry.coordinates[1],f.geometry.coordinates[0]],f.properties.label,true);}
+  qi.addEventListener('input',function(){clearTimeout(sgT);var t=qi.value.trim();sgList=[];if(t.length<3||/block|^\d{10}$/i.test(t)){sg.style.display='none';return;}
+    sgT=setTimeout(function(){fetch(GS+'autocomplete?text='+encodeURIComponent(t)).then(function(r){return r.json();}).then(function(d){sgList=(d.features||[]).slice(0,6);sg.innerHTML=sgList.map(function(f,i){return '<div data-i="'+i+'">'+esc(f.properties.label)+'</div>';}).join('');sg.style.display=sgList.length?'block':'none';[].forEach.call(sg.children,function(el){el.onclick=function(){choose(sgList[+el.dataset.i]);};});});},200);});
+  qi.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();go();}});
+  document.getElementById('qGo').onclick=go;
+  document.addEventListener('click',function(e){if(!e.target.closest('.srch'))sg.style.display='none';});
+
+  function update(d){dt=d;offices(d);drawMap(d);overlay();setBase();pinCard();var u=new URL(location.href);u.searchParams.set('on',d);history.replaceState(null,'',u);}
   Promise.all([j('/data/districthistory/at-large.json'),j('/data/districthistory/overlap.json'),j('/data/atlas/boroughs.geojson'),j('/data/cd-boundaries-lite.geojson')]).then(function(a){
     AL=a[0];OV=a[1];BG=a[2];CD={type:'FeatureCollection',features:a[3].features.filter(function(f){return +f.properties.c.slice(1)<=18;})};AL.offices.forEach(function(o){O[o.key]=o;});
     map.fitBounds(L.geoJSON(BG).getBounds(),{padding:[10,10]});
     window.CHARTER_AL=AL;
     mv.addEventListener('cmdate',function(e){update(e.detail);});
     if(mv.cmDate)update(mv.cmDate);
+    var mll=/[?&]ll=(-?[\d.]+),(-?[\d.]+)/.exec(location.search);if(mll)dropPin([+mll[1],+mll[2]],null,true);
   });
-  document.getElementById('fMap').addEventListener('toggle',function(){if(this.open)setTimeout(function(){map.invalidateSize();},50);});
+  
 })();
 </script>
 </body></html>
