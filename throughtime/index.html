@@ -95,7 +95,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     <div data-charter-movie data-cm-bar="#bar" data-cm-start="today" data-cm-title="Pick a date, or press Play"></div>
   </details>
 
-  <p class="note">Officeholders: each person&rsquo;s Wikipedia article (<a href="/electionhistory/">election history by community board</a>, where you can also see who represented one board on a date). District lines and members: NYC Department of City Planning district files and the election results used on the election history page; they start with the 2000 to 2003 elections. Borough and community district lines: NYC Department of City Planning. Congress before 2001: district lines from Jeffrey B. Lewis et al., <a href="https://cdmaps.polisci.ucla.edu/">Digital Boundary Definitions of United States Congressional Districts, 1789-2012</a> (UCLA), New York districts clipped to the five boroughs; members and their term dates from <a href="https://github.com/unitedstates/congress-legislators">@unitedstates/congress-legislators</a>. Community boards: <a href="https://www.nyc.gov/site/communityboards/about/history.page">NYC Community Boards history</a>; the 62 districts of 1968: City Planning Commission, <a href="https://archive.org/details/communityplannin00newy_0"><i>Community Planning Districts: Boundaries and Procedures for Modification</i></a> (March 1968), drawn here street by street on 2020 census blocks; City Planning Commission minutes, June 7, 1967 (hearing on Community Planning District boundaries); Marci Reaven, <i>Citizen Participation in City Planning: New York City, 1945-1975</i> (NYU dissertation, 2009), pp. 301-302 (1968 boundaries).</p>
+  <p class="note">Officeholders: each person&rsquo;s Wikipedia article (<a href="/electionhistory/">election history by community board</a>, where you can also see who represented one board on a date). District lines and members: NYC Department of City Planning district files and the election results used on the election history page; they start with the 2000 to 2003 elections. Borough and community district lines: NYC Department of City Planning. County lines by date: Newberry Library, <a href="https://publications.newberry.org/ahcb/ny/">Atlas of Historical County Boundaries: New York</a> (Kathryn Ford Thorne, comp.; John H. Long, ed.; CC BY-NC-SA). Congress before 2001: district lines from Jeffrey B. Lewis et al., <a href="https://cdmaps.polisci.ucla.edu/">Digital Boundary Definitions of United States Congressional Districts, 1789-2012</a> (UCLA), New York districts clipped to the five boroughs; members and their term dates from <a href="https://github.com/unitedstates/congress-legislators">@unitedstates/congress-legislators</a>. Community boards: <a href="https://www.nyc.gov/site/communityboards/about/history.page">NYC Community Boards history</a>; the 62 districts of 1968: City Planning Commission, <a href="https://archive.org/details/communityplannin00newy_0"><i>Community Planning Districts: Boundaries and Procedures for Modification</i></a> (March 1968), drawn here street by street on 2020 census blocks; City Planning Commission minutes, June 7, 1967 (hearing on Community Planning District boundaries); Marci Reaven, <i>Citizen Participation in City Planning: New York City, 1945-1975</i> (NYU dissertation, 2009), pp. 301-302 (1968 boundaries).</p>
 </div>
 <script src="/assets/charter-movie.js?v=20261018d"></script>
 <script>
@@ -161,6 +161,8 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   var NAME={council:'City Council',senate:'State Senate',assembly:'Assembly',congress:'Congress'};
 
   // ---- Congress before 2001: UCLA district maps (Lewis et al.) clipped to the city, members from @unitedstates/congress-legislators ----
+  var CTY=null;
+  function ctyOn(d){return CTY?CTY.features.filter(function(f){return f.properties.from<=d&&(!f.properties.to||d<=f.properties.to);}):[];}
   var CH=null;
   function chLoad(){return CH?Promise.resolve(CH):j('/data/districthistory/congress-history.json').then(function(x){CH=x;return x;});}
   function congOf(d){if(d<'1897-03-04')return null;var y=+d.slice(0,4);
@@ -183,13 +185,16 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     var note=document.getElementById('mapNote');
     if(lk==='bp'){
       document.getElementById('cbOn').style.display='flex';
-      var key='bp|'+BORO.map(function(b){var x=pick(O.bp.holders[b[0]],dt);return x?x.name:'';}).join('|')+'|'+(dt<'1975-01-01');
+      var cs=ctyOn(dt);
+      var key='bp|'+BORO.map(function(b){var x=pick(O.bp.holders[b[0]],dt);return x?x.name:'';}).join('|')+'|'+(dt<'1975-01-01')+'|'+cs.map(function(f){return f.properties.name+f.properties.from;}).join(',');
       if(key===curKey)return;curKey=key;clear();
       layer=L.geoJSON(BG,{style:function(f){return{color:'#fff',weight:2,fillColor:PAL[+f.properties.borocode%PAL.length],fillOpacity:FO(.28)};},
         onEachFeature:function(f,l){var b=f.properties.borocode,x=pick(O.bp.holders[b],dt);
           var t=L.tooltip({permanent:true,direction:'center',className:'bl',interactive:false}).setLatLng(l.getBounds().getCenter()).setContent(esc(boroName(b,dt))+'<small>'+esc(x?x.name:'Vacant')+'</small>');labels.push(t);}}).addTo(map);
+      if(cs.length){var cl=L.geoJSON({type:'FeatureCollection',features:cs},{interactive:false,style:{color:'#0d1b4b',weight:2.4,dashArray:'7 5',fill:false}});layer=L.featureGroup([layer,cl]).addTo(map);
+        cs.forEach(function(f){var c=L.geoJSON(f).getBounds().getCenter();if(f.properties.name==='Queens'&&f.properties.to&&f.properties.to<'1899-01-01')c=L.latLng(40.75,-73.62);labels.push(L.tooltip({permanent:true,direction:'center',className:'dl',interactive:false,offset:[0,26]}).setLatLng(c).setContent(esc(f.properties.name)+' County'));});}
       setLabels();
-      note.className='mapnote';note.textContent='Borough Presidents on '+nice(dt)+'. The five offices were created January 1, 1898.';
+      note.className='mapnote';note.innerHTML='Borough Presidents on '+esc(nice(dt))+' (the five offices were created January 1, 1898). Dashed lines: the county boundaries in effect on that date'+(dt<'1912-04-19'?'; the Bronx was still part of New York County':'')+(dt<'1899-01-01'?'; Queens County still took in what became Nassau County':'')+' (<a href="https://publications.newberry.org/ahcb/ny/" target="_blank" rel="noopener">Atlas of Historical County Boundaries</a>).';
       return;
     }
     if(lk==='cb'){
@@ -307,6 +312,8 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
       var ds=a[0],info=a[2],alts=info[0],fs=info[1],lot=info[2],addr=info[3];
       var h='<div class="ph"><b>'+esc(addr||(lot&&lot[0]&&lot[0].address)||(ll[0].toFixed(5)+', '+ll[1].toFixed(5)))+'</b><span>'+esc(nice(d))+'</span></div>';
       if(!b){box.innerHTML=h+row('Place','This spot is outside the five boroughs’ land. Tap on land.');return;}
+      var cf=ctyOn(d).filter(function(f){return inGeom(ll[1],ll[0],f.geometry);})[0];
+      if(cf)h+=row('County','<b>'+esc(cf.properties.name)+' County</b>'+(cf.properties.name==='New York'&&b==='2'?' <small>(the Bronx was part of New York County until Bronx County was created; law of April 19, 1912)</small>':'')+'<br><small>Boundary in effect since '+esc(nice(cf.properties.from))+': '+esc(cf.properties.change)+' '+esc(cf.properties.cite)+'</small>');
       h+=row('Borough',esc(boroName(b,d))+(function(){var x=pick(O.bp.holders[b],d);return '<br><small>Borough President</small> <b>'+(x?esc(x.name):'Vacant')+'</b>'+(x?' <small>'+esc(since(x))+'</small>':'');})());
       // community district
       var st=cbStage(d),cv;
@@ -369,7 +376,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   document.addEventListener('click',function(e){if(!e.target.closest('.srch'))sg.style.display='none';});
 
   function update(d){dt=d;offices(d);drawMap(d);overlay();setBase();pinCard();var u=new URL(location.href);u.searchParams.set('on',d);history.replaceState(null,'',u);}
-  Promise.all([j('/data/districthistory/at-large.json'),j('/data/districthistory/overlap.json'),j('/data/atlas/boroughs.geojson'),j('/data/cd-boundaries-lite.geojson')]).then(function(a){
+  Promise.all([j('/data/districthistory/at-large.json'),j('/data/districthistory/overlap.json'),j('/data/atlas/boroughs.geojson'),j('/data/cd-boundaries-lite.geojson'),j('/data/counties-history.geojson').catch(function(){return null;})]).then(function(a){CTY=a[4];
     AL=a[0];OV=a[1];BG=a[2];CD={type:'FeatureCollection',features:a[3].features.filter(function(f){return +f.properties.c.slice(1)<=18;})};AL.offices.forEach(function(o){O[o.key]=o;});
     map.fitBounds(L.geoJSON(BG).getBounds(),{padding:[10,10]});
     window.CHARTER_AL=AL;
