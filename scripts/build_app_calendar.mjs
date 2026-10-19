@@ -222,8 +222,22 @@ if (!types['new-york-city-council']) types['new-york-city-council'] = { name: 'N
 if (!types['community-event']) types['community-event'] = { name: 'Community event' };
 if (!types['public-hearing']) types['public-hearing'] = { name: 'Public hearing' };
 
+// One event, one card: an event posted under several organizations (calendar.html marks the extra copies _alt, and
+// the site collapses them the same way) is written once, under its first organization, with the others in also.
+function condense(rows) {
+  const seen = new Map(), kept = [];
+  for (const r of rows) {
+    const key = [r.d, norm(r.l), r.t || '', r.cd || ''].join('|');
+    const first = seen.get(key);
+    if (!first) { seen.set(key, r); kept.push(r); continue; }
+    if (r.ty !== first.ty && r.org && !(first.also || []).some(a => a.ty === r.ty)) (first.also ||= []).push({ ty: r.ty, org: r.org });
+    if (!first.f && r.f) first.f = r.f;
+    if (!first.desc && r.desc) first.desc = r.desc;
+  }
+  return kept;
+}
 const order = (a, b) => (a.d + (a.g === 'cb6' ? '0' : '1')).localeCompare(b.d + (b.g === 'cb6' ? '0' : '1'));
-const bk = [...out, ...civic].sort(order);
+const bk = condense([...out, ...civic]).sort(order);
 
 // ---------- citywide file: the same CB6, Council and hearing events, plus every community board ----------
 const cityTypes = { ...oldCity.types };
@@ -256,7 +270,7 @@ for (const e of oldCity.events || []) {
   if (bkBoardsHaveData && String(e.cd || '').startsWith('3')) continue;
   boards.push(e);
 }
-const city = [...bk, ...boards, ...elsewhere].sort(order);
+const city = condense([...bk, ...boards, ...elsewhere]).sort(order);
 
 // ---------- write only when something changed ----------
 const write = (rel, obj) => {
