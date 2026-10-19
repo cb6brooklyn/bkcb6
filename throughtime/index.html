@@ -95,7 +95,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     <div data-charter-movie data-cm-bar="#bar" data-cm-start="today" data-cm-title="Pick a date, or press Play"></div>
   </details>
 
-  <p class="note">Officeholders: each person&rsquo;s Wikipedia article (<a href="/electionhistory/">election history by community board</a>, where you can also see who represented one board on a date). District lines and members: NYC Department of City Planning district files and the election results used on the election history page; they start with the 2000 to 2003 elections. Borough and community district lines: NYC Department of City Planning. Community boards: <a href="https://www.nyc.gov/site/communityboards/about/history.page">NYC Community Boards history</a>; the 62 districts of 1968: City Planning Commission, <a href="https://archive.org/details/communityplannin00newy_0"><i>Community Planning Districts: Boundaries and Procedures for Modification</i></a> (March 1968), drawn here street by street on 2020 census blocks; City Planning Commission minutes, June 7, 1967 (hearing on Community Planning District boundaries); Marci Reaven, <i>Citizen Participation in City Planning: New York City, 1945-1975</i> (NYU dissertation, 2009), pp. 301-302 (1968 boundaries).</p>
+  <p class="note">Officeholders: each person&rsquo;s Wikipedia article (<a href="/electionhistory/">election history by community board</a>, where you can also see who represented one board on a date). District lines and members: NYC Department of City Planning district files and the election results used on the election history page; they start with the 2000 to 2003 elections. Borough and community district lines: NYC Department of City Planning. Congress before 2001: district lines from Jeffrey B. Lewis et al., <a href="https://cdmaps.polisci.ucla.edu/">Digital Boundary Definitions of United States Congressional Districts, 1789-2012</a> (UCLA), New York districts clipped to the five boroughs; members and their term dates from <a href="https://github.com/unitedstates/congress-legislators">@unitedstates/congress-legislators</a>. Community boards: <a href="https://www.nyc.gov/site/communityboards/about/history.page">NYC Community Boards history</a>; the 62 districts of 1968: City Planning Commission, <a href="https://archive.org/details/communityplannin00newy_0"><i>Community Planning Districts: Boundaries and Procedures for Modification</i></a> (March 1968), drawn here street by street on 2020 census blocks; City Planning Commission minutes, June 7, 1967 (hearing on Community Planning District boundaries); Marci Reaven, <i>Citizen Participation in City Planning: New York City, 1945-1975</i> (NYU dissertation, 2009), pp. 301-302 (1968 boundaries).</p>
 </div>
 <script src="/assets/charter-movie.js?v=20261018d"></script>
 <script>
@@ -116,6 +116,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   // boards before the 1968 map: City Planning Commission, Community Planning Districts (March 1968), Historic Perspective
   function interim(dt){var b=['Manhattan: 12 Community Planning Councils (1951)'];if(dt>='1963-01-01')b.push('the Bronx: 14 boards (1963)','Brooklyn: 7 boards (1963)');if(dt>='1966-01-01')b.push('Queens: 13 boards (1966)','Richmond: 4 boards (1966)');return b;}
   var mv=document.querySelector('[data-charter-movie]');
+  var LL0=(function(){var v=new URLSearchParams(location.search).get('ll');var m=v&&/^(-?[\d.]+),(-?[\d.]+)$/.exec(v);return m?[+m[1],+m[2]]:null;})();
 
   // ---- every office on the date ----
   function card(key,cls,office,x,dt,note){
@@ -158,6 +159,18 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   var layer=null,lk='bp',GEO={},curKey=null,labels=[];
   var PAL=['#0d7490','#f47920','#6b21a8','#15803d','#b91c1c','#1d4ed8','#a16207','#be185d'];
   var NAME={council:'City Council',senate:'State Senate',assembly:'Assembly',congress:'Congress'};
+
+  // ---- Congress before 2001: UCLA district maps (Lewis et al.) clipped to the city, members from @unitedstates/congress-legislators ----
+  var CH=null;
+  function chLoad(){return CH?Promise.resolve(CH):j('/data/districthistory/congress-history.json').then(function(x){CH=x;return x;});}
+  function congOf(d){if(d<'1897-03-04')return null;var y=+d.slice(0,4);
+    if(d<'1933-03-04'){var n=Math.floor((y-1789)/2)+1;if((y-1789)%2===0&&d<y+'-03-04')n--;return {n:n,from:(1789+2*(n-1))+'-03-04',to:(1789+2*n)+'-03-03'};}
+    if(d<'1935-01-03')return {n:73,from:'1933-03-04',to:'1935-01-03'};
+    var n2=Math.floor((y-1935)/2)+74;if((y-1935)%2===0&&d<y+'-01-03')n2--;return {n:n2,from:(1935+2*(n2-74))+'-01-03',to:(1937+2*(n2-74))+'-01-03'};}
+  function ord(n){var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+  function chFor(d){var c=congOf(d);if(!c||!CH)return null;var m=null;CH.maps.forEach(function(x){if(x.from<=c.n&&c.n<=x.to)m=x;});return m?{c:c,map:m}:null;}
+  function chMembers(dist,c){return (CH.members[String(dist)]||[]).filter(function(t){return t.s<c.to&&t.e>c.from;});}
+  function chLine(t,d){var on=t.s<=d&&d<t.e;return (on?'<b>':'')+esc(t.n)+(on?'</b>':'')+' <small>('+esc(t.s.slice(0,4))+'\u2013'+esc(t.e.slice(0,4))+')</small>';}
   function lab(k,d){return k==='congress'?'NY-'+d:({council:'CD',assembly:'AD',senate:'SD'})[k]+' '+d;}
   function rowFor(o,dt){var y=+dt.slice(0,4),r=null;o.rows.forEach(function(x){var p=x.served.split(/[–-]/);if(+p[0]<=y&&y<=+p[1])r=x;});return r;}
   function members(r,d,dt){var ms=(r.members||{})[String(d)]||[];
@@ -200,6 +213,16 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     }
     document.getElementById('cbOn').style.display='flex';
     var o=OV.offices.filter(function(x){return x.key===lk;})[0],r=rowFor(o,dt);
+    if(!r&&lk==='congress'&&dt>='1897-03-04'){
+      if(!CH){chLoad().then(function(){curKey=null;drawMap(dt);});note.className='mapnote';note.textContent='Loading congressional districts\u2026';return;}
+      var hc=chFor(dt);
+      if(hc){var hk='ch|'+hc.map.from+'|'+hc.c.n;note.className='mapnote';note.innerHTML='Congressional districts of the '+ord(hc.c.n)+' Congress ('+esc(hc.c.from.slice(0,4))+'\u2013'+esc(hc.c.to.slice(0,4))+'), the lines in use from the '+ord(hc.map.from)+' to the '+ord(hc.map.to)+' Congress. Tap a district for its members. Lines: <a href="https://cdmaps.polisci.ucla.edu/" target="_blank" rel="noopener">UCLA congressional district shapefiles</a>.';
+        if(curKey===hk)return;curKey=hk;clear();var hcc=hc.c;
+        layer=L.geoJSON({type:'FeatureCollection',features:hc.map.features},{style:function(f){return{color:'#0d1b4b',weight:1.2,fillColor:PAL[f.properties.d%PAL.length],fillOpacity:FO(.22)};},
+          onEachFeature:function(f,l){var ms=chMembers(f.properties.d,hcc);l.bindTooltip('<strong>NY-'+f.properties.d+'</strong><br>'+(ms.length?ms.map(function(t){return chLine(t,dt);}).join('<br>'):'No member on record'),{sticky:true});
+            labels.push(L.tooltip({permanent:true,direction:'center',className:'dl',interactive:false}).setLatLng(l.getBounds().getCenter()).setContent('NY-'+f.properties.d));}}).addTo(map);
+        setLabels();overlay();return;}
+    }
     if(!r){
       if(curKey!=='none|'+lk){curKey='none|'+lk;clear();}
       var first=o.rows[0];
@@ -273,9 +296,11 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   }
   map.on('click',function(e){dropPin([e.latlng.lat,e.latlng.lng]);});
   function pinCard(){
-    if(!pin||!AL)return;var ll=pin,d=dt,tok=++pinTok,box=document.getElementById('pin');box.style.display='block';
+    if(!pin||!AL||!dt)return;var ll=pin,d=dt,tok=++pinTok,box=document.getElementById('pin');box.style.display='block';
     var bf=hit(BG,ll),b=bf?String(bf.properties.borocode):null;
-    var offs=OV.offices.map(function(o){var r=rowFor(o,d);return r?geoFor(r).then(function(fc){var f=hit(fc,ll);return {o:o,r:r,d:f?f.properties.d:null};}):Promise.resolve({o:o,r:null});});
+    var offs=OV.offices.map(function(o){var r=rowFor(o,d);
+      if(!r&&o.key==='congress'&&d>='1897-03-04')return chLoad().then(function(){var hc=chFor(d);if(!hc)return {o:o,r:null};var f=hit({features:hc.map.features},ll);return {o:o,r:null,hc:hc,d:f?f.properties.d:null};});
+      return r?geoFor(r).then(function(fc){var f=hit(fc,ll);return {o:o,r:r,d:f?f.properties.d:null};}):Promise.resolve({o:o,r:null});});
     var cdP=cbStage(d)===2?(CD68?Promise.resolve(CD68):j('/data/cd1968.geojson').then(function(x){CD68=x;return x;})):Promise.resolve(CD);
     Promise.all([Promise.all(offs),cdP,placeInfo(ll)]).then(function(a){
       if(tok!==pinTok)return;
@@ -294,7 +319,12 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
       var NM={council:'City Council',senate:'State Senate',assembly:'State Assembly',congress:'Congress'};
       ds.forEach(function(x){
         var v;
-        if(!x.r)v='<span class="gap">District lines and members here start with the '+esc(x.o.rows[0].served)+' term.</span>';
+        if(x.hc){var c=x.hc.c;
+          if(x.d==null)v='<span class="gap">No district found at this spot in the '+ord(c.n)+' Congress map.</span>';
+          else{var ms=chMembers(x.d,c);v='<b>NY-'+x.d+'</b> '+(ms.length?ms.map(function(t){return chLine(t,d);}).join(', '):'<small>no member on record</small>')+' <small>('+ord(c.n)+' Congress, '+esc(c.from.slice(0,4))+'\u2013'+esc(c.to.slice(0,4))+')</small>';}
+          var atl=chMembers(0,c);if(atl.length)v+='<br><small>Elected statewide (at large):</small> '+atl.map(function(t){return chLine(t,d);}).join(', ');
+        }
+        else if(!x.r)v='<span class="gap">District lines and members here start with the '+esc(x.o.rows[0].served)+' term.</span>';
         else if(x.d==null)v='<span class="gap">No district found at this spot.</span>';
         else{var ms=members(x.r,x.d,d);v='<b>'+esc(lab(x.o.key,x.d))+'</b> '+(ms.length?esc(ms.join(', ')):'<small>no member on record for this date</small>')+' <small>('+esc(x.r.served)+' lines)</small>';}
         h+=row(NM[x.o.key]||x.o.label,v);
@@ -345,7 +375,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     window.CHARTER_AL=AL;
     mv.addEventListener('cmdate',function(e){update(e.detail);});
     if(mv.cmDate)update(mv.cmDate);
-    var mll=/[?&]ll=(-?[\d.]+),(-?[\d.]+)/.exec(location.search);if(mll)dropPin([+mll[1],+mll[2]],null,true);
+    if(LL0)dropPin(LL0,null,true);
   });
   
 })();
