@@ -102,19 +102,36 @@ w = w[w.find('===Post-consolidation'):]
 cm = []
 for a, b, n in re.findall(r'\*\s*(\d{4})(?:[–-](\d{4}|present))?\s*\[\[(?:[^\]|]*\|)?([^\]]+)\]\]', w):
     cm.append({'name': n, 'from': a + '-01-01', 'to': None if b == 'present' else (b or a) + '-12-31', 'years': True})
+for x in cm:  # Charles W. Berry's article: he retired as Comptroller in September 1933 and George McAneny's says McAneny served briefly in 1933
+    if x['name'] == 'Charles W. Berry': x['to'] = '1933-09-01'; x['note'] = 'retired September 1933'
+    if x['name'] == 'George McAneny': x['from'] = '1933-09-01'
 offices.append({'key': 'comptroller', 'label': 'Comptroller', 'scope': 'city', 'holders': cm, 'src': SRC + 'New_York_City_Comptroller'})
+for x in sp:  # Peter Vallone Sr.'s article: the first Speaker, from 1990 (the Council's table starts him January 8, 1992)
+    if x['name'] == 'Peter Vallone Sr.': x['from'] = '1990-01-01'; x['years'] = True
 offices.append({'key': 'speaker', 'label': 'Council Speaker', 'scope': 'city', 'from': sp[0]['from'], 'holders': sp, 'src': SRC + 'New_York_City_Council#Presiding_officers_since_1898'})
 
 # ---- state ----
 g = [x for x in H(keep(table_list(wiki('List_of_governors_of_New_York'), '==Governors=='))) if not x['name'].isdigit()]
 for x in g:
     if x['name'] == 'Kathy Hochul': x['from'], x['to'] = '2021-08-24', None
+    if x['name'] == 'Thomas E. Dewey': x['to'] = '1954-12-31'  # the list row's second date is the lieutenant governor's; his article: January 1, 1943 to December 31, 1954
 offices.append({'key': 'governor', 'label': 'Governor', 'scope': 'state', 'holders': g, 'src': SRC + 'List_of_governors_of_New_York'})
-lg = [x for x in H(keep(table_list(wiki('List_of_lieutenant_governors_of_New_York')))) if x['to'] or x['name'] in ('Antonio Delgado',)]
-lg = [x for x in lg if x['name'] not in ('100px', 'Dean Skelos')]  # acting rows (a Senate leader acting as LG) are left out
-for x in lg:
-    if x['name'] == 'Kathy Hochul': x['from'], x['to'] = '2015-01-01', '2021-08-24'
-lg.append({'name': 'Antonio Delgado', 'from': '2022-05-25', 'to': None})
+# lieutenant governors: the list shades acting holders (a Senate leader acting during a vacancy) and gives ranges like "September 30 – November 18, 1953"
+MON = 'January|February|March|April|May|June|July|August|September|October|November|December'
+MI = {m: i + 1 for i, m in enumerate(MON.split('|'))}
+lg = []
+for t in tables(wiki('List_of_lieutenant_governors_of_New_York')):
+    for r in rows(t):
+        p = person(r)
+        mm = re.search(r'(%s)\s+(\d{1,2})(?:,\s*(\d{4}))?\s*[–-]\s*(?:(%s)\s+(\d{1,2}),\s*(\d{4})|(present|incumbent))' % (MON, MON), r, re.I)
+        if not p or not mm or p == '100px' and 'Delgado' not in r: continue
+        y2 = mm.group(6); y1 = mm.group(3) or y2
+        if not y1: continue
+        a = '%s-%02d-%02d' % (y1, MI[mm.group(1)], int(mm.group(2))); b = '%s-%02d-%02d' % (y2, MI[mm.group(4)], int(mm.group(5))) if y2 else None
+        if (b or '9999') < '1898': continue
+        x = {'name': 'Antonio Delgado' if p == '100px' else p, 'from': max(a, '1898-01-01'), 'to': b}
+        if '#E6E6AA' in r: x['note'] = 'acting'
+        lg.append(x)
 offices.append({'key': 'lg', 'label': 'Lieutenant Governor', 'scope': 'state', 'holders': lg, 'src': SRC + 'List_of_lieutenant_governors_of_New_York'})
 offices.append({'key': 'ag', 'label': 'Attorney General', 'scope': 'state', 'holders': H(keep(table_list(wiki('New_York_State_Attorney_General'), '===New York State (1777'))), 'src': SRC + 'Attorney_General_of_New_York'})
 offices.append({'key': 'statecomp', 'label': 'State Comptroller', 'scope': 'state', 'holders': H(keep(table_list(wiki('New_York_State_Comptroller'), '==New York state comptrollers=='))), 'src': SRC + 'New_York_State_Comptroller'})
