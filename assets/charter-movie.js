@@ -94,6 +94,8 @@
       '.cm-count{font-family:"DM Mono",monospace;font-size:1.6rem;font-weight:700;color:#0d7490;transition:color .3s}.cm-leg .how{font-size:.78rem;line-height:1.45}.cm-gap{font-size:.74rem;color:#92400e;margin-top:4px}' +
       '.cm-bylist{display:flex;flex-wrap:wrap;gap:10px;font-size:.72rem;color:#0d7490;margin-top:2px}' +
       '.cm-bps{margin-top:8px}.cm-bps .cm-c{border-left-color:#6b21a8}.cm-role{font-size:.74rem;color:#4b5563;margin-top:6px;line-height:1.45}' +
+      '.cm-fold>summary{cursor:pointer;font-weight:800;color:#0d1b4b;padding:10px 14px;font-size:.9rem;border-bottom:1px solid #e5e2db;background:#f8f7f4}' +
+      '.cm-bar{position:sticky;top:0;z-index:1000}.cm-bar .cm-top{border-radius:0 0 10px 10px;box-shadow:0 6px 18px rgba(13,27,75,.18)}' +
       '.cm-src{font-size:.7rem;color:#6b6b6b;padding:0 14px 12px}.cm-src a{color:#0d1b4b}' +
       '@media(max-width:620px){.cm-row{grid-template-columns:1fr}.cm-row5{grid-template-columns:repeat(2,minmax(0,1fr))}.cm-vote{grid-template-columns:minmax(0,1fr) 90px}}';
     document.head.appendChild(s);
@@ -110,8 +112,12 @@
       '<input type="range" class="cm-rng" min="0" max="' + max + '" step="1" aria-label="Date slider"><div class="cm-tl">' +
       evIdx.map(function (x, i) { return '<b data-i="' + i + '" style="left:' + (x / max * 100).toFixed(2) + '%" title="' + esc(nice(EVENTS[i][0]) + ': ' + EVENTS[i][1]) + '"></b>'; }).join('') +
       '</div><div class="cm-yrs"><span>1898</span><span>1938</span><span>1964</span><span>1990</span><span>' + today().slice(0, 4) + '</span></div></div>' +
-      '<div class="cm-ev"></div><div class="cm-b"></div><div class="cm-src"></div></div>';
-    var q = function (c) { return el.querySelector(c); };
+      (el.hasAttribute('data-cm-fold') ? '<details class="cm-fold" open><summary>The org chart on this date</summary>' : '') +
+      '<div class="cm-ev"></div><div class="cm-b"></div><div class="cm-src"></div>' + (el.hasAttribute('data-cm-fold') ? '</details>' : '') + '</div>';
+    var bar = el.getAttribute('data-cm-bar') && document.querySelector(el.getAttribute('data-cm-bar'));
+    var top = el.querySelector('.cm-top');
+    if (bar) { bar.classList.add('cm-bar'); bar.appendChild(top); }
+    var q = function (c) { return el.querySelector(c) || top.querySelector(c); };
     var rng = q('.cm-rng'), inp = q('.cm-in'), body = q('.cm-b'), ev = q('.cm-ev'), timer = null, lastEv = -1, prev = {};
     inp.max = today();
     // fixed skeleton so changes animate in place
@@ -173,10 +179,13 @@
       // the latest change
       var k = -1; EVENTS.forEach(function (e, i) { if (e[0] <= dt) k = i; });
       if (k !== lastEv) { ev.innerHTML = k < 0 ? '' : '<small>' + esc(nice(EVENTS[k][0])) + '</small>' + esc(EVENTS[k][1]); ev.classList.add('flash'); setTimeout(function () { ev.classList.remove('flash'); }, 500); lastEv = k; }
-      [].forEach.call(el.querySelectorAll('.cm-tl b'), function (b) { b.classList.toggle('on', +b.dataset.i === k); });
+      [].forEach.call(top.querySelectorAll('.cm-tl b'), function (b) { b.classList.toggle('on', +b.dataset.i === k); });
       q('.cm-src').innerHTML = 'Legislature sources: ' + E.src.map(function (s) { return '<a href="' + s[1] + '" target="_blank" rel="noopener">' + esc(s[0]) + '</a>'; }).join(', ') +
         '. Officeholders: each person’s Wikipedia article (<a href="/electionhistory/">Election history</a>).';
+      el.cmDate = dt;
+      try { el.dispatchEvent(new CustomEvent('cmdate', { detail: dt })); } catch (e) {}
     }
+    el.cmGo = function (dt) { stop(); render(dt > today() ? today() : dt < '1898-01-01' ? '1898-01-01' : dt); };
     function go(i) { i = Math.max(0, Math.min(max, i)); render(i === max ? today() : toDate(i)); }
     function stop() { if (timer) { clearInterval(timer); timer = null; } q('.cm-play').textContent = '▶ Play'; }
     function play() {
@@ -199,9 +208,10 @@
     q('.cm-now').onclick = function () { stop(); render(today()); };
     q('.cm-next').onclick = function () { stop(); var c = +rng.value, n = evIdx.filter(function (x) { return x > c; })[0]; if (n != null) render(EVENTS[evIdx.indexOf(n)][0]); };
     q('.cm-prev').onclick = function () { stop(); var c = +rng.value, p = evIdx.filter(function (x) { return x < c; }).pop(); if (p != null) render(EVENTS[evIdx.indexOf(p)][0]); };
-    [].forEach.call(el.querySelectorAll('.cm-tl b'), function (b) { b.onclick = function () { stop(); render(EVENTS[+b.dataset.i][0]); }; });
-    var m = /[?&#]date=(\d{4}-\d\d-\d\d)/.exec(location.href);
-    render(m ? m[1] : '1898-01-01');
+    [].forEach.call(top.querySelectorAll('.cm-tl b'), function (b) { b.onclick = function () { stop(); render(EVENTS[+b.dataset.i][0]); }; });
+    var m = /[?&#](?:date|on)=(\d{4}-\d\d-\d\d)/.exec(location.href);
+    var st = el.getAttribute('data-cm-start') === 'today' ? today() : '1898-01-01';
+    render(m ? (m[1] > today() ? today() : m[1] < '1898-01-01' ? '1898-01-01' : m[1]) : st);
   }
   function boot() {
     var els = document.querySelectorAll('[data-charter-movie]'); if (!els.length) return;
