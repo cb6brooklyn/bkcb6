@@ -72,7 +72,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     <div data-charter-movie data-cm-bar="#bar" data-cm-start="today"></div>
   </details>
 
-  <p class="note">Officeholders: each person&rsquo;s Wikipedia article (<a href="/electionhistory/">election history by community board</a>, where you can also see who represented one board on a date). District lines and members: NYC Department of City Planning district files and the election results used on the election history page; they start with the 2000 to 2003 elections. Borough and community district lines: NYC Department of City Planning. Community boards: <a href="https://www.nyc.gov/site/communityboards/about/history.page">NYC Community Boards history</a>; City Planning Commission minutes, June 7, 1967 (hearing on Community Planning District boundaries); Marci Reaven, <i>Citizen Participation in City Planning: New York City, 1945-1975</i> (NYU dissertation, 2009), pp. 301-302 (1968 boundaries).</p>
+  <p class="note">Officeholders: each person&rsquo;s Wikipedia article (<a href="/electionhistory/">election history by community board</a>, where you can also see who represented one board on a date). District lines and members: NYC Department of City Planning district files and the election results used on the election history page; they start with the 2000 to 2003 elections. Borough and community district lines: NYC Department of City Planning. Community boards: <a href="https://www.nyc.gov/site/communityboards/about/history.page">NYC Community Boards history</a>; the 62 districts of 1968: City Planning Commission, <a href="https://archive.org/details/communityplannin00newy_0"><i>Community Planning Districts: Boundaries and Procedures for Modification</i></a> (March 1968), drawn here street by street on 2020 census blocks; City Planning Commission minutes, June 7, 1967 (hearing on Community Planning District boundaries); Marci Reaven, <i>Citizen Participation in City Planning: New York City, 1945-1975</i> (NYU dissertation, 2009), pp. 301-302 (1968 boundaries).</p>
 </div>
 <script src="/assets/charter-movie.js?v=20261018b"></script>
 <script>
@@ -88,7 +88,10 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   function boroName(b,dt){return b==='5'&&dt<'1975-01-01'?'Richmond (Staten Island)':({'2':'The Bronx'}[b]||BORO[+b-1][1]);}
   var AL,OV,BG,CD,O={},prev={},dt=null,cbOver=null;
   var BC={'1':'mn','2':'bx','3':'bk','4':'qn','5':'si'},BA={'1':'MN','2':'BX','3':'BK','4':'QN','5':'SI'};
-  function cbStage(dt){return dt>='1975-01-01'?3:dt>='1963-01-01'?2:dt>='1951-01-01'?1:0;}
+  function cbStage(dt){return dt>='1975-01-01'?3:dt>='1968-03-01'?2:dt>='1951-01-01'?1:0;}
+  var CD68=null,SRC68='https://archive.org/details/communityplannin00newy_0';
+  // boards before the 1968 map: City Planning Commission, Community Planning Districts (March 1968), Historic Perspective
+  function interim(dt){var b=['Manhattan: 12 Community Planning Councils (1951)'];if(dt>='1963-01-01')b.push('the Bronx: 14 boards (1963)','Brooklyn: 7 boards (1963)');if(dt>='1966-01-01')b.push('Queens: 13 boards (1966)','Richmond: 4 boards (1966)');return b;}
   var mv=document.querySelector('[data-charter-movie]');
 
   // ---- every office on the date ----
@@ -155,14 +158,19 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     if(lk==='cb'){
       var st=cbStage(dt),k2='cb|'+st;
       document.getElementById('cbOn').style.display='none';
-      if(st<3){if(curKey!==k2){curKey=k2;clear();}
-        note.className='mapnote gap';note.textContent=st===2?'On '+nice(dt)+' the city had 62 Community Planning Boards, set up by the 1963 City Charter. The City Planning Commission held a citywide public hearing on the proposed boundaries of the Community Planning Districts on June 7, 1967 (Section 83 of the Charter) and designated the official boundaries in 1968 (\u201cCommunity Planning Districts: Boundaries and Procedures for Modification\u201d). Those 62 districts are not in this data; the map shows the 59 districts from 1975.':st===1?'On '+nice(dt)+' the only community boards were the Community Planning Councils the Manhattan Borough President set up in 1951. Their lines are not in this data. Citywide boards start in 1963; the 59 community boards in 1975.':'There were no community boards on '+nice(dt)+'. The first, Manhattan\u2019s Community Planning Councils, date from 1951.';
+      if(st<2){if(curKey!==k2){curKey=k2;clear();}
+        note.className='mapnote gap';
+        note.innerHTML=st===1?'On '+esc(nice(dt))+' there were only interim boards, named by the Borough Presidents before the city had an official district map: '+esc(interim(dt).join('; '))+'. Their lines are not in this data. After a citywide hearing on June 7, 1967, the City Planning Commission adopted the first official map, 62 Community Planning Districts, on March 1, 1968. (<a href="'+SRC68+'" target="_blank" rel="noopener">1968 report</a>)':'There were no community boards on '+esc(nice(dt))+'. The first, Manhattan’s 12 Community Planning Councils, were named in 1951.';
         return;}
-      note.className='mapnote';note.textContent='The 59 community boards, established in 1975 by the Charter Revision Commission. Tap a district for its board profile. Board numbers show as you zoom in.';
+      var src=st===2?CD68:CD;
+      if(st===2&&!CD68){note.className='mapnote';note.textContent='Loading the 1968 map…';j('/data/cd1968.geojson').then(function(d){CD68=d;curKey=null;drawMap(dt);});return;}
+      note.className='mapnote';
+      note.innerHTML=st===2?'The 62 Community Planning Districts adopted by the City Planning Commission on March 1, 1968, drawn from the boundary streets in its report (<a href="'+SRC68+'" target="_blank" rel="noopener">Community Planning Districts: Boundaries and Procedures for Modification</a>). Parks, cemeteries and other Joint Interest Areas belonged to no single district. Tap a district for its 1968 boundaries.':'The 59 community boards, established in 1975 by the Charter Revision Commission. Tap a district for its board profile. Board numbers show as you zoom in.';
       if(curKey===k2)return;curKey=k2;clear();
-      layer=L.geoJSON(CD,{style:function(f){return{color:'#f47920',weight:1.6,fillColor:PAL[+f.properties.c[0]%PAL.length],fillOpacity:.2};},
-        onEachFeature:function(f,l){var c=f.properties.c,nm=BA[c[0]]+' '+(+c.slice(1));
-          l.bindPopup('<strong>'+(c[0]==='2'?'Bronx':BORO[+c[0]-1][1])+' Community Board '+(+c.slice(1))+'</strong><br><a href="/cb-'+BC[c[0]]+'-'+(+c.slice(1))+'.html">Board profile &rarr;</a>');
+      layer=L.geoJSON(src,{style:function(f){return{color:'#f47920',weight:1.6,fillColor:PAL[+f.properties.c[0]%PAL.length],fillOpacity:.2};},
+        onEachFeature:function(f,l){var c=f.properties.c,n=+c.slice(1),nm=(st===2&&c[0]==='5'?'RI':BA[c[0]])+' '+n;
+          if(st===2)l.bindPopup('<strong>'+(c[0]==='5'?'Richmond':c[0]==='2'?'Bronx':BORO[+c[0]-1][1])+' Community Planning District '+n+' (1968)</strong>'+(f.properties.text?'<br><span style="font-size:.78rem;white-space:pre-line">'+esc(f.properties.text)+'</span>':''));
+          else l.bindPopup('<strong>'+(c[0]==='2'?'Bronx':BORO[+c[0]-1][1])+' Community Board '+n+'</strong><br><a href="/cb-'+BC[c[0]]+'-'+n+'.html">Board profile &rarr;</a>');
           labels.push(L.tooltip({permanent:true,direction:'center',className:'dl',interactive:false}).setLatLng(l.getBounds().getCenter()).setContent(esc(nm)));}}).addTo(map);
       setLabels();return;
     }
@@ -189,8 +197,11 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   }
   [].forEach.call(document.querySelectorAll('#lyr button'),function(b){b.onclick=function(){[].forEach.call(document.querySelectorAll('#lyr button'),function(x){x.classList.toggle('on',x===b);});lk=b.dataset.k;curKey=null;drawMap(dt);overlay();};});
 
-  function overlay(){var want=document.getElementById('cbLines').checked&&lk!=='cb'&&cbStage(dt)===3;
-    if(want&&!cbOver)cbOver=L.geoJSON(CD,{interactive:false,style:{color:'#f47920',weight:2.2,fill:false,dashArray:'5 4'}});
+  var cbOverSt=null;
+  function overlay(){var st=cbStage(dt),want=document.getElementById('cbLines').checked&&lk!=='cb'&&st>=2;
+    if(want&&st===2&&!CD68){j('/data/cd1968.geojson').then(function(d){CD68=d;overlay();});return;}
+    if(cbOver&&want&&cbOverSt!==st){map.removeLayer(cbOver);cbOver=null;}
+    if(want&&!cbOver){cbOverSt=st;cbOver=L.geoJSON(st===2?CD68:CD,{interactive:false,style:{color:'#f47920',weight:2.2,fill:false,dashArray:'5 4'}});}
     if(cbOver){if(want&&!map.hasLayer(cbOver))cbOver.addTo(map);if(!want&&map.hasLayer(cbOver))map.removeLayer(cbOver);if(want)cbOver.bringToFront();}}
   document.getElementById('cbLines').onchange=overlay;
   function update(d){dt=d;offices(d);drawMap(d);overlay();var u=new URL(location.href);u.searchParams.set('on',d);history.replaceState(null,'',u);}
