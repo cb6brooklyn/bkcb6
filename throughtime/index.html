@@ -64,15 +64,15 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   <details class="fold" open id="fOffices"><summary><span>Who held each office <small id="offDate"></small></span></summary><div class="fb" id="offices"></div></details>
 
   <details class="fold" open id="fMap"><summary><span>Map <small id="mapDate"></small></span></summary><div class="fb">
-    <div class="lyr" id="lyr"><button data-k="bp" class="on">Borough Presidents</button><button data-k="council">City Council</button><button data-k="senate">State Senate</button><button data-k="assembly">Assembly</button><button data-k="congress">Congress</button></div>
-    <div id="map"></div><div id="mapNote" class="mapnote"></div>
+    <div class="lyr" id="lyr"><button data-k="bp" class="on">Borough Presidents</button><button data-k="cb">Community Boards</button><button data-k="council">City Council</button><button data-k="senate">State Senate</button><button data-k="assembly">Assembly</button><button data-k="congress">Congress</button></div>
+    <label id="cbOn" style="display:none;font-size:.78rem;margin:0 0 8px;align-items:center;gap:6px"><input type="checkbox" id="cbLines"> Show community board lines</label><div id="map"></div><div id="mapNote" class="mapnote"></div>
   </div></details>
 
   <details class="fold" id="fChart"><summary><span>The charter org chart <small>Board of Estimate, the Council&rsquo;s seats, who presided</small></span></summary>
     <div data-charter-movie data-cm-bar="#bar" data-cm-start="today"></div>
   </details>
 
-  <p class="note">Officeholders: each person&rsquo;s Wikipedia article (<a href="/electionhistory/">election history by community board</a>, where you can also see who represented one board on a date). District lines and members: NYC Department of City Planning district files and the election results used on the election history page; they start with the 2000 to 2003 elections. Borough lines: NYC Department of City Planning.</p>
+  <p class="note">Officeholders: each person&rsquo;s Wikipedia article (<a href="/electionhistory/">election history by community board</a>, where you can also see who represented one board on a date). District lines and members: NYC Department of City Planning district files and the election results used on the election history page; they start with the 2000 to 2003 elections. Borough and community district lines: NYC Department of City Planning. Community boards: <a href="https://www.nyc.gov/site/communityboards/about/history.page">NYC Community Boards history</a>.</p>
 </div>
 <script src="/assets/charter-movie.js?v=20261018b"></script>
 <script>
@@ -86,7 +86,9 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   function labelOn(o,dt){var l=o.label;(o.labels||[]).forEach(function(x){if(x[0]<=dt)l=x[1];});return l;}
   function since(x){return x.years?'since '+x.from.slice(0,4):'since '+nice(x.from);}
   function boroName(b,dt){return b==='5'&&dt<'1975-01-01'?'Richmond (Staten Island)':({'2':'The Bronx'}[b]||BORO[+b-1][1]);}
-  var AL,OV,BG,O={},prev={},dt=null;
+  var AL,OV,BG,CD,O={},prev={},dt=null,cbOver=null;
+  var BC={'1':'mn','2':'bx','3':'bk','4':'qn','5':'si'},BA={'1':'MN','2':'BX','3':'BK','4':'QN','5':'SI'};
+  function cbStage(dt){return dt>='1975-01-01'?3:dt>='1963-01-01'?2:dt>='1951-01-01'?1:0;}
   var mv=document.querySelector('[data-charter-movie]');
 
   // ---- every office on the date ----
@@ -140,6 +142,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     var note=document.getElementById('mapNote');
     document.getElementById('mapDate').textContent=nice(dt);
     if(lk==='bp'){
+      document.getElementById('cbOn').style.display='flex';
       var key='bp|'+BORO.map(function(b){var x=pick(O.bp.holders[b[0]],dt);return x?x.name:'';}).join('|')+'|'+(dt<'1975-01-01');
       if(key===curKey)return;curKey=key;clear();
       layer=L.geoJSON(BG,{style:function(f){return{color:'#fff',weight:2,fillColor:PAL[+f.properties.borocode%PAL.length],fillOpacity:.28};},
@@ -149,6 +152,21 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
       note.className='mapnote';note.textContent='Borough Presidents on '+nice(dt)+'. The five offices were created January 1, 1898.';
       return;
     }
+    if(lk==='cb'){
+      var st=cbStage(dt),k2='cb|'+st;
+      document.getElementById('cbOn').style.display='none';
+      if(st<3){if(curKey!==k2){curKey=k2;clear();}
+        note.className='mapnote gap';note.textContent=st===2?'On '+nice(dt)+' the city had 62 Community Planning Boards, set up by the 1963 City Charter. Their lines are not in this data. The 59 community boards and their districts date from 1975.':st===1?'On '+nice(dt)+' the only community boards were the Community Planning Councils the Manhattan Borough President set up in 1951. Their lines are not in this data. Citywide boards start in 1963; the 59 community boards in 1975.':'There were no community boards on '+nice(dt)+'. The first, Manhattan\u2019s Community Planning Councils, date from 1951.';
+        return;}
+      note.className='mapnote';note.textContent='The 59 community boards, established in 1975 by the Charter Revision Commission. Tap a district for its board profile. Board numbers show as you zoom in.';
+      if(curKey===k2)return;curKey=k2;clear();
+      layer=L.geoJSON(CD,{style:function(f){return{color:'#f47920',weight:1.6,fillColor:PAL[+f.properties.c[0]%PAL.length],fillOpacity:.2};},
+        onEachFeature:function(f,l){var c=f.properties.c,nm=BA[c[0]]+' '+(+c.slice(1));
+          l.bindPopup('<strong>'+(c[0]==='2'?'Bronx':BORO[+c[0]-1][1])+' Community Board '+(+c.slice(1))+'</strong><br><a href="/cb-'+BC[c[0]]+'-'+(+c.slice(1))+'.html">Board profile &rarr;</a>');
+          labels.push(L.tooltip({permanent:true,direction:'center',className:'dl',interactive:false}).setLatLng(l.getBounds().getCenter()).setContent(esc(nm)));}}).addTo(map);
+      setLabels();return;
+    }
+    document.getElementById('cbOn').style.display='flex';
     var o=OV.offices.filter(function(x){return x.key===lk;})[0],r=rowFor(o,dt);
     if(!r){
       if(curKey!=='none|'+lk){curKey='none|'+lk;clear();}
@@ -165,15 +183,19 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
         onEachFeature:function(f,l){var ms=members(r,f.properties.d,dt);
           l.bindTooltip('<strong>'+esc(lab(lk,f.properties.d))+'</strong><br>'+(ms.length?esc(ms.join(', ')):'No member on record for this date'),{sticky:true});
           labels.push(L.tooltip({permanent:true,direction:'center',className:'dl',interactive:false}).setLatLng(l.getBounds().getCenter()).setContent(esc(lab(lk,f.properties.d))));}}).addTo(map);
-      setLabels();
+      setLabels();overlay();
     };
     if(GEO[r.geo])go(GEO[r.geo]);else j('/data/districthistory/'+r.geo).then(function(t){GEO[r.geo]=topojson.feature(t,t.objects[Object.keys(t.objects)[0]]);go(GEO[r.geo]);});
   }
-  [].forEach.call(document.querySelectorAll('#lyr button'),function(b){b.onclick=function(){[].forEach.call(document.querySelectorAll('#lyr button'),function(x){x.classList.toggle('on',x===b);});lk=b.dataset.k;curKey=null;drawMap(dt);};});
+  [].forEach.call(document.querySelectorAll('#lyr button'),function(b){b.onclick=function(){[].forEach.call(document.querySelectorAll('#lyr button'),function(x){x.classList.toggle('on',x===b);});lk=b.dataset.k;curKey=null;drawMap(dt);overlay();};});
 
-  function update(d){dt=d;offices(d);drawMap(d);var u=new URL(location.href);u.searchParams.set('on',d);history.replaceState(null,'',u);}
-  Promise.all([j('/data/districthistory/at-large.json'),j('/data/districthistory/overlap.json'),j('/data/atlas/boroughs.geojson')]).then(function(a){
-    AL=a[0];OV=a[1];BG=a[2];AL.offices.forEach(function(o){O[o.key]=o;});
+  function overlay(){var want=document.getElementById('cbLines').checked&&lk!=='cb'&&cbStage(dt)===3;
+    if(want&&!cbOver)cbOver=L.geoJSON(CD,{interactive:false,style:{color:'#f47920',weight:2.2,fill:false,dashArray:'5 4'}});
+    if(cbOver){if(want&&!map.hasLayer(cbOver))cbOver.addTo(map);if(!want&&map.hasLayer(cbOver))map.removeLayer(cbOver);if(want)cbOver.bringToFront();}}
+  document.getElementById('cbLines').onchange=overlay;
+  function update(d){dt=d;offices(d);drawMap(d);overlay();var u=new URL(location.href);u.searchParams.set('on',d);history.replaceState(null,'',u);}
+  Promise.all([j('/data/districthistory/at-large.json'),j('/data/districthistory/overlap.json'),j('/data/atlas/boroughs.geojson'),j('/data/cd-boundaries-lite.geojson')]).then(function(a){
+    AL=a[0];OV=a[1];BG=a[2];CD={type:'FeatureCollection',features:a[3].features.filter(function(f){return +f.properties.c.slice(1)<=18;})};AL.offices.forEach(function(o){O[o.key]=o;});
     map.fitBounds(L.geoJSON(BG).getBounds(),{padding:[10,10]});
     window.CHARTER_AL=AL;
     mv.addEventListener('cmdate',function(e){update(e.detail);});
