@@ -64,6 +64,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 #pin .ph b{font-size:.98rem}#pin .ph span{font:500 .72rem 'DM Mono',monospace;color:#f9b27a}
 #pin .ph a{color:#fff;font-size:.74rem}
 .sub{border-top:1.5px solid var(--border);margin:0 -14px}.sub>summary{cursor:pointer;list-style:none;padding:11px 14px;font-weight:800;font-size:.88rem;display:flex;justify-content:space-between;gap:8px}.sub>summary::-webkit-details-marker{display:none}.sub>summary:after{content:'\25BC';font-size:.62rem;color:var(--muted)}.sub[open]>summary:after{content:'\25B2'}.sub>summary small{font-weight:400;color:var(--muted);font-size:.72rem}.sub>div{padding:0 14px 12px}
+.leaflet-top,.leaflet-bottom{z-index:400}
 .cbx h4{font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:14px 0 6px}
 .cbx h4:first-child{margin-top:4px}
 .tl{width:100%;border-collapse:collapse;font-size:.8rem}.tl td{border-top:1px solid #f0ede7;padding:6px 4px;vertical-align:top}.tl td:first-child{font-family:'DM Mono',monospace;font-size:.7rem;white-space:nowrap;color:var(--muted);width:84px}
@@ -138,6 +139,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   </div>
   <label class="wlab" id="winOn" style="display:none"><input type="checkbox" id="winCol"> Color districts by the party that won the election on the ballot below</label>
   <label id="cbOn" style="display:none;font-size:.78rem;margin:0 0 6px;align-items:center;gap:6px"><input type="checkbox" id="cbLines"> Show community district lines</label>
+  <label id="psOn" style="display:flex;font-size:.78rem;margin:0 0 6px;align-items:center;gap:6px"><input type="checkbox" id="psLines" checked> <img src="/assets/map-icons/voted-bkcb6.png" alt="" style="width:20px;height:20px"> Poll sites that served BKCB6 voters (Election Day and early voting, 2018 to 2026)</label>
   <div id="map"></div><div id="mapNote" class="mapnote"></div>
   <p class="hint">Search or tap the map to drop a pin. Change the date above, or press Play, and everything here follows it back to 1898.</p>
   <div id="pin"></div>
@@ -463,7 +465,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
       if(!B.geo)return {B:B,list:[],note:'No district map on file for this election.'};
       return gj(url).then(function(fc){var f=hit(fc,ll);if(!f)return {B:B,list:[],note:'This spot is not inside any election district on file for this election.'};
         var key=B.level==='ad'?'A'+(+f.properties.d):String(f.properties.e);var ids=B.keys[key]||[];
-        return {B:B,list:ids.map(function(i){return B.contests[i];}),where:B.level==='ad'?'Assembly District '+(+f.properties.d):'Assembly District '+(+key.slice(0,2))+', Election District '+(+key.slice(2))};});
+        return {B:B,key:B.level==='ad'?null:key,list:ids.map(function(i){return B.contests[i];}),where:B.level==='ad'?'Assembly District '+(+f.properties.d):'Assembly District '+(+key.slice(0,2))+', Election District '+(+key.slice(2))};});
     });
     if(e.k==='g26')return bj('/data/ballots/e/2026-11-03-general.json').then(function(B){
       var L=B.state.slice(),note=null;
@@ -471,7 +473,8 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
         if(B.cd[dd.congress])L.push(B.cd[dd.congress]);if(B.sd[dd.senate])L.push(B.sd[dd.senate]);if(B.ad[dd.assembly])L.push(B.ad[dd.assembly]);
         var bn={'1':'MANHATTAN','2':'BRONX','3':'BROOKLYN','4':'QUEENS','5':'STATEN ISLAND'}[PIN.b];if(B.sc[bn])L.push(B.sc[bn]);}
       else note='Drop a pin on the map for the Congress, State Senate, Assembly and judicial races at that spot.';
-      return {B:B,list:L,note:note,questions:B.questions};});
+      var res={B:B,list:L,note:note,questions:B.questions};if(!ll)return res;
+      return gj('/data/edhistory/geo/ed26a1.topo.json').then(function(fc){var f=hit(fc,ll);if(f){res.key=String(f.properties.e);res.where='Assembly District '+(+res.key.slice(0,2))+', Election District '+(+res.key.slice(2));}return res;}).catch(function(){return res;});});
     if(e.k==='h')return bj('/data/ballots/hist/'+e.id+'.json').then(function(B){
       var b=PIN&&PIN.b,cd=null;
       if(ll&&CH){var hc=chFor(e.date);if(hc){var f=hit({features:hc.map.features},ll);cd=f?f.properties.d:null;}}
@@ -507,7 +510,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
         if(tok!==balTok)return;var h='';
         rs.forEach(function(r,ei){var e=els[ei],B=r.B||{};
           h+='<div class="bhd"><div class="t"><div><div class="l">'+esc(nice(e.date))+'</div><div class="n">'+esc(e.label||TL(e.type))+'</div></div><div class="r">'+(r.where?esc(r.where)+'<br>':'')+r.list.length+' contest'+(r.list.length===1?'':'s')+'</div></div>'+
-            '<div class="s">'+(e.k==='g26'?'Certified candidates, every party line. Results after November 3, 2026.':e.k==='m'?'Every contest certified for this spot, with each candidate’s party lines. Results are votes cast in New York City (NYC Board of Elections), not statewide totals.':'Reconstructed from published results; the paper ballot’s layout differs.')+(r.note?' '+esc(r.note):'')+(e.k==='g26'&&B.src?' Source: <a href="'+esc(B.srcUrl)+'" target="_blank" rel="noopener">'+esc(B.src)+'</a>.':'')+'</div></div>';
+            (function(){var ps=psSiteFor(e.id,r.key);return ps?'<div class="s" style="display:flex;gap:8px;align-items:center"><img src="/assets/map-icons/voted-bkcb6.png" alt="" style="width:26px;height:26px"><span>'+ps.map(function(x){return '<b>'+(x.kind==='ev'?'Early voting':'Poll site')+':</b> '+esc(x.s.n)+', '+esc(x.s.a);}).join('<br>')+'</span></div>':'';})()+'<div class="s">'+(e.k==='g26'?'Certified candidates, every party line. Results after November 3, 2026.':e.k==='m'?'Every contest certified for this spot, with each candidate’s party lines. Results are votes cast in New York City (NYC Board of Elections), not statewide totals.':'Reconstructed from published results; the paper ballot’s layout differs.')+(r.note?' '+esc(r.note):'')+(e.k==='g26'&&B.src?' Source: <a href="'+esc(B.srcUrl)+'" target="_blank" rel="noopener">'+esc(B.src)+'</a>.':'')+'</div></div>';
           if(r.list.length)h+='<div class="bgrid">'+r.list.map(function(c,i){return cardH(c,i,r.list.length,ei);}).join('')+'</div>';
           if(r.questions)h+='<div class="bgrid" style="margin-top:10px">'+r.questions.map(function(q){return '<div class="bq"><b>Question '+q.n+': '+esc(q.t)+'</b>'+esc(q.s||'')+'</div>';}).join('')+'</div>';
         });
@@ -559,6 +562,32 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   }
 
 
+
+  // ================= poll sites that served BKCB6 voters, 2018 to 2026 (BOE poll site lists) =================
+  var PS=null,psLayer=null,psKey=null,psMk={};
+  var PSICON=L.icon({iconUrl:'/assets/map-icons/voted-bkcb6.png',iconSize:[30,30],iconAnchor:[15,15],tooltipAnchor:[0,-14]});
+  function psLoad(){return PS?Promise.resolve(PS):j('/data/pollsites-history/cb6.json').then(function(x){PS=x;return x;});}
+  function psElection(d){var best=null,up=null,t=tdy();PS.elections.forEach(function(e){if(e.date<=d&&(!best||e.date>best))best=e.date;if(d>=t&&e.date>d&&(!up||e.date<up))up=e.date;});return up||best;}
+  function edList(ks){var by={};ks.forEach(function(k){var a=k.slice(0,2);(by[a]=by[a]||[]).push(+k.slice(2));});return Object.keys(by).map(function(a){return 'AD '+a+': ED '+by[a].join(', ');}).join('; ');}
+  function psDraw(){
+    if(!document.getElementById('psLines').checked){if(psLayer){map.removeLayer(psLayer);psLayer=null;psKey=null;}return;}
+    psLoad().then(function(){var d=psElection(dt);var key=d||'none';if(key===psKey&&psLayer)return;psKey=key;
+      if(psLayer){map.removeLayer(psLayer);psLayer=null;}psMk={};if(!d)return;
+      var es=PS.elections.filter(function(e){return e.date===d;}),use={};
+      es.forEach(function(e){Object.keys(e.sites).forEach(function(i){(use[i]=use[i]||[]).push(e);});});
+      psLayer=L.layerGroup();
+      Object.keys(use).forEach(function(i){var st=PS.sites[+i];if(!st.ll)return;
+        var h='<b>'+esc(st.n)+'</b><br>'+esc(st.a)+'<br><small>'+esc(nice(d))+' '+esc(use[i][0].label||'')+'</small>'+use[i].map(function(e){return '<br><b>'+(e.kind==='ev'?'Early voting':'Election Day')+'</b> <small>'+esc(edList(e.sites[i]))+'</small>';}).join('');
+        psMk[i]=L.marker(st.ll,{icon:PSICON,zIndexOffset:800}).bindTooltip(h,{direction:'top'}).addTo(psLayer);});
+      psLayer.addTo(map);});}
+  document.getElementById('psLines').onchange=psDraw;
+  function psSiteFor(eid,key){if(!PS||!key)return null;var out=[];PS.elections.forEach(function(e){if(e.id!==eid)return;Object.keys(e.sites).forEach(function(i){if(e.sites[i].indexOf(key)>=0)out.push({kind:e.kind,s:PS.sites[+i]});});});return out.length?out:null;}
+  function psSection(){if(!PS)return '';
+    var rows=PS.sites.map(function(st,i){var ed=[],ev=[];PS.elections.forEach(function(e){if(e.sites[i]){(e.kind==='ev'?ev:ed).push(e);}});return {st:st,i:i,ed:ed,ev:ev,last:ed.concat(ev).map(function(e){return e.date;}).sort().pop()};}).filter(function(r){return r.ed.length||r.ev.length;}).sort(function(a,b){return a.last<b.last?1:a.last>b.last?-1:a.st.n<b.st.n?-1:1;});
+    function lst(es){return es.map(function(e){return esc(e.date.slice(0,4)+(e.label&&/rimary/.test(e.label)?' primary':''));}).join(', ');}
+    var h=sec('v','Every voting site BKCB6 voters used',rows.length+' sites, 2018 to 2026')+'<p class="note" style="margin-top:0">Every Election Day poll site and early voting site the Board of Elections assigned to an election district in BKCB6, from its poll site lists. Tap a site to see it on the map for the latest election it served.</p><table class="tl">';
+    rows.forEach(function(r){h+='<tr class="psr" data-i="'+r.i+'" data-d="'+r.last+'" style="cursor:pointer"><td><img src="/assets/map-icons/voted-bkcb6.png" alt="" style="width:26px;height:26px"></td><td><b>'+esc(r.st.n)+'</b> <small>'+esc(r.st.a)+'</small>'+(r.ed.length?'<br><small>Election Day:</small> '+lst(r.ed):'')+(r.ev.length?'<br><small>Early voting:</small> '+lst(r.ev):'')+'</td></tr>';});
+    return h+'</table><p class="note">Sources: NYC Board of Elections poll site lists for Kings County, '+PS.elections.filter(function(e){return e.src.indexOf('vote.nyc')>=0;}).map(function(e){return '<a href="'+esc(e.src)+'" target="_blank" rel="noopener">'+esc(e.date.slice(0,4)+' '+(e.kind==='ev'?'early voting':'Election Day')+(/rimary/.test(e.label||'')?' (primary)':''))+'</a>';}).join(', ')+'; 2018: <a href="https://data.cityofnewyork.us/d/i3a3-qxkf" target="_blank" rel="noopener">BOE election district poll sites</a> on NYC Open Data. Lists before 2018 are not online.</p></div></details>';}
   // ================= one community district through time (?cb=306), and everything at one spot =================
   var CBQ=(function(){var v=new URLSearchParams(location.search).get('cb');return v&&/^[1-5]\d\d$/.test(v)&&+v.slice(1)>=1&&+v.slice(1)<=18?v:null;})();
   var CBH=null,cbLayer=null,cbOpen={},cbSec={};
@@ -607,7 +636,9 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
       h+='<div class="og"><h4 style="margin-top:8px">'+esc(f[1])+' <small>('+ps.length+')</small></h4><div class="pl">'+ps.map(function(x){return '<div><b>'+esc(x.n)+'</b> <small>'+esc(yy(x.a,x.b))+(Object.keys(x.d).length?' · '+esc(Object.keys(x.d).join(', ')):'')+'</small></div>';}).join('')+'</div></div>';});
     big.forEach(function(g){var hs=(g[1]||[]).slice().reverse();if(!hs.length)return;h+='<div class="og"><h4 style="margin-top:8px">'+esc(g[0])+' <small>('+hs.length+')</small></h4><div class="pl">'+hs.map(function(x){return '<div><b>'+esc(x.name)+'</b> <small>'+esc(yy(x.from,x.to||'today'))+'</small></div>';}).join('')+'</div></div>';});
     h+='</div></details>';
+    if(c==='306')h+=psSection();
     box.innerHTML=h;
+    [].forEach.call(box.querySelectorAll('tr.psr'),function(tr){tr.onclick=function(){var i=tr.dataset.i,d=tr.dataset.d;document.getElementById('psLines').checked=true;var go=function(){var m=psMk[i];if(m){map.setView(m.getLatLng(),Math.max(map.getZoom(),16));m.openTooltip();}};if(psElection(dt)!==d){mv.cmGo(d);setTimeout(go,900);}else{psDraw();setTimeout(go,300);}document.getElementById('map').scrollIntoView({behavior:'smooth'});};});
     [].forEach.call(box.querySelectorAll('details.sub'),function(x){x.addEventListener('toggle',function(){cbSec[x.dataset.k]=x.open;});});
     [].forEach.call(box.querySelectorAll('.el'),function(el){el.onclick=function(){var i=+el.dataset.i,d=document.getElementById('cbE'+i);cbOpen[i]=!cbOpen[i];el.classList.toggle('on',cbOpen[i]);d.style.display=cbOpen[i]?'block':'none';if(cbOpen[i])cbBallot(i,d);};});
     Object.keys(cbOpen).forEach(function(i){if(cbOpen[i])cbBallot(+i,document.getElementById('cbE'+i));});
@@ -631,7 +662,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     map.on('layeradd',function(){if(cbLayer&&map.hasLayer(cbLayer))cbLayer.bringToFront();});
     map.fitBounds(cbLayer.getBounds(),{padding:[12,12]});
     if(CBQ==='306')L.marker([40.686131,-73.994761],{icon:L.icon({iconUrl:'/cb6-logo-square.png',iconSize:[34,34],iconAnchor:[17,17]}),zIndexOffset:900}).bindTooltip('Brooklyn Community Board 6 &middot; 250 Baltic Street').addTo(map);
-    Promise.all([j('/data/cbhistory/'+CBQ+'.json'),chLoad(),bLoad()]).then(function(a){CBH=a[0];renderCB();}).catch(function(){document.getElementById('cbBox').innerHTML='<p class="note">Could not load this district&rsquo;s history.</p>';});}
+    Promise.all([j('/data/cbhistory/'+CBQ+'.json'),chLoad(),bLoad(),psLoad().catch(function(){return null;})]).then(function(a){CBH=a[0];renderCB();}).catch(function(){document.getElementById('cbBox').innerHTML='<p class="note">Could not load this district&rsquo;s history.</p>';});}
   // everything at the pin since 1898
   var spotTok=0;
   function renderSpot(){if(!pin||!OV)return;var ll=pin,tok=++spotTok,box=document.getElementById('spotBox');document.getElementById('fSpot').style.display='block';
@@ -649,7 +680,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
       [].forEach.call(box.querySelectorAll('.el'),function(el){el.onclick=function(){goEl(+el.dataset.i);document.getElementById('fBallot').open=true;document.getElementById('fBallot').scrollIntoView({behavior:'smooth'});};});
     });}
   document.getElementById('fSpot').addEventListener('toggle',function(){if(this.open)renderSpot();});
-  function update(d){dt=d;selOv=null;offices(d);drawMap(d);overlay();setBase();pinCard();if(!pin)renderBallot();if(CBH)renderCB();var u=new URL(location.href);u.searchParams.set('on',d);history.replaceState(null,'',u);}
+  function update(d){dt=d;selOv=null;offices(d);drawMap(d);overlay();setBase();pinCard();if(!pin)renderBallot();if(CBH)renderCB();psDraw();var u=new URL(location.href);u.searchParams.set('on',d);history.replaceState(null,'',u);}
   Promise.all([j('/data/districthistory/at-large.json'),j('/data/districthistory/overlap.json'),j('/data/atlas/boroughs.geojson'),j('/data/cd-boundaries-lite.geojson'),j('/data/counties-history.geojson').catch(function(){return null;})]).then(function(a){CTY=a[4];
     AL=a[0];OV=a[1];BG=a[2];CD={type:'FeatureCollection',features:a[3].features.filter(function(f){return +f.properties.c.slice(1)<=18;})};AL.offices.forEach(function(o){O[o.key]=o;});
     map.fitBounds(L.geoJSON(BG).getBounds(),{padding:[10,10]});
@@ -657,6 +688,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     mv.addEventListener('cmdate',function(e){update(e.detail);});
     if(mv.cmDate)update(mv.cmDate);
     cbStart();
+    psLoad().then(function(){psDraw();if(pin)renderBallot();}).catch(function(){});
     if(LL0)dropPin(LL0,null,!CBQ);
   });
   
