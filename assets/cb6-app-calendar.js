@@ -225,11 +225,17 @@
   function renderList() {
     var today = nyToday(), out = '';
     if (S.q) {
-      var hits = S.events.filter(function (e) { return e.d >= today && visible(e); });
-      var dates = Object.keys(hits.reduce(function (o, e) { o[e.d] = 1; return o; }, {})).sort();
-      out = '<div class="cc-note">' + hits.length + ' upcoming match' + (hits.length === 1 ? '' : 'es') + ' for “' + esc(S.q) + '”</div>';
-      dates.forEach(function (d) { out += '<div class="cc-dh">' + longDate(d) + '</div>' + hits.filter(function (e) { return e.d === d; }).sort(sortDay).map(card).join(''); });
-      if (!hits.length) out += '<div class="cc-empty">Nothing upcoming matches that search.</div>';
+      var all = S.events.filter(visible);
+      var up = all.filter(function (e) { return e.d >= today; }), past = all.filter(function (e) { return e.d < today; });
+      var group = function (list, desc) {
+        var dates = Object.keys(list.reduce(function (o, e) { o[e.d] = 1; return o; }, {})).sort();
+        if (desc) dates.reverse();
+        return dates.map(function (d) { return '<div class="cc-dh">' + longDate(d) + ', ' + d.slice(0, 4) + '</div>' + list.filter(function (e) { return e.d === d; }).sort(sortDay).map(card).join(''); }).join('');
+      };
+      out = '<div class="cc-note">' + up.length + ' upcoming and ' + past.length + ' past match' + (all.length === 1 ? '' : 'es') + ' for “' + esc(S.q) + '”</div>';
+      if (!all.length) out += '<div class="cc-empty">Nothing on the calendar matches that search.</div>';
+      if (up.length) out += '<div class="cc-dh" style="color:#0d1b4b">Upcoming</div>' + group(up, false);
+      if (past.length) out += '<div class="cc-dh" style="color:#0d1b4b">Past, most recent first</div>' + group(past, true);
     } else {
       var evs = (S.byDate[S.sel] || []).filter(visible).sort(sortDay);
       out = '<div class="cc-dh">' + longDate(S.sel) + '</div>' + (evs.length ? evs.map(card).join('') : '<div class="cc-empty">Nothing on the calendar this day.</div>');
