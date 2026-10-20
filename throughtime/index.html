@@ -139,7 +139,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   </div>
   <label class="wlab" id="winOn" style="display:none"><input type="checkbox" id="winCol"> Color districts by the party that won the election on the ballot below</label>
   <label id="cbOn" style="display:none;font-size:.78rem;margin:0 0 6px;align-items:center;gap:6px"><input type="checkbox" id="cbLines"> Show community district lines</label>
-  <label id="edOn" style="display:none;font-size:.78rem;margin:0 0 6px;align-items:center;gap:6px"><input type="checkbox" id="edLines" checked> Election districts in BKCB6 on this date (Board of Elections maps, 2012 on); tap one for its poll site</label>
+  <label id="edOn" style="display:none;font-size:.78rem;margin:0 0 6px;align-items:center;gap:6px"><input type="checkbox" id="edLines" checked> Election districts in BKCB6 on this date (Board of Elections maps from 2012, Census voting districts for 2008 to 2012); tap one for its poll site and registration</label>
   <label id="psOn" style="display:flex;font-size:.78rem;margin:0 0 6px;align-items:center;gap:6px"><input type="checkbox" id="psLines" checked> <img src="/assets/map-icons/voted-bkcb6.png" alt="" style="width:20px;height:20px"> Poll sites that served BKCB6 voters (Election Day and early voting, 2018 to 2026)</label>
   <div id="map"></div><div id="mapNote" class="mapnote"></div><div id="edNote" class="mapnote"></div>
   <p class="hint">Search or tap the map to drop a pin. Change the date above, or press Play, and everything here follows it back to 1898.</p>
@@ -565,6 +565,35 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 
 
 
+
+  // ================= BKCB6 voter registration by party, 2008 to 2026 (NYS BOE enrollment by ED) =================
+  var ENR=null;
+  var EC={DEM:'#2563eb',BLANK:'#6b7280',REP:'#dc2626',OTHER:'#7c3aed'};
+  function enrFor(rel,fc){if(!ENR)return null;var best=null;ENR.dates.forEach(function(x){if(x.map===rel&&x.date<=(dt||'9999')&&(!best||x.date>best.date))best=x;});if(!best)ENR.dates.forEach(function(x){if(x.map===rel&&(!best||x.date<best.date))best=x;});
+    if(!best&&fc){var ks=fc.features.map(function(f){return f.properties.e;});ENR.dates.forEach(function(x){if(best&&x.date<best.date)return;if(x.date>(dt||'9999'))return;var n=0;ks.forEach(function(k){if(x.eds[k])n++;});if(n>=0.9*ks.length)best=x;});}
+    return best;}
+  function enrLine(x,k){var v=null;(Array.isArray(k)?k:[k]).forEach(function(q){var w=x.eds[q];if(w){v=v?v.map(function(a,i){return a+w[i];}):w.slice();}});if(!v)return '';var cols=x.parties.concat(['TOTAL','ACT']),o={};cols.forEach(function(c,i){o[c]=v[i];});var t=o.TOTAL||0;function pc(n){return t?Math.round(n/t*100)+'%':'';}
+    var other=t-(o.DEM||0)-(o.REP||0)-(o.BLANK||0);return '<br><b>Registered '+esc(nice(x.date))+':</b> '+t.toLocaleString()+' <small>('+(o.ACT||0).toLocaleString()+' active)</small><br>Democratic '+(o.DEM||0).toLocaleString()+' ('+pc(o.DEM||0)+') &middot; no party '+(o.BLANK||0).toLocaleString()+' ('+pc(o.BLANK||0)+') &middot; Republican '+(o.REP||0).toLocaleString()+' ('+pc(o.REP||0)+') &middot; other parties '+other.toLocaleString();}
+  function enrSection(){if(!ENR)return '';var D=ENR.dates,W=640,H=320,pl=52,pr=170,pt=14,pb=34;
+    var t0=new Date(D[0].date).getTime(),t1=new Date(D[D.length-1].date).getTime();function X(d){return pl+(new Date(d).getTime()-t0)/(t1-t0)*(W-pl-pr);}function Y(v){return pt+(1-v/100)*(H-pt-pb);}
+    function sh(x,k){var t=x.total.TOTAL;if(k==='OTHER')return (t-x.total.DEM-x.total.REP-x.total.BLANK)/t*100;return (x.total[k]||0)/t*100;}
+    var keys=[['DEM','Democratic'],['BLANK','No party'],['REP','Republican'],['OTHER','Other parties']];
+    var g='';[0,25,50,75,100].forEach(function(v){g+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="#e5e2db" stroke-width="1"/><text x="'+(pl-6)+'" y="'+(Y(v)+4)+'" font-size="15" text-anchor="end" fill="#6b6760">'+v+'%</text>';});
+    for(var y=2008;y<=2026;y+=6)g+='<text x="'+X(y+'-01-01')+'" y="'+(H-8)+'" font-size="15" text-anchor="middle" fill="#6b6760">'+y+'</text>';
+    var lab=[];keys.forEach(function(k){var pts=D.map(function(x){return X(x.date).toFixed(1)+','+Y(sh(x,k[0])).toFixed(1);}).join(' ');g+='<polyline points="'+pts+'" fill="none" stroke="'+EC[k[0]]+'" stroke-width="3" stroke-linejoin="round"/>';var last=D[D.length-1];lab.push([Y(sh(last,k[0])),k,sh(last,k[0])]);});
+    lab.sort(function(a,b){return a[0]-b[0];});for(var i=1;i<lab.length;i++)if(lab[i][0]-lab[i-1][0]<20)lab[i][0]=lab[i-1][0]+20;
+    lab.forEach(function(l){g+='<circle cx="'+(W-pr)+'" cy="'+Y(l[2])+'" r="4" fill="'+EC[l[1][0]]+'"/><text x="'+(W-pr+8)+'" y="'+(l[0]+5)+'" font-size="16" fill="#0d1b4b"><tspan font-weight="700">'+l[2].toFixed(1)+'%</tspan> '+l[1][1]+'</text>';});
+    var last=D[D.length-1];
+    var h=sec('r','Voter registration by party',D.length+' counts, '+D[0].date.slice(0,4)+' to '+last.date.slice(0,4))+'<p class="note" style="margin-top:0">Registered voters in BKCB6&rsquo;s election districts, active and inactive, from the state Board of Elections&rsquo; enrollment by election district. Latest ('+esc(nice(last.date))+'): <b>'+last.total.TOTAL.toLocaleString()+'</b> registered, '+last.active.toLocaleString()+' active. The election district lines change with each map, so the EDs counted change too; BKCB6&rsquo;s own lines do not. Before July 2012 EDs are placed by the 2010 Census voting districts.</p>';
+    h+='<div style="position:relative"><svg id="enrSvg" viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block" role="img" aria-label="Share of BKCB6 registered voters by party, 2008 to 2026">'+g+'<line id="enrX" x1="0" x2="0" y1="'+pt+'" y2="'+(H-pb)+'" stroke="#0d1b4b" stroke-width="1" opacity="0"/><rect x="'+pl+'" y="'+pt+'" width="'+(W-pl-pr)+'" height="'+(H-pt-pb)+'" fill="transparent" id="enrHit"/></svg><div id="enrTip" style="position:absolute;display:none;pointer-events:none;background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:6px 8px;font-size:.74rem;box-shadow:0 4px 14px rgba(13,27,75,.12);white-space:nowrap"></div></div>';
+    h+='<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.8rem;font-weight:700">Every count as a table</summary><div style="overflow-x:auto"><table class="tl" style="min-width:520px"><tr><td>Date</td><td><b>Registered</b> &middot; active &middot; Democratic &middot; no party &middot; Republican &middot; Working Families &middot; Conservative &middot; other</td></tr>'+D.slice().reverse().map(function(x){var t=x.total,o=t.TOTAL-t.DEM-t.REP-t.BLANK-(t.WOR||0)-(t.CON||0);return '<tr><td>'+esc(nice(x.date))+'</td><td><b>'+t.TOTAL.toLocaleString()+'</b> &middot; '+x.active.toLocaleString()+' &middot; '+t.DEM.toLocaleString()+' &middot; '+t.BLANK.toLocaleString()+' &middot; '+t.REP.toLocaleString()+' &middot; '+(t.WOR||0).toLocaleString()+' &middot; '+(t.CON||0).toLocaleString()+' &middot; '+o.toLocaleString()+' <small>('+Object.keys(x.eds).length+' EDs)</small></td></tr>';}).join('')+'</table></div></details>';
+    h+='<p class="note">Source: <a href="https://elections.ny.gov/enrollment-election-district" target="_blank" rel="noopener">NYS Board of Elections, Enrollment by Election District</a>, Kings County (the state&rsquo;s November 2011 file is not posted).</p></div></details>';
+    window.__enrHover=function(){var svg=document.getElementById('enrSvg');if(!svg)return;var tip=document.getElementById('enrTip'),xl=document.getElementById('enrX');
+      function mv(ev){var r=svg.getBoundingClientRect(),x=(ev.clientX-r.left)/r.width*W;var b=null,bd=1e9;D.forEach(function(d){var dd=Math.abs(X(d.date)-x);if(dd<bd){bd=dd;b=d;}});xl.setAttribute('x1',X(b.date));xl.setAttribute('x2',X(b.date));xl.setAttribute('opacity',.35);
+        tip.innerHTML='<b>'+esc(nice(b.date))+'</b> &middot; '+b.total.TOTAL.toLocaleString()+' registered'+keys.map(function(k){return '<br><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+EC[k[0]]+';margin-right:5px"></span>'+k[1]+' '+sh(b,k[0]).toFixed(1)+'%';}).join('');
+        tip.style.display='block';var px=X(b.date)/W*r.width;tip.style.left=Math.min(px+10,r.width-170)+'px';tip.style.top='8px';}
+      svg.addEventListener('mousemove',mv);svg.addEventListener('touchstart',function(e){mv(e.touches[0]);},{passive:true});svg.addEventListener('mouseleave',function(){tip.style.display='none';xl.setAttribute('opacity',0);});};
+    return h;}
   // ================= BKCB6's election districts by date (BOE ED maps since 2012) =================
   var EDI=null,EDC={},edLayer=null,edRel=null,edLabels=[];
   function edRelFor(d){var r=null;(EDI||[]).forEach(function(x){if(x.date<=d)r=x;});return r;}
@@ -576,16 +605,17 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     (EDI?Promise.resolve(EDI):j('/data/cbhistory/ed306/index.json').then(function(x){EDI=x;return x;})).then(function(){
       var pd0=PS?psElection(dt):null,r=edRelFor(pd0&&pd0>dt?pd0:dt),note=document.getElementById('edNote');
       if(pd0&&pd0<dt&&r&&r.date>pd0)pd0=null;
-      if(!r){edClear();note.textContent='Election district maps here start with the Board of Elections map of '+nice(EDI[0].date)+'.';return;}
-      var pd=pd0,key=r.r+'|'+pd;if(key===edRel)return;
+      if(!r){edClear();note.textContent='Election district maps here start with the 2010 Census voting districts (used from 2008).';return;}
+      var pd=pd0,key=r.r+'|'+pd+'|'+(ENR?1:0);if(key===edRel)return;
       (EDC[r.r]?Promise.resolve(EDC[r.r]):j('/data/cbhistory/ed306/'+r.r+'.json').then(function(x){EDC[r.r]=x;return x;})).then(function(fc){
         edClear();edRel=key;
-        note.innerHTML='BKCB6&rsquo;s '+fc.features.length+' election districts on the Board of Elections map of '+esc(nice(r.date))+'. ED numbers show as you zoom in.';
+        note.innerHTML=r.r==='vtd2010'?'BKCB6&rsquo;s election districts of about 2010 (the 2010 Census voting districts; the Board of Elections maps start in July 2012). ED numbers show as you zoom in; tap one for its registration.':'BKCB6&rsquo;s '+fc.features.length+' election districts on the Board of Elections map of '+esc(nice(r.date))+'. ED numbers show as you zoom in; tap one for its poll site and registration.';
         var es=pd?PS.elections.filter(function(e){return e.date===pd;}):[];
         edLayer=L.geoJSON(fc,{style:{color:'#0d1b4b',weight:.9,opacity:.75,fillColor:'#f47920',fillOpacity:.03},
-          onEachFeature:function(f,l){var k=f.properties.e,h='<strong>AD '+(+k.slice(0,2))+' &middot; ED '+(+k.slice(2))+'</strong>';
+          onEachFeature:function(f,l){var k=f.properties.e,h='<strong>AD '+(+k.slice(0,2))+' &middot; ED '+(f.properties.all?f.properties.all.map(function(q){return +q.slice(2);}).join(', '):+k.slice(2))+'</strong>';
             es.forEach(function(e){Object.keys(e.sites).forEach(function(i){if(e.sites[i].indexOf(k)>=0){var st=PS.sites[+i];h+='<br><b>'+(e.kind==='ev'?'Early voting':'Poll site')+'</b> '+esc(st.n)+', '+esc(st.a);}});});
             if(es.length)h+='<br><small>'+esc(nice(pd))+' '+esc(es[0].label||'')+'</small>';
+            var en=enrFor(r.r,fc);if(en)h+=enrLine(en,f.properties.all||k);
             l.bindTooltip(h,{sticky:true});
             edLabels.push(L.tooltip({permanent:true,direction:'center',className:'dl',interactive:false}).setLatLng(l.getBounds().getCenter()).setContent(String(+k.slice(2))));}}).addTo(map);
         edLabelsShow();if(cbLayer)cbLayer.bringToFront();});});}
@@ -647,7 +677,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     h+=sec('d','Every district that overlapped '+esc(bn),'Council, Assembly, State Senate, Congress, the community district');
     var cv=(CBH.cpd1968||[]).map(function(x){return '<span class="dc">'+esc((x[0][0]==='5'?'RI':BA[x[0][0]])+' '+(+x[0].slice(1)))+(x[1]<0.995?' · '+Math.round(x[1]*100)+'%':'')+'</span>';}).join(' ');
     h+='<div class="og"><h4 style="margin-top:6px">Community district</h4><table class="tl"><tr><td>1975–today</td><td><span class="dc">'+esc(bn)+'</span> '+esc(boroName(c[0],'2026-01-01'))+' Community Board '+(+c.slice(1))+'</td></tr><tr><td>1968–1974</td><td>'+(cv||'<small>none</small>')+' Community Planning District'+((CBH.cpd1968||[]).length>1?'s':'')+' (map of March 1, 1968)</td></tr><tr><td>1951–1968</td><td><small>Interim boards named by the Borough Presidents; their lines are not in this data.</small></td></tr></table></div>';
-    if(c==='306'&&EDI){var y=dt?dt:'';h+='<div class="og"><h4 style="margin-top:10px">Election districts</h4><p class="note" style="margin-top:0">Every Board of Elections election district map since 2012 and how many of its EDs fall in BKCB6. The map above draws the EDs in use on the date picked; tap an ED for its poll site.</p><table class="tl">'+EDI.slice().reverse().map(function(x,i,a){var nx=i>0?a[i-1].date:'9999';var now=y&&x.date<=y&&y<nx;return '<tr'+(now?' class="now"':'')+'><td>'+esc(nice(x.date))+'</td><td><b>'+x.n+'</b> EDs</td></tr>';}).join('')+'</table></div>';}
+    if(c==='306'&&EDI){var y=dt?dt:'';h+='<div class="og"><h4 style="margin-top:10px">Election districts</h4><p class="note" style="margin-top:0">Every Board of Elections election district map since 2012 (and the 2010 Census voting districts before it) and how many of its EDs fall in BKCB6. The map above draws the EDs in use on the date picked; tap an ED for its poll site and registration by party.</p><table class="tl">'+EDI.slice().reverse().map(function(x,i,a){var nx=i>0?a[i-1].date:'9999';var now=y&&x.date<=y&&y<nx;return '<tr'+(now?' class="now"':'')+'><td>'+(x.label?'2008 to 2012':esc(nice(x.date)))+'</td><td><b>'+x.n+'</b> EDs'+(x.label?' <small>('+esc(x.label)+')</small>':'')+'</td></tr>';}).join('')+'</table></div>';}
     OFF.forEach(function(f){var rows=cbRows(f[0],c);var first=rows.length?rows[rows.length-1].from:'';
       h+='<div class="og"><h4 style="margin-top:10px">'+f[1]+'</h4>'+tlTable(rows,f[2])+(f[0]!=='congress'?'<p class="note">'+f[1]+' lines and members here start in '+esc(first)+'.'+(f[0]==='council'?' Before 1938 the city had the Board of Aldermen; from 1938 to 1945 the Council was elected borough-wide (see Everyone who held office, below).':'')+'</p>':'')+'</div>';});
     h+='</div></details>';
@@ -664,8 +694,8 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
       h+='<div class="og"><h4 style="margin-top:8px">'+esc(f[1])+' <small>('+ps.length+')</small></h4><div class="pl">'+ps.map(function(x){return '<div><b>'+esc(x.n)+'</b> <small>'+esc(yy(x.a,x.b))+(Object.keys(x.d).length?' · '+esc(Object.keys(x.d).join(', ')):'')+'</small></div>';}).join('')+'</div></div>';});
     big.forEach(function(g){var hs=(g[1]||[]).slice().reverse();if(!hs.length)return;h+='<div class="og"><h4 style="margin-top:8px">'+esc(g[0])+' <small>('+hs.length+')</small></h4><div class="pl">'+hs.map(function(x){return '<div><b>'+esc(x.name)+'</b> <small>'+esc(yy(x.from,x.to||'today'))+'</small></div>';}).join('')+'</div></div>';});
     h+='</div></details>';
-    if(c==='306')h+=psSection();
-    box.innerHTML=h;
+    if(c==='306')h+=psSection()+enrSection();
+    box.innerHTML=h;if(window.__enrHover)window.__enrHover();
     [].forEach.call(box.querySelectorAll('tr.psr'),function(tr){tr.onclick=function(){var i=tr.dataset.i,d=tr.dataset.d;document.getElementById('psLines').checked=true;var go=function(){var m=psMk[i];if(m){map.setView(m.getLatLng(),Math.max(map.getZoom(),16));m.openTooltip();}};if(psElection(dt)!==d){mv.cmGo(d);setTimeout(go,900);}else{psDraw();setTimeout(go,300);}document.getElementById('map').scrollIntoView({behavior:'smooth'});};});
     [].forEach.call(box.querySelectorAll('details.sub'),function(x){x.addEventListener('toggle',function(){cbSec[x.dataset.k]=x.open;});});
     [].forEach.call(box.querySelectorAll('.el'),function(el){el.onclick=function(){var i=+el.dataset.i,d=document.getElementById('cbE'+i);cbOpen[i]=!cbOpen[i];el.classList.toggle('on',cbOpen[i]);d.style.display=cbOpen[i]?'block':'none';if(cbOpen[i])cbBallot(i,d);};});
@@ -690,7 +720,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     map.on('layeradd',function(){if(cbLayer&&map.hasLayer(cbLayer))cbLayer.bringToFront();});
     map.fitBounds(cbLayer.getBounds(),{padding:[12,12]});
     if(CBQ==='306')L.marker([40.686131,-73.994761],{icon:L.icon({iconUrl:'/cb6-logo-square.png',iconSize:[34,34],iconAnchor:[17,17]}),zIndexOffset:900}).bindTooltip('Brooklyn Community Board 6 &middot; 250 Baltic Street').addTo(map);
-    Promise.all([j('/data/cbhistory/'+CBQ+'.json'),chLoad(),bLoad(),psLoad().catch(function(){return null;}),CBQ==='306'?j('/data/cbhistory/ed306/index.json').then(function(x){EDI=x;}).catch(function(){}):null]).then(function(a){CBH=a[0];renderCB();}).catch(function(){document.getElementById('cbBox').innerHTML='<p class="note">Could not load this district&rsquo;s history.</p>';});}
+    Promise.all([j('/data/cbhistory/'+CBQ+'.json'),chLoad(),bLoad(),psLoad().catch(function(){return null;}),CBQ==='306'?j('/data/cbhistory/ed306/index.json').then(function(x){EDI=x;}).catch(function(){}):null,CBQ==='306'?j('/data/enrollment/cb6.json').then(function(x){ENR=x;}).catch(function(){}):null]).then(function(a){CBH=a[0];renderCB();edDraw();}).catch(function(){document.getElementById('cbBox').innerHTML='<p class="note">Could not load this district&rsquo;s history.</p>';});}
   // everything at the pin since 1898
   var spotTok=0;
   function renderSpot(){if(!pin||!OV)return;var ll=pin,tok=++spotTok,box=document.getElementById('spotBox');document.getElementById('fSpot').style.display='block';

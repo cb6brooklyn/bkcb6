@@ -43,3 +43,36 @@ for rel in sorted(cat, key=lambda r: cat[r]['date']):
     idx.append({'r': rel, 'date': cat[rel]['date'], 'n': len(feats)})
 json.dump(idx, open('data/cbhistory/ed306/index.json', 'w'), separators=(',', ':'))
 print(len(idx), 'releases', [(i['r'], i['n']) for i in idx][:6], '...')
+
+# Before the 2012 BOE map: the 2010 Census voting districts (the EDs of about 2010), given the Kings County
+# TIGER file tl_2010_36047_vtd10.shp as argv[1] and its ED-to-community-district file as argv[2]
+# (built by area of overlap with data/cd-boundaries-lite.geojson; a VTD named "4000073 4000075" or with a range
+# stands for several EDs: property e is the first, all lists them).
+import sys
+if len(sys.argv) > 2:
+    import shapefile, re
+    from shapely.geometry import shape, mapping
+    m = json.load(open(sys.argv[2]))
+    def vkeys(n):
+        o = []
+        for a, b in re.findall(r'(\d{7})(?:-(\d{7}))?', n):
+            lo = int(a[2:]); hi = int(b[2:]) if b else lo
+            o += ['%d%03d' % (int(a[:2]), e) for e in range(lo, hi + 1)]
+        return o
+    def rnd(c):
+        return [rnd(x) for x in c] if isinstance(c[0], (list, tuple)) else [round(c[0], 6), round(c[1], 6)]
+    feats = []
+    for sr in shapefile.Reader(sys.argv[1]).shapeRecords():
+        ks = vkeys(sr.record['NAME10'])
+        if not ks or m.get(ks[0]) != CB:
+            continue
+        g = json.loads(json.dumps(mapping(shape(sr.shape.__geo_interface__).buffer(0).simplify(0.00002))))
+        g['coordinates'] = rnd(g['coordinates'])
+        p = {'e': ks[0]}
+        if len(ks) > 1:
+            p['all'] = ks
+        feats.append({'type': 'Feature', 'properties': p, 'geometry': g})
+    json.dump({'type': 'FeatureCollection', 'release': 'vtd2010', 'date': '2008-01-01', 'features': feats}, open('data/cbhistory/ed306/vtd2010.json', 'w'), separators=(',', ':'))
+    idx.insert(0, {'r': 'vtd2010', 'date': '2008-01-01', 'n': len(feats), 'label': '2010 Census voting districts'})
+    json.dump(idx, open('data/cbhistory/ed306/index.json', 'w'), separators=(',', ':'))
+    print('vtd2010', len(feats))
