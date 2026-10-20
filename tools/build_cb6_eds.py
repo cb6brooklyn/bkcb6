@@ -76,3 +76,18 @@ if len(sys.argv) > 2:
     idx.insert(0, {'r': 'vtd2010', 'date': '2008-01-01', 'n': len(feats), 'label': '2010 Census voting districts'})
     json.dump(idx, open('data/cbhistory/ed306/index.json', 'w'), separators=(',', ':'))
     print('vtd2010', len(feats))
+
+# Elections with election-district results in BKCB6 (data/edhistory), for elections.html: id, date, label, ED map
+# and the contests on any BKCB6 ballot.
+cat_e = json.load(open('data/edhistory/catalog.json'))['elections']
+have = {x['r'] for x in json.load(open('data/cbhistory/ed306/index.json'))}
+els = []
+for e in cat_e:
+    if e.get('release') not in have:
+        continue
+    ix = json.load(open('data/edhistory/e/%s/index.json' % e['id']))
+    cs = [{'id': c['id'], 't': c['title'], 'p': c.get('party') or '', 'rcv': bool(c.get('rcv'))} for c in ix['contests'] if CB in (c.get('cds') or [])]
+    if cs:
+        els.append({'id': e['id'], 'date': e['date'], 'label': e['label'], 'r': e['release'], 'contests': cs})
+json.dump(els, open('data/cbhistory/ed306/elections.json', 'w'), separators=(',', ':'))
+print(len(els), 'elections with BKCB6 contests')
