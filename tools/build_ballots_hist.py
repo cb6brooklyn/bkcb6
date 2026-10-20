@@ -16,7 +16,7 @@ for name, scope_order in (('state', 0), ('city', 1), ('congress', 2)):
             c.setdefault('scope', {'state': 'state', 'city': 'city', 'congress': 'congress'}[name])
             c['_o'] = scope_order
             by[date].append(c)
-ORDER = ['President and Vice President', 'United States Senator', 'Governor', 'Lieutenant Governor']
+ORDER = ['President and Vice President', 'United States Senator', 'Governor', 'Lieutenant Governor', 'Mayor', 'Public Advocate', 'President of the City Council', 'President of the Board of Aldermen', 'President of the Council', 'Comptroller', 'Attorney General', 'Borough President']
 def key(c):
     o = c.get('office', '')
     return (c['_o'], ORDER.index(o) if o in ORDER else 9, c.get('kind') == 'question', o, str(c.get('boro', '')), c.get('district') or 0)
