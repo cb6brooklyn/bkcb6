@@ -29,7 +29,9 @@
   var S = { mode: P.mode || 'all', hidden: {}, q: P.q || '', org: null, ym: null, sel: null, types: {}, events: [], byDate: {} };
   (P.hidden || []).forEach(function (t) { S.hidden[t] = 1; });
 
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  var DEC = document.createElement('textarea');
+  function dec(s) { s = String(s == null ? '' : s); if (s.indexOf('&') < 0) return s; DEC.innerHTML = s; return DEC.value; }
+  function esc(s) { return dec(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function nyToday() {
     var p = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     return p; // YYYY-MM-DD
@@ -100,7 +102,7 @@
     '.cc-day.today .dn{color:' + ORANGE + '}' +
     '.cc-day.sel{background:' + NAVY + ';border-color:' + NAVY + ';color:#fff}.cc-day.sel .dn{color:#fff}.cc-day.sel .more{color:#c9cee0}' +
     '.cc-day.blank{visibility:hidden}' +
-    '.cc-day.past{opacity:.4}' +
+    '.cc-day.past .dn{color:#8a8a99}' +
     '.cc-dh{font-family:"DM Mono",monospace;font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:' + ORANGE + ';margin:18px 4px 10px}' +
     '.cc-card{display:flex;gap:14px;align-items:center;background:#fff;border:1.5px solid #ece6d8;border-radius:16px;padding:14px 16px;margin-bottom:10px;text-decoration:none;color:' + NAVY + '}' +
     '.cc-card.cb6{background:#fdeee2;border:2px solid ' + ORANGE + '}' +
@@ -209,13 +211,13 @@
     var isCb6 = e.ty === CB6, ic = isCb6 ? 'https://bkcb6.app/cb6-logo-square.png' : icon(e.ty);
     var meta = [e.t ? e.t + (e.e ? ' to ' + e.e : '') : '', isCb6 ? '' : orgName(e), cleanLoc(e.loc)].filter(Boolean).join(' · ');
     var logo = ic ? '<img class="lg" src="' + esc(ic) + '" alt="" loading="lazy">' : '<span class="lg ph" style="background:' + color(e.ty) + '">' + esc(orgName(e).charAt(0)) + '</span>';
-    var thumb = e.f ? '<img class="cc-thumb" src="' + esc(BASE + 'flyers/' + e.f) + '" alt="" loading="lazy">' : '';
+    var thumb = e.f ? '<img class="cc-thumb" src="' + esc(BASE + 'flyers/' + e.f) + '" alt="" loading="lazy" onerror="this.onerror=null;this.src=\'https://bkcb6.app/' + esc(e.f) + '\'">' : '';
     var links = e.h ? '<span class="lk"><a href="' + esc(e.h) + '" target="_blank" rel="noopener">' + esc(e.lt || 'Details') + ' &#8599;</a></span>' : '';
     return '<div class="cc-card' + (isCb6 ? ' cb6' : '') + '" tabindex="0" role="button" aria-expanded="false">' + logo +
       '<span class="b">' + (isCb6 ? '<span class="og">Brooklyn CB6</span>' : '') +
       '<span class="tt">' + esc(isCb6 ? cb6Title(e) : e.l) + '</span>' + (meta ? '<span class="mt">' + esc(meta) + '</span>' : '') +
       (e.desc ? '<span class="ds">' + esc(e.desc) + '</span>' : '') +
-      (e.f ? '<img class="fl" src="' + esc(BASE + 'flyers/' + e.f) + '" alt="Flyer" loading="lazy">' : '') + links + '</span>' +
+      (e.f ? '<img class="fl" src="' + esc(BASE + 'flyers/' + e.f) + '" alt="Flyer" loading="lazy" onerror="this.onerror=null;this.src=\'https://bkcb6.app/' + esc(e.f) + '\'">' : '') + links + '</span>' +
       thumb + '<span class="ch">&rsaquo;</span></div>';
   }
   function sortDay(a, b) { return (b.ty === CB6) - (a.ty === CB6) || minutes(a.t) - minutes(b.t); }
@@ -258,9 +260,14 @@
   var qt;
   input.addEventListener('input', function () { clearTimeout(qt); qt = setTimeout(function () { S.q = input.value.trim(); savePrefs(); renderAll(); }, 150); });
 
-  fetch(DATA, { cache: 'no-cache' }).then(function (r) { return r.json(); }).then(function (d) {
-    S.types = d.types || {};
-    S.events = (d.events || []).slice();
+  var ARCHIVE = 'https://bkcb6.app/data/cal-archive.json';
+  Promise.all([
+    fetch(DATA, { cache: 'no-cache' }).then(function (r) { return r.json(); }),
+    fetch(ARCHIVE, { cache: 'no-cache' }).then(function (r) { return r.json(); }).catch(function () { return { types: {}, events: [] }; })
+  ]).then(function (both) {
+    var d = both[0], a = both[1], today0 = nyToday();
+    S.types = Object.assign({}, a.types || {}, d.types || {});
+    S.events = (a.events || []).filter(function (e) { return e.d < today0; }).concat((d.events || []).filter(function (e) { return e.d >= today0; }));
     S.events.forEach(function (e) { (S.byDate[e.d] = S.byDate[e.d] || []).push(e); });
     var today = nyToday(), t = parse(today);
     S.ym = { y: t.getFullYear(), m: t.getMonth() };
