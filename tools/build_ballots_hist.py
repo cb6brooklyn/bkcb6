@@ -15,8 +15,27 @@ for name, scope_order in (('state', 0), ('city', 1), ('congress', 2)):
             c = dict(c)
             c.setdefault('scope', {'state': 'state', 'city': 'city', 'congress': 'congress'}[name])
             c['_o'] = scope_order
+            if name == 'state':
+                o = c.get('office', '')
+                if o == 'Comptroller':
+                    c['office'] = 'State Comptroller'
+                elif o.startswith('U.S. Senator'):
+                    c['office'] = o.replace('U.S. Senator', 'United States Senator')
+                elif o == 'U.S. Representative at-large':
+                    c['office'] = 'Representative in Congress (at-large)'
+                    c['_atlarge'] = 1
+                if c.get('kind') == 'question' and 'cands' not in c:
+                    y, n = c.get('yes'), c.get('no')
+                    c['cands'] = [{'n': 'Yes', 'p': [], 'v': y, 'w': y is not None and n is not None and y > n},
+                                  {'n': 'No', 'p': [], 'v': n, 'w': y is not None and n is not None and n > y}]
             by[date].append(c)
-ORDER = ['President and Vice President', 'United States Senator', 'Governor', 'Lieutenant Governor', 'Mayor', 'Public Advocate', 'President of the City Council', 'President of the Board of Aldermen', 'President of the Council', 'Comptroller', 'Attorney General', 'Borough President']
+# an at-large seat already in the congress file stays there (district 0) and drops from the state file
+for date, cs in by.items():
+    if any(c.get('scope') == 'congress' and c.get('district') == 0 for c in cs):
+        by[date] = [c for c in cs if not c.get('_atlarge')]
+    for c in by[date]:
+        c.pop('_atlarge', None)
+ORDER = ['President and Vice President', 'United States Senator', 'Governor', 'Lieutenant Governor', 'Governor and Lieutenant Governor', 'State Comptroller', 'Attorney General', 'Representative in Congress (at-large)', 'Mayor', 'Public Advocate', 'President of the City Council', 'President of the Board of Aldermen', 'President of the Council', 'Comptroller', 'Attorney General', 'Borough President']
 def key(c):
     o = c.get('office', '')
     return (c['_o'], ORDER.index(o) if o in ORDER else 9, c.get('kind') == 'question', o, str(c.get('boro', '')), c.get('district') or 0)
