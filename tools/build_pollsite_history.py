@@ -13,6 +13,7 @@ V = 'https://vote.nyc/sites/default/files/pdf/'
 LISTS = [  # election id, kind, file, published url
  ('2019-11-05-general', 'ed', 'GE2019_ElectionDay_PollSiteList_KG.pdf', V + 'publications/pollsitelist/2019/pdf/GE2019_ElectionDay_PollSiteList_KG.pdf'),
  ('2019-11-05-general', 'ev', 'GE2019_EarlyVoting_PollSiteList_KG.pdf', V + 'publications/pollsitelist/2019/pdf/GE2019_EarlyVoting_PollSiteList_KG.pdf'),
+ ('2020-11-03-general', 'ed', 'GE2020_PollSiteList_KG.pdf', V + 'poll_site_list/GE2020/GE2020_PollSiteList_KG.pdf'),
  ('2021-11-02-general', 'ed', 'Poll_Site_List_General_ED_Kings_11-2021_r1_PRESS.pdf', V + 'poll_site_list/GE2021/Poll_Site_List_General_ED_Kings_11-2021_r1_PRESS.pdf'),
  ('2022-11-08-general', 'ed', 'Poll-Site-List-November-ED-Kings-2022-r1-PRESS.pdf', V + 'poll_site_list/GE2022/Poll-Site-List-November-ED-Kings-2022-r1-PRESS.pdf'),
  ('2024-06-25-primary', 'ev', 'Poll_Site_List_EV_June_2024_Primary_Kings_PRESS.pdf', V + 'poll_site_list/PE2024/Poll_Site_List_EV_June_2024_Primary_Kings_PRESS.pdf'),
