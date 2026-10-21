@@ -34,7 +34,8 @@
    ".cv-pin{position:absolute;left:-11px;top:-28px;width:22px;height:22px;border-radius:50% 50% 50% 0;background:#0d1b4b;border:3px solid #f47920;transform:rotate(-45deg);box-shadow:0 2px 6px rgba(13,27,75,.4)}"+
    ".cv-bal{position:absolute;bottom:34px;left:0;transform:translateX(-50%);display:flex;align-items:center;gap:8px;white-space:nowrap;background:#fff;border:2px solid #0d1b4b;border-radius:10px;padding:6px 10px 6px 7px;box-shadow:0 4px 12px rgba(13,27,75,.3);cursor:pointer;font-family:'DM Sans',sans-serif;text-align:left;animation:cvpop .35s cubic-bezier(.2,1.4,.4,1)}"+
    ".cv-bal:after{content:'';position:absolute;left:50%;bottom:-8px;margin-left:-7px;border:7px solid transparent;border-top-color:#0d1b4b;border-bottom:0}"+
-   ".cv-bal{width:280px;justify-content:flex-start}.cv-bal>span{white-space:normal;flex:1;min-width:0}.cv-bal b{display:block;font-size:.82rem;color:#0d1b4b;font-weight:800}.cv-bal small{display:block;font-size:.68rem;color:#f47920;font-weight:700}"+
+   ".cv-bal{width:280px;justify-content:flex-start}.cv-bal2{flex-direction:column;align-items:stretch;cursor:default}.cv-bal2>div>span{white-space:normal;flex:1;min-width:0}.cv-go{display:flex;gap:4px;margin-top:7px}.cv-go button{flex:1;font:800 .66rem 'DM Sans',sans-serif;border:0;border-radius:7px;padding:7px 4px;background:#0d1b4b;color:#fff;cursor:pointer;line-height:1.15}.cv-go button[data-t=ballot]{background:#f47920}"+
+   ".cv-bal>span{white-space:normal;flex:1;min-width:0}.cv-bal b{display:block;font-size:.82rem;color:#0d1b4b;font-weight:800}.cv-bal small{display:block;font-size:.68rem;color:#f47920;font-weight:700}"+
    ".cv-st{width:30px;height:30px;border-radius:50%;background:#fff url(/data/cb6vote/logos/voted.png) center/cover;box-shadow:0 0 0 2px #fff,0 0 0 3.5px #0d1b4b,0 2px 6px rgba(13,27,75,.45)}.cv-st.ev{width:34px;height:34px;box-shadow:0 0 0 3.5px #f47920,0 2px 7px rgba(13,27,75,.5)}"+
    ".cv-row{display:flex;align-items:center;gap:6px;flex:none}.cv-row .cv-st{width:30px;height:30px;box-shadow:none}.cv-at{font:900 1rem 'DM Sans',sans-serif;color:#f47920}"+
    ".cv-row img{width:30px;height:30px;border-radius:50%;object-fit:contain;background:#fff;border:1.5px solid #e5e2db}"+
@@ -46,9 +47,10 @@
    "@keyframes cvpop{from{transform:translateX(-50%) scale(.3);opacity:0}to{transform:translateX(-50%) scale(1);opacity:1}}";
   document.head.appendChild(css);
   root.innerHTML='<div class="k">Brooklyn Community Board 6</div><h2>Where BKCB6 votes</h2>'+
-    '<div class="s">Every early voting site and Election Day poll site in BKCB6, and every election district. Tap a district, or anywhere on the map, to drop a pin, then tap the ballot for its poll sites, the early voting days and the full ballot.</div>'+
+    '<div class="s">Search your address, or tap the map to drop a pin. Every early voting site, Election Day poll site and election district in BKCB6; the pin opens where you vote, the early voting days and your ballot.</div>'+
     '<div class="cvt" id="cvTg"><button type="button" class="on" data-l="ev"><span class="cv-st ev" style="width:18px;height:18px"></span>Early voting</button><button type="button" class="on" data-l="ed"><span class="cv-st" style="width:16px;height:16px"></span>Election Day poll sites</button><button type="button" class="on" data-l="eds">Election districts</button><button type="button" class="on" data-l="hood">Neighborhoods</button></div>'+
     '<div id="cb6voteMap"></div>';
+  (function(){var w=document.getElementById('where'),tg=document.getElementById('cvTg');if(w&&tg){root.insertBefore(w,tg);w.style.margin='10px 0 0';w.style.padding='0';w.style.border='0';w.style.background='transparent';}})();
   var G={ev:L.layerGroup(),ed:L.layerGroup(),hood:L.layerGroup(),eds:L.layerGroup()},lbl=L.layerGroup(),PS,FC,HD,CB,XW={},pinM=null,hiL=null;
   var map=L.map('cb6voteMap',{scrollWheelZoom:false,zoomSnap:.25,minZoom:13,maxZoom:18,maxBounds:[[40.63,-74.05],[40.715,-73.94]],maxBoundsViscosity:.8}).setView([40.676,-73.993],13.75);
   L.tileLayer(B+'tiles/{z}/{x}/{y}.png',{minZoom:13,maxZoom:18,maxNativeZoom:17,bounds:[[40.640,-74.035],[40.706,-73.952]],attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
@@ -61,20 +63,26 @@
   function pole(f){var g=f.geometry,P=g.type==='Polygon'?[g.coordinates]:g.coordinates,best=null,ba=-1;P.forEach(function(pp){var r=pp[0],a=0,cx=0,cy=0;for(var i=0,k=r.length-1;i<r.length;k=i++){var t=r[k][0]*r[i][1]-r[i][0]*r[k][1];a+=t;cx+=(r[k][0]+r[i][0])*t;cy+=(r[k][1]+r[i][1])*t;}if(Math.abs(a)>ba){ba=Math.abs(a);best=[cy/(3*a),cx/(3*a)];}});
     if(best&&polyIn([best[1],best[0]],g))return best;return L.geoJSON(f).getBounds().getCenter();}
   var SVG='<svg width="26" height="32" viewBox="0 0 26 32" aria-hidden="true"><rect x="1" y="1" width="24" height="30" rx="2.5" fill="#fff" stroke="#0d1b4b" stroke-width="2"/><rect x="1" y="1" width="24" height="7" rx="2.5" fill="#0d1b4b"/><ellipse cx="6.5" cy="13.5" rx="2.6" ry="1.8" fill="#f47920"/><rect x="11" y="12.5" width="10" height="2" rx="1" fill="#0d1b4b"/><ellipse cx="6.5" cy="19.5" rx="2.6" ry="1.8" fill="none" stroke="#0d1b4b" stroke-width="1.3"/><rect x="11" y="18.5" width="10" height="2" rx="1" fill="#94a3b8"/><ellipse cx="6.5" cy="25.5" rx="2.6" ry="1.8" fill="none" stroke="#0d1b4b" stroke-width="1.3"/><rect x="11" y="24.5" width="8" height="2" rx="1" fill="#94a3b8"/></svg>';
-  function open(key,ll){var x=XW[key]||[];if(!window.nov26Render)return;
+  function jump(t){var el=t==='ballot'?(document.getElementById('sheet')||{}).parentNode:document.getElementById(t==='ev'?'evcard':'edcard');if(!el)el=document.getElementById('out');if(el)setTimeout(function(){el.scrollIntoView({behavior:'smooth',block:'start'});},60);}
+  function open(key,ll,t){var x=XW[key]||[];if(!window.nov26Render)return;window.__cvFromMap=true;
     window.nov26Render({assemblyDistrict:key.slice(0,2),electionDistrict:key.slice(2),congressionalDistrict:x[1]||'',stateSenatorialDistrict:x[0]||'',cityCouncilDistrict:x[2]||'',communityDistrict:'',firstBoroughName:(x[4]||'Brooklyn').toUpperCase(),latitude:String(ll.lat),longitude:String(ll.lng)});
-    var o=document.getElementById('out');if(o)o.scrollIntoView({behavior:'smooth',block:'start'});}
+    window.__cvFromMap=false;jump(t||'ed');}
   var EDS={},EVS={};
   function logos(i){var st=PS.sites[+i];return LOGO[st.n]||[];}
   function row(i,max){var lo=logos(i).slice(0,max||1);return '<span class="cv-row"><span class="cv-st'+''+'"></span>'+(lo.length?'<span class="cv-at">@</span>'+lo.map(function(x){return '<img src="'+lg(x[1])+'" alt="'+esc(x[0])+'">';}).join(''):'')+'</span>';}
   function clear(){if(pinM){map.removeLayer(pinM);pinM=null;}if(hiL){map.removeLayer(hiL);hiL=null;}}
-  function drop(ll,key){key=key||edAt(ll);clear();
+  function drop(ll,key,opt){opt=opt||{};key=key||edAt(ll);clear();
     var si=key?EDS[key]:null,st=si!=null?PS.sites[+si]:null;
-    var lab=key?'ED '+(+key.slice(2))+' · AD '+(+key.slice(0,2))+(st?'</small><small style="color:#6b6760">Election Day at '+esc(st.n):''):'Outside the BKCB6 election districts';
+    var lab=key?(opt.label?esc(opt.label)+'</small><small>':'')+'ED '+(+key.slice(2))+' · AD '+(+key.slice(0,2))+(st?'</small><small style="color:#6b6760">Election Day at '+esc(st.n):''):'Outside the BKCB6 election districts';
     var head=si!=null?row(si,1):'<span class="cv-row"><span class="cv-st"></span></span>';
-    pinM=L.marker(ll,{icon:L.divIcon({className:'',html:'<div class="cv-pw"><button type="button" class="cv-bal">'+head+'<span><b>'+(key?'Tap to see your ballot':'No ballot here')+'</b><small>'+lab+'</small></span></button><div class="cv-pin"></div></div>',iconSize:[0,0],iconAnchor:[0,0]}),zIndexOffset:2000}).addTo(map);
-    try{map.panInside(ll,{paddingTopLeft:[150,110],paddingBottomRight:[150,20]});}catch(e){}
-    if(key){var f=FC.features.filter(function(x){return x.properties.e===key;})[0];if(f)hiL=L.geoJSON(f,{interactive:false,style:{color:'#0d1b4b',weight:3,fillColor:'#f47920',fillOpacity:.35}}).addTo(map);pinM.on('click',function(){open(key,ll);});}}
+    var btns=key?'<span class="cv-go"><button type="button" data-t="ed">Where you vote</button><button type="button" data-t="ev">Early voting days</button><button type="button" data-t="ballot">Your ballot</button></span>':'';
+    pinM=L.marker(ll,{icon:L.divIcon({className:'',html:'<div class="cv-pw"><div class="cv-bal cv-bal2"><div style="display:flex;align-items:center;gap:8px">'+head+'<span><b>'+(key?'Your ballot and where you vote':'No ballot here')+'</b><small>'+lab+'</small></span></div>'+btns+'</div><div class="cv-pin"></div></div>',iconSize:[0,0],iconAnchor:[0,0]}),zIndexOffset:2000}).addTo(map);
+    try{map.panInside(ll,{paddingTopLeft:[150,150],paddingBottomRight:[150,20]});}catch(e){}
+    if(key){var f=FC.features.filter(function(x){return x.properties.e===key;})[0];if(f)hiL=L.geoJSON(f,{interactive:false,style:{color:'#0d1b4b',weight:3,fillColor:'#f47920',fillOpacity:.35}}).addTo(map);
+      var done=!!opt.rendered;pinM.on('click',function(e){var t=e.originalEvent&&e.originalEvent.target,b=t&&t.closest?t.closest('button'):null,tg=b?b.getAttribute('data-t'):'ed';if(done)jump(tg);else{open(key,ll,tg);done=true;}});}}
+  window.cb6voteAddr=function(a,lat,lng){if(!FC||!isFinite(lat)||!isFinite(lng))return false;var key=('0'+parseInt(a.assemblyDistrict,10)).slice(-2)+('00'+parseInt(a.electionDistrict,10)).slice(-3);
+    if(!FC.features.some(function(f){return f.properties.e===key;}))return false;var ll=L.latLng(lat,lng),ad=document.getElementById('addr');
+    map.setView(ll,15.5);drop(ll,key,{label:ad&&ad.value?ad.value.split(',')[0]:'',rendered:true});setTimeout(function(){root.scrollIntoView({behavior:'smooth',block:'start'});},50);return true;};
   function siteTap(i,r){clear();var st=PS.sites[+i],ll=L.latLng(st.ll[0],st.ll[1]),lo=logos(i);
     var keys=(r.ed||r.ev).slice().sort(),multiAD={};keys.forEach(function(k){multiAD[k.slice(0,2)]=1;});var showAD=Object.keys(multiAD).length>1;
     var role=(r.ev?'Early voting site, October 24 to November 1':'')+(r.ev&&r.ed?' · ':'')+(r.ed?'Election Day poll site, November 3, 6 AM to 9 PM':'');
@@ -83,7 +91,7 @@
     pinM=L.marker(ll,{icon:L.divIcon({className:'',html:html,iconSize:[0,0],iconAnchor:[0,0]}),zIndexOffset:2000}).addTo(map);
     try{map.panInside(ll,{paddingTopLeft:[150,230],paddingBottomRight:[150,20]});}catch(e){}
     pinM.on('click',function(e){var t=e.originalEvent&&e.originalEvent.target,b=t&&t.closest?t.closest('button'):null;if(!b)return;if(b.getAttribute('data-x')){clear();return;}var k=b.getAttribute('data-k');if(!k)return;
-      var f=FC.features.filter(function(x){return x.properties.e===k;})[0],p=f?L.latLng(pole(f)):ll;drop(p,k);open(k,p);});}
+      var f=FC.features.filter(function(x){return x.properties.e===k;})[0],p=f?L.latLng(pole(f)):ll;drop(p,k);open(k,p,'ed');});}
   map.on('click',function(e){drop(e.latlng,null);});
   function edList(ks){var by={};ks.forEach(function(k){(by[k.slice(0,2)]=by[k.slice(0,2)]||[]).push(+k.slice(2));});return Object.keys(by).map(function(a){return 'AD '+a+': ED '+by[a].sort(function(x,y){return x-y;}).join(', ');}).join('; ');}
   function draw(){
