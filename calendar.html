@@ -249,6 +249,11 @@ a#org-page-link:hover{background:var(--orange);border-color:var(--orange);color:
 .lcb-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
 .lcb-meta span{font-size:.7rem;color:var(--muted)}
 .lcb-link{display:inline-block;margin-top:6px;font-size:.7rem;font-weight:700;color:var(--orange);text-decoration:none}
+.bpl-n{font-size:.68rem;font-weight:700;color:var(--muted);margin-left:6px}
+.bpl-rows{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.bpl-row{font-size:.72rem;line-height:1.3;color:var(--navy);text-decoration:none;display:block}
+a.bpl-row:hover{color:var(--orange)}
+.det-bpl-rows .bpl-row{color:#fff}
 .lcb-link.lcb-survey{display:inline-block;margin-left:8px;padding:5px 10px;border-radius:999px;background:var(--navy);color:#fff;border:1.5px solid var(--orange)}
 .detail-event-link.det-survey{background:var(--orange);color:#fff;border-color:var(--orange);font-weight:800}
 .lcb-link:hover{text-decoration:underline}
@@ -2739,11 +2744,11 @@ function renderList(){
   const all = [];
   Object.entries(EVENTS).forEach(([dateKey, evs])=>{
     evs.forEach(ev=>{
-      if(hiddenTypes.has(ev.type)) return;
+      if(hiddenTypes.has(filterType(ev.type))) return;
       if(ev._civic && !civicOn.has(ev._civic)) return;
       if(entityFilter && ev._entity !== entityFilter) return;
-      if(org && ev.type !== org) return;
-      if(cat && CAT_TYPES[cat] && !CAT_TYPES[cat].has(ev.type) && !(cat==='parks' && String(ev.type).startsWith('park-'))) return;
+      if(org && filterType(ev.type) !== org) return;
+      if(cat && CAT_TYPES[cat] && !CAT_TYPES[cat].has(filterType(ev.type)) && !(cat==='parks' && String(ev.type).startsWith('park-'))) return;
       if(q && !ev.label.toLowerCase().includes(q) &&
               !(ev.location||'').toLowerCase().includes(q) &&
               !(ev.desc||'').toLowerCase().includes(q)) return;
@@ -2781,7 +2786,8 @@ function renderList(){
   const upcoming = rangeFilter ? deduped : deduped.filter(isUpcoming);
   // Past matches, newest first, revealed by the "See past events" button.
   const pastEvents = rangeFilter ? [] : deduped.filter(e => !isUpcoming(e)).reverse();
-  const future = showPast ? upcoming.concat(pastEvents) : upcoming;
+  const upcomingG = groupBPL(upcoming), pastG = groupBPL(pastEvents);
+  const future = showPast ? upcomingG.concat(pastG) : upcomingG;
   document.getElementById('list-count').textContent = future.length + ' event' + (future.length===1?'':'s');
 
   // Button label names the organization when one is filtered, so it reads
@@ -2794,7 +2800,7 @@ function renderList(){
   if(pastEvents.length){
     pastToggle = showPast
       ? `<div class="past-toggle-wrap"><button class="past-toggle" onclick="togglePast()">Hide ${pastLabel}</button></div>`
-      : `<div class="past-toggle-wrap"><button class="past-toggle" onclick="togglePast()">See ${pastLabel} (${pastEvents.length})</button></div>`;
+      : `<div class="past-toggle-wrap"><button class="past-toggle" onclick="togglePast()">See ${pastLabel} (${pastG.length})</button></div>`;
   }
 
   if(!future.length){
@@ -2804,12 +2810,27 @@ function renderList(){
       '</div>' + pastToggle;
     return;
   }
-  const firstPastKey = (showPast && pastEvents.length) ? pastEvents[0].dateKey + '|' + pastEvents[0].ev.label : null;
+  const firstPastKey = (showPast && pastG.length) ? pastG[0].dateKey + '|' + pastG[0].ev.label : null;
   document.getElementById('list-body').innerHTML = future.map(({dateKey, ev})=>{
     const d = new Date(dateKey+'T00:00:00');
+    if(ev._bplGroup){
+      const card = `<div class="list-card bpl-group" id="ev-${evSlug(dateKey, ev.label)}">
+      <div class="lcd">
+        <div class="lcd-month">${MONTHS_SHORT2[d.getMonth()]}</div>
+        <div class="lcd-day">${d.getDate()}</div>
+        <div class="lcd-dow">${DOW[d.getDay()]}</div>
+      </div>
+      ${orgLogoLink('bpl', `<img class="lci" src="bpl.png" alt="" style="border-radius:5px">`)}
+      <div class="lcb">
+        <div class="lcb-title">Brooklyn Public Library <span class="bpl-n">${ev._bplGroup.length} events</span></div>
+        <div class="bpl-rows">${bplRows(ev._bplGroup)}</div>
+      </div>
+    </div>`;
+      return (firstPastKey && firstPastKey === dateKey + '|' + ev.label) ? `<div class="past-divider">Past ${orgName ? orgName + ' ' : ''}events</div>` + card : card;
+    }
     const t = TYPES[ev.type]||TYPES.community;
-    const icon = ORG_ICONS[ev.type];
-    const iconHtml = orgLogoLink(ev.type, icon
+    const icon = ORG_ICONS[ev.type] || (isBPL(ev.type) ? 'bpl.png' : undefined);
+    const iconHtml = orgLogoLink(filterType(ev.type), icon
       ? `<img class="lci" src="${icon}" alt="" style="border-radius:${(ev.type==='principles'||ev.type==='artichoke'||ev.type==='nycvotes')?'50%':'5px'}">`
       : `<div class="lci" style="background:${t.bg};border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:1rem">${t.icon}</div>`);
     const timeStr = ev.time || ((ev.type==='board'||ev.type==='committee')?'6:30 PM':null);
@@ -2845,6 +2866,32 @@ function renderList(){
 }
 
 const CIVIC_TYPES = new Set(['dcp','lpc','nyccouncil','committee']);
+// Brooklyn Public Library: the hand-entered "bpl" listings and the branch feeds (type lib-<branch>) are one
+// organization. Filters treat them as "bpl", and every view condenses a day's library listings into one entry.
+const isBPL = t => t === 'bpl' || String(t).startsWith('lib-');
+const filterType = t => isBPL(t) ? 'bpl' : t;
+const BPL_BRANCH = {'lib-central':'Central Library','lib-park-slope':'Park Slope Library','lib-carroll-gardens':'Carroll Gardens Library','lib-red-hook':'Red Hook Library','lib-brooklyn-heights':'Brooklyn Heights Library','lib-pacific':'Pacific Library'};
+function bplBranch(ev){ return BPL_BRANCH[ev.type] || ((ev.location||'').split(' · ')[0].replace(/^Brooklyn Public Library,?\s*/,'')) || 'Brooklyn Public Library'; }
+function bplSortKey(ev){ const m=/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)/i.exec(ev.time||''); if(!m) return 9999; let hh=+m[1]%12; if(/pm/i.test(m[3])) hh+=12; return hh*60+(+(m[2]||0)); }
+function bplRows(list){
+  return list.slice().sort((a,b)=>bplSortKey(a)-bplSortKey(b)).map(ev=>{
+    const txt = [ev.time, bplBranch(ev), ev.label].filter(Boolean).map(s=>String(s).replace(/</g,'&lt;')).join(' · ');
+    return ev.href ? `<a class="bpl-row" href="${ev.href}" target="_blank" rel="noopener noreferrer">${txt} ↗</a>` : `<span class="bpl-row">${txt}</span>`;
+  }).join('');
+}
+// One list entry per day for the library: collapses a day's bpl / lib-* items into a group item.
+function groupBPL(items){
+  const out = [], seenDay = new Set();
+  items.forEach(it => {
+    if(!isBPL(it.ev.type)){ out.push(it); return; }
+    if(seenDay.has(it.dateKey)) return;
+    seenDay.add(it.dateKey);
+    const list = items.filter(x => x.dateKey === it.dateKey && isBPL(x.ev.type)).map(x => x.ev);
+    if(list.length === 1){ out.push(it); return; }
+    out.push({dateKey: it.dateKey, ev: {type:'bpl', label:'Brooklyn Public Library · ' + list.length + ' events', _bplGroup: list}});
+  });
+  return out;
+}
 // Every CB6 meeting listing (Full Board and committee) carries the District Needs survey button.
 const SURVEY_LINK = {href:'https://bkcb6.app/budgetsurvey/', text:'FY 2028 District Needs Survey ↗', survey:true};
 function cb6Links(ev){ return ((ev.type==='board'||ev.type==='committee') ? [SURVEY_LINK] : []); }
@@ -3100,14 +3147,23 @@ function cell(d, key, other, today, weekend){
   const orgSel = document.getElementById('list-org-filter');
   const activeOrgFilter = orgSel ? (orgSel.value || '') : '';
   const dedupedEvs = evs.filter(ev => {
-    if(hiddenTypes.has(ev.type)) return false;
-    if(activeOrgFilter && ev.type !== activeOrgFilter) return false;
-    if(activeCat && CAT_TYPES[activeCat] && !CAT_TYPES[activeCat].has(ev.type) && !(activeCat==='parks' && String(ev.type).startsWith('park-'))) return false;
+    if(hiddenTypes.has(filterType(ev.type))) return false;
+    if(activeOrgFilter && filterType(ev.type) !== activeOrgFilter) return false;
+    if(activeCat && CAT_TYPES[activeCat] && !CAT_TYPES[activeCat].has(filterType(ev.type)) && !(activeCat==='parks' && String(ev.type).startsWith('park-'))) return false;
     if(ev._civic && !civicOn.has(ev._civic)) return false;
     if(entityFilter && ev._entity !== entityFilter) return false;
     return true;
   });
+  let bplPillDone = false;
   const pills = dedupedEvs.map(ev=>{
+    if(isBPL(ev.type)){
+      if(bplPillDone) return '';
+      bplPillDone = true;
+      const seenLib = new Set();
+      const libs = dedupedEvs.filter(e=>isBPL(e.type)).filter(e=>{const k=e.label+'|'+(e.time||'');if(seenLib.has(k))return false;seenLib.add(k);return true;});
+      const tip = libs.length === 1 ? [ev.label, ev.time, ev.location].filter(Boolean).join(' · ') : libs.length + ' Brooklyn Public Library events';
+      return `<img src="bpl.png" class="ev-img" alt="Brooklyn Public Library" title="${tip}">`;
+    }
     if(ev.type === 'board'){
       const tip = [ev.label, ev.time||'6:30 PM', ev.location].filter(Boolean).join(' · ');
       return `<img src="cb6-full-board.png" class="ev-img" alt="CB6 Full Board" title="${tip}">`;
@@ -3324,7 +3380,7 @@ function selectDay(key, d){
     evs.find(e => e.label===label && !e._alt) ||
     evs.find(e => e.label===label);
   const uniqEvs = evs.filter(ev => {
-    if(hiddenTypes.has(ev.type)) return false;
+    if(hiddenTypes.has(filterType(ev.type))) return false;
     if(ev._civic && !civicOn.has(ev._civic)) return false;
     if(entityFilter && ev._entity !== entityFilter) return false;
     if(crossLabels.has(ev.label) && crossKeeper(ev.label) !== ev) return false;
@@ -3340,7 +3396,17 @@ function selectDay(key, d){
   if(!uniqEvs.length){ panel.style.display='none'; return; }
   const [ky, km, kd] = key.split('-').map(Number);
   document.getElementById('detail-title').textContent = `${MONTH_NAMES_LONG[km-1]} ${kd}, ${ky}`;
+  let bplDetailDone = false;
   document.getElementById('detail-body').innerHTML = uniqEvs.map(ev=>{
+    if(isBPL(ev.type)){
+      const libs = uniqEvs.filter(e=>isBPL(e.type));
+      if(libs.length > 1){
+        if(bplDetailDone) return '';
+        bplDetailDone = true;
+        const tb = (TYPES.bpl||TYPES.community).bg;
+        return `<div class="det-ev bpl-group" id="ev-${evSlug(key, 'Brooklyn Public Library')}" style="background:${tb}">${orgLogoLink('bpl', `<img src="bpl.png" alt="" style="width:26px;height:26px;border-radius:5px;background:#fff;object-fit:cover;flex-shrink:0">`)}<div class="det-ev-copy"><div class="det-ev-text">Brooklyn Public Library <span class="bpl-n" style="color:rgba(255,255,255,.8)">${libs.length} events</span></div><div class="bpl-rows det-bpl-rows">${bplRows(libs)}</div></div></div>`;
+      }
+    }
     const t = TYPES[ev.type]||TYPES.community;
     const isMeeting = ev.type === 'board' || ev.type === 'committee';
     const timeStr = ev.time || (isMeeting ? '6:30 PM' : null);
@@ -3353,8 +3419,8 @@ function selectDay(key, d){
       + (ev.links||[]).concat(cb6Links(ev)).map(l=>`<a class="detail-event-link${l.survey?' det-survey':''}" href="${l.href}" target="_blank" rel="noopener noreferrer">${l.text}</a>`).join('');
     const flyer = ev.flyer ? `<span class="det-ev-flyer" onclick="openFlyer('${ev.flyer}','${(ev.href||'').replace(/'/g,'%27')}')" title="Tap to enlarge"><img src="${ev.flyer}" alt="${ev.label} flyer" loading="lazy"></span>` : '';
     const agenda = ev.agenda ? `<span class="det-ev-agenda" onclick="openFlyer('${ev.agenda}','${(ev.href||'').replace(/'/g,'%27')}')" title="Tap to read the agenda"><img src="${ev.agenda}" alt="${ev.label} agenda" loading="lazy"></span>` : '';
-    const logo = ORG_ICONS[ev.type];
-    const iconHtml = orgLogoLink(ev.type, ev.type === 'nycvotes'
+    const logo = ORG_ICONS[ev.type] || (isBPL(ev.type) ? 'bpl.png' : undefined);
+    const iconHtml = orgLogoLink(filterType(ev.type), ev.type === 'nycvotes'
       ? `<img src="voted-bkcb6-2026.png" alt="" style="width:24px;height:24px;border-radius:50%">`
       : logo
         ? `<img src="${logo}" alt="" style="width:26px;height:26px;border-radius:${(ev.type==='principles'||ev.type==='artichoke')?'50%':'5px'};background:#fff;object-fit:cover;flex-shrink:0">`
