@@ -34,12 +34,20 @@
    ".cv-pin{position:absolute;left:-11px;top:-28px;width:22px;height:22px;border-radius:50% 50% 50% 0;background:#0d1b4b;border:3px solid #f47920;transform:rotate(-45deg);box-shadow:0 2px 6px rgba(13,27,75,.4)}"+
    ".cv-bal{position:absolute;bottom:34px;left:0;transform:translateX(-50%);display:flex;align-items:center;gap:8px;white-space:nowrap;background:#fff;border:2px solid #0d1b4b;border-radius:10px;padding:6px 10px 6px 7px;box-shadow:0 4px 12px rgba(13,27,75,.3);cursor:pointer;font-family:'DM Sans',sans-serif;text-align:left;animation:cvpop .35s cubic-bezier(.2,1.4,.4,1)}"+
    ".cv-bal:after{content:'';position:absolute;left:50%;bottom:-8px;margin-left:-7px;border:7px solid transparent;border-top-color:#0d1b4b;border-bottom:0}"+
-   ".cv-bal b{display:block;font-size:.82rem;color:#0d1b4b;font-weight:800}.cv-bal small{display:block;font-size:.68rem;color:#f47920;font-weight:700}"+
+   ".cv-bal{width:280px;justify-content:flex-start}.cv-bal>span{white-space:normal;flex:1;min-width:0}.cv-bal b{display:block;font-size:.82rem;color:#0d1b4b;font-weight:800}.cv-bal small{display:block;font-size:.68rem;color:#f47920;font-weight:700}"+
+   ".cv-st{width:30px;height:30px;border-radius:50%;background:#fff url(/data/cb6vote/logos/voted.png) center/cover;box-shadow:0 0 0 2px #fff,0 0 0 3.5px #0d1b4b,0 2px 6px rgba(13,27,75,.45)}.cv-st.ev{width:34px;height:34px;box-shadow:0 0 0 3.5px #f47920,0 2px 7px rgba(13,27,75,.5)}"+
+   ".cv-row{display:flex;align-items:center;gap:6px;flex:none}.cv-row .cv-st{width:30px;height:30px;box-shadow:none}.cv-at{font:900 1rem 'DM Sans',sans-serif;color:#f47920}"+
+   ".cv-row img{width:30px;height:30px;border-radius:50%;object-fit:contain;background:#fff;border:1.5px solid #e5e2db}"+
+   ".cv-site{position:absolute;bottom:26px;left:0;transform:translateX(-50%);width:max-content;max-width:270px;background:#fff;border:2px solid #0d1b4b;border-radius:10px;padding:8px 10px;box-shadow:0 4px 12px rgba(13,27,75,.3);font-family:'DM Sans',sans-serif;animation:cvpop .35s cubic-bezier(.2,1.4,.4,1);cursor:default}"+
+   ".cv-site:after{content:'';position:absolute;left:50%;bottom:-8px;margin-left:-7px;border:7px solid transparent;border-top-color:#0d1b4b;border-bottom:0}"+
+   ".cv-site .nm{font-weight:800;font-size:.86rem;color:#0d1b4b;margin-top:5px;white-space:normal}.cv-site .ad{font-size:.7rem;color:#6b6760;white-space:normal}.cv-site .rl{font-size:.68rem;color:#f47920;font-weight:800;margin-top:2px;white-space:normal}"+
+   ".cv-site .tp{font-size:.72rem;color:#0d1b4b;font-weight:700;margin-top:6px}.cv-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;max-height:96px;overflow:auto}"+
+   ".cv-chips button{font:800 .68rem 'DM Sans',sans-serif;border:1.5px solid #0d1b4b;background:#fff;color:#0d1b4b;border-radius:999px;padding:3px 7px;cursor:pointer}.cv-x{position:absolute;right:4px;top:2px;border:0;background:none;font:800 1rem 'DM Sans',sans-serif;color:#6b6760;cursor:pointer}"+
    "@keyframes cvpop{from{transform:translateX(-50%) scale(.3);opacity:0}to{transform:translateX(-50%) scale(1);opacity:1}}";
   document.head.appendChild(css);
   root.innerHTML='<div class="k">Brooklyn Community Board 6</div><h2>Where BKCB6 votes</h2>'+
     '<div class="s">Every early voting site and Election Day poll site in BKCB6, and every election district. Tap a district, or anywhere on the map, to drop a pin, then tap the ballot for its poll sites, the early voting days and the full ballot.</div>'+
-    '<div class="cvt" id="cvTg"><button type="button" class="on" data-l="ev"><span style="width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px #f47920"></span>Early voting</button><button type="button" class="on" data-l="ed"><span style="width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px #fff,0 0 0 3.5px #0d1b4b"></span>Election Day poll sites</button><button type="button" class="on" data-l="eds">Election districts</button><button type="button" class="on" data-l="hood">Neighborhoods</button></div>'+
+    '<div class="cvt" id="cvTg"><button type="button" class="on" data-l="ev"><span class="cv-st ev" style="width:18px;height:18px"></span>Early voting</button><button type="button" class="on" data-l="ed"><span class="cv-st" style="width:16px;height:16px"></span>Election Day poll sites</button><button type="button" class="on" data-l="eds">Election districts</button><button type="button" class="on" data-l="hood">Neighborhoods</button></div>'+
     '<div id="cb6voteMap"></div>';
   var G={ev:L.layerGroup(),ed:L.layerGroup(),hood:L.layerGroup(),eds:L.layerGroup()},lbl=L.layerGroup(),PS,FC,HD,CB,XW={},pinM=null,hiL=null;
   var map=L.map('cb6voteMap',{scrollWheelZoom:false,zoomSnap:.25,minZoom:13,maxZoom:18,maxBounds:[[40.63,-74.05],[40.715,-73.94]],maxBoundsViscosity:.8}).setView([40.676,-73.993],13.75);
@@ -56,11 +64,26 @@
   function open(key,ll){var x=XW[key]||[];if(!window.nov26Render)return;
     window.nov26Render({assemblyDistrict:key.slice(0,2),electionDistrict:key.slice(2),congressionalDistrict:x[1]||'',stateSenatorialDistrict:x[0]||'',cityCouncilDistrict:x[2]||'',communityDistrict:'',firstBoroughName:(x[4]||'Brooklyn').toUpperCase(),latitude:String(ll.lat),longitude:String(ll.lng)});
     var o=document.getElementById('out');if(o)o.scrollIntoView({behavior:'smooth',block:'start'});}
-  function drop(ll,key){key=key||edAt(ll);if(pinM)map.removeLayer(pinM);if(hiL){map.removeLayer(hiL);hiL=null;}
-    var lab=key?'Election District '+(+key.slice(2))+' · Assembly District '+(+key.slice(0,2)):'Outside the BKCB6 election districts';
-    pinM=L.marker(ll,{icon:L.divIcon({className:'',html:'<div class="cv-pw"><button type="button" class="cv-bal">'+SVG+'<span><b>'+(key?'Tap to see your ballot':'No ballot here')+'</b><small>'+esc(lab)+'</small></span></button><div class="cv-pin"></div></div>',iconSize:[0,0],iconAnchor:[0,0]}),zIndexOffset:2000}).addTo(map);
-    try{map.panInside(ll,{paddingTopLeft:[130,110],paddingBottomRight:[130,20]});}catch(e){}
+  var EDS={},EVS={};
+  function logos(i){var st=PS.sites[+i];return LOGO[st.n]||[];}
+  function row(i,max){var lo=logos(i).slice(0,max||1);return '<span class="cv-row"><span class="cv-st'+''+'"></span>'+(lo.length?'<span class="cv-at">@</span>'+lo.map(function(x){return '<img src="'+lg(x[1])+'" alt="'+esc(x[0])+'">';}).join(''):'')+'</span>';}
+  function clear(){if(pinM){map.removeLayer(pinM);pinM=null;}if(hiL){map.removeLayer(hiL);hiL=null;}}
+  function drop(ll,key){key=key||edAt(ll);clear();
+    var si=key?EDS[key]:null,st=si!=null?PS.sites[+si]:null;
+    var lab=key?'ED '+(+key.slice(2))+' · AD '+(+key.slice(0,2))+(st?'</small><small style="color:#6b6760">Election Day at '+esc(st.n):''):'Outside the BKCB6 election districts';
+    var head=si!=null?row(si,1):'<span class="cv-row"><span class="cv-st"></span></span>';
+    pinM=L.marker(ll,{icon:L.divIcon({className:'',html:'<div class="cv-pw"><button type="button" class="cv-bal">'+head+'<span><b>'+(key?'Tap to see your ballot':'No ballot here')+'</b><small>'+lab+'</small></span></button><div class="cv-pin"></div></div>',iconSize:[0,0],iconAnchor:[0,0]}),zIndexOffset:2000}).addTo(map);
+    try{map.panInside(ll,{paddingTopLeft:[150,110],paddingBottomRight:[150,20]});}catch(e){}
     if(key){var f=FC.features.filter(function(x){return x.properties.e===key;})[0];if(f)hiL=L.geoJSON(f,{interactive:false,style:{color:'#0d1b4b',weight:3,fillColor:'#f47920',fillOpacity:.35}}).addTo(map);pinM.on('click',function(){open(key,ll);});}}
+  function siteTap(i,r){clear();var st=PS.sites[+i],ll=L.latLng(st.ll[0],st.ll[1]),lo=logos(i);
+    var keys=(r.ed||r.ev).slice().sort(),multiAD={};keys.forEach(function(k){multiAD[k.slice(0,2)]=1;});var showAD=Object.keys(multiAD).length>1;
+    var role=(r.ev?'Early voting site, October 24 to November 1':'')+(r.ev&&r.ed?' · ':'')+(r.ed?'Election Day poll site, November 3, 6 AM to 9 PM':'');
+    var html='<div class="cv-pw"><div class="cv-site"><button type="button" class="cv-x" data-x="1" aria-label="Close">&times;</button>'+row(i,4)+'<div class="nm">'+esc(st.n)+(lo.length>1?' <span style="font-weight:600;color:#6b6760">('+esc(lo.map(function(x){return x[0];}).join(', '))+')</span>':'')+'</div><div class="ad">'+esc(st.a)+'</div><div class="rl">'+esc(role)+'</div>'+
+      '<div class="tp">Tap your election district to see your ballot'+(r.ed?'':' (these vote early here)')+'</div><div class="cv-chips">'+keys.map(function(k){return '<button type="button" data-k="'+k+'">ED '+(+k.slice(2))+(showAD?' <span style="font-weight:600">AD '+(+k.slice(0,2))+'</span>':'')+'</button>';}).join('')+'</div></div></div>';
+    pinM=L.marker(ll,{icon:L.divIcon({className:'',html:html,iconSize:[0,0],iconAnchor:[0,0]}),zIndexOffset:2000}).addTo(map);
+    try{map.panInside(ll,{paddingTopLeft:[150,230],paddingBottomRight:[150,20]});}catch(e){}
+    pinM.on('click',function(e){var t=e.originalEvent&&e.originalEvent.target,b=t&&t.closest?t.closest('button'):null;if(!b)return;if(b.getAttribute('data-x')){clear();return;}var k=b.getAttribute('data-k');if(!k)return;
+      var f=FC.features.filter(function(x){return x.properties.e===k;})[0],p=f?L.latLng(pole(f)):ll;drop(p,k);open(k,p);});}
   map.on('click',function(e){drop(e.latlng,null);});
   function edList(ks){var by={};ks.forEach(function(k){(by[k.slice(0,2)]=by[k.slice(0,2)]||[]).push(+k.slice(2));});return Object.keys(by).map(function(a){return 'AD '+a+': ED '+by[a].sort(function(x,y){return x-y;}).join(', ');}).join('; ');}
   function draw(){
@@ -73,11 +96,11 @@
         l.on('click',function(e){L.DomEvent.stopPropagation(e);l.closeTooltip();l.setStyle(ST);drop(e.latlng,k);});}}).addTo(G.eds);
       FC.features.forEach(function(f){lbl.addLayer(L.marker(pole(f),{interactive:false,icon:L.divIcon({className:'',html:'<div class="cv-edl">'+(+f.properties.e.slice(2))+'</div>',iconSize:[0,0]})}));});}
     if(CB){var o=L.geoJSON(CB,{interactive:false,style:{color:'#f47920',weight:3.5,opacity:1,fill:false}}).addTo(map);map.fitBounds(o.getBounds(),{padding:[8,8]});}
-    if(PS){var all={};PS.elections.forEach(function(e){if(e.id!==EID)return;Object.keys(e.sites).forEach(function(i){var r=(all[i]=all[i]||{}),k=e.kind==='ev'?'ev':'ed';r[k]=(r[k]||[]).concat(e.sites[i]);});});
+    if(PS){var all={};PS.elections.forEach(function(e){if(e.id!==EID)return;Object.keys(e.sites).forEach(function(i){var r=(all[i]=all[i]||{}),k=e.kind==='ev'?'ev':'ed';r[k]=(r[k]||[]).concat(e.sites[i]);e.sites[i].forEach(function(q){(k==='ev'?EVS:EDS)[q]=i;});});});
       Object.keys(all).forEach(function(i){var st=PS.sites[+i],r=all[i];if(!st.ll)return;var lo=LOGO[st.n]||[['','voted']],isEv=!!r.ev;
-        var html='<div class="cv-lg'+(isEv?' ev':'')+'"><img src="'+lg(lo[0][1])+'" alt="">'+(lo.length>1?'<span class="cv-n">+'+(lo.length-1)+'</span>':'')+'</div>';
+        var html='<div class="cv-st'+(isEv?' ev':'')+'"></div>';
         var tt='<div class="cv-tt"><b>'+esc(st.n)+'</b><br>'+esc(st.a)+(lo[0][0]?'<br>'+lo.map(function(x){return '<img src="'+lg(x[1])+'" alt="">'+esc(x[0]);}).join('<br>'):'')+(r.ev?'<br><b>Early voting site</b> for '+esc(edList(r.ev)):'')+(r.ed?'<br><b>Election Day poll site</b> for '+esc(edList(r.ed)):'')+'</div>';
-        L.marker(st.ll,{icon:L.divIcon({className:'',html:html,iconSize:[36,36],iconAnchor:[18,18]}),zIndexOffset:isEv?900:800}).bindTooltip(tt,{direction:'top',offset:[0,-14]}).addTo(G[isEv?'ev':'ed']);});}
+        var sz=isEv?34:30;L.marker(st.ll,{icon:L.divIcon({className:'',html:html,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),zIndexOffset:isEv?900:800}).on('click',function(e){L.DomEvent.stopPropagation(e);siteTap(i,r);}).addTo(G[isEv?'ev':'ed']);});}
     map.fire('zoomend');}
   Promise.all([j('/data/pollsites-history/cb6.json').catch(function(){return null;}),j(B+'eds.json').catch(function(){return null;}),j(B+'hoods.json').catch(function(){return null;}),j(B+'boundary.geojson').catch(function(){return null;}),j(B+'xw.json').catch(function(){return {};})])
     .then(function(a){PS=a[0];FC=a[1];HD=a[2];CB=a[3];XW=a[4]||{};draw();});
