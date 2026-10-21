@@ -110,6 +110,10 @@ EXCLUDES = [
 ]
 
 OVERRIDES = [
+    # Oct 22, 2026 Landmarks, Land Use & Housing committee meeting: canceled.
+    {"date": "2026-10-22", "label_contains": "Landmarks, Land Use",
+     "set": {"label": "CANCELED: CB6 Committee Meeting- Landmarks, Land Use & Housing",
+             "desc": "This meeting has been canceled.", "location": None}},
     # Oct 14, 2026 Full Board: the meeting graphic, Zoom, and the agenda map embedded under the event.
     {"date": "2026-10-14", "label_contains": "CB6 Full Board Meeting",
      "set": {"flyer": "https://bkcb6.app/101426/meeting.png", "embed": "https://bkcb6.app/101426/?embed=map",
@@ -135,7 +139,8 @@ OVERRIDES = [
     # Landmarks, Land Use & Housing meets on Thursday. The official feed has the
     # Oct 2026 meeting on Friday the 23rd; it is Thursday the 22nd.
     {"date": "2026-10-23", "label_contains": "Landmarks, Land Use",
-     "set": {"date": "2026-10-22", "label": "CB6 Committee Meeting- Landmarks, Land Use & Housing"}},
+     "set": {"date": "2026-10-22", "label": "CANCELED: CB6 Committee Meeting- Landmarks, Land Use & Housing",
+             "desc": "This meeting has been canceled.", "location": None}},
     # June 25, 2026 Landmarks, Land Use & Housing — meeting is on Zoom.
     {
         "date": "2026-06-25",
@@ -175,10 +180,10 @@ except Exception as _e:
 ADDITIONS.append({
     "date": "2026-10-22",
     "type": "committee",
-    "label": "CB6 Committee Meeting- Landmarks, Land Use & Housing",
+    "label": "CANCELED: CB6 Committee Meeting- Landmarks, Land Use & Housing",
     "time": "6:30 PM",
     "location": None,
-    "desc": "Agenda TBD",
+    "desc": "This meeting has been canceled.",
     "href": "https://brooklyncb6.cityofnewyork.us/event/cb6-committee-meeting-landmarks-land-use-housing-8/",
     "linkText": "Full details \u2197",
 })
