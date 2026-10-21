@@ -49,6 +49,9 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 .leaflet-tooltip.dl{background:transparent;border:0;box-shadow:none;font:700 .66rem 'DM Mono',monospace;color:#0d1b4b;text-shadow:0 0 3px #fff,0 0 3px #fff}
 .leaflet-tooltip.dl:before,.leaflet-tooltip.bl:before{display:none}
 .app #asb,.app header,.app .homebar{display:none}
+.scope{display:flex;align-items:center;gap:8px;margin:12px 0 0}
+.scope label{font:700 .64rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--orange)}
+.scope select{flex:1;max-width:320px;font:800 .92rem 'DM Sans',sans-serif;padding:9px 12px;border:1.5px solid var(--navy);border-radius:10px;color:var(--navy);background:#fff}
 .srch{position:relative;display:flex;gap:6px;margin:12px 0 8px}
 .srch input{flex:1;min-width:0;font:600 .9rem 'DM Sans',sans-serif;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;color:var(--navy);background:#fff}
 .srch input:focus{outline:none;border-color:var(--orange)}
@@ -132,6 +135,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 <div class="homebar"><a href="/govhub.html#sec-city-org">&#8592; Government org chart</a></div>
 <div id="bar"></div>
 <div class="wrap">
+  <div class="scope"><label for="scopeSel">Map of</label><select id="scopeSel" aria-label="Map of"><option value="306">BKCB6</option><option value="bk">Brooklyn</option><option value="nyc">New York City</option></select></div>
   <div class="srch"><input id="q" type="search" placeholder="Address, BBL, or &ldquo;Brooklyn block 393&rdquo;" autocomplete="off" aria-label="Search an address or block"><button id="qGo" type="button">Find</button><div class="sugg" id="sugg"></div></div>
   <div class="tools">
     <div class="lyr" id="lyr" style="margin:0"><button data-k="bp" class="on">Boroughs</button><button data-k="cb">Community Districts</button><button data-k="council">City Council</button><button data-k="senate">State Senate</button><button data-k="assembly">Assembly</button><button data-k="congress">Congress</button></div>
@@ -646,7 +650,12 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
     rows.forEach(function(r){h+='<tr class="psr" data-i="'+r.i+'" data-d="'+r.last+'" style="cursor:pointer"><td><img src="/assets/map-icons/voted-bkcb6.png" alt="" style="width:26px;height:26px"></td><td><b>'+esc(r.st.n)+'</b> <small>'+esc(r.st.a)+'</small>'+(r.ed.length?'<br><small>Election Day:</small> '+lst(r.ed):'')+(r.ev.length?'<br><small>Early voting:</small> '+lst(r.ev):'')+'</td></tr>';});
     return h+'</table><p class="note">Sources: NYC Board of Elections poll site lists for Kings County, '+PS.elections.filter(function(e){return e.src.indexOf('vote.nyc')>=0;}).map(function(e){return '<a href="'+esc(e.src)+'" target="_blank" rel="noopener">'+esc(e.date.slice(0,4)+' '+(e.kind==='ev'?'early voting':'Election Day')+(/rimary/.test(e.label||'')?' (primary)':''))+'</a>';}).join(', ')+'; 2018: <a href="https://data.cityofnewyork.us/d/i3a3-qxkf" target="_blank" rel="noopener">BOE election district poll sites</a> on NYC Open Data. The Board&rsquo;s own lists online start with 2018; none for 2023 or for early voting in 2020 to 2022 were found.</p></div></details>';}
   // ================= one community district through time (?cb=306), and everything at one spot =================
-  var CBQ=(function(){var v=new URLSearchParams(location.search).get('cb');return v&&/^[1-5]\d\d$/.test(v)&&+v.slice(1)>=1&&+v.slice(1)<=18?v:null;})();
+  var SCOPE=(function(){var s=new URLSearchParams(location.search).get('scope');return s==='bk'||s==='nyc'?s:null;})();
+  var CBQ=(function(){var v=new URLSearchParams(location.search).get('cb');if(v&&/^[1-5]\d\d$/.test(v)&&+v.slice(1)>=1&&+v.slice(1)<=18)return v;return SCOPE?null:'306';})();
+  (function(){var s=document.getElementById('scopeSel');if(!s)return;
+    if(CBQ&&CBQ!=='306'){var o=document.createElement('option');o.value=CBQ;o.textContent=['','MN','BX','BK','QN','SI'][+CBQ[0]]+' CB'+(+CBQ.slice(1));s.insertBefore(o,s.firstChild.nextSibling);}
+    s.value=SCOPE||CBQ;
+    s.onchange=function(){var u=new URL(location.href);u.searchParams.delete('cb');u.searchParams.delete('scope');var v=s.value;if(v==='bk'||v==='nyc')u.searchParams.set('scope',v);else u.searchParams.set('cb',v);location.href=u.toString();};})();
   var CBH=null,cbLayer=null,cbOpen={},cbSec={};
   function sec(k,t,sm){return '<details class="sub" data-k="'+k+'"'+(cbSec[k]?' open':'')+'><summary><span>'+t+' <small>'+sm+'</small></span></summary><div>';}
   function bform(c){return BA[c[0]]+'CB'+(+c.slice(1));}
@@ -742,6 +751,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   Promise.all([j('/data/districthistory/at-large.json'),j('/data/districthistory/overlap.json'),j('/data/atlas/boroughs.geojson'),j('/data/cd-boundaries-lite.geojson'),j('/data/counties-history.geojson').catch(function(){return null;})]).then(function(a){CTY=a[4];
     AL=a[0];OV=a[1];BG=a[2];CD={type:'FeatureCollection',features:a[3].features.filter(function(f){return +f.properties.c.slice(1)<=18;})};AL.offices.forEach(function(o){O[o.key]=o;});
     map.fitBounds(L.geoJSON(BG).getBounds(),{padding:[10,10]});
+    if(SCOPE==='bk'){var bkf=BG.features.filter(function(f){return f.properties.borocode==='3';})[0];if(bkf){var bkl=L.geoJSON(bkf,{interactive:false,style:{color:'#f47920',weight:3,fill:false}}).addTo(map);map.fitBounds(bkl.getBounds(),{padding:[10,10]});}}
     window.CHARTER_AL=AL;
     mv.addEventListener('cmdate',function(e){update(e.detail);});
     if(mv.cmDate)update(mv.cmDate);
