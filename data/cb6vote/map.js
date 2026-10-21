@@ -70,12 +70,14 @@
     window.__cvFromMap=false;jump(t||'ed');}
   var EDS={},EVS={};
   function logos(i){var st=PS.sites[+i];return LOGO[st.n]||[];}
+  function siteLogo(i,ev){var lo=logos(i);if(!lo.length)return '';return '<img src="'+lg(lo[0][1])+'" alt="'+esc(lo[0][0])+'"'+(ev?' style="box-shadow:0 0 0 2.5px #f47920"':'')+'>';}
+  function pinRow(si,ei){var imgs=(si!=null?siteLogo(si,false):'')+(ei!=null&&ei!==si?siteLogo(ei,true):'');return '<span class="cv-row"><span class="cv-st"></span>'+(imgs?'<span class="cv-at">@</span>'+imgs:'')+'</span>';}
   function row(i,max){var lo=logos(i).slice(0,max||1);return '<span class="cv-row"><span class="cv-st'+''+'"></span>'+(lo.length?'<span class="cv-at">@</span>'+lo.map(function(x){return '<img src="'+lg(x[1])+'" alt="'+esc(x[0])+'">';}).join(''):'')+'</span>';}
   function clear(){if(pinM){map.removeLayer(pinM);pinM=null;}if(hiL){map.removeLayer(hiL);hiL=null;}}
   function drop(ll,key,opt){opt=opt||{};key=key||edAt(ll);clear();
-    var si=key?EDS[key]:null,st=si!=null?PS.sites[+si]:null;
-    var lab=key?(opt.label?esc(opt.label)+'</small><small>':'')+'ED '+(+key.slice(2))+' · AD '+(+key.slice(0,2))+(st?'</small><small style="color:#6b6760">Election Day at '+esc(st.n):''):'Outside the BKCB6 election districts';
-    var head=si!=null?row(si,1):'<span class="cv-row"><span class="cv-st"></span></span>';
+    var si=key?EDS[key]:null,st=si!=null?PS.sites[+si]:null,ei=key?EVS[key]:null,ev=ei!=null?PS.sites[+ei]:null;
+    var lab=key?(opt.label?esc(opt.label)+'</small><small>':'')+'ED '+(+key.slice(2))+' · AD '+(+key.slice(0,2))+(st?'</small><small style="color:#6b6760">Election Day at '+esc(st.n):'')+(ev?'</small><small style="color:#6b6760">Early voting at '+esc(ev.n):''):'Outside the BKCB6 election districts';
+    var head=pinRow(si,ei);
     var btns=key?'<span class="cv-go"><button type="button" data-t="ed">Where you vote</button><button type="button" data-t="ev">Early voting days</button><button type="button" data-t="ballot">Your ballot</button></span>':'';
     pinM=L.marker(ll,{icon:L.divIcon({className:'',html:'<div class="cv-pw"><div class="cv-bal cv-bal2"><div style="display:flex;align-items:center;gap:8px">'+head+'<span><b>'+(key?'Your ballot and where you vote':'No ballot here')+'</b><small>'+lab+'</small></span></div>'+btns+'</div><div class="cv-pin"></div></div>',iconSize:[0,0],iconAnchor:[0,0]}),zIndexOffset:2000}).addTo(map);
     try{map.panInside(ll,{paddingTopLeft:[150,150],paddingBottomRight:[150,20]});}catch(e){}
