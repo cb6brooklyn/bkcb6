@@ -44,12 +44,15 @@
    ".cv-site .nm{font-weight:800;font-size:.86rem;color:#0d1b4b;margin-top:5px;white-space:normal}.cv-site .ad{font-size:.7rem;color:#6b6760;white-space:normal}.cv-site .rl{font-size:.68rem;color:#f47920;font-weight:800;margin-top:2px;white-space:normal}"+
    ".cv-site .tp{font-size:.72rem;color:#0d1b4b;font-weight:700;margin-top:6px}.cv-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;max-height:96px;overflow:auto}"+
    ".cv-chips button{font:800 .68rem 'DM Sans',sans-serif;border:1.5px solid #0d1b4b;background:#fff;color:#0d1b4b;border-radius:999px;padding:3px 7px;cursor:pointer}.cv-x{position:absolute;right:4px;top:2px;border:0;background:none;font:800 1rem 'DM Sans',sans-serif;color:#6b6760;cursor:pointer}"+
+   ".cv-past{display:flex;align-items:center;gap:10px;margin-top:10px;background:#0d1b4b;color:#fff;text-decoration:none;border-radius:12px;padding:10px 12px;border:2px solid #0d1b4b}.cv-past b{display:block;font:800 .92rem 'DM Sans',sans-serif}.cv-past small{display:block;font:400 .74rem/1.35 'DM Sans',sans-serif;color:#fbd5b5}.cv-past>span:nth-child(2){flex:1;min-width:0}.cv-arrow{font:800 1.3rem 'DM Sans',sans-serif;color:#f47920}"+
    "@keyframes cvpop{from{transform:translateX(-50%) scale(.3);opacity:0}to{transform:translateX(-50%) scale(1);opacity:1}}";
   document.head.appendChild(css);
   root.innerHTML='<div class="k">Brooklyn Community Board 6</div><h2>Where BKCB6 votes</h2>'+
     '<div class="s">Search your address, or tap the map to drop a pin. Every early voting site, Election Day poll site and election district in BKCB6; the pin opens where you vote, the early voting days and your ballot.</div>'+
     '<div class="cvt" id="cvTg"><button type="button" class="on" data-l="ev"><span class="cv-st ev" style="width:18px;height:18px"></span>Early voting</button><button type="button" class="on" data-l="ed"><span class="cv-st" style="width:16px;height:16px"></span>Election Day poll sites</button><button type="button" class="on" data-l="eds">Election districts</button><button type="button" class="on" data-l="hood">Neighborhoods</button></div>'+
-    '<div id="cb6voteMap"></div>';
+    '<div id="cb6voteMap"></div>'+
+    '<a class="cv-past" id="cvPast" href="/throughtime/index.html"><span class="cv-st" style="width:34px;height:34px;flex:none"></span><span><b>Ballots of elections past</b><small>Any address in BKCB6, any election since 1897: the ballot, the districts, who won</small></span><span class="cv-arrow">&rarr;</span></a>';
+  (function(){var a=document.getElementById('cvPast');if(a&&(location.protocol==='bkcb:'||/[?&]app=1\b/.test(location.search)))a.href='/throughtime/index.html?app=1';})();
   (function(){var w=document.getElementById('where'),tg=document.getElementById('cvTg');if(w&&tg){root.insertBefore(w,tg);w.style.margin='10px 0 0';w.style.padding='0';w.style.border='0';w.style.background='transparent';}})();
   var G={ev:L.layerGroup(),ed:L.layerGroup(),hood:L.layerGroup(),eds:L.layerGroup()},lbl=L.layerGroup(),PS,FC,HD,CB,XW={},pinM=null,hiL=null;
   var map=L.map('cb6voteMap',{scrollWheelZoom:false,zoomSnap:.25,minZoom:13,maxZoom:18,maxBounds:[[40.63,-74.05],[40.715,-73.94]],maxBoundsViscosity:.8}).setView([40.676,-73.993],13.75);
