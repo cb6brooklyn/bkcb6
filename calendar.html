@@ -2775,7 +2775,7 @@ function renderList(){
   const deduped = all.filter(({dateKey, ev})=>{
     const ck = dateKey+'|'+ev.label;
     if(crossKeep.has(ck) && crossKeep.get(ck) !== ev) return false;
-    const k = dateKey+'|'+ev.type+'|'+ev.label+(isBPL(ev.type)?'|'+(ev.time||''):'');
+    const k = dateKey+'|'+ev.type+'|'+ev.label+(condenseKey(ev)?'|'+(ev.time||''):'');
     if(seen.has(k)) return false;
     seen.add(k); return true;
   });
@@ -2820,10 +2820,12 @@ function renderList(){
         <div class="lcd-day">${d.getDate()}</div>
         <div class="lcd-dow">${DOW[d.getDay()]}</div>
       </div>
-      ${orgLogoLink('bpl', `<img class="lci" src="bpl.png" alt="" style="border-radius:5px">`)}
+      ${(()=>{ const t = ev._org, src = orgIconSrc(t), tt = TYPES[t]||TYPES.community; return orgLogoLink(t, src
+        ? `<img class="lci" src="${src}" alt="" style="border-radius:${(t==='principles'||t==='artichoke'||t==='nycvotes')?'50%':'5px'}">`
+        : `<div class="lci" style="background:${tt.bg};border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:1rem">${tt.icon}</div>`); })()}
       <div class="lcb">
-        <div class="lcb-title">Brooklyn Public Library <span class="bpl-n">${ev._bplGroup.length} events</span></div>
-        <div class="bpl-rows">${bplRows(ev._bplGroup)}</div>
+        <div class="lcb-title">${orgTitle(ev._org)} <span class="bpl-n">${ev._bplGroup.length} events</span></div>
+        <div class="bpl-rows">${groupRows(ev._bplGroup, ev._org)}</div>
       </div>
     </div>`;
       return (firstPastKey && firstPastKey === dateKey + '|' + ev.label) ? `<div class="past-divider">Past ${orgName ? orgName + ' ' : ''}events</div>` + card : card;
@@ -2873,22 +2875,37 @@ const filterType = t => isBPL(t) ? 'bpl' : t;
 const BPL_BRANCH = {'lib-central':'Central Library','lib-park-slope':'Park Slope Library','lib-carroll-gardens':'Carroll Gardens Library','lib-red-hook':'Red Hook Library','lib-brooklyn-heights':'Brooklyn Heights Library','lib-pacific':'Pacific Library'};
 function bplBranch(ev){ return BPL_BRANCH[ev.type] || ((ev.location||'').split(' · ')[0].replace(/^Brooklyn Public Library,?\s*/,'')) || 'Brooklyn Public Library'; }
 function bplSortKey(ev){ const m=/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)/i.exec(ev.time||''); if(!m) return 9999; let hh=+m[1]%12; if(/pm/i.test(m[3])) hh+=12; return hh*60+(+(m[2]||0)); }
-function bplRows(list){
+// Any organization with more than one listing on a day is condensed to one entry for that day, in every view.
+// CB6's own meetings and the catch-all community type stay as separate listings.
+const NO_CONDENSE = new Set(['board','committee','community','nycvotes','altside','school']);
+const condenseKey = ev => { const t = filterType(ev.type); return NO_CONDENSE.has(t) ? null : t; };
+function orgTitle(t){
+  if(t === 'bpl') return 'Brooklyn Public Library';
+  const o = document.querySelector('#list-org-filter option[value="' + t + '"]');
+  return (o && o.text) || (TYPES[t] && TYPES[t].name) || t;
+}
+function orgIconSrc(t){ return ORG_ICONS[t] || (t === 'bpl' ? 'bpl.png' : null); }
+function groupRows(list, t){
+  const locs = new Set(list.map(e => e.location).filter(Boolean));
   return list.slice().sort((a,b)=>bplSortKey(a)-bplSortKey(b)).map(ev=>{
-    const txt = [ev.time, bplBranch(ev), ev.label].filter(Boolean).map(s=>String(s).replace(/</g,'&lt;')).join(' · ');
+    const where = t === 'bpl' ? bplBranch(ev) : (locs.size > 1 ? ev.location : null);
+    const txt = [ev.time, where, ev.label].filter(Boolean).map(s=>String(s).replace(/</g,'&lt;')).join(' · ');
     return ev.href ? `<a class="bpl-row" href="${ev.href}" target="_blank" rel="noopener noreferrer">${txt} ↗</a>` : `<span class="bpl-row">${txt}</span>`;
   }).join('');
 }
-// One list entry per day for the library: collapses a day's bpl / lib-* items into a group item.
+const bplRows = list => groupRows(list, 'bpl');
+// One list entry per organization per day: collapses a day's items of one organization into a group item.
 function groupBPL(items){
   const out = [], seenDay = new Set();
   items.forEach(it => {
-    if(!isBPL(it.ev.type)){ out.push(it); return; }
-    if(seenDay.has(it.dateKey)) return;
-    seenDay.add(it.dateKey);
-    const list = items.filter(x => x.dateKey === it.dateKey && isBPL(x.ev.type)).map(x => x.ev);
+    const t = condenseKey(it.ev);
+    if(!t){ out.push(it); return; }
+    const dk = it.dateKey + '|' + t;
+    if(seenDay.has(dk)) return;
+    seenDay.add(dk);
+    const list = items.filter(x => x.dateKey === it.dateKey && condenseKey(x.ev) === t).map(x => x.ev);
     if(list.length === 1){ out.push(it); return; }
-    out.push({dateKey: it.dateKey, ev: {type:'bpl', label:'Brooklyn Public Library · ' + list.length + ' events', _bplGroup: list}});
+    out.push({dateKey: it.dateKey, ev: {type:t, label: orgTitle(t) + ' · ' + list.length + ' events', _bplGroup: list, _org: t}});
   });
   return out;
 }
@@ -3154,14 +3171,25 @@ function cell(d, key, other, today, weekend){
     if(entityFilter && ev._entity !== entityFilter) return false;
     return true;
   });
-  let bplPillDone = false;
+  const pillDone = new Set();
   const pills = dedupedEvs.map(ev=>{
+    const ck = condenseKey(ev);
+    if(ck){
+      if(pillDone.has(ck)) return '';
+      pillDone.add(ck);
+      const seenK = new Set();
+      const same = dedupedEvs.filter(e=>condenseKey(e)===ck).filter(e=>{const k=e.label+'|'+(e.time||'');if(seenK.has(k))return false;seenK.add(k);return true;});
+      if(same.length > 1){
+        const tip = same.length + ' ' + orgTitle(ck) + ' events';
+        const one = pillFor(ev);
+        return /title="/.test(one) ? one.replace(/title="[^"]*"/, 'title="' + tip.replace(/"/g,'&quot;') + '"') : one.replace(/<span>[^<]*<\/span>/, '<span>' + tip + '</span>');
+      }
+    }
+    return pillFor(ev);
+  });
+  function pillFor(ev){
     if(isBPL(ev.type)){
-      if(bplPillDone) return '';
-      bplPillDone = true;
-      const seenLib = new Set();
-      const libs = dedupedEvs.filter(e=>isBPL(e.type)).filter(e=>{const k=e.label+'|'+(e.time||'');if(seenLib.has(k))return false;seenLib.add(k);return true;});
-      const tip = libs.length === 1 ? [ev.label, ev.time, ev.location].filter(Boolean).join(' · ') : libs.length + ' Brooklyn Public Library events';
+      const tip = [ev.label, ev.time, ev.location].filter(Boolean).join(' · ');
       return `<img src="bpl.png" class="ev-img" alt="Brooklyn Public Library" title="${tip}">`;
     }
     if(ev.type === 'board'){
@@ -3349,7 +3377,8 @@ function cell(d, key, other, today, weekend){
       if(isClosed) return `<div class="ev" style="background:#dbeafe;color:#1e3a8a;border-left:3px solid #0891b2">🏫<span>${ev.label}</span></div>`;
     }
     return `<div class="ev" style="background:${t.bg};color:${t.color}">${t.icon}<span>${ev.label}</span></div>`;
-  }).join('');
+  }
+  const pillsHtml = pills.join('');
   const dots = dedupedEvs.length
     ? `<div class="dot-row">${dedupedEvs.map(ev=>{
         if(ev.type === 'board' || ev.type === 'committee' || ev.type === 'prospect' || ev.type === 'osh' || ev.type === 'dredgers' || ev.type === 'vanalen' || ev.type === 'bkcm' || ev.type === 'powerhouse' || ev.type === 'artsgowanus' || ev.type === 'gcc' || ev.type === 'psfc' || ev.type === 'psos' || ev.type === 'nycvotes' || ev.type === 'principles' || ev.type === 'rhap' || ev.type === 'ps5bid' || ev.type === 'bpl' || ev.type === 'pct78' || ev.type === 'pct76' || ev.type === 'cobblehill' || ev.type === 'bbp' || ev.type === 'cga' || ev.type === 'jalopy' || ev.type === 'rhjc' || ev.type === 'fac' || ev.type === 'waterfront' || ev.type === 'dcp' || ev.type === 'lpc' || ev.type === 'fof' || ev.type === 'pioneerworks' || ev.type === 'nyccouncil' || ev.type === 'aaldc' || ev.type === 'bkbp' || ev.type === 'swbtu' || ev.type === 'aviles' || ev.type === 'nycparks' || ev.type === 'green615' || ev.type === 'hpd' || ev.type === 'rgb' || ev.type === 'bbg' || ev.type === 'cec15') return '';
@@ -3362,7 +3391,7 @@ function cell(d, key, other, today, weekend){
         return '';
       }).join('')}</div>`
     : '';
-  return `<div class="${cls}" ${tap}><div class="day-num">${d}</div>${pills}${dots}</div>`;
+  return `<div class="${cls}" ${tap}><div class="day-num">${d}</div>${pillsHtml}${dots}</div>`;
 }
 
 const MONTH_NAMES_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -3384,7 +3413,7 @@ function selectDay(key, d){
     if(ev._civic && !civicOn.has(ev._civic)) return false;
     if(entityFilter && ev._entity !== entityFilter) return false;
     if(crossLabels.has(ev.label) && crossKeeper(ev.label) !== ev) return false;
-    const k = ev.type + '|' + ev.label + (isBPL(ev.type) ? '|' + (ev.time||'') : '');
+    const k = ev.type + '|' + ev.label + (condenseKey(ev) ? '|' + (ev.time||'') : '');
     if(seen.has(k)) return false;
     seen.add(k);
     return true;
@@ -3396,15 +3425,19 @@ function selectDay(key, d){
   if(!uniqEvs.length){ panel.style.display='none'; return; }
   const [ky, km, kd] = key.split('-').map(Number);
   document.getElementById('detail-title').textContent = `${MONTH_NAMES_LONG[km-1]} ${kd}, ${ky}`;
-  let bplDetailDone = false;
+  const detailDone = new Set();
   document.getElementById('detail-body').innerHTML = uniqEvs.map(ev=>{
-    if(isBPL(ev.type)){
-      const libs = uniqEvs.filter(e=>isBPL(e.type));
-      if(libs.length > 1){
-        if(bplDetailDone) return '';
-        bplDetailDone = true;
-        const tb = (TYPES.bpl||TYPES.community).bg;
-        return `<div class="det-ev bpl-group" id="ev-${evSlug(key, 'Brooklyn Public Library')}" style="background:${tb}">${orgLogoLink('bpl', `<img src="bpl.png" alt="" style="width:26px;height:26px;border-radius:5px;background:#fff;object-fit:cover;flex-shrink:0">`)}<div class="det-ev-copy"><div class="det-ev-text">Brooklyn Public Library <span class="bpl-n" style="color:rgba(255,255,255,.8)">${libs.length} events</span></div><div class="bpl-rows det-bpl-rows">${bplRows(libs)}</div></div></div>`;
+    const ck = condenseKey(ev);
+    if(ck){
+      const same = uniqEvs.filter(e=>condenseKey(e)===ck);
+      if(same.length > 1){
+        if(detailDone.has(ck)) return '';
+        detailDone.add(ck);
+        const tt = TYPES[ck]||TYPES.community, src = orgIconSrc(ck);
+        const ic = orgLogoLink(ck, src
+          ? `<img src="${src}" alt="" style="width:26px;height:26px;border-radius:${(ck==='principles'||ck==='artichoke')?'50%':'5px'};background:#fff;object-fit:cover;flex-shrink:0">`
+          : `<span style="font-size:1.1rem">${tt.icon}</span>`);
+        return `<div class="det-ev bpl-group" id="ev-${evSlug(key, orgTitle(ck))}" style="background:${tt.bg}">${ic}<div class="det-ev-copy"><div class="det-ev-text">${orgTitle(ck)} <span class="bpl-n" style="color:rgba(255,255,255,.8)">${same.length} events</span></div><div class="bpl-rows det-bpl-rows">${groupRows(same, ck)}</div></div></div>`;
       }
     }
     const t = TYPES[ev.type]||TYPES.community;
