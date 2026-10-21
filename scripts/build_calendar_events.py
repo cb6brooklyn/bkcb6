@@ -188,6 +188,18 @@ ADDITIONS.append({
     "linkText": "Full details \u2197",
 })
 
+# Nov 18, 2026 Full Board meeting at Van Alen Institute.
+ADDITIONS.append({
+    "date": "2026-11-18",
+    "type": "board",
+    "label": "CB6 Full Board Meeting",
+    "time": "6:30 PM",
+    "location": "Van Alen Institute, 303 Bond Street",
+    "desc": "Van Alen Institute, 303 Bond Street.",
+    "href": "https://brooklyncb6.cityofnewyork.us/event/cb6-full-board-meeting-3-13/",
+    "linkText": "Full details \u2197",
+})
+
 
 def apply_manual_layer(events):
     kept = []
