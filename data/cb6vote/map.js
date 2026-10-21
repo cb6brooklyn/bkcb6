@@ -10,7 +10,7 @@
     'PS 27':[['Red Hook Neighborhood School','rhns'],['Summit Academy Charter School','summit']],
     'IS 293':[['Success Academy Cobble Hill','success'],['The Boerum Hill School for International Studies','bhs'],['Digital Arts and Cinema Technology High School','dact']],
     'PS 58':[['P.S. 58 The Carroll','ps58']],'Wyckoff Gardens Comm Ctr':[['NYCHA','nycha']],'PS 133':[['P.S. 133 William A. Butler','ps133']],'PS 282':[['P.S. 282 Park Slope','ps282']],
-    'PS 321':[['P.S. 321 William Penn','ps321']],'Red Hook Recreation Center':[['NYC Parks','parks']],'Brooklyn Borough Hall':[['Brooklyn Borough President','bp']]};
+    'PS 321':[['P.S. 321 William Penn','ps321']],'Red Hook Recreation Center':[['Red Hook Recreation Center','rhrc']],'Brooklyn Borough Hall':[['Brooklyn Borough President','bp']]};
   function lg(k){return B+'logos/'+k+'.png';}
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];});}
   function j(u){return fetch(u).then(function(r){if(!r.ok)throw new Error(u);return r.json();});}
