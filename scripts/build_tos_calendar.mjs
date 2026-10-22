@@ -100,15 +100,16 @@ for (const date of Object.keys(EVENTS).sort()) {
 
 // ---------- 2. Halloween events in CB6 ----------
 const HALLOWEEN = /hallow|howl-o-ween|spook|trick-or|pumpkin|haunt|costume|monster|creepy|ghost|witch|zombie|skeleton|day of the dead|d[ií]a de (los )?muertos|jack-o|boo bash|sleepy hollow|folklore|practical magic|addams/i;
-const HALLOWEEN_DESC = /haunted|halloween|pumpkin patch|trick-or-treat/i; // for an event whose name does not say it (the Lakeside fall festival)
-const isHalloween = e => HALLOWEEN.test(ent(e.label)) || (e.type === 'prospect' && HALLOWEEN_DESC.test(ent(e.desc)));
+const PARKS = ['prospect', 'bbp']; // Prospect Park Alliance and Brooklyn Bridge Park: their seasonal events count too
+const HALLOWEEN_DESC = /haunted|halloween|pumpkin|trick-or-treat|costume/i; // for a park event whose name does not say it (the Lakeside fall festival, the Pier 6 harvest festival)
+const isHalloween = e => HALLOWEEN.test(ent(e.label)) || (PARKS.includes(e.type) && (/harvest festival/i.test(ent(e.label)) || HALLOWEEN_DESC.test(ent(e.desc))));
 // Interest groups, matched in this order
 const GROUPS = [
   ['movies', e => e.type === 'nitehawk' || /\bmovie|cinema|screening|\(19\d\d\)|\(20\d\d\)/i.test(e.label)],
   ['dogs', e => /\bdogs?\b|howl-o-ween|\bpups?\b/i.test(e.label)],
   ['parades', e => /parade/i.test(e.label)],
   ['nightlife', e => ['unionhall', 'littlefield', 'bellhouse', 'jalopy'].includes(e.type) || /21\+|dance party|bashment|punderdome|slow jams|after dark|\bdrag\b|burlesque|booze/i.test(e.label)],
-  ['kids', e => /children|kids|family|all ages|carousel|zoo|creepy crawly|window painting|lakeside|trick-or-treat|sleepy hollow|folklore|fall festival|open streets/i.test(e.label) || ['gcc', 'cobblehill', 'prospect', 'psos'].includes(e.type) || String(e.type).startsWith('park-')],
+  ['kids', e => /children|kids|family|all ages|carousel|zoo|creepy crawly|window painting|lakeside|trick-or-treat|sleepy hollow|folklore|fall festival|harvest festival|open streets/i.test(e.label) || ['gcc', 'cobblehill', 'prospect', 'bbp', 'psos'].includes(e.type) || String(e.type).startsWith('park-')],
 ];
 const groupOf = e => (GROUPS.find(([, test]) => test(e)) || ['happenings'])[0];
 const cb6 = readJSON(path.join(ROOT, 'data/cb6_boundary.geojson'), null);
@@ -137,6 +138,9 @@ const PLACES = [
   { re: /^lefferts historic house/i, q: ['Lefferts Historic House'] },
   { re: /^audubon center|boathouse \(in prospect park\)/i, q: ['Prospect Park Audubon Center'] },
   { re: /^prospect park$|^washington irving statue/i, q: ['Prospect Park'] },
+  { re: /^brooklyn bridge park.*pier (\d)/i, q: m => ['Brooklyn Bridge Park Pier ' + m[1]] },
+  { re: /^brooklyn bridge park.*(empire fulton|main street)/i, q: ['Empire Fulton Ferry Park'] },
+  { re: /^brooklyn bridge park/i, q: ['Brooklyn Bridge Park'] },
 ];
 // A Prospect Park Alliance listing names its spot in the title or the text, not in a location field.
 function prospectVenue(e) {
@@ -153,7 +157,7 @@ const GEOCLIENT = 'https://api.nyc.gov/geoclient/v2/';
 const GEOCLIENT_KEY = process.env.GEOCLIENT_KEY || 'b913bdfb9c47466589d0f08c99c75b21';
 const cache = readJSON(CACHE, {});
 let cacheDirty = false;
-const clean = s => String(s || '').replace(/,?\s*(brooklyn|new york|ny|usa|united states|\d{5})\b.*$/i, '').replace(/\s+/g, ' ').trim();
+const clean = s => String(s || '').replace(/,\s*(brooklyn|new york|ny|usa|united states|\d{5})\b.*$/i, '').replace(/\s+/g, ' ').trim(); // drop a trailing ", Brooklyn, NY 11231"
 async function geoclientOnce(kind, params) {
   const r = await fetch(GEOCLIENT + kind + '?' + new URLSearchParams({ ...params, borough: 'Brooklyn' }), { headers: { 'Ocp-Apim-Subscription-Key': GEOCLIENT_KEY } });
   if (!r.ok) throw new Error('geoclient ' + r.status);
@@ -193,7 +197,7 @@ async function locate(location) {
   if (!loc) return null;
   const place = PLACES.find(p => p.re.test(loc));
   let queries;
-  if (place) queries = place.q;
+  if (place) queries = typeof place.q === 'function' ? place.q(loc.match(place.re)) : place.q;
   else {
     const parts = loc.split(/\s*[\u00b7|]\s*/).map(x => x.split(' (')[0].trim()).filter(Boolean);
     const addr = parts.find(x => /^\d+[A-Za-z]?\s+\S/.test(x)) || parts.find(x => /\s(?:&|and|at)\s/i.test(x)) || parts[0];
@@ -224,8 +228,8 @@ for (const date of Object.keys(EVENTS).sort()) {
     if (!e || !e.label || e.type === 'spookycb6') continue;
     if (/trickorstreets\/\?e=/.test(e.href || '')) continue; // already a street on the map
     if (!isHalloween(e)) continue;
-    const inPark = e.type === 'prospect' || /prospect park/i.test(e.location || '');
-    const where = e.location ? ent(e.location) : (inPark ? prospectVenue(e) : '');
+    const inPark = PARKS.includes(e.type) || /prospect park|brooklyn bridge park/i.test(e.location || '');
+    const where = e.location ? ent(e.location) : (e.type === 'prospect' ? prospectVenue(e) : e.type === 'bbp' ? 'Brooklyn Bridge Park' : '');
     const pt = await locate(where);
     if (!pt) { skipped.push([date, ent(e.label), where, 'no geocode']); continue; }
     if (!inPark && !pip(pt.lng, pt.lat, cb6Geom)) { skipped.push([date, ent(e.label), where, 'outside CB6']); continue; }
