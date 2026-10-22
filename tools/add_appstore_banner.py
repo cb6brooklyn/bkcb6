@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Put the App Store badge banner at the top of every bkcb6.app page (idempotent)."""
 import os, re, sys
-BANNER = ('<a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" '
+BANNER = ('<script src="/assets/site-bar.js?v=1" defer></script>'  # the site bar (tools/add_site_bar.py) replaces the banner at runtime
+          '<a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" '
           'style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none">'
           '<img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" '
           'style="height:40px;width:auto;border:0;display:inline-block"></a>'
