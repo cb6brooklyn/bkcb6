@@ -79,6 +79,9 @@
 .ev{padding:11px 14px;border-bottom:1px solid var(--border);background:#fff;cursor:pointer;display:flex;gap:11px;align-items:flex-start}
 .ev .th{flex:none;width:46px;height:46px;border-radius:8px;object-fit:cover;background:#000}
 .ev .bd{flex:1;min-width:0}
+.ev .sub{margin-top:6px;border-left:2px solid var(--border);padding-left:8px}
+.ev .sub div{font-size:.76rem;line-height:1.35;padding:3px 0;color:var(--navy)}
+.ev .sub span{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--orange);font-weight:700;text-transform:uppercase;margin-left:4px}
 .ev:hover{background:#fff8f2}
 .ev .t{font-size:.86rem;font-weight:800;color:var(--navy);line-height:1.3}
 .ev .w{font-size:.76rem;color:#444;line-height:1.45;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -239,6 +242,17 @@ function isParade(e){return e.kind==='Parade'||/\bparade\b/i.test(e.name);}
 function iconic(e){return isCal(e)||isVote(e)||isParade(e);}
 function calUrl(c){return '/calendar.html?event='+encodeURIComponent(c.event)+(INAPP?'&app=1':'');}
 function markIcon(e){if(isVote(e))return '/halloween-voter-2026.png';var c=CAL[e.id]||{};return c.flyer||c.icon||'/spooky-cb6-128.png';}
+// One place, more than one happening on the same day (Union Hall's Halloween night, Nitehawk's double bill): one listing and one pin
+function placeKey(e){return isCal(e)&&e.org?e.org+'|'+e.lat.toFixed(4)+','+e.lng.toFixed(4):null;}
+function places(items){var out=[];items.forEach(function(it){var k=placeKey(it.e),g=null;
+  if(k)for(var i=0;i<out.length;i++){var o=out[i];if(o.key===k&&o.members.some(function(m){return m.dates.some(function(d){return it.dates.indexOf(d)>=0;});})){g=o;break;}}
+  if(g){g.members.push(it);it.ids.forEach(function(id){g.ids.push(id);});it.dates.forEach(function(d){if(g.dates.indexOf(d)<0)g.dates.push(d);});g.dates.sort();}
+  else out.push({key:k,e:it.e,dates:it.dates.slice(),ids:it.ids.slice(),members:[it]});});return out;}
+function placeName(g){return g.e.org;}
+function tmin(t){var m=/(\d{1,2})(?::(\d{2}))?\s*([AP])M/i.exec(t||'');return m?(+m[1]%12+(/p/i.test(m[3])?12:0))*60+(+(m[2]||0)):9999;}
+function byTime(ms){return ms.slice().sort(function(a,b){return a.dates[0]<b.dates[0]?-1:a.dates[0]>b.dates[0]?1:tmin(a.e.time)-tmin(b.e.time);});}
+function popPlace(g){return '<b>'+esc(placeName(g))+'</b><br><span style="font-size:.74rem;color:#6b6760">'+esc(g.e.where)+'</span>'+byTime(g.members).map(function(m){var c=CAL[m.e.id];
+  return '<div style="border-top:1px solid #eee;margin-top:7px;padding-top:7px">'+(c&&c.flyer?'<img src="'+esc(c.flyer)+'" alt="" style="float:left;width:44px;height:44px;object-fit:cover;border-radius:6px;margin:0 8px 4px 0">':'')+'<b style="font-size:.8rem">'+esc(m.e.name)+'</b><br><span style="font-size:.74rem;color:'+OR+';font-weight:700">'+esc(datesText(m.dates))+', '+esc(m.e.time)+'</span>'+(m.e.where!==g.e.where?'<br><span style="font-size:.72rem;color:#6b6760">'+esc(m.e.where)+'</span>':'')+(c?'<br><a href="'+esc(calUrl(c))+'" style="font-size:.74rem;font-weight:700;color:#0d1b4b">See it on the calendar</a>':'')+'<div style="clear:both"></div></div>';}).join('');}
 function popHTML(e,dates){
   var c=CAL[e.id];
   return (isVote(e)?'<img src="/halloween-voter-2026.png" alt="Halloween Voter 2026" style="display:block;width:84px;height:84px;margin-bottom:8px">':'')+(c&&c.flyer?'<a class="pop-fl" href="'+esc(calUrl(c))+'"><img src="'+esc(c.flyer)+'" alt="'+esc(e.name)+' flyer"></a>':'')+
@@ -329,18 +343,21 @@ function buildDates(){
 function drawMap(items){
   evLayer.clearLayers();lineById={};
   var seen={};
-  items.forEach(function(it){
+  places(items).forEach(function(it){
     var e=it.e,c=col(e),g=L.featureGroup();
     var k=e.lat.toFixed(5)+','+e.lng.toFixed(5),dup=seen[k]||0;seen[k]=dup+1; // several events at one place: step the icons apart
     var ll=[e.lat-dup*0.00028,e.lng+dup*0.00036];
     e.lines.forEach(function(ln){L.polyline(ln,{color:isTos(e)?'#fff':OR,weight:isTos(e)?10:9,opacity:.95}).addTo(g);L.polyline(ln,{color:c,weight:5,opacity:1}).addTo(g);});
     if(iconic(e))L.marker(ll,{icon:L.divIcon({className:'',html:'<div class="pmark'+(isVote(e)?' vote':'')+'" style="border-color:'+icolor(groupOf(e))+'"><img src="'+esc(markIcon(e))+'" alt=""></div>',iconSize:[48,48],iconAnchor:[24,24],popupAnchor:[0,-26]})}).addTo(g);
     else L.circleMarker(ll,{radius:6,color:isTos(e)?NAVY:OR,weight:2,fillColor:c,fillOpacity:1}).addTo(g);
-    g.bindPopup(popHTML(e,it.dates),{maxWidth:270});
+    g.bindPopup(it.members.length>1?popPlace(it):popHTML(e,it.dates),{maxWidth:270,maxHeight:380});
     g.addTo(evLayer);it.ids.forEach(function(id){lineById[id]=g;});
   });
 }
-function evHTML(items,grouped){return items.map(function(it){return '<div class="ev" data-id="'+esc(it.e.id)+'">'+card(it.e,it.dates,grouped)+'</div>';}).join('');}
+function evHTML(items,grouped){return places(items).map(function(g){
+  if(g.members.length===1)return '<div class="ev" data-id="'+esc(g.e.id)+'">'+card(g.e,g.dates,grouped)+'</div>';
+  var e=g.e;return '<div class="ev" data-id="'+esc(e.id)+'">'+(iconic(e)?'<img class="th" src="'+esc(markIcon(e))+'" alt="" loading="lazy">':'')+'<div class="bd"><div class="t">'+esc(placeName(g))+'</div><div class="w">'+esc(e.where)+'</div><div class="o">'+g.members.length+' happenings</div><div class="sub">'+
+    byTime(g.members).map(function(m){return '<div data-id="'+esc(m.e.id)+'">'+esc(m.e.name)+(m.e.where!==e.where?' ('+esc(m.e.where.split(',')[0])+')':'')+'<span>'+(g.dates.length===1?'':esc(datesText(m.dates))+' &middot; ')+esc(m.e.time)+'</span></div>';}).join('')+'</div>'+(g.dates.length===1?'<div class="d">'+esc(dlong(g.dates[0]))+'</div>':'')+'</div></div>';}).join('');}
 function groupedHTML(items){
   if(nInts()===1)return evHTML(items);
   return INTERESTS.map(function(i){var its=items.filter(function(it){return groupOf(it.e)===i[0];});if(!its.length)return '';
@@ -383,7 +400,7 @@ function drawStrip(list){
 }
 function focusOn(id){var g=lineById[id];if(!g)return;map.fitBounds(g.getBounds(),{maxZoom:17,padding:[30,30],animate:false});g.openPopup();document.getElementById('map').scrollIntoView({behavior:'smooth',block:'start'});}
 document.addEventListener('click',function(ev){
-  var e=ev.target.closest('.ev,.fcard');
+  var e=ev.target.closest('.sub div,.ev,.fcard');
   if(e)focusOn(e.getAttribute('data-id'));
 });
 function show(lat,lng,label){
