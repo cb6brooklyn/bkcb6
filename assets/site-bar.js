@@ -117,7 +117,7 @@
   }
   var YEAR = new Date().getFullYear(), HUBS = {};
   SECTIONS.forEach(function (s) { HUBS[s[1]] = 1; });
-  ['/november2026.html', '/early-vote-map.html', '/throughtime/', '/blocks/', '/address.html', '/citywide-search.html', '/calendar.html', '/search/'].forEach(function (u) { HUBS[u] = 1; });
+  ['/elections.html', '/early-vote-map.html', '/throughtime/', '/blocks/', '/address.html', '/citywide-search.html', '/calendar.html', '/search/'].forEach(function (u) { HUBS[u] = 1; });
   function isAddress(s) { return /^\d+[a-z\-]*\s+\S/i.test(s.trim()); }
   function search(query, limit, boost, dedupe) {
     var qs = query.toLowerCase().trim(); if (!qs || !INDEX) return [];

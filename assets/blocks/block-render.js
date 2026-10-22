@@ -94,7 +94,7 @@ function render(D){
   h+='</div></section>';
   h+='<section class="card"><a class="lb" href="https://portal.311.nyc.gov" target="_blank" rel="noopener"><img src="/site-icons/agencies/311.png" alt=""><span><i>Report it</i><b>Call 311</b><em>Noise, sanitation, street conditions, heat and hot water, and anything else the city handles.</em></span></a></section>';
   h+='<div class="foot">Built from the DOT street centerline, DOT parking signs, DSNY collection frequencies, NYC Board of Elections poll sites, PLUTO zoning, and the district boundary files on this site. Every fact here is placed by this block\u2019s own coordinates. Rebuilt '+esc(D.built)+'. Questions or a correction: <a href="mailto:Mike@bkcb6.org">Mike Racioppo</a></div>';
-  h+='<div class="nav"><a href="/block/">&#128203; All block cards</a><a href="/november2026.html">&#128499; Where do I vote</a><a href="/sanitation-hub.html">&#128465; Sanitation</a>'+(D.cd===306?'<a href="/blocks/">&#128205; Block Finder</a>':'')+'</div>';
+  h+='<div class="nav"><a href="/block/">&#128203; All block cards</a><a href="/elections.html">&#128499; Where do I vote</a><a href="/sanitation-hub.html">&#128465; Sanitation</a>'+(D.cd===306?'<a href="/blocks/">&#128205; Block Finder</a>':'')+'</div>';
   root.innerHTML=h;
   ['/assets/blocks/block-card.js','/assets/blocks/block-pdf.js'].forEach(function(src){var s=document.createElement('script');s.src=src;document.body.appendChild(s);});
 }
