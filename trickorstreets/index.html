@@ -140,7 +140,10 @@ function card(e){return '<div class="t">'+esc(e.name)+tag(e)+'</div><div class="
 var map=L.map('map',{preferCanvas:true}).setView([40.674,-73.995],14);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',subdomains:'abcd',maxZoom:19}).addTo(map);
 var bounds={},cb6Bounds=null,bkBounds=null,evLayer=L.layerGroup().addTo(map),pin=null;
-var EV=[],curDate='all',curSrc='all',openCd=null,lineById={};
+var EV=[],curDate='up',curSrc='all',openCd=null,lineById={};
+var TODAY=(function(){try{return new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});}catch(e){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}})();
+function isPast(e){return e.date<TODAY;}
+function dateOk(e){return curDate==='up'?!isPast(e):curDate==='past'?isPast(e):e.date===curDate;}
 var FOCUS=(new URLSearchParams(location.search)).get('e');
 
 Promise.all([fetch('/data/trick-or-streets/events.json').then(function(r){return r.json();}),fetch('/data/community-districts.geojson').then(function(r){return r.json();})]).then(function(res){
@@ -155,20 +158,22 @@ Promise.all([fetch('/data/trick-or-streets/events.json').then(function(r){return
   });
   cb6Bounds=bounds[6];
   map.fitBounds(cb6Bounds,{padding:[10,10]});
+  var f=FOCUS?EV.filter(function(e){return e.id===FOCUS;})[0]:null;
+  if((f&&isPast(f))||!EV.some(function(e){return !isPast(e);}))curDate='past';
   buildDates();render();
-  if(FOCUS){var f=EV.filter(function(e){return e.id===FOCUS;})[0];if(f)focusOn(f.id);}
+  if(f)focusOn(f.id);
 }).catch(function(){document.getElementById('cb6list').innerHTML='<div class="empty">The event data did not load. Refresh to try again.</div>';});
 
-function keep(e){return (curDate==='all'||e.date===curDate)&&(curSrc==='all'||(curSrc==='tos')===isTos(e));}
+function keep(e){return dateOk(e)&&(curSrc==='all'||(curSrc==='tos')===isTos(e));}
 function buildDates(){
-  var ds={};EV.forEach(function(e){ds[e.date]=(ds[e.date]||0)+1;});
-  var h='<button type="button" class="fb on" data-d="all">All of October<span class="n">'+EV.length+'</span></button>';
+  var ds={},up=0,past=0;EV.forEach(function(e){if(isPast(e)){past++;}else{up++;ds[e.date]=(ds[e.date]||0)+1;}});
+  var h='<button type="button" class="fb'+(curDate==='up'?' on':'')+'" data-d="up">Coming up<span class="n">'+up+'</span></button>';
   Object.keys(ds).sort().forEach(function(d){h+='<button type="button" class="fb" data-d="'+d+'">'+dlab(d)+'<span class="n">'+ds[d]+'</span></button>';});
+  if(past)h+='<button type="button" class="fb'+(curDate==='past'?' on':'')+'" data-d="past">Past<span class="n">'+past+'</span></button>';
   var box=document.getElementById('dates');box.innerHTML=h;
   box.addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;curDate=b.getAttribute('data-d');[].forEach.call(box.children,function(x){x.classList.toggle('on',x===b);});render();});
-  var nt=EV.filter(isTos).length;
   var sb=document.getElementById('srcs');
-  sb.innerHTML='<button type="button" class="fb on" data-s="all">Everything<span class="n">'+EV.length+'</span></button><button type="button" class="fb" data-s="tos">Trick-or-Streets<span class="n">'+nt+'</span></button><button type="button" class="fb" data-s="permit">Other permitted closures<span class="n">'+(EV.length-nt)+'</span></button>';
+  sb.innerHTML='<button type="button" class="fb on" data-s="all">Everything<span class="n" id="nAll"></span></button><button type="button" class="fb" data-s="tos">Trick-or-Streets<span class="n" id="nTos"></span></button><button type="button" class="fb" data-s="permit">Other permitted closures<span class="n" id="nPm"></span></button>';
   sb.addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;curSrc=b.getAttribute('data-s');[].forEach.call(sb.children,function(x){x.classList.toggle('on',x===b);});render();});
 }
 function drawMap(list){
@@ -182,8 +187,10 @@ function drawMap(list){
   });
 }
 function evHTML(list){return list.map(function(e){return '<div class="ev" data-id="'+esc(e.id)+'">'+card(e)+'</div>';}).join('');}
-function when(){return curDate==='all'?'in October':'on '+dlab(curDate);}
+function when(){return curDate==='up'?'coming up':curDate==='past'?'so far this October':'on '+dlab(curDate);}
 function render(){
+  var base=EV.filter(dateOk),bt=base.filter(isTos).length;
+  document.getElementById('nAll').textContent=base.length;document.getElementById('nTos').textContent=bt;document.getElementById('nPm').textContent=base.length-bt;
   var list=EV.filter(keep);
   drawMap(list);
   var c6=list.filter(function(e){return e.cds.indexOf(6)>=0;});
