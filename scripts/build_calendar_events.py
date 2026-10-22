@@ -49,6 +49,15 @@ FEEDS = [
         "venue": "Brooklyn Bridge Park",
     },
     {
+        # Brooklyn Conservatory of Music: every event on bkcm.org (WooCommerce event products, with each event's date,
+        # time and place in its fields), all of it on BKCM's calendar and its profile page.
+        "name": "Brooklyn Conservatory of Music",
+        "url": "https://bkcm.org/wp-json/wp/v2/product",
+        "kind": "bkcm",
+        "type": "bkcm",
+        "venue": "BKCM \u00b7 58 Seventh Avenue, Park Slope",
+    },
+    {
         # NYC Parks' events feed (the next two weeks, citywide), kept to the parks in CB6; each event goes to its park's calendar.
         "name": "NYC Parks",
         "url": "https://www.nycgovparks.org/xml/events_300_rss.json",
@@ -110,6 +119,9 @@ EXCLUDES = [
 ]
 
 OVERRIDES = [
+    # Oct 30, 2026 BKCM Halloween Movie Night: the flyer Mike sent.
+    {"date": "2026-10-30", "label_contains": "Halloween Movie Night: Honoring Tim Curry",
+     "set": {"flyer": "https://bkcb6.app/flyer-bkcm-halloween-movie-night-2026-10-30.jpg"}},
     # Oct 22, 2026 Landmarks, Land Use & Housing committee meeting: canceled.
     {"date": "2026-10-22", "label_contains": "Landmarks, Land Use",
      "set": {"label": "CANCELED: CB6 Committee Meeting- Landmarks, Land Use & Housing",
@@ -186,6 +198,19 @@ ADDITIONS.append({
     "desc": "This meeting has been canceled.",
     "href": "https://brooklyncb6.cityofnewyork.us/event/cb6-committee-meeting-landmarks-land-use-housing-8/",
     "linkText": "Full details \u2197",
+})
+
+# Oct 31, 2026 Redemption Church Fall Festival in Coffey Park (flyer from Mike).
+ADDITIONS.append({
+    "date": "2026-10-31",
+    "type": "community",
+    "label": "Redemption Church Fall Festival",
+    "time": "12:00 PM",
+    "location": "Coffey Park \u00b7 85 Richards Street, Red Hook",
+    "desc": "12:00 PM to 3:00 PM. Games, music and treats, fun for all ages. Come dressed in your favorite costume.",
+    "flyer": "https://bkcb6.app/flyer-redemption-church-fall-festival-2026-10-31.jpg",
+    "href": None,
+    "linkText": None,
 })
 
 # Nov 18, 2026 Full Board meeting at Van Alen Institute.
@@ -564,6 +589,60 @@ def fetch_bbp_events(url, venue):
     return out
 
 
+def fetch_bkcm_events(url, venue):
+    """Brooklyn Conservatory of Music's events: WooCommerce event products on bkcm.org, upcoming dates only."""
+    import html as _html
+    today = datetime.now().strftime("%Y-%m-%d")
+    places = {}
+    try:
+        for page in range(1, 5):
+            r = requests.get(url.replace("/product", "/location") + f"?per_page=100&page={page}&_fields=id,name", timeout=40, headers=BROWSER_HEADERS)
+            if not r.ok or not r.json():
+                break
+            places.update({str(x["id"]): _html.unescape(x["name"]) for x in r.json()})
+    except Exception as e:
+        print(f"  BKCM places unreadable: {type(e).__name__}: {e}")
+    out, seen = [], set()
+    for page in range(1, 30):
+        try:
+            r = requests.get(f"{url}?per_page=100&page={page}&_fields=id,link,title,meta,location,excerpt,yoast_head_json.og_image", timeout=40, headers=BROWSER_HEADERS)
+        except Exception as e:
+            print(f"  Unusable {url}: {type(e).__name__}: {e}")
+            break
+        if not r.ok:
+            break
+        items = r.json()
+        if not items:
+            break
+        for it in items:
+            m = it.get("meta") or {}
+            try:
+                d = datetime.strptime((m.get("WooCommerceEventsDate") or "").strip(), "%B %d, %Y").strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+            if d < today:
+                continue
+            name = _html.unescape(re.sub(r"<[^>]+>", "", (it.get("title") or {}).get("rendered", ""))).strip()
+            if (d, name.lower()) in seen:
+                continue
+            seen.add((d, name.lower()))
+            hh, mm = m.get("WooCommerceEventsHour"), m.get("WooCommerceEventsMinutes") or "00"
+            t = None
+            if hh and str(hh).isdigit() and not (hh in ("0", "00") and mm in ("0", "00")):
+                h = int(hh); t = f"{(h % 12) or 12}:{int(mm):02d} {'PM' if h >= 12 else 'AM'}"
+            locs = [places.get(str(x)) for x in (it.get("location") or []) if places.get(str(x))]
+            where = venue
+            if locs:
+                where = "BKCM \u00b7 963 President Street (Prospect Park West)" if "963 President" in locs[0] else ("BKCM \u00b7 58 Seventh Avenue, Park Slope" if locs[0] in ("BKCM", "BKCM Concert Hall", "BKCM Garden") else locs[0])
+            desc = _html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", (it.get("excerpt") or {}).get("rendered", "")))).strip()
+            img = ((it.get("yoast_head_json") or {}).get("og_image") or [{}])[0].get("url")
+            ev = {"date": d, "summary": name, "url": it.get("link") or "", "cats": "", "location": where, "desc": desc[:600], "time": t}
+            if img:
+                ev["flyer"] = img
+            out.append(ev)
+    return out
+
+
 def fetch_nycparks_events(url, venue):
     """NYC Parks' events feed, kept to CB6's parks (data/cb6-park-ids.json); each event's type is its park's calendar."""
     import html as _html
@@ -742,8 +821,8 @@ def main():
 
     for feed in FEEDS:
         print(f"Fetching {feed['name']}...")
-        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse", "bbp", "nycparks"):
-            raw = {"eventbrite_org": fetch_eventbrite_org, "ldjson": fetch_ldjson_events, "wfea": fetch_wfea_events, "powerhouse": fetch_powerhouse_events, "bbp": fetch_bbp_events, "nycparks": fetch_nycparks_events}[feed["kind"]](feed["url"], feed["venue"])
+        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse", "bbp", "nycparks", "bkcm"):
+            raw = {"bkcm": fetch_bkcm_events, "eventbrite_org": fetch_eventbrite_org, "ldjson": fetch_ldjson_events, "wfea": fetch_wfea_events, "powerhouse": fetch_powerhouse_events, "bbp": fetch_bbp_events, "nycparks": fetch_nycparks_events}[feed["kind"]](feed["url"], feed["venue"])
             if not raw:
                 print(f"  FAILED \u2014 no data")
                 failed_types.append(feed["type"])
@@ -754,7 +833,7 @@ def main():
             text = None
         else:
             text = fetch_feed(feed["url"], feed.get("fallback"))
-        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse", "bbp", "nycparks"):
+        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse", "bbp", "nycparks", "bkcm"):
             pass
         elif not text and not feed.get("api_url") and not feed.get("type"):
             # the CB6 feed (its events are classified by content): keep last run's board, committee and community events
@@ -792,6 +871,7 @@ def main():
                 "desc": ev["desc"] or None,
                 "href": ev["url"] or None,
                 "linkText": "Full details \u2197" if ev["url"] else None,
+                **({"flyer": ev["flyer"]} if ev.get("flyer") else {}),
             })
 
     # A feed that failed this run keeps whatever it contributed last run, so a

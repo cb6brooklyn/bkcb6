@@ -77,6 +77,7 @@ function iconPath(type) {
 }
 function flyerPath(u) {
   if (!u) return null;
+  if (/^https?:\/\//.test(u) && !/^https?:\/\/bkcb6\.app\//.test(u)) return u; // an organization's own image (BKCM's event art)
   const file = String(u).replace(/^https?:\/\/bkcb6\.app\//, '').split('?')[0];
   if (fs.existsSync(path.join(ROOT, file))) return '/' + file;
   return null;
@@ -92,24 +93,24 @@ function linkRow(date, e) {
 const links = {};
 for (const date of Object.keys(EVENTS).sort()) {
   for (const e of EVENTS[date]) {
-    const m = String(e.href || '').match(/trickorstreets\/\?e=([A-Za-z0-9]+)/);
+    const m = String(e.href || '').match(/(?:trickorstreets|spookycb6)\/\?e=([A-Za-z0-9]+)/);
     if (!m || links[m[1]]) continue; // first calendar entry wins (the CB6 entry for a closure that crosses a board line)
     links[m[1]] = linkRow(date, e);
   }
 }
 
 // ---------- 2. Halloween events in CB6 ----------
-const HALLOWEEN = /hallow|howl-o-ween|spook|trick-or|pumpkin|haunt|costume|monster|creepy|ghost|witch|zombie|skeleton|day of the dead|d[ií]a de (los )?muertos|jack-o|boo bash|sleepy hollow|folklore|practical magic|addams/i;
+const HALLOWEEN = /hallow|howl-o-ween|spook|trick-or|pumpkin|haunt|costume|monster|creepy|ghost|witch|zombie|skeleton|day of the dead|d[ií]a de (los )?muertos|jack-o|boo bash|sleepy hollow|folklore|practical magic|addams|[\u2019']ween\b|\bboo!/i;
 const PARKS = ['prospect', 'bbp']; // Prospect Park Alliance and Brooklyn Bridge Park: their seasonal events count too
 const HALLOWEEN_DESC = /haunted|halloween|pumpkin|trick-or-treat|costume/i; // for a park event whose name does not say it (the Lakeside fall festival, the Pier 6 harvest festival)
-const isHalloween = e => HALLOWEEN.test(ent(e.label)) || (PARKS.includes(e.type) && (/harvest festival/i.test(ent(e.label)) || HALLOWEEN_DESC.test(ent(e.desc))));
+const isHalloween = e => HALLOWEEN.test(ent(e.label)) || (PARKS.includes(e.type) && (/harvest festival/i.test(ent(e.label)) || HALLOWEEN_DESC.test(ent(e.desc)))) || (/fall festival|harvest festival/i.test(ent(e.label)) && HALLOWEEN_DESC.test(ent(e.desc)));
 // Interest groups, matched in this order
 const GROUPS = [
   ['movies', e => e.type === 'nitehawk' || /\bmovie|cinema|screening|\(19\d\d\)|\(20\d\d\)/i.test(e.label)],
   ['dogs', e => /\bdogs?\b|howl-o-ween|\bpups?\b/i.test(e.label)],
   ['parades', e => /parade/i.test(e.label)],
   ['nightlife', e => ['unionhall', 'littlefield', 'bellhouse', 'jalopy'].includes(e.type) || /21\+|dance party|bashment|punderdome|slow jams|after dark|\bdrag\b|burlesque|booze/i.test(e.label)],
-  ['kids', e => /children|kids|family|all ages|carousel|zoo|creepy crawly|window painting|lakeside|trick-or-treat|sleepy hollow|folklore|fall festival|harvest festival|open streets/i.test(e.label) || ['gcc', 'cobblehill', 'prospect', 'bbp', 'psos'].includes(e.type) || String(e.type).startsWith('park-')],
+  ['kids', e => /children|kids|family|all ages|storytime|carousel|zoo|creepy crawly|window painting|lakeside|trick-or-treat|sleepy hollow|folklore|fall festival|harvest festival|open streets/i.test(e.label) || ['gcc', 'cobblehill', 'prospect', 'bbp', 'psos'].includes(e.type) || String(e.type).startsWith('park-')],
 ];
 const groupOf = e => (GROUPS.find(([, test]) => test(e)) || ['happenings'])[0];
 const cb6 = readJSON(path.join(ROOT, 'data/cb6_boundary.geojson'), null);
@@ -226,19 +227,29 @@ for (const date of Object.keys(EVENTS).sort()) {
   if (date < SEASON_FROM || date > SEASON_TO) continue;
   for (const e of EVENTS[date]) {
     if (!e || !e.label || e.type === 'spookycb6') continue;
-    if (/trickorstreets\/\?e=/.test(e.href || '')) continue; // already a street on the map
+    if (/(?:trickorstreets|spookycb6)\/\?e=/.test(e.href || '')) continue; // already a street on the map
     if (!isHalloween(e)) continue;
     const inPark = PARKS.includes(e.type) || /prospect park|brooklyn bridge park/i.test(e.location || '');
     const where = e.location ? ent(e.location) : (e.type === 'prospect' ? prospectVenue(e) : e.type === 'bbp' ? 'Brooklyn Bridge Park' : '');
-    const pt = await locate(where);
+    let pt = await locate(where);
+    if (!pt && e.type === 'prospect') pt = await locate(prospectVenue(e)); // an entrance or path the geocoder does not know: the park spot named in the listing
     if (!pt) { skipped.push([date, ent(e.label), where, 'no geocode']); continue; }
     if (!inPark && !pip(pt.lng, pt.lat, cb6Geom)) { skipped.push([date, ent(e.label), where, 'outside CB6']); continue; }
     const id = 'c' + date.replace(/-/g, '') + '-' + slugify(e.label).slice(0, 40);
-    items.push({ src: 'cal', id, name: ent(e.label), kind: 'Halloween event', group: groupOf(e), org: TYPE_NAMES[e.type] && e.type !== 'community' ? TYPE_NAMES[e.type] : '', date, time: timeText(e), where, cds: [6], lat: pt.lat, lng: pt.lng, lines: [] });
+    // the same event from two feeds (NYC Parks and the Prospect Park Alliance list the rangers' hike under two names)
+    const sl = slugify(ent(e.label));
+    if (items.some(x => x.date === date && (slugify(x.name).includes(sl) || sl.includes(slugify(x.name))))) continue;
+    items.push({ src: 'cal', id, name: ent(e.label), kind: 'Halloween event', group: groupOf(e), org: String(e.type).startsWith('lib-') ? 'Brooklyn Public Library' : TYPE_NAMES[e.type] && e.type !== 'community' ? TYPE_NAMES[e.type] : '', date, time: timeText(e), where, cds: [6], lat: pt.lat, lng: pt.lng, lines: [] });
     links[id] = linkRow(date, e);
   }
 }
 
+// Events that have passed drop out of the live feeds; keep last run's past items (and their links) so the map's Past view stays whole.
+const TODAY_NY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+const prevItems = readJSON(OUT_EVENTS, { items: [] }).items || [], prevLinks = readJSON(OUT_LINKS, {});
+const haveIds = new Set(items.map(i => i.id));
+for (const it of prevItems) if (it.date < TODAY_NY && !haveIds.has(it.id)) { items.push(it); if (prevLinks[it.id] && !links[it.id]) links[it.id] = prevLinks[it.id]; }
+items.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 fs.mkdirSync(DIR, { recursive: true });
 fs.writeFileSync(OUT_LINKS, JSON.stringify(links, null, 1) + '\n');
 fs.writeFileSync(OUT_EVENTS, JSON.stringify({ built: new Date().toISOString().slice(0, 10), items }, null, 1) + '\n');
