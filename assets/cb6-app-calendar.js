@@ -148,7 +148,10 @@
     var today = nyToday(), t = parse(today);
     var sunday = new Date(t); sunday.setDate(t.getDate() + (7 - t.getDay()) % 7);
     var weekEnd = ds(sunday.getFullYear(), sunday.getMonth(), sunday.getDate());
-    var mtgs = S.events.filter(function (e) { return e.ty === CB6 && e.d >= today; }).sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : minutes(a.t) - minutes(b.t); });
+    // A meeting earlier today that has ended (CB6 meetings run about 90 minutes; 150 minutes after the start counts as over) is no longer next.
+    var nyNow = (function () { var p = {}; new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()).forEach(function (x) { p[x.type] = x.value; }); return (+p.hour % 24) * 60 + (+p.minute); })();
+    var over = function (e) { return e.d === today && minutes(e.t) < 9998 && nyNow > minutes(e.t) + 150; };
+    var mtgs = S.events.filter(function (e) { return e.ty === CB6 && e.d >= today && !over(e); }).sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : minutes(a.t) - minutes(b.t); });
     var week = mtgs.filter(function (e) { return e.d <= weekEnd; });
     var show = week.length ? week : mtgs.slice(0, 1);
     var label = week.length ? 'CB6 meeting this week' : 'Next CB6 meeting';
