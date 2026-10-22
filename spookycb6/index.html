@@ -54,6 +54,21 @@
 .fb{padding:6px 12px;border:1.5px solid var(--border);border-radius:17px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.74rem;font-weight:700;color:var(--navy);cursor:pointer}
 .fb.on{background:var(--orange);border-color:var(--orange);color:#fff}
 .fb .n{font-family:'DM Mono',monospace;font-size:.64rem;margin-left:4px;opacity:.75}
+.fb.int.on{color:#fff}
+.cal{width:100%;display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:4px}
+.cal .h{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;color:var(--muted);text-align:center;font-weight:700;padding-bottom:2px}
+.cal button{border:1.5px solid var(--border);border-radius:9px;background:#fff;padding:5px 0 4px;font-family:'DM Sans',sans-serif;color:var(--navy);cursor:pointer;display:flex;flex-direction:column;align-items:center;line-height:1.1;min-height:42px}
+.cal button b{font-size:.86rem;font-weight:800}
+.cal button i{font-style:normal;font-family:'DM Mono',monospace;font-size:.58rem;color:var(--orange);font-weight:700;margin-top:2px}
+.cal button.past{opacity:.55}
+.cal button.today{border-color:var(--navy)}
+.cal button.on{background:var(--orange);border-color:var(--orange);color:#fff;opacity:1}
+.cal button.on i{color:#fff}
+.cal button:disabled{border-color:transparent;cursor:default;color:#c9c5bd}
+.cal .blank{min-height:42px}
+.hint{width:100%;font-size:.7rem;color:var(--muted);line-height:1.4}
+.dayhd{padding:9px 14px 7px;background:var(--navy);color:#fff;font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.09em;font-weight:700;border-bottom:2px solid var(--orange)}
+.dayhd .n{color:rgba(255,255,255,.65);font-weight:500;margin-left:6px}
 .sec{background:var(--navy);color:#fff;padding:11px 14px;border-bottom:2px solid var(--orange);display:flex;align-items:center;gap:10px}
 .sec img{width:40px;height:40px;border-radius:8px;flex:0 0 auto;background:#fff}
 .sec h2{font-size:.98rem;font-weight:900;line-height:1.2}
@@ -93,7 +108,7 @@
     <img class="spk" src="/spooky-cb6.png" alt="Spooky CB6, Brooklyn Community Board 6">
     <div>
       <div class="crumb"><a href="/">CB6 &amp; Beyond</a></div>
-      <h1>Halloween in CB6 <span>every Halloween event, Trick-or-Streets and every October street closure</span></h1>
+      <h1>Halloween in CB6 <span>every Halloween event, Trick-or-Streets and other spooky celebrations!</span></h1>
       <div class="nbs">Park Slope, Carroll Gardens, Cobble Hill, Red Hook, Gowanus, and the Columbia Street Waterfront District, plus Prospect Park and Brooklyn Bridge Park</div>
     </div>
   </div>
@@ -134,12 +149,20 @@
   </div>
 
   <div class="scope">
-    <span class="lab">Date</span>
+    <span class="lab">Days</span>
     <div id="dates" style="display:flex;gap:7px;flex-wrap:wrap"></div>
+    <div class="cal" id="cal"></div>
+    <div class="hint">Tap as many days as you like. The map and the list below show just those days.</div>
   </div>
   <div class="scope">
-    <span class="lab">Show</span>
+    <span class="lab">What you&rsquo;re into</span>
     <div id="srcs" style="display:flex;gap:7px;flex-wrap:wrap"></div>
+    <div class="hint">Pick one or more: parades and movies, say. Combine with days to see parades on Halloween.</div>
+  </div>
+  <div class="scope">
+    <span class="lab">List by</span>
+    <button type="button" class="fb on" id="byInt">What it is</button>
+    <button type="button" class="fb" id="byDay">Day</button>
   </div>
 
   <div class="sec"><img src="/spooky-cb6.png" alt="Spooky CB6"><div><h2>In CB6</h2><div class="s" id="cb6sub"></div></div></div>
@@ -208,11 +231,14 @@ function loadZoning(b){
 }
 function pip(lng,lat,g){var rings=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];for(var p=0;p<rings.length;p++){var o=rings[p][0],ins=false;for(var i=0,j=o.length-1;i<o.length;j=i++){var xi=o[i][0],yi=o[i][1],xj=o[j][0],yj=o[j][1];if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))ins=!ins;}if(ins)return true;}return false;}
 var cb6Bounds=null,allBounds=null,evLayer=L.layerGroup().addTo(map),pin=null;
-var EV=[],CAL={},curDate='up',curSrc='all',lineById={};
+var EV=[],CAL={},curDate='up',SELD={},INTS={},listBy='int',lineById={};
 var INAPP=(function(){try{return /[?&]app=1\b/.test(location.search)||sessionStorage.getItem('bkapp')==='1'||location.protocol==='bkcb:';}catch(e){return false;}})();
 var TODAY=(function(){try{return new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});}catch(e){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}})();
 function isPast(e){return e.date<TODAY;}
-function dateOk(e){return curDate==='up'?!isPast(e):curDate==='past'?isPast(e):e.date===curDate;}
+function nDays(){return Object.keys(SELD).length;}
+function nInts(){return Object.keys(INTS).length;}
+function dateOk(e){return nDays()?!!SELD[e.date]:curDate==='up'?!isPast(e):isPast(e);}
+function intOk(e){return !nInts()||!!INTS[groupOf(e)];}
 var FOCUS=(new URLSearchParams(location.search)).get('e');
 
 Promise.all([fetch('/data/trick-or-streets/events.json').then(function(r){return r.json();}),fetch('/data/cb6_boundary.geojson').then(function(r){return r.json();}),fetch('/data/trick-or-streets/calendar.json').then(function(r){return r.json();}).catch(function(){return {};}),fetch('/data/trick-or-streets/halloween.json').then(function(r){return r.json();}).catch(function(){return {items:[]};})]).then(function(res){
@@ -230,18 +256,29 @@ Promise.all([fetch('/data/trick-or-streets/events.json').then(function(r){return
   if(f)focusOn(f.id);
 }).catch(function(){document.getElementById('cb6list').innerHTML='<div class="empty">The event data did not load. Refresh to try again.</div>';});
 
-function keep(e){return dateOk(e)&&(curSrc==='all'||groupOf(e)===curSrc);}
+function keep(e){return dateOk(e)&&intOk(e);}
 function buildDates(){
-  var ds={},up=0,past=0;EV.forEach(function(e){if(isPast(e)){past++;}else{up++;ds[e.date]=(ds[e.date]||0)+1;}});
-  var h='<button type="button" class="fb'+(curDate==='up'?' on':'')+'" data-d="up">Coming up<span class="n">'+up+'</span></button>';
-  Object.keys(ds).sort().forEach(function(d){h+='<button type="button" class="fb" data-d="'+d+'">'+dlab(d)+'<span class="n">'+ds[d]+'</span></button>';});
-  if(past)h+='<button type="button" class="fb'+(curDate==='past'?' on':'')+'" data-d="past">Past<span class="n">'+past+'</span></button>';
-  var box=document.getElementById('dates');box.innerHTML=h;
-  box.addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;curDate=b.getAttribute('data-d');[].forEach.call(box.children,function(x){x.classList.toggle('on',x===b);});render();});
+  var box=document.getElementById('dates');
+  box.innerHTML='<button type="button" class="fb" data-d="up">Coming up<span class="n" id="n-up"></span></button><button type="button" class="fb" data-d="past">Past<span class="n" id="n-past"></span></button>';
+  box.addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;curDate=b.getAttribute('data-d');SELD={};render();});
+  // the calendar: every day of the season, Oct 1 through Nov 1
+  var days={};EV.forEach(function(e){days[e.date]=1;});
+  var keys=Object.keys(days).sort(),first=keys[0]||TODAY,last=keys[keys.length-1]||TODAY;
+  var start=dobj(first.slice(0,8)+'01'),end=dobj(last),h='';
+  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(function(d){h+='<div class="h">'+d+'</div>';});
+  for(var i=0;i<start.getDay();i++)h+='<div class="blank"></div>';
+  for(var d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
+    var iso=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+    h+='<button type="button" data-day="'+iso+'" class="'+(iso<TODAY?'past':'')+(iso===TODAY?' today':'')+'"><b>'+(d.getDate()===1?MON[d.getMonth()].slice(0,3)+' 1':d.getDate())+'</b><i></i></button>';
+  }
+  var cal=document.getElementById('cal');cal.innerHTML=h;
+  cal.addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b||b.disabled)return;var k=b.getAttribute('data-day');if(SELD[k])delete SELD[k];else SELD[k]=1;render();});
   var sb=document.getElementById('srcs');
-  sb.innerHTML='<button type="button" class="fb on" data-s="all">Everything<span class="n" id="n-all"></span></button>'+INTERESTS.map(function(i){return '<button type="button" class="fb" data-s="'+i[0]+'" style="border-color:'+i[2]+'">'+i[1]+'<span class="n" id="n-'+i[0]+'"></span></button>';}).join('');
+  sb.innerHTML='<button type="button" class="fb" data-s="all">Everything<span class="n" id="n-all"></span></button>'+INTERESTS.map(function(i){return '<button type="button" class="fb int" data-s="'+i[0]+'" style="border-color:'+i[2]+'">'+i[1]+'<span class="n" id="n-'+i[0]+'"></span></button>';}).join('');
   document.getElementById('keyInterests').innerHTML=INTERESTS.filter(function(i){return i[0]!=='tos'&&i[0]!=='blockparties'&&i[0]!=='closures';}).map(function(i){return '<span><i style="border:3px solid '+i[2]+';background:#fff"></i>'+i[1]+'</span>';}).join('');
-  sb.addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;curSrc=b.getAttribute('data-s');[].forEach.call(sb.children,function(x){x.classList.toggle('on',x===b);});render();});
+  sb.addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;var k=b.getAttribute('data-s');if(k==='all')INTS={};else if(INTS[k])delete INTS[k];else INTS[k]=1;render();});
+  document.getElementById('byInt').onclick=function(){listBy='int';render();};
+  document.getElementById('byDay').onclick=function(){listBy='day';render();};
 }
 function drawMap(items){
   evLayer.clearLayers();lineById={};
@@ -259,21 +296,34 @@ function drawMap(items){
 }
 function evHTML(items,grouped){return items.map(function(it){return '<div class="ev" data-id="'+esc(it.e.id)+'">'+card(it.e,it.dates,grouped)+'</div>';}).join('');}
 function groupedHTML(items){
-  if(curSrc!=='all')return evHTML(items);
+  if(nInts()===1)return evHTML(items);
   return INTERESTS.map(function(i){var its=items.filter(function(it){return groupOf(it.e)===i[0];});if(!its.length)return '';
     return '<div class="grp"><i style="border-color:'+i[2]+'"></i>'+i[1]+'<span class="n">'+its.length+'</span></div>'+evHTML(its,true);}).join('');
 }
-function when(){return curDate==='up'?'coming up':curDate==='past'?'so far this October':'on '+dlab(curDate);}
+function when(){var ks=Object.keys(SELD).sort();if(ks.length){var l=ks.map(dlab);return 'on '+(l.length===1?l[0]:l.slice(0,-1).join(', ')+' and '+l[l.length-1]);}return curDate==='up'?'coming up':'so far this October';}
+function byDayHTML(list){
+  var ds={};list.forEach(function(e){(ds[e.date]=ds[e.date]||[]).push(e);});
+  return Object.keys(ds).sort().map(function(d){var its=collapse(ds[d]).map(function(it){return {e:it.e,dates:[d],ids:it.ids};});
+    return '<div class="dayhd">'+esc(dlong(d))+'<span class="n">'+its.length+'</span></div>'+(nInts()===1?evHTML(its):groupedHTML(its));}).join('');
+}
 function countText(items){var ne=items.filter(function(it){return isCal(it.e);}).length,ns=items.length-ne,p=[];if(ns||!ne)p.push(ns+' '+(ns===1?'street':'streets'));if(ne)p.push(ne+' Halloween '+(ne===1?'event':'events'));return p.join(' and ');}
 function render(){
-  var base=collapse(EV.filter(dateOk));
-  document.getElementById('n-all').textContent=base.length;
-  INTERESTS.forEach(function(i){var n=base.filter(function(it){return groupOf(it.e)===i[0];}).length,b=document.querySelector('#srcs [data-s="'+i[0]+'"]');document.getElementById('n-'+i[0]).textContent=n;b.style.display=n?'':'none';});
-  var items=collapse(EV.filter(keep));
+  // counts on each control follow the other controls, so the map, the list and the counts always agree
+  var byDate=collapse(EV.filter(dateOk));
+  document.getElementById('n-all').textContent=byDate.length;
+  INTERESTS.forEach(function(i){var n=byDate.filter(function(it){return groupOf(it.e)===i[0];}).length,b=document.querySelector('#srcs [data-s="'+i[0]+'"]');document.getElementById('n-'+i[0]).textContent=n;b.style.display=(n||INTS[i[0]])?'':'none';b.classList.toggle('on',!!INTS[i[0]]);b.style.background=INTS[i[0]]?i[2]:'';});
+  document.querySelector('#srcs [data-s="all"]').classList.toggle('on',!nInts());
+  var inInt=EV.filter(intOk),perDay={};inInt.forEach(function(e){perDay[e.date]=(perDay[e.date]||0)+1;});
+  document.getElementById('n-up').textContent=collapse(inInt.filter(function(e){return !isPast(e);})).length;
+  document.getElementById('n-past').textContent=collapse(inInt.filter(isPast)).length;
+  [].forEach.call(document.querySelectorAll('#dates .fb'),function(b){b.classList.toggle('on',!nDays()&&b.getAttribute('data-d')===curDate);});
+  [].forEach.call(document.querySelectorAll('#cal button'),function(b){var k=b.getAttribute('data-day'),n=perDay[k]||0;b.querySelector('i').textContent=n||'';b.disabled=!n&&!SELD[k];b.classList.toggle('on',!!SELD[k]);});
+  document.getElementById('byInt').classList.toggle('on',listBy==='int');document.getElementById('byDay').classList.toggle('on',listBy==='day');
+  var list=EV.filter(keep),items=collapse(list);
   drawMap(items);
   var c6=items.filter(function(it){return it.e.cds.indexOf(6)>=0;});
   document.getElementById('cb6sub').textContent=countText(c6)+' '+when()+' in Park Slope, Carroll Gardens, Cobble Hill, Red Hook, Gowanus, and the Columbia Street Waterfront District, and in Prospect Park and Brooklyn Bridge Park';
-  document.getElementById('cb6list').innerHTML=c6.length?groupedHTML(c6):'<div class="empty">Nothing '+when()+'.</div>';
+  document.getElementById('cb6list').innerHTML=c6.length?(listBy==='day'?byDayHTML(list.filter(function(e){return e.cds.indexOf(6)>=0;})):groupedHTML(c6)):'<div class="empty">Nothing '+when()+(nInts()?' for what you picked':'')+'.</div>';
 }
 function focusOn(id){var g=lineById[id];if(!g)return;map.fitBounds(g.getBounds(),{maxZoom:17,padding:[30,30],animate:false});g.openPopup();document.getElementById('map').scrollIntoView({behavior:'smooth',block:'start'});}
 document.addEventListener('click',function(ev){
