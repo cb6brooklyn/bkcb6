@@ -55,6 +55,17 @@
       '<div class="vm-sb"><label for="'+S.id+'Addr">Your address or place in '+esc(S.boroName)+'</label><input id="'+S.id+'Addr" type="text" placeholder="Address, building, park or housing development" autocomplete="off" autocapitalize="off" spellcheck="false"><div class="vm-sug"></div><div class="hint" id="'+S.id+'Hint"></div></div>'+
       '<div class="cvt"><button type="button" class="on" data-l="ev"><span class="cv-st ev" style="width:18px;height:18px"></span>Early voting</button><button type="button" class="on" data-l="ed"><span class="cv-st" style="width:16px;height:16px"></span>Election Day poll sites</button><button type="button" class="on" data-l="eds">Election districts</button><button type="button" class="on" data-l="cd">Community districts</button></div>'+
       '<div class="vm-map" id="'+S.id+'Map"></div>';
+    // inside a closed fold, the map and its data wait until the fold opens (or an address lands here)
+    var det=root.closest('details'),started=false,ready=null,addr=null;
+    function start(){if(started)return ready;started=true;ready=begin();return ready;}
+    if(det){det.addEventListener('toggle',function(){if(det.open)start();});if(det.open)start();}else start();
+    window[sc+'voteAddr']=function(a,lat,lng){if(!isFinite(lat)||!isFinite(lng))return false;var key=('0'+parseInt(a.assemblyDistrict,10)).slice(-2)+('00'+parseInt(a.electionDistrict,10)).slice(-3);
+      if(D.sites){var r=D.sites.ed[key];if(!r||(S.boro&&r[2]!==S.boro))return false;}
+      else{var bn=String(a.firstBoroughName||'').toUpperCase();if(S.boro&&bn&&bn!=='BROOKLYN')return false;}
+      if(det&&!det.open)det.open=true;
+      var lab=(function(){var i=document.getElementById(S.id+'Addr');return i&&i.value?i.value.split(',')[0]:'';})();
+      start().then(function(){if(addr)addr(key,L.latLng(lat,lng),lab);});return true;};
+    function begin(){
     var G={ev:L.layerGroup(),ed:L.layerGroup(),eds:L.layerGroup(),cd:L.layerGroup()},lbl=L.layerGroup(),on={ev:1,ed:1,eds:1,cd:1},pinM=null,hiL=null,EDS={},EVS={},ROLE={},ADL={},ADLB={};
     var bb=L.latLngBounds(S.view);
     var map=L.map(S.id+'Map',{scrollWheelZoom:false,zoomSnap:.25,minZoom:S.minZoom,maxZoom:18,maxBounds:bb.pad(S.pad),maxBoundsViscosity:.8});
@@ -83,11 +94,10 @@
         var done=!!opt.rendered;pinM.on('click',function(e){var t=e.originalEvent&&e.originalEvent.target,b=t&&t.closest?t.closest('button'):null,tg=b?b.getAttribute('data-t'):'ed';if(done)jump(tg);else{open(key,ll,tg);done=true;}});}}
     function dropAt(ll,hi){clear();keyAt(ll).then(function(x){if(!x){drop(ll,null);return;}if(!x.key){drop(ll,null,{ad:x.ad});return;}if(!inScope(x.key)){drop(ll,null);pinM&&pinM.setIcon(L.divIcon({className:'',html:'<div class="cv-pw"><div class="cv-bal cv-bal2"><div style="display:flex;align-items:center;gap:8px">'+pinRow()+'<span><b>Not in '+esc(S.boroName)+'</b><small>ED '+(+x.key.slice(2))+' · AD '+(+x.key.slice(0,2))+' votes in '+esc(BN[(D.sites.ed[x.key]||[])[2]]||'another borough')+'. Use the New York City map below.</small></span></div></div><div class="cv-pin"></div></div>',iconSize:[0,0],iconAnchor:[0,0]}));return;}drop(ll,x.key,{f:x.f});});}
     map.on('click',function(e){dropAt(e.latlng);});
-    window[sc+'voteAddr']=function(a,lat,lng){if(!D.sites||!isFinite(lat)||!isFinite(lng))return false;var key=('0'+parseInt(a.assemblyDistrict,10)).slice(-2)+('00'+parseInt(a.electionDistrict,10)).slice(-3);
-      if(!inScope(key))return false;var ll=L.latLng(lat,lng),ad=document.getElementById(S.id+'Addr');
-      map.setView(ll,15.5);drop(ll,key,{label:ad&&ad.value?ad.value.split(',')[0]:'',rendered:true});
+    addr=function(key,ll,label){if(!inScope(key))return;map.invalidateSize();
+      map.setView(ll,15.5);drop(ll,key,{label:label,rendered:true});
       eds(key.slice(0,2)).then(function(fc){if(!fc||!pinM)return;var f=fc.features.filter(function(x){return x.properties.e===key;})[0];if(f&&!hiL)hiL=L.geoJSON(f,{interactive:false,style:{color:'#0d1b4b',weight:3,fillColor:'#f47920',fillOpacity:.35}}).addTo(map);});
-      setTimeout(function(){root.scrollIntoView({behavior:'smooth',block:'start'});},50);return true;};
+      setTimeout(function(){root.scrollIntoView({behavior:'smooth',block:'start'});},50);};
     function siteTap(i){clear();var st=siteOf(i),r=ROLE[i],ll=L.latLng(st[2],st[3]);
       var keys=(r.ed||r.ev).slice().sort(),multiAD={};keys.forEach(function(k){multiAD[k.slice(0,2)]=1;});var showAD=Object.keys(multiAD).length>1;
       var role=(r.ev?'Early voting site, October 24 to November 1':'')+(r.ev&&r.ed?' · ':'')+(r.ed?'Election Day poll site, November 3, 6 AM to 9 PM':'');
@@ -127,10 +137,11 @@
             if(!feats.length){sug.style.display='none';return;}sug.innerHTML='';feats.forEach(function(f,i){var d=document.createElement('div');d.textContent=f.properties.label||'';d.addEventListener('click',function(){pick(i);});sug.appendChild(d);});sug.style.display='block';}).catch(function(){sug.style.display='none';});},220);});
       inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();if(feats.length)pick(0);}if(e.key==='Escape')sug.style.display='none';});
       document.addEventListener('click',function(e){if(e.target!==inp&&!sug.contains(e.target))sug.style.display='none';});})();
-    Promise.all([sites(),ads(),get('boro','/data/boro-simple.geojson'),get('cds','/data/cd-boundaries-lite.geojson')]).then(function(){if(!D.sites)return;var n=drawSites();drawBounds();
-      var h=document.getElementById(S.id+'Hint');var eds=Object.keys(D.sites.ed).filter(inScope).length;
-      root.querySelector('.s').textContent=S.s+' '+(S.boro?eds.toLocaleString()+' of New York City’s 4,070 election districts are in Brooklyn, voting at '+n.toLocaleString()+' sites.':'4,070 election districts, voting at '+n.toLocaleString()+' sites.');
-      sync();});
+    return Promise.all([sites(),ads(),get('boro','/data/boro-simple.geojson'),get('cds','/data/cd-boundaries-lite.geojson')]).then(function(){if(!D.sites)return;var n=drawSites();drawBounds();
+      var eds=Object.keys(D.sites.ed).filter(inScope).length;
+      root.querySelector('.s').textContent=S.s+' '+(S.boro?eds.toLocaleString()+' of New York City\u2019s 4,070 election districts are in Brooklyn, voting at '+n.toLocaleString()+' sites.':'4,070 election districts, voting at '+n.toLocaleString()+' sites.');
+      setTimeout(function(){map.invalidateSize();sync();},60);});
+    }
   }
   roots.forEach(build);
 })();
