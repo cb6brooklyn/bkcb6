@@ -87,6 +87,12 @@
 .src a{color:var(--navy);border-bottom:1px solid var(--orange);text-decoration:none}
 .leaflet-popup-content{font-family:'DM Sans',sans-serif;font-size:.8rem;line-height:1.45;color:#0d1b4b}
 .leaflet-popup-content b{font-size:.88rem}
+.pmark{width:48px;height:48px;border-radius:10px;overflow:hidden;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);background:#000}
+.pmark img{display:block;width:100%;height:100%;object-fit:cover}
+.pop-fl{display:block;height:170px;line-height:0;margin-bottom:8px}
+.pop-fl img{display:block;max-height:170px;max-width:100%;width:auto;border-radius:8px}
+.pop-btn{display:block;margin-top:9px;background:var(--orange);color:#fff;font-weight:800;text-align:center;padding:9px 12px;border-radius:10px;text-decoration:none;font-size:.8rem}
+.pop-btn:hover{background:#d9640f}
 </style>
 </head>
 <body><script src="/assets/site-bar.js?v=1" defer></script><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a><script>(function(){try{var a=document.getElementById("asb"),q=/[?&]app=1\b/.test(location.search);if(q)sessionStorage.setItem("bkapp","1");if(location.protocol==="bkcb:"||q||sessionStorage.getItem("bkapp")==="1"||/^bkcb:/.test(document.referrer)){a.style.display="none"}}catch(e){}})();</script>
@@ -174,6 +180,15 @@ function isTos(e){return e.src==='tos';}
 function col(e){return e.kind==='Signature'?SIG:(isTos(e)?OR:'#111');}
 function tag(e){return '<span class="tag'+(e.kind==='Signature'?' sig':(isTos(e)?' tos':' pm'))+'">'+esc(isTos(e)?(e.kind==='Signature'?'Trick-or-Streets signature':'Trick-or-Streets'):e.kind)+'</span>';}
 function boards(e){return e.cds.map(function(c){return 'BKCB'+c;}).join(', ');}
+function isParade(e){return e.kind==='Parade'||/\bparade\b/i.test(e.name);}
+function calUrl(c){return '/calendar.html?event='+encodeURIComponent(c.event)+(INAPP?'&app=1':'');}
+function markIcon(e){var c=CAL[e.id]||{};return c.flyer||c.icon||'/spooky-cb6-128.png';}
+function popHTML(e){
+  var c=CAL[e.id];
+  return (c&&c.flyer?'<a class="pop-fl" href="'+esc(calUrl(c))+'"><img src="'+esc(c.flyer)+'" alt="'+esc(e.name)+' flyer"></a>':'')+
+    '<b>'+esc(e.name)+'</b><br>'+esc(e.where)+(e.org?'<br>'+esc(e.org):'')+'<br><b style="font-size:.78rem;color:'+OR+'">'+esc(dlong(e.date))+', '+esc(e.time)+'</b><br><span style="font-size:.72rem;color:#6b6760">'+esc(isTos(e)?'Trick-or-Streets':e.kind)+' &middot; '+boards(e)+'</span>'+
+    (c?'<a class="pop-btn" href="'+esc(calUrl(c))+'">See it on the calendar</a>':'');
+}
 function card(e){return '<div class="t">'+esc(e.name)+tag(e)+'</div><div class="w">'+esc(e.where)+'</div>'+(e.org?'<div class="o">'+esc(e.org)+'</div>':'')+
   '<div class="d">'+esc(dlong(e.date))+' &middot; '+esc(e.time)+'</div>';}
 
@@ -195,14 +210,15 @@ function loadZoning(b){
 }
 function pip(lng,lat,g){var rings=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];for(var p=0;p<rings.length;p++){var o=rings[p][0],ins=false;for(var i=0,j=o.length-1;i<o.length;j=i++){var xi=o[i][0],yi=o[i][1],xj=o[j][0],yj=o[j][1];if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))ins=!ins;}if(ins)return true;}return false;}
 var bounds={},cb6Bounds=null,bkBounds=null,evLayer=L.layerGroup().addTo(map),pin=null;
-var EV=[],curDate='up',curSrc='all',openCd=null,lineById={};
+var EV=[],CAL={},curDate='up',curSrc='all',openCd=null,lineById={};
+var INAPP=(function(){try{return /[?&]app=1\b/.test(location.search)||sessionStorage.getItem('bkapp')==='1'||location.protocol==='bkcb:';}catch(e){return false;}})();
 var TODAY=(function(){try{return new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});}catch(e){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}})();
 function isPast(e){return e.date<TODAY;}
 function dateOk(e){return curDate==='up'?!isPast(e):curDate==='past'?isPast(e):e.date===curDate;}
 var FOCUS=(new URLSearchParams(location.search)).get('e');
 
-Promise.all([fetch('/data/trick-or-streets/events.json').then(function(r){return r.json();}),fetch('/data/community-districts.geojson').then(function(r){return r.json();})]).then(function(res){
-  EV=res[0].items;
+Promise.all([fetch('/data/trick-or-streets/events.json').then(function(r){return r.json();}),fetch('/data/community-districts.geojson').then(function(r){return r.json();}),fetch('/data/trick-or-streets/calendar.json').then(function(r){return r.json();}).catch(function(){return {};})]).then(function(res){
+  EV=res[0].items;CAL=res[2]||{};
   var bk=res[1].features.filter(function(f){var c=+f.properties.boro_cd;return c>=301&&c<=318;});
   bk.forEach(function(f){
     var c=+f.properties.boro_cd-300,is6=c===6;
@@ -238,8 +254,9 @@ function drawMap(list){
   list.forEach(function(e){
     var c=col(e),g=L.featureGroup();
     e.lines.forEach(function(ln){L.polyline(ln,{color:isTos(e)?'#fff':OR,weight:isTos(e)?10:9,opacity:.95}).addTo(g);L.polyline(ln,{color:c,weight:5,opacity:1}).addTo(g);});
-    L.circleMarker([e.lat,e.lng],{radius:6,color:isTos(e)?NAVY:OR,weight:2,fillColor:c,fillOpacity:1}).addTo(g);
-    g.bindPopup('<b>'+esc(e.name)+'</b><br>'+esc(e.where)+(e.org?'<br>'+esc(e.org):'')+'<br><b style="font-size:.78rem;color:'+OR+'">'+esc(dlong(e.date))+', '+esc(e.time)+'</b><br><span style="font-size:.72rem;color:#6b6760">'+esc(isTos(e)?'Trick-or-Streets':e.kind)+' &middot; '+boards(e)+'</span>');
+    if(isParade(e))L.marker([e.lat,e.lng],{icon:L.divIcon({className:'',html:'<div class="pmark"><img src="'+esc(markIcon(e))+'" alt=""></div>',iconSize:[48,48],iconAnchor:[24,24],popupAnchor:[0,-26]})}).addTo(g);
+    else L.circleMarker([e.lat,e.lng],{radius:6,color:isTos(e)?NAVY:OR,weight:2,fillColor:c,fillOpacity:1}).addTo(g);
+    g.bindPopup(popHTML(e),{maxWidth:270});
     g.addTo(evLayer);lineById[e.id]=g;
   });
 }
@@ -264,7 +281,7 @@ function render(){
   }
   document.getElementById('cdlist').innerHTML=h;
 }
-function focusOn(id){var g=lineById[id];if(!g)return;map.fitBounds(g.getBounds(),{maxZoom:17,padding:[30,30]});g.openPopup();document.getElementById('map').scrollIntoView({behavior:'smooth',block:'start'});}
+function focusOn(id){var g=lineById[id];if(!g)return;map.fitBounds(g.getBounds(),{maxZoom:17,padding:[30,30],animate:false});g.openPopup();document.getElementById('map').scrollIntoView({behavior:'smooth',block:'start'});}
 document.addEventListener('click',function(ev){
   var r=ev.target.closest('.cdrow');
   if(r){var c=+r.getAttribute('data-cd');openCd=openCd===c?null:c;
