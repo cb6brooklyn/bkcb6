@@ -25,7 +25,7 @@
    ".vm .vm-sug div{padding:9px 12px;font:500 .9rem 'DM Sans',sans-serif;color:#0d1b4b;cursor:pointer;border-top:1px solid #f0ede7}.vm .vm-sug div:hover{background:#fff4ea}"+
    ".vm .hint{font:400 .74rem 'DM Sans',sans-serif;color:#6b6760;margin-top:6px}"+
    ".vm .leaflet-interactive:focus,.vm path:focus{outline:none}"+
-   "#bkvote .cv-st{background-image:url(/data/vote/voted-bk.png)}#nycvote .cv-st{background-image:url(/data/vote/voted-nyc.png)}"+
+   "#bkvote .cv-st{background-image:url(/data/vote/voted-bk.png?v=2)}#nycvote .cv-st{background-image:url(/data/vote/voted-nyc.png?v=2)}"+
    ".vm-cdl{font:700 10px 'DM Mono',monospace;letter-spacing:.06em;color:#0d1b4b;white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;transform:translate(-50%,-50%)}";
   document.head.appendChild(css);
   // shared data, loaded once for both maps
