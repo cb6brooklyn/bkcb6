@@ -99,7 +99,18 @@ for (const date of Object.keys(EVENTS).sort()) {
 }
 
 // ---------- 2. Halloween events in CB6 ----------
-const HALLOWEEN = /hallow|howl-o-ween|spooky|trick-or|pumpkin|haunt|costume|monster|creepy|ghost|witch|zombie|skeleton|day of the dead|d[ií]a de (los )?muertos|jack-o|boo bash/i;
+const HALLOWEEN = /hallow|howl-o-ween|spook|trick-or|pumpkin|haunt|costume|monster|creepy|ghost|witch|zombie|skeleton|day of the dead|d[ií]a de (los )?muertos|jack-o|boo bash|sleepy hollow|folklore|practical magic|addams/i;
+const HALLOWEEN_DESC = /haunted|halloween|pumpkin patch|trick-or-treat/i; // for an event whose name does not say it (the Lakeside fall festival)
+const isHalloween = e => HALLOWEEN.test(ent(e.label)) || (e.type === 'prospect' && HALLOWEEN_DESC.test(ent(e.desc)));
+// Interest groups, matched in this order
+const GROUPS = [
+  ['movies', e => e.type === 'nitehawk' || /\bmovie|cinema|screening|\(19\d\d\)|\(20\d\d\)/i.test(e.label)],
+  ['dogs', e => /\bdogs?\b|howl-o-ween|\bpups?\b/i.test(e.label)],
+  ['parades', e => /parade/i.test(e.label)],
+  ['nightlife', e => ['unionhall', 'littlefield', 'bellhouse', 'jalopy'].includes(e.type) || /21\+|dance party|bashment|punderdome|slow jams|after dark|\bdrag\b|burlesque|booze/i.test(e.label)],
+  ['kids', e => /children|kids|family|all ages|carousel|zoo|creepy crawly|window painting|lakeside|trick-or-treat|sleepy hollow|folklore|fall festival|open streets/i.test(e.label) || ['gcc', 'cobblehill', 'prospect', 'psos'].includes(e.type) || String(e.type).startsWith('park-')],
+];
+const groupOf = e => (GROUPS.find(([, test]) => test(e)) || ['happenings'])[0];
 const cb6 = readJSON(path.join(ROOT, 'data/cb6_boundary.geojson'), null);
 const cb6Geom = cb6.type === 'FeatureCollection' ? cb6.features[0].geometry : (cb6.geometry || cb6);
 function pip(lng, lat, g) {
@@ -120,7 +131,24 @@ const PLACES = [
   { re: /^brooklyn public library, carroll gardens|^carroll gardens library/i, q: ['396 Clinton Street'] },
   { re: /^brooklyn public library, red hook|^red hook library/i, q: ['7 Wolcott Street'] },
   { re: /^brooklyn public library, park slope|^park slope library/i, q: ['431 6 Avenue'] },
+  { re: /^prospect park carousel|children.s corner/i, q: ['Lefferts Historic House'], dlat: -0.0005, dlng: -0.0003 },
+  { re: /^prospect park zoo/i, q: ['Prospect Park Zoo'] },
+  { re: /^lefrak center|lakeside/i, q: ['LeFrak Center at Lakeside'] },
+  { re: /^lefferts historic house/i, q: ['Lefferts Historic House'] },
+  { re: /^audubon center|boathouse \(in prospect park\)/i, q: ['Prospect Park Audubon Center'] },
+  { re: /^prospect park$|^washington irving statue/i, q: ['Prospect Park'] },
 ];
+// A Prospect Park Alliance listing names its spot in the title or the text, not in a location field.
+function prospectVenue(e) {
+  const t = ent(e.label) + ' ' + ent(e.desc || '');
+  if (/carousel/i.test(t)) return 'Prospect Park Carousel, Children\u2019s Corner';
+  if (/\bzoo\b/i.test(t)) return 'Prospect Park Zoo';
+  if (/lakeside|lefrak/i.test(t)) return 'LeFrak Center at Lakeside, Prospect Park';
+  if (/lefferts/i.test(t)) return 'Lefferts Historic House, Prospect Park';
+  if (/audubon|boathouse/i.test(t)) return 'Audubon Center at the Boathouse, Prospect Park';
+  if (/washington irving statue/i.test(t)) return 'Washington Irving statue, Prospect Park';
+  return 'Prospect Park';
+}
 const GEOCLIENT = 'https://api.nyc.gov/geoclient/v2/';
 const GEOCLIENT_KEY = process.env.GEOCLIENT_KEY || 'b913bdfb9c47466589d0f08c99c75b21';
 const cache = readJSON(CACHE, {});
@@ -195,12 +223,14 @@ for (const date of Object.keys(EVENTS).sort()) {
   for (const e of EVENTS[date]) {
     if (!e || !e.label || e.type === 'spookycb6') continue;
     if (/trickorstreets\/\?e=/.test(e.href || '')) continue; // already a street on the map
-    if (!HALLOWEEN.test(ent(e.label))) continue;
-    const pt = await locate(e.location);
-    if (!pt) { skipped.push([date, ent(e.label), e.location, 'no geocode']); continue; }
-    if (!pip(pt.lng, pt.lat, cb6Geom)) { skipped.push([date, ent(e.label), e.location, 'outside CB6']); continue; }
+    if (!isHalloween(e)) continue;
+    const inPark = e.type === 'prospect' || /prospect park/i.test(e.location || '');
+    const where = e.location ? ent(e.location) : (inPark ? prospectVenue(e) : '');
+    const pt = await locate(where);
+    if (!pt) { skipped.push([date, ent(e.label), where, 'no geocode']); continue; }
+    if (!inPark && !pip(pt.lng, pt.lat, cb6Geom)) { skipped.push([date, ent(e.label), where, 'outside CB6']); continue; }
     const id = 'c' + date.replace(/-/g, '') + '-' + slugify(e.label).slice(0, 40);
-    items.push({ src: 'cal', id, name: ent(e.label), kind: 'Halloween event', org: TYPE_NAMES[e.type] && e.type !== 'community' ? TYPE_NAMES[e.type] : '', date, time: timeText(e), where: ent(e.location || ''), cds: [6], lat: pt.lat, lng: pt.lng, lines: [] });
+    items.push({ src: 'cal', id, name: ent(e.label), kind: 'Halloween event', group: groupOf(e), org: TYPE_NAMES[e.type] && e.type !== 'community' ? TYPE_NAMES[e.type] : '', date, time: timeText(e), where, cds: [6], lat: pt.lat, lng: pt.lng, lines: [] });
     links[id] = linkRow(date, e);
   }
 }
