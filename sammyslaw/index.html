@@ -73,7 +73,7 @@ a{color:var(--navy)}
 .pill .n{font-family:'DM Mono',monospace;font-size:.62rem;color:#5b6675}
 .pill.on .n{color:rgba(255,255,255,.7)}
 .cb6pin{width:46px;height:46px;border-radius:9px;background:var(--navy) url(/cb6-logo-square.png) center/cover no-repeat;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}
-.schicon img{width:26px;height:26px;object-fit:contain;border-radius:6px;background:#fff;border:1px solid rgba(0,0,0,.15);box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.schicon img{object-fit:contain;border-radius:6px;background:#fff;border:1px solid rgba(0,0,0,.15);box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .leaflet-tooltip.tip{font:500 .78rem 'DM Sans',sans-serif;padding:6px 8px;border-radius:6px;line-height:1.4}
 .leaflet-control-attribution{font-size:9px}
 /* content */
@@ -141,14 +141,14 @@ a{color:var(--navy)}
   <div id="map"></div>
   <div id="res" class="result"></div>
   <div class="hm-foot">
-    <p>Turn each layer on or off. The orange line is BKCB6: Park Slope, Carroll Gardens, Cobble Hill, Red Hook, Gowanus, and the Columbia Street Waterfront District. Zoom in for a speed limit sign on every block: the posted limit in black, and under it what the block would get, 15 in red where the city has committed to a school zone, 20 in orange where CB6 asked for 20 mph district-wide.</p>
+    <p>Turn each layer on or off. The orange line is BKCB6: Park Slope, Carroll Gardens, Cobble Hill, Red Hook, Gowanus, and the Columbia Street Waterfront District. Streets are colored by today&rsquo;s posted limit; the red halo is a Sammy&rsquo;s Law school zone. Zoom in for a speed limit sign on every block (the shortest segments appear at the closest zoom): the posted limit in black, and under it what the block would get, 15 in red where the city has committed to a school zone, 20 in orange where CB6 asked for 20 mph district-wide. Schools show as dots until you zoom in, then as their logos.</p>
     <div class="lbl">SAMMY&rsquo;S LAW</div>
     <div class="pills">
       <button class="pill on" type="button" data-l="signs" style="--c:#111"><i></i>Speed limit signs, every block<span class="n" id="n-signs"></span></button>
       <button class="pill on" type="button" data-l="sz" style="--c:#dc2626"><i></i>15 mph school zones, the city&rsquo;s commitment<span class="n" id="n-sz"></span></button>
       <button class="pill on" type="button" data-l="ask20" style="--c:#f47920"><i></i>20 mph district-wide, CB6&rsquo;s request<span class="n" id="n-ask20"></span></button>
       <button class="pill on" type="button" data-l="schools" style="--c:#0d1b4b"><i></i>Schools<span class="n" id="n-schools"></span></button>
-      <button class="pill" type="button" data-l="speed" style="--c:#2563eb"><i></i>Speed limits today, colored lines<span class="n" id="n-speed"></span></button>
+      <button class="pill on" type="button" data-l="speed" style="--c:#2563eb"><i></i>Speed limits today, colored lines<span class="n" id="n-speed"></span></button>
     </div>
     <div class="lbl">DAYLIGHTING</div>
     <div class="pills">
@@ -264,7 +264,7 @@ var map=L.map('map',{zoomControl:false,scrollWheelZoom:false,attributionControl:
 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{subdomains:'abcd',maxZoom:20,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
 L.control.zoom({position:'topright'}).addTo(map);
 map.on('click',function(){map.scrollWheelZoom.enable()});
-var cb6=null,CB6G=null,SZ=null,SPEED=null,SCH=null,PL=null,BLK=null,LAYERS={},ON={signs:true,sz:true,ask20:true,schools:true,speed:false,inter:false,deaths:false,ltn:true,bridge:true};
+var cb6=null,CB6G=null,SZ=null,SPEED=null,SCH=null,PL=null,BLK=null,LAYERS={},ON={signs:true,sz:true,ask20:true,schools:true,speed:true,inter:false,deaths:false,ltn:true,bridge:true};
 function slColor(v){v=+v;return v>=45?'#b91c1c':v>=35?'#ea580c':v>=30?'#f59e0b':v>=25?'#2563eb':v>=20?'#16a34a':v>0?'#166534':'#9ca3af'}
 /* what a block would get: 15 where the city committed to a school zone, 20 where CB6 asked for 20 mph district-wide; highways and the tunnel unchanged */
 function wouldBe(r){var sl=+r.sl;if(sl>=40)return null;if(ON.sz&&r.sz)return sl===15?null:{v:15,c:'r'};if(ON.ask20&&(sl===25||sl===30||sl===0))return {v:20,c:'o'};return null}
@@ -285,12 +285,20 @@ function signSVG(r,z){
   }
   return s+'</svg>';
 }
-var SIGNZ=15;
+var SIGNZ=15,LOGOZ=15;
+function drawSchools(){
+  var g=LAYERS.schools;if(!g||!SCH)return;g.clearLayers();var z=map.getZoom(),big=z>=LOGOZ,sz=z>=17?34:26;
+  SCH.forEach(function(s){
+    var m=big?L.marker([s.y,s.x],{icon:L.divIcon({className:'schicon',html:'<img src="'+s.logo+'" alt="" style="width:'+sz+'px;height:'+sz+'px">',iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]})}):L.circleMarker([s.y,s.x],{radius:4,color:'#fff',weight:1.5,fillColor:NAVY,fillOpacity:1});
+    m.bindTooltip('<b>'+esc(s.t)+'</b>'+(s.s?'<br>'+esc(s.s):''),{sticky:true,className:'tip'}).on('click',function(){if(big&&s.u)location.href=s.u;else map.setView([s.y,s.x],Math.max(LOGOZ,map.getZoom()))}).addTo(g);
+  });
+}
 function drawSigns(){
   var g=LAYERS.signs;if(!g||!BLK)return;g.clearLayers();var z=map.getZoom();if(z<SIGNZ)return;
   var b=map.getBounds().pad(.2);
+  var minLen=z>=17?0:z>=16?60:120;
   BLK.rows.forEach(function(r){
-    if(!b.contains([r.lat,r.lng]))return;
+    if(!b.contains([r.lat,r.lng])||r.len<minLen)return;
     var w=wouldBe(r),W=z>=17?44:z>=16?34:26,H=w?Math.round(W*1.75):Math.round(W*1.3);
     var m=L.marker([r.lat,r.lng],{icon:L.divIcon({className:'sign',html:signSVG(r,z),iconSize:[W,H],iconAnchor:[W/2,H/2]}),interactive:true,keyboard:false});
     m.bindTooltip(blockTip(r),{sticky:true,className:'tip'});m.addTo(g);
@@ -300,9 +308,9 @@ function blockTip(r){var w=wouldBe(r),sl=+r.sl;return '<b>'+esc(stName(r.s))+'</
 function between(r){var a=r.a.map(stName).join(' / '),b=r.b.map(stName).join(' / ');if(a&&b)return a===b?'at '+a:a+' to '+b;return a||b||''}
 var KEY={
   signs:[['sign','','Speed limit sign on each block: posted today, then what it would be (zoom in)']],
-  sz:[['ln','#dc2626','Sammy&rsquo;s Law 15 mph school zone, 150 m of a school: the city&rsquo;s commitment, 15 in red on the sign']],
+  sz:[['halo','#dc2626','Sammy&rsquo;s Law 15 mph school zone, the red halo: within 150 m of a school, the city&rsquo;s commitment, 15 in red on the sign']],
   ask20:[['sw','#f47920','20 mph district-wide, CB6&rsquo;s request: 20 in orange on the sign']],
-  schools:[['logo','','School, with its own logo']],
+  schools:[['logo','','School: a dot at district view, its logo as you zoom in']],
   speed:[['ln','#16a34a','20 mph'],['ln','#2563eb','25 mph'],['ln','#f59e0b','30 mph'],['ln','#ea580c','35 to 40 mph'],['ln','#b91c1c','45 to 50 mph'],['ln','#9ca3af','No value in DOT data']],
   inter:[['dt','#2563eb','Intersection, sized by injuries since 2014']],
   deaths:[['dt','#b3202b','Someone killed, 2014 to 2026']],
@@ -313,6 +321,7 @@ function renderKey(){
   var h='<span><i style="background:transparent;border:3px solid '+OR+';border-radius:3px"></i>BKCB6</span>';
   Object.keys(KEY).forEach(function(k){if(!ON[k])return;KEY[k].forEach(function(e){
     if(e[0]==='logo')h+='<span><img src="/assets/blocks/school-nycps.png" alt="" onerror="this.style.display=\'none\'">'+e[2]+'</span>';
+    else if(e[0]==='halo')h+='<span><i style="width:22px;height:7px;border-radius:4px;background:rgba(220,38,38,.32)"></i>'+e[2]+'</span>';
     else if(e[0]==='sign')h+='<span><i style="width:12px;height:16px;border-radius:2px;background:#fff;border:2px solid #111"></i>'+e[2]+'</span>';
     else if(e[0]==='sw')h+='<span><i style="width:14px;height:14px;border-radius:3px;background:#fff;border:2px solid '+e[1]+'"></i>'+e[2]+'</span>';
     else if(e[0]==='sq')h+='<span><i style="background:rgba(124,58,237,.25);border:2px solid '+e[1]+'"></i>'+e[2]+'</span>';
@@ -330,13 +339,12 @@ fetch('/data/cb6_boundary.geojson').then(function(r){return r.json()}).then(func
 function build(k){
   if(LAYERS[k])return Promise.resolve(LAYERS[k]);
   if(k==='sz'||k==='speed')return speedData().then(function(d){
-    if(k==='sz'){LAYERS.sz=L.geoJSON({type:'FeatureCollection',features:d.features.filter(function(f){return f.properties.sz})},{style:{color:'#dc2626',weight:5,opacity:.9},onEachFeature:function(f,l){l.bindTooltip('<b>'+esc(stName(f.properties.street))+'</b><br>Sammy&rsquo;s Law 15 mph school zone, within 150 m of a school'+(f.properties.sl&&f.properties.sl!==15?'<br>Posted today: '+f.properties.sl+' mph':''),{sticky:true,className:'tip'})}});$('n-sz').textContent=fmt(LAYERS.sz.getLayers().length)}
-    else{LAYERS.speed=L.geoJSON(d,{style:function(f){return {color:slColor(f.properties.sl),weight:3,opacity:.9}},onEachFeature:function(f,l){l.bindTooltip('<b>'+esc(stName(f.properties.street))+'</b><br>'+(f.properties.sl?f.properties.sl+' mph':'No value in DOT data')+(f.properties.sg==='Y'?', signed':', unsigned'),{sticky:true,className:'tip'})}});$('n-speed').textContent=fmt(d.features.length)}
+    if(k==='sz'){LAYERS.sz=L.geoJSON({type:'FeatureCollection',features:d.features.filter(function(f){return f.properties.sz})},{style:{color:'#dc2626',weight:11,opacity:.32,lineCap:'round'},onEachFeature:function(f,l){l.bindTooltip('<b>'+esc(stName(f.properties.street))+'</b><br>Sammy&rsquo;s Law 15 mph school zone, within 150 m of a school'+(f.properties.sl&&f.properties.sl!==15?'<br>Posted today: '+f.properties.sl+' mph':''),{sticky:true,className:'tip'})}});$('n-sz').textContent=fmt(LAYERS.sz.getLayers().length)}
+    else{LAYERS.speed=L.geoJSON(d,{style:function(f){return {color:slColor(f.properties.sl),weight:3.5,opacity:.95}},onEachFeature:function(f,l){l.bindTooltip('<b>'+esc(stName(f.properties.street))+'</b><br>'+(f.properties.sl?f.properties.sl+' mph':'No value in DOT data')+(f.properties.sg==='Y'?', signed':', unsigned'),{sticky:true,className:'tip'})}});$('n-speed').textContent=fmt(d.features.length)}
     return LAYERS[k]});
   if(k==='schools')return fetch('/sammyslaw/schools.json').then(function(r){return r.json()}).then(function(d){
-    SCH=d.schools;var g=L.layerGroup();
-    d.schools.forEach(function(s){L.marker([s.y,s.x],{icon:L.divIcon({className:'schicon',html:'<img src="'+s.logo+'" alt="">',iconSize:[26,26],iconAnchor:[13,13]})}).bindTooltip('<b>'+esc(s.t)+'</b>'+(s.s?'<br>'+esc(s.s):''),{sticky:true,className:'tip'}).on('click',function(){if(s.u)location.href=s.u}).addTo(g)});
-    $('n-schools').textContent=fmt(d.schools.length);LAYERS.schools=g;return g});
+    SCH=d.schools;var g=L.layerGroup();LAYERS.schools=g;drawSchools();
+    $('n-schools').textContent=fmt(d.schools.length);return g});
   if(k==='inter'||k==='deaths')return placesData().then(function(d){
     if(k==='inter'){var g=L.layerGroup();d.intersections.forEach(function(p){L.circleMarker([p.lat,p.lng],{radius:Math.max(3,Math.min(18,Math.sqrt(p.inj)*1.6)),color:'#fff',weight:1,fillColor:'#2563eb',fillOpacity:.7}).bindTooltip('<b>'+esc(stName(p.n))+'</b><br>'+fmt(p.crashes)+' injury crashes, '+fmt(p.inj)+' injured'+(p.k?', '+p.k+' killed':'')+'<br>'+fmt(p.pi)+' pedestrians, '+fmt(p.ci)+' cyclists, '+fmt(p.mi)+' motorists injured',{sticky:true,className:'tip'}).addTo(g)});$('n-inter').textContent=fmt(d.intersections.length);LAYERS.inter=g;return g}
     var g2=L.layerGroup();d.fatal.forEach(function(f){L.circleMarker([f.lat,f.lng],{radius:8,color:'#fff',weight:2,fillColor:'#b3202b',fillOpacity:1}).bindTooltip('<b>'+esc(f.date)+'</b><br>'+esc(stName(f.on))+(f.cross?' at '+esc(stName(f.cross)):'')+'<br>'+esc(f.mode)+' killed',{sticky:true,className:'tip'}).addTo(g2)});$('n-deaths').textContent=fmt(d.fatal.length);LAYERS.deaths=g2;return g2});
@@ -349,12 +357,12 @@ function build(k){
 function speedData(){return SPEED?Promise.resolve(SPEED):fetch('/data/speed-limits/306.json').then(function(r){return r.json()}).then(function(d){SPEED=d;return d})}
 function placesData(){return PL?Promise.resolve(PL):fetch('/data/vzr/cb6-places.json').then(function(r){return r.json()}).then(function(d){PL=d;return d})}
 function blocksData(){return BLK?Promise.resolve(BLK):fetch('/sammyslaw/blocks.json').then(function(r){return r.json()}).then(function(d){BLK=d;$('n-signs').textContent=fmt(d.rows.length);$('n-ask20').textContent=fmt(d.rows.filter(function(r){return !r.sz&&(+r.sl===25||+r.sl===30||+r.sl===0)}).length);renderBlocks();return d})}
-function order(){['speed','sz','inter','ltn','deaths','schools','bridge','signs'].forEach(function(k){var l=LAYERS[k];if(l&&ON[k]&&map.hasLayer(l)&&l.bringToFront)l.bringToFront()});if(cb6)cb6.bringToFront()}
+function order(){['sz','speed','inter','ltn','deaths','schools','bridge','signs'].forEach(function(k){var l=LAYERS[k];if(l&&ON[k]&&map.hasLayer(l)&&l.bringToFront)l.bringToFront()});if(cb6)cb6.bringToFront()}
 function setOn(k,on){ON[k]=on;var b=document.querySelector('.pill[data-l="'+k+'"]');if(b)b.classList.toggle('on',on);renderKey();
   if(on)build(k).then(function(l){if(l&&ON[k]&&!map.hasLayer(l))l.addTo(map);order();if(k==='sz'||k==='ask20'){drawSigns();renderBlocks()}});else{if(LAYERS[k]&&map.hasLayer(LAYERS[k]))map.removeLayer(LAYERS[k]);if(k==='sz'||k==='ask20'){drawSigns();renderBlocks()}}}
 Object.keys(ON).forEach(function(k){if(ON[k])setOn(k,true)});
 renderKey();
-map.on('zoomend moveend',function(){if(ON.signs)drawSigns()});
+map.on('zoomend moveend',function(){if(ON.signs)drawSigns()});map.on('zoomend',function(){if(ON.schools)drawSchools()});
 document.addEventListener('click',function(e){var t=e.target.closest('.pill[data-l]');if(!t)return;var k=t.getAttribute('data-l');setOn(k,!ON[k])});
 /* every block, as a list */
 var BQ='';
