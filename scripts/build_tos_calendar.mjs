@@ -241,7 +241,7 @@ function timeText(e) {
   const end = m ? `${parseInt(m[1], 10)}:${m[2] || '00'} ${m[3].toUpperCase()}M` : null;
   const mins = x => { const k = /^(\d{1,2})(?::(\d{2}))?\s*([AP])M$/i.exec(x || ''); if (!k) return null; return (+k[1] % 12 + (/p/i.test(k[3]) ? 12 : 0)) * 60 + (+(k[2] || 0)); };
   if (t && end && end !== t && mins(end) !== null && mins(t) !== null && mins(end) > mins(t)) return t + ' to ' + end;
-  return t || 'See the calendar for times';
+  return t || '';
 }
 
 const items = [], skipped = [];
@@ -270,7 +270,7 @@ for (const date of Object.keys(EVENTS).sort()) {
 const TODAY_NY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const prevItems = readJSON(OUT_EVENTS, { items: [] }).items || [], prevLinks = readJSON(OUT_LINKS, {});
 const haveIds = new Set(items.map(i => i.id));
-for (const it of prevItems) if (it.date < TODAY_NY && !haveIds.has(it.id)) { items.push(it); if (prevLinks[it.id] && !links[it.id]) { links[it.id] = prevLinks[it.id]; const pr = profileFor(links[it.id].type); if (pr) links[it.id].profile = pr; } }
+for (const it of prevItems) if (it.date < TODAY_NY && !haveIds.has(it.id)) { if (it.time === 'See the calendar for times') it.time = ''; items.push(it); if (prevLinks[it.id] && !links[it.id]) { links[it.id] = prevLinks[it.id]; const pr = profileFor(links[it.id].type); if (pr) links[it.id].profile = pr; } }
 items.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 fs.mkdirSync(DIR, { recursive: true });
 fs.writeFileSync(OUT_LINKS, JSON.stringify(links, null, 1) + '\n');
