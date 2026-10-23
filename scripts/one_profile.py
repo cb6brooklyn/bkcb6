@@ -155,6 +155,11 @@ for a in J('data/agencies.json')['agencies']:
 for a in J('data/agencies-nys.json')['agencies']:
     page = '/agencies/nys/%s/' % a['slug']
     if os.path.isdir(os.path.join(ROOT, page.strip('/'))): add(page, 'web:%sindex.html?app=1' % page.lstrip('/'), a.get('site', ''), a.get('ny', ''))
+# police precincts and school districts (scripts/district_profiles.py): the apps open the site page, whose map is the
+# area's own boundary
+for g in gov.values():
+    if g.get('area') and os.path.isfile(os.path.join(ROOT, g['slug'], 'index.html')):
+        add('/%s/' % g['slug'], 'web:%s/index.html?app=1' % g['slug'], g.get('weburl', ''))
 BORO = {'1': ['manhattan', 'm'], '2': ['bronx', 'bx'], '3': ['brooklyn', 'bk'], '4': ['queens', 'q'], '5': ['statenisland', 'si']}
 # the boards' own websites that do not follow the nyc.gov pattern
 OWN_SITES = {'brooklyncb5.org': '305', 'brooklyncb8.org': '308', 'brooklyncb11.org': '311', 'brooklyncb12.org': '312', 'cb14brooklyn.com': '314',

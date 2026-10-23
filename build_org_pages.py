@@ -581,7 +581,15 @@ for o in ORGS:
         ep = o.get('evpin')
         evpin = (' data-event-lat="%s" data-event-lng="%s" data-event-img="%s" data-event-href="%s" data-event-label="%s" data-event-until="%s"'
                  % (ep['lat'], ep['lng'], ep['img'], ep['href'], ep['label'], ep['until'])) if ep else ''
-        fields['wheresec'] = WHERE.format(lat=o['lat'], lng=o['lng'], slug=o['slug'], addrflat=fields['addrflat'], evpin=evpin)
+        w = WHERE.format(lat=o['lat'], lng=o['lng'], slug=o['slug'], addrflat=fields['addrflat'], evpin=evpin)
+        if o.get('area'):
+            # a police precinct or a school district: the map is its own boundary, with the office pinned in it
+            a = o['area']
+            w = (w.replace('data-bid-slug="park-slope-5th-avenue" ', 'data-chamber="%s" data-district="%s" data-fit-own="1" ' % (a['chamber'], a['district']))
+                  .replace(' data-cb6="1"', '')
+                  .replace('Map of the block<span class="msub">zoning, boundary, overlaps, land use</span>', 'Map of the %s<span class="msub">its boundary, the office, overlaps, land use</span>' % a['noun'])
+                  .replace('<span>the building, its block and the zoning around it</span>', '<span>%s</span>' % a['caption']))
+        fields['wheresec'] = w
     html = TPL.format(**fields)
     if o.get('logov'):
         html = html.replace('/site-icons/%s.png' % o['slug'], '/site-icons/%s.png?v=%s' % (o['slug'], o['logov']))

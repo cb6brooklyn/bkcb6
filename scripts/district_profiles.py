@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Profiles for Brooklyn's police precincts and community school districts, the same kind of profile every
 community organization has: a page on bkcb6.app built by build_org_pages.py (from data/gov-profiles.json) and a
-profile in the apps' Organizations tab (app/data/civic/orgs/orgs-profiles.json). The 76th and 78th Precincts
+profile the apps open (the site page, through app/data/civic/profile-index.json). The 76th and 78th Precincts
 already have hand-written profiles and are left as they are.
 
 Sources: data/precinct-directory.json (NYPD precinct pages: commander, address, phones, description),
@@ -103,6 +103,7 @@ for f in layers['precinct']['f']:
         'kv': kv, 'brand': NYPD, 'does_btns': [['Crime and safety in the precinct', '/precinct/%d/' % n, False]],
         'links': [['Precinct page', d['url'], True]] + ([['@' + d['x'], 'https://x.com/' + d['x'], True]] if d.get('x') else []) +
                  [['Crime and safety in the precinct', '/precinct/%d/' % n, False], ['Search an address', '/citywide-search.html', False]],
+        'area': {'chamber': 'precinct', 'district': str(n), 'noun': 'precinct', 'caption': 'the station house and the %s Precinct' % ordinal(n)},
         'logo_src': 'elected/precinct/%d.png' % n,
     }
     recs.append(site)
@@ -129,6 +130,7 @@ for f in layers['school']['f']:
         'kv': kv, 'brand': SCHOOL, 'does_btns': [['Schools and childcare in the district', '/eduhub-csd-%d.html' % n, False]],
         'links': ([['District website', d['web'], True]] if d.get('web') else []) +
                  [['Schools and childcare in the district', '/eduhub-csd-%d.html' % n, False], ['Search an address', '/citywide-search.html', False]],
+        'area': {'chamber': 'school', 'district': str(n), 'noun': 'district', 'caption': 'the district office and School District %d' % n},
         'logo_src': 'elected/school/%d.png' % n,
     }
     recs.append(site)
@@ -140,26 +142,18 @@ for r in recs:
     im = Image.open(r.pop('logo_src')).convert('RGBA')
     im.thumbnail((200, 200), Image.LANCZOS)
     im.save('site-icons/%s.png' % r['slug'], optimize=True)
-    im.save('app/data/civic/orgs/logos/%s.png' % r['slug'], optimize=True)
 
 # the site's records
 gp = [r for r in J('data/gov-profiles.json') if r.get('from') != 'district_profiles']
 json.dump(gp + recs, open('data/gov-profiles.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=0); open('data/gov-profiles.json', 'a').write('\n')
 
-# the apps' profiles, after the government agencies already there
+# the apps open these as the site page (its map is the precinct's or the district's own boundary, which the apps'
+# native profile map cannot draw): scripts/one_profile.py points their links at web:<slug>/index.html?app=1.
+# No native copies in the Organizations tab, so there is one profile, not two.
 P = 'app/data/civic/orgs/orgs-profiles.json'
 op = J(P)
+n0 = len(op['profiles'])
 op['profiles'] = [p for p in op['profiles'] if p.get('from') != 'district_profiles']
-top = max([p.get('sort', 0) for p in op['profiles'] if p.get('group') == 'Government agencies'] + [0])
-for i, r in enumerate(recs):
-    op['profiles'].append({
-        'slug': r['slug'], 'type': r['slug'], 'kind': 'agency', 'official': '', 'name': r['name'], 'seat': plain(r['seat']),
-        'desc': r['desc'], 'lat': float(r['lat']), 'lng': float(r['lng']), 'addr': r['addr'], 'zip': r['zip'], 'addr_note': r['addr_note'],
-        'phone': r['phone'], 'email': r['email'], 'web': r['web'], 'weburl': r['weburl'], 'since': '',
-        'intro': [plain(x) for x in r['intro']], 'does': [plain(x) for x in r['does']],
-        'kv': [[k, plain(v)] for k, v in r['kv']],
-        'links': [[l[0], l[1] if l[1].startswith('http') else 'https://bkcb6.app' + l[1]] for l in r['links'] if l[0] != 'Search an address'],
-        'logo': '%s.png' % r['slug'], 'cal': '', 'n': 0, 'going': [], 'group': 'Government agencies', 'topic': '',
-        'sort': top + 1 + i, 'from': 'district_profiles'})
-json.dump(op, open(P, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+if len(op['profiles']) != n0: json.dump(op, open(P, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+for r in recs: os.path.exists('app/data/civic/orgs/logos/%s.png' % r['slug']) and os.remove('app/data/civic/orgs/logos/%s.png' % r['slug'])
 print(len(recs), 'profiles:', ', '.join(r['slug'] for r in recs))

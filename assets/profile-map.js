@@ -13,7 +13,10 @@
     congress: { label: 'Congressional districts', folder: 'congress', color: '#b45309', count: 13 },
     cb: { label: 'Community boards', folder: 'cb', color: '#be185d', count: 0, codes: ["101", "102", "103", "104", "105", "106", "107", "108", "109", "110", "111", "112", "201", "202", "203", "204", "205", "206", "207", "208", "209", "210", "211", "212", "301", "302", "303", "304", "305", "306", "307", "308", "309", "310", "311", "312", "313", "314", "315", "316", "317", "318", "401", "402", "403", "404", "405", "406", "407", "408", "409", "410", "411", "412", "413", "414", "501", "502", "503"] },
     borough: { label: 'Borough', folder: 'borough', color: '#0d1b4b', count: 1 },
-    city: { label: 'New York City', folder: 'city', color: '#0d1b4b', count: 0 }
+    city: { label: 'New York City', folder: 'city', color: '#0d1b4b', count: 0 },
+    // a police precinct's or a school district's own profile: its boundary, no sibling toggles
+    precinct: { label: 'Police precincts', folder: 'precinct', color: '#1b4c7e', count: 0, codes: [] },
+    school: { label: 'School districts', folder: 'school', color: '#4242d7', count: 0, codes: [] }
   };
   // the chambers offered as overlays on any district page
   var OVERLAPS = ['council', 'assembly', 'senate', 'congress', 'cb'];
@@ -151,6 +154,8 @@
     var ptIconW = parseInt(el.getAttribute('data-point-icon-w') || '200', 10);
     var ptIconH = parseInt(el.getAttribute('data-point-icon-h') || '200', 10);
     var hasPoint = isFinite(ptLat) && isFinite(ptLng);
+    // data-fit-own="1": open on the whole boundary (a precinct, a school district) with the office pinned in it
+    var fitOwn = el.getAttribute('data-fit-own') === '1';
     injectCss();
 
     var map = L.map(el, { scrollWheelZoom: false, zoomControl: true });
@@ -254,7 +259,8 @@
         var b = L.latLngBounds(cb6Bounds.getSouthWest(), cb6Bounds.getNorthEast());
         if (hasPoint) b.extend([ptLat, ptLng]);
         map.fitBounds(b, { padding: [16, 16] });
-      } else if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
+      } else if (fitOwn && homeBounds) { var fb = L.latLngBounds(homeBounds.getSouthWest(), homeBounds.getNorthEast()); if (hasPoint) fb.extend([ptLat, ptLng]); map.fitBounds(fb, { padding: [14, 14] }); }
+      else if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
       else if (homeBounds) map.fitBounds(homeBounds, { padding: [14, 14] });
     }
     if (withCb6) {
@@ -307,10 +313,11 @@
       homeBounds = own.getBounds();
       // neighborhoods, the district and the borough, so the map reads at a glance
       var dl = bidSlug ? '' : chamber === 'council' ? 'Council District ' + district : chamber === 'assembly' ? 'Assembly District ' + district
-        : chamber === 'senate' ? 'Senate District ' + district : chamber === 'congress' ? 'NY-' + district : chamber === 'cb' ? (district.length === 3 ? ({ '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island' })[district.charAt(0)] + ' CB' + parseInt(district.slice(1), 10) : 'Brooklyn CB' + district) : chamber === 'borough' ? '' : '';
+        : chamber === 'senate' ? 'Senate District ' + district : chamber === 'congress' ? 'NY-' + district : chamber === 'cb' ? (district.length === 3 ? ({ '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island' })[district.charAt(0)] + ' CB' + parseInt(district.slice(1), 10) : 'Brooklyn CB' + district) : chamber === 'precinct' ? (function (n) { n = parseInt(n, 10); var s = (n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th'; return n + s + ' Precinct'; })(district) : chamber === 'school' ? 'School District ' + district : chamber === 'borough' ? '' : '';
       withLabels(function (ML) { ML.add(map, { bounds: homeBounds, district: dl, boroughs: chamber === 'borough' ? [({ '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island', 'brooklyn': 'Brooklyn' })[district] || 'Brooklyn'] : chamber === 'city' ? ['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'] : undefined }); });
       // a BID is a small shape in a small frame, so it can sit tighter
       if (withCb6) viewHome();
+      else if (fitOwn) { var fb = L.latLngBounds(homeBounds.getSouthWest(), homeBounds.getNorthEast()); if (hasPoint) fb.extend([ptLat, ptLng]); map.fitBounds(fb, { padding: [14, 14] }); }
       else if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
       else map.fitBounds(homeBounds, { padding: bidSlug ? [8, 8] : [14, 14] });
       if (!bidSlug) own.bringToBack();
