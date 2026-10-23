@@ -112,6 +112,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 .gl .rs{font:600 .72rem 'DM Mono',monospace;color:var(--navy);text-align:right;white-space:nowrap}
 .gl .bar{position:absolute;left:0;bottom:0;height:3px;background:var(--orange);opacity:.55}
 .gl.win.yn .pn:after{content:' \2713 more votes';font:700 .62rem 'DM Mono',monospace;color:#15803d;text-transform:uppercase}
+.gl.win.prim .pn:after{content:' \2713 won';font:700 .62rem 'DM Mono',monospace;color:#15803d;text-transform:uppercase}
 .gl.win .pn:after{content:' \2713 elected';font:700 .62rem 'DM Mono',monospace;color:#15803d;text-transform:uppercase}
 .gc .gn{padding:9px 12px;font-size:.74rem;color:#555;line-height:1.45;border-top:1px solid var(--border);background:var(--off)}
 .gc .gn a{color:var(--navy)}
@@ -152,7 +153,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   <details class="fold" open id="fCB" style="display:none"><summary><span id="cbT"></span></summary><div class="fb cbx" id="cbBox"><p class="note">Loading&hellip;</p></div></details>
   <details class="fold" open id="fSpot" style="display:none"><summary><span>Everything at this spot since 1898 <small>every district it was in, who held each, every ballot</small></span></summary><div class="fb cbx" id="spotBox"></div></details>
   <details class="fold" open id="fBallot"><summary><span>Sample ballot <small id="balDate"></small></span></summary><div class="fb">
-    <div class="bt"><button type="button" id="bPrev">&#9664; Earlier election</button><select id="bSel" aria-label="Election"></select><button type="button" id="bNext">Later election &#9654;</button><button type="button" id="bRes">Show results</button></div>
+    <div class="bt"><button type="button" id="bPrev">&#9664; Earlier election</button><select id="bSel" aria-label="Election"></select><button type="button" id="bNext">Later election &#9654;</button><button type="button" id="bRes" class="on">Hide results</button></div>
     <div id="ballot"></div>
   </div></details>
   <div id="seat"><div class="sb"><button class="x" type="button" onclick="document.getElementById('seat').style.display='none'">Close</button><div id="seatB"></div></div></div>
@@ -446,7 +447,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
 
 
   // ================= sample ballots: every election we have, 1898 to 2026 =================
-  var lastDir=0,selOv=null,BIDX=null,BCACHE={},GCACHE={},resMode=false,selId=null,PIN=null,balTok=0,WIN={};
+  var lastDir=0,selOv=null,BIDX=null,BCACHE={},GCACHE={},resMode=true,selId=null,PIN=null,balTok=0,WIN={};
   var PCODE={D:'Democratic',R:'Republican',C:'Conservative',WF:'Working Families',G:'Green',I:'Independence',WE:"Women's Equality",Ref:'Reform',RTDH:'Rent Is Too Damn High',Dem:'Democratic',Rep:'Republican',Con:'Conservative',Ind:'Independence',SAM:'SAM'};
   function pname(p){return PCODE[p]||p;}
   function pcol(p){p=pname(p);return /^Democratic/.test(p)?'#2563eb':/^Republican/.test(p)?'#dc2626':'#7c3aed';}
@@ -490,19 +491,19 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   }
   function winners(c){var v=c.c.map(function(x,i){return [x[2],i];}).filter(function(x){return x[0]!=null;});if(!v.length||c.rcv===true||c.rcv==='True')return {};
     v.sort(function(a,b){return b[0]-a[0];});var n=+(c.vf||1)||1,w={};v.slice(0,n).forEach(function(x){w[x[1]]=1;});return w;}
-  function cardH(c,i,n,ek){
+  function cardH(c,i,n,ek,etype){var prim=/primary/i.test(etype||'')||!!c.p;
     var hist=!!c.cands, cands=hist?c.cands.map(function(x){return [x.n,x.p||[],x.v,x.w,x.pct];}):c.c;
     var tot=0;cands.forEach(function(x){if(x[2])tot+=x[2];});
-    var w=hist?null:winners(c);
+    var w=hist?null:winners(c), hasRes=hist||cands.some(function(x){return x[2]!=null;}), showR=resMode&&hasRes;
     var office=hist?c.office:(c.o||c.t), dist=hist?(c.scope==='boro'?boroName(String(c.boro),c.date||dt)+' (borough-wide)':c.scope==='congress'?(c.district?'Congressional District '+c.district:'At large (statewide)'):c.scope==='city'?'Citywide':'Statewide'):(c.d||'')+(c.p?' · '+pname(c.p)+' primary':'');
     var sk=norm(office), sd=hist?(c.scope==='congress'?c.district:c.scope==='boro'?c.boro:null):dnum(c.d);
     var h='<div class="gc"><div class="gh" data-seat="'+esc(sk)+'|'+(sd==null?'':sd)+'" data-office="'+esc(office)+'"><div><div class="go">'+esc(office)+'</div><div class="gd">Contest '+(i+1)+' of '+n+(dist?' · '+esc(dist):'')+'</div></div><span class="hx">History</span></div>';
     h+='<div class="gi">'+((+(c.vf||1))>1?'Vote for up to '+c.vf:'Vote for one')+'</div>';
     var yn=cands.length&&cands.every(function(x){return /^(yes|no|write-in)$/i.test(x[0]);});
     cands.forEach(function(x,k){var won=hist?x[3]:w[k];var pct=x[2]&&tot?x[2]/tot*100:(x[4]||null);
-      h+='<div class="gl'+(resMode&&won?' win':'')+(yn?' yn':'')+'" data-c="'+ek+'-'+i+'"><span class="oval"></span><span class="pn">'+esc(x[0])+'<small>'+esc((x[1]||[]).map(pname).join(' · ')||' ')+'</small></span>'+
-        (resMode?'<span class="rs">'+(x[2]!=null?Number(x[2]).toLocaleString():'')+(pct!=null?'<br>'+pct.toFixed(1)+'%':'')+'</span>'+(pct!=null?'<span class="bar" style="width:'+Math.min(100,pct).toFixed(1)+'%"></span>':''):'')+'</div>';});
-    if(resMode&&!hist&&(c.rcv===true||c.rcv==='True'))h+='<div class="gn">Ranked-choice contest: these are first-choice votes.</div>';
+      h+='<div class="gl'+(showR&&won?' win'+(prim?' prim':''):'')+(yn?' yn':'')+'" data-c="'+ek+'-'+i+'"><span class="oval"></span><span class="pn">'+esc(x[0])+'<small>'+esc((x[1]||[]).map(pname).join(' · ')||' ')+'</small></span>'+
+        (showR?'<span class="rs">'+(x[2]!=null?Number(x[2]).toLocaleString():'')+(pct!=null?'<br>'+pct.toFixed(1)+'%':'')+'</span>'+(pct!=null?'<span class="bar" style="width:'+Math.min(100,pct).toFixed(1)+'%"></span>':''):'')+'</div>';});
+    if(showR&&!hist&&(c.rcv===true||c.rcv==='True'))h+='<div class="gn">Ranked-choice contest: these are first-choice votes.</div>';
     if(hist&&c.src)h+='<div class="gn">Source: <a href="'+esc(c.src)+'" target="_blank" rel="noopener">'+esc(decodeURIComponent(c.src.replace(/^.*\/wiki\//,'').replace(/_/g,' ')))+'</a></div>';
     return h+'</div>';
   }
@@ -517,7 +518,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
         rs.forEach(function(r,ei){var e=els[ei],B=r.B||{};
           h+='<div class="bhd"><div class="t"><div><div class="l">'+esc(nice(e.date))+'</div><div class="n">'+esc(e.label||TL(e.type))+'</div></div><div class="r">'+(r.where?esc(r.where)+'<br>':'')+r.list.length+' contest'+(r.list.length===1?'':'s')+'</div></div>'+
             (function(){var ps=psSiteFor(e.id,r.key);return ps?'<div class="s" style="display:flex;gap:8px;align-items:center"><img src="/assets/map-icons/voted-bkcb6.png" alt="" style="width:26px;height:26px"><span>'+ps.map(function(x){return '<b>'+(x.kind==='ev'?'Early voting':'Poll site')+':</b> '+esc(x.s.n)+', '+esc(x.s.a);}).join('<br>')+'</span></div>':'';})()+'<div class="s">'+(e.k==='g26'?'Certified candidates, every party line. Results after November 3, 2026.':e.k==='m'?'Every contest certified for this spot, with each candidate’s party lines. Results are votes cast in New York City (NYC Board of Elections), not statewide totals.':'Reconstructed from published results; the paper ballot’s layout differs.')+(r.note?' '+esc(r.note):'')+(e.k==='g26'&&B.src?' Source: <a href="'+esc(B.srcUrl)+'" target="_blank" rel="noopener">'+esc(B.src)+'</a>.':'')+'</div></div>';
-          if(r.list.length)h+='<div class="bgrid">'+r.list.map(function(c,i){return cardH(c,i,r.list.length,ei);}).join('')+'</div>';
+          if(r.list.length)h+='<div class="bgrid">'+r.list.map(function(c,i){return cardH(c,i,r.list.length,ei,e.type);}).join('')+'</div>';
           if(r.questions)h+='<div class="bgrid" style="margin-top:10px">'+r.questions.map(function(q){return '<div class="bq"><b>Question '+q.n+': '+esc(q.t)+'</b>'+esc(q.s||'')+'</div>';}).join('')+'</div>';
         });
         if(PIN&&PIN.ll&&lastDir&&rs.every(function(r){return !r.list.length;})&&els.every(function(e){return e.type==='special'||e.type==='runoff';})){var i0=BIDX.indexOf(els[0]),i1=BIDX.indexOf(els[els.length-1]);var ni=lastDir>0?i1+1:i0-1;if(BIDX[ni]){goEl(ni);return;}}
