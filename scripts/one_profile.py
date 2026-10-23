@@ -160,6 +160,12 @@ for a in J('data/agencies-nys.json')['agencies']:
 for g in gov.values():
     if g.get('area') and os.path.isfile(os.path.join(ROOT, g['slug'], 'index.html')):
         add('/%s/' % g['slug'], 'web:%s/index.html?app=1' % g['slug'], g.get('weburl', ''))
+# the same areas in apps that have the area profile screen (civic/area-profiles.json): "areas" is read before "pages",
+# so an app without that screen keeps opening the site page
+idx['areas'] = {}
+if os.path.exists(os.path.join(ROOT, 'app/data/civic/area-profiles.json')):
+    for a in J('app/data/civic/area-profiles.json'):
+        if a.get('page') in idx['pages']: idx['areas'][a['page']] = 'official:%s' % a['slug']
 BORO = {'1': ['manhattan', 'm'], '2': ['bronx', 'bx'], '3': ['brooklyn', 'bk'], '4': ['queens', 'q'], '5': ['statenisland', 'si']}
 # the boards' own websites that do not follow the nyc.gov pattern
 OWN_SITES = {'brooklyncb5.org': '305', 'brooklyncb8.org': '308', 'brooklyncb11.org': '311', 'brooklyncb12.org': '312', 'cb14brooklyn.com': '314',
