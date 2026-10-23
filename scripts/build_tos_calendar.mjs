@@ -82,8 +82,29 @@ function flyerPath(u) {
   if (fs.existsSync(path.join(ROOT, file))) return '/' + file;
   return null;
 }
+// Each organization's profile page: the page whose events card reads that calendar type (var ORG='<type>'),
+// a library branch's page, or a park's page (found by its Parks property number).
+const PROFILES = {};
+for (const d of fs.readdirSync(ROOT, { withFileTypes: true })) {
+  if (!d.isDirectory()) continue;
+  const f = path.join(ROOT, d.name, 'index.html');
+  if (!fs.existsSync(f)) continue;
+  const m = fs.readFileSync(f, 'utf8').match(/var ORG='([^']+)'/);
+  if (m && !PROFILES[m[1]]) PROFILES[m[1]] = '/' + d.name + '/';
+}
+const LIB = { 'lib-park-slope': 'park-slope-library', 'lib-red-hook': 'red-hook-library', 'lib-carroll-gardens': 'carroll-gardens-library' };
+const parkPages = fs.existsSync(path.join(ROOT, 'park')) ? fs.readdirSync(path.join(ROOT, 'park')).filter(f => f.endsWith('.html')) : [];
+function profileFor(type) {
+  if (!type || type === 'spookycb6' || type === 'community') return null;
+  if (LIB[type] && fs.existsSync(path.join(ROOT, LIB[type], 'index.html'))) return '/' + LIB[type] + '/';
+  const pk = String(type).match(/^park-([a-z]\d+)$/i);
+  if (pk) { const id = pk[1].toUpperCase(); const hit = parkPages.find(f => fs.readFileSync(path.join(ROOT, 'park', f), 'utf8').includes(id)); return hit ? '/park/' + hit : null; }
+  return PROFILES[type] || null;
+}
 function linkRow(date, e) {
-  const row = { event: date + '-' + slugify(e.label), label: ent(e.label), type: e.type, org: TYPE_NAMES[e.type] || e.type };
+  const LIBNAME = { 'lib-park-slope': 'Park Slope Library', 'lib-red-hook': 'Red Hook Library', 'lib-carroll-gardens': 'Carroll Gardens Library', 'lib-central': 'Central Library', 'lib-pacific': 'Pacific Library', 'lib-brooklyn-heights': 'Brooklyn Heights Library' };
+  const row = { event: date + '-' + slugify(e.label), label: ent(e.label), type: e.type, org: LIBNAME[e.type] || TYPE_NAMES[e.type] || e.type };
+  const pr = profileFor(e.type); if (pr) row.profile = pr;
   const fl = flyerPath(e.flyer); if (fl) row.flyer = fl;
   const ic = iconPath(e.type); if (ic) row.icon = ic;
   return row;
@@ -248,7 +269,7 @@ for (const date of Object.keys(EVENTS).sort()) {
 const TODAY_NY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const prevItems = readJSON(OUT_EVENTS, { items: [] }).items || [], prevLinks = readJSON(OUT_LINKS, {});
 const haveIds = new Set(items.map(i => i.id));
-for (const it of prevItems) if (it.date < TODAY_NY && !haveIds.has(it.id)) { items.push(it); if (prevLinks[it.id] && !links[it.id]) links[it.id] = prevLinks[it.id]; }
+for (const it of prevItems) if (it.date < TODAY_NY && !haveIds.has(it.id)) { items.push(it); if (prevLinks[it.id] && !links[it.id]) { links[it.id] = prevLinks[it.id]; const pr = profileFor(links[it.id].type); if (pr) links[it.id].profile = pr; } }
 items.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 fs.mkdirSync(DIR, { recursive: true });
 fs.writeFileSync(OUT_LINKS, JSON.stringify(links, null, 1) + '\n');
