@@ -119,6 +119,9 @@ EXCLUDES = [
 ]
 
 OVERRIDES = [
+    # Oct 31, 2026 Gowanus Dredgers Pirates of the Gowanus Halloween party: the flyer Mike sent.
+    {"date": "2026-10-31", "label_contains": "Pirates of the Gowanus",
+     "set": {"flyer": "https://bkcb6.app/flyer-gowanus-dredgers-pirates-of-the-gowanus-2026-10-31.jpg"}},
     # Oct 30, 2026 BKCM Halloween Movie Night: the flyer Mike sent.
     {"date": "2026-10-30", "label_contains": "Halloween Movie Night: Honoring Tim Curry",
      "set": {"flyer": "https://bkcb6.app/flyer-bkcm-halloween-movie-night-2026-10-30.jpg"}},
