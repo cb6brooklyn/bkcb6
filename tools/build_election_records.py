@@ -48,13 +48,43 @@ def norm_office(o):
     o = re.sub(r'\s+', ' ', (o or '')).strip()
     o = re.sub(r'^(Democratic|Republican|Conservative|Working Families|Green|Libertarian|Independence|Liberal) ', '', o, flags=re.I)
     o = re.sub(r'\s*-\s*(District|County)$', '', o)
-    return o.title().replace("'S", "'s").replace(' Of ', ' of ').replace(' The ', ' the ').replace(' To ', ' to ').replace(' In ', ' in ').replace(' And ', ' and ')
+    o = o.title().replace("'S", "'s").replace(' Of ', ' of ').replace(' The ', ' the ').replace(' To ', ' to ').replace(' In ', ' in ').replace(' And ', ' and ')
+    return {'State Senate': 'State Senator', 'Governor/Lieutenant Governor': 'Governor and Lieutenant Governor', 'President/Vice President': 'President and Vice President',
+            'President': 'President and Vice President', 'City Comptroller': 'Comptroller', 'Justices of the Supreme Court': 'Justice of the Supreme Court',
+            'Delegates to the National Convention': 'Delegate to National Convention', 'Alternate Delegates to the National Convention': 'Alternate Delegate to National Convention',
+            'Member of the Assembly For the Term Ending 12/31/2': 'Member of the Assembly'}.get(o, o)
 
 
 # ---------- gather every contest with per-scope vote vectors ----------
 # rows: {eid, date, type, label, ci (contest index in data/ballots/e, or hist index), office, dist, party, rcv, vf,
 #        cands: [name...], parties: [[...]], votes: {scope: [v per cand]} , src:{t,u}, nycVotes: bool}
 rows = []
+
+# community district shares of each Assembly district's residents (2020 census blocks), by the lines in force:
+# for elections the Board published only by AD (2000 to 2013), a district's votes are estimated as AD votes times this share
+OV = json.load(open(os.path.join(ROOT, 'data/districthistory/overlap.json')))
+_rows = {r['election']: r for r in [x for x in OV['offices'] if x['key'] == 'assembly'][0]['rows']}
+ERA_YEAR = {'Census 2000 sl36': 2000, '06cav': 2002, '08cav': 2008, '10cav': 2010, '12c': 2012}
+CDSHARE = {}   # year -> {cd: {ad: share of the AD's residents living in cd}}
+for yr, row in _rows.items():
+    adpop = collections.defaultdict(int)
+    for b, lst in row['cbs'].items():
+        for d, sh, res in lst:
+            adpop[d] += res
+    CDSHARE[yr] = {b: {str(d): res / adpop[d] for d, sh, res in lst} for b, lst in row['cbs'].items()}
+
+# which districts of each office took in part of a community district, by election year (same source)
+DIST_ERAS = {}
+for off in OV['offices']:
+    DIST_ERAS[off['key']] = sorted((r['election'], {b: set(str(d) for d, sh, res in lst) for b, lst in r['cbs'].items()}) for r in off['rows'])
+def dists_in(office_key, year, cd):
+    rows = DIST_ERAS.get(office_key) or []
+    best = None
+    for y, m in rows:
+        if y <= year: best = m
+    if best is None and rows: best = rows[0][1]
+    return (best or {}).get(cd, set())
+OFFICE_KEY = {'Member of the City Council': 'council', 'Member of the Assembly': 'assembly', 'State Senator': 'senate', 'State Senate': 'senate', 'Representative in Congress': 'congress'}
 
 CAT = json.load(open(os.path.join(ROOT, 'data/edhistory/catalog.json')))
 for el in CAT['elections']:
@@ -83,6 +113,27 @@ for el in CAT['elections']:
                 votes[b] = [votes[b][i] + votes[cd][i] for i in range(len(cands))]
         elif x.get('ads'):
             county = x.get('county') or {}
+            estcd = set()
+            yr = ERA_YEAR.get(idx.get('adRelease'))
+            _off = norm_office(x.get('office') or x.get('title'))
+            _okey = OFFICE_KEY.get(re.sub(r' .*$', '', _off) if False else _off)
+            _dnum = re.sub(r'\D', '', str(x.get('district') or ''))
+            if yr and PUBLIC.match(_off):
+                for cd, shares in CDSHARE[yr].items():
+                    # a district contest counts for a community district only if that district took in part of it
+                    if _okey and _dnum and _dnum.lstrip('0') not in dists_in(_okey, int(el['date'][:4]), cd):
+                        continue
+                    acc = None
+                    for ad, s in shares.items():
+                        arr = x['ads'].get(ad)
+                        if not arr or len(arr) < len(cands) + 1:
+                            continue
+                        if acc is None:
+                            acc = [0.0] * len(cands)
+                        acc = [acc[i] + (arr[i + 1] or 0) * s for i in range(len(cands))]
+                    if acc is not None and sum(acc) > 0:
+                        votes[cd] = [int(round(v)) for v in acc]
+                        estcd.add(cd)
             for ad, arr in x['ads'].items():
                 cs = county.get(ad) or []
                 if len(cs) != 1 or len(arr) < len(cands) + 1:
@@ -96,7 +147,7 @@ for el in CAT['elections']:
         src = boe_source(el['date'])
         if x.get('source') == 'openelections':
             src = {'t': 'OpenElections, New York 2012 general election results by election district (from the NYC Board of Elections)', 'u': 'https://github.com/openelections/openelections-data-ny'}
-        rows.append({'eid': eid, 'date': el['date'], 'type': el['type'], 'label': el.get('label') or '', 'ci': ci, 'k': 'm',
+        rows.append({'eid': eid, 'date': el['date'], 'type': el['type'], 'label': el.get('label') or '', 'ci': ci, 'k': 'm', 'estcd': estcd if x.get('ads') else set(),
                      'office': norm_office(x.get('office') or x.get('title')), 'dist': str(x.get('district') or ''), 'party': x.get('party') or '',
                      'rcv': bool(x.get('rcv')), 'vf': int(x.get('voteFor') or 1), 'cands': cands, 'parties': x.get('parties') or [],
                      'votes': votes, 'src': src, 'nycVotes': True, 'public': bool(PUBLIC.match(norm_office(x.get('office') or x.get('title'))))})
@@ -131,11 +182,13 @@ print(len(rows), 'contests;', sum(1 for r in rows if r['k'] == 'm'), 'from the B
 
 
 # ---------- records per scope and period ----------
-def ref(r, i, scope_votes=None):
+def ref(r, i, scope_votes=None, scope=None):
     """One candidate line: everything needed to cite it."""
     o = {'n': r['cands'][i], 'p': r['parties'][i] if i < len(r['parties']) else [], 'o': r['office'], 'd': r['dist'], 'pp': r['party'],
          'date': r['date'], 'eid': r['eid'], 'ci': r['ci'], 'k': r['k'], 'label': r['label'], 'src': r['src']}
     if scope_votes is not None:
+        if scope in r.get('estcd', ()):
+            o['est'] = 1
         o['v'] = scope_votes[i]
         t = sum(v for k, v in enumerate(scope_votes) if r['cands'][k] and not NONCAND.match(r['cands'][k]))
         o['pct'] = round(scope_votes[i] / t * 100, 1) if t else None
@@ -158,7 +211,7 @@ def build(scope):
         if not R:
             continue
         P = {'from': R[0]['date'], 'to': R[-1]['date'], 'elections': len(set(r['eid'] for r in R)), 'contests': len(R),
-             'votedContests': sum(1 for r in R if scope in r['votes'])}
+             'votedContests': sum(1 for r in R if scope in r['votes']), 'estimatedContests': sum(1 for r in R if scope in r.get('estcd', ()))}
         # reference per election: the most votes any vote-for-one public contest drew in the scope (a stand-in for ballots cast);
         # a contest whose leader has more votes than that is a parsing error and is left out of the vote records
         refv = collections.defaultdict(int)
@@ -187,7 +240,7 @@ def build(scope):
                 continue
             t = sum(vv[i] for i in real)
             for i in real:
-                e = ref(r, i, vv)
+                e = ref(r, i, vv, scope)
                 most_one.append(e)
                 c = career[names[i]]
                 c['v'] += vv[i]; c['c'] += 1
@@ -198,10 +251,10 @@ def build(scope):
             if len(real) >= 2 and t >= MIN_VOTES and not r['rcv']:
                 ranked = sorted(real, key=lambda i: -vv[i])
                 top, second = ranked[0], ranked[1]
-                e = ref(r, top, vv); e['runner'] = names[second]; e['runnerV'] = vv[second]; e['margin'] = vv[top] - vv[second]
+                e = ref(r, top, vv, scope); e['runner'] = names[second]; e['runnerV'] = vv[second]; e['margin'] = vv[top] - vv[second]
                 shares.append(e); margins.append(e)
             if real and t >= MIN_VOTES:
-                e = ref(r, max(real, key=lambda i: vv[i]), vv)
+                e = ref(r, max(real, key=lambda i: vv[i]), vv, scope)
                 turnout.append(e)
             # wins: the top vote-getter(s) in the scope, first choices left out for ranked-choice contests
             if real and t > 0 and not r['rcv']:
@@ -214,7 +267,7 @@ def build(scope):
                     w['first'] = min(w['first'] or r['date'], r['date']); w['last'] = max(w['last'] or r['date'], r['date'])
                     w['offices'].add(r['office'])
                     if w['ex'] is None or vv[i] > w['ex']['v']:
-                        w['ex'] = ref(r, i, vv)
+                        w['ex'] = ref(r, i, vv, scope)
         def top(lst, key, n=5):
             return sorted(lst, key=key)[:n]
         P['mostOne'] = top(most_one, lambda e: -e['v'])
@@ -238,7 +291,7 @@ index = {'generated': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-
          'notes': ['Names are counted exactly as the Board of Elections or the source article printed them; a person listed under two spellings is counted twice.',
                    'Votes for 1897 to 1998 come from Wikipedia election articles and cover citywide, borough-wide and congressional contests; statewide offices before 2000 are counted as ballot appearances but their statewide vote totals are left out.',
                    'Borough totals before 2014 leave out Assembly Districts 60 and 64, which straddle Brooklyn and Staten Island in the Board\'s recap reports.',
-                   'Community district totals exist from the November 2012 general election on, when the Board began publishing results by election district.',
+                   'Community district totals are counted from election districts from the November 2012 general election on. For 2000 to 2013 the Board published results only by Assembly district, so community district figures from those years are estimates, marked est.: each Assembly district\'s votes times the share of its residents (2020 census blocks) who live in the community district.',
                    'Vote records, wins, shares, closest contests and votes cast count vote-for-one public offices only (President through City Council); judicial slates, party positions and ballot questions are left out. Ballot appearances and offices sought count every contest a name appeared in.',
                    'Ranked-choice primaries (2021 on) count as ballot appearances and votes (first choices) but not as wins, shares or closest contests.',
                    'Shares, closest contests and turnout count a contest once at least %d votes were cast in the area.' % MIN_VOTES]}
