@@ -105,6 +105,7 @@ function linkRow(date, e) {
   const LIBNAME = { 'lib-park-slope': 'Park Slope Library', 'lib-red-hook': 'Red Hook Library', 'lib-carroll-gardens': 'Carroll Gardens Library', 'lib-central': 'Central Library', 'lib-pacific': 'Pacific Library', 'lib-brooklyn-heights': 'Brooklyn Heights Library' };
   const row = { event: date + '-' + slugify(e.label), label: ent(e.label), type: e.type, org: LIBNAME[e.type] || TYPE_NAMES[e.type] || e.type };
   const pr = profileFor(e.type); if (pr) row.profile = pr;
+  if (row.org === e.type && pr) { const t = (fs.readFileSync(path.join(ROOT, pr.replace(/\/$/, '/index.html').replace(/^\//, '')), 'utf8').match(/<title>([^<]+)<\/title>/) || [])[1]; if (t) row.org = ent(t.replace(/&mdash;|&ndash;/g, '—')).split(/\s+[—–|-]\s+/)[0].trim(); } // a park's name from its page
   const fl = flyerPath(e.flyer); if (fl) row.flyer = fl;
   const ic = iconPath(e.type); if (ic) row.icon = ic;
   return row;
