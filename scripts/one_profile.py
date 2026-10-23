@@ -30,7 +30,7 @@ boards = J('app/data/civic/boards.json')
 # Directory page -> the one page
 FORWARD = {}
 for s, p in profiles.items():
-    if p.get('kind') == 'official' and p.get('official') and os.path.isfile(os.path.join(ROOT, p['official'], 'index.html')):
+    if p.get('kind') == 'official' and p.get('official') and p['official'] != s and os.path.isfile(os.path.join(ROOT, p['official'], 'index.html')):
         FORWARD['/%s/' % s] = '/%s/' % p['official']
 AGENCY_DUP = {'dep': 'nyc-dep', 'hpd': 'nyc-hpd', 'dpr': 'nyc-parks-brooklyn', 'dcp': 'nyc-planning', 'lpc': 'landmarks-preservation-commission',
               'rgb': 'rent-guidelines-board', 'nycha': 'nycha-cb6', 'nycc': 'new-york-city-council', 'nycps': 'nyc-public-schools-cb6',
