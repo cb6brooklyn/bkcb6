@@ -240,6 +240,8 @@ function timeText(e) {
   if (!m) m = txt.match(/\d{1,2}(?::\d{2})?\s*(?:[AaPp]\.?[Mm]\.?)?\s*(?:–|—|-|to)\s*(\d{1,2})(?::(\d{2}))?\s*([AaPp])\.?[Mm]\.?/);
   const end = m ? `${parseInt(m[1], 10)}:${m[2] || '00'} ${m[3].toUpperCase()}M` : null;
   const mins = x => { const k = /^(\d{1,2})(?::(\d{2}))?\s*([AP])M$/i.exec(x || ''); if (!k) return null; return (+k[1] % 12 + (/p/i.test(k[3]) ? 12 : 0)) * 60 + (+(k[2] || 0)); };
+  const off = txt.match(/steps off at (\d{1,2}:\d{2}\s*[AP]M)/i); // a parade whose music starts first (Cobble Hill): both times, as on its flyer
+  if (t && off && off[1].replace(/\s+/g, ' ').toUpperCase() !== t) return t + ' music \u00b7 parade ' + off[1].replace(/\s+/g, ' ').toUpperCase();
   if (t && end && end !== t && mins(end) !== null && mins(t) !== null && mins(end) > mins(t)) return t + ' to ' + end;
   return t || '';
 }

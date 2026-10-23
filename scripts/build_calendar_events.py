@@ -638,6 +638,11 @@ def fetch_bkcm_events(url, venue):
             if locs:
                 where = "BKCM \u00b7 963 President Street (Prospect Park West)" if "963 President" in locs[0] else ("BKCM \u00b7 58 Seventh Avenue, Park Slope" if locs[0] in ("BKCM", "BKCM Concert Hall", "BKCM Garden") else locs[0])
             desc = _html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", (it.get("excerpt") or {}).get("rendered", "")))).strip()
+            he, me = m.get("WooCommerceEventsHourEnd"), m.get("WooCommerceEventsMinutesEnd") or "00"
+            if t and he and str(he).isdigit() and str(me).isdigit():
+                end = f"{(int(he) % 12) or 12}:{int(me):02d} {'PM' if int(he) >= 12 else 'AM'}"
+                if end != t:
+                    desc = f"{t} to {end}. " + desc   # BKCM's own end time, as on its flyers
             img = ((it.get("yoast_head_json") or {}).get("og_image") or [{}])[0].get("url")
             ev = {"date": d, "summary": name, "url": it.get("link") or "", "cats": "", "location": where, "desc": desc[:600], "time": t}
             if img:
