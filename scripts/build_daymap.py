@@ -38,6 +38,8 @@ KNOWN = {
     'coffey park': (40.677822, -74.007927),
     'gowanus dredgers canoe club boathouse': (40.67923, -73.99539),  # 165 2nd Street, Gowanus
     'nyc city hall': (40.712772, -74.006058),
+    'tanker mary whalen': (40.68291, -74.01086),       # docked at Atlantic Basin, Red Hook (Mike)
+    'aboard the tanker mary whalen': (40.68291, -74.01086),
 }
 # Locations too vague to pin (a whole avenue, a room with no building)
 VAGUE = re.compile(r'^(5th avenue \u00b7 park slope|parish hall)$', re.I)
