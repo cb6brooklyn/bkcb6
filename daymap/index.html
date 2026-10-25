@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Day Map &mdash; the CB6 community calendar on a map</title>
+<meta name="description" content="Every event on the Brooklyn Community Board 6 community calendar on a map, by day, week or month.">
+<link rel="icon" href="/cb6-logo-square.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="/assets/cd-page.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{--navy:#0d1b4b;--orange:#f47920;--off:#f8f7f4}
+.top.dm{display:flex;gap:12px;align-items:center}
+.top.dm img{width:52px;height:52px;border-radius:8px;flex:none}
+.top.dm h1{font-size:1.12rem;line-height:1.2}
+.top.dm h1 span{display:block;font-size:.8rem;font-weight:600;margin-top:3px;line-height:1.35;opacity:.85}
+.hm-card{display:flex;flex-direction:column;background:#fff;border:1px solid #e6e1d8;border-radius:22px;overflow:hidden;margin:12px}
+.hm-top{padding:14px 14px 10px}
+.seg{display:flex;background:#f1efea;border-radius:999px;padding:4px;margin-bottom:10px}
+.seg button{flex:1;border:0;background:transparent;font:600 15px 'DM Sans',sans-serif;color:#060203;padding:9px 6px;border-radius:999px;cursor:pointer}
+.seg button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.hm-box{display:flex;align-items:center;gap:8px;border:1.5px solid #e6e1d8;border-radius:14px;padding:0 12px;height:46px;background:#fff}
+.hm-box svg{flex:none}
+.hm-box input{flex:1;border:0;outline:0;font:400 16px 'DM Sans',sans-serif;color:#060203;background:transparent;min-width:0}
+.hm-corner{display:none;gap:8px}
+.hm-corner select{flex:1;min-width:0;height:46px;border:1.5px solid #e6e1d8;border-radius:14px;padding:0 10px;font:400 15px 'DM Sans',sans-serif;color:#060203;background:#fff}
+.hm-corner button{flex:none;height:46px;border:0;border-radius:14px;padding:0 16px;background:var(--orange);color:#fff;font:700 15px 'DM Sans',sans-serif;cursor:pointer}
+.hm-drop{position:relative}
+.hm-drop ul{display:none;position:absolute;left:0;right:0;top:4px;z-index:1000;list-style:none;margin:0;padding:0;background:#fff;border:1px solid #e6e1d8;border-radius:12px;box-shadow:0 6px 18px rgba(13,27,75,.12);overflow:hidden}
+.hm-drop li{padding:10px 12px;font-size:14px;cursor:pointer;border-bottom:1px solid #f1efea}
+.hm-key{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:#333}
+.hm-key span{display:flex;align-items:center;gap:6px}
+.hm-key i{width:14px;height:14px;border-radius:4px;display:inline-block;flex:none}
+.keyd summary{cursor:pointer;list-style:none;font:500 11px 'DM Mono',monospace;letter-spacing:.12em;color:#5b6675;margin-bottom:6px}
+.keyd summary::after{content:' \25BE'}
+#map{height:56vh;min-height:330px;background:#e9eef2}
+.hm-result{display:none;padding:10px 14px;font-size:14px;border-top:1px solid #f1efea}
+.leaflet-control-attribution{font-size:9px}
+.cb6pin{width:40px;height:40px;border-radius:8px;background:#0d1b4b url(/cb6-logo-square.png) center/cover no-repeat;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.pm{position:relative;width:40px;height:40px;border-radius:9px;overflow:visible;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.35);background:#fff;transition:opacity .15s,filter .15s}
+.pm img{display:block;width:100%;height:100%;object-fit:contain;border-radius:7px;background:#fff}
+.pm .ini{display:flex;width:100%;height:100%;align-items:center;justify-content:center;background:var(--navy);color:#fff;font:800 15px 'DM Sans',sans-serif;border-radius:7px}
+.pm .n{position:absolute;top:-7px;right:-7px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--orange);color:#fff;font:700 11px/18px 'DM Sans',sans-serif;text-align:center;box-sizing:border-box;border:1.5px solid #fff}
+.pm .wd{position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);padding:0 5px;height:16px;border-radius:8px;background:var(--navy);color:#fff;font:700 10px/16px 'DM Mono',monospace;white-space:nowrap;border:1.5px solid #fff}
+.pm.dim{opacity:.32;filter:grayscale(1)}
+.pm.live{box-shadow:0 0 0 3px var(--orange),0 1px 6px rgba(0,0,0,.35)}
+.ctrl{background:#fff;margin:0 12px 12px;border:1px solid #e6e1d8;border-radius:18px;padding:12px}
+.views{display:flex;background:#f1efea;border-radius:999px;padding:4px}
+.views button{flex:1;border:0;background:transparent;font:700 14px 'DM Sans',sans-serif;color:var(--navy);padding:8px 6px;border-radius:999px;cursor:pointer}
+.views button.on{background:var(--navy);color:#fff}
+.dnav{display:flex;align-items:center;gap:8px;margin-top:10px}
+.dnav button{flex:none;width:38px;height:38px;border-radius:12px;border:1.5px solid #e6e1d8;background:#fff;color:var(--navy);font:800 18px 'DM Sans',sans-serif;cursor:pointer}
+.dnav .lab{flex:1;text-align:center;font:800 16px 'DM Sans',sans-serif;color:var(--navy);line-height:1.2}
+.dnav .lab small{display:block;font:500 11px 'DM Mono',monospace;color:#5b6675;letter-spacing:.06em;text-transform:uppercase;margin-top:3px}
+.dnav .today{width:auto;padding:0 12px;font-size:13px}
+.tbar{margin-top:12px}
+.trow{display:flex;align-items:center;gap:10px}
+.trow input[type=range]{flex:1;accent-color:var(--orange)}
+.tlab{font:700 14px 'DM Mono',monospace;color:var(--navy);min-width:76px;text-align:right}
+.ticks{display:flex;justify-content:space-between;font:500 10px 'DM Mono',monospace;color:#8a8f98;padding:2px 2px 0}
+.tbtns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.chip{border:1.5px solid #e6e1d8;background:#fff;border-radius:999px;padding:6px 12px;font:700 12.5px 'DM Sans',sans-serif;color:var(--navy);cursor:pointer}
+.chip.on{background:var(--orange);border-color:var(--orange);color:#fff}
+.tsum{font-size:13px;color:#444;margin-top:8px;line-height:1.4}
+.wk{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:12px}
+.wk button{border:1.5px solid #e6e1d8;border-radius:12px;background:#fff;padding:6px 0;cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--navy);display:flex;flex-direction:column;align-items:center;line-height:1.15}
+.wk button small{font:600 10px 'DM Mono',monospace;text-transform:uppercase;color:#5b6675}
+.wk button b{font-size:16px}
+.wk button i{font-style:normal;font:700 10.5px 'DM Mono',monospace;color:var(--orange);margin-top:2px}
+.wk button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.wk button.on small,.wk button.on i{color:#fff}
+.wk button.td{border-color:var(--orange)}
+.mo{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:12px}
+.mo .h{font:700 10px 'DM Mono',monospace;text-transform:uppercase;color:#5b6675;text-align:center}
+.mo button{border:1px solid #e6e1d8;border-radius:9px;min-height:44px;cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--navy);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;padding:3px 0}
+.mo button b{font-size:14px}
+.mo button i{font-style:normal;font:700 10px 'DM Mono',monospace;margin-top:2px}
+.mo button.td{outline:2px solid var(--orange);outline-offset:-2px}
+.mo button.past{opacity:.6}
+.mo .blank{min-height:44px}
+.lhd{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:14px 14px 8px;background:#fff;border-top:1px solid #e6e1d8;border-bottom:1px solid #e6e1d8}
+.lhd h2{font-size:1rem;font-weight:900;color:var(--navy)}
+.lhd .s{font:500 11px 'DM Mono',monospace;color:#5b6675;text-transform:uppercase;letter-spacing:.06em}
+.dayh{padding:10px 14px 6px;background:var(--off);font:700 11px 'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);border-bottom:1px solid #e6e1d8}
+.dayh .n{color:#5b6675;font-weight:500;margin-left:6px}
+.ev{display:flex;gap:11px;padding:11px 14px;border-bottom:1px solid #eee;background:#fff;cursor:pointer;align-items:flex-start}
+.ev:hover{background:#fff8f2}
+.ev.dim{opacity:.5}
+.ev.sel{background:#fff3e8}
+.ev .tm{flex:none;width:62px;font:700 12px 'DM Mono',monospace;color:var(--orange);line-height:1.35;padding-top:2px}
+.ev .tm small{display:block;color:#8a8f98;font-weight:500}
+.ev .bd{flex:1;min-width:0}
+.ev .t{font-size:.9rem;font-weight:800;color:var(--navy);line-height:1.3}
+.ev .o{font-size:.76rem;color:#5b6675;margin-top:2px}
+.ev .w{font-size:.76rem;color:#333;margin-top:2px}
+.ev .lk{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+.ev .lk a{font:700 11.5px 'DM Sans',sans-serif;color:var(--navy);text-decoration:none;border:1.5px solid #e6e1d8;border-radius:999px;padding:4px 10px}
+.ev .lk a.hot{background:var(--orange);border-color:var(--orange);color:#fff}
+.ev .th{flex:none;width:52px;height:52px;border-radius:8px;object-fit:cover;background:#f1efea}
+.ev .lg{flex:none;width:52px;height:52px;border-radius:8px;object-fit:contain;background:#fff;border:1px solid #eee}
+.nomap{padding:10px 14px 6px;background:var(--off);font:700 11px 'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#5b6675;border-bottom:1px solid #e6e1d8}
+.empty{padding:14px;background:#fff;color:#5b6675;font-size:.84rem;border-bottom:1px solid #eee}
+.src{padding:12px 14px 26px;background:#fff;font-size:.74rem;line-height:1.7;color:#444}
+.src a{color:var(--navy);border-bottom:1px solid var(--orange);text-decoration:none}
+.leaflet-popup-content{font-family:'DM Sans',sans-serif;font-size:.8rem;line-height:1.45;color:#060203;margin:12px 14px}
+.pp b{font-size:.88rem;color:var(--navy)}
+.pp .it{padding:6px 0;border-bottom:1px solid #f1efea}
+.pp .it:last-child{border-bottom:0}
+.pp .tm{font:700 11px 'DM Mono',monospace;color:var(--orange)}
+.pp img{display:block;max-height:150px;max-width:100%;border-radius:8px;margin:4px 0}
+.pp a{display:inline-block;margin-top:5px;background:var(--orange);color:#fff!important;font-weight:800;padding:6px 10px;border-radius:9px;text-decoration:none;font-size:.76rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top dm">
+    <img src="/cb6-logo-square.png" alt="Brooklyn Community Board 6">
+    <div>
+      <div class="crumb"><a href="/calendar.html">CB6 community calendar</a></div>
+      <h1>Day Map <span>everything on the CB6 calendar, where and when it happens</span></h1>
+    </div>
+  </div>
+
+  <div class="hm-card">
+    <div class="hm-top">
+      <div class="seg"><button id="m-addr" class="on" type="button">Address</button><button id="m-corner" type="button">Street and cross street</button></div>
+      <div id="addr-wrap">
+        <div class="hm-box">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#060203" stroke-width="2.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+          <input id="q" type="search" placeholder="Address, e.g. 250 Baltic Street" autocomplete="off" aria-label="Address">
+        </div>
+        <div class="hm-drop"><ul id="ac"></ul></div>
+      </div>
+      <div id="corner-wrap" class="hm-corner">
+        <select id="st" aria-label="Street"><option value="">Loading streets</option></select>
+        <select id="cx" aria-label="Cross street"><option value="">Cross street</option></select>
+        <button id="go" type="button">Go</button>
+      </div>
+      <details class="keyd" style="margin-top:10px"><summary>KEY</summary>
+        <div class="hm-key">
+          <span><i style="background:#fff url(/cb6-logo-square.png) center/cover;border:1.5px solid #fff;box-shadow:0 0 0 1px #ccc"></i>An event: its organization&rsquo;s logo</span>
+          <span><i style="background:#fff;box-shadow:0 0 0 2px #f47920"></i>Happening at the time you picked</span>
+          <span><i style="background:#ccc;opacity:.5"></i>Not happening then</span>
+          <span><i style="background:#f47920;border-radius:50%;width:12px;height:12px"></i>More than one event at a place</span>
+          <span><i style="border:2px solid #f47920;background:none"></i>BKCB6</span>
+          <span><i style="background:#f47920;opacity:.45"></i>Residential zoning</span>
+          <span><i style="background:#060203;opacity:.45"></i>Commercial zoning</span>
+          <span><i style="background:#fff;border:1.5px solid #060203"></i>Manufacturing zoning</span>
+        </div>
+      </details>
+    </div>
+    <div id="map"></div>
+    <div id="res" class="hm-result"></div>
+  </div>
+
+  <div class="ctrl">
+    <div class="views"><button type="button" data-v="day" class="on">Day</button><button type="button" data-v="week">Week</button><button type="button" data-v="month">Month</button></div>
+    <div class="dnav"><button type="button" id="prev" aria-label="Back">&#8249;</button><div class="lab" id="lab"></div><button type="button" id="next" aria-label="Forward">&#8250;</button><button type="button" class="today" id="tdy">Today</button></div>
+    <div class="tbar" id="tbar">
+      <div class="trow"><input type="range" id="tr" min="0" max="1439" step="15"><div class="tlab" id="tl"></div></div>
+      <div class="ticks"><span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>12a</span></div>
+      <div class="tbtns"><button type="button" class="chip" id="now">Now</button><button type="button" class="chip" id="allday">Whole day</button><button type="button" class="chip" id="zon">Zoning</button></div>
+      <div class="tsum" id="tsum"></div>
+    </div>
+    <div class="wk" id="wk" hidden></div>
+    <div class="mo" id="mo" hidden></div>
+  </div>
+
+  <div class="lhd"><h2 id="lh">Events</h2><div class="s" id="ls"></div></div>
+  <div id="list"></div>
+
+  <div class="src">Events come from the <a href="/calendar.html">CB6 community calendar</a> and update with it. Places are matched with <a href="https://geosearch.planninglabs.nyc" target="_blank" rel="noopener">NYC Planning Labs GeoSearch</a> and <a href="https://api-portal.nyc.gov/" target="_blank" rel="noopener">NYC Geoclient</a>. Times are the organizers&rsquo;; events can change or be cancelled.</div>
+</div>
+<script>
+(function(){
+var OR='#f47920',NAVY='#0d1b4b';
+var DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function pad(n){return (n<10?'0':'')+n;}
+function iso(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function dobj(s){var p=s.split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
+function nyNow(){var p={};new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date()).forEach(function(x){p[x.type]=x.value});return {d:p.year+'-'+p.month+'-'+p.day,m:(+p.hour)*60+(+p.minute)};}
+function tmin(t){var m=/(\d{1,2})(?::(\d{2}))?\s*([AP])M/i.exec(t||'');return m?(+m[1]%12+(/p/i.test(m[3])?12:0))*60+(+(m[2]||0)):null;}
+function hhmm(m){var h=Math.floor(m/60)%24,mm=m%60;return (h%12||12)+':'+pad(mm)+(h<12?' AM':' PM');}
+function addDays(s,n){var d=dobj(s);d.setDate(d.getDate()+n);return iso(d);}
+function weekStart(s){var d=dobj(s);d.setDate(d.getDate()-d.getDay());return iso(d);}
+var INAPP=/[?&]app=1/.test(location.search);
+var NOW=nyNow(),TODAY=NOW.d;
+var params=new URLSearchParams(location.search);
+var VIEW=params.get('view')||'day',CUR=/^\d{4}-\d{2}-\d{2}$/.test(params.get('d')||'')?params.get('d'):TODAY,TIME=null,WHOLE=false,WKDAY=null;
+var EV=[],BY={},markers=[],SEL=null;
+
+var map=L.map('map',{preferCanvas:true,zoomControl:false,scrollWheelZoom:false}).setView([40.676,-73.99],14);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{subdomains:'abcd',maxZoom:20,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
+L.control.zoom({position:'topright'}).addTo(map);
+map.on('click',function(){map.scrollWheelZoom.enable();});
+map.createPane('zoning');map.getPane('zoning').style.zIndex=350;
+map.createPane('boards');map.getPane('boards').style.zIndex=380;
+var layer=L.layerGroup().addTo(map),cb6Bounds=null;
+function zColor(z){z=String(z||'').toUpperCase();if(/^R/.test(z))return OR;if(/^C/.test(z))return'#060203';if(/^M/.test(z))return'#ffffff';if(/PARK/.test(z))return'#7cc47c';return'#b8bec6';}
+function zStyle(f){var z=String(f.properties.ZONEDIST||'').toUpperCase(),c=zColor(z);if(/^M/.test(z))return{color:'#060203',weight:1,opacity:.5,fillColor:'#ffffff',fillOpacity:.4};return{color:c,weight:1,opacity:.5,fillColor:c,fillOpacity:.16};}
+function zLabel(z){z=String(z||'').toUpperCase();if(/^R/.test(z))return'Residential';if(/^C/.test(z))return'Commercial';if(/^M/.test(z))return'Manufacturing';if(/PARK/.test(z))return'Park';return'Other';}
+var zones=null,ZON=true;
+function loadZoning(b){var sw=b.getSouthWest(),ne=b.getNorthEast();var env={xmin:sw.lng,ymin:sw.lat,xmax:ne.lng,ymax:ne.lat,spatialReference:{wkid:4326}};
+  fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=ZONEDIST&returnGeometry=true&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(env))+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&f=pgeojson').then(function(r){return r.json();}).then(function(z){
+    zones=L.geoJSON(z,{pane:'zoning',interactive:false,style:zStyle});if(ZON)zones.addTo(map);}).catch(function(){});}
+function pip(lng,lat,g){var rings=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];for(var p=0;p<rings.length;p++){var o=rings[p][0],ins=false;for(var i=0,j=o.length-1;i<o.length;j=i++){var xi=o[i][0],yi=o[i][1],xj=o[j][0],yj=o[j][1];if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))ins=!ins;}if(ins)return true;}return false;}
+
+function icon(e){return e.icon?'/app/data/civic/cal/icons/'+e.icon:null;}
+function flyer(e){return e.f?'/app/data/civic/cal/flyers/'+e.f:null;}
+function calUrl(e){return '/calendar.html?event='+encodeURIComponent(e.ev)+(INAPP?'&app=1':'');}
+function span(e){var s=tmin(e.t),en=tmin(e.e);if(s==null)return null;if(en==null||en<=s)en=s+120;return [s,en];}
+function liveAt(e,m){var sp=span(e);return !sp||(m>=sp[0]&&m<sp[1]);}
+function timeText(e){if(!e.t)return 'All day';return e.t.replace(':00','')+(e.e?'<small>to '+esc(e.e.replace(':00',''))+'</small>':'');}
+function initials(s){return (s||'?').replace(/^The /,'').split(/\s+/).slice(0,2).map(function(w){return w[0];}).join('').toUpperCase();}
+
+function range(){
+  if(VIEW==='day')return [CUR,CUR];
+  if(VIEW==='week'){var a=weekStart(CUR);return [a,addDays(a,6)];}
+  var d=dobj(CUR);var a=iso(new Date(d.getFullYear(),d.getMonth(),1)),b=iso(new Date(d.getFullYear(),d.getMonth()+1,0));return [a,b];
+}
+function inRange(){var r=range();return EV.filter(function(e){return e.d>=r[0]&&e.d<=r[1]&&(VIEW!=='week'||!WKDAY||e.d===WKDAY);});}
+
+function label(){
+  var r=range(),a=dobj(r[0]),b=dobj(r[1]),t;
+  if(VIEW==='day')t=DAYS[a.getDay()]+', '+MON[a.getMonth()]+' '+a.getDate()+'<small>'+(CUR===TODAY?'Today':a.getFullYear())+'</small>';
+  else if(VIEW==='week')t=MON[a.getMonth()].slice(0,3)+' '+a.getDate()+' to '+MON[b.getMonth()].slice(0,3)+' '+b.getDate()+'<small>Week'+(TODAY>=r[0]&&TODAY<=r[1]?' · this week':'')+'</small>';
+  else t=MON[a.getMonth()]+' '+a.getFullYear()+'<small>Month</small>';
+  document.getElementById('lab').innerHTML=t;
+}
+
+function drawMap(list){
+  layer.clearLayers();markers=[];
+  var g={};list.forEach(function(e){if(e.lat==null)return;var k=e.lat.toFixed(4)+','+e.lng.toFixed(4);(g[k]=g[k]||[]).push(e);});
+  var b=null;
+  Object.keys(g).forEach(function(k){
+    var es=g[k].slice().sort(function(a,c){return a.d<c.d?-1:a.d>c.d?1:(tmin(a.t)||0)-(tmin(c.t)||0);});
+    var live=VIEW==='day'&&!WHOLE?es.filter(function(e){return liveAt(e,TIME);}):es;
+    var lead=live[0]||es[0],ic=icon(lead);
+    var dim=VIEW==='day'&&!WHOLE&&!live.length;
+    var wd='';if(VIEW!=='day'){var ds={};es.forEach(function(e){ds[e.d]=1;});var dk=Object.keys(ds).sort();wd=dk.length===1?(VIEW==='week'?DAYS[dobj(dk[0]).getDay()].slice(0,3):String(dobj(dk[0]).getDate())):dk.length+' days';}
+    var html='<div class="pm'+(dim?' dim':'')+(VIEW==='day'&&!WHOLE&&live.length&&lead.t?' live':'')+'">'+(ic?'<img src="'+esc(ic)+'" alt="">':'<span class="ini">'+esc(initials(lead.org||lead.l))+'</span>')+(es.length>1?'<span class="n">'+es.length+'</span>':'')+(wd?'<span class="wd">'+esc(wd)+'</span>':'')+'</div>';
+    var m=L.marker([lead.lat,lead.lng],{icon:L.divIcon({className:'',html:html,iconSize:[40,40],iconAnchor:[20,20],popupAnchor:[0,-18]}),zIndexOffset:dim?0:500});
+    m.bindPopup(function(){return '<div class="pp">'+es.map(function(e){var f=flyer(e);return '<div class="it"><div class="tm">'+(VIEW==='day'?'':esc(DAYS[dobj(e.d).getDay()].slice(0,3)+' '+MON[dobj(e.d).getMonth()].slice(0,3)+' '+dobj(e.d).getDate())+' · ')+(e.t?esc(e.t+(e.e?' to '+e.e:'')):'All day')+'</div><b>'+esc(e.l)+'</b><div>'+esc(e.org||'')+'</div>'+(f?'<img src="'+esc(f)+'" alt="">':'')+'<a href="'+esc(calUrl(e))+'">See it on the calendar</a></div>';}).join('')+'</div>';},{maxWidth:260});
+    m.on('click',function(){selectKey(k);});
+    m._k=k;m.addTo(layer);markers.push(m);
+    b=b?b.extend([lead.lat,lead.lng]):L.latLngBounds([lead.lat,lead.lng],[lead.lat,lead.lng]);
+  });
+  if(cb6Bounds){var all=L.latLngBounds(cb6Bounds.getSouthWest(),cb6Bounds.getNorthEast());if(b)all.extend(b);map.fitBounds(all,{padding:[12,12],maxZoom:15});}
+}
+function selectKey(k){SELD=k;Array.prototype.forEach.call(document.querySelectorAll('.ev'),function(x){x.classList.toggle('sel',x.getAttribute('data-k')===k);});var f=document.querySelector('.ev[data-k="'+k+'"]');if(f)f.scrollIntoView({behavior:'smooth',block:'nearest'});}
+var SELD=null;
+
+function evRow(e,dim){
+  var k=e.lat!=null?e.lat.toFixed(4)+','+e.lng.toFixed(4):'',f=flyer(e),ic=icon(e);
+  var img=f?'<img class="th" src="'+esc(f)+'" alt="" loading="lazy">':ic?'<img class="lg" src="'+esc(ic)+'" alt="" loading="lazy">':'';
+  return '<div class="ev'+(dim?' dim':'')+'" data-k="'+k+'"><div class="tm">'+timeText(e)+'</div><div class="bd"><div class="t">'+esc(e.l)+'</div>'+(e.org?'<div class="o">'+esc(e.org)+'</div>':'')+(e.loc?'<div class="w">'+esc(e.loc)+'</div>':'')+'<div class="lk"><a class="hot" href="'+esc(calUrl(e))+'">On the calendar</a>'+(e.h?'<a href="'+esc(e.h)+'" target="_blank" rel="noopener">Their page &#8599;</a>':'')+'</div></div>'+img+'</div>';
+}
+function byTime(a,b){var x=tmin(a.t),y=tmin(b.t);x=x==null?-1:x;y=y==null?-1:y;return x-y||(a.l<b.l?-1:1);}
+function drawList(list){
+  var on=list.filter(function(e){return e.lat!=null;}),off=list.filter(function(e){return e.lat==null;});
+  var h='';
+  if(!list.length)h='<div class="empty">Nothing on the calendar '+(VIEW==='day'?'this day':VIEW==='week'?'this week':'this month')+'.</div>';
+  else if(VIEW==='day'){
+    on.sort(byTime).forEach(function(e){h+=evRow(e,!WHOLE&&!liveAt(e,TIME));});
+  }else{
+    var days={};on.forEach(function(e){(days[e.d]=days[e.d]||[]).push(e);});
+    Object.keys(days).sort().forEach(function(d){var o=dobj(d);h+='<div class="dayh">'+DAYS[o.getDay()]+', '+MON[o.getMonth()].slice(0,3)+' '+o.getDate()+(d===TODAY?' · today':'')+'<span class="n">'+days[d].length+'</span></div>';days[d].sort(byTime).forEach(function(e){h+=evRow(e,false);});});
+  }
+  if(off.length){h+='<div class="nomap">Not on the map: online, citywide or no set place<span style="margin-left:6px;font-weight:500">'+off.length+'</span></div>';off.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:byTime(a,b);}).forEach(function(e){h+=evRow(e,false);});}
+  document.getElementById('list').innerHTML=h;
+  document.getElementById('lh').textContent=VIEW==='day'?'This day':VIEW==='week'?(WKDAY?DAYS[dobj(WKDAY).getDay()]:'This week'):'This month';
+  document.getElementById('ls').textContent=list.length+' event'+(list.length===1?'':'s')+(on.length!==list.length?' · '+on.length+' on the map':'');
+}
+function drawTime(list){
+  var tb=document.getElementById('tbar');tb.hidden=VIEW!=='day';if(VIEW!=='day')return;
+  document.getElementById('tr').value=TIME;document.getElementById('tl').textContent=WHOLE?'All day':hhmm(TIME);
+  document.getElementById('allday').classList.toggle('on',WHOLE);
+  document.getElementById('now').classList.toggle('on',!WHOLE&&CUR===TODAY&&Math.abs(TIME-nyNow().m)<15);
+  var pl=list.filter(function(e){return e.lat!=null;}),n=pl.filter(function(e){return liveAt(e,TIME);}).length;
+  document.getElementById('tsum').textContent=WHOLE?pl.length+' event'+(pl.length===1?'':'s')+' on the map today.':n+' of '+pl.length+' on the map happening at '+hhmm(TIME)+(CUR===TODAY&&Math.abs(TIME-nyNow().m)<15?' (now)':'')+'. Drag to see the day.';
+}
+function drawWeek(){
+  var w=document.getElementById('wk');w.hidden=VIEW!=='week';if(VIEW!=='week')return;
+  var a=weekStart(CUR),h='';
+  for(var i=0;i<7;i++){var d=addDays(a,i),o=dobj(d),n=BY[d]?BY[d].length:0;h+='<button type="button" data-d="'+d+'" class="'+(WKDAY===d?'on ':'')+(d===TODAY?'td':'')+'"><small>'+DAYS[o.getDay()].slice(0,3)+'</small><b>'+o.getDate()+'</b><i>'+(n||'·')+'</i></button>';}
+  w.innerHTML=h;
+}
+function drawMonth(){
+  var m=document.getElementById('mo');m.hidden=VIEW!=='month';if(VIEW!=='month')return;
+  var r=range(),a=dobj(r[0]),last=dobj(r[1]).getDate(),max=1,h='';
+  for(var i=1;i<=last;i++){var n=(BY[iso(new Date(a.getFullYear(),a.getMonth(),i))]||[]).length;if(n>max)max=n;}
+  DAYS.forEach(function(d){h+='<div class="h">'+d.slice(0,2)+'</div>';});
+  for(var j=0;j<a.getDay();j++)h+='<div class="blank"></div>';
+  for(var k=1;k<=last;k++){var d=iso(new Date(a.getFullYear(),a.getMonth(),k)),n=(BY[d]||[]).length,t=n?(.12+.75*n/max):0;
+    h+='<button type="button" data-d="'+d+'" class="'+(d===TODAY?'td ':'')+(d<TODAY?'past':'')+'" style="background:'+(n?'rgba(244,121,32,'+t.toFixed(2)+')':'#fff')+';color:'+(t>.55?'#fff':NAVY)+'"><b>'+k+'</b><i>'+(n||'')+'</i></button>';}
+  m.innerHTML=h;
+}
+function render(push){
+  label();var list=inRange();
+  drawTime(list);drawWeek();drawMonth();drawMap(list);drawList(list);
+  Array.prototype.forEach.call(document.querySelectorAll('.views button'),function(b){b.classList.toggle('on',b.getAttribute('data-v')===VIEW);});
+  if(push!==false){var q='?view='+VIEW+'&d='+CUR+(INAPP?'&app=1':'');history.replaceState(null,'',q);}
+}
+document.querySelector('.views').onclick=function(ev){var b=ev.target.closest('button');if(!b)return;VIEW=b.getAttribute('data-v');WKDAY=null;render();};
+function step(n){if(VIEW==='day')CUR=addDays(CUR,n);else if(VIEW==='week'){CUR=addDays(weekStart(CUR),7*n);WKDAY=null;}else{var d=dobj(CUR);CUR=iso(new Date(d.getFullYear(),d.getMonth()+n,1));}if(VIEW==='day'&&CUR!==TODAY&&!WHOLE)TIME=Math.max(TIME,9*60);render();}
+document.getElementById('prev').onclick=function(){step(-1);};
+document.getElementById('next').onclick=function(){step(1);};
+document.getElementById('tdy').onclick=function(){CUR=TODAY;WKDAY=null;TIME=nyNow().m;WHOLE=false;render();};
+document.getElementById('tr').oninput=function(){TIME=+this.value;WHOLE=false;drawTime(inRange());drawMap(inRange());drawList(inRange());};
+document.getElementById('now').onclick=function(){CUR=TODAY;TIME=nyNow().m;WHOLE=false;render();};
+document.getElementById('allday').onclick=function(){WHOLE=!WHOLE;render();};
+document.getElementById('zon').onclick=function(){ZON=!ZON;this.classList.toggle('on',ZON);if(zones){if(ZON)zones.addTo(map);else map.removeLayer(zones);}};
+document.getElementById('wk').onclick=function(ev){var b=ev.target.closest('button');if(!b)return;var d=b.getAttribute('data-d');WKDAY=WKDAY===d?null:d;render();};
+document.getElementById('mo').onclick=function(ev){var b=ev.target.closest('button');if(!b)return;CUR=b.getAttribute('data-d');VIEW='day';WHOLE=false;TIME=CUR===TODAY?nyNow().m:9*60;render();window.scrollTo({top:0,behavior:'smooth'});};
+document.getElementById('list').onclick=function(ev){if(ev.target.closest('a'))return;var r=ev.target.closest('.ev');if(!r)return;var k=r.getAttribute('data-k');if(!k)return;markers.forEach(function(m){if(m._k===k){map.setView(m.getLatLng(),Math.max(map.getZoom(),16));m.openPopup();}});selectKey(k);document.getElementById('map').scrollIntoView({behavior:'smooth',block:'start'});};
+document.getElementById('zon').classList.add('on');
+TIME=CUR===TODAY?NOW.m:9*60;TIME=Math.round(TIME/15)*15;
+
+Promise.all([fetch('/data/daymap/events.json',{cache:'no-cache'}).then(function(r){return r.json();}),fetch('/data/cb6_boundary.geojson').then(function(r){return r.json();})]).then(function(res){
+  EV=res[0].events||[];EV.forEach(function(e){(BY[e.d]=BY[e.d]||[]).push(e);});
+  var cb6=L.geoJSON(res[1],{pane:'boards',interactive:false,style:{color:OR,weight:4,fill:false}}).addTo(map);
+  cb6Bounds=cb6.getBounds();
+  L.marker([40.6861,-73.9948],{icon:L.divIcon({className:'',html:'<div class="cb6pin" title="Brooklyn Community Board 6, 250 Baltic Street"></div>',iconSize:[40,40],iconAnchor:[20,20]}),interactive:false,zIndexOffset:-100}).addTo(map);
+  loadZoning(cb6Bounds);
+  render(false);
+}).catch(function(){document.getElementById('list').innerHTML='<div class="empty">The calendar did not load. Refresh to try again.</div>';});
+
+// address and corner search, as on the home page map
+var pin=null;
+function show(lat,lng,lab){map.setView([lat,lng],17);if(pin)map.removeLayer(pin);pin=L.circleMarker([lat,lng],{radius:9,color:'#fff',weight:3,fillColor:OR,fillOpacity:1}).addTo(map);var z='';if(zones)zones.eachLayer(function(l){if(!z&&pip(lng,lat,l.feature.geometry))z=l.feature.properties.ZONEDIST;});var r=document.getElementById('res');r.style.display='block';r.innerHTML='<b>'+esc(lab)+'</b>'+(z?' · Zoning: <b>'+esc(z)+'</b> ('+zLabel(z)+')':'');}
+var q=document.getElementById('q'),ac=document.getElementById('ac'),acT=null;
+q.addEventListener('input',function(){clearTimeout(acT);var v=q.value.trim();if(v.length<3){ac.style.display='none';return;}
+  acT=setTimeout(function(){fetch('https://geosearch.planninglabs.nyc/v2/autocomplete?text='+encodeURIComponent(v)).then(function(r){return r.json();}).then(function(d){
+    var fs=(d.features||[]).filter(function(f){return /Brooklyn/i.test(f.properties.borough||'');}).slice(0,6);
+    ac.innerHTML=fs.map(function(f,i){return '<li data-i="'+i+'">'+esc(f.properties.label)+'</li>';}).join('');ac.style.display=fs.length?'block':'none';
+    Array.prototype.forEach.call(ac.children,function(li){li.onclick=function(){var f=fs[+li.getAttribute('data-i')];ac.style.display='none';q.value=f.properties.name;show(f.geometry.coordinates[1],f.geometry.coordinates[0],f.properties.name);};});
+  }).catch(function(){});},220);});
+q.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();var li=ac.querySelector('li');if(li)li.click();}});
+var STREETS=null;
+function mode(c){document.getElementById('m-addr').classList.toggle('on',!c);document.getElementById('m-corner').classList.toggle('on',c);document.getElementById('addr-wrap').style.display=c?'none':'block';document.getElementById('corner-wrap').style.display=c?'flex':'none';if(c&&!STREETS)loadStreets();}
+document.getElementById('m-addr').onclick=function(){mode(false);};
+document.getElementById('m-corner').onclick=function(){mode(true);};
+function loadStreets(){fetch('/bk/data/bk-streets.json').then(function(r){return r.json();}).then(function(j){STREETS=j;var st=document.getElementById('st');st.innerHTML='<option value="">Street</option>'+j.streets.map(function(n){return '<option>'+esc(n)+'</option>';}).join('');}).catch(function(){document.getElementById('st').innerHTML='<option value="">Street list unavailable</option>';});}
+document.getElementById('st').onchange=function(){var l=((STREETS||{}).cross||{})[this.value]||[];document.getElementById('cx').innerHTML='<option value="">Cross street</option>'+l.map(function(n){return '<option>'+esc(n)+'</option>';}).join('');};
+document.getElementById('go').onclick=function(){var a=document.getElementById('st').value,b=document.getElementById('cx').value,r=document.getElementById('res');
+  if(!a||!b){r.style.display='block';r.textContent='Pick a street and a cross street.';return;}
+  fetch('https://geosearch.planninglabs.nyc/v2/search?text='+encodeURIComponent(a+' and '+b+', Brooklyn, NY')+'&size=1').then(function(x){return x.json();}).then(function(d){var f=d.features&&d.features[0];if(!f)throw 0;show(f.geometry.coordinates[1],f.geometry.coordinates[0],a+' and '+b);}).catch(function(){r.style.display='block';r.textContent='That corner was not found. Try the other cross street.';});};
+})();
+</script>
+</body>
+</html>
