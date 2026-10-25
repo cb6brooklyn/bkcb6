@@ -66,7 +66,7 @@ header{background:var(--navy);border-bottom:4px solid var(--orange)}
   <!-- INTRO -->
   <div id="glossary-intro" style="padding:18px 20px 16px;border-bottom:1px solid var(--border)">
     <h3 style="font-size:1rem;font-weight:700;color:var(--navy);margin-bottom:8px">Glossary &amp; Appendix</h3>
-    <p style="font-size:.82rem;color:var(--muted);line-height:1.6">A combined reference guide to the terms, acronyms, processes, and programs that come up in CB6's work. Search by word, filter by topic area, or browse. Each entry defines a concept once in plain language. Process guides, agency lists, and reference tools are in the Appendix tabs below.</p>
+    <p style="font-size:.82rem;color:var(--muted);line-height:1.6">A combined reference guide to the terms, acronyms, processes, and programs that come up in CB6's work. Search by word, or narrow by policy area and by agency. Each term is defined once in plain language, and the rules (heat season, trash setout, permits and the rest) say who has to do what, with the agency that enforces it and a link to the source. Process guides, agency lists, and reference tools are in the Appendix tabs below.</p>
   </div>
 
 <div id="gloss-directory" style="border-bottom:1px solid var(--border)">
@@ -615,23 +615,69 @@ render();
 
   <div id="toc-insert"></div>
 
-  <!-- SEARCH + FILTER -->
-  <div style="padding:14px 20px;background:var(--off);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100">
-    <input id="gloss-search" type="text" placeholder="Search terms, acronyms, or concepts..." oninput="glossFilter()" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.84rem;color:var(--navy);outline:none;box-sizing:border-box;margin-bottom:10px">
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button onclick="setGlossFilter('all')" class="gf-btn gf-active" data-f="all">All</button>
-      <button onclick="setGlossFilter('zoning')" class="gf-btn" data-f="zoning">Land Use &amp; Zoning</button>
-      <button onclick="setGlossFilter('env')" class="gf-btn" data-f="env">Environmental Review</button>
-      <button onclick="setGlossFilter('preservation')" class="gf-btn" data-f="preservation">Preservation</button>
-      <button onclick="setGlossFilter('process')" class="gf-btn" data-f="process">Process &amp; Approval</button>
-      <button onclick="setGlossFilter('housing')" class="gf-btn" data-f="housing">Housing &amp; Finance</button>
-      <button onclick="setGlossFilter('agency')" class="gf-btn" data-f="agency">Agencies &amp; Acronyms</button>
+  <!-- GLOSSARY + GUIDE TO REGULATIONS (data: /data/glossary.json, built by tools/build_glossary.py) -->
+  <style>
+  .gx-bar{padding:14px 20px 10px;background:var(--off);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+  .gx-search{width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.86rem;color:var(--navy);outline:none;box-sizing:border-box;background:#fff}
+  .gx-search:focus{border-color:var(--orange)}
+  .gx-seg{display:flex;gap:0;margin:10px 0 2px;border:1.5px solid var(--navy);border-radius:999px;overflow:hidden;width:max-content;max-width:100%}
+  .gx-seg button{border:none;background:#fff;color:var(--navy);font:700 .74rem 'DM Sans',sans-serif;padding:6px 14px;cursor:pointer}
+  .gx-seg button.on{background:var(--navy);color:#fff}
+  .gx-lbl{font:600 .6rem 'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:10px 0 6px}
+  .gx-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+  .gx-row::-webkit-scrollbar{display:none}
+  .gx-chip{flex:none;display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;border:1.5px solid var(--border);background:#fff;color:var(--navy);font:600 .74rem 'DM Sans',sans-serif;cursor:pointer;white-space:nowrap}
+  .gx-chip img{width:18px;height:18px;object-fit:contain;border-radius:3px}
+  .gx-chip .n{font:500 .62rem 'DM Mono',monospace;color:var(--muted)}
+  .gx-chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+  .gx-chip.on .n{color:#ffd3b0}
+  .gx-count{padding:8px 20px;font:500 .7rem 'DM Mono',monospace;color:var(--muted);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .gx-count button{border:none;background:none;color:var(--orange);font:600 .7rem 'DM Mono',monospace;cursor:pointer;padding:0}
+  .gx-grp{border-bottom:1px solid var(--border);background:#fff}
+  .gx-grp>summary{list-style:none;cursor:pointer;padding:14px 20px;display:flex;align-items:center;gap:10px}
+  .gx-grp>summary::-webkit-details-marker{display:none}
+  .gx-grp>summary .t{flex:1;font-weight:700;color:var(--navy);font-size:.95rem}
+  .gx-grp>summary .c{font:500 .66rem 'DM Mono',monospace;color:var(--muted)}
+  .gx-grp>summary .ch{color:var(--orange);font-weight:700;transition:transform .15s}
+  .gx-grp[open]>summary .ch{transform:rotate(90deg)}
+  .gx-logos{display:flex;gap:3px}
+  .gx-logos img{width:20px;height:20px;object-fit:contain;border-radius:4px;background:#fff}
+  .gx-sub{font:600 .6rem 'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--orange);padding:10px 20px 4px;background:#faf9f6}
+  .gx-e{padding:13px 20px;border-top:1px solid #f0ede8;background:#fff;scroll-margin-top:170px}
+  .gx-e:target{background:#fff6ee}
+  .gx-e .h{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .gx-e .term{font-size:.9rem;font-weight:700;color:var(--navy)}
+  .gx-e .aka{font-size:.72rem;color:var(--muted);margin-top:1px}
+  .gx-e .d{margin-top:6px;font-size:.81rem;color:#374151;line-height:1.65}
+  .gx-e .m{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .gx-ag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px 2px 3px;border-radius:999px;background:#f3f1ec;color:var(--navy);font:600 .64rem 'DM Sans',sans-serif;cursor:pointer;border:none}
+  .gx-ag img{width:16px;height:16px;object-fit:contain;border-radius:3px;background:#fff}
+  .gx-ag.noimg{padding-left:8px}
+  .gx-src{font:500 .62rem 'DM Mono',monospace;color:var(--muted);text-decoration:none}
+  .gx-src:hover{color:var(--orange)}
+  .gx-area{font:600 .58rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:10px;background:#eef2ff;color:var(--navy);white-space:nowrap;border:none;cursor:pointer}
+  .gx-r{border-left:4px solid var(--orange)}
+  .gx-r .who{font:700 .6rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#fff;background:var(--orange);padding:2px 8px;border-radius:999px;white-space:nowrap}
+  .gx-r .pen{margin-top:6px;font-size:.76rem;color:#9a3412;background:#fff4ec;border-radius:6px;padding:6px 9px;line-height:1.5}
+  .gx-copy{border:none;background:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:0 2px}
+  .gx-more{display:block;width:100%;padding:11px;border:none;border-top:1px solid #f0ede8;background:#faf9f6;color:var(--orange);font:700 .78rem 'DM Sans',sans-serif;cursor:pointer}
+  .gx-empty{padding:24px 20px;text-align:center;color:#9ca3af;font-size:.84rem}
+  mark{background:#ffe3c9;color:inherit;border-radius:2px}
+  </style>
+
+  <div class="gx-bar" id="gloss-top">
+    <input id="gloss-search" class="gx-search" type="search" placeholder="Search terms, rules, acronyms or agencies (e.g. FAR, heat season, CO, setout)" autocomplete="off">
+    <div class="gx-seg" id="gx-kind">
+      <button data-k="all" class="on">Everything</button>
+      <button data-k="terms">Glossary terms</button>
+      <button data-k="rules">Rules &amp; regulations</button>
     </div>
+    <div class="gx-lbl">By policy area</div>
+    <div class="gx-row" id="gx-areas"></div>
+    <div class="gx-lbl">By agency</div>
+    <div class="gx-row" id="gx-agencies"></div>
   </div>
-
-  <div id="gloss-count" style="padding:8px 20px;font-size:.7rem;font-family:'DM Mono',monospace;color:var(--muted);border-bottom:1px solid var(--border)"></div>
-
-  <!-- GLOSSARY LIST -->
+  <div class="gx-count"><span id="gloss-count">Loading the glossary…</span><button id="gx-reset" hidden>Clear filters</button></div>
   <div id="gloss-list"></div>
 
 <!-- ZONING CODES SECTION -->
@@ -1027,115 +1073,117 @@ render();
 </style>
 
 <script>
-const TERMS = [
-  // LAND USE & ZONING
-  {term:"Air Rights / Development Rights / TDR",cat:"zoning",tags:"transfer development rights tdr floor area unused",def:"The unused floor area permitted on a zoning lot beyond what is already built. In some circumstances, those unused development rights may be transferred to another lot — often to allow a neighboring property to build larger than its own zoning would otherwise permit."},
-  {term:"As-of-Right",cat:"zoning",tags:"discretionary approval zoning compliant no review",def:"A proposal that complies with all applicable zoning rules and does not require discretionary approval from the City Planning Commission or Board of Standards and Appeals. As-of-right projects can proceed directly to a building permit without community board or public review."},
-  {term:"Authorization",cat:"process",tags:"cpc city planning commission modify discretionary",def:"A discretionary action by the City Planning Commission that modifies specified zoning requirements when required findings are met. Less involved than a special permit, and does not require a full ULURP vote by the City Council."},
-  {term:"Base Height",cat:"zoning",tags:"building height setback street wall bulk",def:"The maximum permitted height of a building's street wall before any required setback. Once a building reaches its base height, it must step back from the street before continuing upward."},
-  {term:"Bulk",cat:"zoning",tags:"size shape lot coverage far height setback open space yards",def:"The size and shape of a building as controlled by zoning regulations — including lot size, floor area ratio (FAR), lot coverage, open space, yards, height, and setback requirements. Bulk regulations determine how large and in what form a building can be built."},
-  {term:"Commercial Overlay",cat:"zoning",tags:"C1 C2 retail commercial residential district",def:"A C1 or C2 district mapped within a residential zoning district to allow neighborhood-serving retail and related commercial uses on ground floors. Common in areas like Park Slope and Carroll Gardens."},
-  {term:"Floor Area Ratio (FAR)",cat:"zoning",tags:"far building size density floor area lot area",def:"The primary zoning control for building size: total building floor area divided by the area of the zoning lot. A FAR of 2.0 on a 5,000 sq ft lot allows up to 10,000 sq ft of floor area. Higher FAR = larger buildings permitted."},
-  {term:"Restrictive Declaration",cat:"zoning",tags:"covenant conditions mitigation remediation binding recorded",def:"A recorded legal covenant that binds current and future property owners to specific conditions, mitigation requirements, environmental remediation, or other obligations tied to a project approval. It runs with the land."},
-  {term:"Special Permit",cat:"process",tags:"cpc bsa use bulk parking modification discretionary findings",def:"A discretionary approval that allows modification of use, bulk, or parking rules when specific findings are met. Some special permits go through the City Planning Commission via ULURP; others go to the BSA. CB6 reviews and votes on CPC special permits."},
-  {term:"Variance",cat:"process",tags:"bsa hardship relief zoning 72-21 practical difficulty",def:"Relief from zoning rules granted where strict compliance would create practical difficulty or hardship. For area variances (bulk), all five findings under ZR §72-21 must be proven. Granted by the Board of Standards and Appeals, not the CPC."},
-  {term:"Zoning",cat:"zoning",tags:"land use district rules development regulations",def:"The system of district-based rules that regulates land use and development across New York City. Zoning determines what can be built, how large, and for what purpose on any given lot. The NYC Zoning Resolution has been in place since 1961, built on the foundation of the 1916 resolution."},
-  {term:"Zoning Lot",cat:"zoning",tags:"lot parcel tax block development site",def:"The unit of land to which zoning regulations apply. A zoning lot may consist of one or more tax lots. FAR, coverage, and other bulk controls are calculated based on the zoning lot, not individual tax lots."},
-  {term:"Zoning Text Amendment",cat:"process",tags:"zoning resolution change modify text ulurp",def:"A change to the text of the NYC Zoning Resolution itself — as opposed to a map change. Text amendments can apply citywide or be limited to specific areas. They go through ULURP and require City Council approval."},
-  {term:"Zoning Map Amendment",cat:"process",tags:"rezoning map change district boundary ulurp",def:"A change to the official NYC Zoning Map — changing a district's boundaries or classification. Commonly called a rezoning. Goes through ULURP and requires City Council approval."},
-  {term:"Special District",cat:"zoning",tags:"special purpose district overlay custom rules gowanus mixed use",def:"Short for Special Purpose District. A zoning layer that the City Planning Commission maps over the underlying districts to achieve specific planning and urban-design goals in a defined area. Its rules modify, supplement, or override the base zoning, and where they conflict the special-district rules control. On the city zoning map these appear as a special district code. The one mapped in CB6 is the Special Gowanus Mixed Use District (code G)."},
-  {term:"Special Gowanus Mixed Use District",cat:"zoning",tags:"gowanus special district g sgmud 2021 rezoning mixed use mih waterfront subdistrict",def:"The special purpose district created by the 2021 Gowanus rezoning. It pairs residential and light-manufacturing (M1) districts so housing and industry can sit side by side, and is organized into five subdistricts with their own rules. It layers Mandatory Inclusionary Housing onto mapped areas, treats blocks along the Gowanus Canal as waterfront subject to a Waterfront Access Plan, and adds environmental, ground-floor, and streetscape requirements on top of the base zoning. Found in the NYC Zoning Resolution, Article XIII, Chapter 9."},
-  {term:"Use Group",cat:"zoning",tags:"use permitted residential commercial manufacturing group category",def:"The NYC Zoning Resolution organizes permitted uses into numbered groups (UG 1 through UG 18). Each zoning district permits certain use groups. For example, residential districts permit UG 1–4; manufacturing districts permit UGs up to 18."},
-  // ENVIRONMENTAL REVIEW
-  {term:"CEQR",cat:"env",tags:"city environmental quality review environmental impact",def:"City Environmental Quality Review — New York City's environmental review process for discretionary actions, implementing SEQRA at the city level. CEQR assesses whether a proposed action may have significant adverse environmental impacts in areas including land use, traffic, noise, air quality, and historic resources."},
-  {term:"SEQRA / SEQR",cat:"env",tags:"state environmental quality review dec nysdec",def:"New York State Environmental Quality Review Act — state law requiring all government agencies to assess environmental impacts of discretionary actions before approving them. CEQR is New York City's local implementation. Applies to rezonings, special permits, and other discretionary approvals."},
-  {term:"Environmental Assessment Form (EAF)",cat:"env",tags:"eaf environmental assessment seqr ceqr significance",def:"A standardized form used under SEQR/CEQR to assess whether a proposed action may have significant environmental impacts. Applicants complete Part 1; the lead agency completes Parts 2 and 3. The EAF determines whether a full Environmental Impact Statement is required."},
-  {term:"Environmental Impact Statement (EIS)",cat:"env",tags:"eis draft final environmental impact positive declaration",def:"A detailed study of a proposed action's potential environmental impacts, required when a lead agency issues a Positive Declaration under SEQR/CEQR. Includes a draft EIS (public comment period), scoping, and final EIS. CB6 can participate in scoping and comment on the draft."},
-  {term:"Negative Declaration",cat:"env",tags:"neg dec no significant impact seqr ceqr determination",def:"A formal determination that a proposed action will not have a significant adverse impact on the environment. A Negative Declaration means no Environmental Impact Statement is required and the project can move forward through other approvals."},
-  {term:"Positive Declaration",cat:"env",tags:"pos dec significant impact eis required seqr",def:"A formal determination that a proposed action may have significant adverse environmental impacts. A Positive Declaration triggers the requirement for a full Environmental Impact Statement (EIS)."},
-  {term:"Conditioned Negative Declaration",cat:"env",tags:"cnd conditions mitigate impact seqr",def:"A SEQR determination that a proposed action would have environmental impacts, but that enforceable conditions imposed on the project can reduce those impacts to a level below significance. Less common than a straight Negative Declaration."},
-  {term:"Lead Agency",cat:"env",tags:"seqr ceqr lead coordinating agency environmental review",def:"The government agency designated to coordinate the SEQR/CEQR environmental review when multiple agencies have approval authority over an action. The lead agency conducts the EAF review, makes the significance determination, and, if required, oversees the EIS process."},
-  {term:"Scoping",cat:"env",tags:"eis scope draft seqr ceqr public comment",def:"The process by which the lead agency and the public define the range of issues and alternatives to be studied in a Draft EIS. CB6 can participate in scoping to ensure relevant neighborhood concerns — like flooding, traffic, or historic resources — are included."},
-  // PRESERVATION
-  {term:"Certificate of Appropriateness (CoA)",cat:"preservation",tags:"lpc landmarks appropriateness approval exterior work",def:"Approval from the Landmarks Preservation Commission that proposed exterior work on a landmarked building or property within a historic district is appropriate to the character of the landmark. CB6's Landmarks & Land Use Committee reviews CoA applications and submits an advisory recommendation before the LPC public hearing."},
-  {term:"Landmarks Preservation Commission (LPC)",cat:"preservation",tags:"lpc landmarks historic district designation",def:"The city agency responsible for designating and regulating landmarks and historic districts in New York City. LPC designates individual landmarks, interior landmarks, scenic landmarks, and historic districts. CB6 has 6 historic districts within its boundaries."},
-  {term:"Historic District",cat:"preservation",tags:"lpc historic district designation architecture character",def:"A defined area designated by the LPC for its architectural, cultural, or historic significance. Exterior changes to buildings within a historic district generally require a Certificate of Appropriateness from LPC. In CB6, major historic districts include Park Slope, Cobble Hill, Carroll Gardens, and Boerum Hill."},
-  {term:"Certificate of No Effect (CNE)",cat:"preservation",tags:"lpc no effect minor work permit",def:"An LPC approval for minor work on a landmarked property or within a historic district that has no effect on the protected architectural features. Less involved than a full Certificate of Appropriateness."},
-  {term:"Hardship",cat:"preservation",tags:"lpc hardship economic landmark relief",def:"A finding that the cost of LPC-compliant preservation would make a property economically undevelopable. An owner can apply for a hardship determination from LPC, which may allow modifications to otherwise required preservation standards."},
-  {term:"Transfer of Development Rights (TDR)",cat:"preservation",tags:"tdr air rights development rights landmarks transfer",def:"The ability to transfer unused development rights from a landmark site to a receiving lot. TDRs are commonly used to compensate landmark owners who cannot build to their full FAR while allowing a neighboring site to build larger. Requires LPC and CPC approval."},
-  // PROCESS & APPROVAL
-  {term:"ULURP",cat:"process",tags:"ulurp uniform land use review procedure rezoning public review",def:"The Uniform Land Use Review Procedure — the city's formal public review process for major land use actions including rezonings, special permits, acquisitions, dispositions, and city map changes. ULURP gives CB6 a 60-day window to hold a public hearing and issue an advisory recommendation."},
-  {term:"Discretionary Action",cat:"process",tags:"discretionary approval decision agency review",def:"An action that requires a government agency to make a judgment-based decision — as opposed to ministerial or as-of-right approvals. Discretionary actions typically require ULURP, SEQR/CEQR review, or both. CB6 reviews discretionary actions within its boundaries."},
-  {term:"Pre-Certification",cat:"process",tags:"pre cert ulurp before certification dcp community engagement",def:"The period before a ULURP application is officially certified by DCP and the public review clock starts. DCP may require community engagement, environmental review, or other steps during pre-certification. CB6 often engages with applicants during this phase."},
-  {term:"Uniform Land Use Review Procedure (ULURP)",cat:"process",tags:"ulurp community board borough president cpc city council",def:"See ULURP. The formal public review sequence: Community Board (60 days) → Borough President (30 days) → City Planning Commission (60 days) → City Council (50 days) → Mayor (5 days). CB6's vote is advisory but part of the official record."},
-  {term:"Findings",cat:"process",tags:"findings determination required approval bsa cpc",def:"Specific criteria that an agency must affirmatively determine before granting a discretionary approval. For example, all five BSA variance findings under ZR §72-21 must be met. If required findings cannot be made, approval must be denied."},
-  // HOUSING & FINANCE
-  {term:"Mandatory Inclusionary Housing (MIH)",cat:"housing",tags:"mih affordable housing rezoning inclusionary units ami",def:"A city program, adopted in 2016, that requires a percentage of units in newly-rezoned areas to be permanently affordable. Several options exist, including 25% of units at 60% AMI or 30% at 80% AMI. MIH applies to all rezonings that allow residential use."},
-  {term:"Area Median Income (AMI)",cat:"housing",tags:"ami income affordable housing hud median",def:"The midpoint of a region's income distribution, set annually by HUD for the New York metro area. Affordable housing programs set rents or sale prices as a percentage of AMI. 100% AMI for a family of four in NYC is roughly $130,000."},
-  {term:"Affordable Housing",cat:"housing",tags:"affordable units ami income restricted housing",def:"Housing where costs (rent or purchase price) are restricted based on income. Generally defined as costing no more than 30% of a household's gross income. NYC uses AMI thresholds to define affordability levels across different programs."},
-  {term:"421-a",cat:"housing",tags:"421a tax exemption affordable new construction expired",def:"A property tax exemption program for new residential construction tied to affordability requirements. Originally created in 1971. Expired in June 2022. Successor legislation has been debated but not enacted as of 2025."},
-  {term:"Housing Connect",cat:"housing",tags:"housing connect lottery affordable nyc application",def:"NYC's official platform for affordable housing lottery applications. Residents can apply for income-restricted units across the city. CB6's Rental Rankings & Housing tab includes direct links to active lotteries."},
-  {term:"NYCHA",cat:"agency",tags:"nycha public housing authority gowanus houses wyckoff",def:"New York City Housing Authority — the city agency that owns and manages public housing developments. CB6 includes two NYCHA developments: Gowanus Houses (1,134 units) and Wyckoff Gardens (528 units). Both were central to the Gowanus rezoning negotiations."},
-];
-
-const CAT_LABELS = {zoning:'Land Use & Zoning',env:'Environmental Review',preservation:'Preservation',process:'Process & Approval',housing:'Housing & Finance',agency:'Agencies & Acronyms'};
-const CAT_COLORS = {
-  zoning:'background:#dbeafe;color:#1e40af',
-  env:'background:#d1fae5;color:#065f46',
-  preservation:'background:#ede9fe;color:#4c1d95',
-  process:'background:#fef3c7;color:#92400e',
-  housing:'background:#fee2e2;color:#7f1d1d',
-  agency:'background:#f3f4f6;color:#374151'
-};
-
-let currentCat = 'all';
-function renderGloss() {
-  var q = (document.getElementById('gloss-search').value || '').toLowerCase();
-  var list = document.getElementById('gloss-list');
-  var count = document.getElementById('gloss-count');
-  var filtered = TERMS.filter(function(t) {
-    var matchCat = currentCat === 'all' || t.cat === currentCat;
-    var matchQ = !q || t.term.toLowerCase().includes(q) || t.def.toLowerCase().includes(q) || t.tags.toLowerCase().includes(q);
-    return matchCat && matchQ;
+// Glossary + guide to regulations. Data: /data/glossary.json (tools/build_glossary.py)
+(function(){
+  var G=null, st={q:'',kind:'all',area:'',agency:''}, showAll={};
+  var $=function(id){return document.getElementById(id)};
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  function hi(s){s=esc(s);if(!st.q)return s;var q=st.q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');try{return s.replace(new RegExp('('+q+')','ig'),'<mark>$1</mark>')}catch(e){return s}}
+  function areaName(k){for(var i=0;i<G.areas.length;i++)if(G.areas[i].key===k)return G.areas[i].name;return k}
+  function agBadge(a){var x=G.agencies[a]||{name:a};return '<button class="gx-ag'+(x.logo?'':' noimg')+'" data-ag="'+esc(a)+'" title="'+esc(x.name)+'">'+(x.logo?'<img src="'+esc(x.logo)+'" alt="" loading="lazy">':'')+esc(a)+'</button>'}
+  function srcLink(refs){return (refs||[]).map(function(r){var s=G.sources[r.src]||{name:r.src};var u=r.url||s.url;var t=s.name+(r.page?', p. '+r.page:'');return u?'<a class="gx-src" href="'+esc(u)+'" target="_blank" rel="noopener">'+esc(t)+' ↗</a>':'<span class="gx-src">'+esc(t)+'</span>'}).join(' · ')}
+  function hay(x){return (x.term||x.rule||'')+' '+(x.aka||[]).join(' ')+' '+(x.def||x.what||'')+' '+(x.who||'')+' '+(x.penalty||'')+' '+(x.tags||'')+' '+x.agencies.map(function(a){return a+' '+((G.agencies[a]||{}).name||'')}).join(' ')}
+  var _qr=null,_qk=null;
+  function qres(){if(_qk!==st.q){_qk=st.q;_qr=st.q.toLowerCase().split(/\s+/).filter(Boolean).map(function(w){return new RegExp('(^|[^a-z0-9])'+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'))})}return _qr}
+  function score(x){if(!st.q)return 0;var n=(x.term||x.rule||'').toLowerCase()+' '+(x.aka||[]).join(' ').toLowerCase(),q=st.q.toLowerCase();if(n.indexOf(q)===0)return 3;var re=qres(),all=true;for(var i=0;i<re.length;i++)if(!re[i].test(n))all=false;return all?2:0}
+  function match(x){
+    if(st.area&&x.area!==st.area)return false;
+    if(st.agency&&x.agencies.indexOf(st.agency)<0)return false;
+    if(st.q){var re=qres();for(var i=0;i<re.length;i++)if(!re[i].test(x._h))return false}
+    return true;
+  }
+  function termHTML(t){
+    return '<div class="gx-e" id="'+esc(t.id)+'"><div class="h"><div><div class="term">'+hi(t.term)+(t.zr?' <span title="Legally defined in the Zoning Resolution" style="color:var(--orange)">*</span>':'')+'</div>'
+      +(t.aka&&t.aka.length?'<div class="aka">Also: '+hi(t.aka.join(', '))+'</div>':'')+'</div>'
+      +'<button class="gx-copy" data-link="'+esc(t.id)+'" title="Copy a link to this term">🔗</button></div>'
+      +'<div class="d">'+hi(t.def)+'</div><div class="m">'+(st.area?'':'<button class="gx-area" data-area="'+t.area+'">'+esc(areaName(t.area))+'</button>')+t.agencies.map(agBadge).join('')+' '+srcLink(t.refs)+'</div></div>';
+  }
+  function ruleHTML(r){
+    return '<div class="gx-e gx-r" id="'+esc(r.id)+'"><div class="h"><div class="term">'+hi(r.rule)+'</div><div style="display:flex;gap:6px;align-items:center">'+(r.who?'<span class="who">'+esc(r.who)+'</span>':'')
+      +'<button class="gx-copy" data-link="'+esc(r.id)+'" title="Copy a link to this rule">🔗</button></div></div>'
+      +'<div class="d">'+hi(r.what)+'</div>'+(r.penalty?'<div class="pen"><b>If not followed:</b> '+hi(r.penalty)+'</div>':'')
+      +'<div class="m">'+(st.area?'':'<button class="gx-area" data-area="'+r.area+'">'+esc(areaName(r.area))+'</button>')+r.agencies.map(agBadge).join('')+' '+srcLink(r.refs)+'</div></div>';
+  }
+  function chips(){
+    var pool=[].concat(st.kind!=='rules'?G.terms:[],st.kind!=='terms'?G.rules:[]);
+    var ac={},gc={};
+    pool.forEach(function(x){
+      var okQ=!st.q||(function(){var re=qres();for(var i=0;i<re.length;i++)if(!re[i].test(x._h))return false;return true})();
+      if(!okQ)return;
+      if(!st.agency||x.agencies.indexOf(st.agency)>=0)ac[x.area]=(ac[x.area]||0)+1;
+      if(!st.area||x.area===st.area)x.agencies.forEach(function(a){gc[a]=(gc[a]||0)+1});
+    });
+    var h='<button class="gx-chip'+(st.area?'':' on')+'" data-area="">All areas</button>';
+    G.areas.forEach(function(a){if(!ac[a.key]&&st.area!==a.key)return;h+='<button class="gx-chip'+(st.area===a.key?' on':'')+'" data-area="'+a.key+'">'+esc(a.name)+' <span class="n">'+(ac[a.key]||0)+'</span></button>'});
+    $('gx-areas').innerHTML=h;
+    var ags=Object.keys(gc).sort(function(a,b){return gc[b]-gc[a]||a.localeCompare(b)});
+    if(st.agency&&ags.indexOf(st.agency)<0)ags.unshift(st.agency);
+    h='<button class="gx-chip'+(st.agency?'':' on')+'" data-agency="">All agencies</button>';
+    ags.forEach(function(a){var x=G.agencies[a]||{name:a};h+='<button class="gx-chip'+(st.agency===a?' on':'')+'" data-agency="'+esc(a)+'" title="'+esc(x.name)+'">'+(x.logo?'<img src="'+esc(x.logo)+'" alt="">':'')+esc(a)+' <span class="n">'+(gc[a]||0)+'</span></button>'});
+    $('gx-agencies').innerHTML=h;
+    setTimeout(function(){document.querySelectorAll('.gx-row .gx-chip.on').forEach(function(c){var r=c.parentNode;r.scrollLeft=c.offsetLeft-r.offsetLeft-16})},0);
+    document.querySelectorAll('#gx-kind button').forEach(function(b){b.classList.toggle('on',b.dataset.k===st.kind)});
+  }
+  function render(){
+    chips();
+    var filtering=!!(st.q||st.area||st.agency);
+    var T=st.kind==='rules'?[]:G.terms.filter(match), R=st.kind==='terms'?[]:G.rules.filter(match);
+    if(st.q){var by=function(a,b){return score(b)-score(a)};T=T.slice().sort(by);R=R.slice().sort(by)}
+    $('gloss-count').textContent=T.length+' term'+(T.length===1?'':'s')+' · '+R.length+' rule'+(R.length===1?'':'s')+(st.q?' matching “'+st.q+'”':'')+(st.agency?' · '+((G.agencies[st.agency]||{}).name||st.agency):'')+(st.area?' · '+areaName(st.area):'');
+    $('gx-reset').hidden=!filtering&&st.kind==='all';
+    if(!T.length&&!R.length){$('gloss-list').innerHTML='<div class="gx-empty">Nothing matches. Try another word or clear the filters.</div>';return}
+    var h='';
+    var areas=G.areas.slice();if(st.q){var best={};T.concat(R).forEach(function(x){var v=score(x);if(!(x.area in best)||v>best[x.area])best[x.area]=v});areas.sort(function(a,b){return (best[b.key]||0)-(best[a.key]||0)})}
+    areas.forEach(function(a){
+      var t=T.filter(function(x){return x.area===a.key}), r=R.filter(function(x){return x.area===a.key});
+      if(!t.length&&!r.length)return;
+      var lg={};t.concat(r).forEach(function(x){x.agencies.forEach(function(g){lg[g]=(lg[g]||0)+1})});
+      var top=Object.keys(lg).sort(function(x,y){return lg[y]-lg[x]}).filter(function(g){return (G.agencies[g]||{}).logo}).slice(0,4);
+      h+='<details class="gx-grp" data-g="'+a.key+'"'+(filtering?' open':'')+'><summary><span class="t">'+esc(a.name)+'</span><span class="gx-logos">'+top.map(function(g){return '<img src="'+esc(G.agencies[g].logo)+'" alt="'+esc(g)+'" title="'+esc(G.agencies[g].name)+'" loading="lazy">'}).join('')+'</span><span class="c">'+[t.length?t.length+' term'+(t.length===1?'':'s'):'',r.length?r.length+' rule'+(r.length===1?'':'s'):''].filter(Boolean).join(' · ')+'</span><span class="ch">›</span></summary>';
+      [['rules',r,ruleHTML,'Rules & regulations'],['terms',t,termHTML,'Terms']].forEach(function(p){
+        var list=p[1];if(!list.length)return;var key=a.key+':'+p[0];var lim=showAll[key]||filtering&&list.length<=60?list.length:12;
+        if(r.length&&t.length)h+='<div class="gx-sub">'+p[3]+'</div>';
+        h+=list.slice(0,lim).map(p[2]).join('');
+        if(list.length>lim)h+='<button class="gx-more" data-more="'+key+'">Show all '+list.length+' '+(p[0]==='rules'?'rules':'terms')+'</button>';
+      });
+      h+='</details>';
+    });
+    $('gloss-list').innerHTML=h;
+    var u=new URL(location.href);['q','area','agency','kind'].forEach(function(k){var v=st[k];if(v&&!(k==='kind'&&v==='all'))u.searchParams.set(k,v);else u.searchParams.delete(k)});
+    history.replaceState(null,'',u.pathname+(u.search||'')+location.hash);
+  }
+  function openTarget(){
+    var id=decodeURIComponent((location.hash||'').slice(1));if(!id)return;
+    var x=G.terms.concat(G.rules).filter(function(e){return e.id===id})[0];if(!x)return;
+    if(!document.getElementById(id)){st={q:'',kind:'all',area:x.area,agency:''};showAll[x.area+':'+(x.rule?'rules':'terms')]=1;render()}
+    var el=document.getElementById(id);if(!el)return;var g=el.closest('details');if(g)g.open=true;setTimeout(function(){el.scrollIntoView({block:'start'})},60);
+  }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-area],[data-agency],[data-ag],[data-more],[data-k],[data-link],#gx-reset');if(!b)return;
+    if(b.id==='gx-reset'){st={q:'',kind:'all',area:'',agency:''};$('gloss-search').value='';render();return}
+    if(b.dataset.more){showAll[b.dataset.more]=1;render();var g=document.querySelector('[data-g="'+b.dataset.more.split(':')[0]+'"]');if(g)g.open=true;return}
+    if(b.dataset.k){st.kind=b.dataset.k;render();return}
+    if(b.dataset.link){var u=location.origin+location.pathname+'#'+b.dataset.link;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(function(){b.textContent='✓';setTimeout(function(){b.textContent='🔗'},1200)},function(){location.hash=b.dataset.link});return}
+    if('area' in b.dataset){st.area=st.area===b.dataset.area?'':b.dataset.area;render();$('gloss-top').scrollIntoView({block:'start'});return}
+    var a=b.dataset.agency!=null?b.dataset.agency:b.dataset.ag;
+    if(a!=null){st.agency=(st.agency===a&&b.dataset.ag==null)?'':a;render();$('gloss-top').scrollIntoView({block:'start'})}
   });
-  filtered.sort(function(a,b){return a.term.localeCompare(b.term);});
-  count.textContent = filtered.length + ' term' + (filtered.length !== 1 ? 's' : '') + (q ? ' matching "' + q + '"' : '');
-  if (!filtered.length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:#9ca3af;font-size:.82rem">No results</div>'; return; }
-  var html = '';
-  filtered.forEach(function(t, i) {
-    html += '<div class="gloss-entry">'
-      + '<div style="display:flex;align-items:flex-start;gap:10px;justify-content:space-between">'
-      + '<div style="flex:1">'
-      + '<span class="gloss-term" style="font-size:.88rem;font-weight:700;color:#0d1b4b;transition:color .15s">' + t.term + '</span>'
-      + '</div>'
-      + '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'
-      + '<span class="gloss-cat" style="' + CAT_COLORS[t.cat] + '">' + CAT_LABELS[t.cat] + '</span>'
-      + '</div>'
-      + '</div>'
-      + '<div style="margin-top:6px;font-size:.8rem;color:#374151;line-height:1.7">' + t.def + '</div>'
-      + '</div>';
-  });
-  list.innerHTML = html;
-}
-
-function glossFilter() { renderGloss(); }
-
-function setGlossFilter(f) {
-  currentCat = f;
-  document.querySelectorAll('.gf-btn').forEach(function(b) {
-    b.classList.toggle('gf-active', b.dataset.f === f);
-  });
-  renderGloss();
-}
-
-renderGloss();
+  var tmr;$('gloss-search').addEventListener('input',function(e){clearTimeout(tmr);tmr=setTimeout(function(){st.q=e.target.value.trim();render()},120)});
+  window.addEventListener('hashchange',openTarget);
+  fetch('/data/glossary.json').then(function(r){return r.json()}).then(function(d){
+    G=d;G.terms.concat(G.rules).forEach(function(x){x._h=hay(x).toLowerCase()});
+    var p=new URLSearchParams(location.search);['q','area','agency','kind'].forEach(function(k){if(p.get(k))st[k]=p.get(k)});
+    $('gloss-search').value=st.q;render();openTarget();
+  }).catch(function(){$('gloss-count').textContent='The glossary could not load. Check your connection and refresh.'});
+  window.glossFilter=function(){};window.setGlossFilter=function(f){st.area=f==='all'?'':f;render()};
+})();
 </script>
 
 
 <!-- WORD JUMBLE QUIZ -->
 <script>window.PAGE_TOC=[
   {href:"#glossary-intro",icon:"📖",label:"Overview",sub:"About this glossary"},
-  {href:"#gloss-list",icon:"🔍",label:"Glossary",sub:"Searchable terms by topic"},
+  {href:"#gloss-list",icon:"🔍",label:"Glossary",sub:"Terms and rules by policy area and agency"},
   {href:"#zoning-codes",icon:"🔍",label:"Zoning Codes",sub:"R, C, M districts, FAR, overlays, suffixes"},
   {href:"#appendix",icon:"📋",label:"Appendix",sub:"Acronyms, processes, programs, tools"},
   {href:"#crossword-accordion",icon:"◼",label:"Crossword",sub:"CB6 civic terms"},
