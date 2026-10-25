@@ -7,7 +7,7 @@ site's culture places and a few hand-checked places by name, and writes data/day
 up once: data/daymap/geocache.json keeps every answer.
 
 python3 scripts/build_daymap.py"""
-import json, os, re, time, urllib.parse, urllib.request
+import json, os, re, subprocess, time, urllib.parse, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'app/data/civic/cal/calendar-bk.json')
@@ -16,6 +16,9 @@ OUT = os.path.join(OUT_DIR, 'events.json')
 CACHE = os.path.join(OUT_DIR, 'geocache.json')
 # NYC, generously; anything outside is a bad match
 BOX = (40.49, -74.27, 40.92, -73.68)
+ADDR = re.compile(r'\b\d+[A-Za-z]?\s+[A-Z0-9][\w.]*\s+(St|Street|Ave|Avenue|Place|Pl|Road|Rd)\b')
+# Places the calendar names by a business name only, looked up at their address (checked by hand)
+ALIAS = {'principles coffee house': '139 9th Street, Brooklyn, NY', 'industry city': '220 36th Street, Brooklyn, NY'}
 VIRTUAL = re.compile(r'\b(zoom|virtual|online|webinar|teleconference|livestream|remote)\b', re.I)
 
 
@@ -81,6 +84,9 @@ def clean(q):
 def queries(loc):
     """The strings to try for one location, best first."""
     loc = re.sub(r'\s+', ' ', loc).strip()
+    for k, v in ALIAS.items():
+        if loc.lower().startswith(k):
+            return [v]
     parts = [p.strip() for p in re.split(r'\s+[\u00b7|]\s+', loc) if p.strip()]
     out = [p for p in parts if re.match(r'^\d', p)] + parts[::-1] + [loc]
     seen, res = set(), []
@@ -91,6 +97,37 @@ def queries(loc):
         seen.add(q.lower())
         res.append(q if re.search(r'brooklyn|manhattan|queens|bronx|staten|new york|\bny\b|governors island', q, re.I) else q + ', Brooklyn, NY')
     return res
+
+
+NUMW = {'first': '1', 'second': '2', 'third': '3', 'fourth': '4', 'fifth': '5', 'sixth': '6', 'seventh': '7', 'eighth': '8', 'ninth': '9', 'tenth': '10'}
+GENERIC = {'street', 'st', 'avenue', 'ave', 'place', 'pl', 'road', 'rd', 'the', 'of', 'and', 'at', 'brooklyn', 'ny', 'nyc',
+           'new', 'york', 'usa', 'west', 'east', 'w', 'e', 'n', 's', 'north', 'south', 'boulevard', 'blvd', 'lane', 'ln'}
+HOODS = re.compile(r'^(brooklyn|red hook|park slope|gowanus|carroll gardens|cobble hill|boerum hill|columbia waterfront|'
+                   r'south brooklyn|tbd|brooklyn tbd)$', re.I)
+
+
+def words(s):
+    out = set()
+    for w in re.findall(r"[a-z0-9]+", s.lower().replace('’', '').replace("'", '')):
+        w = NUMW.get(w, w)
+        w = re.sub(r'^(\d+)(st|nd|rd|th|[a-z])$', r'\1', w)
+        if w not in GENERIC and len(w) > 1:
+            out.add(w)
+    return out
+
+
+def plausible(q, hit):
+    """A geosearch answer counts only when it names what was asked: every word of the place's name (before the first
+    comma) is in the answer's label. Stops "Park Slope" landing on the Park Slope Armory and "5th Avenue Street
+    Festival" on a housing project in Brownsville."""
+    if not hit:
+        return False
+    segs = [x.strip() for x in re.split(r'\s+[\u00b7|]\s+|,', q) if x.strip()]
+    core = next((x for x in segs if re.match(r'^\d', x)), segs[0] if segs else '')
+    if HOODS.match(core.strip()):
+        return False
+    need = words(core)
+    return bool(need) and need <= words(hit['label'])
 
 
 def geosearch(q, anywhere):
@@ -122,9 +159,14 @@ def corners(loc):
     out = []
     for p in re.split(r'\s+[\u00b7|]\s+', loc):
         p = re.sub(r'\s*\(.*?\)', '', p).strip()
-        m = (re.match(r'^(.+?) between (.+?) and (.+?)(,|$)', p) or re.match(r'^([^,]+), (.+?) to (.+)$', p))
+        p = re.sub(r'^(meet at|meet outside|starts at)\s+', '', p, flags=re.I)
+        m = (re.match(r'^(.+?) between (.+?) (?:and|&) (.+?)(,|$)', p) or re.match(r'^([^,]+?) from (.+?) to (.+?)(,|$)', p)
+             or re.match(r'^([^,]+), (.+?) to (.+)$', p))
         if m:
-            out.append((m.group(1).strip(), m.group(2).strip()))
+            b = m.group(2).strip()
+            if not re.search(r'\b(st|street|ave|avenue|pl|place|road|rd|boulevard|blvd|parkway|plaza|west|east)\.?$', b, re.I):
+                b += ' Street'
+            out.append((m.group(1).strip(), b))
             continue
         p = re.sub(r',\s*(Park Slope|Gowanus|Red Hook|Carroll Gardens|Cobble Hill|Brooklyn).*$', '', p)
         m = re.match(r'^(?:.*,\s*)?([^,]+?) (?:&|and|at) ([^,]+)$', p)
@@ -154,23 +196,33 @@ def main():
     global PLACES
     PLACES = {k: v for k, v in KNOWN.items()}
     for p in json.load(open(os.path.join(ROOT, 'data/culture-places.json'))):
-        if p.get('lat') and p.get('lng') and not p.get('approx'):
+        if p.get('lat') and p.get('lng') and not p.get('approx') and p['lng'] < -73.855 and p['lat'] < 40.74:
             PLACES.setdefault(p['name'].lower(), (p['lat'], p['lng']))
     out, looked, placed = [], 0, 0
-    for e in cal['events']:
+    # the app calendar file starts on the day it was built; earlier days come straight from calendar.html
+    first = min((e['d'] for e in cal['events'] if e.get('g') == 'cb6'), default='9999')
+    past = json.loads(subprocess.run(['node', os.path.join(ROOT, 'scripts/daymap_past.mjs'), first],
+                                     capture_output=True, text=True, check=True).stdout)
+    for p in past:
+        p['g'], p['past'] = 'cb6', True
+    for e in past + cal['events']:
         if e.get('g') != 'cb6':
             continue
         loc = (e.get('loc') or '').strip()
         rec = {'d': e['d'], 'l': e['l'], 't': e.get('t', ''), 'e': e.get('e', ''), 'loc': loc,
                'org': e.get('org', ''), 'k': e.get('k', ''), 'ev': e['d'] + '-' + slugify(e['l'])}
-        ty = types.get(e.get('ty') or '', {})
+        if e.get('past'):
+            for a in ('fl', 'ic', 'h'):
+                if e.get(a):
+                    rec[a] = e[a]
+        ty = {} if e.get('past') else types.get(e.get('ty') or '', {})
         if ty.get('icon'):
-            rec['icon'] = ty['icon']
-        if e.get('f'):
-            rec['f'] = e['f']
-        if e.get('h'):
+            rec['ic'] = '/app/data/civic/cal/icons/' + ty['icon']
+        if e.get('f') and not e.get('past'):
+            rec['fl'] = '/app/data/civic/cal/flyers/' + e['f']
+        if e.get('h') and not e.get('past'):
             rec['h'] = e['h']
-        if loc and not VIRTUAL.search(loc) and not VAGUE.match(loc) and not re.search(r'agenda for the location', loc, re.I):
+        if loc and not (VIRTUAL.search(loc) and not ADDR.search(loc)) and not VAGUE.match(loc) and not re.search(r'agenda for the location', loc, re.I):
             hit = known(loc)
             hit = {'lat': hit[0], 'lng': hit[1]} if hit else None
             anywhere = bool(OTHER_BORO.search(loc))
@@ -194,7 +246,7 @@ def main():
                     except Exception:
                         continue
                     looked += 1
-                if cache[key]:
+                if plausible(q, cache[key]):
                     hit = cache[key]
                     break
             if hit:
