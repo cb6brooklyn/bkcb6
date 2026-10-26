@@ -58,6 +58,15 @@ FEEDS = [
         "venue": "BKCM \u00b7 58 Seventh Avenue, Park Slope",
     },
     {
+        # NewYork-Presbyterian Brooklyn Methodist Hospital: every event NYP lists for its Brooklyn campus on events.nyp.org
+        # (a Localist calendar; campus 282 is the Brooklyn page), all of it on the hospital's calendar and its profile page.
+        "name": "NewYork-Presbyterian Brooklyn Methodist Hospital",
+        "url": "https://events.nyp.org/api/2/events?campus_id=282&days=365&pp=100",
+        "kind": "localist",
+        "type": "nyp",
+        "venue": "NYP Brooklyn Methodist Hospital \u00b7 506 6th Street, Park Slope",
+    },
+    {
         # NYC Parks' events feed (the next two weeks, citywide), kept to the parks in CB6; each event goes to its park's calendar.
         "name": "NYC Parks",
         "url": "https://www.nycgovparks.org/xml/events_300_rss.json",
@@ -215,6 +224,20 @@ ADDITIONS.append({
     "href": None,
     "linkText": None,
 })
+
+# NewYork-Presbyterian Brooklyn Methodist Hospital: the Medical Arts Pavilion driveway on 5th Street is repaved Oct 29 and 30,
+# 2026 (from NYP's community notice of Oct 26, 2026).
+for _d in ("2026-10-29", "2026-10-30"):
+    ADDITIONS.append({
+        "date": _d,
+        "type": "nyp",
+        "label": "NYP Brooklyn Methodist: Medical Arts Pavilion driveway repaving on 5th Street",
+        "time": "8:00 AM",
+        "location": "Medical Arts Pavilion driveway \u00b7 5th Street, Park Slope",
+        "desc": "8:00 AM to 5:00 PM. Contractors remove the metal plates and pour concrete over the driveway entrance, with flaggers redirecting traffic. Parts of the sidewalk are closed, with a pedestrian walkway kept around the site. The concrete cures over the weekend; the driveway and part of the sidewalk stay closed for four days, with the goal of reopening Monday, November 2. Questions: community@nyp.org.",
+        "href": "https://www.nyp.org/locations/brooklyn/nyp-brooklyn-methodist-hospital",
+        "linkText": "nyp.org \u2197",
+    })
 
 # Nov 18, 2026 Full Board meeting at Van Alen Institute.
 ADDITIONS.append({
@@ -592,6 +615,45 @@ def fetch_bbp_events(url, venue):
     return out
 
 
+def fetch_localist_events(url, venue):
+    """A Localist calendar's API (events.nyp.org): one row per upcoming date, with the event's time, place and page."""
+    import html as _html
+    out, page = [], 1
+    while page and page <= 10:
+        try:
+            r = requests.get(url + f"&page={page}", timeout=30, headers=BROWSER_HEADERS)
+            if not r.ok:
+                print(f"  Localist {url}: HTTP {r.status_code}")
+                break
+            data = r.json()
+        except Exception as e:
+            print(f"  Localist {url}: {type(e).__name__}: {e}")
+            break
+        for x in data.get("events") or []:
+            e = x.get("event") or {}
+            title = _html.unescape(e.get("title") or "").strip()
+            if not title:
+                continue
+            if e.get("experience") == "virtual":
+                loc = "Online"
+            else:
+                loc = ", ".join(v for v in [e.get("location_name"), e.get("room_number"), e.get("address")] if v) or venue
+            desc = re.sub(r"\s+", " ", _html.unescape(e.get("description_text") or "")).strip()
+            for inst in e.get("event_instances") or []:
+                i = inst.get("event_instance") or {}
+                start = i.get("start") or ""
+                if len(start) < 10:
+                    continue
+                t = ""
+                if not i.get("all_day") and len(start) >= 16:
+                    hh, mm = int(start[11:13]), start[14:16]
+                    t = f"{hh % 12 or 12}:{mm} {'AM' if hh < 12 else 'PM'}"
+                out.append({"date": start[:10], "summary": title, "url": e.get("localist_url") or e.get("url") or "",
+                            "cats": "", "location": loc, "desc": desc, "time": t})
+        page = (data.get("page") or {}).get("next_page")
+    return out
+
+
 def fetch_bkcm_events(url, venue):
     """Brooklyn Conservatory of Music's events: WooCommerce event products on bkcm.org, upcoming dates only."""
     import html as _html
@@ -829,8 +891,8 @@ def main():
 
     for feed in FEEDS:
         print(f"Fetching {feed['name']}...")
-        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse", "bbp", "nycparks", "bkcm"):
-            raw = {"bkcm": fetch_bkcm_events, "eventbrite_org": fetch_eventbrite_org, "ldjson": fetch_ldjson_events, "wfea": fetch_wfea_events, "powerhouse": fetch_powerhouse_events, "bbp": fetch_bbp_events, "nycparks": fetch_nycparks_events}[feed["kind"]](feed["url"], feed["venue"])
+        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse", "bbp", "nycparks", "bkcm", "localist"):
+            raw = {"localist": fetch_localist_events, "bkcm": fetch_bkcm_events, "eventbrite_org": fetch_eventbrite_org, "ldjson": fetch_ldjson_events, "wfea": fetch_wfea_events, "powerhouse": fetch_powerhouse_events, "bbp": fetch_bbp_events, "nycparks": fetch_nycparks_events}[feed["kind"]](feed["url"], feed["venue"])
             if not raw:
                 print(f"  FAILED \u2014 no data")
                 failed_types.append(feed["type"])
@@ -841,7 +903,7 @@ def main():
             text = None
         else:
             text = fetch_feed(feed["url"], feed.get("fallback"))
-        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse", "bbp", "nycparks", "bkcm"):
+        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse", "bbp", "nycparks", "bkcm", "localist"):
             pass
         elif not text and not feed.get("api_url") and not feed.get("type"):
             # the CB6 feed (its events are classified by content): keep last run's board, committee and community events
