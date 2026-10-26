@@ -98,7 +98,7 @@
     var old = document.getElementById('asb'); if (old) old.style.display = 'none';
     document.head.appendChild(st);
     document.body.insertBefore(bar, document.body.firstChild);
-    if (!document.getElementById('cb6sv')) { svCss(); bar.parentNode.insertBefore(svStrip(), bar.nextSibling); }
+    if (!svPart && !document.getElementById('cb6sv')) { svCss(); bar.parentNode.insertBefore(svStrip(), bar.nextSibling); }
     wire();
   }
 
@@ -160,17 +160,19 @@
     '#cb6sv a{display:inline-flex;align-items:center;gap:8px;background:#f47920;color:#fff;text-decoration:none;border-radius:999px;padding:7px 16px;font:700 14px/1.15 "DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;max-width:100%;box-sizing:border-box;text-align:center}' +
     '#cb6sv a:hover{background:#d4631a}#cb6sv a span{font-weight:500;opacity:.9}' +
     '@media(max-width:400px){#cb6sv a{font-size:13px;padding:7px 13px}}';
-  function svStrip() {
+  function svStrip(inApp) {
     var d = document.createElement('div'); d.id = 'cb6sv';
-    d.innerHTML = '<a href="' + SURVEY + '" target="_blank" rel="noopener">Take our District Needs Survey <span>›</span></a>';
+    // in the apps it is a button to the app's own survey screen, not a link out
+    d.innerHTML = inApp ? '<a href="/budgetsurvey/index.html?app=1" role="button">Take our District Needs Survey <span>›</span></a>'
+      : '<a href="' + SURVEY + '" target="_blank" rel="noopener">Take our District Needs Survey <span>›</span></a>';
     return d;
   }
   function svCss() { var t = document.createElement('style'); t.textContent = SVCSS; document.head.appendChild(t); }
   var svPart = true;
-  try { svPart = self !== top || /[?&]embed=/.test(location.search || '') || document.documentElement.classList.contains('embed'); } catch (e) { svPart = true; }
+  try { svPart = self !== top || /[?&]embed=/.test(location.search || '') || document.documentElement.classList.contains('embed') || /^\/budgetsurvey\//.test(location.pathname); } catch (e) { svPart = true; }
   if (hidden() || document.getElementById('cb6bar')) {
     if (!svPart && !document.getElementById('cb6sv')) {
-      var svMount = function () { svCss(); document.body.insertBefore(svStrip(), document.body.firstChild); };
+      var svMount = function () { svCss(); document.body.insertBefore(svStrip(true), document.body.firstChild); };
       if (document.body) svMount(); else document.addEventListener('DOMContentLoaded', svMount);
     }
     return;
