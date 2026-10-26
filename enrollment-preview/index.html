@@ -302,11 +302,11 @@ function loadGeo(rel){if(GEO[rel])return Promise.resolve(GEO[rel]);return fetch(
 function inS(k){var v=edData()[k];if(SCOPE==='nyc')return true;if(!v)return false;if(/^\d$/.test(SCOPE))return v[9]?v[9][0]===SCOPE:v[8]===SCOPE;return v[9]===SCOPE;}
 function drawEDs(){var rel=MAPREL[MYR];$('mapNote').textContent='Loading the election district map…';
  loadGeo(rel).then(function(g){if(EDL)MAP.removeLayer(EDL);LBLS.forEach(function(l){MAP.removeLayer(l);});LBLS=[];
-  EDL=L.geoJSON({type:'FeatureCollection',features:g.features.filter(function(f){return inS(f.properties.e);})},{renderer:L.canvas({padding:.5}),style:function(f){var k=f.properties.e,on=k===SEL;return{fillColor:colorOf(edData()[k]),fillOpacity:.78,color:on?'#f47920':'#ffffff',weight:on?3:.4,opacity:on?1:.7};},
+  EDL=L.geoJSON({type:'FeatureCollection',features:g.features.filter(function(f){return $('mCd').checked||inS(f.properties.e);})},{renderer:L.canvas({padding:.5}),style:function(f){var k=f.properties.e,on=k===SEL;return{fillColor:colorOf(edData()[k]),fillOpacity:.78,color:on?'#f47920':'#ffffff',weight:on?3:.4,opacity:on?1:.7};},
    onEachFeature:function(f,l){l.bindTooltip(function(){return tipFor(f.properties.e);},{sticky:true,className:'edt'});l.on('click',function(){pick(f.properties.e,false);});
     LBLS.push(L.tooltip({permanent:true,direction:'center',className:'dl',interactive:false}).setLatLng(l.getBounds().getCenter()).setContent(String(+f.properties.e.slice(2))));}}).addTo(MAP);
   cdLines();if(!SEL)fitScope();lbls();
-  var have={};g.features.forEach(function(f){have[f.properties.e]=1;});var miss=Object.keys(edData()).filter(function(k){return !have[k]&&inS(k);});var shown=0;EDL.eachLayer(function(){shown++;});
+  var have={};g.features.forEach(function(f){have[f.properties.e]=1;});var miss=Object.keys(edData()).filter(function(k){return !have[k]&&inS(k);});var shown=0;EDL.eachLayer(function(l){if(inS(l.feature.properties.e))shown++;});
   $('mapNote').textContent=shown.toLocaleString()+' election districts'+(SCOPE==='nyc'?' citywide':' in '+(window.__cdName&&/^\d{3}$/.test(SCOPE)?window.__cdName(SCOPE):({'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'}[SCOPE])+'\'s community districts'))+' on the Board of Elections map used for this count. Every ED with voters is shaded'+(miss.length?' except '+miss.map(function(k){return 'AD '+(+k.slice(0,2))+' ED '+(+k.slice(2));}).join(', ')+' ('+(function(n){return n+(n===1?' voter':' voters');})(miss.reduce(function(s,k){return s+edData()[k][6];},0))+'), which the map does not have':'')+'. ED numbers show as you zoom in.';});}
 function lbls(){var on=MAP.getZoom()>=15;LBLS.forEach(function(l){if(on&&!MAP.hasLayer(l))l.addTo(MAP);if(!on&&MAP.hasLayer(l))MAP.removeLayer(l);});}
 function restyle(){if(EDL)EDL.setStyle(EDL.options.style);}
@@ -316,7 +316,7 @@ function pick(k,zoom,pt){if(!inS(k)){var v=edData()[k];if(v&&window.__pick){wind
  if(PIN){MAP.removeLayer(PIN);PIN=null;}if(pt)PIN=L.circleMarker([pt[1],pt[0]],{radius:8,color:'#fff',weight:3,fillColor:'#f47920',fillOpacity:1}).addTo(MAP);
  if(zoom&&EDL)EDL.eachLayer(function(l){if(l.feature.properties.e===k)MAP.fitBounds(l.getBounds(),{maxZoom:16,padding:[40,40]});});
  var rb=r.getBoundingClientRect();if(rb.top>window.innerHeight-80)r.scrollIntoView({behavior:'smooth',block:'nearest'});}
-function fitScope(){if(EDL&&EDL.getLayers().length)MAP.fitBounds(EDL.getBounds(),{padding:[8,8]});}
+function fitScope(){if(!EDL)return;var b=null;EDL.eachLayer(function(l){if(inS(l.feature.properties.e))b=b?b.extend(l.getBounds()):L.latLngBounds(l.getBounds().getSouthWest(),l.getBounds().getNorthEast());});if(b)MAP.fitBounds(b,{padding:[8,8]});}
 var CDLB=[],CDH=null;
 function cdLines(){if(!CDGEO)return;if(CDL)MAP.removeLayer(CDL);if(CDH)MAP.removeLayer(CDH);CDLB.forEach(function(l){MAP.removeLayer(l);});CDLB=[];var all=$('mCd').checked;
  CDL=L.geoJSON({type:'FeatureCollection',features:CDGEO.features.filter(function(f){var c=f.properties.cd;if(all)return true;return SCOPE==='nyc'||(/^\d$/.test(SCOPE)?c[0]===SCOPE:c===SCOPE);})},{interactive:false,style:function(f){var c=f.properties.cd;return{fill:false,color:c==='306'?'#f47920':'#111827',weight:c==='306'?3:2,opacity:1};}});
@@ -355,7 +355,7 @@ function init(){
  document.querySelectorAll('#mScope button').forEach(function(b){b.onclick=function(){window.__pick(b.dataset.p);};});
  document.querySelectorAll('#mBy button').forEach(function(b){b.onclick=function(){MBY=b.dataset.by;document.querySelectorAll('#mBy button').forEach(function(x){x.setAttribute('aria-pressed',x===b);});legend();restyle();};});
  document.querySelectorAll('#mYr button').forEach(function(b){b.onclick=function(){MYR=b.dataset.y;document.querySelectorAll('#mYr button').forEach(function(x){x.setAttribute('aria-pressed',x===b);});legend();drawEDs();if(SEL)pick(SEL,false);};});
- $('mCd').onchange=cdLines;
+ $('mCd').onchange=function(){var c=MAP.getCenter(),z=MAP.getZoom();drawEDs();setTimeout(function(){MAP.setView(c,z);},0);};
  $('mfQ').oninput=suggest;$('mfForm').onsubmit=function(e){e.preventDefault();run($('mfQ').value);};
  $('mfSug').onclick=function(e){var li=e.target.closest('li');if(!li)return;if(li.dataset.ed){hideSug();pick(li.dataset.ed,true);}else if(li.dataset.cb){hideSug();window.__setPlace(li.dataset.cb);}else if(li.dataset.ac){hideSug();found(AC[+li.dataset.ac]);}};
  $('m-addr').onclick=function(){mode(false);};$('m-corner').onclick=function(){mode(true);};
