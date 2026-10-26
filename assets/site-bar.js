@@ -162,14 +162,12 @@
     '@media(max-width:400px){#cb6sv a{font-size:13px;padding:7px 13px}}';
   function svStrip(inApp) {
     var d = document.createElement('div'); d.id = 'cb6sv';
-    // in the apps it is a button to the app's own survey screen, not a link out
-    d.innerHTML = inApp ? '<a href="/budgetsurvey/index.html?app=1" role="button">Take our District Needs Survey <span>›</span></a>'
-      : '<a href="' + SURVEY + '" target="_blank" rel="noopener">Take our District Needs Survey <span>›</span></a>';
+    d.innerHTML = '<a href="' + SURVEY + '" target="_blank" rel="noopener">Take our District Needs Survey <span>›</span></a>';
     return d;
   }
   function svCss() { var t = document.createElement('style'); t.textContent = SVCSS; document.head.appendChild(t); }
   var svPart = true;
-  try { svPart = self !== top || /[?&]embed=/.test(location.search || '') || document.documentElement.classList.contains('embed') || /^\/budgetsurvey\//.test(location.pathname); } catch (e) { svPart = true; }
+  try { svPart = self !== top || /[?&]embed=/.test(location.search || '') || document.documentElement.classList.contains('embed'); } catch (e) { svPart = true; }
   if (hidden() || document.getElementById('cb6bar')) {
     if (!svPart && !document.getElementById('cb6sv')) {
       var svMount = function () { svCss(); document.body.insertBefore(svStrip(true), document.body.firstChild); };
