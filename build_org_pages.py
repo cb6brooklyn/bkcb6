@@ -309,7 +309,7 @@ TPL = """<!DOCTYPE html>
 
 {flyer}  <div class="sec introsec"><div class="bio dmintro">{intro}{sig}</div></div>
 {going}
-{wheresec}{events}{numsec}{doessec}
+{wheresec}{events}{numsec}{doessec}{past}
 {extra}
   <div class="sec"><h2>Contact</h2><div class="bio"><ul class="kv">
     {addrli}
@@ -570,7 +570,22 @@ for o in ORGS:
         note = ''
     numsec = ('  <div class="sec"><h2>By the numbers</h2><div class="bio"><div class="stats">%s</div></div></div>\n' % ''.join(
         '<div class="stat"><div class="sv">%s</div><div class="sl">%s</div></div>' % (v, l) for v, l in o['nums'])) if o.get('nums') else ''
+    past = ''
+    if o.get('past'):
+        pc = ''
+        for g in o['past']:
+            pimg = '<a href="%s"><img src="%s" alt="%s"></a>' % (g['img'], g['img'], g['alt']) if g.get('img') else ''
+            pb = ''.join('<a class="cbtn" href="%s"%s>%s%s</a>' % (b[1], '' if b[1].startswith('/') else ' target="_blank" rel="noopener"', b[0], '' if b[1].startswith('/') else ' &#8599;') for b in g.get('btns', []))
+            pc += ('<div class="pastcard">%s<div class="pastbody"><div class="pastkick">%s</div><div class="pastttl">%s</div><p>%s</p>%s</div></div>') % (
+                pimg, g['kicker'], g['title'], g['text'], ('<div class="contact">%s</div>' % pb) if pb else '')
+        past = ('  <div class="sec pastsec"><h2>Past events</h2>'
+                '<style>.pastcard{background:#fff;border:1px solid var(--rule,#e5e2db);border-radius:14px;overflow:hidden;margin-bottom:14px}'
+                '.pastcard img{display:block;width:100%%;max-width:560px;margin:0 auto}.pastbody{padding:14px 16px}'
+                '.pastkick{font-family:"DM Mono",monospace;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;opacity:.75}'
+                '.pastttl{font-weight:800;font-size:1.05rem;margin:4px 0 6px}.pastbody p{font-size:.92rem;line-height:1.5}</style>'
+                '%s</div>\n') % pc
     fields.update(addrli=addrli, webli=webli, doessec=doessec, numsec=numsec)
+    fields['past'] = past
     fields.update(intro=intro, does=does, note=note, phone=phone, email=email,
                   kv=kv, links=links, mapjs=MAPJS, events=events, evjs=evjs,
                   doesbtns=doesbtns, extra=extra, flyer=flyer, going=going, ogmeta=ogmeta, brandcss=brandcss, does_title=does_title, sig=sig,
@@ -591,6 +606,9 @@ for o in ORGS:
                   .replace('<span>the building, its block and the zoning around it</span>', '<span>%s</span>' % a['caption']))
         fields['wheresec'] = w
     html = TPL.format(**fields)
+    if o.get('closeup'):
+        # no single address but one home spot: open the map on the spot, not the whole district
+        html = html.replace(' data-cb6="1"', '', 1)
     if o.get('nologo'):
         # no logo of its own exists (a small practice or shop with no site or mark): no logo slot, a plain pin, the CB6 card for sharing
         import re as _re
