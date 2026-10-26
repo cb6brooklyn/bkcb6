@@ -98,6 +98,7 @@
     var old = document.getElementById('asb'); if (old) old.style.display = 'none';
     document.head.appendChild(st);
     document.body.insertBefore(bar, document.body.firstChild);
+    if (!document.getElementById('cb6sv')) { svCss(); bar.parentNode.insertBefore(svStrip(), bar.nextSibling); }
     wire();
   }
 
@@ -152,7 +153,28 @@
     return res;
   }
   window.CB6Search = { load: load, search: search, isAddress: isAddress, sectionOf: sectionOf, hubOf: hubOf };
-  if (hidden() || document.getElementById('cb6bar')) return;
+  // The District Needs Survey pill: under the bar on every page; on its own at the top of every page inside the apps.
+  // Not inside frames or ?embed= parts (the page or app screen around them carries it).
+  var SURVEY = 'https://docs.google.com/forms/d/e/1FAIpQLSeogV51Py43b3dYDwfgQnDpHADqS60TG0WXGFNcmB6PKduV6w/viewform?usp=header';
+  var SVCSS = '#cb6sv{display:flex;justify-content:center;padding:7px 10px;background:#0d1b4b;border-top:1px solid rgba(255,255,255,.12);border-bottom:3px solid #f47920;position:relative;z-index:8999}' +
+    '#cb6sv a{display:inline-flex;align-items:center;gap:8px;background:#f47920;color:#fff;text-decoration:none;border-radius:999px;padding:7px 16px;font:700 14px/1.15 "DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;max-width:100%;box-sizing:border-box;text-align:center}' +
+    '#cb6sv a:hover{background:#d4631a}#cb6sv a span{font-weight:500;opacity:.9}' +
+    '@media(max-width:400px){#cb6sv a{font-size:13px;padding:7px 13px}}';
+  function svStrip() {
+    var d = document.createElement('div'); d.id = 'cb6sv';
+    d.innerHTML = '<a href="' + SURVEY + '" target="_blank" rel="noopener">Take our District Needs Survey <span>›</span></a>';
+    return d;
+  }
+  function svCss() { var t = document.createElement('style'); t.textContent = SVCSS; document.head.appendChild(t); }
+  var svPart = true;
+  try { svPart = self !== top || /[?&]embed=/.test(location.search || '') || document.documentElement.classList.contains('embed'); } catch (e) { svPart = true; }
+  if (hidden() || document.getElementById('cb6bar')) {
+    if (!svPart && !document.getElementById('cb6sv')) {
+      var svMount = function () { svCss(); document.body.insertBefore(svStrip(), document.body.firstChild); };
+      if (document.body) svMount(); else document.addEventListener('DOMContentLoaded', svMount);
+    }
+    return;
+  }
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function wire() {
