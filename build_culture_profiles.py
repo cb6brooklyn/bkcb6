@@ -31,6 +31,11 @@ FEATURED = {
          'flyer': '/flyer-bkcm-grand-opening-parade-2026-10-11.jpg'},
     ],
 }
+# A banner under the page header, keyed by place name; it drops off after 'until'.
+NOTICE = {
+    'Carroll Gardens Pop-Up Library': {'until': '2026-12-01',
+        'html': '<div class="reopen-banner" style="background:#f47920;color:#fff;text-align:center;padding:14px 16px;margin:0 0 4px"><div style="font-family:\'DM Sans\',sans-serif;font-weight:900;font-size:1.25rem;line-height:1.2">Carroll Gardens Library reopens Tuesday, December 1</div><div style="font-family:\'DM Mono\',monospace;font-size:.78rem;margin-top:4px">396 Clinton Street</div></div>'},
+}
 CD_FILES = set(f[3:-8] for f in os.listdir('data/districts') if f.startswith('cb-') and f.endswith('.geojson'))
 CB_LONG = {'BX': 'The Bronx', 'BK': 'Brooklyn', 'MN': 'Manhattan',
            'QN': 'Queens', 'SI': 'Staten Island'}
@@ -168,6 +173,8 @@ def page(p):
             for f in feats)
         featured = '  <div class="sec"><h2>Coming up</h2>%s</div>\n' % cards
     events = featured + events
+    nt = NOTICE.get(p['name'])
+    notice = nt['html'] + '\n' if nt and nt.get('until', '9999') >= today else ''
 
     return """<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -189,7 +196,7 @@ def page(p):
     <h1>%(name)s</h1>
     <div class="pseat">%(icon)s &middot; %(boro)s</div>
   </div>
-%(logo)s%(mapsec)s  <div class="sec"><h2>What it is</h2><div class="bio"><p>%(blurb)s</p></div></div>
+%(notice)s%(logo)s%(mapsec)s  <div class="sec"><h2>What it is</h2><div class="bio"><p>%(blurb)s</p></div></div>
   <div class="sec"><h2>Details</h2><div class="bio"><ul class="kv">%(rows)s</ul><div class="chips">%(chips)s</div></div></div>
 %(events)s  <div class="pfoot">Location and category from the culture dataset behind the bkcb6.app culture map. Zoning, land use and ownership come from the Department of City Planning and are shown on the lot page.<br>
   <a href="/culture-map.html">The culture map</a> &middot; <a href="/o/">The directory</a> &middot; <a href="/citywide-search.html">Search any address</a> &middot; <a href="/">bkcb6.app</a></div>
@@ -200,7 +207,7 @@ def page(p):
 <script src="/assets/culture-calendar.js?v=2"></script>
 </body></html>""" % dict(name=name, namejs=json.dumps(p['name']), desc=e(desc), slug=sl, icon=icon, boro=boro,
                          blurb=blurb, rows=''.join(rows), chips=''.join(chips), logo=logo,
-                         events=events, mapsec=mapsec)
+                         events=events, mapsec=mapsec, notice=notice)
 
 
 def main():
