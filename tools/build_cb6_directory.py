@@ -34,7 +34,7 @@ C = {
  'brooklyn-botanic-garden': 'parks', 'brooklyn-bridge-park': 'parks water', 'brooklyn-conservatory-of-music': 'arts youth',
  'brooklyn-pop-up': 'business arts', 'brooklyn-pride': 'civic arts', 'brooklyn-public-library-cb6': 'libraries',
  'camp-friendship': 'food youth health', 'carroll-gardens-association': 'housing civic', 'chips': 'food health housing',
- 'churches-united-for-fair-housing': 'housing', 'cobble-hill-association': 'civic', 'columbia-street-waterfront-association': 'civic water',
+ 'churches-united-for-fair-housing': 'housing', 'cobble-hill-association': 'civic', 'cobble-hill-tree-fund': 'parks', 'cobble-hill-health-center': 'health', 'nyp-brooklyn-methodist-hospital': 'health', 'columbia-street-waterfront-association': 'civic water',
  'dubois-bunche-center': 'civic', 'fifth-avenue-committee': 'housing civic', 'friends-of-fort-defiance': 'civic arts',
  'union-hall': 'arts business', 'the-bell-house': 'arts business', 'littlefield': 'arts business', 'judgy-baby': 'arts business',
  'institute-for-public-architecture': 'civic arts', 'gowanus-oversight-task-force': 'civic', 'gowanus-bid-formation-effort': 'business civic',
@@ -116,6 +116,8 @@ for r in recs:
     elif sl in NOPIN and sl in CAL:
         inside = True      # CB6 calendar groups whose work is in the district but has no single address
     serves = sl in GOV     # the officials who represent CB6 and the agencies that serve it, wherever their office is
+    # Brooklyn's other precincts and school districts are in the officials file but do not serve CB6
+    if (sl.endswith('-precinct') or sl.startswith('school-district-')) and sl not in C: serves = False
     if not inside and not serves:
         out.append(sl); continue
     cs = cats_for(sl, txt(r['seat']))
