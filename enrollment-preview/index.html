@@ -103,6 +103,10 @@ details.grp details.grp{margin:0 0 8px}
 .leaflet-tooltip.dl{background:none;border:0;box-shadow:none;font:700 10px 'DM Mono',monospace;color:#fff;text-shadow:0 0 2px #000,0 0 3px #000;padding:0}
 .leaflet-tooltip.dl:before{display:none}
 .chk{display:flex;gap:8px;align-items:center;font-size:13px;color:#0d1b4b}
+.embed header,.embed #cdCard,.embed #places,.embed #board,.embed #mScope{display:none!important}
+.embed main{padding-top:0}
+.leaflet-tooltip.cdl{background:rgba(255,255,255,.92);border:1px solid #0d1b4b;border-radius:6px;box-shadow:none;font:800 11px 'DM Sans',sans-serif;color:#0d1b4b;padding:2px 6px}
+.leaflet-tooltip.cdl:before{display:none}
 </style></head><body>
 <header><div class="w">
 <h1>Registration by Party</h1>
@@ -151,6 +155,8 @@ details.grp details.grp{margin:0 0 8px}
 </div>
 </main>
 <script>
+var QS=new URLSearchParams(location.search),EMBED=QS.get('embed')==='1',ECB=QS.get('cb');
+if(EMBED)document.documentElement.classList.add('embed');
 var COL={DEM:'#0d1b4b',REP:'#dc2626',BLANK:'#f47920',OTHER:'#7c3aed'};
 var LAB={DEM:'Democratic',REP:'Republican',BLANK:'No party',OTHER:'Other parties'};
 var ORD=['DEM','BLANK','REP','OTHER'];
@@ -191,7 +197,7 @@ function showTop(){
  var bo=place==='nyc'?null:place[0];
  var ks=Object.keys(N['2026-02-20'].cd).filter(function(k){return !bo||k[0]===bo;}).sort(function(a,b){return (isJ(a)-isJ(b))||a.localeCompare(b);});
  document.getElementById('board').innerHTML='<option value="">'+(bo?'Pick a '+BN[bo]+' community board':'Pick a community board')+'</option>'+ks.map(function(k){return '<option value="'+k+'"'+(k===place?' selected':'')+'>'+esc(cdName(k))+(isJ(k)?' (joint interest area)':'')+'</option>';}).join('');
- document.getElementById('topT').textContent=label(place);
+ document.getElementById('topT').textContent=label(place);if(EMBED){var hh=document.querySelector('.hm-h');if(hh)hh.textContent=label(place)+' registration by party, every election district';}
  var t=totFor('2026-02-20',place);
  document.getElementById('topS').textContent='Registered voters by party, November 2022 (governor), November 2025 (mayor) and February 2026, the most recent count the state has published.'+(t?' '+f(t[6])+' registered in February 2026.':'');
  document.getElementById('three').innerHTML=SHOW.map(function(dt){var v=totFor(dt,place);if(!v)return '<div><div class="yr">'+TITLE[dt]+'</div><div class="sub">No voters listed</div></div>';var p=P(v);
@@ -246,7 +252,7 @@ function edList(){
  out.innerHTML=h;
  out.querySelectorAll('details.grp[data-cd]').forEach(function(d){d.addEventListener('toggle',function(){if(d.open&&!d.dataset.done){var c=d.dataset.cd,bb=d.dataset.b;
   d.querySelector('.in').innerHTML=grid(rowsFor(function(v){return c?v[9]===c:(!v[9]&&v[8]===bb);}));d.dataset.done=1;}});});}
-Promise.all([fetch('nyc.json').then(function(r){return r.json();})].concat(SHOW.map(function(d){return fetch('eds-'+d+'.json').then(function(r){return r.json();});}))).then(function(a){N=a[0];a.slice(1).forEach(function(x){E[x.date]=x;});window.__E=E;window.__place=function(){return place;};window.__pick=function(p){setPlace(p);};window.__cdName=cdName;window.__setPlace=function(p){setPlace(p);document.getElementById('top').scrollIntoView({behavior:'smooth'});};window.__edThree=edThree;
+Promise.all([fetch('nyc.json').then(function(r){return r.json();})].concat(SHOW.map(function(d){return fetch('eds-'+d+'.json').then(function(r){return r.json();});}))).then(function(a){N=a[0];a.slice(1).forEach(function(x){E[x.date]=x;});window.__E=E;if(EMBED&&window.parent!==window){var postH=function(){try{window.parent.postMessage({regH:document.documentElement.scrollHeight},'*');}catch(e){}};if(window.ResizeObserver)new ResizeObserver(postH).observe(document.body);setTimeout(postH,500);}window.__place=function(){return place;};window.__pick=function(p){setPlace(p);};window.__cdName=cdName;window.__setPlace=function(p){setPlace(p);document.getElementById('top').scrollIntoView({behavior:'smooth'});};window.__edThree=edThree;
  document.getElementById('key0').innerHTML=ORD.map(function(k){return '<span><i style="background:'+COL[k]+'"></i>'+LAB[k]+'</span>';}).join('');
  document.getElementById('places').innerHTML='<button data-p="nyc">New York City</button>'+['1','2','3','4','5'].map(function(b){return '<button data-p="'+b+'">'+BN[b]+'</button>';}).join('')+'<button data-p="306">BKCB6</button>';
  document.querySelectorAll('#places button').forEach(function(b){b.onclick=function(){setPlace(b.dataset.p);};});
@@ -255,7 +261,7 @@ Promise.all([fetch('nyc.json').then(function(r){return r.json();})].concat(SHOW.
   document.querySelectorAll('#'+id+' button').forEach(function(b){b.onclick=function(){fn(b.dataset.d);};});}
  dbtn('cdDates',cdDate,function(d){cdDate=d;cdGrid();});dbtn('edDates',edDate,function(d){edDate=d;edList();});
  document.getElementById('cdSort').onchange=cdGrid;document.getElementById('edSort').onchange=edList;document.getElementById('q').oninput=edList;
- var h=(location.hash||'').slice(1);setPlace(h==='nyc'||BN[h]||N['2026-02-20'].cd[h]?h:'306');});
+ var h=EMBED&&ECB?ECB:(location.hash||'').slice(1);setPlace(h==='nyc'||BN[h]||N['2026-02-20'].cd[h]?h:'306');});
 </script>
 
 <script>
@@ -297,8 +303,13 @@ function pick(k,zoom,pt){if(!inS(k)){var v=edData()[k];if(v&&window.__pick){wind
  if(PIN){MAP.removeLayer(PIN);PIN=null;}if(pt)PIN=L.circleMarker([pt[1],pt[0]],{radius:8,color:'#fff',weight:3,fillColor:'#f47920',fillOpacity:1}).addTo(MAP);
  if(zoom&&EDL)EDL.eachLayer(function(l){if(l.feature.properties.e===k)MAP.fitBounds(l.getBounds(),{maxZoom:16,padding:[40,40]});});}
 function fitScope(){if(EDL&&EDL.getLayers().length)MAP.fitBounds(EDL.getBounds(),{padding:[8,8]});}
-function cdLines(){if(!CDGEO)return;if(CDL)MAP.removeLayer(CDL);var all=$('mCd').checked;
- CDL=L.geoJSON({type:'FeatureCollection',features:CDGEO.features.filter(function(f){var c=f.properties.cd;if(all)return true;return SCOPE==='nyc'||(/^\d$/.test(SCOPE)?c[0]===SCOPE:c===SCOPE);})},{interactive:false,style:function(f){var c=f.properties.cd;return{fill:false,color:c==='306'?'#f47920':'#0d1b4b',weight:c==='306'?3:1.3,opacity:.95};}}).addTo(MAP);CDL.bringToFront();}
+var CDLB=[],CDH=null;
+function cdLines(){if(!CDGEO)return;if(CDL)MAP.removeLayer(CDL);if(CDH)MAP.removeLayer(CDH);CDLB.forEach(function(l){MAP.removeLayer(l);});CDLB=[];var all=$('mCd').checked;
+ CDL=L.geoJSON({type:'FeatureCollection',features:CDGEO.features.filter(function(f){var c=f.properties.cd;if(all)return true;return SCOPE==='nyc'||(/^\d$/.test(SCOPE)?c[0]===SCOPE:c===SCOPE);})},{interactive:false,style:function(f){var c=f.properties.cd;return{fill:false,color:c==='306'?'#f47920':'#111827',weight:c==='306'?3:2,opacity:1};}});
+ CDH=L.geoJSON(CDL.toGeoJSON(),{interactive:false,style:{fill:false,color:'#ffffff',weight:5,opacity:.9}}).addTo(MAP);CDL.addTo(MAP);CDH.bringToFront();CDL.bringToFront();
+ if(!/^\d{3}$/.test(SCOPE)||all){CDL.eachLayer(function(l){var p=l.feature.properties;if(!p.lx||!window.__cdName)return;if(/^(164|226|227|228|355|356|48\d|595)$/.test(p.cd))return;CDLB.push(L.tooltip({permanent:true,direction:'center',className:'cdl',interactive:false}).setLatLng([p.ly,p.lx]).setContent(window.__cdName(p.cd)));});}
+ cdLbls();}
+function cdLbls(){var on=SCOPE!=='nyc'||MAP.getZoom()>=12;CDLB.forEach(function(l){if(on&&!MAP.hasLayer(l))l.addTo(MAP);if(!on&&MAP.hasLayer(l))MAP.removeLayer(l);});}
 function scopeBtns(){document.querySelectorAll('#mScope button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.p===SCOPE||(SCOPE.length===3&&SCOPE!=='nyc'&&b.dataset.p===SCOPE[0]&&SCOPE!=='306'));});}
 window.__mapFocus0=function(place){if(!MAP||!CDGEO)return;var fs=CDGEO.features.filter(function(f){var c=f.properties.cd;return place==='nyc'||(place.length===1?c[0]===place:c===place);});if(!fs.length)return;MAP.fitBounds(L.geoJSON({type:'FeatureCollection',features:fs}).getBounds(),{padding:[10,10]});};
 window.__mapFocus=function(p){SCOPE=p;scopeBtns();SEL=null;var r=$('mfRes');if(r)r.classList.remove('on');if(MAP)drawEDs();};
@@ -323,7 +334,7 @@ function crossFor(st){var c=STREETS&&STREETS.cross&&STREETS.cross[st];if(!c&&STR
 function init(){
  MAP=L.map('map',{zoomControl:false,scrollWheelZoom:false,zoomSnap:.25,preferCanvas:true}).setView([40.70,-73.94],10);
  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{subdomains:'abcd',maxZoom:20,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(MAP);
- L.control.zoom({position:'topright'}).addTo(MAP);MAP.on('click',function(){MAP.scrollWheelZoom.enable();});MAP.on('zoomend',lbls);
+ L.control.zoom({position:'topright'}).addTo(MAP);MAP.on('click',function(){MAP.scrollWheelZoom.enable();});MAP.on('zoomend',function(){lbls();cdLbls();});
  fetch('/cd-boundaries-simple.geojson').then(function(r){return r.json();}).then(function(g){CDGEO=g;
   cdLines();});
  SCOPE=window.__place?window.__place():'306';scopeBtns();legend();drawEDs();
