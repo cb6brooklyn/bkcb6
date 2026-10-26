@@ -4,7 +4,6 @@
 <link rel="icon" href="/cb6-logo.png">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&family=DM+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{--navy:#0d1b4b;--orange:#f47920;--paper:#f8f7f4;--line:#e5e2db;--muted:#6b6760}
@@ -105,6 +104,7 @@ details.grp details.grp{margin:0 0 8px}
 .chk{display:flex;gap:8px;align-items:center;font-size:13px;color:#0d1b4b}
 .embed header,.embed #cdCard,.embed #places,.embed #board,.embed #mScope{display:none!important}
 .embed main{padding-top:0}
+.embed #edOut{max-height:720px;overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid #e5e2db;border-radius:10px;padding:8px}
 .leaflet-tooltip.cdl{background:rgba(255,255,255,.92);border:1px solid #0d1b4b;border-radius:6px;box-shadow:none;font:800 11px 'DM Sans',sans-serif;color:#0d1b4b;padding:2px 6px}
 .leaflet-tooltip.cdl:before{display:none}
 </style></head><body>
@@ -155,7 +155,7 @@ details.grp details.grp{margin:0 0 8px}
 </div>
 </main>
 <script>
-var QS=new URLSearchParams(location.search),EMBED=QS.get('embed')==='1',ECB=QS.get('cb');
+var QS=new URLSearchParams(location.search),EMBED=QS.get('embed')==='1',ECB=QS.get('cb')||QS.get('boro');
 if(EMBED)document.documentElement.classList.add('embed');
 var COL={DEM:'#0d1b4b',REP:'#dc2626',BLANK:'#f47920',OTHER:'#7c3aed'};
 var LAB={DEM:'Democratic',REP:'Republican',BLANK:'No party',OTHER:'Other parties'};
@@ -285,7 +285,10 @@ function legend(){if(MBY==='LEAD'){var yl={'2022-11-01':'NOV 2022','2025-11-01':
 function edData(){return window.__E&&window.__E[MYR]?window.__E[MYR].eds:{};}
 function tipFor(k){var v=edData()[k];if(!v)return '<b>AD '+(+k.slice(0,2))+' &middot; ED '+(+k.slice(2))+'</b><br>No voters listed';var t=v[6];
  return '<b>AD '+(+k.slice(0,2))+' &middot; ED '+(+k.slice(2))+'</b> &middot; '+(window.__cdName&&v[9]?window.__cdName(v[9]):'')+'<br>'+t.toLocaleString()+' registered<br>Democratic '+(100*v[0]/t).toFixed(1)+'% &middot; no party '+(100*v[5]/t).toFixed(1)+'% &middot; Republican '+(100*v[1]/t).toFixed(1)+'%';}
-function loadGeo(rel){if(GEO[rel])return Promise.resolve(GEO[rel]);return fetch('/data/edhistory/geo/ed'+rel+'.topo.json').then(function(r){return r.json();}).then(function(t){var g=topojson.feature(t,t.objects[Object.keys(t.objects)[0]]);g.features.forEach(function(f){f.properties.e=String(f.properties.e);});GEO[rel]=g;return g;});}
+function topoFC(t){var tr=t.transform,arcs=t.arcs.map(function(a){var x=0,y=0;return a.map(function(p){if(tr){x+=p[0];y+=p[1];return[x*tr.scale[0]+tr.translate[0],y*tr.scale[1]+tr.translate[1]];}return p;});});
+ function ring(ix){var out=[];ix.forEach(function(i){var a=i>=0?arcs[i]:arcs[~i].slice().reverse();out=out.concat(out.length?a.slice(1):a);});return out;}
+ var o=t.objects[Object.keys(t.objects)[0]],fs=[];o.geometries.forEach(function(g){var geom=null;if(g.type==='Polygon')geom={type:'Polygon',coordinates:g.arcs.map(ring)};else if(g.type==='MultiPolygon')geom={type:'MultiPolygon',coordinates:g.arcs.map(function(p){return p.map(ring);})};if(geom)fs.push({type:'Feature',properties:g.properties||{},geometry:geom});});return{type:'FeatureCollection',features:fs};}
+function loadGeo(rel){if(GEO[rel])return Promise.resolve(GEO[rel]);return fetch('/data/edhistory/geo/ed'+rel+'.topo.json').then(function(r){return r.json();}).then(function(t){var g=topoFC(t);g.features.forEach(function(f){f.properties.e=String(f.properties.e);});GEO[rel]=g;return g;});}
 function inS(k){var v=edData()[k];if(SCOPE==='nyc')return true;if(!v)return false;if(/^\d$/.test(SCOPE))return v[9]?v[9][0]===SCOPE:v[8]===SCOPE;return v[9]===SCOPE;}
 function drawEDs(){var rel=MAPREL[MYR];$('mapNote').textContent='Loading the election district map…';
  loadGeo(rel).then(function(g){if(EDL)MAP.removeLayer(EDL);LBLS.forEach(function(l){MAP.removeLayer(l);});LBLS=[];
@@ -346,7 +349,7 @@ function init(){
  $('mfSug').onclick=function(e){var li=e.target.closest('li');if(!li)return;if(li.dataset.ed){hideSug();pick(li.dataset.ed,true);}else if(li.dataset.cb){hideSug();window.__setPlace(li.dataset.cb);}else if(li.dataset.ac){hideSug();found(AC[+li.dataset.ac]);}};
  $('m-addr').onclick=function(){mode(false);};$('m-corner').onclick=function(){mode(true);};
  $('st').onchange=function(){crossFor(this.value);};$('go').onclick=function(){var a=$('st').value,b=$('cx').value;if(!a||!b){$('mfOut').textContent='Pick a street and a cross street.';return;}geocode(a+' and '+b+', Brooklyn, NY',a+' and '+b);};}
-var tries=0;(function wait(){if(window.__E&&window.__E['2026-02-20']&&window.L&&window.topojson)init();else if(tries++<200)setTimeout(wait,100);})();
+var tries=0;(function wait(){if(window.__E&&window.__E['2026-02-20']&&window.L)init();else if(tries++<200)setTimeout(wait,100);})();
 })();
 </script>
 </body></html>
