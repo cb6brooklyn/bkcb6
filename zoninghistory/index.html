@@ -93,6 +93,9 @@ a.g{color:var(--navy);text-decoration:underline;text-decoration-color:var(--oran
 .src{margin-top:8px;display:flex;flex-direction:column;gap:6px}
 .src a{display:flex;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--navy);font-size:.8rem}
 .src a span{font:500 .64rem 'DM Mono',monospace;color:var(--muted);white-space:nowrap}
+.playb{flex:none;width:34px;height:34px;border-radius:50%;border:none;background:var(--navy);color:#fff;font-size:.9rem;cursor:pointer}
+.zl{background:none;border:none;box-shadow:none;font:700 .62rem 'DM Mono',monospace;color:#0d1b4b;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;padding:0}
+.zl:before{display:none}
 .loading{font-size:.8rem;color:var(--muted);padding:10px 0}
 </style>
 </head>
@@ -134,12 +137,13 @@ a.g{color:var(--navy);text-decoration:underline;text-decoration-color:var(--oran
 <section class="sec" id="map-sec">
 <div class="eyebrow">Map</div>
 <h2>Every lot, every rezoning</h2>
-<p class="lead">Each dot is a tax lot, colored by its zoning in the year on the slider. Switch to the 1961 or today’s zoning map, the outlines of every rezoning, or every land use application. Tap anything for its history.</p>
+<p class="lead">The zoning map of BKCB6 in any year from 1961 to today. Press play to watch it change, or drag the slider. Darker shades allow more. Switch to each lot as a dot, the outlines of every rezoning, or every land use application. Tap anything for its history.</p>
 <div class="key" id="map-key"></div>
 <div id="map"></div>
-<div class="pills" id="map-pills"><button data-m="lots" class="on">Lots by year</button><button data-m="z61">1961 map</button><button data-m="zn">Today’s map</button><button data-m="am">Rezonings</button><button data-m="ap">Applications</button></div>
-<div class="slider" id="map-slider"><b id="myr-lab">2026</b><input type="range" id="myr" min="0" max="50" value="50"></div>
+<div class="pills" id="map-pills"><button data-m="zm" class="on">Zoning map by year</button><button data-m="lots">Lots by year</button><button data-m="z61">1961 map</button><button data-m="zn">Today’s map</button><button data-m="am">Rezonings</button><button data-m="ap">Applications</button></div>
+<div class="slider" id="map-slider"><button id="play" class="playb" aria-label="Play">▶</button><b id="myr-lab">2026</b><input type="range" id="myr" min="0" max="50" value="50"></div>
 <div class="card" id="map-card">Tap a lot, a rezoning or an application.</div>
+<p class="note">The zoning map by year starts from the 1961 map and redraws each rezoning’s outline on its effective date, ending at today’s map. Where an area was rezoned more than once, the district between changes comes from the City’s zoning change records, the project description or the lots inside it.</p>
 </section>
 
 <section class="sec" id="rezonings">
@@ -326,7 +330,7 @@ function method(){
 }
 
 // MAP
-var MAP,LAY=null,MM='lots',YRS,lotLayer,lotMarks=[],amLayer,apLayer,z61L,znL,cbL,SELAM=null;
+var MAP,LAY=null,MM='zm',zmLayer,zmLabels,ATOMS,YRS,lotLayer,lotMarks=[],amLayer,apLayer,z61L,znL,cbL,SELAM=null;
 function initMap(){
   YRS=D.ser.y;$('myr').max=YRS.length-1;$('myr').value=YRS.length-1;
   if(!window.L){$('map').innerHTML='<p class="loading" style="padding:12px">The map did not load. Reload the page to try again.</p>';return}
@@ -339,31 +343,55 @@ function initMap(){
   znL=L.geoJSON({type:'FeatureCollection',features:G.zn},{style:zs,onEachFeature:ztip});
   amLayer=L.geoJSON({type:'FeatureCollection',features:G.am.slice().sort(function(a,b){return (b.properties.d||'')<(a.properties.d||'')?-1:1})},{style:amStyle,onEachFeature:function(f,l){var m=AMBY[f.properties.u];l.bindTooltip(m?esc(m.n)+' · '+m.d.slice(0,4):'',{sticky:true});l.on('click',function(){showAm(f.properties.u)})}});
   apLayer=L.layerGroup();D.proj.forEach(function(p){if(!p.ll)return;var mk=L.circleMarker(p.ll,{radius:6,color:'#fff',weight:1.5,fillColor:GRP[grpOf(p.c)][1],fillOpacity:.9});mk._p=p;mk.on('click',function(){showAp(p)});mk.bindTooltip(esc(p.n||p.i),{sticky:true});apLayer.addLayer(mk)});
-  setMode('lots');
+  setMode('zm');
+  fetch('/data/zoninghistory-atoms.json').then(function(r){return r.json()}).then(function(g){ATOMS=g;zmLabels=L.layerGroup();
+    zmLayer=L.geoJSON(g,{style:zmStyle,onEachFeature:function(f,l){l.on('click',function(){showAtom(f.properties)});l.bindTooltip(function(){return zoneAt(f.properties,yearOfSlider())},{sticky:true})}});
+    MAP.on('zoomend',function(){if(MM==='zm')zmLabel()});
+    if(MM==='zm')setMode('zm')}).catch(function(){if(MM==='zm')$('map-card').textContent='The zoning map did not load. Reload the page to try again.'});
   fetch('/data/zoninghistory-lots.json').then(function(r){return r.json()}).then(function(d){LT=d;var rend=L.canvas({padding:.3});lotLayer=L.layerGroup();
     d.lots.forEach(function(r,i){var m=L.circleMarker([r[0],r[1]],{renderer:rend,radius:2.6,weight:0,fillOpacity:.85,fillColor:'#ccc'});m._i=i;m.on('click',function(){showLot(i)});lotMarks.push(m);lotLayer.addLayer(m)});
     if(MM==='lots'){lotLayer.addTo(MAP);paintLots()}}).catch(function(){if(MM==='lots')$('map-card').textContent='The lot data did not load. Reload the page to try again.'});
 }
 function yearOfSlider(){return YRS[+$('myr').value]}
+var SHADE={R:['R5','R5B','R6B','R6','R6A','R7B','R7A','R7-3','R8B','R8A','R8','R8X'],C:['C4-2A','C4-3','C4-3A','C4-4A','C4-4D'],M:['M1-1','M1-2','M1-4','M1-5','M2-1','M2-3','M3-1'],X:['M1-1/R5','M1-4/R6B','M1-4/R6A','M1-2A/R6A','M1-4/R7A','M1-2A/R7A','M1-4/R7-2','M1-4/R7X']};
+var HUE={R:[46,90],C:[350,70],M:[258,45],X:[24,90],P:[122,40],O:[210,10]};
+function zcol(z){var c=catOf(z),h=HUE[c],list=SHADE[c]||[],i=list.indexOf(z),t=list.length>1&&i>=0?i/(list.length-1):.5;return 'hsl('+h[0]+','+h[1]+'%,'+Math.round(80-t*38)+'%)'}
+function zoneAt(p,y){var ds=y+'-12-31',z=p.z61;p.ev.forEach(function(e){if(e[0]<=ds)z=e[2]});return z}
+function zmStyle(f){var z=zoneAt(f.properties,yearOfSlider()),c=zcol(z);return {fillColor:c,fillOpacity:.82,color:c,weight:.6,opacity:1}}
+function zmLabel(){if(!zmLabels||!ATOMS)return;zmLabels.clearLayers();var y=yearOfSlider(),seen=[],zm=MAP.getZoom(),thr=zm<14?3.5:zm<15?1.2:.3,sc=Math.pow(2,13.5-zm),dy=.006*sc,dx=.008*sc;
+  ATOMS.features.slice().sort(function(a,b){return b.properties.ac-a.properties.ac}).forEach(function(f){var p=f.properties;if(p.ac<thr)return;var z=zoneAt(p,y),ll=p.lp;
+    for(var i=0;i<seen.length;i++){if(seen[i][0]===z&&Math.abs(seen[i][1]-ll[0])<dy&&Math.abs(seen[i][2]-ll[1])<dx)return;if(Math.abs(seen[i][1]-ll[0])<dy/3&&Math.abs(seen[i][2]-ll[1])<dx/3)return}
+    seen.push([z,ll[0],ll[1]]);zmLabels.addLayer(L.tooltip({permanent:true,direction:'center',className:'zl',interactive:false}).setLatLng(ll).setContent(esc(z)))})}
+function zmPaint(){if(zmLayer){zmLayer.setStyle(zmStyle);zmLabel()}var y=yearOfSlider(),ad=D.am.filter(function(m){return +m.d.slice(0,4)===y});if(MM==='zm'&&!PLAYING)$('map-card').innerHTML='<h4>BKCB6 zoning, '+(y===1961?'1961 to 1976':'end of '+y)+'</h4>'+(ad.length?'Adopted this year: '+ad.map(function(m){return '<a class="g" href="#" data-am="'+esc(m.u)+'">'+esc(m.n)+'</a> ('+fd(m.d)+')'}).join(', '):(y===1961?'The first zoning map under the 1961 Zoning Resolution.':'No rezonings adopted this year.'))+'<div class="note">Tap any area for its zoning history.</div>'}
+function showAtom(p){var h='<h4>'+esc(zoneAt(p,yearOfSlider()))+' in '+yearOfSlider()+'</h4><div class="hist"><div><b>1961</b> <span class="z">'+esc(p.z61)+'</span></div>';var prev=p.z61;
+  p.ev.forEach(function(e){var m=AMBY[e[1]];h+='<div><b>'+fd(e[0])+'</b> '+(m?'<a class="g" href="#" data-am="'+esc(m.u)+'">'+esc(m.n)+'</a>':'')+' → <span class="z">'+esc(e[2])+'</span>'+(e[2]===prev?' <span class="note">(no change here)</span>':'')+'</div>';prev=e[2]});
+  h+='<div><b>Today</b> <span class="z">'+esc(p.zn)+'</span></div></div>'+(p.ev.length?'':'<div class="note">Not rezoned since 1961.</div>')+'<div class="note">'+f1(p.ac)+' acres, including streets.</div>';$('map-card').innerHTML=h}
+var PLAYING=null;
+$('play').addEventListener('click',function(){if(PLAYING){clearInterval(PLAYING);PLAYING=null;$('play').textContent='▶';zmPaint();return}
+  if(MM!=='zm'&&MM!=='lots'&&MM!=='am'&&MM!=='ap')setMode('zm');if(+$('myr').value>=YRS.length-1)$('myr').value=0;$('play').textContent='❚❚';
+  var step=function(){var v=+$('myr').value;$('myr').dispatchEvent(new Event('input'));if(v>=YRS.length-1){clearInterval(PLAYING);PLAYING=null;$('play').textContent='▶';zmPaint();return}$('myr').value=v+1};
+  step();PLAYING=setInterval(step,650)});
 function amStyle(f){var d=f.properties.d||'',y=+d.slice(0,4),cur=yearOfSlider(),on=y<=cur,sel=f.properties.u===SELAM;var col=y<1990?'#94a3b8':y<2002?'#64748b':y<2014?'#2563eb':'#0d1b4b';return {color:sel?'#f47920':col,weight:sel?4:1.5,fillColor:col,fillOpacity:on?(sel?.45:.28):0,opacity:on?1:0}}
 function zoneIdxAt(r,y){var ds=y+'-12-31',z=r[4];r[5].forEach(function(e){if(LT_D(e[0])<=ds)z=e[1]});return z}
 var LTD={};function LT_D(i){if(LTD[i]==null){var m=AMBY[LT.ams[i]];LTD[i]=m?m.d:'9999'}return LTD[i]}
 function paintLots(){if(!LT)return;var y=yearOfSlider();lotMarks.forEach(function(m){var r=LT.lots[m._i];m.setStyle({fillColor:CAT[catOf(LT.zones[zoneIdxAt(r,y)])][1]})})}
-function setMode(m){MM=m;[z61L,znL,amLayer,apLayer,lotLayer].forEach(function(l){if(l&&MAP.hasLayer(l))MAP.removeLayer(l)});
+function setMode(m){MM=m;[zmLayer,zmLabels,z61L,znL,amLayer,apLayer,lotLayer].forEach(function(l){if(l&&MAP.hasLayer(l))MAP.removeLayer(l)});
   if(m==='z61')z61L.addTo(MAP);if(m==='zn')znL.addTo(MAP);if(m==='am'){znL.addTo(MAP);znL.setStyle(function(f){return {fillColor:CAT[catOf(f.properties.z)][1],fillOpacity:.18,color:'#fff',weight:.5}});amLayer.addTo(MAP);amLayer.setStyle(amStyle)}else znL.setStyle(function(f){return {fillColor:CAT[catOf(f.properties.z)][1],fillOpacity:.6,color:'#fff',weight:1}});
   if(m==='ap'){apLayer.addTo(MAP);paintAp()}
   if(m==='lots'&&lotLayer){lotLayer.addTo(MAP);paintLots()}
+  if(m==='zm'&&zmLayer){zmLayer.addTo(MAP);zmLabels.addTo(MAP);zmPaint()}
   cbL.bringToFront&&cbL.bringToFront();
-  $('map-slider').style.display=(m==='lots'||m==='am'||m==='ap')?'':'none';
+  $('map-slider').style.display=(m==='zm'||m==='lots'||m==='am'||m==='ap')?'':'none';
   document.querySelectorAll('#map-pills button').forEach(function(x){x.classList.toggle('on',x.dataset.m===m)});
   var k;if(m==='am')k='<span><i style="background:#94a3b8"></i>1977 to 1989</span><span><i style="background:#64748b"></i>1990 to 2001</span><span><i style="background:#2563eb"></i>2002 to 2013</span><span><i style="background:#0d1b4b"></i>2014 to 2026</span>';
   else if(m==='ap')k=GRP.map(function(g){return '<span><i style="background:'+g[1]+';border-radius:50%"></i>'+g[0]+'</span>'}).join('');
+  else if(m==='zm')k=keyHTML(ORD)+'<span>Lighter to darker: less to more density</span>';
   else k=keyHTML(ORD);
   $('map-key').innerHTML=k+'<span><i style="background:transparent;border:3px solid #f47920"></i>BKCB6</span>';
   $('myr-lab').textContent=yearOfSlider();
 }
 function paintAp(){var y=yearOfSlider();apLayer.eachLayer(function(mk){var on=(+(mk._p.cr||mk._p.d||'0').slice(0,4))<=y;mk.setStyle({opacity:on?1:0,fillOpacity:on?.9:0});mk.options.interactive=on})}
-$('myr').addEventListener('input',function(){$('myr-lab').textContent=yearOfSlider();if(MM==='lots')paintLots();if(MM==='am')amLayer.setStyle(amStyle);if(MM==='ap')paintAp()});
+$('myr').addEventListener('input',function(){$('myr-lab').textContent=yearOfSlider();if(MM==='zm')zmPaint();if(MM==='lots')paintLots();if(MM==='am')amLayer.setStyle(amStyle);if(MM==='ap')paintAp()});
 document.querySelectorAll('#map-pills button').forEach(function(b){b.addEventListener('click',function(){setMode(b.dataset.m)})});
 function showLot(i){var r=LT.lots[i],b=r[3],h='<h4>'+esc(r[2]||'Lot '+b)+'</h4><div class="note" style="margin-top:0">BBL '+b+' · '+f0(r[9])+' sq ft lot'+(r[7]?' · '+r[7]+' homes':'')+(r[8]?' · built '+r[8]:'')+'</div><div class="hist"><div><b>1961</b> <span class="z">'+esc(LT.zones[r[4]])+'</span></div>';
   var prev=r[4];r[5].forEach(function(e){var m=AMBY[LT.ams[e[0]]];h+='<div><b>'+(m?fd(m.d):'')+'</b> '+(m?'<a class="g" href="#" data-am="'+esc(m.u)+'">'+esc(m.n)+'</a>':'')+' → <span class="z">'+esc(LT.zones[e[1]])+'</span>'+(e[1]===prev?' <span class="note">(no change for this lot)</span>':'')+'</div>';prev=e[1]});
