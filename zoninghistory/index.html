@@ -96,6 +96,19 @@ a.g{color:var(--navy);text-decoration:underline;text-decoration-color:var(--oran
 .playb{flex:none;width:34px;height:34px;border-radius:50%;border:none;background:var(--navy);color:#fff;font-size:.9rem;cursor:pointer}
 .zl{background:none;border:none;box-shadow:none;font:700 .62rem 'DM Mono',monospace;color:#0d1b4b;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;padding:0}
 .zl:before{display:none}
+.mp{margin-top:10px;border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--off)}
+.mp-txt{font-size:.84rem;line-height:1.6;color:#374151}
+.mp-txt b{color:var(--navy)}
+.mp-chk{display:flex;gap:6px;align-items:center;font-size:.76rem;margin-top:8px;color:#374151}
+.mp-g{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+@media(max-width:700px){.mp-g{grid-template-columns:1fr}}
+.mp-c{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px}
+.mp-h{font:600 .62rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.mp-pct{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:.72rem;color:#374151}
+.mp-pct i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px}
+.mp-big{font-size:1.4rem;font-weight:700;margin-top:4px}
+.mp-big span{font-size:.72rem;font-weight:400;color:var(--muted)}
+.mp-c svg{width:100%;height:auto;display:block;margin-top:6px}
 .loading{font-size:.8rem;color:var(--muted);padding:10px 0}
 </style>
 </head>
@@ -142,6 +155,15 @@ a.g{color:var(--navy);text-decoration:underline;text-decoration-color:var(--oran
 <div id="map"></div>
 <div class="pills" id="map-pills"><button data-m="zm" class="on">Zoning map by year</button><button data-m="lots">Lots by year</button><button data-m="z61">1961 map</button><button data-m="zn">Today’s map</button><button data-m="am">Rezonings</button><button data-m="ap">Applications</button></div>
 <div class="slider" id="map-slider"><button id="play" class="playb" aria-label="Play">▶</button><b id="myr-lab">2026</b><input type="range" id="myr" min="0" max="50" value="50"></div>
+<div class="mp" id="mp">
+<div class="mp-txt" id="mp-txt"></div>
+<label class="mp-chk"><input type="checkbox" id="mp-homes" checked> Show buildings with homes built since 1961 on the map, as they go up (orange: built that year)</label>
+<div class="mp-g">
+<div class="mp-c"><div class="mp-h">Share of BKCB6 lot area by zoning</div><div class="bar" id="mp-bar"></div><div id="mp-pct" class="mp-pct"></div><div id="mp-lines"></div></div>
+<div class="mp-c"><div class="mp-h">Homes in BKCB6’s buildings today, by year built</div><div class="mp-big" id="mp-homes-n"></div><div id="mp-homes-c"></div></div>
+</div>
+<p class="note">Zoning shares are lot area, not counting streets. Homes counts the apartments in each of today’s buildings (PLUTO) in the year the building was built, so it leaves out homes later demolished or combined, and conversions are counted in the building’s original year. Housing Database figures, for net homes completed each year, start in 2010.</p>
+</div>
 <div class="card" id="map-card">Tap a lot, a rezoning or an application.</div>
 <p class="note">The zoning map by year starts from the 1961 map and redraws each rezoning’s outline on its effective date, ending at today’s map. Where an area was rezoned more than once, the district between changes comes from the City’s zoning change records, the project description or the lots inside it.</p>
 </section>
@@ -350,9 +372,48 @@ function initMap(){
     if(MM==='zm')setMode('zm')}).catch(function(){if(MM==='zm')$('map-card').textContent='The zoning map did not load. Reload the page to try again.'});
   fetch('/data/zoninghistory-lots.json').then(function(r){return r.json()}).then(function(d){LT=d;var rend=L.canvas({padding:.3});lotLayer=L.layerGroup();
     d.lots.forEach(function(r,i){var m=L.circleMarker([r[0],r[1]],{renderer:rend,radius:2.6,weight:0,fillOpacity:.85,fillColor:'#ccc'});m._i=i;m.on('click',function(){showLot(i)});lotMarks.push(m);lotLayer.addLayer(m)});
+    mpBuild();
     if(MM==='lots'){lotLayer.addTo(MAP);paintLots()}}).catch(function(){if(MM==='lots')$('map-card').textContent='The lot data did not load. Reload the page to try again.'});
 }
 function yearOfSlider(){return YRS[+$('myr').value]}
+var HY=null,HB=0,HUNK=0,homeLayer=null,homeMarks=[];
+function mpBuild(){var c={};HB=0;HUNK=0;LT.lots.forEach(function(r){if(!r[7])return;if(!r[8]){HUNK+=r[7];return}if(r[8]<1961)HB+=r[7];else c[r[8]]=(c[r[8]]||0)+r[7]});
+  HY={};var t=HB;for(var y=1961;y<=2026;y++){t+=(c[y]||0);HY[y]=[t,c[y]||0]}
+  var rend=L.canvas({padding:.3});homeLayer=L.layerGroup();LT.lots.forEach(function(r){if(!r[7]||r[8]<1961)return;var m=L.circleMarker([r[0],r[1]],{renderer:rend,radius:Math.min(14,1.2+Math.sqrt(r[7])*.55),color:'#0d1b4b',weight:.6,fillColor:'#ffffff',fillOpacity:.75,interactive:false});m._y=r[8];homeMarks.push(m)});
+  mpLines();mpHomesChart();mpUpd()}
+function mpX(y,W,pl,pr){return pl+(y-1961)/(2026-1961)*(W-pl-pr)}
+function mpLines(){var s=D.ser,W=340,H=150,pl=28,pr=14,pt=8,pb=18,o='';
+  var yrs=[1961,1976].concat(s.y.slice(1)),ix=function(i){return i<=1?0:i-1};
+  var tot=function(i){return ORD.reduce(function(x,c){return x+s.a[c][i]},0)};
+  var Y=function(v){return pt+(1-v/60)*(H-pt-pb)};
+  [0,20,40,60].forEach(function(v){o+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="#eee"/><text x="'+(pl-3)+'" y="'+(Y(v)+3)+'" font-size="8" text-anchor="end" fill="#6b6760" font-family="DM Mono,monospace">'+v+'%</text>'});
+  ORD.forEach(function(c){o+='<polyline fill="none" stroke="'+CAT[c][1]+'" stroke-width="2.2" points="'+yrs.map(function(y,i){var k=ix(i);return mpX(y,W,pl,pr)+','+Y(s.a[c][k]/tot(k)*100)}).join(' ')+'"/>'});
+  [1961,1980,2000,2026].forEach(function(y){o+='<text x="'+mpX(y,W,pl,pr)+'" y="'+(H-4)+'" font-size="8" text-anchor="middle" fill="#6b6760" font-family="DM Mono,monospace">'+y+'</text>'});
+  o+='<line id="mp-l-mk" y1="'+pt+'" y2="'+(H-pb)+'" stroke="#111827" stroke-width="1.5"/>';
+  $('mp-lines').innerHTML='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Share of lot area by zoning, 1961 to 2026">'+o+'</svg>'}
+function mpHomesChart(){var W=340,H=150,pl=34,pr=14,pt=8,pb=18,mx=Math.ceil(HY[2026][0]/10000)*10000,o='';
+  var Y=function(v){return pt+(1-v/mx)*(H-pt-pb)};
+  for(var v=0;v<=mx;v+=20000)o+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="#eee"/><text x="'+(pl-3)+'" y="'+(Y(v)+3)+'" font-size="8" text-anchor="end" fill="#6b6760" font-family="DM Mono,monospace">'+(v/1000)+'k</text>';
+  var pts=[];for(var y=1961;y<=2026;y++)pts.push(mpX(y,W,pl,pr)+','+Y(HY[y][0]));
+  o+='<polygon fill="#0d1b4b" fill-opacity=".15" points="'+mpX(1961,W,pl,pr)+','+Y(0)+' '+pts.join(' ')+' '+mpX(2026,W,pl,pr)+','+Y(0)+'"/><polyline fill="none" stroke="#0d1b4b" stroke-width="2.2" points="'+pts.join(' ')+'"/>';
+  var bm=Math.max.apply(null,Object.keys(HY).map(function(y){return HY[y][1]}));
+  for(var y2=1961;y2<=2026;y2++){var b=HY[y2][1];if(b)o+='<rect x="'+(mpX(y2,W,pl,pr)-1.6)+'" y="'+(Y(0)-b/bm*30)+'" width="3.2" height="'+(b/bm*30)+'" fill="#f47920"><title>'+y2+': '+b+' homes</title></rect>'}
+  [1961,1980,2000,2026].forEach(function(y){o+='<text x="'+mpX(y,W,pl,pr)+'" y="'+(H-4)+'" font-size="8" text-anchor="middle" fill="#6b6760" font-family="DM Mono,monospace">'+y+'</text>'});
+  o+='<line id="mp-h-mk" y1="'+pt+'" y2="'+(H-pb)+'" stroke="#111827" stroke-width="1.5"/>';
+  $('mp-homes-c').innerHTML='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Homes in today\u2019s buildings by year built">'+o+'</svg><div class="key" style="margin-top:2px"><span><i style="background:#0d1b4b;opacity:.6"></i>Total</span><span><i style="background:#f47920"></i>Built that year</span></div>'}
+function pc(v){v*=100;return (v<10?Math.round(v*10)/10:Math.round(v))+'%'}
+function mpUpd(){if(!D)return;var y=yearOfSlider(),s=D.ser,i=+$('myr').value,t=ORD.reduce(function(x,c){return x+s.a[c][i]},0);
+  $('mp-bar').innerHTML=ORD.map(function(c){var v=s.a[c][i];return v?'<i style="width:'+(v/t*100)+'%;background:'+CAT[c][1]+'"></i>':''}).join('');
+  $('mp-pct').innerHTML=ORD.map(function(c){return '<span><i style="background:'+CAT[c][1]+'"></i>'+CAT[c][0].replace(' (paired M1 and R)','')+' '+(Math.round(s.a[c][i]/t*1000)/10)+'%</span>'}).join('');
+  var lm=document.getElementById('mp-l-mk');if(lm){var x=mpX(y,340,28,14);lm.setAttribute('x1',x);lm.setAttribute('x2',x)}
+  var hm=document.getElementById('mp-h-mk');if(hm){var x2=mpX(y,340,34,14);hm.setAttribute('x1',x2);hm.setAttribute('x2',x2)}
+  var hy=HY?HY[y]:null,hd=D.hdb.y.indexOf(y),net=hd>=0?D.hdb.m61[hd]+D.hdb.oth[hd]:null;
+  if(hy)$('mp-homes-n').innerHTML=f0(hy[0])+' <span>homes by '+y+' · '+f0(hy[1])+' in buildings built in '+y+'</span>';
+  var ad=D.am.filter(function(m){return +m.d.slice(0,4)===y});
+  $('mp-txt').innerHTML='<b>'+(y===1961?'1961 to 1976':y)+':</b> '+pc(s.a.R[i]/t)+' of BKCB6’s lot area is zoned residence, '+pc(s.a.M[i]/t)+' manufacturing'+(s.a.X[i]?', '+pc(s.a.X[i]/t)+' mixed use':'')+' and '+pc(s.a.C[i]/t)+' commercial.'+(hy?' Today’s buildings held '+f0(hy[0])+' homes by '+y+'.':'')+(net!=null?' The Housing Database counts '+f0(net)+' net homes completed in '+y+'.':'')+(ad.length?' Rezoned this year: '+ad.map(function(m){return '<a class="g" href="#" data-am="'+esc(m.u)+'">'+esc(m.n)+'</a>'}).join(', ')+'.':'');
+  if(homeLayer){var on=$('mp-homes').checked;homeMarks.forEach(function(m){var sh=on&&MM==='zm'&&m._y<=y;if(sh&&!homeLayer.hasLayer(m))homeLayer.addLayer(m);if(!sh&&homeLayer.hasLayer(m))homeLayer.removeLayer(m)});if(!MAP.hasLayer(homeLayer))homeLayer.addTo(MAP);
+    homeMarks.forEach(function(m){if(homeLayer.hasLayer(m))m.setStyle({fillColor:m._y===y?'#f47920':m._y>=y-4&&y>1961?'#fbbf8a':'#ffffff'})})}}
+document.getElementById('mp-homes').addEventListener('change',mpUpd);
 var SHADE={R:['R5','R5B','R6B','R6','R6A','R7B','R7A','R7-3','R8B','R8A','R8','R8X'],C:['C4-2A','C4-3','C4-3A','C4-4A','C4-4D'],M:['M1-1','M1-2','M1-4','M1-5','M2-1','M2-3','M3-1'],X:['M1-1/R5','M1-4/R6B','M1-4/R6A','M1-2A/R6A','M1-4/R7A','M1-2A/R7A','M1-4/R7-2','M1-4/R7X']};
 var HUE={R:[46,90],C:[350,70],M:[258,45],X:[24,90],P:[122,40],O:[210,10]};
 function zcol(z){var c=catOf(z),h=HUE[c],list=SHADE[c]||[],i=list.indexOf(z),t=list.length>1&&i>=0?i/(list.length-1):.5;return 'hsl('+h[0]+','+h[1]+'%,'+Math.round(80-t*38)+'%)'}
@@ -388,10 +449,10 @@ function setMode(m){MM=m;[zmLayer,zmLabels,z61L,znL,amLayer,apLayer,lotLayer].fo
   else if(m==='zm')k=keyHTML(ORD)+'<span>Lighter to darker: less to more density</span>';
   else k=keyHTML(ORD);
   $('map-key').innerHTML=k+'<span><i style="background:transparent;border:3px solid #f47920"></i>BKCB6</span>';
-  $('myr-lab').textContent=yearOfSlider();
+  $('myr-lab').textContent=yearOfSlider();mpUpd();
 }
 function paintAp(){var y=yearOfSlider();apLayer.eachLayer(function(mk){var on=(+(mk._p.cr||mk._p.d||'0').slice(0,4))<=y;mk.setStyle({opacity:on?1:0,fillOpacity:on?.9:0});mk.options.interactive=on})}
-$('myr').addEventListener('input',function(){$('myr-lab').textContent=yearOfSlider();if(MM==='zm')zmPaint();if(MM==='lots')paintLots();if(MM==='am')amLayer.setStyle(amStyle);if(MM==='ap')paintAp()});
+$('myr').addEventListener('input',function(){$('myr-lab').textContent=yearOfSlider();mpUpd();if(MM==='zm')zmPaint();if(MM==='lots')paintLots();if(MM==='am')amLayer.setStyle(amStyle);if(MM==='ap')paintAp()});
 document.querySelectorAll('#map-pills button').forEach(function(b){b.addEventListener('click',function(){setMode(b.dataset.m)})});
 function showLot(i){var r=LT.lots[i],b=r[3],h='<h4>'+esc(r[2]||'Lot '+b)+'</h4><div class="note" style="margin-top:0">BBL '+b+' · '+f0(r[9])+' sq ft lot'+(r[7]?' · '+r[7]+' homes':'')+(r[8]?' · built '+r[8]:'')+'</div><div class="hist"><div><b>1961</b> <span class="z">'+esc(LT.zones[r[4]])+'</span></div>';
   var prev=r[4];r[5].forEach(function(e){var m=AMBY[LT.ams[e[0]]];h+='<div><b>'+(m?fd(m.d):'')+'</b> '+(m?'<a class="g" href="#" data-am="'+esc(m.u)+'">'+esc(m.n)+'</a>':'')+' → <span class="z">'+esc(LT.zones[e[1]])+'</span>'+(e[1]===prev?' <span class="note">(no change for this lot)</span>':'')+'</div>';prev=e[1]});
