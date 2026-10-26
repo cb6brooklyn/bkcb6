@@ -486,7 +486,7 @@ def route_section(o):
             'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",go);else go();})();</script>\n\n')
 
 
-for _f in ('org-profiles-cal.json', 'gov-profiles.json', 'place-profiles.json'):
+for _f in ('org-profiles-cal.json', 'gov-profiles.json', 'place-profiles.json', 'health-profiles.json'):
     _extra = os.path.join(ROOT, 'data', _f)
     if os.path.exists(_extra):
         ORGS += json.load(open(_extra, encoding='utf-8'))
@@ -591,6 +591,12 @@ for o in ORGS:
                   .replace('<span>the building, its block and the zoning around it</span>', '<span>%s</span>' % a['caption']))
         fields['wheresec'] = w
     html = TPL.format(**fields)
+    if o.get('nologo'):
+        # no logo of its own exists (a small practice or shop with no site or mark): no logo slot, a plain pin, the CB6 card for sharing
+        import re as _re
+        html = _re.sub(r'<span class="pmark"><img src="/site-icons/%s.png"[^>]*></span>' % _re.escape(o['slug']), '', html)
+        html = html.replace('data-point-icon="/site-icons/%s.png"' % o['slug'], 'data-point-icon=""')
+        html = html.replace('https://bkcb6.app/site-icons/%s.png' % o['slug'], 'https://bkcb6.app/og-image.png')
     if o.get('logov'):
         html = html.replace('/site-icons/%s.png' % o['slug'], '/site-icons/%s.png?v=%s' % (o['slug'], o['logov']))
     d = os.path.join(ROOT, o['slug'])

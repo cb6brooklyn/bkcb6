@@ -269,6 +269,8 @@ HTYPE = {'HOSPITAL': 'Hospital', 'HOSPITAL EXTENSION CLINIC': 'Hospital clinic',
 HORDER = list(HTYPE)
 # Places that have a hand-written profile of their own; the Facilities Database copy is not made again.
 HANDWRITTEN = {'Cobble Hill Health Center', 'NewYork-Presbyterian Brooklyn Methodist Hospital'}
+# every health care site with a profile of its own (scripts/health_profiles.py) is left to that profile
+HANDWRITTEN |= {f['name'] for r in json.load(open('data/health-locations.json')) for f in r.get('fac') or []}
 for f in sorted((f for f in fac if f['facgroup'] == 'HEALTH CARE' and f['factype'] in HTYPE), key=lambda f: (HORDER.index(f['factype']), f['facname'])):
     name = title(re.sub(r'\s+', ' ', SUFFIX.sub('', f['facname'])).strip(' ,.'))
     if name in HANDWRITTEN: continue   # has its own hand-written profile (with its calendar) in orgs-profiles.json
