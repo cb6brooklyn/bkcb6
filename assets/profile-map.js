@@ -673,6 +673,17 @@
           .bindTooltip('<b>' + escT(p.name) + '</b><br>' + escT(p.system_name || '') + (p.address ? '<br>' + escT(p.address) : ''), { sticky: true }).addTo(g);
       });
     } });
+    // the NYC Health Map's vaccine sites; a place with a bkcb6.app profile shows its logo and opens its profile
+    layers.vaccines = viewLayer({ label: 'vaccine sites', minZoom: 13, fetch: function () { return getJSON('/data/vaccine-sites.json'); }, draw: function (g, d, b) {
+      (d.sites || []).forEach(function (v) {
+        if (!b.contains([v.lat, v.lng])) return;
+        var m = v.i ? L.marker([v.lat, v.lng], { icon: ico(v.i, 24) })
+                    : L.circleMarker([v.lat, v.lng], { radius: 5, color: '#fff', weight: 1.5, fillColor: '#0f7b6c', fillOpacity: 1 });
+        m.bindTooltip('<b>' + escT(v.name) + '</b><br>' + escT((v.vaccines || []).join(', ')) + '<br>' + escT(v.address), { sticky: true });
+        if (v.u) m.on('click', function () { location.href = v.u; });
+        m.addTo(g);
+      });
+    } });
     layers.schooldistricts = viewLayer({ label: 'school districts', fetch: function () {
       return Promise.all(['manhattan', 'bronx', 'brooklyn', 'queens', 'statenisland'].map(function (b) { return getJSON('/data/school-districts-' + b + '.geojson').catch(function () { return null; }); }));
     }, draw: function (g, all, b) {
@@ -806,6 +817,7 @@
     addToggle('schools', 'Schools');
     addToggle('childcare', 'Child care and pre-K');
     addToggle('libraries', 'Libraries');
+    addToggle('vaccines', 'Vaccine sites');
     addToggle('schooldistricts', 'School districts');
     addToggle('landmarks', 'Landmarks');
     addToggle('nypd', 'NYPD precincts');

@@ -15,6 +15,11 @@ import json, html, re, os, shutil
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
 LOC = json.load(open('data/health-locations.json'))
+import sys
+sys.path.insert(0, os.path.join(ROOT, 'scripts'))
+from vaccine_links import link_file
+VAX = link_file()   # each NYC Health Map vaccine site linked to its profile; slug -> vaccines given there
+HEALTHMAP = 'https://a816-health.nyc.gov/NYCHealthMap/ServiceCategory/Vaccines'
 W = 'https://bkcb6.app'
 
 def esc(s): return html.escape(s or '', quote=False)
@@ -51,6 +56,8 @@ for r in LOC:
         intro.append(esc(r['note']))
     kv = []
     if r.get('specialties'): kv.append(['Specialties', esc(', '.join(r['specialties']))])
+    if VAX.get(slug):
+        kv.append(['Vaccines', esc(', '.join(VAX[slug])) + f' &middot; <a href="{HEALTHMAP}" target="_blank" rel="noopener">NYC Health Map &#8599;</a>'])
     kv.append(['Community board', cbh])
     links = []
     if r.get('web'): links.append(['Their site', r['web'], True])
@@ -89,7 +96,7 @@ keep = {p['slug'] for p in d['profiles'] if not p['slug'].startswith('health-') 
 pos = {p['slug']: i for i, p in enumerate(d['profiles'])}
 placed = []
 for a, rep in app_profiles:
-    at = min((pos[s] for s in rep if s in pos), default=len(d['profiles']))
+    at = min((pos[s] for s in rep + [a['slug']] if s in pos), default=len(d['profiles']))
     placed.append((at, a))
 out, j = [], 0
 placed.sort(key=lambda x: x[0])
@@ -109,5 +116,21 @@ for l in lay['layers']:
     for r in LOC:
         for k in r.get('items') or []:
             l['items'][k]['u'] = f"/{r['slug']}/"
+            if r.get('logo'): l['items'][k]['i'] = '/' + r['logo']
+# the NYC Health Map's vaccine sites around CB6, as their own layer on the block maps (the block cards list the closest ones)
+vdoc = json.load(open('data/vaccine-sites.json'))
+box = (40.655, 40.695, -74.025, -73.96)
+vitems = []
+for v in vdoc['sites']:
+    if not (box[0] < v['lat'] < box[1] and box[2] < v['lng'] < box[3]): continue
+    it = {'x': v['lng'], 'y': v['lat'], 't': v['name'], 's': ', '.join(v.get('vaccines') or []) + ' · ' + v['address']}
+    if v.get('u'): it['u'] = v['u']
+    if v.get('i'): it['i'] = v['i']
+    vitems.append(it)
+vl = {'id': 'vaccines', 'label': 'Vaccine sites', 'kind': 'pt', 'n': len(vitems), 'items': vitems, 'note': 'NYC Health Map, Vaccines (NYC Department of Health and Mental Hygiene)'}
+lay['layers'] = [l for l in lay['layers'] if l['id'] != 'vaccines']
+at = next((i for i, l in enumerate(lay['layers']) if l['id'] == 'health'), len(lay['layers']) - 1) + 1
+lay['layers'].insert(at, vl)
 open(LP, 'w').write(json.dumps(lay, ensure_ascii=False, separators=(',', ':')))
+print(len(vitems), 'vaccine sites on the CB6 map;', sum(1 for v in vdoc['sites'] if v.get('u')), 'linked to profiles')
 print(len(site), 'site profiles;', len(app_profiles), 'app profiles;', len(drop), 'older app copies replaced')

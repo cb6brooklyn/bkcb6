@@ -53,3 +53,11 @@ doc = {"generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(ti
 dest = sys.argv[1] if len(sys.argv) > 1 else "vaccine-sites.json"
 json.dump(doc, open(dest, "w"), separators=(",", ":"))
 print(len(out), "sites", counts)
+# link each site to its bkcb6.app profile, where there is one (scripts/vaccine_links.py)
+try:
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
+    from vaccine_links import link_file
+    print(len(link_file(dest)), "profiles linked")
+except Exception as e:
+    print("profile links not applied:", e)
