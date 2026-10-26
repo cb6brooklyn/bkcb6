@@ -609,6 +609,16 @@ for o in ORGS:
     if o.get('closeup'):
         # no single address but one home spot: open the map on the spot, not the whole district
         html = html.replace(' data-cb6="1"', '', 1)
+        html = html.replace('data-bid-slug="park-slope-5th-avenue" ', '', 1)   # no zoning or BID overlay
+        html = html.replace('profile-map.js?v=20261016ev', 'profile-map.js?v=20261026lbl')   # the label-under-pin version
+        html = html.replace('data-point-zoom="17"', 'data-point-zoom="17" data-point-label="%s"' % o['closeup'], 1)
+        # the map only shows where it is based: no title, address search, layer toggles or lot hint
+        import re as _re
+        html = _re.sub(r'<summary>Map of the block<span class="msub">[^<]*</span>', '<summary>Map', html, 1)
+        html = _re.sub(r'\s*<div class="mapttl">.*?</div>\n', '\n', html, 1)
+        html = _re.sub(r'\s*<div class="msearch">.*?</div>\n', '\n', html, 1)
+        html = _re.sub(r'\s*<button type="button" class="mtoggle".*?</button>\n\s*<div class="mtools"[^>]*></div>\n', '\n', html, 1, flags=_re.S)
+        html = _re.sub(r'\s*<div class="mhint">.*?</div>\n', '\n', html, 1)
     if o.get('nologo'):
         # no logo of its own exists (a small practice or shop with no site or mark): no logo slot, a plain pin, the CB6 card for sharing
         import re as _re

@@ -225,8 +225,8 @@
       }
       if (ptLabel && place.bindTooltip) {
         place.bindTooltip(ptLabel, {
-          permanent: true, direction: 'top',
-          offset: ptIcon ? [0, -6] : [0, -8], className: 'pmap-place'
+          permanent: true, direction: ptIcon ? 'bottom' : 'top',   // a logo pin keeps its label under the tip, clear of the logo
+          offset: ptIcon ? [0, 4] : [0, -8], className: 'pmap-place'
         });
       }
     }
