@@ -98,6 +98,8 @@ a.g{color:var(--navy);text-decoration:underline;text-decoration-color:var(--oran
 .zl:before{display:none}
 .hdl{background:none;border:none;box-shadow:none;font:700 .6rem 'DM Sans',sans-serif;color:#7c2d12;text-shadow:0 0 2px #fff,0 0 3px #fff;padding:0;white-space:nowrap}
 .hdl:before{display:none}
+.tap{cursor:pointer}
+.leaflet-tooltip.tap.leaflet-interactive{pointer-events:auto}
 .zl.pp{font-size:.8rem}
 .zl.zp{font:600 .66rem 'DM Sans',sans-serif;color:#14532d;font-style:italic;white-space:nowrap}
 .nbl{background:none;border:none;box-shadow:none;font:700 .64rem 'DM Sans',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#0d1b4b;opacity:.8;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 4px #fff;padding:0;white-space:nowrap}
@@ -399,8 +401,8 @@ function initMap(){
   MAP.createPane('lbl');MAP.getPane('lbl').style.zIndex=450;MAP.getPane('lbl').style.pointerEvents='none';
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{subdomains:'abcd',maxZoom:20,pane:'lbl',opacity:.85}).addTo(MAP);
   var NBH=[['Park Slope',40.67476,-73.97792],['South Slope',40.66174,-73.98616],['Gowanus',40.67462,-73.99151],['Carroll Gardens',40.67863,-73.998],['Cobble Hill',40.6875,-73.99658],['Boerum Hill',40.68622,-73.98661],['Columbia Street Waterfront',40.6835,-74.00393],['Red Hook',40.6758,-74.0102]];
-  PPL=L.layerGroup().addTo(MAP);[['Prospect Park',40.6635,-73.9738,'right'],['Brooklyn Bridge Park',40.6931,-74.00216,'top']].forEach(function(k){L.tooltip({permanent:true,direction:k[3],offset:[0,0],className:'zl zp pp',interactive:false,pane:'lbl'}).setLatLng([k[1],k[2]]).setContent(k[0]).addTo(PPL)});
-  NBL=L.layerGroup(NBH.map(function(n){return L.tooltip({permanent:true,direction:'center',className:'nbl',interactive:false,pane:'lbl'}).setLatLng([n[1],n[2]]).setContent(n[0])})).addTo(MAP);
+  PPL=L.layerGroup().addTo(MAP);[['Prospect Park',40.6635,-73.9738,'right'],['Brooklyn Bridge Park',40.6931,-74.00216,'top']].forEach(function(k){tip([k[1],k[2]],k[0],'zl zp pp',k[3],function(){showPark(k[0],null)}).addTo(PPL)});
+  NBL=L.layerGroup(NBH.map(function(n){return tip([n[1],n[2]],n[0],'nbl','center',function(){MAP.setView([n[1],n[2]],15.5);$('map-card').innerHTML='<h4>'+esc(n[0])+'</h4>Zoomed in on '+esc(n[0])+'. Tap any block for its zoning history, or a park or historic district for its details.'})})).addTo(MAP);
   var dc=L.control({position:'bottomleft'});dc.onAdd=function(){var d=L.DomUtil.create('div','mdate');d.id='map-date';return d};dc.addTo(MAP);
   cbL=L.geoJSON(G.cb,{style:{color:'#f47920',weight:3,fill:false},interactive:false}).addTo(MAP);MAP.fitBounds(cbL.getBounds().extend([40.6945,-74.0022]).extend([40.6635,-73.963]),{padding:[6,6]});
   var zs=function(f){return zsF(f)};
@@ -501,18 +503,30 @@ function zmStyle(f){var z=zoneAt(f.properties,yearOfSlider()),c=zcol(z);return s
 function zmLabel(){if(!zmLabels||!ATOMS)return;zmLabels.clearLayers();var y=yearOfSlider(),seen=[],zm=MAP.getZoom(),thr=zm<14.5?999:zm<15.5?1.2:.3,sc=Math.pow(2,13.5-zm),dy=.006*sc,dx=.008*sc;
   ATOMS.features.slice().sort(function(a,b){return b.properties.ac-a.properties.ac}).forEach(function(f){var p=f.properties;if(p.ac<thr)return;var z=zoneAt(p,y),ll=p.lp;if(!selOK(z))return;
     for(var i=0;i<seen.length;i++){if(seen[i][0]===z&&Math.abs(seen[i][1]-ll[0])<dy&&Math.abs(seen[i][2]-ll[1])<dx)return;if(Math.abs(seen[i][1]-ll[0])<dy/3&&Math.abs(seen[i][2]-ll[1])<dx/3)return}
-    seen.push([z,ll[0],ll[1]]);if(catOf(z)==='P')return;zmLabels.addLayer(L.tooltip({permanent:true,direction:'center',className:'zl',interactive:false}).setLatLng(ll).setContent(esc(z)))});
+    seen.push([z,ll[0],ll[1]]);if(catOf(z)==='P')return;zmLabels.addLayer(tip(ll,esc(z),'zl','center',function(){showAtom(p)}))});
   var pn={};ATOMS.features.forEach(function(f){var p=f.properties,z=zoneAt(p,y);if(catOf(z)!=='P'||!selOK(z))return;var n=p.pk||'';if(n==='Prospect Park')return;/* labeled permanently below */if(!$('mp-nb').checked)return;if(!n){if(p.ac<thr)return;n='Park'}if(!pn[n]||pn[n].ac<p.ac)pn[n]=p});
-  Object.keys(pn).forEach(function(n){var p=pn[n];if(p.ac<(zm<15?2.5:.02))return;zmLabels.addLayer(L.tooltip({permanent:true,direction:'center',className:'zl zp',interactive:false}).setLatLng(p.lp).setContent(esc(n)))})}
+  Object.keys(pn).forEach(function(n){var p=pn[n];if(p.ac<(zm<15?2.5:.02))return;zmLabels.addLayer(tip(p.lp,esc(n),'zl zp','center',function(){showPark(n==='Park'?null:n,p)}))})}
 function mdate(){var el=document.getElementById('map-date');if(!el)return;var y=yearOfSlider(),last=YRS[YRS.length-1],ad=D.am.filter(function(m){return +m.d.slice(0,4)===y});
   el.innerHTML='<b>'+y+'</b><span>'+(y===1961?'The zoning map of December 15, 1961':y===last?'Today':'As of December 31, '+y)+'</span>'}
+function tip(ll,html,cls,dir,fn){var t=L.tooltip({permanent:true,direction:dir||'center',className:cls+' tap',interactive:true,pane:'lbl'}).setLatLng(ll).setContent(html);t.on('click',function(e){if(e&&e.originalEvent)L.DomEvent.stop(e.originalEvent);fn();cardIntoView()});return t}
+function cardIntoView(){var c=$('map-card');if(!c)return;var r=c.getBoundingClientRect();if(r.top>window.innerHeight-60)c.scrollIntoView({behavior:'smooth',block:'nearest'})}
+function showHd(p){$('map-card').innerHTML='<h4>'+esc(p.n)+'</h4>Designated by the Landmarks Preservation Commission on '+fd(p.d)+' ('+esc(p.lp)+')<sup class="cite"><a href="#src-16">16</a></sup>.'+(D.hd&&D.hd.lots?'':'')}
+var PARKS=null;
+function showPark(name,ap){var go=function(){var fs=name?PARKS.filter(function(f){var q=f.properties;return q.layer==='park'&&((q.sign_name||q.name)===name)}):[];
+  var q=fs.length?fs[0].properties:null,ac=fs.reduce(function(x,f){return x+(+f.properties.acres||0)},0);
+  var h='<h4>'+esc(name||'Park')+'</h4>';
+  if(q)h+='<div>'+esc(q.subcategory||q.type_category||'')+(ac?' · '+(Math.round(ac*100)/100)+' acres':'')+'</div>'+(q.location?'<div class="note" style="margin-top:2px">'+esc(q.location)+'</div>':'')+'<div class="note">NYC Parks property '+esc(q.gispropnum||'')+'<sup class="cite"><a href="#src-15">15</a></sup></div>';
+  else if(name==='Prospect Park'||name==='Brooklyn Bridge Park')h+='<div>Just outside BKCB6. NYC Parks property '+(name==='Prospect Park'?'B073':'B431')+'<sup class="cite"><a href="#src-15">15</a></sup></div>';
+  if(ap){var t=document.createElement('div');showAtom(ap);t.innerHTML=$('map-card').innerHTML;h+='<div style="margin-top:8px">'+t.innerHTML+'</div>'}
+  $('map-card').innerHTML=h};
+  if(PARKS)go();else fetch('/data/bkcb6-parks.geojson').then(function(r){return r.json()}).then(function(d){PARKS=d.features;go()}).catch(function(){PARKS=[];go()})}
 function hdY(y){return (D.hd&&D.hd.list||[]).filter(function(h){return +h.d.slice(0,4)===y})}
 var hdLayer=null,hdLab=null;
 function paintHd(){if(!MAP||!G.hd)return;if(!hdLayer){MAP.createPane('hdp');MAP.getPane('hdp').style.zIndex=430;hdLab=L.layerGroup();
-    hdLayer=L.geoJSON({type:'FeatureCollection',features:G.hd},{pane:'hdp',style:function(){return {color:'#7c2d12',weight:2.4,dashArray:'6,4',fillColor:'#7c2d12',fillOpacity:.07}},onEachFeature:function(f,l){l.on('click',function(){var p=f.properties;$('map-card').innerHTML='<h4>'+esc(p.n)+'</h4>Designated by the Landmarks Preservation Commission on '+fd(p.d)+' ('+esc(p.lp)+')<sup class="cite"><a href="#src-16">16</a></sup>'})}})}
+    hdLayer=L.geoJSON({type:'FeatureCollection',features:G.hd},{pane:'hdp',style:function(){return {color:'#7c2d12',weight:2.4,dashArray:'6,4',fillColor:'#7c2d12',fillOpacity:.07}},onEachFeature:function(f,l){l.on('click',function(){var p=f.properties;showHd(p)})}})}
   var y=yearOfSlider(),on=$('mp-hd')&&$('mp-hd').checked,ds=y===1961?'1961-12-15':y+'-12-31';hdLab.clearLayers();
   hdLayer.eachLayer(function(l){var p=l.feature.properties,v=on&&p.d<=ds;l.setStyle({opacity:v?1:0,fillOpacity:v?.07:0});if(l.options)l.options.interactive=v;
-    if(v&&MAP.getZoom()>=15)hdLab.addLayer(L.tooltip({permanent:true,direction:'center',className:'hdl',interactive:false,pane:'lbl'}).setLatLng(p.lp_pt).setContent(esc(p.n.replace(' Historic District',' HD'))+' · '+p.d.slice(0,4)))});
+    if(v&&MAP.getZoom()>=15)hdLab.addLayer(tip(p.lp_pt,esc(p.n.replace(' Historic District',' HD'))+' · '+p.d.slice(0,4),'hdl','center',function(){showHd(p)}))});
   if(!MAP.hasLayer(hdLayer))hdLayer.addTo(MAP);if(!MAP.hasLayer(hdLab))hdLab.addTo(MAP)}
 function zmPaint(){mdate();paintHd();if(zmLayer){zmLayer.setStyle(zmStyle);zmLabel()}var y=yearOfSlider(),ad=D.am.filter(function(m){return +m.d.slice(0,4)===y});if(MM==='zm'&&!PLAYING)$('map-card').innerHTML='<h4>BKCB6 zoning, '+(y===1961?'December 15, 1961':'end of '+y)+'</h4>'+(ad.length?'Adopted this year: '+ad.map(function(m){return '<a class="g" href="#" data-am="'+esc(m.u)+'">'+esc(m.n)+'</a> ('+fd(m.d)+')'}).join(', '):(y===1961?'The first zoning map under the 1961 Zoning Resolution.':'No rezonings adopted this year.'))+'<div class="note">Tap any area for its zoning history.</div>'}
 function showAtom(p){var h='<h4>'+esc(zoneAt(p,yearOfSlider()))+' in '+yearOfSlider()+'</h4><div class="hist"><div><b>1961</b> <span class="z">'+esc(p.z61)+'</span></div>';var prev=p.z61;
