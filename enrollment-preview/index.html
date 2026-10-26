@@ -50,11 +50,27 @@ h2{margin:0 0 4px;font-size:19px;font-weight:800}
 .note{font-size:12px;color:var(--muted);line-height:1.55;margin-top:10px}
 </style></head><body>
 <header><div class="w">
-<h1>BKCB6 Registration by Party</h1>
-<p>Registered voters in every BKCB6 election district, from the state Board of Elections' enrollment by election district.</p>
+<h1>Registration by Party</h1>
+<p>Registered voters in New York City, every borough, every community district, and every BKCB6 election district, from the state Board of Elections' enrollment by election district.</p>
 <span class="pv">Preview, not linked from the site</span>
 </div></header>
 <main>
+<div class="card" id="nyc">
+ <h2 id="nycT">New York City</h2>
+ <p class="sub" id="nycS"></p>
+ <div class="ctl" id="places"></div>
+ <div class="ctl"><select id="board" aria-label="Pick a community board"></select></div>
+ <div class="key" id="key0"></div>
+ <div class="three" id="nycThree" style="margin-top:12px"></div>
+</div>
+<div class="card">
+ <h2 id="cdT">Every community district</h2>
+ <p class="sub" id="cdS"></p>
+ <div class="ctl" id="cdDates"></div>
+ <div class="ctl"><select id="cdSort"><option value="cd">Sort by board</option><option value="dem">Most Democratic</option><option value="rep">Most Republican</option><option value="blank">Most no party</option><option value="tot">Most registered</option></select><span class="cnt" id="cdCnt"></span></div>
+ <div class="grid" id="cdGrid"></div>
+ <p class="note">Boroughs are the state's county totals. Each community district adds up the election districts the Board of Elections ED map puts in it (the November 2022 map for 2022, the November 2025 map for 2025 and February 2026; eight EDs created after November 2025 are placed by the March 2026 map). A few EDs sit in one borough's county and another borough's board, such as Marble Hill (New York County, Bronx board 8), so board totals within a borough do not add up exactly to the county total. Joint interest areas (parks, airports and Gateway) have their own small counts. In November 2022, 3 voters were in EDs the map does not place.</p>
+</div>
 <div class="card" id="cb6"></div>
 <div class="card">
  <h2>Every election district</h2>
@@ -118,5 +134,56 @@ function grid(){document.querySelectorAll('#dates button').forEach(function(b){b
  document.getElementById('grid').innerHTML=rows.map(function(r){var p=r.p;
   var chg=other.map(function(od){var y=BY[od];if(!y.eds[r.k])return TITLE[od]+': no ED '+(+r.k.slice(2))+' in AD '+(+r.k.slice(0,2));var o=edObj(y,r.k);return TITLE[od]+': '+f(o.TOTAL)+' registered, '+pc(o.DEM,o.TOTAL)+' Dem, '+pc(o.REP,o.TOTAL)+' Rep';}).join('<br>');
   return '<div class="ed"><div class="h"><b>'+edName(r.k)+'</b><span>'+f(p.TOTAL)+' reg.</span></div>'+block(p,pc(p.DEM,p.TOTAL).replace('.0%','%'),'Dem')+'<div class="chg">'+chg+'</div></div>';}).join('');}
+</script>
+<script>
+(function(){
+var BN={'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'},BP={'1':'MN','2':'BX','3':'BK','4':'QN','5':'SI'};
+var JIA={'164':'Central Park','226':'Van Cortlandt Park','227':'Bronx Park','228':'Pelham Bay Park','355':'Prospect Park','356':'Gateway, Brooklyn','480':'LaGuardia Airport','481':'Flushing Meadows Corona Park','482':'Forest Park','483':'JFK Airport','484':'Gateway, Queens','595':'Gateway, Staten Island'};
+var COLS=['DEM','REP','CON','WOR','OTH','BLANK','TOTAL','ACT'];
+function P(v){var o={};COLS.forEach(function(c,i){o[c]=v[i];});return parts(o);}
+function cdName(k){return JIA[k]?JIA[k]:BP[k[0]]+'CB'+(+k.slice(1));}
+function isJ(k){return !!JIA[k];}
+var N,place='nyc',cdDate='2026-02-20';
+function totFor(dt,pl){var x=N[dt];
+ if(pl==='nyc'){var s=[0,0,0,0,0,0,0,0];Object.keys(x.boro).forEach(function(b){x.boro[b].forEach(function(v,i){s[i]+=v;});});return s;}
+ if(pl.length===1)return x.boro[pl];return x.cd[pl]||null;}
+function label(pl){return pl==='nyc'?'New York City':pl.length===1?BN[pl]:(isJ(pl)?JIA[pl]+' (joint interest area)':cdName(pl));}
+function top(){
+ document.querySelectorAll('#places button').forEach(function(b){b.classList.toggle('on',b.dataset.p===place||(place.length===3&&b.dataset.p===place[0]));});
+ var bs=document.getElementById('board'),bo=place==='nyc'?null:place[0];
+ var ks=Object.keys(N['2026-02-20'].cd).filter(function(k){return !bo||k[0]===bo;}).sort(function(a,b){return (isJ(a)-isJ(b))||a.localeCompare(b);});
+ bs.innerHTML='<option value="">'+(bo?'Pick a '+BN[bo]+' community board':'Pick a community board')+'</option>'+ks.map(function(k){return '<option value="'+k+'"'+(k===place?' selected':'')+'>'+esc(cdName(k))+(isJ(k)?' (joint interest area)':'')+'</option>';}).join('');
+ document.getElementById('nycT').textContent=label(place);
+ var t26=totFor('2026-02-20',place);
+ document.getElementById('nycS').textContent='Registered voters by party, November 2022 (governor), November 2025 (mayor) and February 2026, the most recent count the state has published. '+(t26?f(t26[6])+' registered in February 2026.':'');
+ document.getElementById('nycThree').innerHTML=SHOW.map(function(dt){var v=totFor(dt,place);if(!v)return '<div><div class="yr">'+TITLE[dt]+'</div><div class="sub">No voters listed</div></div>';var p=P(v);
+  return '<div><div class="yr">'+TITLE[dt]+'<small>'+nice(dt)+' · '+f(p.TOTAL)+' registered</small></div>'+block(p,pc(p.DEM,p.TOTAL).replace('.0%','%'),'Democratic')+'</div>';}).join('');
+ grid2();}
+function grid2(){
+ document.querySelectorAll('#cdDates button').forEach(function(b){b.classList.toggle('on',b.dataset.d===cdDate);});
+ var bo=place==='nyc'?null:place[0],x=N[cdDate],so=document.getElementById('cdSort').value;
+ var ks=Object.keys(x.cd).filter(function(k){return !bo||k[0]===bo;});
+ var rows=ks.map(function(k){return{k:k,p:P(x.cd[k])};});
+ var sh=function(r,c){return r.p.TOTAL?r.p[c]/r.p.TOTAL:0;};
+ rows.sort(function(a,b){if(isJ(a.k)!==isJ(b.k))return isJ(a.k)-isJ(b.k);
+  if(so==='dem')return sh(b,'DEM')-sh(a,'DEM');if(so==='rep')return sh(b,'REP')-sh(a,'REP');if(so==='blank')return sh(b,'BLANK')-sh(a,'BLANK');if(so==='tot')return b.p.TOTAL-a.p.TOTAL;return a.k.localeCompare(b.k);});
+ var nb=rows.filter(function(r){return !isJ(r.k);}).length;
+ document.getElementById('cdT').textContent='Every community district'+(bo?' in '+BN[bo]:'');
+ document.getElementById('cdS').textContent=nice(cdDate)+': '+nb+' community boards'+(rows.length>nb?' and '+(rows.length-nb)+' joint interest areas':'')+'. Tap one to see its three counts above.';
+ document.getElementById('cdCnt').textContent=rows.length+' districts';
+ var other=SHOW.filter(function(d){return d!==cdDate;});
+ document.getElementById('cdGrid').innerHTML=rows.map(function(r){var p=r.p;
+  var chg=other.map(function(od){var v=N[od].cd[r.k];if(!v)return TITLE[od]+': no voters listed';var o=P(v);return TITLE[od]+': '+f(o.TOTAL)+' registered, '+pc(o.DEM,o.TOTAL)+' Dem, '+pc(o.REP,o.TOTAL)+' Rep';}).join('<br>');
+  return '<div class="ed" data-k="'+r.k+'" style="cursor:pointer'+(r.k===place?';border-color:#f47920;box-shadow:0 0 0 2px #f47920':'')+'"><div class="h"><b>'+esc(cdName(r.k))+'</b><span>'+f(p.TOTAL)+' reg.</span></div>'+(isJ(r.k)?'<div class="chg" style="margin:-2px 0 4px">Joint interest area</div>':'')+block(p,pc(p.DEM,p.TOTAL).replace('.0%','%'),'Dem')+'<div class="chg">'+chg+'</div></div>';}).join('');
+ document.querySelectorAll('#cdGrid .ed').forEach(function(el){el.onclick=function(){place=el.dataset.k;top();document.getElementById('nyc').scrollIntoView({behavior:'smooth'});};});}
+fetch('nyc.json').then(function(r){return r.json();}).then(function(d){N=d;
+ document.getElementById('key0').innerHTML=ORD.map(function(k){return '<span><i style="background:'+COL[k]+'"></i>'+LAB[k]+'</span>';}).join('');
+ document.getElementById('places').innerHTML='<button data-p="nyc">New York City</button>'+['1','2','3','4','5'].map(function(b){return '<button data-p="'+b+'">'+BN[b]+'</button>';}).join('');
+ document.querySelectorAll('#places button').forEach(function(b){b.onclick=function(){place=b.dataset.p;top();};});
+ document.getElementById('board').onchange=function(){if(this.value){place=this.value;top();}};
+ document.getElementById('cdDates').innerHTML=SHOW.map(function(dt){return '<button data-d="'+dt+'">'+TITLE[dt]+' <small style="font-family:DM Mono,monospace;font-weight:500;opacity:.75">'+nice(dt).replace(/, \d+$/,'')+'</small></button>';}).join('');
+ document.querySelectorAll('#cdDates button').forEach(function(b){b.onclick=function(){cdDate=b.dataset.d;grid2();};});
+ document.getElementById('cdSort').onchange=grid2;top();});
+})();
 </script>
 </body></html>
