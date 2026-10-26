@@ -606,6 +606,8 @@ for o in ORGS:
                   .replace('<span>the building, its block and the zoning around it</span>', '<span>%s</span>' % a['caption']))
         fields['wheresec'] = w
     html = TPL.format(**fields)
+    if o.get('nocrumb'):
+        html = html.replace(' &middot; <a href="/govhub.html" style="color:inherit">Government</a></div>', '</div>', 1)
     if o.get('closeup'):
         # no single address but one home spot: open the map on the spot, not the whole district
         html = html.replace(' data-cb6="1"', '', 1)
