@@ -56,7 +56,7 @@ function mergeEntry(ev) {
   if (SUPPRESSED_LIVE.has(ev.date + '|' + (ev.label || '').replace(/\s+/g, ' ').trim())) return;
   if (typeof ev.label === 'string' && /^Early Voting\s+—/.test(ev.label)) return;
   if (!EVENTS[ev.date]) EVENTS[ev.date] = [];
-  if (EVENTS[ev.date].some(e => e._hardcoded && norm(e.label) === norm(ev.label))) return;
+  if (EVENTS[ev.date].some(e => norm(e.label) === norm(ev.label))) return;
   const idx = ev.type === 'community' ? -1 : EVENTS[ev.date].findIndex(e => e.type === ev.type && e._hardcoded);
   if (idx !== -1) EVENTS[ev.date][idx] = ev;
   else if (!EVENTS[ev.date].some(e => e.type === ev.type && !e._hardcoded && (!MANY_A_DAY.has(ev.type) || (e.label === ev.label && e.time === ev.time)))) EVENTS[ev.date].push(ev);

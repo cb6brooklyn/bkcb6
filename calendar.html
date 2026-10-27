@@ -2964,7 +2964,19 @@ function buildTodayFlyers(){
         `<div class="tfc-label">${ev.label}</div></div>`
       );
     } else {
-      // No flyer yet: placeholder card showing the org logo/emoji + label, opens day detail
+      // No flyer yet: placeholder card showing the org logo/emoji + label, opens day detail.
+      // One card per logo: an organization's other listings that day fold into it, never the same logo over and over.
+      const logoKey = 'logo:' + (ORG_ICONS[ev.type] || filterType(ev.type));
+      const condense = !NO_CONDENSE.has(filterType(ev.type));
+      if(condense && seen.has(logoKey)) continue;
+      if(condense) seen.add(logoKey);
+      const sameLogo = condense ? evs.filter(e => !e.flyer && (ORG_ICONS[e.type] || filterType(e.type)) === (ORG_ICONS[ev.type] || filterType(ev.type))) : [ev];
+      if(sameLogo.length > 1){
+        const logo2 = ORG_ICONS[ev.type];
+        const visual2 = logo2 ? `<img src="${logo2}" alt="" style="width:40px;height:40px;border-radius:6px;background:#fff;object-fit:cover">` : `<span style="font-size:1.8rem">${t.icon}</span>`;
+        cards.push(`<div class="today-flyer-card today-flyer-noimg" style="background:${t.bg}" onclick="openTodayDay('${key}')"><div class="tfc-noimg-art">${visual2}</div><div class="tfc-label">${orgTitle(filterType(ev.type))} \u00b7 ${sameLogo.length} events<span class="tfc-meta">${[...new Set(sameLogo.map(e=>e.time).filter(Boolean))].slice(0,3).join(', ')}</span></div></div>`);
+        continue;
+      }
       const logo = ORG_ICONS[ev.type];
       const visual = logo
         ? `<img src="${logo}" alt="" style="width:40px;height:40px;border-radius:6px;background:#fff;object-fit:cover">`
@@ -3866,7 +3878,7 @@ async function loadLiveEvents(){
     // If a hardcoded entry with the same label already exists for this date,
     // don't add the feed copy (it may carry a different/generic type + icon).
     const norm = s => (s||'').replace(/\s+/g,' ').trim().toLowerCase();
-    if(EVENTS[ev.date].some(e => e._hardcoded && norm(e.label) === norm(ev.label))) return;
+    if(EVENTS[ev.date].some(e => norm(e.label) === norm(ev.label))) return; // the same listing twice (the CB6 site reposts the early voting entries): show it once
     const idx = ev.type==="community" ? -1 : EVENTS[ev.date].findIndex(e=>e.type===ev.type&&e._hardcoded); // a feed event never overwrites a different hand-entered community event
     if(idx!==-1) EVENTS[ev.date][idx]=ev;
     else if(!EVENTS[ev.date].some(e=>e.type===ev.type&&!e._hardcoded&&(!MANY_A_DAY.has(ev.type)||(e.label===ev.label&&e.time===ev.time)))) EVENTS[ev.date].push(ev); // venues list every show and class that day

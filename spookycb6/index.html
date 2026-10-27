@@ -260,12 +260,14 @@ function goUrl(c){return c.profile?c.profile+(INAPP?'?app=1':''):calUrl(c);}
 function goText(c){return c.profile?'See '+(c.org||'their')+'\u2019s page':'See it on the calendar';}
 function markIcon(e){if(isVote(e))return '/halloween-voter-2026.png';var c=CAL[e.id]||{};return c.flyer||c.icon||'/spooky-cb6-128.png';}
 // One place, more than one happening on the same day (Union Hall's Halloween night, Nitehawk's double bill): one listing and one pin
-function placeKey(e){return isCal(e)&&e.org?e.org+'|'+e.lat.toFixed(4)+','+e.lng.toFixed(4):null;}
-function places(items){var out=[];items.forEach(function(it){var k=placeKey(it.e),g=null;
-  if(k)for(var i=0;i<out.length;i++){var o=out[i];if(o.key===k&&o.members.some(function(m){return m.dates.some(function(d){return it.dates.indexOf(d)>=0;});})){g=o;break;}}
+// Listings that only carry their organization's logo (Prospect Park Alliance, Littlefield, the library) are one pin and one listing for that organization, not the same logo over and over
+function logoOnly(e){return isCal(e)&&e.org&&!(CAL[e.id]&&CAL[e.id].flyer);}
+function placeKey(e,forMap){return isVote(e)?(forMap?null:'logo|vote'):logoOnly(e)?'logo|'+e.org:isCal(e)&&e.org?e.org+'|'+e.lat.toFixed(4)+','+e.lng.toFixed(4):null;}
+function places(items,forMap){var out=[];items.forEach(function(it){var k=placeKey(it.e,forMap),g=null;
+  if(k)for(var i=0;i<out.length;i++){var o=out[i];if(o.key===k&&(k.indexOf('logo|')===0||o.members.some(function(m){return m.dates.some(function(d){return it.dates.indexOf(d)>=0;});}))){g=o;break;}}
   if(g){g.members.push(it);it.ids.forEach(function(id){g.ids.push(id);});it.dates.forEach(function(d){if(g.dates.indexOf(d)<0)g.dates.push(d);});g.dates.sort();}
   else out.push({key:k,e:it.e,dates:it.dates.slice(),ids:it.ids.slice(),members:[it]});});return out;}
-function placeName(g){return g.e.org;}
+function placeName(g){return isVote(g.e)?'Early voting sites':g.e.org;}
 function tmin(t){var m=/(\d{1,2})(?::(\d{2}))?\s*([AP])M/i.exec(t||'');return m?(+m[1]%12+(/p/i.test(m[3])?12:0))*60+(+(m[2]||0)):9999;}
 function byTime(ms){return ms.slice().sort(function(a,b){return a.dates[0]<b.dates[0]?-1:a.dates[0]>b.dates[0]?1:tmin(a.e.time)-tmin(b.e.time);});}
 function popPlace(g){var pc=CAL[g.e.id];return (pc&&pc.profile?'<a class="pop-btn" style="margin:0 0 8px" href="'+esc(goUrl(pc))+'">'+esc(goText(pc))+'</a>':'')+'<b>'+esc(placeName(g))+'</b><br><span style="font-size:.74rem;color:#6b6760">'+esc(g.e.where)+'</span>'+byTime(g.members).map(function(m){var c=CAL[m.e.id];
@@ -359,7 +361,7 @@ function buildDates(){
 function drawMap(items){
   evLayer.clearLayers();lineById={};
   var seen={};
-  places(items).forEach(function(it){
+  places(items,true).forEach(function(it){
     var e=it.e,c=col(e),g=L.featureGroup();
     var k=e.lat.toFixed(5)+','+e.lng.toFixed(5),dup=seen[k]||0;seen[k]=dup+1; // several events at one place: step the icons apart
     var ll=[e.lat-dup*0.00028,e.lng+dup*0.00036];
@@ -372,7 +374,7 @@ function drawMap(items){
 }
 function evHTML(items,grouped){return places(items).map(function(g){
   if(g.members.length===1)return '<div class="ev" data-id="'+esc(g.e.id)+'">'+card(g.e,g.dates,grouped)+'</div>';
-  var e=g.e;return '<div class="ev" data-id="'+esc(e.id)+'">'+(iconic(e)?'<img class="th" src="'+esc(markIcon(e))+'" alt="" loading="lazy">':'')+'<div class="bd"><div class="t">'+(CAL[e.id]&&CAL[e.id].profile?'<a href="'+esc(goUrl(CAL[e.id]))+'" style="color:inherit;text-decoration:none;border-bottom:2px solid var(--orange)">'+esc(placeName(g))+'</a>':esc(placeName(g)))+'</div><div class="w">'+esc(e.where)+'</div><div class="o">'+g.members.length+' happenings</div><div class="sub">'+
+  var e=g.e;return '<div class="ev" data-id="'+esc(e.id)+'">'+(iconic(e)?'<img class="th" src="'+esc(markIcon(e))+'" alt="" loading="lazy">':'')+'<div class="bd"><div class="t">'+(CAL[e.id]&&CAL[e.id].profile?'<a href="'+esc(goUrl(CAL[e.id]))+'" style="color:inherit;text-decoration:none;border-bottom:2px solid var(--orange)">'+esc(placeName(g))+'</a>':esc(placeName(g)))+'</div>'+(g.members.every(function(m){return m.e.where===e.where;})?'<div class="w">'+esc(e.where)+'</div>':'')+'<div class="o">'+g.members.length+(isVote(e)?' sites':' happenings')+'</div><div class="sub">'+
     byTime(g.members).map(function(m){return '<div data-id="'+esc(m.e.id)+'">'+esc(m.e.name)+(m.e.where!==e.where?' ('+esc(m.e.where.split(',')[0])+')':'')+'<span>'+(g.dates.length===1?'':esc(datesText(m.dates))+(m.e.time?' &middot; ':''))+esc(m.e.time||'')+'</span></div>';}).join('')+'</div>'+(g.dates.length===1?'<div class="d">'+esc(dlong(g.dates[0]))+'</div>':'')+'</div></div>';}).join('');}
 function groupedHTML(items){
   if(nInts()===1)return evHTML(items);
@@ -400,20 +402,29 @@ function render(){
   document.getElementById('byInt').classList.toggle('on',listBy==='int');document.getElementById('byDay').classList.toggle('on',listBy==='day');
   var list=EV.filter(keep),items=collapse(list);
   drawMap(items);
-  var c6=items.filter(function(it){return it.e.cds.indexOf(6)>=0;});
+  function here(e){return e.cds.indexOf(6)>=0||isCal(e);} // CB6, plus a Halloween listing placed on the map from outside it (BAM's The Exorcist)
+  var c6=items.filter(function(it){return here(it.e);});
   document.getElementById('cb6sub').textContent=countText(c6)+' '+when();
   document.getElementById('pickDays').innerHTML=nDays()?(nDays()+' day'+(nDays()===1?'':'s')+' picked &#9662;'):'Pick days &#9662;';
   document.getElementById('pickDays').classList.toggle('on',!!nDays());
-  drawStrip(list.filter(function(e){return e.cds.indexOf(6)>=0;}));
-  document.getElementById('cb6list').innerHTML=c6.length?(listBy==='day'?byDayHTML(list.filter(function(e){return e.cds.indexOf(6)>=0;})):groupedHTML(c6)):'<div class="empty">Nothing '+when()+(nInts()?' for what you picked':'')+'.</div>';
+  drawStrip(list.filter(here));
+  document.getElementById('cb6list').innerHTML=c6.length?(listBy==='day'?byDayHTML(list.filter(here)):groupedHTML(c6)):'<div class="empty">Nothing '+when()+(nInts()?' for what you picked':'')+'.</div>';
 }
-// The top of the page: every event with a flyer or a logo, soonest first, flyers ahead of logos on a day; tap one to see it on the map
+// The top of the page: every event with a flyer or a logo, soonest first, flyers ahead of logos on a day; tap one to see it on the map.
+// Events that share one image (every early voting site, every Prospect Park Alliance listing) are one card, never the same picture over and over.
 function drawStrip(list){
   var its=collapse(list.filter(function(e){return iconic(e)||(CAL[e.id]&&CAL[e.id].flyer);})).map(function(it){var c=CAL[it.e.id]||{};it.fl=!!c.flyer;it.first=it.dates.filter(function(d){return nDays()||curDate==='past'||d>=TODAY;})[0]||it.dates[0];return it;});
-  its.sort(function(a,b){return a.first<b.first?-1:a.first>b.first?1:(b.fl-a.fl);});
-  document.getElementById('striphd').textContent=(curDate==='past'&&!nDays()?'So far this October':nDays()?'On the days you picked':'Coming up')+' \u00b7 '+its.length;
-  document.getElementById('strip').innerHTML=its.length?its.map(function(it){var e=it.e;return '<button type="button" class="fcard'+(isVote(e)?' vote':'')+'" data-id="'+esc(e.id)+'"><img src="'+esc(markIcon(e))+'" alt="" loading="lazy"><div class="ft">'+esc(e.name)+'</div><div class="fd">'+esc(it.dates.length>1?dlab(it.first)+' +'+(it.dates.length-1):dlab(it.first))+'</div></button>';}).join(''):'<div class="stripnone">Nothing with a flyer '+when()+'.</div>';
+  var byImg={},cards=[];
+  its.forEach(function(it){var k=markIcon(it.e),c=byImg[k];if(!c){c=byImg[k]={img:k,e:it.e,fl:it.fl,first:it.first,dates:[],ids:[],n:0};cards.push(c);}
+    c.n++;it.ids.forEach(function(id){c.ids.push(id);});it.dates.forEach(function(d){if(c.dates.indexOf(d)<0)c.dates.push(d);});if(it.first<c.first)c.first=it.first;});
+  cards.forEach(function(c){c.dates.sort();});
+  cards.sort(function(a,b){return a.first<b.first?-1:a.first>b.first?1:(b.fl-a.fl);});
+  function title(c){if(c.n===1)return c.e.name;if(isVote(c.e))return 'Early voting \u00b7 '+c.n+' sites';return (c.e.org||c.e.name)+' \u00b7 '+c.n+' events';}
+  function later(c){var r=c.dates.filter(function(d){return d>c.first;}).length;return dlab(c.first)+(r?' +'+r:'');}
+  document.getElementById('striphd').textContent=(curDate==='past'&&!nDays()?'So far this October':nDays()?'On the days you picked':'Coming up')+' \u00b7 '+cards.length;
+  document.getElementById('strip').innerHTML=cards.length?cards.map(function(c){return '<button type="button" class="fcard'+(isVote(c.e)?' vote':'')+'" data-ids="'+esc(c.ids.join(' '))+'"><img src="'+esc(c.img)+'" alt="" loading="lazy"><div class="ft">'+esc(title(c))+'</div><div class="fd">'+esc(later(c))+'</div></button>';}).join(''):'<div class="stripnone">Nothing with a flyer '+when()+'.</div>';
 }
+function focusMany(ids){var b=null,one=null;ids.forEach(function(id){var g=lineById[id];if(!g)return;one=one===null?g:(one===g?g:false);var gb=g.getBounds();b=b?b.extend(gb):L.latLngBounds(gb.getSouthWest(),gb.getNorthEast());});if(!b)return;if(one){focusOn(ids[0]);return;}map.fitBounds(b,{maxZoom:16,padding:[40,40],animate:false});document.getElementById('map').scrollIntoView({behavior:'smooth',block:'start'});}
 function focusOn(id){var g=lineById[id];if(!g)return;map.fitBounds(g.getBounds(),{maxZoom:17,padding:[30,30],animate:false});g.openPopup();document.getElementById('map').scrollIntoView({behavior:'smooth',block:'start'});}
 // Inside the app, a profile or calendar page opens over the map on this page (the app's web view keeps a tap from leaving the page)
 (function(){
@@ -427,7 +438,9 @@ document.addEventListener('click',function(ev){
   var gh=ev.target.closest('.grp[data-g]');
   if(gh){var k=gh.getAttribute('data-g');if(OPEN[k])delete OPEN[k];else OPEN[k]=1;
     [].forEach.call(document.querySelectorAll('.grp[data-g="'+k+'"]'),function(x){x.classList.toggle('open',!!OPEN[k]);x.nextElementSibling.classList.toggle('open',!!OPEN[k]);});return;}
-  var e=ev.target.closest('.sub div,.ev,.fcard');
+  var fc=ev.target.closest('.fcard');
+  if(fc){focusMany(fc.getAttribute('data-ids').split(' '));return;}
+  var e=ev.target.closest('.sub div,.ev');
   if(e)focusOn(e.getAttribute('data-id'));
 });
 function show(lat,lng,label){
