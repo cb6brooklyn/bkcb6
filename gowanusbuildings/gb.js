@@ -15,8 +15,12 @@ var RC={'2':'#EE352E','3':'#EE352E','4':'#00933C','5':'#00933C','B':'#FF6319','D
 var LY={},ON={open:true,building:true,filed:true,groups:true,nycha:true,biz:false,fac:false,subway:true,bus:false};
 if(SELF){ON.biz=false;ON.fac=false;ON.bus=false}
 var F=null,AR=null,LBL=L.layerGroup().addTo(map);
-function card(p){return '<div class="rc"><div class="rct">'+esc(p.t)+'</div><div class="rcs">'+esc(p.st)+' &middot; '+fmt(p.u)+' apartments'+(p.a?' &middot; '+fmt(p.a)+' affordable':'')+'</div><div class="rcd">'+p.d+'</div><table class="rcz">'+p.z.map(function(r){return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>'}).join('')+'</table><a class="plink" href="'+href(p.slug)+'">Open the full profile &rarr;</a></div>'}
+function card(p){return '<div class="rc">'+(p.logo?'<img src="'+p.logo+'" alt="" style="width:80px;border-radius:10px">':'')+'<div class="rct">'+esc(p.nm||p.t)+'</div>'+(p.nm?'<div class="rcs">'+esc(p.t)+'</div>':'')+'<div class="rcs">'+esc(p.st)+' &middot; '+fmt(p.u)+' apartments'+(p.a?' &middot; '+fmt(p.a)+' affordable':'')+'</div><div class="rcd">'+p.d+'</div>'+(p.web?'<a class="plink" href="'+p.web+'" target="_blank" rel="noopener">'+esc(p.web.replace(/^https?:\/\/(www\.)?/,''))+' &#8599;</a>':'')+'<table class="rcz">'+p.z.map(function(r){return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>'}).join('')+'</table><a class="plink" href="'+href(p.slug)+'">Open the full profile &rarr;</a></div>'}
 function show(h){var r=document.getElementById('res');if(r){r.className='result on';r.innerHTML=h}}
+var POP=null;
+function pop(p){if(POP)map.removeLayer(POP);
+  var inner=p.logo?'<div class="pi"><img src="'+p.logo+'" alt=""></div>':'<div class="pt">'+esc(p.nm||p.t)+'<small>'+esc(p.st)+' &middot; '+fmt(p.u)+' apartments</small></div>';
+  POP=L.marker(p.pt,{zIndexOffset:2000,icon:L.divIcon({className:'',html:'<div class="pop">'+inner+'</div>',iconSize:[0,0]})}).on('click',function(){location.href=href(p.slug)}).addTo(map)}
 function drawLabels(){LBL.clearLayers();if(!F)return;var z=map.getZoom();
   if(z>=17)F.features.forEach(function(f){var p=f.properties;if(!ON[p.k])return;L.marker(p.pt,{icon:L.divIcon({className:'',html:'<div class="gl">'+esc(p.t)+'</div>',iconSize:[0,0]}),interactive:false}).addTo(LBL)});
   if(z>=15&&z<=17)L.marker([40.6765,-73.9905],{icon:L.divIcon({className:'',html:'<div class="canal">Gowanus Canal</div>',iconSize:[0,0]}),interactive:false}).addTo(LBL)}
@@ -52,12 +56,12 @@ Promise.all([fetch('/gowanusbuildings/buildings.json').then(function(r){return r
     LY[k]=L.geoJSON({type:'FeatureCollection',features:F.features.filter(function(f){return f.properties.k===k})},{
       style:function(f){var me=f.properties.slug===SELF;return {color:me?'#c2410c':'#fff',weight:me?4:1.5,fillColor:me?OR:COL[k],fillOpacity:SELF?(me?.7:.35):.8}},
       pointToLayer:function(f,ll){return L.circleMarker(ll,{radius:7,color:'#fff',weight:2,fillColor:COL[k],fillOpacity:.9})},
-      onEachFeature:function(f,l){var p=f.properties;l.bindTooltip('<b>'+esc(p.t)+'</b><br>'+esc(p.st)+', '+fmt(p.u)+' apartments'+(p.a?', '+fmt(p.a)+' affordable':''),{sticky:true,className:'tip'});l.on('click',function(){if(INDEX)show(card(p));else location.href=href(p.slug)})}
+      onEachFeature:function(f,l){var p=f.properties;l.bindTooltip('<b>'+esc(p.t)+'</b><br>'+esc(p.st)+', '+fmt(p.u)+' apartments'+(p.a?', '+fmt(p.a)+' affordable':''),{sticky:true,className:'tip'});l.on('click',function(){pop(p);if(INDEX)show(card(p));else if(p.slug!==SELF)setTimeout(function(){location.href=href(p.slug)},600)})}
     })});
   ['groups','nycha','biz','fac'].forEach(function(g){LY[g]=L.layerGroup()});
   drawTransit();drawPlaces();
   ['bus','subway','filed','building','open','fac','biz','nycha','groups'].forEach(function(k){if(ON[k]&&LY[k])LY[k].addTo(map)});
-  if(SELF){var me=F.features.filter(function(f){return f.properties.slug===SELF})[0];if(me)map.fitBounds(L.geoJSON(me).getBounds(),{maxZoom:17,padding:[60,60]})}
+  if(SELF){var me=F.features.filter(function(f){return f.properties.slug===SELF})[0];if(me){map.fitBounds(L.geoJSON(me).getBounds(),{maxZoom:17,padding:[90,60]});pop(me.properties)}}
   else map.fitBounds(L.geoJSON(a[1]).getBounds(),{padding:[10,10]});
   drawLabels();renderKey();
   var chips='<a class="dir" href="'+href('directory')+'">Directory: every new building &rarr;</a>'+F.features.map(function(f){var p=f.properties;return '<a class="'+(p.slug===SELF?'dir':p.k)+'" href="'+href(p.slug)+'">'+esc(p.t)+'</a>'}).join('');

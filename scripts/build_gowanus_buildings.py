@@ -194,6 +194,9 @@ VOTE = 'https://brooklyneagle.com/articles/2021/11/23/city-council-as-expected-p
 STAT = {'open': 'Open', 'building': 'Permitted, not yet open', 'filed': 'Filed, not yet permitted'}
 
 # ---------- one record per building ----------
+EXTRA = json.load(open(os.path.join(ROOT, 'data/gowanusbuildings-extras.json')))['buildings']
+HC = 'https://housingconnect.nyc.gov/PublicWeb/search-lotteries'
+FAC = 'https://fifthave.org/lottery-and-leasing/'
 seen = {}
 for j in sorted(J, key=lambda j: j['addr']):
     s = slugify(j['addr'])
@@ -205,10 +208,13 @@ for j in sorted(J, key=lambda j: j['addr']):
     j['sizes'] = [(lab, sum(num(h.get(f)) for h in hs)) for f, lab in SIZES if sum(num(h.get(f)) for h in hs)]
     j['mih'] = any('MIH' in (h.get('project_name') or '').upper() for h in hs)
     j['z'] = zrows(j.get('lot', j['bbl']))
+    x = EXTRA.get(s, {})
+    j['name'], j['web'], j['logo'], j['websrc'], j['lottery'] = x.get('name'), x.get('website'), x.get('logo'), x.get('src'), x.get('lottery')
+    j['title'] = f'{j["name"]}, {j["addr"]}' if j['name'] and j['name'] != j['addr'] else j['addr']
     when = (f'opened with a certificate of occupancy on {dmy(j["co_first"])}' + (f', made final on {dmy(j["co_final"])}' if j['co_final'] else '') if j['co_first']
             else 'completed under a DOB letter of completion' if j['loc']
             else f'permitted, with its first permit on {dmy(j["permit"])}' if j['permit'] else 'not permitted yet')
-    j['d'] = (f'<p>{esc(j["addr"])} is a new building in the Gowanus rezoning area, filed with the Department of Buildings on {dmy(j["filed"])}: '
+    j['d'] = (f'<p>{esc(j["addr"])}{(" (" + esc(j["name"]) + ")") if j["name"] else ""} is a new building in the Gowanus rezoning area, filed with the Department of Buildings on {dmy(j["filed"])}: '
               + (f'{fmt(j["units"])} apartments' if j['units'] else 'no apartments')
               + (f', {fmt(j["aff"])} of them affordable' if j['aff'] else '')
               + (f', {fmt(j["gfa"])} square feet of construction' if j['gfa'] else '') + f'. It is {when}.</p>')
@@ -224,14 +230,15 @@ HEAD = '''<meta charset="UTF-8">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <link rel="stylesheet" href="/atlanticyards/profile.css?v=2">
-<link rel="stylesheet" href="/gowanusbuildings/gb.css?v=2">'''
+<link rel="stylesheet" href="/gowanusbuildings/gb.css?v=3">'''
 BAR = '''<body><script src="/assets/site-bar.js?v=1" defer></script><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a><script>(function(){try{var a=document.getElementById("asb"),q=/[?&]app=1\\b/.test(location.search);if(q)sessionStorage.setItem("bkapp","1");if(location.protocol==="bkcb:"||q||sessionStorage.getItem("bkapp")==="1"||/^bkcb:/.test(document.referrer)){a.style.display="none"}}catch(e){}})();</script>'''
 SRC = f'''<div class="src"><b>Sources</b>
 <a href="{DOBNOW}" target="_blank" rel="noopener">NYC DOB NOW job application filings</a> (New Building jobs filed since {dmy(SINCE)} inside the rezoning boundary; withdrawn filings left out)<br>
 <a href="{DOBCO}" target="_blank" rel="noopener">NYC DOB NOW certificates of occupancy</a><br>
 <a href="{HPD}" target="_blank" rel="noopener">NYC HPD, Affordable Housing Production by Building</a><br>
 <a href="{PLUTO}" target="_blank" rel="noopener">NYC DCP, PLUTO and MapPLUTO</a> (zoning, land use, lot shapes)<br>
-<a href="{VOTE}" target="_blank" rel="noopener">Brooklyn Eagle, City Council passes the Gowanus rezoning, November 23, 2021</a>
+<a href="{VOTE}" target="_blank" rel="noopener">Brooklyn Eagle, City Council passes the Gowanus rezoning, November 23, 2021</a><br>
+<a href="{HC}" target="_blank" rel="noopener">NYC Housing Connect</a>; <a href="{FAC}" target="_blank" rel="noopener">Fifth Avenue Committee, lottery and leasing</a>
 </div>'''
 
 def table(rows): return '<div class="ftab"><table>' + ''.join(f'<tr><td>{a}</td><td>{b}</td></tr>' for a, b in rows) + '</table></div>'
@@ -251,7 +258,13 @@ def facts(j):
     if j['owner']: r.append(('Owner on the filing', esc(j['owner'])))
     r.append(('Tax lot', f'Brooklyn block {int(j["bbl"][1:6])}, lot {int(j["bbl"][6:])}'))
     r.append(('Community board', 'BKCB6'))
+    if j['web']: r.insert(0, ('Website', f'<a href="{esc(j["web"])}" target="_blank" rel="noopener">{esc(re.sub(r"^https?://(www[.])?", "", j["web"]).rstrip("/"))}</a>'))
     return r
+def lotteries(j):
+    own = f'<li><a href="{esc(j["lottery"])}" target="_blank" rel="noopener">This building&rsquo;s lottery</a></li>' if j.get('lottery') else ''
+    return ('<section class="sec"><h2>Affordable housing lotteries</h2><div class="lede">Affordable apartments in new buildings are rented through the city&rsquo;s housing lottery.</div></section>'
+            f'<div class="lot"><a class="lotb" href="{HC}" target="_blank" rel="noopener">Search open lotteries on Housing Connect &rarr;</a>'
+            f'<a class="lotb alt" href="{FAC}" target="_blank" rel="noopener">Fifth Avenue Committee: lottery and leasing help &rarr;</a></div>' + (f'<ul class="pts">{own}</ul>' if own else ''))
 
 # ---------- profiles ----------
 for j in J:
@@ -259,7 +272,8 @@ for j in J:
           (fmt(j['aff']) if j['aff'] else 'none', f'affordable, {round(j["aff"]*100/j["units"])}% of the building' if j['aff'] and j['units'] else 'affordable in HPD&rsquo;s data'),
           (STAT[j['k']], dmy(j['co_first'] or j['permit'] or j['filed']))]
     k = ''.join(f'<div class="kp"><div class="v">{v}</div><div class="k">{t}</div></div>' for v, t in kp)
-    body = f'<section class="sec"><h2>The building</h2></section><div class="pts">{j["d"]}</div>' + table(facts(j))
+    logo = f'<div class="blogo"><img src="{j["logo"]}" alt="{esc(j["name"] or j["addr"])}"></div>' if j['logo'] else ''
+    body = logo + f'<section class="sec"><h2>The building</h2></section><div class="pts">{j["d"]}</div>' + table(facts(j)) + lotteries(j)
     if j['desc']: body += f'<section class="sec"><h2>What was filed</h2><div class="lede">{esc(j["desc"])}</div></section>'
     if j['bands']:
         body += f'<section class="sec"><h2>Who the affordable apartments are for</h2><div class="lede">By household income, as counted in <a href="{HPD}" target="_blank" rel="noopener">HPD&rsquo;s production data</a>.</div></section>' + bars(j['bands'])
@@ -270,20 +284,20 @@ for j in J:
 <html lang="en">
 <head>
 {HEAD}
-<title>{esc(j["addr"])}, Gowanus rezoning &mdash; bkcb6.app</title>
+<title>{esc(j["title"])}, Gowanus rezoning &mdash; bkcb6.app</title>
 <meta name="description" content="{esc(desc)}">
 <link rel="canonical" href="https://bkcb6.app/gowanusbuildings/{j["slug"]}/">
 </head>
 {BAR}
 <div class="wrap">
-<div class="top-bar"><div class="top-txt"><h1>{esc(j["addr"])}</h1><p>{STAT[j["k"]]} &middot; BKCB6 &middot; Gowanus rezoning</p></div><a class="back-link" href="/gowanusbuildings/">&larr; New buildings</a></div>
+<div class="top-bar"><div class="top-txt"><h1>{esc(j["name"] or j["addr"])}</h1><p>{(esc(j["addr"]) + " &middot; ") if j["name"] else ""}{STAT[j["k"]]} &middot; BKCB6 &middot; Gowanus rezoning</p></div><a class="back-link" href="/gowanusbuildings/">&larr; New buildings</a></div>
 <div class="finder"><div class="hm-card"><div class="key" id="key"></div><div id="map" data-slug="{j["slug"]}"></div></div></div>
 <div class="kpis">{k}</div>
 {body}
 <div class="others"><div class="lbl">EVERY NEW BUILDING IN THE REZONING</div><div id="others" data-self="{j["slug"]}"></div></div>
-{SRC}
+{SRC.replace('</div>', (f'<br>Website: <a href="{esc(j["websrc"])}" target="_blank" rel="noopener">{esc(j["websrc"])}</a>' if j.get('websrc') else '') + '</div>')}
 </div>
-<script src="/gowanusbuildings/gb.js?v=2"></script>
+<script src="/gowanusbuildings/gb.js?v=3"></script>
 </body>
 </html>
 '''
@@ -300,7 +314,7 @@ feats = []
 for j in J:
     g = GEO.get(j.get('lot')) or GEO.get(j['bbl'])
     feats.append({'type': 'Feature', 'geometry': rnd(g) if g else {'type': 'Point', 'coordinates': [round(j['lng'], 6), round(j['lat'], 6)]},
-                  'properties': {'slug': j['slug'], 't': j['addr'], 'k': j['k'], 'u': j['units'], 'a': j['aff'], 'st': STAT[j['k']], 'd': j['d'], 'z': j['z'],
+                  'properties': {'slug': j['slug'], 't': j['addr'], 'nm': j['name'], 'logo': j['logo'], 'web': j['web'], 'k': j['k'], 'u': j['units'], 'a': j['aff'], 'st': STAT[j['k']], 'd': j['d'], 'z': j['z'],
                                  'pt': [round(j['lat'], 6), round(j['lng'], 6)]}})
 json.dump({'type': 'FeatureCollection', 'features': feats}, open(os.path.join(OUT, 'buildings.json'), 'w'), separators=(',', ':'))
 bnd = json.load(open(os.path.join(ROOT, 'data/gowanus_rezoning_boundary.geojson')))
@@ -406,9 +420,10 @@ index = f'''<!DOCTYPE html>
   </div>
 </div></div>
 <div class="kpis">{K}</div>
+{lotteries({"lottery": None})}
 {SRC}
 </div>
-<script src="/gowanusbuildings/gb.js?v=2"></script>
+<script src="/gowanusbuildings/gb.js?v=3"></script>
 </body>
 </html>
 '''
@@ -418,7 +433,8 @@ open(os.path.join(OUT, 'index.html'), 'w').write(index)
 def card(j):
     z = dict(j['z'])
     zz = ''.join(f'<span><b>{k}</b> {re.sub("</?a[^>]*>", "", z[k])}</span>' for k in ('Zoning', 'Special district', 'What city zoning allows', 'Land use, tax records') if k in z)
-    return (f'<a class="dc {j["k"]}" href="/gowanusbuildings/{j["slug"]}/" data-app="1"><div class="dh"><span class="dt">{esc(j["addr"])}</span>'
+    lg = f'<img class="dlogo" src="{j["logo"]}" alt="">' if j['logo'] else ''
+    return (f'<a class="dc {j["k"]}" href="/gowanusbuildings/{j["slug"]}/" data-app="1"><div class="dh">{lg}<span class="dt">{esc(j["name"] or j["addr"])}</span>{("<span class=ds>" + esc(j["addr"]) + "</span>") if j["name"] else ""}'
             f'<span class="ds">{STAT[j["k"]]} &middot; {fmt(j["units"])} apartments{(" &middot; " + fmt(j["aff"]) + " affordable") if j["aff"] else ""}</span></div>'
             f'<div class="dd">{j["d"]}</div><div class="dz">{zz}</div><div class="dg">Open the profile &rarr;</div></a>')
 groups = ''.join(f'<section class="sec" id="{k}"><h2>{STAT[k]}</h2><div class="lede">{len(n[k])} buildings, {fmt(u[k])} apartments</div></section><div class="dgrid">' + ''.join(card(j) for j in n[k]) + '</div>' for k in ('open', 'building', 'filed') if n[k])
