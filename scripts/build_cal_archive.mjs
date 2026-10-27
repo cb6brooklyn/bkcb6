@@ -84,6 +84,7 @@ for (const r of records) (recByDate[r.d] ||= []).push(r.b);
 if (fs.existsSync(minutesDir)) for (const f of fs.readdirSync(minutesDir).sort()) {
   const m = /^(\d{4}-\d{2}-\d{2})-(.+)\.html$/.exec(f);
   if (!m) continue;
+  if (!fs.readFileSync(path.join(minutesDir, f), 'utf8').includes('<article>')) continue;   // a stub that only redirects a moved page
   let name = NAMES[m[2]];
   if (!name) { const bs = recByDate[m[1]] || []; name = bs.length === 1 ? bs[0] + ' Committee' : m[2].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); }
   add({ d: m[1], l: name, g: 'cb6', ty: CB6, k: 'board', h: 'https://bkcb6.app/minutes/' + f, lt: 'Minutes', cd: '306', org: 'Brooklyn Community Board 6' }, 3);
