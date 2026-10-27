@@ -308,3 +308,6 @@ dirhtml = f'''<!DOCTYPE html>
 os.makedirs(os.path.join(ROOT, 'atlanticyards/directory'), exist_ok=True)
 open(os.path.join(ROOT, 'atlanticyards/directory/index.html'), 'w').write(dirhtml)
 print('directory', len(DIR))
+# the same cards for the project page map
+json.dump([{'id': e['id'], 'slug': e['slug'], 't': e['t'], 'k': e['k'], 'st': e['st'], 'cd': e['cd'], 'h': e.get('h', ''), 'd': e['d'], 'z': e['z']} for e in DIR],
+          open(os.path.join(ROOT, 'atlanticyards/directory.json'), 'w'), separators=(',', ':'))
