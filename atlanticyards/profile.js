@@ -48,7 +48,7 @@ Promise.all([fetch('/atlanticyards/data.json').then(function(r){return r.json()}
   document.getElementById('key').innerHTML=k;
   /* every profile */
   var o=document.getElementById('others'),self=o.getAttribute('data-self');
-  o.innerHTML=IDX.map(function(x){return '<a class="'+(x.slug===self?'self':x.k==='p2'?'p':'b')+'" href="'+href(x.slug)+'">'+esc(x.t)+'</a>'}).join('');
+  o.innerHTML='<a class="self" href="'+href('directory')+'">Directory &rarr;</a>'+IDX.map(function(x){return '<a class="'+(x.slug===self?'self':x.k==='p2'?'p':'b')+'" href="'+href(x.slug)+'">'+esc(x.t)+'</a>'}).join('');
 });
 document.addEventListener('click',function(e){var t=e.target.closest('.pill[data-l]');if(!t||!LY[t.getAttribute('data-l')])return;var k=t.getAttribute('data-l');ON[k]=!ON[k];t.classList.toggle('on',ON[k]);if(ON[k])LY[k].addTo(map);else map.removeLayer(LY[k])});
 })();
