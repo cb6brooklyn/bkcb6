@@ -662,6 +662,67 @@ a.inl{color:var(--navy);font-weight:700;border-bottom:2px solid var(--orange);te
     <div id="evx-msg-fold"></div><div data-evx="full" data-evx-msg="evx-msg-fold"></div>
     </div>
   </details>
+  <details class="fold" id="fold-evturnout">
+    <summary><span class="tt">Early voting turnout, <span>day by day</span></span></summary>
+  <div class="sec">
+    <p>Everyone who has checked in to vote early, day by day, next to the same day of early voting in last year's mayoral race and in 2022, the last governor's race. Each day's count includes every day before it. The Board of Elections counts early voting by borough, not by community board.</p>
+    <div class="evt-places" id="evtPlaces"></div>
+    <div class="evt-key"><span><i style="background:#f47920"></i>2026 governor</span><span><i style="background:#0d1b4b"></i>2025 mayor</span><span><i style="background:#b9bfd0"></i>2022 governor</span></div>
+    <div id="evtDays"></div>
+    <p class="evt-src">Unofficial counts as of close of polls, from the NYC Board of Elections: <a class="inl" href="https://www.vote.nyc/page/early-voting-check-ins" target="_blank" rel="noopener">2026 early voting check-ins</a>, and the Board's daily posts on <a class="inl" href="https://x.com/BOENYC" target="_blank" rel="noopener">X</a> for 2025 and 2022.</p>
+  </div>
+  <style>
+  .evt-places{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 10px}
+  .evt-places button{font:inherit;font-size:.78rem;font-weight:700;border:1.5px solid var(--border);background:#fff;color:var(--navy);padding:6px 11px;border-radius:999px;cursor:pointer}
+  .evt-places button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+  .evt-key{display:flex;flex-wrap:wrap;gap:14px;font-size:.74rem;color:var(--muted);margin-bottom:6px}
+  .evt-key i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  .evt-day{border-top:1px solid var(--border);padding:11px 0}
+  .evt-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .evt-h b{font-size:.92rem}
+  .evt-h small{font-family:'DM Mono',monospace;font-size:.7rem;color:var(--muted)}
+  .evt-r{display:grid;grid-template-columns:42px 1fr 74px;gap:8px;align-items:center;margin-top:5px;font-size:.78rem}
+  .evt-r .y{font-family:'DM Mono',monospace;color:var(--muted)}
+  .evt-r .bar{height:14px;background:#efede8;border-radius:3px;overflow:hidden}
+  .evt-r .bar i{display:block;height:100%;border-radius:3px}
+  .evt-r .n{font-family:'DM Mono',monospace;text-align:right;font-weight:500}
+  .evt-cmp{margin-top:7px;font-size:.78rem;color:#444}
+  .evt-cmp b.up{color:#1f6b3a}.evt-cmp b.dn{color:#a52a2a}
+  .evt-src{font-size:.74rem!important;color:var(--muted)!important;margin-top:10px!important}
+  </style>
+  <script>
+  (function(){
+    var COL={'2026':'#f47920','2025':'#0d1b4b','2022':'#b9bfd0'},YRS=['2026','2025','2022'];
+    var WD=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var D,place=-1;
+    function n(x){return x.toLocaleString('en-US');}
+    function val(d){return place<0?d.total:d.b[place];}
+    function pct(a,b){var p=(a-b)/b*100;return '<b class="'+(p>=0?'up':'dn')+'">'+(p>=0?'+':'')+p.toFixed(1)+'%</b>';}
+    function day(s){var p=s.split('-').map(Number),t=new Date(p[0],p[1]-1,p[2]);return WD[t.getDay()]+', '+MO[p[1]-1]+' '+p[2];}
+    function draw(){
+      document.querySelectorAll('#evtPlaces button').forEach(function(b){b.classList.toggle('on',+b.dataset.p===place);});
+      var cur=D.years['2026'].days,mx=0;
+      YRS.forEach(function(y){D.years[y].days.forEach(function(d){if(d.day<=cur.length)mx=Math.max(mx,val(d));});});
+      var h='';
+      cur.forEach(function(d,i){
+        var rows='',v={};
+        YRS.forEach(function(y){var e=D.years[y].days[i];if(!e)return;v[y]=val(e);
+          rows+='<div class="evt-r"><span class="y">'+y+'</span><span class="bar"><i style="width:'+(v[y]/mx*100).toFixed(1)+'%;background:'+COL[y]+'"></i></span><span class="n">'+n(v[y])+'</span></div>';});
+        var prev=i?val(cur[i-1]):0;
+        var cmp=[];if(v['2025'])cmp.push(pct(v['2026'],v['2025'])+' vs. 2025');if(v['2022'])cmp.push(pct(v['2026'],v['2022'])+' vs. 2022');
+        h+='<div class="evt-day"><div class="evt-h"><b>Day '+d.day+' &middot; '+day(d.date)+'</b><small>'+n(v['2026']-prev)+' checked in that day</small></div>'+rows+'<div class="evt-cmp">2026 so far: '+cmp.join(' &middot; ')+'</div></div>';
+      });
+      document.getElementById('evtDays').innerHTML=h;
+    }
+    fetch('/data/ev-checkins.json?v='+Date.now()).then(function(r){return r.json();}).then(function(j){
+      D=j;
+      document.getElementById('evtPlaces').innerHTML=['New York City'].concat(j.boroughs).map(function(b,i){return '<button type="button" data-p="'+(i-1)+'">'+b+'</button>';}).join('');
+      document.querySelectorAll('#evtPlaces button').forEach(function(b){b.onclick=function(){place=+b.dataset.p;draw();};});
+      draw();
+    }).catch(function(){document.getElementById('fold-evturnout').style.display='none';});
+  })();
+  </script>
+  </details>
   <details class="fold" id="fold-note">
     <summary><span class="tt">Two things worth <span>knowing</span></span></summary>
   <div class="note">
