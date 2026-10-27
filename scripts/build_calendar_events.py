@@ -151,6 +151,11 @@ OVERRIDES = [
                       "(northeast corner), and asking for more. V. New/other business. VI. Community session. VII. Adjournment. "
                       "The agenda mapped out: https://bkcb6.app/101426/")},
      "append_desc": None},
+    # Nov 18, 2026 Full Board: the meeting graphic and the Zoom webinar registration.
+    {"date": "2026-11-18", "label_contains": "CB6 Full Board Meeting",
+     "set": {"flyer": "https://bkcb6.app/flyer-cb6-full-board-2026-11-18.png",
+             "href": "https://zoom.us/webinar/register/WN_QoUatvEQT6OeKhVfJhp3jw", "linkText": "Register on Zoom \u2197",
+             "desc": "At Van Alen Institute, 303 Bond Street, and on Zoom. Register for the webinar to attend virtually: https://zoom.us/webinar/register/WN_QoUatvEQT6OeKhVfJhp3jw"}},
     # Transportation, Parks and Public Infrastructure meets the third WEDNESDAY.
     # The official feed has published these on Thursdays. These move them to the
     # correct date; once the feed carries the right date they simply stop matching.
@@ -246,9 +251,10 @@ ADDITIONS.append({
     "label": "CB6 Full Board Meeting",
     "time": "6:30 PM",
     "location": "Van Alen Institute, 303 Bond Street",
-    "desc": "Van Alen Institute, 303 Bond Street.",
-    "href": "https://brooklyncb6.cityofnewyork.us/event/cb6-full-board-meeting-3-13/",
-    "linkText": "Full details \u2197",
+    "desc": "At Van Alen Institute, 303 Bond Street, and on Zoom. Register for the webinar to attend virtually: https://zoom.us/webinar/register/WN_QoUatvEQT6OeKhVfJhp3jw",
+    "href": "https://zoom.us/webinar/register/WN_QoUatvEQT6OeKhVfJhp3jw",
+    "linkText": "Register on Zoom \u2197",
+    "flyer": "https://bkcb6.app/flyer-cb6-full-board-2026-11-18.png",
 })
 
 
