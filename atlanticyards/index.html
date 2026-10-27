@@ -88,6 +88,11 @@ a{color:var(--navy)}
 .bclogo{position:absolute;transform:translate(-50%,-50%);width:58px;height:58px;border-radius:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);background:#000 url(/assets/map-icons/barclays-center.png) center/cover no-repeat;cursor:pointer}
 .bbadge{position:absolute;transform:translate(-50%,-50%);display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:20px;padding:0 6px;border-radius:999px;color:#fff;border:2px solid #fff;box-shadow:0 1px 5px rgba(13,27,75,.35);font:800 10.5px 'DM Sans',sans-serif;white-space:nowrap;cursor:pointer}
 .bstop{position:absolute;transform:translate(-50%,-50%);width:9px;height:9px;background:#0039a6;border:1px solid #fff;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.plink{font-weight:800;color:#c2410c}
+.profs{display:flex;flex-wrap:wrap;gap:6px}
+.profs a{padding:6px 11px;border:1px solid var(--navy);border-radius:999px;font:700 .78rem 'DM Sans',sans-serif;color:var(--navy);text-decoration:none;background:#fff}
+.profs a.p{border-color:var(--teal);color:var(--teal)}
+.cmp td a{color:var(--navy);text-decoration:underline;text-decoration-color:var(--orange);text-underline-offset:3px}
 .cdl{font:800 12px 'DM Sans',sans-serif;color:#5b21b6;background:rgba(255,255,255,.85);border-radius:5px;padding:1px 5px;white-space:nowrap}
 .cdl.c6{color:#c2410c}
 .leaflet-tooltip.tip{font:500 .78rem 'DM Sans',sans-serif;padding:6px 8px;border-radius:6px;line-height:1.4}
@@ -179,6 +184,8 @@ a{color:var(--navy)}
   <div id="map"></div>
   <div id="res" class="result"></div>
   <div class="hm-foot">
+    <div class="lbl">PROFILES: EVERY BUILDING AND SITE</div>
+    <div class="profs" id="profs"></div>
     <div class="lbl">BUILT</div>
     <div class="pills">
       <button class="pill on" type="button" data-l="built" style="--c:#0d1b4b"><i></i>Apartment buildings<span class="n" id="n-built"></span></button>
@@ -407,7 +414,7 @@ function build(k){
   if(k==='bus'){var gb=L.layerGroup();LAYERS.bus=gb;drawBus();$('n-bus').textContent=TR.bus.length;return gb}
   if(k==='towers'){var g2=L.layerGroup();LAYERS.towers=g2;drawTowers();
     $('n-towers').textContent=D.phase2.filter(function(t){return t.u}).length;return g2}
-  var g3=L.geoJSON({type:'FeatureCollection',features:D.lots.features.filter(function(f){return (k==='sites'?f.properties.kind==='p2':f.properties.kind===k)})},{style:lotStyle,onEachFeature:function(f,l){l.bindTooltip(lotText(f.properties),{sticky:true,className:'tip'});l.on('click',function(){showInfo(lotText(f.properties))})}});
+  var g3=L.geoJSON({type:'FeatureCollection',features:D.lots.features.filter(function(f){return (k==='sites'?f.properties.kind==='p2':f.properties.kind===k)})},{style:lotStyle,onEachFeature:function(f,l){l.bindTooltip(lotText(f.properties),{sticky:true,className:'tip'});l.on('click',function(){showInfo(lotText(f.properties)+lotProf(f.properties))})}});
   if(k==='built'){$('n-built').textContent=g3.getLayers().length;
     g3.eachLayer(function(l){var p=l.feature.properties,c=l.getBounds().getCenter();})}
   if(k==='sites')$('n-sites').textContent=g3.getLayers().length;
@@ -417,7 +424,7 @@ function drawTowers(){var g=LAYERS.towers;if(!g)return;g.clearLayers();var sm=ma
   D.phase2.forEach(function(t){
     var cls=(t.id==='B8'?'tag2 os':t.id==='B1'?'tag2 b1':'tag2')+(sm?' sm':''),sub=t.id==='B8'?'open space':t.id==='B1'?'plaza':t.h+' ft';
     var m=L.marker(t.ll,{icon:L.divIcon({className:'',html:'<div class="tw"><div class="'+cls+'">'+esc(t.id)+'<small>'+esc(sub)+'</small></div></div>',iconSize:[0,0],iconAnchor:[0,0]}),riseOnHover:true});
-    m.bindTooltip(p2Text(t),{sticky:true,className:'tip'});m.on('click',function(){showInfo(p2Text(t))});m.addTo(g)});
+    m.bindTooltip(p2Text(t),{sticky:true,className:'tip'});m.on('click',function(){showInfo(p2Text(t)+prof(t.id))});m.addTo(g)});
 }
 var RC={'2':'#EE352E','3':'#EE352E','4':'#00933C','5':'#00933C','B':'#FF6319','D':'#FF6319','N':'#FCCC0A','Q':'#FCCC0A','R':'#FCCC0A','A':'#0039A6','C':'#0039A6','G':'#6CBE45'};
 function drawSubway(){var g=LAYERS.subway;if(!g||!TR)return;g.clearLayers();var z=map.getZoom();
@@ -441,7 +448,7 @@ function drawBus(){var g=LAYERS.bus;if(!g||!TR)return;g.clearLayers();var z=map.
 function drawLabels(){var g=LAYERS.labels;if(!g)return;g.clearLayers();var z=map.getZoom();
   function lab(ll,cls,t){L.marker(ll,{icon:L.divIcon({className:'',html:'<div class="plbl '+cls+'">'+t+'</div>',iconSize:[0,0]}),interactive:false,keyboard:false}).addTo(g)}
   D.lots.features.forEach(function(f){var p=f.properties,b=L.geoJSON(f).getBounds(),c=b.getCenter();
-    if(p.kind==='arena'&&ON.arena)L.marker([c.lat-.00005,c.lng+.0002],{icon:L.divIcon({className:'',html:'<div class="bclogo" title="Barclays Center"></div>',iconSize:[0,0]})}).bindTooltip(lotText(p),{className:'tip'}).on('click',function(){showInfo(lotText(p))}).addTo(g);
+    if(p.kind==='arena'&&ON.arena)L.marker([c.lat-.00005,c.lng+.0002],{icon:L.divIcon({className:'',html:'<div class="bclogo" title="Barclays Center"></div>',iconSize:[0,0]})}).bindTooltip(lotText(p),{className:'tip'}).on('click',function(){showInfo(lotText(p)+prof('Arena'))}).addTo(g);
     if(p.kind==='park'&&ON.park&&z>=16)lab([c.lat,c.lng],'park','Pacific Park');
     if(p.kind==='p2'&&ON.sites&&/^Block 1120/.test(p.name)&&z>=16)lab([b.getSouth()+.00009,c.lng],'yard','Railyard, LIRR tracks');
     if(p.kind==='p2'&&ON.sites&&/^Block 1121/.test(p.name)&&z>=16)lab([b.getNorth()-.00009,c.lng+.0003],'yard','Railyard, LIRR tracks');
@@ -454,6 +461,11 @@ function order(){['bus','subway','lirr','park','sites','arena','built','outline'
 function setOn(k,on){ON[k]=on;var b=document.querySelector('.pill[data-l="'+k+'"]');if(b)b.classList.toggle('on',on);renderKey();if(!D)return;var l=build(k);if(on){if(!map.hasLayer(l))l.addTo(map)}else if(map.hasLayer(l))map.removeLayer(l);order();drawLabels()}
 document.addEventListener('click',function(e){var t=e.target.closest('.pill[data-l]');if(!t)return;var k=t.getAttribute('data-l');setOn(k,!ON[k])});
 function showInfo(h){var r=$('res');r.className='result on';r.innerHTML=h}
+var PROF={},APP=/[?&]app=1\b/.test(location.search)||(function(){try{return sessionStorage.getItem('bkapp')==='1'}catch(e){return false}})();
+function phref(s){return '/atlanticyards/'+s+'/'+(APP?'?app=1':'')}
+function prof(id){var s=PROF[id];return s?'<br><a class="plink" href="'+phref(s)+'">Open the '+esc(id==='Arena'?'Barclays Center':id)+' profile &rarr;</a>':''}
+function lotProf(p){if(p.kind==='built')return prof(p.id);if(p.kind==='arena')return prof('Arena');if(p.name==='Site 5')return prof('Site 5');var ids=/^Block 1120/.test(p.name)?['B5','B6','B7']:/^Block 1121/.test(p.name)?['B8','B9','B10']:[];return ids.length?'<br>Profiles: '+ids.map(function(i){return PROF[i]?'<a class="plink" href="'+phref(PROF[i])+'">'+i+'</a>':i}).join(', '):''}
+fetch('/atlanticyards/profiles.json').then(function(r){return r.json()}).then(function(x){x.forEach(function(e){PROF[e.id]=e.slug});var o=$('profs');if(o)o.innerHTML=x.map(function(e){return '<a class="'+(e.k==='p2'?'p':'b')+'" href="'+phref(e.slug)+'">'+esc(e.t)+'</a>'}).join('');if(D)renderTables()}).catch(function(){});
 renderKey();
 Promise.all([fetch('/atlanticyards/data.json').then(function(r){return r.json()}),fetch('/data/cb6_boundary.geojson').then(function(r){return r.json()}).catch(function(){return null}),fetch('/atlanticyards/transit.json').then(function(r){return r.json()})]).then(function(a){
   D=a[0];CB6G=a[1];TR=a[2];LAYERS.labels=L.layerGroup().addTo(map);
@@ -466,13 +478,13 @@ Promise.all([fetch('/atlanticyards/data.json').then(function(r){return r.json()}
 function renderTables(){
   var B=D.lots.features.filter(function(f){return f.properties.kind==='built'}).map(function(f){return f}),tu=0,ta=0;
   B.sort(function(a,b){return a.properties.yr<b.properties.yr?-1:a.properties.yr>b.properties.yr?1:0});
-  $('btab').tBodies[0].innerHTML=B.map(function(f,i){var p=f.properties;tu+=p.u;ta+=p.a;return '<tr data-i="'+i+'" class="'+(p.cd==='BKCB6'?'c6':'')+'"><td>'+esc(p.addr)+'</td><td>'+esc(p.id)+'</td><td>'+esc(p.cd)+'</td><td>'+fmt(p.u)+'</td><td>'+(p.a?fmt(p.a):'none')+'</td><td>'+Math.round(p.a*100/p.u)+'%</td><td>'+p.fl+'</td><td>'+esc(p.yr)+'</td></tr>'}).join('');
+  $('btab').tBodies[0].innerHTML=B.map(function(f,i){var p=f.properties;tu+=p.u;ta+=p.a;return '<tr data-i="'+i+'" class="'+(p.cd==='BKCB6'?'c6':'')+'"><td>'+(PROF[p.id]?'<a href="'+phref(PROF[p.id])+'">'+esc(p.addr)+'</a>':esc(p.addr))+'</td><td>'+esc(p.id)+'</td><td>'+esc(p.cd)+'</td><td>'+fmt(p.u)+'</td><td>'+(p.a?fmt(p.a):'none')+'</td><td>'+Math.round(p.a*100/p.u)+'%</td><td>'+p.fl+'</td><td>'+esc(p.yr)+'</td></tr>'}).join('');
   $('btab').tFoot.innerHTML='<tr><td>All eight towers, 3,212 by the state&rsquo;s count</td><td></td><td></td><td>'+fmt(tu)+'</td><td>'+fmt(ta)+'</td><td>'+Math.round(ta*100/tu)+'%</td><td></td><td></td></tr>';
-  $('btab').tBodies[0].onclick=function(e){var tr=e.target.closest('tr[data-i]');if(!tr)return;var f=B[+tr.getAttribute('data-i')];var l=L.geoJSON(f);$('finder').scrollIntoView({behavior:'smooth',block:'start'});map.fitBounds(l.getBounds(),{maxZoom:18,padding:[40,40]});showInfo(lotText(f.properties))};
+  $('btab').tBodies[0].onclick=function(e){var tr=e.target.closest('tr[data-i]');if(!tr)return;var f=B[+tr.getAttribute('data-i')];var l=L.geoJSON(f);$('finder').scrollIntoView({behavior:'smooth',block:'start'});map.fitBounds(l.getBounds(),{maxZoom:18,padding:[40,40]});showInfo(lotText(f.properties)+lotProf(f.properties))};
   var P=D.phase2.filter(function(t){return t.u}),su=0,sa=0,sc=0,sr=0;
-  $('ptab').tBodies[0].innerHTML=P.map(function(t,i){var r=t.u-t.c;su+=t.u;sa+=t.a;sc+=t.c;sr+=r;return '<tr data-i="'+i+'"><td>'+esc(t.id)+'</td><td>'+esc(String(t.h))+' ft</td><td>'+fmt(r)+'</td><td>'+fmt(t.a)+' ('+(Math.round(t.a*1000/r)/10)+'%)</td><td>'+esc(t.avg)+'</td><td>'+(t.c?fmt(t.c):'none')+'</td><td>'+fmt(t.u)+'</td></tr>'}).join('')+'<tr><td>B8</td><td class="tx" colspan="6">Open space instead of a tower</td></tr>';
+  $('ptab').tBodies[0].innerHTML=P.map(function(t,i){var r=t.u-t.c;su+=t.u;sa+=t.a;sc+=t.c;sr+=r;return '<tr data-i="'+i+'"><td>'+(PROF[t.id]?'<a href="'+phref(PROF[t.id])+'">'+esc(t.id)+'</a>':esc(t.id))+'</td><td>'+esc(String(t.h))+' ft</td><td>'+fmt(r)+'</td><td>'+fmt(t.a)+' ('+(Math.round(t.a*1000/r)/10)+'%)</td><td>'+esc(t.avg)+'</td><td>'+(t.c?fmt(t.c):'none')+'</td><td>'+fmt(t.u)+'</td></tr>'}).join('')+'<tr><td>'+(PROF.B8?'<a href="'+phref(PROF.B8)+'">B8</a>':'B8')+'</td><td class="tx" colspan="6">Open space instead of a tower</td></tr>';
   $('ptab').tFoot.innerHTML='<tr><td>Phase II</td><td></td><td>'+fmt(sr)+'</td><td>'+fmt(sa)+' ('+(Math.round(sa*1000/sr)/10)+'%)</td><td>74.6%</td><td>'+fmt(sc)+'</td><td>'+fmt(su)+'</td></tr>';
-  $('ptab').tBodies[0].onclick=function(e){var tr=e.target.closest('tr[data-i]');if(!tr)return;var t=P[+tr.getAttribute('data-i')];$('finder').scrollIntoView({behavior:'smooth',block:'start'});map.setView(t.ll,18);showInfo(p2Text(t))};
+  $('ptab').tBodies[0].onclick=function(e){var tr=e.target.closest('tr[data-i]');if(!tr)return;var t=P[+tr.getAttribute('data-i')];$('finder').scrollIntoView({behavior:'smooth',block:'start'});map.setView(t.ll,18);showInfo(p2Text(t)+prof(t.id))};
 }
 /* finder */
 function pip(lng,lat,g){var rings=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];for(var p=0;p<rings.length;p++){var o=rings[p][0],ins=false;for(var i=0,j=o.length-1;i<o.length;j=i++){var xi=o[i][0],yi=o[i][1],xj=o[j][0],yj=o[j][1];if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))ins=!ins}if(ins)return true}return false}
