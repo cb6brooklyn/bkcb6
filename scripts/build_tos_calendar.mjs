@@ -252,18 +252,19 @@ for (const date of Object.keys(EVENTS).sort()) {
   for (const e of EVENTS[date]) {
     if (!e || !e.label || e.type === 'spookycb6') continue;
     if (/(?:trickorstreets|spookycb6)\/\?e=/.test(e.href || '')) continue; // already a street on the map
-    if (!isHalloween(e)) continue;
+    if (!isHalloween(e) && !e.spooky) continue; // spooky: true puts a Halloween listing outside CB6 on the map (BAM's The Exorcist)
     const inPark = PARKS.includes(e.type) || /prospect park|brooklyn bridge park/i.test(e.location || '');
     const where = e.location ? ent(e.location) : (e.type === 'prospect' ? prospectVenue(e) : e.type === 'bbp' ? 'Brooklyn Bridge Park' : '');
     let pt = await locate(where);
     if (!pt && e.type === 'prospect') pt = await locate(prospectVenue(e)); // an entrance or path the geocoder does not know: the park spot named in the listing
     if (!pt) { skipped.push([date, ent(e.label), where, 'no geocode']); continue; }
-    if (!inPark && !pip(pt.lng, pt.lat, cb6Geom)) { skipped.push([date, ent(e.label), where, 'outside CB6']); continue; }
+    const inCb6 = inPark || pip(pt.lng, pt.lat, cb6Geom);
+    if (!inCb6 && !e.spooky) { skipped.push([date, ent(e.label), where, 'outside CB6']); continue; }
     const id = 'c' + date.replace(/-/g, '') + '-' + slugify(e.label).slice(0, 40);
     // the same event from two feeds (NYC Parks and the Prospect Park Alliance list the rangers' hike under two names)
     const sl = slugify(ent(e.label));
     if (items.some(x => x.date === date && (slugify(x.name).includes(sl) || sl.includes(slugify(x.name))))) continue;
-    items.push({ src: 'cal', id, name: ent(e.label), kind: 'Halloween event', group: groupOf(e), org: String(e.type).startsWith('lib-') ? 'Brooklyn Public Library' : TYPE_NAMES[e.type] && e.type !== 'community' ? TYPE_NAMES[e.type] : '', date, time: timeText(e), where, cds: [6], lat: pt.lat, lng: pt.lng, lines: [] });
+    items.push({ src: 'cal', id, name: ent(e.label), kind: 'Halloween event', group: groupOf(e), org: String(e.type).startsWith('lib-') ? 'Brooklyn Public Library' : TYPE_NAMES[e.type] && e.type !== 'community' ? TYPE_NAMES[e.type] : '', date, time: timeText(e), where, cds: inCb6 ? [6] : (e.cds || []).map(Number).map(c => c % 100), lat: pt.lat, lng: pt.lng, lines: [] });
     links[id] = linkRow(date, e);
   }
 }
