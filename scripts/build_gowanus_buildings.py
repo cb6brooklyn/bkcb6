@@ -297,7 +297,7 @@ for j in J:
 <div class="others"><div class="lbl">EVERY NEW BUILDING IN THE REZONING</div><div id="others" data-self="{j["slug"]}"></div></div>
 {SRC.replace('</div>', (f'<br>Website: <a href="{esc(j["websrc"])}" target="_blank" rel="noopener">{esc(j["websrc"])}</a>' if j.get('websrc') else '') + '</div>')}
 </div>
-<script src="/gowanusbuildings/gb.js?v=3"></script>
+<script src="/gowanusbuildings/gb.js?v=5"></script>
 </body>
 </html>
 '''
@@ -423,7 +423,7 @@ index = f'''<!DOCTYPE html>
 {lotteries({"lottery": None})}
 {SRC}
 </div>
-<script src="/gowanusbuildings/gb.js?v=3"></script>
+<script src="/gowanusbuildings/gb.js?v=5"></script>
 </body>
 </html>
 '''
@@ -459,3 +459,70 @@ d = f'''<!DOCTYPE html>
 os.makedirs(os.path.join(OUT, 'directory'), exist_ok=True)
 open(os.path.join(OUT, 'directory', 'index.html'), 'w').write(d)
 print(len(J), 'buildings:', {k: len(v) for k, v in n.items()}, 'apartments', {k: int(v) for k, v in u.items()}, 'affordable', {k: int(v) for k, v in a.items()}, 'places', cnt, 'stations', len(stations), 'buses', len(buses))
+
+# ---------- the Gowanus rezoning map (the home page map card), for the site and the apps' Gowanus screen ----------
+GM = os.path.join(ROOT, 'gowanusmap')
+os.makedirs(GM, exist_ok=True)
+gm = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+{HEAD}
+<title>Gowanus rezoning map &mdash; bkcb6.app</title>
+<meta name="description" content="The Gowanus rezoning on one map: zoning, land use, every new building since the rezoning with its profile, NYCHA, community groups, subway and buses. Search any address.">
+<link rel="canonical" href="https://bkcb6.app/gowanusmap/">
+<style>
+.finder{{padding:14px}}
+#map{{height:560px}}
+@media(max-width:600px){{#map{{height:480px}}}}
+.embed .finder{{padding:0;background:transparent}}
+.embed .wrap{{background:transparent}}
+</style>
+</head>
+{BAR}
+<script>try{{if(/[?&]embed=1\\b/.test(location.search))document.documentElement.className+=' embed'}}catch(e){{}}</script>
+<div class="wrap">
+<div class="finder"><div class="hm-card">
+  <div class="hm-top">
+    <div class="hm-h">The Gowanus rezoning</div>
+    <div class="hm-l">Search an address or a corner to see its zoning and any new building there. Tap a building for its description, zoning and land use.</div>
+    <div class="seg"><button id="m-addr" class="on" type="button">Address</button><button id="m-corner" type="button">Street and cross street</button></div>
+    <div id="addr-wrap"><div class="box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0d1b4b" stroke-width="2.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg><input id="q" type="search" placeholder="Address, e.g. 420 Carroll Street" autocomplete="off" aria-label="Address"></div><div class="drop"><ul id="ac"></ul></div></div>
+    <div id="corner-wrap" class="corner"><select id="st" aria-label="Street"><option value="">Loading streets</option></select><select id="cx" aria-label="Cross street"><option value="">Cross street</option></select><button id="go" type="button">Go</button></div>
+  </div>
+  <div class="key" id="key"></div>
+  <div id="map" data-index="1" data-rezoning="1"></div>
+  <div id="res" class="result"></div>
+  <div class="hm-foot">
+    <div class="lbl">ZONING AND LAND USE</div>
+    <div class="pills">
+      <button class="pill on" type="button" data-l="zoning" style="--c:#238b45"><i></i>Zoning</button>
+      <button class="pill" type="button" data-l="landuse" style="--c:#a855f7"><i></i>Land use</button>
+    </div>
+    <div class="lbl">NEW BUILDINGS SINCE THE REZONING</div>
+    <div class="pills">
+      <button class="pill on" type="button" data-l="open" style="--c:#0d1b4b"><i></i>Open<span class="n">{len(n["open"])}</span></button>
+      <button class="pill on" type="button" data-l="building" style="--c:#f47920"><i></i>Permitted<span class="n">{len(n["building"])}</span></button>
+      <button class="pill on" type="button" data-l="filed" style="--c:#0e7490"><i></i>Filed<span class="n">{len(n["filed"])}</span></button>
+    </div>
+    <div class="lbl">AROUND THE REZONING</div>
+    <div class="pills">
+      <button class="pill on" type="button" data-l="groups" style="--c:#16a34a"><i></i>Community groups<span class="n">{cnt["groups"]}</span></button>
+      <button class="pill on" type="button" data-l="nycha" style="--c:#1d4ed8"><i></i>NYCHA<span class="n">{cnt["nycha"]}</span></button>
+      <button class="pill" type="button" data-l="biz" style="--c:#b45309"><i></i>Local businesses<span class="n">{cnt["biz"]}</span></button>
+      <button class="pill" type="button" data-l="fac" style="--c:#7c3aed"><i></i>Schools, parks and facilities<span class="n">{cnt["fac"]}</span></button>
+    </div>
+    <div class="lbl">TRAINS AND BUSES</div>
+    <div class="pills">
+      <button class="pill on" type="button" data-l="subway" style="--c:#FF6319"><i></i>Subway<span class="n">{len(stations)}</span></button>
+      <button class="pill" type="button" data-l="bus" style="--c:#0039a6"><i></i>Bus routes<span class="n">{len(buses)}</span></button>
+    </div>
+    <div class="lbl">PROFILES: EVERY NEW BUILDING</div>
+    <div class="profs" id="profs"></div>
+  </div>
+</div></div>
+</div>
+<script src="/gowanusbuildings/gb.js?v=5"></script>
+</body>
+</html>
+'''
+open(os.path.join(GM, 'index.html'), 'w').write(gm)
