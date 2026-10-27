@@ -547,11 +547,16 @@ button:hover .g-share-link{opacity:.6}
     <div class="gowanus-layer-toggle-group">
       <button type="button" class="gowanus-layer-toggle active" data-layer="zoning" aria-pressed="true"><span class="gowanus-layer-swatch zoning"></span>Zoning layer</button>
       <button type="button" class="gowanus-layer-toggle active" data-layer="landuse" aria-pressed="true"><span class="gowanus-layer-swatch landuse"></span>Land Use / Use Groups layer</button>
+      <button type="button" class="gowanus-layer-toggle active" data-layer="newbuildings" aria-pressed="true"><span class="gowanus-layer-swatch" style="background:#f47920;color:#f47920"></span>New buildings since the rezoning <span id="gowanus-nb-count"></span></button>
       <button type="button" class="gowanus-layer-toggle active" data-layer="permits" aria-pressed="true"><span class="gowanus-layer-swatch permits"></span>Permits layer <span id="gowanus-permit-count">(0)</span></button>
     </div>
   </div>
   <div class="gowanus-permit-status" id="gowanus-permit-status">Loading current and future mapped permits in the rezoning area.</div>
   <div class="gowanus-permit-legend">
+    <span class="gowanus-permit-chip"><span class="gowanus-layer-swatch" style="background:#0d1b4b;color:#0d1b4b"></span>New building, open</span>
+    <span class="gowanus-permit-chip"><span class="gowanus-layer-swatch" style="background:#f47920;color:#f47920"></span>New building, permitted</span>
+    <span class="gowanus-permit-chip"><span class="gowanus-layer-swatch" style="background:#0e7490;color:#0e7490"></span>New building, filed</span>
+    <a class="gowanus-permit-chip" href="/gowanusbuildings/directory/" style="text-decoration:none;color:#c2410c;font-weight:700">Directory of new buildings &rarr;</a>
     <span class="gowanus-permit-chip"><span class="gowanus-layer-swatch permits" style="color:#14b8a6;background:#14b8a6"></span>DOB NOW</span>
     <span class="gowanus-permit-chip"><span class="gowanus-layer-swatch permits" style="color:#60a5fa;background:#60a5fa"></span>BIS</span>
     <span class="gowanus-permit-chip"><span class="gowanus-layer-swatch permits" style="color:#f59e0b;background:#f59e0b"></span>NYC Streets / DOT</span>
@@ -612,7 +617,8 @@ button:hover .g-share-link{opacity:.6}
   var CENTER = [40.674, -73.997];
   var ZOOM = 14;
   var TODAY = localIsoDate();
-  var layerState = { zoning:true, landuse:true, permits:true };
+  var layerState = { zoning:true, landuse:true, permits:true, newbuildings:true };
+  var nbLayerLu = L.layerGroup(), nbLayerZone = L.layerGroup();
   var gowanusLotKeys = null;
   var boundaryFeature = null;
   var bisRecentFeedPromise = null;
@@ -714,6 +720,31 @@ button:hover .g-share-link{opacity:.6}
     applyLayerVisibility();
   }).catch(function(err){ console.warn('Gowanus land use layer failed to load.', err); });
 
+  // New buildings filed since the rezoning passed, each with its profile
+  fetch('/gowanusbuildings/buildings.json').then(function(r){ return r.json(); }).then(function(fc){
+    var NBC = { open:'#0d1b4b', building:'#f47920', filed:'#0e7490' };
+    var nbApp = /[?&]app=1\b/.test(location.search) || (function(){ try { return sessionStorage.getItem('bkapp') === '1'; } catch(e) { return false; } })();
+    function nbPopup(p){
+      return '<div style="font-family:DM Sans,sans-serif;font-size:.8rem;max-width:280px">'
+        + '<div style="font-weight:900;color:#0d1b4b;font-size:.95rem">' + escapeHtml(p.t) + '</div>'
+        + '<div style="font-family:DM Mono,monospace;font-size:.62rem;color:#6b6760;text-transform:uppercase;letter-spacing:.05em;margin:2px 0 6px">' + escapeHtml(p.st) + ' · ' + Number(p.u||0).toLocaleString('en-US') + ' apartments' + (p.a ? ' · ' + Number(p.a).toLocaleString('en-US') + ' affordable' : '') + '</div>'
+        + '<div style="line-height:1.5;color:#333">' + p.d + '</div>'
+        + '<table style="width:100%;border-collapse:collapse;font-size:.74rem;margin:6px 0">' + p.z.slice(0,4).map(function(r){ return '<tr><td style="color:#6b6760;padding:3px 4px 3px 0;vertical-align:top;width:38%">' + r[0] + '</td><td style="padding:3px 0">' + r[1] + '</td></tr>'; }).join('') + '</table>'
+        + '<a href="/gowanusbuildings/' + p.slug + '/' + (nbApp ? '?app=1' : '') + '" style="font-weight:800;color:#c2410c">Open the full profile &rarr;</a></div>';
+    }
+    [[nbLayerLu,luMap],[nbLayerZone,zoneMap]].forEach(function(t){
+      if (!t[1].getPane('nb')) { t[1].createPane('nb'); t[1].getPane('nb').style.zIndex = 620; }
+      L.geoJSON(fc, {
+        pane:'nb',
+        style: function(f){ return { color:'#fff', weight:1.5, fillColor:NBC[f.properties.k] || '#0d1b4b', fillOpacity:.9 }; },
+        pointToLayer: function(f, ll){ return L.circleMarker(ll, { pane:'nb', radius:7, color:'#fff', weight:2, fillColor:NBC[f.properties.k], fillOpacity:.9 }); },
+        onEachFeature: function(f, l){ l.bindTooltip('<b>' + escapeHtml(f.properties.t) + '</b><br>' + escapeHtml(f.properties.st), { sticky:true }); l.bindPopup(nbPopup(f.properties), { maxWidth:300 }); }
+      }).addTo(t[0]);
+    });
+    var c = document.getElementById('gowanus-nb-count'); if (c) c.textContent = '(' + fc.features.length + ')';
+    applyLayerVisibility();
+  }).catch(function(err){ console.warn('Gowanus new buildings layer failed to load.', err); });
+
   document.querySelectorAll('.gowanus-action-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var mode = btn.getAttribute('data-action');
@@ -721,6 +752,7 @@ button:hover .g-share-link{opacity:.6}
       layerState.zoning = active;
       layerState.landuse = active;
       layerState.permits = active;
+      layerState.newbuildings = active;
       applyLayerVisibility();
     });
   });
@@ -745,6 +777,8 @@ button:hover .g-share-link{opacity:.6}
     toggleLayer(zoneMap, zoningLayer, layerState.zoning);
     toggleLayer(luMap, permitLayerLu, layerState.permits);
     toggleLayer(zoneMap, permitLayerZone, layerState.permits);
+    toggleLayer(luMap, nbLayerLu, layerState.newbuildings);
+    toggleLayer(zoneMap, nbLayerZone, layerState.newbuildings);
     if (luLegend) luLegend.classList.toggle('is-muted', !layerState.landuse);
     if (zoneLegend) zoneLegend.classList.toggle('is-muted', !layerState.zoning);
     document.querySelectorAll('.gowanus-layer-toggle').forEach(function(btn) {
