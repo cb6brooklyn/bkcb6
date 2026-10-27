@@ -261,7 +261,7 @@ def facts(j):
     if j['web']: r.insert(0, ('Website', f'<a href="{esc(j["web"])}" target="_blank" rel="noopener">{esc(re.sub(r"^https?://(www[.])?", "", j["web"]).rstrip("/"))}</a>'))
     return r
 def lotteries(j):
-    own = f'<li><a href="{esc(j["lottery"])}" target="_blank" rel="noopener">This building&rsquo;s lottery</a></li>' if j.get('lottery') else ''
+    own = f'<li><a href="{esc(j["lottery"])}" target="_blank" rel="noopener">This buildingThis building&rsquo;s lottery</a>rsquo;s lottery on Housing Connect</a></li>' if j.get('lottery') else ''
     return ('<section class="sec"><h2>Affordable housing lotteries</h2><div class="lede">Affordable apartments in new buildings are rented through the city&rsquo;s housing lottery.</div></section>'
             f'<div class="lot"><a class="lotb" href="{HC}" target="_blank" rel="noopener">Search open lotteries on Housing Connect &rarr;</a>'
             f'<a class="lotb alt" href="{FAC}" target="_blank" rel="noopener">Fifth Avenue Committee: lottery and leasing help &rarr;</a></div>' + (f'<ul class="pts">{own}</ul>' if own else ''))
