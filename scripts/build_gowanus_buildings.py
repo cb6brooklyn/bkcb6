@@ -60,6 +60,18 @@ def iso(s):
         return s[:10]
     except Exception: return ''
 
+def units_of(rs):
+    """The unit count the job's filings agree on: the value on the most rows,
+    ties going to the most recent row. (An initial filing can carry a site-wide
+    figure that its later filings correct.)"""
+    from collections import Counter
+    vals = [num(x.get('proposed_dwelling_units')) for x in rs]
+    c = Counter(vals); top = max(c.values())
+    for x in reversed(rs):
+        v = num(x.get('proposed_dwelling_units'))
+        if c[v] == top: return v
+    return 0
+
 B = shape(json.load(open(os.path.join(ROOT, 'data/gowanus_rezoning_boundary.geojson')))['features'][0]['geometry'])
 
 # ---------- DOB NOW new building jobs ----------
@@ -78,7 +90,7 @@ for jn, rs in jobs.items():
     bbl = last.get('bbl') or ('3%05d%04d' % (int(last['block']), int(last['lot'])))
     permits = sorted(iso(x.get('first_permit_date')) for x in rs if x.get('first_permit_date'))
     J.append(dict(job=jn, bbl=bbl, addr=street(last.get('house_no', ''), last.get('street_name', '')),
-                  status=last.get('filing_status', ''), du=max(num(x.get('proposed_dwelling_units')) for x in rs),
+                  status=last.get('filing_status', ''), du=units_of(rs),
                   gfa=max(num(x.get('total_construction_floor_area')) for x in rs),
                   filed=min(iso(x.get('filing_date')) for x in rs), permit=permits[0] if permits else '',
                   loc=any(x.get('filing_status') == 'LOC Issued' for x in rs),
