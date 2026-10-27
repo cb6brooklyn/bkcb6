@@ -224,7 +224,7 @@ HEAD = '''<meta charset="UTF-8">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <link rel="stylesheet" href="/atlanticyards/profile.css?v=2">
-<link rel="stylesheet" href="/gowanusbuildings/gb.css?v=1">'''
+<link rel="stylesheet" href="/gowanusbuildings/gb.css?v=2">'''
 BAR = '''<body><script src="/assets/site-bar.js?v=1" defer></script><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a><script>(function(){try{var a=document.getElementById("asb"),q=/[?&]app=1\\b/.test(location.search);if(q)sessionStorage.setItem("bkapp","1");if(location.protocol==="bkcb:"||q||sessionStorage.getItem("bkapp")==="1"||/^bkcb:/.test(document.referrer)){a.style.display="none"}}catch(e){}})();</script>'''
 SRC = f'''<div class="src"><b>Sources</b>
 <a href="{DOBNOW}" target="_blank" rel="noopener">NYC DOB NOW job application filings</a> (New Building jobs filed since {dmy(SINCE)} inside the rezoning boundary; withdrawn filings left out)<br>
@@ -283,7 +283,7 @@ for j in J:
 <div class="others"><div class="lbl">EVERY NEW BUILDING IN THE REZONING</div><div id="others" data-self="{j["slug"]}"></div></div>
 {SRC}
 </div>
-<script src="/gowanusbuildings/gb.js?v=1"></script>
+<script src="/gowanusbuildings/gb.js?v=2"></script>
 </body>
 </html>
 '''
@@ -307,22 +307,65 @@ bnd = json.load(open(os.path.join(ROOT, 'data/gowanus_rezoning_boundary.geojson'
 json.dump({'type': 'FeatureCollection', 'features': [{'type': 'Feature', 'properties': {}, 'geometry': rnd(mapping(B.simplify(0.00002)))}]},
           open(os.path.join(OUT, 'boundary.json'), 'w'), separators=(',', ':'))
 
-# ---------- the map and directory page ----------
+# ---------- places with logos, NYCHA, subway and buses around the rezoning ----------
+NEAR = B.buffer(0.004)
+orgs = json.load(open(os.path.join(ROOT, 'app/data/civic/orgs/orgs-profiles.json')))
+items = next(v for v in orgs.values() if isinstance(v, list))
+GK = {'Community groups': 'groups', 'Local businesses': 'biz', 'Schools, parks and facilities': 'fac'}
+places = []
+for o in items:
+    g = GK.get(o.get('group'))
+    if g == 'groups' and o.get('name') in ('Principles', 'Bark Slope'): g = 'biz'
+    if not g or not o.get('logo'): continue
+    try: pt = Point(float(o['lng']), float(o['lat']))
+    except Exception: continue
+    if not NEAR.contains(pt): continue
+    places.append({'g': g, 'n': o['name'], 'slug': o['slug'], 'grp': o['group'], 'logo': '/app/data/civic/orgs/logos/' + o['logo'],
+                   'addr': o.get('addr') or '', 'll': [round(float(o['lat']), 6), round(float(o['lng']), 6)], 'in': B.contains(pt)})
+for x in json.load(open(os.path.join(ROOT, 'data/gowanus_cb6_nycha_lookup.json'))):
+    pt = Point(x['lng'], x['lat'])
+    if NEAR.contains(pt): places.append({'g': 'nycha', 'n': x['name'].replace('NYCHA ', ''), 'logo': '/assets/map-icons/nycha.png', 'addr': x.get('type', ''), 'll': [x['lat'], x['lng']], 'in': B.contains(pt)})
+BOX = 'POLYGON((-74.004 40.660,-73.972 40.660,-73.972 40.690,-74.004 40.690,-74.004 40.660))'
+def ny(ds, where):
+    u = f'https://data.ny.gov/resource/{ds}.json?' + urllib.parse.urlencode({'$where': where, '$limit': 1000})
+    return json.loads(urllib.request.urlopen(u, timeout=120).read())
+from shapely.geometry import box as sbox
+from shapely.ops import unary_union
+BB = sbox(-74.004, 40.660, -73.972, 40.690)
+COLR = {'2': '#EE352E', '3': '#EE352E', '4': '#00933C', '5': '#00933C', 'B': '#FF6319', 'D': '#FF6319', 'F': '#FF6319', 'M': '#FF6319', 'N': '#FCCC0A', 'Q': '#FCCC0A', 'R': '#FCCC0A', 'W': '#FCCC0A', 'A': '#0039A6', 'C': '#0039A6', 'E': '#0039A6', 'G': '#6CBE45'}
+grp = {}
+for x in ny('s692-irgq', f"intersects(geometry,'{BOX}')"):
+    c = COLR.get(x['service'])
+    if c: grp.setdefault(c, []).append(shape(x['geometry']).intersection(BB).simplify(0.00003))
+sub = [{'type': 'Feature', 'properties': {'c': c}, 'geometry': rnd(mapping(unary_union(gs)), 5)} for c, gs in grp.items()]
+st = {}
+for e in ny('i9wp-a4ja', 'within_box(entrance_georeference,40.690,-74.004,40.660,-73.972)'):
+    v = st.setdefault(e['stop_name'], {'r': set(), 'p': []})
+    v['r'].update(e['daytime_routes'].split()); v['p'].append((float(e['entrance_latitude']), float(e['entrance_longitude'])))
+ORD = '2345BDFMNQRWACEG'
+stations = [{'n': k, 'r': sorted(v['r'], key=lambda r: ORD.index(r) if r in ORD else 99), 'll': [round(sum(p[0] for p in v['p']) / len(v['p']), 5), round(sum(p[1] for p in v['p']) / len(v['p']), 5)]} for k, v in st.items()]
+bus = {}
+for x in json.load(open(os.path.join(ROOT, 'app/data/civic/transport/cb-bk-6.json')))['bus']:
+    rt, col, nm = x['p']
+    from shapely.geometry import MultiLineString
+    g = MultiLineString(x['l']).intersection(BB)
+    if g.is_empty: continue
+    bus.setdefault(rt, {'c': '#' + col.lstrip('#'), 'n': nm, 'g': []})['g'].append(g)
+buses = [{'r': k, 'c': v['c'], 'n': v['n'], 'g': rnd(mapping(unary_union(v['g']).simplify(0.00003)), 5)} for k, v in sorted(bus.items())]
+json.dump({'places': places, 'subway': {'type': 'FeatureCollection', 'features': sub}, 'stations': stations, 'bus': buses},
+          open(os.path.join(OUT, 'around.json'), 'w'), separators=(',', ':'))
+json.dump([{'slug': j['slug'], 't': j['addr'], 'k': j['k']} for j in J], open(os.path.join(OUT, 'profiles.json'), 'w'), separators=(',', ':'))
+
+# ---------- the map page ----------
 n = {k: [j for j in J if j['k'] == k] for k in ('open', 'building', 'filed')}
 u = {k: sum(j['units'] for j in v) for k, v in n.items()}
 a = {k: sum(j['aff'] for j in v) for k, v in n.items()}
+cnt = {g: sum(1 for p in places if p['g'] == g) for g in ('groups', 'biz', 'fac', 'nycha')}
 kp = [(str(len(n['open'])), f'buildings open, with {fmt(u["open"])} apartments, {fmt(a["open"])} of them affordable'),
       (str(len(n['building'])), f'permitted and not yet open, with {fmt(u["building"])} apartments planned'),
       (str(len(n['filed'])), f'filed and not yet permitted, with {fmt(u["filed"])} apartments planned'),
       (fmt(sum(u.values())), f'apartments in all {len(J)} new building filings since the <a href="{VOTE}" target="_blank" rel="noopener">Council passed the rezoning</a> on November 23, 2021')]
 K = ''.join(f'<div class="kp"><div class="v">{v}</div><div class="k">{t}</div></div>' for v, t in kp)
-def card(j):
-    z = dict(j['z'])
-    zz = ''.join(f'<span><b>{k}</b> {re.sub("</?a[^>]*>", "", z[k])}</span>' for k in ('Zoning', 'Special district', 'What city zoning allows') if k in z)
-    return (f'<a class="dc {j["k"]}" href="/gowanusbuildings/{j["slug"]}/" data-app="1"><div class="dh"><span class="dt">{esc(j["addr"])}</span>'
-            f'<span class="ds">{STAT[j["k"]]} &middot; {fmt(j["units"])} apartments{(" &middot; " + fmt(j["aff"]) + " affordable") if j["aff"] else ""}</span></div>'
-            f'<div class="dd">{j["d"]}</div><div class="dz">{zz}</div><div class="dg">Open the profile &rarr;</div></a>')
-groups = ''.join(f'<section class="sec" id="{k}"><h2>{STAT[k]}</h2><div class="lede">{len(n[k])} buildings, {fmt(u[k])} apartments</div></section><div class="dgrid">' + ''.join(card(j) for j in n[k]) + '</div>' for k in ('open', 'building', 'filed') if n[k])
 index = f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -335,23 +378,68 @@ index = f'''<!DOCTYPE html>
 <div class="wrap">
 <div class="top-bar"><div class="top-txt"><h1>New buildings in the <span>Gowanus rezoning</span></h1><p>Every new building filed since the rezoning passed, open, permitted or filed</p></div><a class="back-link" href="/gowanus.html">&larr; Gowanus</a></div>
 <div class="finder"><div class="hm-card">
+  <div class="hm-top"><div class="hm-l">Tap any building for its description, zoning and land use.</div></div>
   <div class="key" id="key"></div>
   <div id="map" data-index="1"></div>
   <div id="res" class="result"></div>
-  <div class="hm-foot"><div class="pills">
-    <button class="pill on" type="button" data-l="open" style="--c:#0d1b4b"><i></i>Open<span class="n">{len(n["open"])}</span></button>
-    <button class="pill on" type="button" data-l="building" style="--c:#f47920"><i></i>Permitted<span class="n">{len(n["building"])}</span></button>
-    <button class="pill on" type="button" data-l="filed" style="--c:#0e7490"><i></i>Filed<span class="n">{len(n["filed"])}</span></button>
-  </div></div>
+  <div class="hm-foot">
+    <div class="lbl">PROFILES: EVERY NEW BUILDING</div>
+    <div class="profs" id="profs"></div>
+    <div class="lbl">NEW BUILDINGS</div>
+    <div class="pills">
+      <button class="pill on" type="button" data-l="open" style="--c:#0d1b4b"><i></i>Open<span class="n">{len(n["open"])}</span></button>
+      <button class="pill on" type="button" data-l="building" style="--c:#f47920"><i></i>Permitted<span class="n">{len(n["building"])}</span></button>
+      <button class="pill on" type="button" data-l="filed" style="--c:#0e7490"><i></i>Filed<span class="n">{len(n["filed"])}</span></button>
+    </div>
+    <div class="lbl">AROUND THE REZONING</div>
+    <div class="pills">
+      <button class="pill on" type="button" data-l="groups" style="--c:#16a34a"><i></i>Community groups<span class="n">{cnt["groups"]}</span></button>
+      <button class="pill on" type="button" data-l="nycha" style="--c:#1d4ed8"><i></i>NYCHA<span class="n">{cnt["nycha"]}</span></button>
+      <button class="pill" type="button" data-l="biz" style="--c:#b45309"><i></i>Local businesses<span class="n">{cnt["biz"]}</span></button>
+      <button class="pill" type="button" data-l="fac" style="--c:#7c3aed"><i></i>Schools, parks and facilities<span class="n">{cnt["fac"]}</span></button>
+    </div>
+    <div class="lbl">TRAINS AND BUSES</div>
+    <div class="pills">
+      <button class="pill on" type="button" data-l="subway" style="--c:#FF6319"><i></i>Subway<span class="n">{len(stations)}</span></button>
+      <button class="pill" type="button" data-l="bus" style="--c:#0039a6"><i></i>Bus routes<span class="n">{len(buses)}</span></button>
+    </div>
+  </div>
 </div></div>
 <div class="kpis">{K}</div>
-{groups}
 {SRC}
 </div>
-<script src="/gowanusbuildings/gb.js?v=1"></script>
-<script>(function(){{try{{if(/[?&]app=1\\b/.test(location.search)||sessionStorage.getItem('bkapp')==='1')document.querySelectorAll('a[data-app]').forEach(function(a){{a.href+='?app=1'}})}}catch(e){{}}}})();</script>
+<script src="/gowanusbuildings/gb.js?v=2"></script>
 </body>
 </html>
 '''
 open(os.path.join(OUT, 'index.html'), 'w').write(index)
-print(len(J), 'buildings:', {k: len(v) for k, v in n.items()}, 'apartments', {k: int(v) for k, v in u.items()}, 'affordable', {k: int(v) for k, v in a.items()})
+
+# ---------- the directory ----------
+def card(j):
+    z = dict(j['z'])
+    zz = ''.join(f'<span><b>{k}</b> {re.sub("</?a[^>]*>", "", z[k])}</span>' for k in ('Zoning', 'Special district', 'What city zoning allows', 'Land use, tax records') if k in z)
+    return (f'<a class="dc {j["k"]}" href="/gowanusbuildings/{j["slug"]}/" data-app="1"><div class="dh"><span class="dt">{esc(j["addr"])}</span>'
+            f'<span class="ds">{STAT[j["k"]]} &middot; {fmt(j["units"])} apartments{(" &middot; " + fmt(j["aff"]) + " affordable") if j["aff"] else ""}</span></div>'
+            f'<div class="dd">{j["d"]}</div><div class="dz">{zz}</div><div class="dg">Open the profile &rarr;</div></a>')
+groups = ''.join(f'<section class="sec" id="{k}"><h2>{STAT[k]}</h2><div class="lede">{len(n[k])} buildings, {fmt(u[k])} apartments</div></section><div class="dgrid">' + ''.join(card(j) for j in n[k]) + '</div>' for k in ('open', 'building', 'filed') if n[k])
+d = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+{HEAD}
+<title>Gowanus rezoning directory &mdash; bkcb6.app</title>
+<meta name="description" content="Every new building filed in the Gowanus rezoning area since November 2021: what it is, its zoning and land use, each with its own profile.">
+<link rel="canonical" href="https://bkcb6.app/gowanusbuildings/directory/">
+</head>
+{BAR}
+<div class="wrap">
+<div class="top-bar"><div class="top-txt"><h1>Gowanus rezoning directory</h1><p>Every new building since the rezoning, its zoning and land use</p></div><a class="back-link" href="/gowanusbuildings/">&larr; The map</a></div>
+{groups}
+{SRC}
+</div>
+<script>(function(){{try{{if(/[?&]app=1\\b/.test(location.search)||sessionStorage.getItem('bkapp')==='1')document.querySelectorAll('a[data-app]').forEach(function(a){{a.href+='?app=1'}})}}catch(e){{}}}})();</script>
+</body>
+</html>
+'''
+os.makedirs(os.path.join(OUT, 'directory'), exist_ok=True)
+open(os.path.join(OUT, 'directory', 'index.html'), 'w').write(d)
+print(len(J), 'buildings:', {k: len(v) for k, v in n.items()}, 'apartments', {k: int(v) for k, v in u.items()}, 'affordable', {k: int(v) for k, v in a.items()}, 'places', cnt, 'stations', len(stations), 'buses', len(buses))
