@@ -47,19 +47,101 @@
         plugins:{legend:{labels:{boxWidth:10,font:{size:11,family:'DM Sans'}}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+money(c.parsed.y);}}}},
         scales:{y:{ticks:{callback:k,font:{size:10}}},x:{ticks:{font:{size:10},maxTicksLimit:12}}}}});
   }
+  /* For-sale pages: the 20% down payment on the median asking price (all homes), in dollars and in years of
+     median household income. Price for a year = median of that year's monthly median asking prices
+     (StreetEasy, /data/sales/rent-explorer.json, the all-homes series). */
+  var SALE=/sales/.test(location.pathname);
+  var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function med(a){a=a.filter(function(x){return x!=null;}).sort(function(x,y){return x-y;});if(!a.length)return null;var m=a.length>>1;return a.length%2?a[m]:(a[m-1]+a[m])/2;}
+  function priceSeries(SX,id){var a=SX.A[id];if(!a)return null;var v=a.s.studio[1],o=a.s.studio[0],by={},lastI=-1;
+    v.forEach(function(x,i){var m=SX.months[i+o];if(x!=null){(by[m.slice(0,4)]=by[m.slice(0,4)]||[]).push(x);lastI=i+o;}});
+    var yr={};Object.keys(by).forEach(function(y){yr[y]=med(by[y]);});return {yr:yr,now:lastI<0?null:a.s.studio[1][lastI-o],nowM:lastI<0?null:SX.months[lastI]};}
+  function drawDown(el,D,SX,cd){
+    var A=D.acs,SA=D.saipe.boro,list=[];
+    if(el.getAttribute('data-mode')==='boroughs'){Object.keys(COLS).forEach(function(b){list.push({label:b,id:'b:'+b,inc:SA[b],c:COLS[b]});});}
+    else{var b=BORO[cd.slice(0,2)];list.push({label:cdName(cd),id:'c:'+cd,inc:A.cd[cd]||{},c:'#f47920',w:3});list.push({label:b,id:'b:'+b,inc:SA[b],c:'#1B5E8A'});}
+    list.push({label:'New York City',id:'x:NYC',inc:A.nyc,c:'#0d1b4b',dash:[5,3]});
+    var cards='',ys={};
+    list.forEach(function(s){var P=priceSeries(SX,s.id);s.P=P;if(!P)return;
+      Object.keys(P.yr).forEach(function(y){if(s.inc[y]!=null)ys[y]=1;});
+      var iy=last(s.inc),dp=P.now!=null?P.now*.2:null;
+      cards+='<div class="ih-c"><div class="ih-l">'+s.label+', '+(P.nowM?MON[+P.nowM.slice(5)-1]+' '+P.nowM.slice(0,4):'')+'</div><div class="ih-v">'+money(dp)+'</div><div class="ih-d">20% of '+money(P.now)+
+        (dp!=null&&iy?' &middot; '+(dp/s.inc[iy]).toFixed(1)+' years of '+iy+' median income ('+money(s.inc[iy])+')':'')+'</div></div>';});
+    ys=Object.keys(ys).sort();
+    el.querySelector('.ih-dcards').innerHTML=cards;
+    if(el._dchart)el._dchart.destroy();
+    el._dchart=new Chart(el.querySelector('.ih-dch canvas'),{type:'line',data:{labels:ys,datasets:list.filter(function(s){return s.P;}).map(function(s){
+      return {label:s.label,data:ys.map(function(y){var p=s.P.yr[y],i=s.inc[y];return p!=null&&i!=null?+(p*.2/i).toFixed(2):null;}),
+        _dp:ys.map(function(y){var p=s.P.yr[y];return p!=null?p*.2:null;}),borderColor:s.c,backgroundColor:s.c,borderWidth:s.w||2,pointRadius:2,borderDash:s.dash||[],spanGaps:true};})},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{boxWidth:10,font:{size:11,family:'DM Sans'}}},tooltip:{callbacks:{label:function(c){var d=c.dataset._dp[c.dataIndex];return c.dataset.label+': '+money(d)+' down, '+c.parsed.y.toFixed(1)+' years of income';}}}},
+        scales:{y:{title:{display:true,text:'Years of median household income',font:{size:10}},ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});
+  }
+  /* Monthly cost: principal and interest on 80% of the median asking price (all homes), 30-year fixed at the
+     year's average Freddie Mac rate (the latest month at that month's rate). Property tax rates: NYC DOF. */
+  function yrRate(D,y){var v=[];Object.keys(D.mortgage.monthly).forEach(function(m){if(m.slice(0,4)===y)v.push(D.mortgage.monthly[m]);});
+    return v.length?v.reduce(function(a,b){return a+b;},0)/v.length:null;}
+  function pmt(price,rate){if(price==null||rate==null)return null;var L=price*.8,r=rate/1200;return L*r/(1-Math.pow(1+r,-360));}
+  function drawMonthly(el,D,SX,cd){
+    var A=D.acs,SA=D.saipe.boro,list=[];
+    if(el.getAttribute('data-mode')==='boroughs'){Object.keys(COLS).forEach(function(b){list.push({label:b,id:'b:'+b,inc:SA[b],c:COLS[b]});});}
+    else{var b=BORO[cd.slice(0,2)];list.push({label:cdName(cd),id:'c:'+cd,inc:A.cd[cd]||{},c:'#f47920',w:3});list.push({label:b,id:'b:'+b,inc:SA[b],c:'#1B5E8A'});}
+    list.push({label:'New York City',id:'x:NYC',inc:A.nyc,c:'#0d1b4b',dash:[5,3]});
+    var ys={},cards='';
+    list.forEach(function(s){s.P=priceSeries(SX,s.id);if(!s.P)return;Object.keys(s.P.yr).forEach(function(y){ys[y]=1;});
+      var r=s.P.nowM?D.mortgage.monthly[s.P.nowM]:null,m=pmt(s.P.now,r),iy=last(s.inc);
+      cards+='<div class="ih-c"><div class="ih-l">'+s.label+', '+(s.P.nowM?MON[+s.P.nowM.slice(5)-1]+' '+s.P.nowM.slice(0,4):'')+'</div><div class="ih-v">'+money(m)+' a month</div><div class="ih-d">'+
+        (r!=null?'at '+r.toFixed(2)+'% on '+money(s.P.now?s.P.now*.8:null):'')+(m!=null&&iy?' &middot; '+Math.round(m*12/s.inc[iy]*100)+'% of '+iy+' median income':'')+'</div></div>';});
+    ys=Object.keys(ys).sort();
+    el.querySelector('.ih-mcards').innerHTML=cards;
+    if(el._mchart)el._mchart.destroy();
+    el._mchart=new Chart(el.querySelector('.ih-mch canvas'),{type:'line',data:{labels:ys,datasets:list.filter(function(s){return s.P;}).map(function(s){
+      return {label:s.label,data:ys.map(function(y){return pmt(s.P.yr[y],yrRate(D,y));}),borderColor:s.c,backgroundColor:s.c,borderWidth:s.w||2,pointRadius:2,borderDash:s.dash||[],spanGaps:true};})
+      .concat([{label:'30-year rate (right)',data:ys.map(function(y){var r=yrRate(D,y);return r==null?null:+r.toFixed(2);}),borderColor:'#9ca3af',backgroundColor:'#9ca3af',borderWidth:1.5,pointRadius:0,yAxisID:'r'}])},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{boxWidth:10,font:{size:11,family:'DM Sans'}}},tooltip:{callbacks:{label:function(c){return c.dataset.yAxisID==='r'?'30-year rate: '+c.parsed.y+'%':c.dataset.label+': '+money(c.parsed.y)+' a month';}}}},
+        scales:{y:{ticks:{callback:function(v){return money(v);},font:{size:10}}},r:{position:'right',grid:{display:false},ticks:{callback:function(v){return v+'%';},font:{size:10}}},x:{ticks:{font:{size:10}}}}}});
+  }
+  function drawTax(el,T){
+    var ys=T.years.map(function(y){return y.fy.replace(' (1st & 2nd quarters)',' H1').replace(' (3rd & 4th quarters)',' H2');});
+    var lastY=T.years[T.years.length-1],firstY=T.years[0];
+    el.querySelector('.ih-tcards').innerHTML=
+      '<div class="ih-c"><div class="ih-l">Class 1, '+lastY.fy+'</div><div class="ih-v">'+lastY.c1.toFixed(3)+'%</div><div class="ih-d">One- to three-family homes &middot; '+firstY.c1.toFixed(3)+'% in '+firstY.fy+'</div></div>'+
+      '<div class="ih-c"><div class="ih-l">Class 2, '+lastY.fy+'</div><div class="ih-v">'+lastY.c2.toFixed(3)+'%</div><div class="ih-d">Co-ops, condos and other apartment buildings &middot; '+firstY.c2.toFixed(3)+'% in '+firstY.fy+'</div></div>';
+    if(el._tchart)el._tchart.destroy();
+    el._tchart=new Chart(el.querySelector('.ih-tch canvas'),{type:'line',data:{labels:ys,datasets:[
+      {label:'Class 1: one- to three-family homes',data:T.years.map(function(y){return y.c1;}),borderColor:'#f47920',backgroundColor:'#f47920',borderWidth:2.5,pointRadius:2},
+      {label:'Class 2: co-ops, condos, apartment buildings',data:T.years.map(function(y){return y.c2;}),borderColor:'#0d1b4b',backgroundColor:'#0d1b4b',borderWidth:2.5,pointRadius:2}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{boxWidth:10,font:{size:11,family:'DM Sans'}}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+c.parsed.y.toFixed(3)+'%';}}}},
+        scales:{y:{ticks:{callback:function(v){return v+'%';},font:{size:10}}},x:{ticks:{font:{size:10},maxTicksLimit:14}}}}});
+  }
   function init(){
     var els=document.querySelectorAll('.inchist');if(!els.length)return;
     var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
-    fetch('/data/income-history.json').then(function(r){return r.json();}).then(function(D){needChart(function(){
+    var SX=null,TX=null;
+    Promise.all([fetch('/data/income-history.json').then(function(r){return r.json();}),
+      SALE?fetch('/data/sales/rent-explorer.json').then(function(r){return r.json();}):null,
+      SALE?fetch('/data/nyc-property-tax-rates.json').then(function(r){return r.json();}):null]).then(function(res){var D=res[0];TX=res[2];
+      if(res[1]){SX={months:res[1].months,A:{}};res[1].areas.forEach(function(a){SX.A[a.id]=a;});}
+      needChart(function(){
       els.forEach(function(el){
         var boros=el.getAttribute('data-mode')==='boroughs',cd=el.getAttribute('data-cd')||'BKCB6';
         el.innerHTML='<div class="ih-h"><span class="ih-t">Median household income</span><span class="ih-s">'+(boros?'the five boroughs and the city':'district, borough and city')+', over time</span></div>'+
           (boros?'':'<div class="ih-pick"><select aria-label="Community district"></select></div>')+
-          '<div class="ih-cards"></div><div class="ih-ch"><canvas></canvas></div><div class="ih-n"></div>';
+          '<div class="ih-cards"></div><div class="ih-ch"><canvas></canvas></div><div class="ih-n"></div>'+
+          (SALE?'<div class="ih-h"><span class="ih-t">Down payment needed</span><span class="ih-s">20% of the median asking price, all homes, and how many years of median income that is</span></div>'+
+            '<div class="ih-dcards ih-cards"></div><div class="ih-ch ih-dch"><canvas></canvas></div><div class="ih-n">Down payment is 20% of the median asking price for all homes (StreetEasy). Each year uses the median of that year\'s monthly median asking prices, set against that year\'s median household income. The latest month is set against the latest income the Census has published.</div>'+
+            '<div class="ih-h"><span class="ih-t">Monthly mortgage cost</span><span class="ih-s">principal and interest on the median asking price, 20% down, 30-year fixed</span></div>'+
+            '<div class="ih-mcards ih-cards"></div><div class="ih-ch ih-mch"><canvas></canvas></div><div class="ih-n">Principal and interest on 80% of the median asking price for all homes, 30-year fixed at that year\'s average rate (Freddie Mac Primary Mortgage Market Survey, via FRED); the latest month uses that month\'s rate. Property taxes, insurance and co-op maintenance or condo common charges are not included.</div>'+
+            '<div class="ih-h"><span class="ih-t">NYC property tax rates</span><span class="ih-s">every year since 1981/82</span></div>'+
+            '<div class="ih-tcards ih-cards"></div><div class="ih-ch ih-tch"><canvas></canvas></div><div class="ih-n ih-tn"></div>':'');
         if(!boros){var sel=el.querySelector('select');
           Object.keys(D.acs.cd).sort(function(a,b){return a.slice(0,2)===b.slice(0,2)?(+a.slice(4))-(+b.slice(4)):a<b?-1:1;}).forEach(function(c){sel.add(new Option(cdName(c),c));});
-          sel.value=cd;sel.onchange=function(){draw(el,D,sel.value);};}
+          sel.value=cd;sel.onchange=function(){draw(el,D,sel.value);if(SX){drawDown(el,D,SX,sel.value);drawMonthly(el,D,SX,sel.value);}};}
         draw(el,D,cd);
+        if(SX){drawDown(el,D,SX,cd);drawMonthly(el,D,SX,cd);}
+        if(TX){drawTax(el,TX);el.querySelector('.ih-tn').innerHTML='Fiscal year rates, as a percentage of <b>assessed value</b>, not of the price. NYC taxes one- to three-family homes on an assessed value capped at 6% of market value (with yearly limits on increases), and co-ops and condos on a value the Department of Finance sets from comparable rental buildings, so the tax bill is far below the rate times the price. '+(TX.note.split('. ').slice(1,2).join('')||'')+'. Source: <a href="'+TX.url+'" target="_blank" rel="noopener">NYC Department of Finance</a>.';}
       });
     });});
   }
