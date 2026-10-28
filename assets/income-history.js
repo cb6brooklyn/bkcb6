@@ -175,6 +175,93 @@
       'Federal budget: '+H.budget.source+', by federal fiscal year (October to September); dashed lines are the President’s budget estimates. <a href="'+H.budget.url+'" target="_blank" rel="noopener">OMB</a>. '+
       'NYC: '+H.nyc.source+'. '+H.nyc.note+' <a href="'+H.nyc.url+'" target="_blank" rel="noopener">USAspending.gov</a>. Prices and population: '+(AJ?AJ.source:'')+'.';
   }
+
+  /* ---------- context blocks: ACS (earnings, rent burden, tenure, population), DCP supply, RGB, HPD ---------- */
+  var AC=null,HC=null;
+  function areas(el,cd){   /* district / borough / city, or five boroughs / city */
+    var L=[];
+    if(el.getAttribute('data-mode')==='boroughs')Object.keys(COLS).forEach(function(b){L.push({label:b,k:'boro',id:b,c:COLS[b]});});
+    else{var b=BORO[cd.slice(0,2)];L.push({label:cdName(cd),k:'cd',id:cd,c:'#f47920',w:3});L.push({label:b,k:'boro',id:b,c:'#1B5E8A'});}
+    L.push({label:'New York City',k:'nyc',id:'NYC',c:'#0d1b4b',dash:[5,3]});return L;}
+  function acsOf(a,m){if(!AC)return {};var r=a.k==='nyc'?AC.nyc:(AC[a.k]||{})[a.id];return (r&&r[m])||{};}
+  function lineChart(el,key,cv,L,get,fmt,opts){
+    var ys={};L.forEach(function(a){Object.keys(get(a)).forEach(function(y){ys[y]=1;});});ys=Object.keys(ys).sort();
+    if(el[key])el[key].destroy();
+    el[key]=new Chart(el.querySelector(cv),{type:'line',data:{labels:ys,datasets:L.map(function(a){var o=get(a);
+      return {label:a.label,data:ys.map(function(y){return o[y]!=null?o[y]:null;}),borderColor:a.c,backgroundColor:a.c,borderWidth:a.w||2,pointRadius:2,borderDash:a.dash||[],spanGaps:true};})},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{boxWidth:10,font:{size:11,family:'DM Sans'}}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+fmt(c.parsed.y);}}}},
+        scales:{y:Object.assign({ticks:{callback:fmt,font:{size:10}}},opts||{}),x:{ticks:{font:{size:10},maxTicksLimit:14}}}}});}
+  function lastCard(l,o,fmt,extra){var a=first(o),b=last(o);if(!b)return '';return '<div class="ih-c"><div class="ih-l">'+l+', '+b+'</div><div class="ih-v">'+fmt(o[b])+'</div><div class="ih-d">'+(a&&a!==b?fmt(o[a])+' in '+a:'')+(extra||'')+'</div></div>';}
+  function pct1(v){return v==null?'—':v.toFixed(1)+'%';}
+  function drawWages(el,cd){
+    var L=areas(el,cd),c='';
+    function get(a){var o=acsOf(a,'earn'),r={};Object.keys(o).forEach(function(y){var v=adj(el,o[y],y,'ny');if(v!=null)r[y]=v;});return r;}
+    L.forEach(function(a){c+=lastCard(a.label,get(a),money);});
+    el.querySelector('.ih-wcards').innerHTML=c;lineChart(el,'_wchart','.ih-wch canvas',L,get,function(v){return k(v);});}
+  function drawBurden(el,cd){
+    var L=areas(el,cd),c='';
+    L.forEach(function(a){var o=acsOf(a,'burden30'),o5=acsOf(a,'burden50'),y=last(o);c+=lastCard(a.label,o,pct1,y?' &middot; '+pct1(o5[y])+' pay half or more':'');});
+    el.querySelector('.ih-bcards').innerHTML=c;
+    lineChart(el,'_bchart','.ih-bch canvas',L.concat(L.map(function(a){return {label:a.label+', 50% or more',k:a.k,id:a.id,c:a.c,dash:[2,3],half:1};})),
+      function(a){return acsOf(a,a.half?'burden50':'burden30');},function(v){return v==null?'':Math.round(v)+'%';},{min:0});}
+  function drawTenure(el,cd){
+    var L=areas(el,cd),c='';
+    L.forEach(function(a){var o=acsOf(a,'owner'),y=last(o),ow=acsOf(a,'owners'),rn=acsOf(a,'renters');
+      c+=lastCard(a.label+' homes lived in by owners',o,pct1,y?' &middot; '+cnt(ow[y])+' owner and '+cnt(rn[y])+' renter households':'');});
+    el.querySelector('.ih-ocards').innerHTML=c;lineChart(el,'_ochart','.ih-och canvas',L,function(a){return acsOf(a,'owner');},function(v){return v==null?'':Math.round(v)+'%';},{min:0});}
+  function cnt(v){return v==null?'—':Math.round(v).toLocaleString('en-US');}
+  function drawSupply(el,cd){
+    if(!HC)return;var S=HC.supply,boros=el.getAttribute('data-mode')==='boroughs';
+    var a=boros?{label:'New York City',k:'nyc',id:'NYC'}:{label:cdName(cd),k:'cd',id:cd};
+    var rec=a.k==='nyc'?S.nyc:S.cd[cd],ys=S.years.map(String),built=ys.map(function(y){return rec.comp[y]!=null?rec.comp[y]:null;});
+    var pop=acsOf(a,'pop'),py=Object.keys(pop).sort(),tot=0;built.forEach(function(v){if(v)tot+=v;});
+    var c='<div class="ih-c"><div class="ih-l">'+a.label+', homes added 2010 to '+S.ytd+'</div><div class="ih-v">'+cnt(tot)+'</div><div class="ih-d">net, after demolitions &middot; '+(rec.cen20?Math.round(tot/rec.cen20*100)+'% of the '+cnt(rec.cen20)+' homes counted in the 2020 Census':'')+'</div></div>'+
+      '<div class="ih-c"><div class="ih-l">'+a.label+', homes added in '+(+S.ytd-1)+'</div><div class="ih-v">'+cnt(rec.comp[String(+S.ytd-1)])+'</div><div class="ih-d">'+cnt(rec.comp[S.ytd])+' so far in '+S.ytd+'</div></div>'+
+      (py.length>1?'<div class="ih-c"><div class="ih-l">'+a.label+', population</div><div class="ih-v">'+cnt(pop[py[py.length-1]])+'</div><div class="ih-d">'+py[py.length-1]+' &middot; '+cnt(pop[py[0]])+' in '+py[0]+' ('+((pop[py[py.length-1]]/pop[py[0]]-1)*100>=0?'+':'')+((pop[py[py.length-1]]/pop[py[0]]-1)*100).toFixed(1)+'%)</div></div>':'');
+    el.querySelector('.ih-scards').innerHTML=c;
+    if(el._schart)el._schart.destroy();
+    el._schart=new Chart(el.querySelector('.ih-sch canvas'),{type:'bar',data:{labels:ys,datasets:[
+      {label:'Homes added (net)',data:built,backgroundColor:ys.map(function(y){return y===S.ytd?'rgba(244,121,32,.45)':'#f47920';}),yAxisID:'u'},
+      {type:'line',label:'Population (Census ACS, right)',data:ys.map(function(y){return pop[y]!=null?pop[y]:null;}),borderColor:'#0d1b4b',backgroundColor:'#0d1b4b',borderWidth:2,pointRadius:2,spanGaps:true,yAxisID:'p'}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{boxWidth:10,font:{size:11,family:'DM Sans'}}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+cnt(c.parsed.y)+(c.dataset.yAxisID==='u'&&ys[c.dataIndex]===S.ytd?' (year to date)':'');}}}},
+        scales:{u:{position:'left',ticks:{callback:cnt,font:{size:10}}},p:{position:'right',grid:{display:false},ticks:{callback:cnt,font:{size:10}}},x:{ticks:{font:{size:10}}}}}});}
+  function drawRgb(el){
+    if(!HC)return;var R=HC.rgb.orders,st=HC.stab,lab=R.map(function(o){return o.start.slice(0,4);});
+    var infl=R.map(function(o){if(!AJ)return null;var y=+o.start.slice(0,4),a=AJ.cpi_ny[String(y)],b=AJ.cpi_ny[String(y-1)];return a&&b?+((a/b-1)*100).toFixed(1):null;});
+    var l=R[R.length-1],p=R[R.length-2];
+    el.querySelector('.ih-rcards').innerHTML=
+      '<div class="ih-c"><div class="ih-l">Order #'+l.order+', leases from '+MON[+l.start.slice(5)-1]+' '+l.start.slice(0,4)+'</div><div class="ih-v">'+l.one+'% / '+l.two+'%</div><div class="ih-d">one-year / two-year renewal &middot; #'+p.order+': '+p.one+'% / '+p.two+'%</div></div>'+
+      '<div class="ih-c"><div class="ih-l">Rent stabilized homes, '+st.year+'</div><div class="ih-v">'+cnt(st.units)+'</div><div class="ih-d">'+st.share_rentals+'% of rentals, '+st.share_all+'% of all homes in NYC</div></div>'+
+      '<div class="ih-c"><div class="ih-l">Vacancy in rent stabilized homes, '+st.year+'</div><div class="ih-v">'+st.vacancy+'%</div><div class="ih-d">'+st.vacancy_2021+'% in 2021</div></div>';
+    if(el._rchart)el._rchart.destroy();
+    el._rchart=new Chart(el.querySelector('.ih-rch canvas'),{type:'bar',data:{labels:lab,datasets:[
+      {label:'One-year renewal',data:R.map(function(o){return o.one;}),backgroundColor:'#f47920'},
+      {label:'Two-year renewal',data:R.map(function(o){return o.two;}),backgroundColor:'#0d1b4b'},
+      {type:'line',label:'Inflation that year (New York-area CPI)',data:infl,borderColor:'#67000D',backgroundColor:'#67000D',borderWidth:2,pointRadius:1.5,spanGaps:true}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{boxWidth:10,font:{size:11,family:'DM Sans'}}},tooltip:{callbacks:{title:function(it){var o=R[it[0].dataIndex];return 'Order #'+o.order+', from '+MON[+o.start.slice(5)-1]+' '+o.start.slice(0,4);},
+          label:function(c){return c.dataset.label+': '+(c.parsed.y==null?'—':c.parsed.y+'%');},footer:function(it){return R[it[0].dataIndex].note||'';}}}},
+        scales:{y:{ticks:{callback:function(v){return v+'%';},font:{size:10}}},x:{ticks:{font:{size:10},maxTicksLimit:20}}}}});}
+  function drawHpd(el){
+    if(!HC)return;var H=HC.hpd.years,lab=H.map(function(h){return 'FY '+h.fy;});
+    function A(h,f){return adj(el,h[f],h.fy,'ny');}
+    var l=H[H.length-1],f0=H[0];
+    el.querySelector('.ih-pcards').innerHTML=
+      '<div class="ih-c"><div class="ih-l">HPD adopted expense budget, FY '+l.fy+'</div><div class="ih-v">'+bil(A(l,'total')/1e6)+'</div><div class="ih-d">City funds '+bil(A(l,'city')/1e6)+' &middot; federal '+bil((A(l,'federal')+A(l,'cd'))/1e6)+dlab(el)+'</div></div>'+
+      '<div class="ih-c"><div class="ih-l">FY '+f0.fy+'</div><div class="ih-v">'+bil(A(f0,'total')/1e6)+'</div><div class="ih-d">City funds '+bil(A(f0,'city')/1e6)+' &middot; federal '+bil((A(f0,'federal')+A(f0,'cd'))/1e6)+'</div></div>';
+    if(el._pchart)el._pchart.destroy();
+    el._pchart=new Chart(el.querySelector('.ih-pch canvas'),{type:'bar',data:{labels:lab,datasets:[
+      {label:'City funds',data:H.map(function(h){return A(h,'city')/1e6;}),backgroundColor:'#f47920'},
+      {label:'Federal (HUD and other)',data:H.map(function(h){return A(h,'federal')/1e6;}),backgroundColor:'#0d1b4b'},
+      {label:'Federal Community Development Block Grant',data:H.map(function(h){return A(h,'cd')/1e6;}),backgroundColor:'#1B5E8A'},
+      {label:'State and other',data:H.map(function(h){return (A(h,'state')+A(h,'other'))/1e6;}),backgroundColor:'#9ECAE1'}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{boxWidth:10,font:{size:11,family:'DM Sans'}}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+bil(c.parsed.y);},footer:function(it){return 'Total: '+bil(A(H[it[0].dataIndex],'total')/1e6);}}}},
+        scales:{x:{stacked:true,ticks:{font:{size:10}}},y:{stacked:true,ticks:{callback:function(v){return bil(v);},font:{size:10}}}}}});}
+  function hdr(t,s){return '<div class="ih-h"><span class="ih-t">'+t+'</span><span class="ih-s">'+s+'</span></div>';}
+  function blk(cls,note,two){return '<div class="ih-'+cls+'cards ih-cards"></div><div class="ih-ch ih-'+cls+'ch"><canvas></canvas></div><div class="ih-n">'+note+'</div>';}
   function init(){
     var els=document.querySelectorAll('.inchist');if(!els.length)return;
     var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
@@ -183,7 +270,9 @@
       SALE?fetch('/data/sales/rent-explorer.json').then(function(r){return r.json();}):null,
       SALE?fetch('/data/nyc-property-tax-rates.json').then(function(r){return r.json();}):null,
       fetch('/data/hud-nyc.json').then(function(r){return r.json();}).catch(function(){return null;}),
-      fetch('/data/adjusters.json').then(function(r){return r.json();}).catch(function(){return null;})]).then(function(res){var D=res[0];TX=res[2];HU=res[3];AJ=res[4];
+      fetch('/data/adjusters.json').then(function(r){return r.json();}).catch(function(){return null;}),
+      fetch('/data/acs-context.json').then(function(r){return r.json();}).catch(function(){return null;}),
+      fetch('/data/housing-context.json').then(function(r){return r.json();}).catch(function(){return null;})]).then(function(res){var D=res[0];TX=res[2];HU=res[3];AJ=res[4];AC=res[5];HC=res[6];
       if(res[1]){SX={months:res[1].months,A:{}};res[1].areas.forEach(function(a){SX.A[a.id]=a;});}
       needChart(function(){
       els.forEach(function(el){
@@ -192,20 +281,26 @@
           '<div class="ih-ctl ih-dol"><span class="lb">Dollars</span><button type="button" data-r="0" class="on">As reported</button><button type="button" data-r="1">Adjusted for inflation'+(AJ?' ('+AJ.base+' dollars)':'')+'</button></div>'+
           (boros?'':'<div class="ih-pick"><select aria-label="Community district"></select></div>')+
           '<div class="ih-cards"></div><div class="ih-ch"><canvas></canvas></div><div class="ih-n"></div>'+
+          hdr('Median earnings of workers','what a typical worker earns, district, borough and city')+blk('w','Median earnings in the past 12 months of people 16 and over with earnings (Census American Community Survey 1-year estimates, table B20002). Household income adds up everyone in a household; this is one worker. Dollars follow the switch above.')+
+          hdr('Rent burden','share of renter households paying 30% or more of income on rent, and 50% or more')+blk('b','Gross rent (rent plus utilities) as a share of household income (Census ACS 1-year, table B25070). Paying 30% or more is the federal definition of rent burdened; 50% or more is severely burdened. Households with no income or no cash rent are left out.')+
+          hdr('Owners and renters','share of homes lived in by their owners')+blk('o','Owner-occupied share of occupied homes (Census ACS 1-year, table B25003).')+
+          hdr('Homes built and population','net new homes each year since 2010, against population')+blk('s','Net homes added: '+(HC?HC.supply.note+' '+HC.supply.source:'')+'. Population: Census ACS 1-year estimates (table B01003), from 2012 for districts. A district that shares a Census area with another shows the combined population.')+
           (SALE?'<div class="ih-h"><span class="ih-t">Down payment needed</span><span class="ih-s">20% of the median asking price, all homes, and how many years of median income that is</span></div>'+
             '<div class="ih-dcards ih-cards"></div><div class="ih-ch ih-dch"><canvas></canvas></div><div class="ih-n">Down payment is 20% of the median asking price for all homes (StreetEasy). Each year uses the median of that year\'s monthly median asking prices, set against that year\'s median household income. The latest month is set against the latest income the Census has published.</div>'+
             '<div class="ih-h"><span class="ih-t">Monthly mortgage cost</span><span class="ih-s">principal and interest on the median asking price, 20% down, 30-year fixed</span></div>'+
             '<div class="ih-mcards ih-cards"></div><div class="ih-ch ih-mch"><canvas></canvas></div><div class="ih-n">Principal and interest on 80% of the median asking price for all homes, 30-year fixed at that year\'s average rate (Freddie Mac Primary Mortgage Market Survey, via FRED); the latest month uses that month\'s rate. Property taxes, insurance and co-op maintenance or condo common charges are not included.</div>'+
             '<div class="ih-h"><span class="ih-t">NYC property tax rates</span><span class="ih-s">every year since 1981/82</span></div>'+
             '<div class="ih-tcards ih-cards"></div><div class="ih-ch ih-tch"><canvas></canvas></div><div class="ih-n ih-tn"></div>':'')+
+          hdr('Rent stabilization','Rent Guidelines Board renewal increases every year since 1968, against inflation')+blk('r','Guidelines as printed in the '+(HC?'<a href="'+HC.rgb.url+'" target="_blank" rel="noopener">'+HC.rgb.source+'</a>':'RGB summary chart')+'. Orders from #13 on start October 1 (earlier ones July 1); where an order split a lease or set a dollar minimum, the tooltip says so. Inflation is the change in the New York-area CPI-U over the calendar year the order starts. Rent stabilized homes and vacancy: '+(HC?'<a href="'+HC.stab.url+'" target="_blank" rel="noopener">'+HC.stab.source+'</a>':'')+'.')+
+          hdr('The City&rsquo;s housing agency budget','HPD adopted expense budget by where the money comes from')+blk('p',(HC?HC.hpd.note+' Source: <a href="'+HC.hpd.url+'" target="_blank" rel="noopener">'+HC.hpd.source+'</a>, fiscal years July to June. Dollars follow the switch above.':''))+
           '<div class="ih-h"><span class="ih-t">HUD&rsquo;s budget and HUD money in NYC</span><span class="ih-s">federal budget since 1962, awards in the five boroughs since FY 2010</span></div>'+
           '<div class="ih-ctl ih-hv"><span class="lb">Show</span><button type="button" data-v="total" class="on">Total</button><button type="button" data-v="person">Per person</button><button type="button" data-v="share">Share of federal spending</button></div>'+
           '<div class="ih-hcards ih-cards"></div><div class="ih-ch ih-hch"><canvas></canvas></div><div class="ih-ch ih-nch"><canvas></canvas></div><div class="ih-n ih-hn"></div>';
         if(!boros){var sel=el.querySelector('select');
           Object.keys(D.acs.cd).sort(function(a,b){return a.slice(0,2)===b.slice(0,2)?(+a.slice(4))-(+b.slice(4)):a<b?-1:1;}).forEach(function(c){sel.add(new Option(cdName(c),c));});
-          sel.value=cd;sel.onchange=function(){draw(el,D,sel.value);if(SX){drawDown(el,D,SX,sel.value);drawMonthly(el,D,SX,sel.value);}};}
+          sel.value=cd;sel.onchange=function(){all();};}
         function cur(){var s2=el.querySelector('.ih-pick select');return s2?s2.value:cd;}
-        function all(){var c=cur();draw(el,D,c);if(SX){drawDown(el,D,SX,c);drawMonthly(el,D,SX,c);}if(HU)drawHud(el,HU);}
+        function all(){var c=cur();draw(el,D,c);if(AC){drawWages(el,c);drawBurden(el,c);drawTenure(el,c);}drawSupply(el,c);if(SX){drawDown(el,D,SX,c);drawMonthly(el,D,SX,c);}drawRgb(el);drawHpd(el);if(HU)drawHud(el,HU);}
         el.querySelectorAll('.ih-dol button').forEach(function(bt){bt.onclick=function(){el._real=bt.getAttribute('data-r')==='1';el.querySelectorAll('.ih-dol button').forEach(function(x){x.classList.toggle('on',x===bt);});all();};});
         el.querySelectorAll('.ih-hv button').forEach(function(bt){bt.onclick=function(){el._hud=bt.getAttribute('data-v');el.querySelectorAll('.ih-hv button').forEach(function(x){x.classList.toggle('on',x===bt);});if(HU)drawHud(el,HU);};});
         all();
