@@ -115,6 +115,17 @@ h1{font-size:clamp(1.7rem,6vw,2.4rem);line-height:1.1;margin:.3em 0 .35em;font-w
 .paper .pn{font-weight:700;font-size:.85rem}
 .paper .pd{font-family:var(--mono);font-size:.62rem;color:var(--muted)}
 .cand .pbadge{font-family:var(--mono);font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--orange);color:var(--orange);border-radius:4px;padding:2px 6px}
+.tiles{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.lg{position:relative;display:inline-flex;align-items:center;justify-content:center;height:56px;min-width:56px;max-width:180px;padding:4px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;outline:none}
+.lg img{height:46px;width:auto;max-width:170px;display:block;border-radius:6px}
+.lg .tn{font-weight:700;font-size:.8rem;color:#0d1b4b;padding:0 8px;text-align:center;line-height:1.2}
+.lg:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+.lg .pop{display:none;position:absolute;z-index:20;left:0;top:calc(100% + 6px);width:max-content;max-width:min(260px,80vw);background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px 12px;box-shadow:0 8px 24px rgba(13,27,75,.18);font-size:.85rem;line-height:1.4;flex-direction:column;gap:3px;text-align:left}
+.lg .pop b{font-size:.9rem}
+.lg .pop a{font-weight:700;margin-top:4px}
+.lg:hover .pop,.lg:focus .pop,.lg:focus-within .pop{display:flex}
+.strip{display:grid;gap:2px}
+.strip>b{font-family:var(--mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
 .note{font-size:.85rem;color:var(--muted);margin:0}
 .pending{color:var(--muted);font-style:italic}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -161,6 +172,7 @@ footer{margin-top:28px;font-size:.8rem;color:var(--muted)}
       <div class="or"><span>Or see a community board:</span><select id="board" aria-label="Community board"></select></div>
       <p class="msg" id="msg"></p>
     </div>
+    <div class="strip"><b>Newspaper endorsements</b><div class="tiles" id="paperStrip"></div></div>
     <div id="ballotOut" class="grp"></div>
     <p class="src" id="ballotSrc"></p>
   </section>
@@ -317,13 +329,24 @@ function statewideMatch(o,office){
   if(/Attorney General/.test(office)) return /Attorney General/.test(o.seat);
   return false;}
 function src(u){return u?' <a class="sl" href="'+esc(u)+'" target="_blank" rel="noopener">source</a>':'';}
+function hasLogo(slug){return (D.logos||[]).indexOf(slug)>-1;}
+function tile(slug,name,lines,url,linkText){
+  var face=hasLogo(slug)?'<img src="logos/'+slug+'.png" alt="'+esc(name)+'">':'<span class="tn">'+esc(name)+'</span>';
+  return '<span class="lg" tabindex="0" role="button" aria-label="'+esc(name)+'">'+face+
+    '<span class="pop" role="tooltip"><b>'+esc(name)+'</b>'+lines.map(function(t){return '<span>'+esc(t)+'</span>';}).join('')+
+    (url?'<a href="'+esc(url)+'" target="_blank" rel="noopener">'+(linkText||'Read the endorsement')+' \u2192</a>':'')+'</span></span>';}
 function infoHTML(person,named){
   var I=(D.info||{})[person]; if(!I) return '';
   var h=named?'<p class="who">'+esc(person)+'</p>':'';
-  function list(t,arr){ return arr&&arr.length?'<div class="ib"><b>'+t+'</b><ul>'+arr.map(function(r){return '<li>'+esc(r[0])+src(r[1])+'</li>';}).join('')+'</ul></div>':''; }
-  if(I.papers&&I.papers.length) h+='<div class="ib"><b>Newspaper endorsements</b><div class="papers">'+I.papers.map(function(r){
-    var logo=(D.logos||[]).indexOf(r[3])>-1?'<img src="logos/'+r[3]+'.png" alt="'+esc(r[0])+'">':'<span class="pn">'+esc(r[0])+'</span>';
-    return '<a class="paper" href="'+esc(r[2])+'" target="_blank" rel="noopener">'+logo+'<span class="pd">'+esc(r[1])+'</span></a>';}).join('')+'</div></div>';
+  function list(t,arr){
+    if(t==='Endorsements'&&arr&&arr.length){
+      var lg=arr.filter(function(r){return (D.endLogos||{})[r[0].replace(/ \(.*$/,'')]&&hasLogo(D.endLogos[r[0].replace(/ \(.*$/,'')]);});
+      var tx=arr.filter(function(r){return lg.indexOf(r)<0;});
+      return '<div class="ib"><b>'+t+'</b>'+(lg.length?'<div class="tiles">'+lg.map(function(r){return tile(D.endLogos[r[0].replace(/ \(.*$/,'')],r[0],['Endorsed '+person],r[1],'Source');}).join('')+'</div>':'')+
+        (tx.length?'<ul>'+tx.map(function(r){return '<li>'+esc(r[0])+src(r[1])+'</li>';}).join('')+'</ul>':'')+'</div>';}
+    return arr&&arr.length?'<div class="ib"><b>'+t+'</b><ul>'+arr.map(function(r){return '<li>'+esc(r[0])+src(r[1])+'</li>';}).join('')+'</ul></div>':''; }
+  if(I.papers&&I.papers.length) h+='<div class="ib"><b>Newspaper endorsements</b><div class="tiles">'+I.papers.map(function(r){
+    return tile(r[3],r[0],['Endorsed '+person,r[1]],r[2]);}).join('')+'</div></div>';
   h+=list('Background',I.background)+list('On the issues',I.positions)+list('Endorsements',I.endorsements);
   if(!(I.endorsements&&I.endorsements.length)) h+='<div class="ib"><b>Endorsements</b><ul><li class="none">None found in published sources.</li></ul></div>';
   if(I.website) h+='<p><a href="'+esc(I.website)+'" target="_blank" rel="noopener">Campaign website</a></p>';
@@ -381,6 +404,10 @@ function showBoard(cd){ msg.innerHTML=''; render(null,{board:cd}); out.querySele
 fetch('ballot.json').then(function(r){return r.json();}).then(function(d){
   D=d;
   document.getElementById('ballotSrc').innerHTML=esc(d.papersNote)+' Candidates: <a href="'+esc(d.srcUrl)+'" target="_blank" rel="noopener">'+esc(d.src)+'</a>. Incumbent profiles from bkcb6.app.';
+  document.getElementById('paperStrip').innerHTML=(d.paperList||[]).map(function(p){
+    if(!p.e.length) return tile(p.slug,p.name,[p.none],p.u,'Source');
+    var lines=p.e.map(function(e){return e[1]+': '+e[0]+' ('+e[2]+')';});
+    return tile(p.slug,p.name,lines,p.e[0][3]);}).join('');
   var order=['BK','MN','BX','QN','SI'];
   var keys=Object.keys(d.boards).sort(function(a,b){var A=d.boards[a].l,B=d.boards[b].l;return order.indexOf(A.slice(0,2))-order.indexOf(B.slice(0,2))||parseInt(A.slice(4))-parseInt(B.slice(4));});
   sel.innerHTML=keys.map(function(k){return '<option value="'+k+'"'+(k==='306'?' selected':'')+'>'+esc(d.boards[k].l)+'</option>';}).join('');
