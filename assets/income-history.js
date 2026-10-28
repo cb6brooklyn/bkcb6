@@ -24,11 +24,15 @@
   function k(v){return v>=1e6?'$'+(v/1e6).toFixed(1)+'M':'$'+Math.round(v/1000)+'K';}
   var AJ=null;
   /* inflation: multiply a dollar figure of year y to express it in base-year dollars (CPI-U); 1 when "as reported" */
-  function fac(el,y,which){if(!el._real||!AJ)return 1;var c=AJ['cpi_'+which],b=c[AJ.base],v=c[String(y)];return v?b/v:null;}
+  /* inflation: older amounts restated in the dollars of the latest year shown (el._b), so the latest figure
+     stays exactly as reported and earlier years become comparable to it */
+  function maxCpi(which){var c=AJ['cpi_'+which],m=0;for(var k in c)if(+k>m)m=+k;return m;}
+  function fac(el,y,which){if(!el._real||!AJ)return 1;var B=Math.min(+(el._b||AJ.base),maxCpi(which));if(+y>=B)return 1;
+    var c=AJ['cpi_'+which],b=c[String(B)],v=c[String(y)];return v&&b?b/v:null;}
   function adj(el,v,y,which){if(v==null)return null;var f=fac(el,y,which);return f==null?null:v*f;}
   /* population for year y, or the latest year before it when this year's estimate is not out yet */
   function pop(which,y){if(!AJ)return null;var o=AJ['pop_'+which];for(var k=+y;k>=+y-2;k--)if(o[String(k)])return o[String(k)];return null;}
-  function dlab(el){return el._real&&AJ?' (in '+AJ.base+' dollars)':'';}
+  function dlab(el){return el._real&&AJ?' (earlier years in '+Math.min(+(el._b||AJ.base),maxCpi('ny'))+' dollars)':'';}
   function cdName(c){return BORO[c.slice(0,2)]+' CB'+c.slice(4);}
   function first(o){var y=Object.keys(o).sort();return y.length?y[0]:null;}
   function last(o){var y=Object.keys(o).sort();return y.length?y[y.length-1]:null;}
@@ -37,6 +41,7 @@
     return '<div class="ih-c"><div class="ih-l">'+l+', '+b+'</div><div class="ih-v">'+money(o[b])+'</div><div class="ih-d">'+(ch==null?'':(ch>=0?'+':'')+ch.toFixed(0)+'% since '+a+' ('+money(o[a])+')')+'</div></div>';}
   function draw(el,D,cd){
     var A=D.acs,SA=D.saipe.boro,series=[],cards='';
+    el._b=Math.max(+last(A.nyc)||0,+last(SA.Brooklyn)||0);
     if(el.getAttribute('data-mode')==='boroughs'){
       Object.keys(COLS).forEach(function(b){series.push({label:b,o:SA[b],c:COLS[b]});cards+=card(b,SA[b],el);});
     }else{
@@ -48,7 +53,7 @@
     var ys={};series.forEach(function(s){Object.keys(s.o||{}).forEach(function(y){ys[y]=1;});});ys=Object.keys(ys).sort();
     el.querySelector('.ih-cards').innerHTML=cards;
     var sh=(A.shared[cd]||{})[last(A.cd[cd]||{})];
-    el.querySelector('.ih-n').innerHTML=(el._real&&AJ?'Median household income adjusted for inflation to '+AJ.base+' dollars with the New York-area consumer price index (CPI-U, New York-Newark-Jersey City). ':'Median household income in dollars of each year, not adjusted for inflation. ')+
+    el.querySelector('.ih-n').innerHTML=(el._real&&AJ?'Adjusted for inflation: each earlier year restated in '+el._b+' dollars, so it can be compared with '+el._b+', using the New York-area consumer price index (CPI-U, New York-Newark-Jersey City). ':'Median household income in dollars of each year, not adjusted for inflation. ')+
       (el.getAttribute('data-mode')==='boroughs'?'':'Community district: Census American Community Survey 1-year estimates, from 2012, the first year the Census labels its areas by district'+(sh?' (it shares one Census area with '+sh.map(cdName).join(', ')+')':'')+'. ')+
       'Borough: Census Small Area Income and Poverty Estimates, from 1989. New York City: American Community Survey 1-year estimates, from 2010. There are no standard 2020 1-year estimates.';
     if(el._chart)el._chart.destroy();
@@ -69,6 +74,7 @@
     var yr={};Object.keys(by).forEach(function(y){yr[y]=med(by[y]);});return {yr:yr,now:lastI<0?null:a.s.studio[1][lastI-o],nowM:lastI<0?null:SX.months[lastI]};}
   function drawDown(el,D,SX,cd){
     var A=D.acs,SA=D.saipe.boro,list=[];
+    el._b=SX.months[SX.months.length-1].slice(0,4);
     if(el.getAttribute('data-mode')==='boroughs'){Object.keys(COLS).forEach(function(b){list.push({label:b,id:'b:'+b,inc:SA[b],c:COLS[b]});});}
     else{var b=BORO[cd.slice(0,2)];list.push({label:cdName(cd),id:'c:'+cd,inc:A.cd[cd]||{},c:'#f47920',w:3});list.push({label:b,id:'b:'+b,inc:SA[b],c:'#1B5E8A'});}
     list.push({label:'New York City',id:'x:NYC',inc:A.nyc,c:'#0d1b4b',dash:[5,3]});
@@ -76,7 +82,7 @@
     list.forEach(function(s){var P=priceSeries(SX,s.id);s.P=P;if(!P)return;
       Object.keys(P.yr).forEach(function(y){if(s.inc[y]!=null)ys[y]=1;});
       var iy=last(s.inc),ny=P.nowM?P.nowM.slice(0,4):null,dp=P.now!=null?adj(el,P.now*.2,ny,'ny'):null;
-      cards+='<div class="ih-c"><div class="ih-l">'+s.label+', '+(P.nowM?MON[+P.nowM.slice(5)-1]+' '+P.nowM.slice(0,4):'')+'</div><div class="ih-v">'+money(dp)+'</div><div class="ih-d">20% of '+money(adj(el,P.now,ny,'ny'))+dlab(el)+
+      cards+='<div class="ih-c"><div class="ih-l">'+s.label+', '+(P.nowM?MON[+P.nowM.slice(5)-1]+' '+P.nowM.slice(0,4):'')+'</div><div class="ih-v">'+money(dp)+'</div><div class="ih-d">20% of '+money(adj(el,P.now,ny,'ny'))+
         (P.now!=null&&iy?' &middot; '+(P.now*.2/s.inc[iy]).toFixed(1)+' years of '+iy+' median income ('+money(adj(el,s.inc[iy],iy,'ny'))+')':'')+'</div></div>';});
     ys=Object.keys(ys).sort();
     el.querySelector('.ih-dcards').innerHTML=cards;
@@ -95,6 +101,7 @@
   function pmt(price,rate){if(price==null||rate==null)return null;var L=price*.8,r=rate/1200;return L*r/(1-Math.pow(1+r,-360));}
   function drawMonthly(el,D,SX,cd){
     var A=D.acs,SA=D.saipe.boro,list=[];
+    el._b=SX.months[SX.months.length-1].slice(0,4);
     if(el.getAttribute('data-mode')==='boroughs'){Object.keys(COLS).forEach(function(b){list.push({label:b,id:'b:'+b,inc:SA[b],c:COLS[b]});});}
     else{var b=BORO[cd.slice(0,2)];list.push({label:cdName(cd),id:'c:'+cd,inc:A.cd[cd]||{},c:'#f47920',w:3});list.push({label:b,id:'b:'+b,inc:SA[b],c:'#1B5E8A'});}
     list.push({label:'New York City',id:'x:NYC',inc:A.nyc,c:'#0d1b4b',dash:[5,3]});
@@ -102,7 +109,7 @@
     list.forEach(function(s){s.P=priceSeries(SX,s.id);if(!s.P)return;Object.keys(s.P.yr).forEach(function(y){ys[y]=1;});
       var r=s.P.nowM?D.mortgage.monthly[s.P.nowM]:null,m0=pmt(s.P.now,r),ny=s.P.nowM?s.P.nowM.slice(0,4):null,m=adj(el,m0,ny,'ny'),iy=last(s.inc);
       cards+='<div class="ih-c"><div class="ih-l">'+s.label+', '+(s.P.nowM?MON[+s.P.nowM.slice(5)-1]+' '+s.P.nowM.slice(0,4):'')+'</div><div class="ih-v">'+money(m)+' a month</div><div class="ih-d">'+
-        (r!=null?'at '+r.toFixed(2)+'% on '+money(s.P.now?adj(el,s.P.now*.8,ny,'ny'):null)+dlab(el):'')+(m0!=null&&iy?' &middot; '+Math.round(m0*12/s.inc[iy]*100)+'% of '+iy+' median income':'')+'</div></div>';});
+        (r!=null?'at '+r.toFixed(2)+'% on '+money(s.P.now?adj(el,s.P.now*.8,ny,'ny'):null):'')+(m0!=null&&iy?' &middot; '+Math.round(m0*12/s.inc[iy]*100)+'% of '+iy+' median income':'')+'</div></div>';});
     ys=Object.keys(ys).sort();
     el.querySelector('.ih-mcards').innerHTML=cards;
     if(el._mchart)el._mchart.destroy();
@@ -137,12 +144,12 @@
     /* one HUD budget figure (millions) in the chosen view */
     function V(m,y){if(m==null)return null;
       if(view==='share'){var f=at(F,y);return f&&f.m?m/f.m*100:null;}
-      var v=adj(el,m*1e6,y,'us');if(v==null)return null;
+      el._b=actual(b).fy;var v=adj(el,m*1e6,y,'us');if(v==null)return null;
       if(view==='person'){var p=pop('us',y);return p?v/(p*1e3):null;}
       return v;}
     function fmt(v){return v==null?'—':view==='share'?v.toFixed(2)+'%':view==='person'?'$'+v.toFixed(0):bil(v/1e6);}
     function NV(r,part){var m=r[part];if(view==='share'){var a=at(b,r.fy);return a&&a.m?m/(a.m*1e6)*100:null;}
-      var v=adj(el,m,r.fy,'ny');if(v==null)return null;if(view==='person'){var p=pop('nyc',r.fy);return p?v/(p*1e3):null;}return v;}
+      el._b=N[N.length-1].fy;var v=adj(el,m,r.fy,'ny');if(v==null)return null;if(view==='person'){var p=pop('nyc',r.fy);return p?v/(p*1e3):null;}return v;}
     function nf(v){return v==null?'—':view==='share'?v.toFixed(1)+'%':view==='person'?'$'+v.toFixed(0):bil(v/1e6);}
     var la=actual(b),lo=actual(o),N=H.nyc.years,ln=N[N.length-1],fn=N[0];
     var vl={total:'',person:' per person',share:' as a share of all federal spending'}[view];
@@ -171,7 +178,7 @@
     el.querySelector('.ih-hn').innerHTML=
       (view==='share'?'Share view: HUD as a share of all federal outlays (same OMB table), and HUD awards in NYC as a share of HUD budget authority that year (awards are obligations, a different measure from budget authority, so read this as an approximation), with New York City’s share of the U.S. population for comparison. ':
        view==='person'?'Per person: HUD’s budget divided by the U.S. population, and HUD awards in NYC divided by New York City’s population (Census estimates for the five counties). ':'')+
-      (el._real&&AJ&&view!=='share'?'Adjusted for inflation to '+AJ.base+' dollars: the federal budget with the national CPI-U, NYC awards with the New York-area CPI-U, by calendar year; years without a published index (budget estimates past this year) are left out. ':'')+
+      (el._real&&AJ&&view!=='share'?'Adjusted for inflation: earlier years restated in the dollars of the latest year shown (the federal budget in FY '+actual(b).fy+' dollars, NYC awards in FY '+N[N.length-1].fy+' dollars), so the latest figures stay as reported: the federal budget with the national CPI-U, NYC awards with the New York-area CPI-U, by calendar year; years without a published index (budget estimates past this year) are left out. ':'')+
       'Federal budget: '+H.budget.source+', by federal fiscal year (October to September); dashed lines are the President’s budget estimates. <a href="'+H.budget.url+'" target="_blank" rel="noopener">OMB</a>. '+
       'NYC: '+H.nyc.source+'. '+H.nyc.note+' <a href="'+H.nyc.url+'" target="_blank" rel="noopener">USAspending.gov</a>. Prices and population: '+(AJ?AJ.source:'')+'.';
   }
@@ -196,6 +203,7 @@
   function pct1(v){return v==null?'—':v.toFixed(1)+'%';}
   function drawWages(el,cd){
     var L=areas(el,cd),c='';
+    el._b=AC&&AC.years?AC.years[AC.years.length-1]:null;
     function get(a){var o=acsOf(a,'earn'),r={};Object.keys(o).forEach(function(y){var v=adj(el,o[y],y,'ny');if(v!=null)r[y]=v;});return r;}
     L.forEach(function(a){c+=lastCard(a.label,get(a),money);});
     el.querySelector('.ih-wcards').innerHTML=c;lineChart(el,'_wchart','.ih-wch canvas',L,get,function(v){return k(v);});}
@@ -246,6 +254,7 @@
         scales:{y:{ticks:{callback:function(v){return v+'%';},font:{size:10}}},x:{ticks:{font:{size:10},maxTicksLimit:20}}}}});}
   function drawHpd(el){
     if(!HC)return;var H=HC.hpd.years,lab=H.map(function(h){return 'FY '+h.fy;});
+    el._b=H[H.length-1].fy;
     function A(h,f){return adj(el,h[f],h.fy,'ny');}
     var l=H[H.length-1],f0=H[0];
     el.querySelector('.ih-pcards').innerHTML=
@@ -278,7 +287,7 @@
       els.forEach(function(el){
         var boros=el.getAttribute('data-mode')==='boroughs',cd=el.getAttribute('data-cd')||'BKCB6';
         el.innerHTML='<div class="ih-h"><span class="ih-t">Median household income</span><span class="ih-s">'+(boros?'the five boroughs and the city':'district, borough and city')+', over time</span></div>'+
-          '<div class="ih-ctl ih-dol"><span class="lb">Dollars</span><button type="button" data-r="0" class="on">As reported</button><button type="button" data-r="1">Adjusted for inflation'+(AJ?' ('+AJ.base+' dollars)':'')+'</button></div>'+
+          '<div class="ih-ctl ih-dol"><span class="lb">Dollars</span><button type="button" data-r="0" class="on">As reported</button><button type="button" data-r="1">Adjusted for inflation (compare across years)</button></div>'+
           (boros?'':'<div class="ih-pick"><select aria-label="Community district"></select></div>')+
           '<div class="ih-cards"></div><div class="ih-ch"><canvas></canvas></div><div class="ih-n"></div>'+
           hdr('Median earnings of workers','what a typical worker earns, district, borough and city')+blk('w','Median earnings in the past 12 months of people 16 and over with earnings (Census American Community Survey 1-year estimates, table B20002). Household income adds up everyone in a household; this is one worker. Dollars follow the switch above.')+
