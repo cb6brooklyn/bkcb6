@@ -14,11 +14,16 @@
     '.pg-guide .pg-t{font-size:1.02rem;font-weight:800}.pg-guide .pg-s{font-size:.78rem;color:rgba(255,255,255,.78);margin-top:3px;line-height:1.45}' +
     '.pg-guide ol{list-style:none;margin:0;padding:0}' +
     '.pg-guide li{border-top:1px solid #eeebe5}' +
-    '.pg-guide a{display:flex;gap:11px;align-items:flex-start;padding:11px 16px;text-decoration:none;color:inherit}' +
+    '.pg-guide a{display:flex;gap:10px;align-items:center;padding:9px 16px;text-decoration:none;color:inherit}' +
+    '.pg-guide .tx{min-width:0;flex:1}.pg-guide .dd{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '.pg-guide a.on{background:#fff1e5}.pg-guide a.on .n{background:#0d1b4b}' +
+    '.pg-guide .go:before{content:"\\203A";font-size:1.1rem;color:#f47920}.pg-guide a.on .go:before{content:"\\2304"}' +
+    '.pg-how{border-top:1px solid #e5e2db}.pg-how>summary{cursor:pointer;padding:9px 15px;font:700 .62rem "DM Mono",monospace;text-transform:uppercase;letter-spacing:.08em;color:#f47920;list-style:none}' +
+    '.pg-how>summary::-webkit-details-marker{display:none}.pg-how>summary:after{content:" \\25BE"}.pg-how[open]>summary:after{content:" \\25B4"}' +
     '.pg-guide a:hover,.pg-guide a:focus{background:#fff6ee;outline:none}' +
-    '.pg-guide .n{flex:none;width:24px;height:24px;border-radius:50%;background:#f47920;color:#fff;font:700 .72rem/24px "DM Mono",monospace;text-align:center}' +
-    '.pg-guide .tt{font-weight:800;font-size:.9rem;line-height:1.3}.pg-guide .dd{font-size:.76rem;color:#5c6170;line-height:1.45;margin-top:2px}' +
-    '.pg-guide .go{margin-left:auto;flex:none;font:700 .62rem "DM Mono",monospace;color:#f47920;text-transform:uppercase;letter-spacing:.06em;padding-top:5px}' +
+    '.pg-guide .n{flex:none;width:22px;height:22px;border-radius:50%;background:#f47920;color:#fff;font:700 .66rem/22px "DM Mono",monospace;text-align:center}' +
+    '.pg-guide .tt{font-weight:800;font-size:.86rem;line-height:1.3}.pg-guide .dd{font-size:.72rem;color:#7a7f8c;line-height:1.4;margin-top:1px}' +
+    '.pg-guide .go{margin-left:auto;flex:none}' +
     'details.pg-ch{background:#fff;border-top:1px solid #e5e2db}' +
     'details.pg-ch>summary{list-style:none;cursor:pointer;display:flex;gap:11px;align-items:center;padding:14px 16px;background:#f8f7f4;border-left:4px solid #f47920}' +
     'details.pg-ch>summary::-webkit-details-marker{display:none}' +
@@ -29,6 +34,8 @@
     '.inchist .ih-h.pg-fold:after{content:"show \\25BE";margin-left:auto;font:700 .6rem "DM Mono",monospace;color:#f47920;text-transform:uppercase}' +
     '.inchist .ih-h.pg-fold.pg-on:after{content:"hide \\25B4"}' +
     '.pg-hide{display:none!important}' +
+    /* the orange "could you qualify" link duplicates the Affordable housing section built into these pages */
+    'a.afford-cta{display:none!important}' +
     '#pgFab{position:fixed;left:14px;bottom:16px;z-index:9500;display:inline-flex;align-items:center;gap:7px;padding:10px 15px;border:0;border-radius:999px;background:#0d1b4b;color:#fff;font:700 .82rem "DM Sans",sans-serif;box-shadow:0 3px 12px rgba(0,0,0,.28);cursor:pointer}' +
     '#pgFab span{color:#f47920}';
 
@@ -115,28 +122,49 @@
     items.sort(function (a, b) { return a.el.compareDocumentPosition(b.el) & 4 ? -1 : 1; });
     if (!items.length) return;
 
+    /* quiet by default: only the menu shows; one section at a time opens under it */
+    var shown = null;
+    function hideAll() { items.forEach(function (it) { it.el.classList.add('pg-hide'); if (it.el.open) it.el.open = false; }); }
+    function show(it) {
+      if (shown && shown !== it) { shown.el.open = false; shown.el.classList.add('pg-hide'); shown.a.classList.remove('on'); }
+      shown = it; it.a.classList.add('on');
+      it.el.classList.remove('pg-hide'); it.el.open = true; fire();
+      setTimeout(function () { it.el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
+    }
+    items.forEach(function (it) {
+      it.el.addEventListener('toggle', function () {          /* closing a section puts it away again */
+        if (!it.el.open && shown === it) { it.el.classList.add('pg-hide'); it.a.classList.remove('on'); shown = null; g.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      });
+    });
+
     var g = document.createElement('nav'); g.className = 'pg-guide'; g.id = 'pgGuide'; g.setAttribute('aria-label', 'On this page');
-    g.innerHTML = '<div class="pg-h"><div class="pg-t">On this page</div><div class="pg-s">The map above shows the latest month. Everything else is folded below; tap a section to open it.</div></div><ol></ol>';
+    g.innerHTML = '<div class="pg-h"><div class="pg-t">On this page</div><div class="pg-s">Pick a section and it opens below this list, one at a time.</div></div><ol></ol>';
     var ol = g.querySelector('ol');
     items.forEach(function (it, i) {
       var li = document.createElement('li'), a = document.createElement('a');
       a.href = '#' + it.el.id;
-      a.innerHTML = '<span class="n">' + (i + 1) + '</span><span><span class="tt"></span><span class="dd" style="display:block"></span></span><span class="go">open</span>';
+      a.innerHTML = '<span class="n">' + (i + 1) + '</span><span class="tx"><span class="tt"></span><span class="dd"></span></span><span class="go"></span>';
       a.querySelector('.tt').textContent = it.title; a.querySelector('.dd').textContent = it.desc;
-      a.addEventListener('click', function (e) {
-        e.preventDefault(); it.el.open = true; fire();
-        setTimeout(function () { it.el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
-      });
-      li.appendChild(a); ol.appendChild(li);
+      a.addEventListener('click', function (e) { e.preventDefault(); if (shown === it) { it.el.open = false; return; } show(it); });
+      it.a = a; li.appendChild(a); ol.appendChild(li);
     });
+    hideAll();
     var cap = document.querySelector('.map-caption');
     var anchor = cap || document.getElementById('map');
     if (!anchor) return;
     anchor.parentNode.insertBefore(g, anchor.nextSibling);
-    /* the page's own short explanation goes right above the menu */
+    /* the page's own explanation: its first sentence above the menu, the rest folded */
     var intro = Array.prototype.filter.call(document.querySelectorAll('.pgintro'), function (x) { return !x.closest('[class^="emb-"]'); })[0];
-    if (intro) g.parentNode.insertBefore(intro, g);
-
+    if (intro) {
+      g.parentNode.insertBefore(intro, g);
+      var rest = Array.prototype.slice.call(intro.children).filter(function (c) { return !c.classList.contains('pgi-lead'); });
+      if (rest.length) {
+        var how = document.createElement('details'); how.className = 'pg-how';
+        how.innerHTML = '<summary>How to read the map</summary>';
+        rest.forEach(function (c) { how.appendChild(c); });
+        intro.appendChild(how);
+      }
+    }
     var fab = document.createElement('button'); fab.id = 'pgFab'; fab.type = 'button';
     fab.innerHTML = '<span>&#9776;</span> Sections';
     fab.addEventListener('click', function () { g.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
