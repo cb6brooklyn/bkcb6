@@ -30,7 +30,7 @@ Notes that took a while to work out, so they are recorded here:
 import csv, json, os, re, shutil, statistics, sys, tempfile, zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA = os.path.join(ROOT, 'data')
+DATA = os.environ.get('RENT_DATA_DIR') or os.path.join(ROOT, 'data')
 
 RENT_FILES = {'studio':'medianAskingRent_Studio.csv','br1':'medianAskingRent_OneBd.csv',
               'br2':'medianAskingRent_TwoBd.csv','br3':'medianAskingRent_ThreePlusBd.csv',
@@ -162,6 +162,14 @@ def main(src):
     blank = [None] * len(months)
     def rs(nm, k): return rent.get(nm, {}).get(k, blank)
     def iv(nm, k): return inv.get(nm, {}).get(k, blank)
+    # Optional rentalInventory_All.csv: when present, the all-units listings
+    # count comes from it rather than the sum of the four unit sizes.
+    has_tot = os.path.exists(os.path.join(work, 'rentalInventory_All.csv'))
+    if has_tot:
+        rows, ms = load_csv(work, 'rentalInventory_All.csv')
+        if ms != months: die('rentalInventory_All.csv months differ from the others')
+        for r in rows: inv.setdefault(r['areaName'], {})['tot'] = [num(r.get(m)) for m in months]
+    def tot(nm, i): return iv(nm,'tot')[i] if has_tot else total([iv(nm,k)[i] for k in BEDS])
 
     crosswalk = json.load(open(os.path.join(DATA, 'rent-cd-crosswalk.json')))
 
@@ -172,7 +180,7 @@ def main(src):
         t = meta[nm]['t']
         if t not in PREFIX: continue
         s = {k: [0, series.get(k, blank)] for k in ALL_SERIES}
-        s['inv'] = [0, [total([iv(nm,k)[i] for k in BEDS]) for i in range(len(months))]]
+        s['inv'] = [0, [tot(nm,i) for i in range(len(months))]]
         areas.append({'id': PREFIX[t]+nm, 'n': nm, 't': t, 'p': meta[nm]['p'], 's': s})
 
     for code, members in crosswalk.items():
@@ -181,8 +189,8 @@ def main(src):
         for k in ALL_SERIES:
             s[k] = [0, [ (rs('Staten Island',k)[i] if si else median([rs(m,k)[i] for m in members]))
                         for i in range(len(months)) ]]
-        s['inv'] = [0, [ total([iv('Staten Island',k)[i] for k in BEDS]) if si
-                         else total([iv(m,k)[i] for m in members for k in BEDS])
+        s['inv'] = [0, [ tot('Staten Island',i) if si
+                         else total([tot(m,i) for m in members])
                         for i in range(len(months)) ]]
         areas.append({'id':'c:'+code, 'n':code, 't':'cd', 'p':BORO_OF[code[:2]], 's':s})
 
