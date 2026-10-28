@@ -50,7 +50,7 @@
   /* For-sale pages: the 20% down payment on the median asking price (all homes), in dollars and in years of
      median household income. Price for a year = median of that year's monthly median asking prices
      (StreetEasy, /data/sales/rent-explorer.json, the all-homes series). */
-  var SALE=/sales/.test(location.pathname);
+  var SALE=true;   /* every rent and sale page carries the full section */
   var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   function med(a){a=a.filter(function(x){return x!=null;}).sort(function(x,y){return x-y;});if(!a.length)return null;var m=a.length>>1;return a.length%2?a[m]:(a[m-1]+a[m])/2;}
   function priceSeries(SX,id){var a=SX.A[id];if(!a)return null;var v=a.s.studio[1],o=a.s.studio[0],by={},lastI=-1;
@@ -116,13 +116,45 @@
         plugins:{legend:{labels:{boxWidth:10,font:{size:11,family:'DM Sans'}}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+c.parsed.y.toFixed(3)+'%';}}}},
         scales:{y:{ticks:{callback:function(v){return v+'%';},font:{size:10}}},x:{ticks:{font:{size:10},maxTicksLimit:14}}}}});
   }
+  /* HUD: federal budget over time (OMB) and HUD awards in NYC (USAspending). /data/hud-nyc.json */
+  function bil(v){return v==null?'\u2014':'$'+(Math.abs(v)>=1e3?(v/1e3).toFixed(1)+'B':Math.round(v)+'M');}
+  function drawHud(el,H){
+    var o=H.budget.outlays,b=H.budget.budget_authority,ys=[],seen={};
+    o.concat(b).forEach(function(r){if(!seen[r.fy]){seen[r.fy]=1;ys.push(r.fy);}});ys.sort(function(a,c){return a-c;});
+    function at(arr,y){for(var i=0;i<arr.length;i++)if(arr[i].fy===y)return arr[i];return null;}
+    function actual(arr){var a=arr.filter(function(r){return !r.est;});return a[a.length-1];}
+    var la=actual(b),lo=actual(o),N=H.nyc.years,ln=N[N.length-1],fn=N[0];
+    el.querySelector('.ih-hcards').innerHTML=
+      '<div class="ih-c"><div class="ih-l">HUD budget authority, FY '+la.fy+'</div><div class="ih-v">'+bil(la.m)+'</div><div class="ih-d">'+bil(b[0].m)+' in FY '+b[0].fy+'</div></div>'+
+      '<div class="ih-c"><div class="ih-l">HUD outlays, FY '+lo.fy+'</div><div class="ih-v">'+bil(lo.m)+'</div><div class="ih-d">'+bil(o[0].m)+' in FY '+o[0].fy+'</div></div>'+
+      '<div class="ih-c"><div class="ih-l">HUD awards in NYC, FY '+ln.fy+'</div><div class="ih-v">'+bil(ln.total/1e6)+'</div><div class="ih-d">NYCHA '+bil(ln.nycha/1e6)+' &middot; City agencies '+bil(ln.city/1e6)+' &middot; '+bil(fn.total/1e6)+' in FY '+fn.fy+'</div></div>';
+    if(el._hchart)el._hchart.destroy();
+    function ds(arr,label,c){var la=actual(arr).fy;return [
+      {label:label,data:ys.map(function(y){var r=at(arr,y);return r&&!r.est?r.m:null;}),borderColor:c,backgroundColor:c,borderWidth:2.5,pointRadius:0},
+      {label:label+' (President\u2019s estimate)',data:ys.map(function(y){var r=at(arr,y);return r&&(r.est||y===la)?r.m:null;}),borderColor:c,backgroundColor:c,borderWidth:2,borderDash:[5,4],pointRadius:0}];}
+    el._hchart=new Chart(el.querySelector('.ih-hch canvas'),{type:'line',data:{labels:ys,datasets:ds(b,'Budget authority','#0d1b4b').concat(ds(o,'Outlays','#f47920'))},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{boxWidth:10,font:{size:11,family:'DM Sans'}}},tooltip:{callbacks:{label:function(c){return c.parsed.y==null?null:c.dataset.label+': '+bil(c.parsed.y);}}}},
+        scales:{y:{ticks:{callback:function(v){return bil(v);},font:{size:10}}},x:{ticks:{font:{size:10},maxTicksLimit:14}}}}});
+    if(el._nchart)el._nchart.destroy();
+    el._nchart=new Chart(el.querySelector('.ih-nch canvas'),{type:'bar',data:{labels:N.map(function(r){return 'FY '+r.fy;}),datasets:[
+      {label:'NYCHA',data:N.map(function(r){return r.nycha/1e6;}),backgroundColor:'#0d1b4b'},
+      {label:'City agencies',data:N.map(function(r){return r.city/1e6;}),backgroundColor:'#f47920'},
+      {label:'Everyone else (private owners, nonprofits, others)',data:N.map(function(r){return r.other/1e6;}),backgroundColor:'#9ECAE1'}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{boxWidth:10,font:{size:11,family:'DM Sans'}}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+bil(c.parsed.y);},footer:function(items){var i=items[0].dataIndex;return 'Total: '+bil(N[i].total/1e6);}}}},
+        scales:{x:{stacked:true,ticks:{font:{size:10}}},y:{stacked:true,ticks:{callback:function(v){return bil(v);},font:{size:10}}}}}});
+    el.querySelector('.ih-hn').innerHTML='Federal budget: '+H.budget.source+', millions of dollars by federal fiscal year (October to September); dashed lines are the President\u2019s budget estimates. <a href="'+H.budget.url+'" target="_blank" rel="noopener">OMB</a>. '+
+      'NYC: '+H.nyc.source+'. '+H.nyc.note+' <a href="'+H.nyc.url+'" target="_blank" rel="noopener">USAspending.gov</a>.';
+  }
   function init(){
     var els=document.querySelectorAll('.inchist');if(!els.length)return;
     var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
-    var SX=null,TX=null;
+    var SX=null,TX=null,HU=null;
     Promise.all([fetch('/data/income-history.json').then(function(r){return r.json();}),
       SALE?fetch('/data/sales/rent-explorer.json').then(function(r){return r.json();}):null,
-      SALE?fetch('/data/nyc-property-tax-rates.json').then(function(r){return r.json();}):null]).then(function(res){var D=res[0];TX=res[2];
+      SALE?fetch('/data/nyc-property-tax-rates.json').then(function(r){return r.json();}):null,
+      fetch('/data/hud-nyc.json').then(function(r){return r.json();}).catch(function(){return null;})]).then(function(res){var D=res[0];TX=res[2];HU=res[3];
       if(res[1]){SX={months:res[1].months,A:{}};res[1].areas.forEach(function(a){SX.A[a.id]=a;});}
       needChart(function(){
       els.forEach(function(el){
@@ -135,12 +167,15 @@
             '<div class="ih-h"><span class="ih-t">Monthly mortgage cost</span><span class="ih-s">principal and interest on the median asking price, 20% down, 30-year fixed</span></div>'+
             '<div class="ih-mcards ih-cards"></div><div class="ih-ch ih-mch"><canvas></canvas></div><div class="ih-n">Principal and interest on 80% of the median asking price for all homes, 30-year fixed at that year\'s average rate (Freddie Mac Primary Mortgage Market Survey, via FRED); the latest month uses that month\'s rate. Property taxes, insurance and co-op maintenance or condo common charges are not included.</div>'+
             '<div class="ih-h"><span class="ih-t">NYC property tax rates</span><span class="ih-s">every year since 1981/82</span></div>'+
-            '<div class="ih-tcards ih-cards"></div><div class="ih-ch ih-tch"><canvas></canvas></div><div class="ih-n ih-tn"></div>':'');
+            '<div class="ih-tcards ih-cards"></div><div class="ih-ch ih-tch"><canvas></canvas></div><div class="ih-n ih-tn"></div>':'')+
+          '<div class="ih-h"><span class="ih-t">HUD&rsquo;s budget and HUD money in NYC</span><span class="ih-s">federal budget since 1962, awards in the five boroughs since FY 2010</span></div>'+
+          '<div class="ih-hcards ih-cards"></div><div class="ih-ch ih-hch"><canvas></canvas></div><div class="ih-ch ih-nch"><canvas></canvas></div><div class="ih-n ih-hn"></div>';
         if(!boros){var sel=el.querySelector('select');
           Object.keys(D.acs.cd).sort(function(a,b){return a.slice(0,2)===b.slice(0,2)?(+a.slice(4))-(+b.slice(4)):a<b?-1:1;}).forEach(function(c){sel.add(new Option(cdName(c),c));});
           sel.value=cd;sel.onchange=function(){draw(el,D,sel.value);if(SX){drawDown(el,D,SX,sel.value);drawMonthly(el,D,SX,sel.value);}};}
         draw(el,D,cd);
         if(SX){drawDown(el,D,SX,cd);drawMonthly(el,D,SX,cd);}
+        if(HU)drawHud(el,HU);
         if(TX){drawTax(el,TX);el.querySelector('.ih-tn').innerHTML='Fiscal year rates, as a percentage of <b>assessed value</b>, not of the price. NYC taxes one- to three-family homes on an assessed value capped at 6% of market value (with yearly limits on increases), and co-ops and condos on a value the Department of Finance sets from comparable rental buildings, so the tax bill is far below the rate times the price. '+(TX.note.split('. ').slice(1,2).join('')||'')+'. Source: <a href="'+TX.url+'" target="_blank" rel="noopener">NYC Department of Finance</a>.';}
       });
     });});
