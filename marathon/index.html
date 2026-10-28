@@ -67,9 +67,20 @@
 .bstop .r span{background:#fff;color:#0039a6;font-size:8px;font-weight:800;border-radius:3px;padding:1px 3px}
 .bstop.tp{background:#f59e0b}.bstop.tp .r span{color:#b45309}
 .bstop.cbd{background:#c1121f}.bstop.cbd .r span{color:#c1121f}
-#map:not(.z15) .bstop .r{display:none}
-#map:not(.z15) .bstop{width:12px;height:12px;padding:0;border-radius:50%}
-#map:not(.z15) .bstop .m{display:none}
+#map:not(.z17) .bstop .r{display:none}
+#map:not(.z17) .bstop{width:12px;height:12px;padding:0;border-radius:50%}
+#map:not(.z17) .bstop .m{display:none}
+.sub-dot{width:22px;height:22px;border-radius:50%;background:#fff url(/assets/map-icons/mta.png) center/cover no-repeat;border:2px solid #111;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.est{padding:10px 14px;border-bottom:1px solid var(--border)}
+.est:last-child{border-bottom:0}
+.est .w{display:flex;gap:10px;align-items:baseline}
+.est .w b{font-family:'DM Mono',monospace;font-size:.8rem;color:var(--orange);flex:none;width:72px}
+.est .w span{font-size:.86rem;font-weight:800;color:var(--navy)}
+.est .t{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:6px 0 0 82px;font-size:.78rem;color:#444;line-height:1.4}
+.est .t em{font-style:normal;font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding-top:2px}
+.est .t b{font-weight:700;color:var(--navy)}
+.estnote{padding:10px 14px 12px;font-size:.74rem;color:#444;line-height:1.55;background:var(--off)}
+@media(max-width:420px){.est .t{margin-left:0}}
 .bbadge{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:22px;padding:0 7px;border-radius:999px;background:#2563eb;color:#fff;border:2px solid #fff;box-shadow:0 2px 8px rgba(13,27,75,.32),0 0 0 1px rgba(13,27,75,.22);font-family:'DM Sans',sans-serif;font-size:.68rem;font-weight:800;line-height:1;white-space:nowrap}
 .mkey .sub-stack{transform:scale(.8);transform-origin:left center;margin-right:-6px}
 .mkey .bstop{transform:scale(.9)}
@@ -171,8 +182,9 @@
   </div>
 
   <div class="card">
-    <div class="sec"><h2>Start times</h2><div class="s">Sunday, November 1, 2026, at the start on Staten Island.</div></div>
+    <div class="sec"><h2>Start times, and when runners reach Fourth Avenue in CB6</h2><div class="s">Sunday, November 1, 2026. Each group’s start on Staten Island, then the estimated clock time it enters CB6 at the south end of Fourth Avenue (about course mile 6) and leaves at Flatbush Avenue (about mile 7½).</div></div>
     <div id="waves"></div>
+    <div class="estnote" id="estnote"></div>
   </div>
 
   <div class="card">
@@ -186,6 +198,7 @@
     <a href="https://home4.nyc.gov/assets/cecm/downloads/pdf/tcs-street-closures-marathon-2026.pdf" target="_blank" rel="noopener">Office of the Mayor, Office of Citywide Event Coordination and Management: TCS New York City Marathon and Abbott Dash to the Finish Line 5K, changes to normal operations</a> (every closure and parking restriction above)<br>
     <a href="https://www.arcgis.com/apps/instant/slider/index.html?appid=c26184c73390422b9fb65c737fc46dcd" target="_blank" rel="noopener">NYC Street and Facility Closures map</a> (the route line and the Central Park closure, from its Event Street Closures and Park &amp; Recreational Facility Closures layers)<br>
     <a href="https://www.nyrr.org/tcsnycmarathon/race-day/the-course" target="_blank" rel="noopener">New York Road Runners, the course</a><br>
+    <a href="https://www.nycmarathonguide.com/" target="_blank" rel="noopener">NYC Marathon Guide, the course mile by mile</a> (92nd Street at mile 2.1, Fourth Avenue to the Lafayette Avenue turn at mile 8, the 2025 Brooklyn field average of 9:48 per mile) and <a href="https://runready.substack.com/p/the-2025-tcs-new-york-marathon-course" target="_blank" rel="noopener">RunReady, the course guide</a> (the turn at Fourth and Flatbush near mile 8); the CB6 miles are measured along Fourth Avenue from 92nd Street<br>
     <a href="https://sports.yahoo.com/articles/nyc-marathon-2026-guide-bronx-120033223.html" target="_blank" rel="noopener">FOX 5 New York, NYC Marathon 2026 guide</a> (start times, from NYRR event documentation)<br>
     <a href="https://data.cityofnewyork.us/City-Government/Community-Districts/jp9i-3b7y" target="_blank" rel="noopener">NYC DCP, community district boundaries</a>
   </div>
@@ -250,7 +263,7 @@ Promise.all([fetch('/data/marathon-2026.geojson').then(function(r){return r.json
   });
   showCb6();
   loadZoning(cb6Bounds);
-  setT('subway',true);
+  sync();
   renderStrip();renderWaves();renderClosures();
 }).catch(function(){document.getElementById('closures').innerHTML='<div class="empty">The marathon data did not load. Refresh to try again.</div>';document.getElementById('strip').innerHTML='<div class="k">In CB6</div><div class="v">The closure list did not load. Refresh to try again.</div>';});
 
@@ -264,7 +277,8 @@ document.getElementById('t-park').onclick=function(){parkOn=!parkOn;this.classLi
 // ---- the CB6 transportation layers, the same data and colors as bkcb6.app/transport-map-cb6.html ----
 map.createPane('tlines');map.getPane('tlines').style.zIndex=400;
 map.createPane('tmarks');map.getPane('tmarks').style.zIndex=440;
-var TL={},TON={subway:true},TRN=null,TRNP=null;
+var TL={},TON={subway:true,bus:true,busstops:true,citibike:true},MINZ={subway:0,bus:15,busstops:16,citibike:16,bike:0,truck:0,speed:0,sammys:0,asp:0},LOADING={},TRN=null,TRNP=null,SUBM=[],SUBMODE='';
+function drawn(k){return !!TON[k]&&map.getZoom()>=(MINZ[k]||0);}
 var LEGENDS={
   speed:[{c:'#2a9d8f',l:'20 mph',t:'line'},{c:'#4c78a8',l:'25 mph',t:'line'},{c:'#f4a261',l:'30 mph',t:'line'},{c:'#e63946',l:'35+ mph',t:'line'},{c:'#111827',l:'School zone',t:'line'}],
   bike:[{c:'#1d4ed8',l:'Protected bike lane',t:'line'},{c:'#0f766e',l:'Greenway',t:'line'},{c:'#f59e0b',l:'Buffered bike lane',t:'line'},{c:'#6b7280',l:'Shared lane or bike route',t:'line'}],
@@ -276,7 +290,7 @@ var LEGENDS={
   sammys:[{c:'#27ae60',l:'Sammy’s Law 15 mph school zone',t:'line'}],
   asp:[{c:'#e41a1c',l:'Mon',t:'line'},{c:'#377eb8',l:'Tue',t:'line'},{c:'#4daf4a',l:'Wed',t:'line'},{c:'#984ea3',l:'Thu',t:'line'},{c:'#ff7f00',l:'Fri',t:'line'},{c:'#a65628',l:'Sat',t:'line'},{c:'#999999',l:'Sun',t:'line'}]
 };
-function keyx(){var h='';Object.keys(TON).forEach(function(k){if(!TON[k])return;(LEGENDS[k]||[]).forEach(function(it){if(it.h){h+='<span>'+it.h+esc(it.l)+'</span>';return;}h+='<span><i style="'+(it.t==='dot'?'width:12px;height:12px;border-radius:50%;background:'+it.c+';border:1.5px solid #333':'background:'+it.c+';height:5px;border-radius:3px')+'"></i>'+esc(it.l)+'</span>';});});document.getElementById('keyx').innerHTML=h;}
+function keyx(){var h='';Object.keys(TON).forEach(function(k){if(!drawn(k))return;var items=LEGENDS[k]||[];if(k==='subway'&&map.getZoom()<15)items=items.slice(0,-1).concat([{h:'<span class="sub-dot" style="display:inline-block;width:18px;height:18px"></span>',l:'Subway station (zoom in for its lines)'}]);items.forEach(function(it){if(it.h){h+='<span>'+it.h+esc(it.l)+'</span>';return;}h+='<span><i style="'+(it.t==='dot'?'width:12px;height:12px;border-radius:50%;background:'+it.c+';border:1.5px solid #333':'background:'+it.c+';height:5px;border-radius:3px')+'"></i>'+esc(it.l)+'</span>';});});document.getElementById('keyx').innerHTML=h;}
 function speedC(p){var sl=parseInt(p.postvz_sl||0,10);if(sl<=20&&sl>0)return'#2a9d8f';if(sl<=25)return'#4c78a8';if(sl<=30)return'#f4a261';return'#e63946';}
 function bikeC(p){var t=[p.ft_facilit,p.tf_facilit,p.facilitycl,p.allclasses,p.grnwy,p.status].join(' ').toLowerCase();if(t.indexOf('retired')!==-1)return'#ef4444';if(t.indexOf('greenway')!==-1)return'#0f766e';if(t.indexOf('protected')!==-1)return'#1d4ed8';if(t.indexOf('buffered')!==-1)return'#f59e0b';return'#6b7280';}
 function busC(p){var r=String(p.route_color||'').trim();if(r&&r[0]!=='#')r='#'+r;if(/^#[0-9a-fA-F]{6}$/.test(r))return r;var t=String(p.route_type||'').toLowerCase();if(t==='sbs')return'#c1121f';if(t==='express')return'#6a1b9a';if(t==='limited')return'#f77f00';return'#2563eb';}
@@ -291,8 +305,11 @@ function trnLayer(k,gj){
 }
 function subStyle(r){r=String(r||'').toUpperCase();if('ACE'.indexOf(r)>-1&&r)return{bg:'#0039A6',fg:'#fff'};if('BDFM'.indexOf(r)>-1&&r)return{bg:'#FF6319',fg:'#fff'};if(['4','5','6','6X'].indexOf(r)>-1)return{bg:'#00933C',fg:'#fff'};if(['1','2','3'].indexOf(r)>-1)return{bg:'#EE352E',fg:'#fff'};if('NQRW'.indexOf(r)>-1&&r)return{bg:'#FCCC0A',fg:'#111'};if('JZ'.indexOf(r)>-1&&r)return{bg:'#996633',fg:'#fff'};if(r==='G')return{bg:'#6CBE45',fg:'#fff'};if(r==='L')return{bg:'#A7A9AC',fg:'#111'};if(r==='7'||r==='7X')return{bg:'#B933AD',fg:'#fff'};if(r==='S'||r==='SIR')return{bg:'#808183',fg:'#fff'};return{bg:'#111',fg:'#fff'};}
 function subIcon(routes){var h='<div class="sub-stack"><img src="/assets/map-icons/mta.png" alt="MTA"><span class="sub-bs">';routes.forEach(function(r){var s=subStyle(r);h+='<span class="sub-b" style="background:'+s.bg+';color:'+s.fg+'">'+esc(String(r).replace('X',''))+'</span>';});h+='</span></div>';var per=Math.min(routes.length,5),rows=Math.ceil(routes.length/5)||1,w=10+20+per*21,ht=rows*21+8;return L.divIcon({className:'tm-wrap',html:h,iconSize:[w,ht],iconAnchor:[w/2,ht/2],tooltipAnchor:[0,-ht/2]});}
-function zcls(){document.getElementById('map').classList.toggle('z15',map.getZoom()>=15);}
+function zcls(){document.getElementById('map').classList.toggle('z17',map.getZoom()>=17);}
 map.on('zoomend',zcls);zcls();
+function subDot(){return L.divIcon({className:'tm-wrap',html:'<div class="sub-dot"></div>',iconSize:[22,22],iconAnchor:[11,11],tooltipAnchor:[0,-11]});}
+// stations are a small MTA mark until zoom 15, then the mark with every line's bullet
+function subMode(){var m=map.getZoom()>=15?'full':'dot';if(m===SUBMODE)return;SUBMODE=m;SUBM.forEach(function(s){s.m.setIcon(m==='full'?subIcon(s.routes):subDot());});}
 var ASPC={Mon:'#e41a1c',Tue:'#377eb8',Wed:'#4daf4a',Thu:'#984ea3',Fri:'#ff7f00',Sat:'#a65628',Sun:'#999999'};
 function aspSign(p){var dl=String(p.day_label||'').slice(0,18),tl=String(p.time_label||'').replace(/\s+/g,''),w=68,h=44,R='#a02020';return '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'"><rect x="0.5" y="0.5" width="'+(w-1)+'" height="'+(h-1)+'" fill="#fff" stroke="'+R+'" stroke-width="1.5" rx="3"/><circle cx="11" cy="22" r="8.5" fill="none" stroke="'+R+'" stroke-width="2.2"/><text x="11" y="26" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="11" font-weight="700" fill="'+R+'">P</text><line x1="5.5" y1="16.5" x2="16.5" y2="27.5" stroke="'+R+'" stroke-width="2.2"/><text x="63" y="13" text-anchor="end" font-family="DM Sans,sans-serif" font-size="8.5" font-weight="700" fill="'+R+'">'+esc(tl)+'</text><text x="63" y="28" text-anchor="end" font-family="DM Sans,sans-serif" font-size="9" font-weight="700" fill="'+R+'">'+esc(dl)+'</text><line x1="28" y1="38" x2="60" y2="38" stroke="'+R+'" stroke-width="1.6"/><polyline points="32,35 28,38 32,41" fill="none" stroke="'+R+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';}
 function aspPop(p){var c=ASPC[p.primary_day]||'#666',s=p.next_suspensions?String(p.next_suspensions).split(' | ').map(function(x){return '<div style="font-size:.7rem;color:#444;padding:1px 0">• '+esc(x)+'</div>';}).join(''):'<div style="font-size:.7rem;color:#888">No upcoming suspensions listed.</div>';return '<div style="min-width:230px;max-width:290px"><div style="font-weight:700;font-size:.88rem;color:#fff;background:'+c+';padding:7px 11px;border-radius:6px 6px 0 0">'+esc(p.schedule)+'</div><div style="padding:9px 11px;background:#fff"><div style="font-size:.8rem;color:#0d1b4b;margin-bottom:9px;line-height:1.35">'+esc(p.location)+'</div><div style="font-size:.6rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:4px">Next ASP suspensions</div>'+s+(p.suspensions_remaining_2026?'<div style="font-size:.65rem;color:#888;margin-top:7px;padding-top:6px;border-top:1px solid #f0efed">'+esc(p.suspensions_remaining_2026)+' suspension'+(p.suspensions_remaining_2026==1?'':'s')+' remaining in 2026</div>':'')+'</div></div>';}
@@ -309,7 +326,7 @@ var LOADERS={
       for(var i=0;i<groups.length;i++){if(groups[i].name===(p.stop_name||'')&&groups[i].ll.distanceTo(ll)<350){gr=groups[i];break;}}
       if(!gr){gr={name:p.stop_name||'',disp:p.display_name||p.stop_name||'Subway station',ll:ll,routes:[],lines:[],ada:false};groups.push(gr);}
       routes.forEach(function(r){if(gr.routes.indexOf(r)<0)gr.routes.push(r);});if(p.line&&gr.lines.indexOf(p.line)<0)gr.lines.push(p.line);if(String(p.ada)==='1'||String(p.ada).toLowerCase()==='true')gr.ada=true;});
-    groups.forEach(function(gr){L.marker(gr.ll,{pane:'tmarks',icon:subIcon(gr.routes),zIndexOffset:200}).bindTooltip('<b>'+esc(gr.disp)+'</b><br><span style="font-size:.75rem;color:#555">'+esc(gr.routes.join(' ')+(gr.lines.length?' \u00b7 '+gr.lines.join(', '):''))+(gr.ada?' \u00b7 ADA accessible':'')+'</span>',tip()).addTo(g);});
+    SUBMODE='';groups.forEach(function(gr){var m=L.marker(gr.ll,{pane:'tmarks',icon:subDot(),zIndexOffset:200});SUBM.push({m:m,routes:gr.routes});m.bindTooltip('<b>'+esc(gr.disp)+'</b><br><span style="font-size:.75rem;color:#555">'+esc(gr.routes.join(' ')+(gr.lines.length?' \u00b7 '+gr.lines.join(', '):''))+(gr.ada?' \u00b7 ADA accessible':'')+'</span>',tip()).addTo(g);});subMode();
     return g;});},
   sammys:function(){return fetch('/data/cb6-sammys-15mph.geojson').then(function(r){return r.json();}).then(function(d){return L.geoJSON(d,{pane:'tlines',style:function(){return{color:'#27ae60',weight:5,opacity:.9};},onEachFeature:function(f,l){var p=f.properties;l.bindTooltip('<b style="color:#27ae60">'+esc(p.street)+'</b><br><span style="font-size:.72rem;color:#27ae60">'+esc(p.speed_limit||'15 MPH School Zone')+'</span>'+(p.pending_former_speed_limit?'<br><span style="font-size:.72rem;color:#888">Was: '+esc(p.pending_former_speed_limit)+'</span>':''),tip());}});});},
   citibike:function(){return fetch('/data/citibike_stations_cb6.geojson').then(function(r){return r.json();}).then(function(d){return L.geoJSON(d,{pane:'tmarks',pointToLayer:function(f,ll){return L.marker(ll,{pane:'tmarks',icon:L.divIcon({className:'tm-wrap',html:'<div class="cbk"></div>',iconSize:[20,20],iconAnchor:[10,10],tooltipAnchor:[0,-10]})});},onEachFeature:function(f,l){var p=f.properties;l.bindTooltip('<b>'+esc(p.name)+'</b><br><span style="font-size:.75rem;color:#555">'+esc(p.street)+' &amp; '+esc(p.cross_street)+'</span>',tip());}});});},
@@ -324,25 +341,46 @@ var LOADERS={
   busstops:function(){return trnData().then(function(d){return trnLayer('busstops',d.busstops);});},
   truck:function(){return trnData().then(function(d){return trnLayer('truck',d.truck);});}
 };
-function note(){var n=[];if(TON.asp&&map.getZoom()<16)n.push('Zoom in to see the alternate side parking signs; the colored streets show the day.');document.getElementById('tnote').textContent=n.join(' ');}
-map.on('zoomend',note);
-function setT(k,on){
-  TON[k]=on;keyx();note();
-  var b=document.querySelector('#ttog [data-t="'+k+'"]');if(b)b.classList.toggle('on',on);
-  if(TL[k]){if(on)TL[k].addTo(map);else map.removeLayer(TL[k]);if(k==='asp')syncAsp();return;}
-  if(!on)return;
-  LOADERS[k]().then(function(g){TL[k]=g;if(TON[k])g.addTo(map);if(k==='asp')syncAsp();}).catch(function(){document.getElementById('tnote').textContent='That layer did not load. Tap it again to retry.';TON[k]=false;keyx();if(b)b.classList.remove('on');});
+var LNAME={subway:'subway stations',bus:'bus routes',busstops:'bus stops',citibike:'Citi Bike stations',asp:'alternate side parking signs'};
+function note(){var z=map.getZoom(),n=[],w=[];Object.keys(TON).forEach(function(k){if(TON[k]&&z<(MINZ[k]||0))w.push(LNAME[k]+' (zoom '+MINZ[k]+')');});
+  if(w.length)n.push('Zoom in for '+(w.length>1?w.slice(0,-1).join(', ')+' and '+w[w.length-1]:w[0])+'; the map is at zoom '+z+'.');
+  else if(TON.subway&&z<15)n.push('Zoom in to see each station\u2019s lines.');
+  if(TON.busstops&&z>=16&&z<17)n.push('Zoom in once more for each bus stop\u2019s routes.');
+  if(TON.asp&&z>=0&&z<16&&!w.length)n.push('Zoom in to see the alternate side parking signs; the colored streets show the day.');
+  document.getElementById('tnote').textContent=n.join(' ');}
+function sync(){
+  Object.keys(TON).forEach(function(k){var want=drawn(k),b=document.querySelector('#ttog [data-t="'+k+'"]');if(b)b.classList.toggle('on',!!TON[k]);
+    if(want){if(TL[k]){if(!map.hasLayer(TL[k]))TL[k].addTo(map);}else if(!LOADING[k]){LOADING[k]=true;LOADERS[k]().then(function(g){TL[k]=g;LOADING[k]=false;if(drawn(k))g.addTo(map);if(k==='asp')syncAsp();keyx();}).catch(function(){LOADING[k]=false;TON[k]=false;document.getElementById('tnote').textContent='That layer did not load. Tap it again to retry.';keyx();if(b)b.classList.remove('on');});}}
+    else if(TL[k]&&map.hasLayer(TL[k]))map.removeLayer(TL[k]);});
+  if(TL.subway)subMode();syncAsp();keyx();note();
 }
+map.on('zoomend',sync);
+function setT(k,on){TON[k]=on;sync();}
 document.getElementById('ttog').addEventListener('click',function(ev){var b=ev.target.closest('button[data-t]');if(!b)return;var k=b.getAttribute('data-t');setT(k,!TON[k]);});
 
 function renderStrip(){
   var s=document.getElementById('strip');
   if(!CB6ROW){s.innerHTML='<div class="k">In CB6</div><div class="v">Fourth Avenue</div>';return;}
-  s.innerHTML='<div class="k">In CB6 · Sunday, November 1, 2026</div><div class="v">Fourth Avenue, '+esc(CB6ROW[1])+': '+esc(CB6ROW[2].toLowerCase())+' '+esc(CB6ROW[3].replace(/^Sun\. Nov\. 1, /,''))+'</div><div class="s">The city\u2019s closure line for the marathon runs up Fourth Avenue from 94th Street to Flatbush Avenue; the stretch through Gowanus and Park Slope is in CB6. Closures can roll open and shut, and the NYPD decides on the day.</div>';
+  s.innerHTML='<div class="k">In CB6 · Sunday, November 1, 2026</div><div class="v">Fourth Avenue, '+esc(CB6ROW[1])+': '+esc(CB6ROW[2].toLowerCase())+' '+esc(CB6ROW[3].replace(/^Sun\. Nov\. 1, /,''))+'</div><div class="s">The city\u2019s closure line for the marathon runs up Fourth Avenue from 94th Street to Flatbush Avenue; the stretch through Gowanus and Park Slope is in CB6. Closures can roll open and shut, and the NYPD decides on the day.</div>'+estLine();
+}
+function estLine(){try{var rows=DATA.starts.rows,wc=rows.filter(function(r){return /Wheelchair/i.test(r[1]);})[0],w5=rows[rows.length-1];return '<div class="s" style="margin-top:6px;color:#ff9a4d">Runners on Fourth Avenue in CB6 from about '+clock(pmin(wc[0])+3.5*MI_IN)+' (the first wheelchair racers) to about '+clock(pmin(w5[0])+15*MI_OUT)+' (the back of '+esc(w5[1])+'), estimated below.</div>';}catch(e){return '';}}
+// When each group reaches CB6: 92nd Street is course mile 2.1 and Fourth Avenue runs to the turn at Flatbush near mile 7.4 (measured along Fourth Avenue from 92nd Street); Lafayette Avenue is mile 8.
+var MI_IN=6.0,MI_OUT=7.4,AVG=9.8; // 9:48 per mile, the 2025 field average through Brooklyn
+function clock(startMin){var m=Math.round(startMin),hh=Math.floor(m/60),mm=m%60,ap=hh>=12?'PM':'AM';hh=hh%12||12;return hh+':'+(mm<10?'0':'')+mm+' '+ap;}
+function pmin(t){var m=/(\d{1,2}):(\d{2})\s*([AP])M/i.exec(t);return (+m[1]%12+(/p/i.test(m[3])?12:0))*60+(+m[2]);}
+function span(start,pace){return clock(start+pace*MI_IN)+' to '+clock(start+pace*MI_OUT);}
+function estRow(r){
+  var s=pmin(r[0]),d=r[1],t='';
+  if(/Wheelchair/i.test(d))t='<em>First</em><div>'+span(s,3.5)+' <b>(3:30 per mile)</b></div><em>Field</em><div>through about '+clock(s+6*MI_OUT)+'</div>';
+  else if(/Handcycle/i.test(d))t='<em>First</em><div>'+span(s,4)+' <b>(4:00 per mile)</b></div><em>Field</em><div>through about '+clock(s+10*MI_OUT)+'</div>';
+  else if(/Women/i.test(d))t='<em>Leaders</em><div>'+span(s,5.33)+' <b>(5:20 per mile)</b></div>';
+  else if(/Men/i.test(d))t='<em>Leaders</em><div>'+span(s,4.83)+' <b>(4:50 per mile)</b></div>';
+  else t='<em>First</em><div>'+span(s,6)+' <b>(6:00 per mile)</b></div><em>Most</em><div>'+span(s,AVG)+' <b>(9:48 per mile)</b></div><em>Back</em><div>'+span(s,15)+' <b>(15:00 per mile)</b></div>';
+  return '<div class="est"><div class="w"><b>'+esc(r[0])+'</b><span>'+esc(d)+'</span></div><div class="t">'+t+'</div></div>';
 }
 function renderWaves(){
-  var w=DATA.starts;
-  document.getElementById('waves').innerHTML=w.rows.map(function(r){return '<div class="wave"><b>'+esc(r[0])+'</b><span>'+esc(r[1])+'</span></div>';}).join('');
+  document.getElementById('waves').innerHTML=DATA.starts.rows.map(estRow).join('');
+  document.getElementById('estnote').innerHTML='Estimates, not a schedule: each group\u2019s published start time plus a pace, over the stretch from about course mile 6 (the south end of Fourth Avenue in CB6, by the Prospect Expressway) to about mile 7\u00bd (Flatbush Avenue). The paces are the ones shown; 9:48 per mile is the 2025 field average through Brooklyn. Fourth Avenue is closed from 6:30 AM to 6:30 PM whatever the pace. For a runner you know, use the NYRR app or the <a href="https://www.nyrr.org/tcsnycmarathon" target="_blank" rel="noopener" style="color:var(--navy);border-bottom:1px solid var(--orange);text-decoration:none">NYRR race page</a>.';
 }
 var OPEN={0:1};
 function renderClosures(){
