@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build pages into other pages, as their own copy (no iframe, no link).
 
+    preservation/index.html  ->  into lessexpensive/index.html and bk/lessexpensive/index.html (no State housing part)
     statehousing/index.html  ->  into lessexpensive/index.html and bk/lessexpensive/index.html
     lessexpensive/index.html ->  into every rent and for-sale map page (after the housing-costs section)
 
@@ -55,9 +56,15 @@ def js_literals(code, fn):
     return ''.join(out)
 
 
-def fragment(src, name, title=None):
+def fragment(src, name, title=None, drop=(), drop_js=()):
     s = open(os.path.join(ROOT, src)).read()
-    css = '\n'.join(m.group(1) for m in re.finditer(r'<style[^>]*>(.*?)</style>', s[:s.index('<body')], re.S))
+    head = s[:s.index('<body')]
+    css = ''
+    for href in re.findall(r'<link[^>]+rel="stylesheet"[^>]+href="(/assets/[^"?]+\.css)', head) + \
+                re.findall(r'<link[^>]+href="(/assets/[^"?]+\.css)"[^>]+rel="stylesheet"', head):
+        if 'vendor/' in href: continue
+        css += open(os.path.join(ROOT, href.lstrip('/'))).read() + '\n'     # the site's shared page styles, scoped too
+    css += '\n'.join(m.group(1) for m in re.finditer(r'<style[^>]*>(.*?)</style>', head, re.S))
     body = s[s.index('>', s.index('<body')) + 1:s.rindex('</body>')]
     # site chrome out
     body = re.sub(r'<script src="/assets/(site-bar|datastamp|income-history)\.js[^"]*"[^>]*></script>', '', body)
@@ -70,6 +77,10 @@ def fragment(src, name, title=None):
             n0 = len(body); body = strip_block(body, pat, tag)
             if len(body) == n0: break
     body = re.sub(r'<button[^>]*class="embed-fab"[^>]*>.*?</button>', '', body, flags=re.S)
+    for pat, tag in drop:                         # sections left out on purpose (already shown elsewhere on the host)
+        body = strip_block(body, pat, tag)
+    for marker in drop_js:                        # and the scripts that only drive them
+        body = re.sub(r'<script>(?:(?!</script>).)*?' + re.escape(marker) + r'.*?</script>', '', body, flags=re.S)
     body = re.sub(r'<!--embed:[\w-]+-->.*?<!--/embed:[\w-]+-->', lambda m: m.group(0), body, flags=re.S)
     # ids
     ids = set(re.findall(r'\bid="([^"\'+]+)"', body)) | set(re.findall(r'\bid=\\?"([\w-]+-)\'\+', body))
@@ -134,6 +145,11 @@ def put(host, name, frag, before=None, after=None):
 
 
 def main():
+    # Neighborhood Preservation Companies: the /preservation directory and map, without its own copy of the
+    # State housing section (the State housing page is built in separately, below)
+    pr = fragment('preservation/index.html', 'pr', drop=[(r'<details class="sect hpbig" id="hpSec"', 'details')], drop_js=['hpBox', 'sh_map'])
+    for host in ['lessexpensive/index.html', 'bk/lessexpensive/index.html']:
+        put(host, 'pr', pr, before='  <div class="eyebrow">How to apply</div>')
     sh = fragment('statehousing/index.html', 'sh')
     for host in ['lessexpensive/index.html', 'bk/lessexpensive/index.html']:
         put(host, 'sh', sh, before='  <div class="foot">AMI figures')
