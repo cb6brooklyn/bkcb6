@@ -128,7 +128,9 @@ def toggle(here, rent_url, sale_url):
             # inside the apps the page is a screen of the app, not a website: no breadcrumbs, back links or share button
             + '<script>(function(){try{if(/[?&]app=1\\b/.test(location.search)||location.protocol==="bkcb:"||sessionStorage.getItem("bkapp")==="1")'
               'document.documentElement.classList.add("inapp")}catch(e){}})();</script>'
-              '<style>.inapp .breadcrumb,.inapp .back-link,.inapp .embed-fab,.inapp .embed-modal-bg{display:none!important}</style>')
+              '<style>.inapp .breadcrumb,.inapp .back-link,.inapp .embed-fab,.inapp .embed-modal-bg{display:none!important}</style>'
+            # the "On this page" menu, and the long parts folded until opened
+            + '<script src="/assets/page-guide.js" defer></script>')
 
 
 MARK_A, MARK_B = '<!--rs-toggle-->', '<!--/rs-toggle-->'
