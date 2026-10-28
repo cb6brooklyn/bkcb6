@@ -38,11 +38,11 @@ def post(path, body):
     return json.loads(curl(['-X', 'POST', '-H', 'Content-Type: application/json', '-d', json.dumps(body), API + path]))
 
 
-def omb_row(path):
+def omb_row(path, label='Department of Housing and Urban Development'):
     import openpyxl
     rows = list(openpyxl.load_workbook(path, data_only=True).active.iter_rows(values_only=True))
     hdr = next(r for r in rows if r and str(r[0]).strip().startswith('Department or other unit'))
-    hud = next(r for r in rows if r and str(r[0]).strip() == 'Department of Housing and Urban Development')
+    hud = next(r for r in rows if r and str(r[0]).strip() == label)
     out = []
     for h, v in zip(hdr[1:], hud[1:]):
         if h is None or v is None: continue
@@ -54,7 +54,7 @@ def omb_row(path):
 
 
 def main(f41, f52):
-    outlays, ba = omb_row(f41), omb_row(f52)
+    outlays, ba, fed = omb_row(f41), omb_row(f52), omb_row(f41, 'Total outlays')
     nyc = []
     for fy in range(2010, datetime.date.today().year + 1):
         tp = [{'start_date': '%d-10-01' % (fy - 1), 'end_date': '%d-09-30' % fy}]
@@ -76,7 +76,7 @@ def main(f41, f52):
                     'other': round(tot - g['nycha'] - g['city']), 'top': names})
         print(fy, round(tot / 1e6), 'M')
     out = {'built': datetime.date.today().isoformat(),
-           'budget': {'outlays': outlays, 'budget_authority': ba, 'units': 'millions of dollars',
+           'budget': {'outlays': outlays, 'budget_authority': ba, 'federal_outlays': fed, 'units': 'millions of dollars',
                       'source': 'OMB Historical Tables, FY 2027 Budget: Table 4.1 (outlays) and Table 5.2 (budget authority), Department of Housing and Urban Development',
                       'url': 'https://www.whitehouse.gov/omb/budget/historical-tables/'},
            'nyc': {'years': nyc, 'units': 'dollars obligated',
