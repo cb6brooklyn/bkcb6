@@ -32,7 +32,7 @@
   function cdName(c){return BORO[c.slice(0,2)]+' CB'+c.slice(4);}
   function first(o){var y=Object.keys(o).sort();return y.length?y[0]:null;}
   function last(o){var y=Object.keys(o).sort();return y.length?y[y.length-1]:null;}
-  function needChart(cb){if(window.Chart)return cb();var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';s.onload=cb;document.head.appendChild(s);}
+  function needChart(cb){if(window.Chart)return cb();var s=document.createElement('script');s.src='/assets/vendor/chartjs-4.4.1/chart.umd.min.js';s.onload=cb;document.head.appendChild(s);}
   function card(l,o0,el){var o={};Object.keys(o0||{}).forEach(function(y){var v=adj(el,o0[y],y,'ny');if(v!=null)o[y]=v;});var a=first(o),b=last(o);if(!b)return '';var ch=a&&a!==b?((o[b]/o[a]-1)*100):null;
     return '<div class="ih-c"><div class="ih-l">'+l+', '+b+'</div><div class="ih-v">'+money(o[b])+'</div><div class="ih-d">'+(ch==null?'':(ch>=0?'+':'')+ch.toFixed(0)+'% since '+a+' ('+money(o[a])+')')+'</div></div>';}
   function draw(el,D,cd){

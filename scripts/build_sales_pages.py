@@ -124,10 +124,25 @@ def toggle(here, rent_url, sale_url):
             '<style>.rs-toggle a{flex:1;text-align:center;padding:9px 8px;font-family:\'DM Sans\',sans-serif;font-size:.9rem;font-weight:800;'
             'border:2px solid #f47920;color:#fff;text-decoration:none}.rs-toggle a:first-child{border-radius:10px 0 0 10px}'
             '.rs-toggle a:last-child{border-radius:0 10px 10px 0;border-left:0}.rs-toggle a.on{background:#f47920}</style>'
-            '<a class="%s" href="%s">Rent</a><a class="%s" href="%s">For sale</a></div>' % (r_on.strip(), rent_url, s_on.strip(), sale_url))
+            '<a class="%s" href="%s">Rent</a><a class="%s" href="%s">For sale</a></div>' % (r_on.strip(), rent_url, s_on.strip(), sale_url)
+            # inside the apps the page is a screen of the app, not a website: no breadcrumbs, back links or share button
+            + '<script>(function(){try{if(/[?&]app=1\\b/.test(location.search)||location.protocol==="bkcb:"||sessionStorage.getItem("bkapp")==="1")'
+              'document.documentElement.classList.add("inapp")}catch(e){}})();</script>'
+              '<style>.inapp .breadcrumb,.inapp .back-link,.inapp .embed-fab,.inapp .embed-modal-bg{display:none!important}</style>')
 
 
 MARK_A, MARK_B = '<!--rs-toggle-->', '<!--/rs-toggle-->'
+
+# Leaflet and Chart.js from the site itself, so the pages (and the app screens that show them) work offline
+VENDOR = [('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', '/assets/vendor/leaflet-1.9.4/leaflet.js'),
+          ('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', '/assets/vendor/leaflet-1.9.4/leaflet.css'),
+          ('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', '/assets/vendor/chartjs-4.4.1/chart.umd.min.js'),
+          ('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js', '/assets/vendor/chartjs-4.4.1/chart.umd.min.js')]
+
+
+def vendorize(s):
+    for a, b in VENDOR: s = s.replace(a, b)
+    return s
 
 
 def put_toggle(s, html):
@@ -156,7 +171,7 @@ def build(src, dst, rent_url, sale_url):
     # rent page gets the switch (only the marked block changes)
     embed = src == 'rent-map-cb6.html'   # drawn inside rentcb6 in an iframe; the page around it has the switch
     if not embed:
-        t = put_toggle(s, toggle('rent', rent_url, sale_url))
+        t = vendorize(put_toggle(s, toggle('rent', rent_url, sale_url)))
         open(os.path.join(ROOT, src), 'w').write(t)
     s = re.sub(re.escape(MARK_A) + '.*?' + re.escape(MARK_B), '', s, flags=re.S)
     # Mike's signed note is about rent; it is his text, so it is not reworded for the sale page
@@ -191,6 +206,7 @@ def build(src, dst, rent_url, sale_url):
         s = s.replace('https://bkcb6.app' + a + '"', 'https://bkcb6.app' + b + '"')
     s = retext(s)
     if not embed: s = put_toggle(s, toggle('sale', rent_url, sale_url))
+    s = vendorize(s)
     os.makedirs(os.path.dirname(os.path.join(ROOT, dst)) or ROOT, exist_ok=True)
     open(os.path.join(ROOT, dst), 'w').write(s)
     print('built', dst)

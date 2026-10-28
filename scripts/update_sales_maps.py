@@ -15,7 +15,7 @@ rental-index.json carries StreetEasy's sales price index (priceIndex_All).
 built-vs-rent.json carries homes completed 2015 to 2024 (from data/built-vs-rent.json)
 against the change in the all-homes median asking price, January 2015 to December 2024.
 """
-import csv, io, json, os, shutil, subprocess, sys, tempfile, zipfile
+import csv, io, json, os, re, shutil, subprocess, sys, tempfile, zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, 'data')
@@ -45,6 +45,20 @@ def main(src):
     os.makedirs(OUT, exist_ok=True)
     for f in INPUTS:
         if not os.path.exists(os.path.join(OUT, f)): shutil.copy(os.path.join(DATA, f), os.path.join(OUT, f))
+    # update_rents.py only overwrites a map value when the new month has one, so a home type with no
+    # sales figure would keep whatever was there before (a rent, from the first copy). Clear every
+    # value-bearing field first so a missing figure shows as missing.
+    VAL = re.compile(r'^(rent_|inv|city_(rank|band|fill)_|boro_(rank|band|fill)_|rank_|band_|fill_|label_|range_|sub_)')
+    for f in os.listdir(OUT):
+        if not f.endswith('.geojson'): continue
+        pth = os.path.join(OUT, f); g = json.load(open(pth))
+        for ft in g['features']:
+            pr = ft['properties']
+            for key in list(pr):
+                if VAL.match(key) and key not in ('rank_all_city',): pr[key] = None
+            for key in ('Studio', '1 Bedroom', '2 Bedroom', '3+ Bedroom', 'All Units'):
+                if key in pr: pr[key] = ''
+        json.dump(g, open(pth, 'w'), separators=(',', ':'))
     stage = tempfile.mkdtemp(prefix='sales_')
     for slot, t in SLOTS.items():
         open(os.path.join(stage, 'medianAskingRent_%s.csv' % slot), 'w').write(read_csv(src, 'medianAskingPrice_' + t))
