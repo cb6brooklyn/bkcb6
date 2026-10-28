@@ -700,6 +700,7 @@ body > #nowbar{flex:0 0 auto}
 
 
 
+
 <!--embed:pr--><div class="emb-pr" style="background:#f8f7f4;color:#132D65;border-top:3px solid #f47920"><style>.emb-pr{font-family:"DM Sans",sans-serif;position:relative}.emb-pr{--navy:#0d1b4b;--navy2:#132D65;--orange:#f47920;--off:#f8f7f4;--border:#e5e2db;--muted:#6b6760;--red:#c0392b--navy:#0d1b4b;--navy2:#132D65;--orange:#f47920;--off:#f8f7f4;--border:#e5e2db;--muted:#6b6760}.emb-pr 500&family=DM+Sans:wght@400;600;700;900&display=swap');
 :root{--navy:#0d1b4b;--navy2:#132D65;--orange:#f47920;--off:#f8f7f4;--border:#e5e2db;--muted:#6b6760;--red:#c0392b}
 .emb-pr .wrap{max-width:900px;margin:0 auto}
@@ -933,8 +934,10 @@ body > #nowbar{flex:0 0 auto}
 
   /* ---- district and neighborhood boundaries ---- */
   var CDG=null, NBG=null, bLayer=null, baseLayer=null, pickCd='', pickNb='';
-  var NAMED={'Fifth Avenue Committee, Inc':'Fifth Avenue Committee',
-             'Carroll Gardens Association Inc':'Carroll Gardens Association'};
+  /* CB6's neighborhood preservation programs (NPP) */
+  var CB6_NPP={'Fifth Avenue Committee, Inc':'Fifth Avenue Committee (FAC)',
+               'Carroll Gardens Association Inc':'Carroll Gardens Association (CGA)'};
+  var NAMED=CB6_NPP;
   var BORO_OF={MN:'Manhattan',BX:'Bronx',BK:'Brooklyn',QN:'Queens',SI:'Staten Island'};
   var ORDER=['Manhattan','Bronx','Brooklyn','Queens','Staten Island'];
   function normBoro(b){
@@ -999,14 +1002,15 @@ body > #nowbar{flex:0 0 auto}
       setTimeout(function(){ try{ map.fitBounds(bnds,{padding:[18,18],maxZoom:15}); }catch(e){} },260);
       setTimeout(function(){ try{ map.invalidateSize(); map.fitBounds(bnds,{padding:[18,18],maxZoom:15}); }catch(e){} },800);
     }catch(e){}
-    var inside=D.orgs.filter(function(o){ return pickCd ? o.cb===pickCd : o.nb===pickNb; });
+    var inside=D.orgs.filter(function(o){ if(pickCd==='BKCB6') return !!CB6_NPP[o.name]; return pickCd ? o.cb===pickCd : o.nb===pickNb; });
     var serving=D.orgs.filter(function(o){
       var t=(o.area||'').toLowerCase();
       return pickNb && t.indexOf(String(pickNb).toLowerCase())>-1;
     });
     var bits=[];
     bits.push('<b>'+esc(label)+'</b> outlined on the map.');
-    bits.push(inside.length ? (inside.length+' compan'+(inside.length===1?'y is':'ies are')+' based here.') : 'No company is based inside this boundary.');
+    if(pickCd==='BKCB6') bits.push('CB6\u2019s neighborhood preservation programs (NPP) are the Fifth Avenue Committee (FAC) and the Carroll Gardens Association (CGA).');
+    else bits.push(inside.length ? (inside.length+' compan'+(inside.length===1?'y is':'ies are')+' based here.') : 'No company is based inside this boundary.');
     if(serving.length && !inside.length) bits.push(serving.length+' name it as a service area.');
     if(note) note.innerHTML=bits.join(' ');
   }
@@ -1037,6 +1041,7 @@ body > #nowbar{flex:0 0 auto}
     var q=($('le-pr-q').value||'').toLowerCase().trim();
     return D.orgs.filter(function(o){
       if(boro!=='All' && o.boro!==boro) return false;
+      if(pickCd==='BKCB6' && !CB6_NPP[o.name]) return false;
       if(pickCd && o.cb!==pickCd) return false;
       if(pickNb && o.nb!==pickNb && (o.area||'').toLowerCase().indexOf(pickNb.toLowerCase())<0) return false;
       if(!q) return true;
@@ -1069,9 +1074,9 @@ body > #nowbar{flex:0 0 auto}
     $('le-pr-list').innerHTML=rows.map(function(o){
       var q=encodeURIComponent(addr(o));
       return '<div class="org" id="le-pr-org-'+o.i+'">'+
-        '<div class="n">'+(o.cb==='BKCB6'?'<span class="pill cb6">in CB6</span>':'')+
+        '<div class="n">'+(CB6_NPP[o.name]?'<span class="pill cb6">CB6 NPP</span>':'')+
         (o.approx?'<span class="pill approx">approx location</span>':'')+
-        (o.lat==null?'<span class="pill">no map pin</span>':'')+esc(o.name)+'</div>'+
+        (o.lat==null?'<span class="pill">no map pin</span>':'')+esc(CB6_NPP[o.name]||o.name)+'</div>'+
         '<div class="a">'+esc(addr(o))+'</div>'+
         '<div class="s">'+[o.area?('Serves '+o.area):'',o.nb||'',o.cb?o.cb.replace(/^(\w\w)CB/,'$1 CB'):''].filter(Boolean).map(esc).join(' \u00b7 ')+'</div>'+
         '<div class="acts"><a href="https://www.google.com/maps/dir/?api=1&destination='+q+'" target="_blank" rel="noopener">Directions</a>'+
@@ -1148,6 +1153,7 @@ body > #nowbar{flex:0 0 auto}
   <div class="sub">New York State's Homes and Community Renewal (DHCR) oversees rent-regulated and Mitchell-Lama housing.</div>
   <div class="panel"><div class="tool"><div class="placeholder" id="le-dhcrHolder">DHCR listings will appear here once the data is added. For now, you can search Mitchell-Lama and other DHCR-supervised housing directly on the state's site.</div>
   <a class="cta" style="margin-top:12px" href="https://hcr.ny.gov/find-affordable-housing" target="_blank" rel="noopener"><span style="font-size:1.5rem">&#127970;</span><span><span class="t">NYS HCR / DHCR affordable housing &rarr;</span><span class="d">Search state-supervised affordable and Mitchell-Lama housing.</span></span></a></div></div>
+
 
 
 
@@ -1764,7 +1770,7 @@ body > #nowbar{flex:0 0 auto}
     $('le-npList').innerHTML=rows.map(function(o){
       var q=encodeURIComponent(addr(o));
       return '<div class="np-org" id="le-nporg-'+o.i+'">'+
-        '<div class="n">'+(o.cb==='BKCB6'?'<span class="np-pill cb6">in CB6</span>':'')+
+        '<div class="n">'+({'Fifth Avenue Committee, Inc':1,'Carroll Gardens Association Inc':1}[o.name]?'<span class="np-pill cb6">CB6 NPP</span>':'')+
         (o.lat==null?'<span class="np-pill">no map pin</span>':'')+esc(o.name)+'</div>'+
         '<div class="a">'+esc(addr(o))+'</div>'+
         '<div class="s">'+[o.area?('Serves '+o.area):'',o.nb||''].filter(Boolean).map(esc).join(' \u00b7 ')+'</div>'+
@@ -1806,6 +1812,7 @@ body > #nowbar{flex:0 0 auto}
 
 
 </div><!--/embed:le-->
+
 
 
 
