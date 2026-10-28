@@ -273,7 +273,7 @@ def main(src):
         fell_back.append(cd)
     cc['months'], cc['cds'] = keep, cds
     if fell_back:
-        cc['note'] = cc.get('note','') + (' Councils %s have no StreetEasy neighborhoods and use their borough figure.'
+        cc['note'] = re.sub(r' Councils [\d, ]+ have no StreetEasy neighborhoods and use their borough figure\.', '', cc.get('note','')) + (' Councils %s have no StreetEasy neighborhoods and use their borough figure.'
                                           % ', '.join(sorted(set(fell_back), key=int)))
 
     # ---- rank-history files ----
