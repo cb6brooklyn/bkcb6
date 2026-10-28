@@ -50,6 +50,10 @@
 .tog{display:flex;flex-wrap:wrap;gap:7px;margin-top:7px}
 .fb{padding:7px 13px;border:1.5px solid var(--border);border-radius:17px;background:#fff;font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:700;color:var(--navy);cursor:pointer}
 .fb.on{background:var(--orange);border-color:var(--orange);color:#fff}
+.fb .d{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px;vertical-align:middle;position:relative;top:-1px}
+.fb.on .d{box-shadow:0 0 0 1.5px #fff}
+.tnote{font-size:12px;color:#5b6675;margin-top:8px;line-height:1.4;min-height:0}
+.asp-sign-icon{background:none;border:0}
 .cb6pin{width:46px;height:46px;border-radius:9px;background:var(--navy) url(/cb6-logo-square.png) center/cover no-repeat;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}
 .leaflet-control-attribution{font-size:9px}
 .leaflet-popup-content{font-family:'DM Sans',sans-serif;font-size:.8rem;line-height:1.45;color:var(--navy)}
@@ -118,6 +122,7 @@
       <span><i style="background:#f47920;opacity:.45"></i>Residential zoning</span>
       <span><i style="background:#0d1b4b;opacity:.45"></i>Commercial zoning</span>
       <span><i style="background:#fff;border:1.5px solid #0d1b4b"></i>Manufacturing zoning</span>
+      <span id="keyx" style="display:contents"></span>
     </div>
     <div id="map"></div>
     <div id="res" class="hm-result"></div>
@@ -130,6 +135,19 @@
         <button type="button" class="fb on" id="t-zoning">Zoning</button>
         <button type="button" class="fb on" id="t-park">Central Park closure</button>
       </div>
+      <div class="hm-lbl">TRANSPORTATION</div>
+      <div class="tog" id="ttog">
+        <button type="button" class="fb on" data-t="subway"><span class="d" style="background:#EE352E"></span>Subway</button>
+        <button type="button" class="fb" data-t="bus"><span class="d" style="background:#2563eb"></span>Bus routes</button>
+        <button type="button" class="fb" data-t="busstops"><span class="d" style="background:#f59e0b"></span>Bus stops</button>
+        <button type="button" class="fb" data-t="bike"><span class="d" style="background:#1d4ed8"></span>Bike routes</button>
+        <button type="button" class="fb" data-t="citibike"><span class="d" style="background:#0072CE"></span>Citi Bike</button>
+        <button type="button" class="fb" data-t="truck"><span class="d" style="background:#0d9488"></span>Truck routes</button>
+        <button type="button" class="fb" data-t="speed"><span class="d" style="background:#2a9d8f"></span>Speed limits</button>
+        <button type="button" class="fb" data-t="sammys"><span class="d" style="background:#27ae60"></span>Sammy&rsquo;s Law 15 mph school zones</button>
+        <button type="button" class="fb" data-t="asp"><span class="d" style="background:#e41a1c"></span>Alternate side parking</button>
+      </div>
+      <div class="tnote" id="tnote"></div>
     </div>
   </div>
 
@@ -222,6 +240,70 @@ document.getElementById('t-cb6').onclick=showCb6;
 document.getElementById('t-all').onclick=showAll;
 document.getElementById('t-zoning').onclick=function(){zoningOn=!zoningOn;this.classList.toggle('on',zoningOn);if(zones){if(zoningOn)zones.addTo(map);else map.removeLayer(zones);}};
 document.getElementById('t-park').onclick=function(){parkOn=!parkOn;this.classList.toggle('on',parkOn);if(park){if(parkOn)park.addTo(map);else map.removeLayer(park);}};
+
+// ---- the CB6 transportation layers, the same data and colors as bkcb6.app/transport-map-cb6.html ----
+map.createPane('tlines');map.getPane('tlines').style.zIndex=400;
+map.createPane('tmarks');map.getPane('tmarks').style.zIndex=440;
+var TL={},TON={subway:true},TRN=null,TRNP=null;
+var LEGENDS={
+  speed:[{c:'#2a9d8f',l:'20 mph',t:'line'},{c:'#4c78a8',l:'25 mph',t:'line'},{c:'#f4a261',l:'30 mph',t:'line'},{c:'#e63946',l:'35+ mph',t:'line'},{c:'#111827',l:'School zone',t:'line'}],
+  bike:[{c:'#1d4ed8',l:'Protected bike lane',t:'line'},{c:'#0f766e',l:'Greenway',t:'line'},{c:'#f59e0b',l:'Buffered bike lane',t:'line'},{c:'#6b7280',l:'Shared lane or bike route',t:'line'}],
+  bus:[{c:'#2563eb',l:'Local bus',t:'line'},{c:'#c1121f',l:'SBS',t:'line'},{c:'#6a1b9a',l:'Express bus',t:'line'}],
+  busstops:[{c:'#2563eb',l:'Bus stop',t:'dot'},{c:'#f59e0b',l:'Timepoint',t:'dot'},{c:'#c1121f',l:'CBD stop',t:'dot'}],
+  subway:[{c:'#FF6319',l:'F',t:'line'},{c:'#6CBE45',l:'G',t:'line'},{c:'#FCCC0A',l:'N, R',t:'line'},{c:'#EE352E',l:'2, 3',t:'line'},{c:'#fff',l:'Station',t:'dot'}],
+  truck:[{c:'#0d9488',l:'Through truck route',t:'line'},{c:'#2563eb',l:'Local truck route',t:'line'},{c:'#f59e0b',l:'Limited',t:'line'}],
+  citibike:[{c:'#0072CE',l:'Citi Bike station',t:'dot'}],
+  sammys:[{c:'#27ae60',l:'Sammy’s Law 15 mph school zone',t:'line'}],
+  asp:[{c:'#e41a1c',l:'Mon',t:'line'},{c:'#377eb8',l:'Tue',t:'line'},{c:'#4daf4a',l:'Wed',t:'line'},{c:'#984ea3',l:'Thu',t:'line'},{c:'#ff7f00',l:'Fri',t:'line'},{c:'#a65628',l:'Sat',t:'line'},{c:'#999999',l:'Sun',t:'line'}]
+};
+function keyx(){var h='';Object.keys(TON).forEach(function(k){if(!TON[k])return;(LEGENDS[k]||[]).forEach(function(it){h+='<span><i style="'+(it.t==='dot'?'width:12px;height:12px;border-radius:50%;background:'+it.c+';border:1.5px solid #333':'background:'+it.c+';height:5px;border-radius:3px')+'"></i>'+esc(it.l)+'</span>';});});document.getElementById('keyx').innerHTML=h;}
+function speedC(p){var sl=parseInt(p.postvz_sl||0,10);if(sl<=20&&sl>0)return'#2a9d8f';if(sl<=25)return'#4c78a8';if(sl<=30)return'#f4a261';return'#e63946';}
+function bikeC(p){var t=[p.ft_facilit,p.tf_facilit,p.facilitycl,p.allclasses,p.grnwy,p.status].join(' ').toLowerCase();if(t.indexOf('retired')!==-1)return'#ef4444';if(t.indexOf('greenway')!==-1)return'#0f766e';if(t.indexOf('protected')!==-1)return'#1d4ed8';if(t.indexOf('buffered')!==-1)return'#f59e0b';return'#6b7280';}
+function busC(p){var r=String(p.route_color||'').trim();if(r&&r[0]!=='#')r='#'+r;if(/^#[0-9a-fA-F]{6}$/.test(r))return r;var t=String(p.route_type||'').toLowerCase();if(t==='sbs')return'#c1121f';if(t==='express')return'#6a1b9a';if(t==='limited')return'#f77f00';return'#2563eb';}
+function stopC(p){if(String(p.is_cbd||'').toLowerCase()==='true')return'#c1121f';if(String(p.timepoint||'').toLowerCase()==='true')return'#f59e0b';return'#2563eb';}
+function truckC(p){var t=String(p.routetype||'').toLowerCase();if(t==='through')return'#0d9488';if(t==='local')return'#2563eb';return'#f59e0b';}
+function tip(h){return {sticky:true,opacity:1};}
+function trnData(){if(!TRNP)TRNP=fetch('/transport-data/cb-bk-6.json').then(function(r){return r.json();}).then(function(d){TRN=d;return d;});return TRNP;}
+function trnLayer(k,gj){
+  if(k==='busstops')return L.geoJSON(gj,{pane:'tmarks',pointToLayer:function(f,ll){return L.circleMarker(ll,{pane:'tmarks',radius:5,color:'#fff',weight:1.5,fillColor:stopC(f.properties||{}),fillOpacity:.95});},onEachFeature:function(f,l){var p=f.properties||{};l.bindTooltip('<b>'+esc(p.stop_name||'Stop')+'</b><br><span style="font-size:.75rem;color:#555">'+esc((p.routes||[]).join(', '))+'</span>',tip());}});
+  var st={speed:function(f){var p=f.properties||{},sz=String(p.postvz_sg||'').toUpperCase()==='YES';return{color:speedC(p),weight:sz?5:3.5,opacity:.9,dashArray:sz?'8 4':null};},bike:function(f){return{color:bikeC(f.properties||{}),weight:3.5,opacity:.9};},bus:function(f){return{color:busC(f.properties||{}),weight:3.5,opacity:.85};},truck:function(f){return{color:truckC(f.properties||{}),weight:3.5,opacity:.9};}}[k];
+  return L.geoJSON(gj,{pane:'tlines',style:st,onEachFeature:function(f,l){var p=f.properties||{},h='';if(k==='speed')h='<b>'+esc(p.street||'')+'</b><br><span style="font-size:.75rem;color:#555">'+esc(p.postvz_sl||'—')+' mph'+(String(p.postvz_sg||'').toUpperCase()==='YES'?' · School zone':'')+'</span>';else if(k==='bike')h='<b>'+esc(p.street||'')+'</b><br><span style="font-size:.75rem;color:#555">'+esc([p.status,p.ft_facilit||p.allclasses].filter(Boolean).join(' · '))+'</span>';else if(k==='bus')h='<b>'+esc(p.route_short_name||p.route_id||'')+'</b> '+esc(p.route_long_name||'');else if(k==='truck')h='<b>'+esc(p.street||'')+'</b><br>'+esc(p.routetype||'');l.bindTooltip(h,tip());}});
+}
+var ASPC={Mon:'#e41a1c',Tue:'#377eb8',Wed:'#4daf4a',Thu:'#984ea3',Fri:'#ff7f00',Sat:'#a65628',Sun:'#999999'};
+function aspSign(p){var dl=String(p.day_label||'').slice(0,18),tl=String(p.time_label||'').replace(/\s+/g,''),w=68,h=44,R='#a02020';return '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'"><rect x="0.5" y="0.5" width="'+(w-1)+'" height="'+(h-1)+'" fill="#fff" stroke="'+R+'" stroke-width="1.5" rx="3"/><circle cx="11" cy="22" r="8.5" fill="none" stroke="'+R+'" stroke-width="2.2"/><text x="11" y="26" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="11" font-weight="700" fill="'+R+'">P</text><line x1="5.5" y1="16.5" x2="16.5" y2="27.5" stroke="'+R+'" stroke-width="2.2"/><text x="63" y="13" text-anchor="end" font-family="DM Sans,sans-serif" font-size="8.5" font-weight="700" fill="'+R+'">'+esc(tl)+'</text><text x="63" y="28" text-anchor="end" font-family="DM Sans,sans-serif" font-size="9" font-weight="700" fill="'+R+'">'+esc(dl)+'</text><line x1="28" y1="38" x2="60" y2="38" stroke="'+R+'" stroke-width="1.6"/><polyline points="32,35 28,38 32,41" fill="none" stroke="'+R+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';}
+function aspPop(p){var c=ASPC[p.primary_day]||'#666',s=p.next_suspensions?String(p.next_suspensions).split(' | ').map(function(x){return '<div style="font-size:.7rem;color:#444;padding:1px 0">• '+esc(x)+'</div>';}).join(''):'<div style="font-size:.7rem;color:#888">No upcoming suspensions listed.</div>';return '<div style="min-width:230px;max-width:290px"><div style="font-weight:700;font-size:.88rem;color:#fff;background:'+c+';padding:7px 11px;border-radius:6px 6px 0 0">'+esc(p.schedule)+'</div><div style="padding:9px 11px;background:#fff"><div style="font-size:.8rem;color:#0d1b4b;margin-bottom:9px;line-height:1.35">'+esc(p.location)+'</div><div style="font-size:.6rem;font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:4px">Next ASP suspensions</div>'+s+(p.suspensions_remaining_2026?'<div style="font-size:.65rem;color:#888;margin-top:7px;padding-top:6px;border-top:1px solid #f0efed">'+esc(p.suspensions_remaining_2026)+' suspension'+(p.suspensions_remaining_2026==1?'':'s')+' remaining in 2026</div>':'')+'</div></div>';}
+var aspPts=null;
+function syncAsp(){if(!aspPts)return;var on=TON.asp&&map.getZoom()>=16;if(on&&!map.hasLayer(aspPts))aspPts.addTo(map);if(!on&&map.hasLayer(aspPts))map.removeLayer(aspPts);}
+map.on('zoomend',syncAsp);
+var LOADERS={
+  subway:function(){return fetch('/data/cb6-subway.geojson').then(function(r){return r.json();}).then(function(d){
+    var SC={"F Train Route":"#FF6319","G Train Route":"#6CBE45","R Train Route":"#FCCC0A","N Train Route":"#FCCC0A","2 Train Route":"#EE352E","3 Train Route":"#EE352E"},g=L.layerGroup();
+    d.features.filter(function(f){return f.geometry.type==='LineString';}).forEach(function(f){L.geoJSON(f,{pane:'tlines',style:{color:SC[f.properties.name]||'#888',weight:4,opacity:.9}}).bindTooltip('<b>'+esc(f.properties.name)+'</b>',tip()).addTo(g);});
+    d.features.filter(function(f){return f.geometry.type==='Point'&&f.properties.name!=='CB6 District Office';}).forEach(function(f){var p=f.properties,c=f.geometry.coordinates;L.circleMarker([c[1],c[0]],{pane:'tmarks',radius:5,fillColor:'#fff',color:'#333',weight:2,fillOpacity:1}).bindTooltip('<b>'+esc(p.name)+'</b>'+(p.description?'<br><span style="font-size:.75rem;color:#555">'+esc(p.description)+'</span>':''),tip()).addTo(g);});
+    return g;});},
+  sammys:function(){return fetch('/data/cb6-sammys-15mph.geojson').then(function(r){return r.json();}).then(function(d){return L.geoJSON(d,{pane:'tlines',style:function(){return{color:'#27ae60',weight:5,opacity:.9};},onEachFeature:function(f,l){var p=f.properties;l.bindTooltip('<b style="color:#27ae60">'+esc(p.street)+'</b><br><span style="font-size:.72rem;color:#27ae60">'+esc(p.speed_limit||'15 MPH School Zone')+'</span>'+(p.pending_former_speed_limit?'<br><span style="font-size:.72rem;color:#888">Was: '+esc(p.pending_former_speed_limit)+'</span>':''),tip());}});});},
+  citibike:function(){return fetch('/data/citibike_stations_cb6.geojson').then(function(r){return r.json();}).then(function(d){return L.geoJSON(d,{pane:'tmarks',pointToLayer:function(f,ll){return L.circleMarker(ll,{pane:'tmarks',radius:6,fillColor:'#0072CE',color:'#fff',weight:1.5,fillOpacity:.9});},onEachFeature:function(f,l){var p=f.properties;l.bindTooltip('<b>'+esc(p.name)+'</b><br><span style="font-size:.75rem;color:#555">'+esc(p.street)+' &amp; '+esc(p.cross_street)+'</span>',tip());}});});},
+  asp:function(){return Promise.all([fetch('/data/cb6-asp-lines.geojson').then(function(r){return r.json();}),fetch('/data/cb6-asp-points.geojson').then(function(r){return r.json();})]).then(function(a){
+    var g=L.geoJSON(a[0],{pane:'tlines',style:function(f){return{color:ASPC[f.properties.primary_day]||'#666',weight:5,opacity:.85,lineCap:'round'};},onEachFeature:function(f,l){var p=f.properties;l.bindPopup(aspPop(p),{maxWidth:300});l.bindTooltip('<b style="color:'+(ASPC[p.primary_day]||'#666')+'">'+esc(p.schedule)+'</b>',tip());}});
+    aspPts=L.geoJSON(a[1],{pointToLayer:function(f,ll){return L.marker(ll,{icon:L.divIcon({className:'asp-sign-icon',html:aspSign(f.properties),iconSize:[68,44],iconAnchor:[34,22]}),riseOnHover:true});},onEachFeature:function(f,l){l.bindPopup(aspPop(f.properties),{maxWidth:300});}});
+    return g;});},
+  speed:function(){return trnData().then(function(d){return trnLayer('speed',d.speed);});},
+  bike:function(){return trnData().then(function(d){return trnLayer('bike',d.bike);});},
+  bus:function(){return trnData().then(function(d){return trnLayer('bus',d.bus);});},
+  busstops:function(){return trnData().then(function(d){return trnLayer('busstops',d.busstops);});},
+  truck:function(){return trnData().then(function(d){return trnLayer('truck',d.truck);});}
+};
+function note(){var n=[];if(TON.asp&&map.getZoom()<16)n.push('Zoom in to see the alternate side parking signs; the colored streets show the day.');document.getElementById('tnote').textContent=n.join(' ');}
+map.on('zoomend',note);
+function setT(k,on){
+  TON[k]=on;keyx();note();
+  var b=document.querySelector('#ttog [data-t="'+k+'"]');if(b)b.classList.toggle('on',on);
+  if(TL[k]){if(on)TL[k].addTo(map);else map.removeLayer(TL[k]);if(k==='asp')syncAsp();return;}
+  if(!on)return;
+  LOADERS[k]().then(function(g){TL[k]=g;if(TON[k])g.addTo(map);if(k==='asp')syncAsp();}).catch(function(){document.getElementById('tnote').textContent='That layer did not load. Tap it again to retry.';TON[k]=false;keyx();if(b)b.classList.remove('on');});
+}
+document.getElementById('ttog').addEventListener('click',function(ev){var b=ev.target.closest('button[data-t]');if(!b)return;var k=b.getAttribute('data-t');setT(k,!TON[k]);});
+setT('subway',true);
 
 function renderStrip(){
   var s=document.getElementById('strip');
