@@ -18,6 +18,7 @@
     '.pg-guide .tx{min-width:0;flex:1}.pg-guide .dd{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
     '.pg-guide a.on{background:#fff1e5}.pg-guide a.on .n{background:#0d1b4b}' +
     '.pg-guide .go:before{content:"\\203A";font-size:1.1rem;color:#f47920}.pg-guide a.on .go:before{content:"\\2304"}' +
+    '.pg-note{margin:10px 12px 4px;padding:12px 15px;background:#fff;border-left:3px solid #f47920;border-radius:4px;font:400 .9rem/1.55 "DM Sans",sans-serif;color:#132D65;max-width:78ch}.pg-note p{margin:0}.pg-note .pg-sig{margin-top:6px;font:500 .66rem "DM Mono",monospace;color:#6b7280}' +
     '.pg-how{border-top:1px solid #e5e2db}.pg-how>summary{cursor:pointer;padding:9px 15px;font:700 .62rem "DM Mono",monospace;text-transform:uppercase;letter-spacing:.08em;color:#f47920;list-style:none}' +
     '.pg-how>summary::-webkit-details-marker{display:none}.pg-how>summary:after{content:" \\25BE"}.pg-how[open]>summary:after{content:" \\25B4"}' +
     '.pg-guide a:hover,.pg-guide a:focus{background:#fff6ee;outline:none}' +
@@ -164,6 +165,18 @@
         rest.forEach(function (c) { how.appendChild(c); });
         intro.appendChild(how);
       }
+    }
+    /* a short note at the top, in Mike's words */
+    var P = location.pathname, sale = /sales/.test(P);
+    var where = /cb6/.test(P) ? ['Brooklyn CB6', 'neighborhood'] : /^\/bk/.test(P) ? ['Brooklyn', 'community board'] : /boroughs/.test(P) ? ['New York City', 'borough'] : ['New York City', 'community district'];
+    var tg = document.querySelector('.rs-toggle');
+    if (tg && !document.getElementById('pgNote')) {
+      var nt = document.createElement('div'); nt.id = 'pgNote'; nt.className = 'pg-note';
+      nt.innerHTML = '<p>This is what it costs to ' + (sale ? 'buy a home' : 'rent') + ' in ' + where[0] + ', how that has changed, and what it takes to afford it. ' +
+        'The map shows the median asking ' + (sale ? 'price' : 'rent') + ' by ' + where[1] + '. Everything else is in the menu under the map.</p>' +
+        '<p class="pg-sig">Mike Racioppo, District Manager, Brooklyn Community Board 6</p>';
+      tg.parentNode.insertBefore(nt, tg);
+      if (intro) { var ld = intro.querySelector('.pgi-lead'); if (ld) ld.style.display = 'none'; }
     }
     var fab = document.createElement('button'); fab.id = 'pgFab'; fab.type = 'button';
     fab.innerHTML = '<span>&#9776;</span> Sections';
