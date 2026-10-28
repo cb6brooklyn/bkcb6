@@ -174,6 +174,10 @@ def build(src, dst, rent_url, sale_url):
         t = vendorize(put_toggle(s, toggle('rent', rent_url, sale_url)))
         open(os.path.join(ROOT, src), 'w').write(t)
     s = re.sub(re.escape(MARK_A) + '.*?' + re.escape(MARK_B), '', s, flags=re.S)
+    # pages built into this one (scripts/build_embeds.py) are copied untouched
+    held = []
+    def hold(m): held.append(m.group(0)); return '<!--held:%d-->' % (len(held) - 1)
+    s = re.sub(r'<!--embed:([\w-]+)-->.*?<!--/embed:\1-->', hold, s, flags=re.S)
     # Mike's signed note is about rent; it is his text, so it is not reworded for the sale page
     s = drop(s, r'<details class="mrnote"', 'details')
     # rent-only sections: lotteries / affordable housing and tenants' rights
@@ -205,6 +209,7 @@ def build(src, dst, rent_url, sale_url):
         s = re.sub(r'(["\'])' + re.escape(a) + r'(?=["\'?#/])', lambda m: m.group(1) + b, s)
         s = s.replace('https://bkcb6.app' + a + '"', 'https://bkcb6.app' + b + '"')
     s = retext(s)
+    s = re.sub(r'<!--held:(\d+)-->', lambda m: held[int(m.group(1))], s)
     if not embed: s = put_toggle(s, toggle('sale', rent_url, sale_url))
     s = vendorize(s)
     os.makedirs(os.path.dirname(os.path.join(ROOT, dst)) or ROOT, exist_ok=True)
