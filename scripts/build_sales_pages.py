@@ -118,6 +118,10 @@ def retext(s):
     return ''.join(out)
 
 
+LEVELS = [('CB6', '/housecostavail', '/salescb6'), ('Brooklyn, by community board', '/bkrents', '/bksales'),
+          ('All five boroughs', '/rent-map-boroughs.html', '/sales-map-boroughs.html'), ('Citywide, by community district', '/nycrents', '/nycsales')]
+
+
 def toggle(here, rent_url, sale_url):
     r_on, s_on = (' on', '') if here == 'rent' else ('', ' on')
     return ('<div class="rs-toggle" style="display:flex;background:#0d1b4b;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.12)">'
@@ -125,6 +129,16 @@ def toggle(here, rent_url, sale_url):
             'border:2px solid #f47920;color:#fff;text-decoration:none}.rs-toggle a:first-child{border-radius:10px 0 0 10px}'
             '.rs-toggle a:last-child{border-radius:0 10px 10px 0;border-left:0}.rs-toggle a.on{background:#f47920}</style>'
             '<a class="%s" href="%s">Rent</a><a class="%s" href="%s">For sale</a></div>' % (r_on.strip(), rent_url, s_on.strip(), sale_url)
+            # on the CB6 page only: the same maps for Brooklyn, the five boroughs and the whole city, folded until tapped
+            + ('<details class="lv-more" style="background:#0d1b4b;padding:0 14px 10px;border-bottom:1px solid rgba(255,255,255,.12)">'
+               '<style>.lv-more>summary{cursor:pointer;list-style:none;color:#fff;font-family:\'DM Sans\',sans-serif;font-size:.85rem;font-weight:700;padding:8px 0}'
+               '.lv-more>summary::-webkit-details-marker{display:none}.lv-more>summary:after{content:" \\25BE";color:#f47920}.lv-more[open]>summary:after{content:" \\25B4"}'
+               '.lv-more .lv-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid rgba(255,255,255,.12)}'
+               '.lv-more .lv-t{flex:1;color:#fff;font-family:\'DM Sans\',sans-serif;font-size:.85rem;font-weight:600}'
+               '.lv-more .lv-row a{padding:6px 14px;border:1.5px solid #f47920;border-radius:999px;color:#fff;text-decoration:none;font-family:\'DM Sans\',sans-serif;font-size:.78rem;font-weight:700}</style>'
+               '<summary>Brooklyn, the boroughs and the whole city</summary>'
+               + ''.join('<div class="lv-row"><span class="lv-t">%s</span><a href="%s">Rent</a><a href="%s">For sale</a></div>' % (lab, r, s_) for lab, r, s_ in LEVELS[1:])
+               + '</details>' if rent_url == '/housecostavail' else '')
             # inside the apps the page is a screen of the app, not a website: no breadcrumbs, back links or share button
             + '<script>(function(){try{if(/[?&]app=1\\b/.test(location.search)||location.protocol==="bkcb:"||sessionStorage.getItem("bkapp")==="1")'
               'document.documentElement.classList.add("inapp")}catch(e){}})();</script>'
