@@ -325,6 +325,19 @@ body{font-family:'DM Sans',sans-serif;background:#0d1b4b;color:#fff;min-height:1
 body > #nowbar{flex:0 0 auto}
 #map{min-height:62vh}
 @media(max-width:560px){#map{min-height:56vh}}
+.timebar{display:flex;align-items:center;gap:9px;padding:8px 14px;background:#132D65;border-bottom:1px solid rgba(255,255,255,.12)}
+#tmPlay{width:32px;height:29px;border:2px solid rgba(255,255,255,.4);border-radius:7px;background:transparent;color:#fff;font-size:.76rem;cursor:pointer;flex:none}
+#tmSlider{flex:1;accent-color:#f47920;min-width:80px}
+#tmLabel{font-family:'DM Mono',monospace;font-size:.82rem;font-weight:700;color:#fff;min-width:74px;text-align:right}
+.tm-now{padding:6px 10px;border:2px solid rgba(255,255,255,.4);border-radius:7px;background:transparent;color:#fff;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;flex:none}
+.tm-now:hover,#tmPlay:hover{border-color:#f47920;color:#f47920}
+.timebar.live #tmLabel{color:#f47920}
+#legend .ts-wrap{flex:1;min-width:0}
+#legend .ts-top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:5px}
+#legend .ts-lab{font-family:'DM Mono',monospace;font-size:.56rem;text-transform:uppercase;letter-spacing:.08em;color:#fff;font-weight:700}
+#legend .ts-note{font-family:'DM Sans',sans-serif;font-size:.66rem;color:rgba(255,255,255,.65)}
+#legend .ts-bar{height:12px;border-radius:3px}
+#legend .ts-ticks{display:flex;justify-content:space-between;margin-top:3px;font-family:'DM Mono',monospace;font-size:.6rem;color:#fff}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
@@ -343,6 +356,12 @@ body > #nowbar{flex:0 0 auto}
     
   </div>
 <div id="legend" class="legend-sticky" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:7px 16px;background:#0d1b4b;border-top:1px solid rgba(255,255,255,.08)"></div>
+<div class="timebar" id="timebar">
+  <button id="tmPlay" type="button" title="Play through time">&#9654;</button>
+  <input id="tmSlider" type="range" min="0" max="0" value="0" aria-label="Month">
+  <span id="tmLabel">now</span>
+  <button id="tmNow" type="button" class="tm-now">Today</button>
+</div>
 <div id="map"></div>
 <div class="map-caption"><span class="mc-ico">&#128506;</span><span class="mc-boro">Brooklyn Community Board 6</span><span class="mc-sub">Carroll Gardens · Cobble Hill · Columbia Waterfront · Gowanus · Park Slope · Red Hook · Columbia St Waterfront</span></div>
 <details class="mrnote"><summary><span class="mrnote-k">Mike Racioppo</span><span class="mrnote-sub">why this page exists, and what is in it</span><span class="mrnote-x">hide</span></summary><div class="mrnote-body"><p>Housing and its price are often discussed, directly and indirectly. In every corner of New York City, even more so. Those discussions can be indirect, like with the countless articles pondering &ldquo;why are so many young adults living with their parents?&rdquo; I haven&rsquo;t read all of them, but the bottom line is it&rsquo;s due to housing costs.</p>
@@ -465,11 +484,12 @@ body > #nowbar{flex:0 0 auto}
   }
   var colorFor=null;
   function rebuildColors(){ colorFor=makeColor(DATA.features.map(function(f){return f.properties['rent_'+bed];}).filter(function(v){return v!=null;})); }
-  function labelFor(p){ var v=p['rent_'+bed];
+  function labelFor(p){ var v=p['rent_'+bed]; if(TL.i!==null){ v=tlVal(p.nb,TL.i); p={nb:p.nb,no_data:v==null}; }
     var sh=({studio:'studio','1br':'1BR','2br':'2BR','3br':'3BR+'})[bed]||'';
     return '<span class="nl-n">'+p.nb+'</span><br><span class="nl-r">'+(p.no_data?'no data':(money(v)+' <span class="nl-b">'+sh+'</span>'))+'</span>'; }
   function relabelAll(){ if(!layer) return; layer.eachLayer(function(l){ var tt=l.getTooltip(); if(tt) l.setTooltipContent(labelFor(l.feature.properties)); }); }
   function buildLegend(){
+    if(TL.i!==null){ tlLegend(); return; }
     var vals=DATA.features.map(function(f){return f.properties['rent_'+bed];}).filter(function(v){return v!=null;}).sort(function(a,b){return a-b;});
     if(!vals.length){ var el0=$('legend'); if(el0) el0.innerHTML=''; return; }
     var lo=vals[0], hi=vals[vals.length-1];
@@ -481,6 +501,7 @@ body > #nowbar{flex:0 0 auto}
   }
 
   function styleFor(f){
+    if(TL.i!==null){ var tv=tlVal(f.properties.nb,TL.i); return tv==null?{color:'#9ca3af',weight:1.5,fillColor:'#d9d9d9',fillOpacity:.5,dashArray:'4,3'}:{color:'#ffffff',weight:2,fillColor:tlColor(tv),fillOpacity:.85}; }
     var v=f.properties['rent_'+bed];
     if(f.properties.no_data) return {color:'#9ca3af',weight:1.5,fillColor:'#d9d9d9',fillOpacity:.5,dashArray:'4,3'};
     return {color:'#ffffff',weight:2,fillColor:colorFor(v),fillOpacity:.85};
@@ -537,6 +558,54 @@ body > #nowbar{flex:0 0 auto}
       if(c) c.querySelector('.r').textContent=p.no_data?'No rent data':money(p['rent_'+bed]);
     });
   }
+
+
+  // timeline: every month since 2010 on one fixed color scale, so the same color is the same price in every year
+  var TL={H:null,i:null,timer:null,sc:{}};
+  var BK={studio:'studio','1br':'br1','2br':'br2','3br':'br3'};
+  function tlName(n){ return String(n).replace('Columbia Street','Columbia St'); }
+  function tlVal(nb,i){
+    if(!TL.H) return null; var a=null;
+    TL.H.nbs.forEach(function(x){ if(tlName(x.name)===tlName(nb)) a=x; });
+    var p=a&&a.s?a.s[BK[bed]]:null; if(!p) return null; var k=i-p[0]; return (k>=0&&k<p[1].length)?p[1][k]:null;
+  }
+  function tlScale(){
+    var all=[]; TL.H.nbs.forEach(function(x){ var p=x.s[BK[bed]]; if(p) p[1].forEach(function(v){ if(v!=null) all.push(v); }); });
+    if(!all.length) return null; all.sort(function(a,b){return a-b;});
+    var lo=all[Math.floor(all.length*0.02)], hi=all[Math.floor(all.length*0.98)]; if(hi<=lo) hi=lo+1; return {lo:lo,hi:hi};
+  }
+  function tlGrad(t){
+    t=t<0?0:(t>1?1:t); var C=RAMP, x=t*(C.length-1), k=Math.min(Math.floor(x),C.length-2), f=x-k;
+    function h(c){ return [1,3,5].map(function(j){return parseInt(c.substr(j,2),16);}); }
+    var a=h(C[k]), b=h(C[k+1]); return 'rgb('+a.map(function(v,j){return Math.round(v+(b[j]-v)*f);}).join(',')+')';
+  }
+  function tlColor(v){ var sc=TL.sc[bed]||(TL.sc[bed]=tlScale()); return sc?tlGrad((v-sc.lo)/(sc.hi-sc.lo)):'#cccccc'; }
+  function tlFm(v){ v=v<1e4?Math.round(v/50)*50:Math.round(v); return v>=1e6?'$'+(v/1e6).toFixed(2).replace(/\.?0+$/,'')+'M':(v>=1e5?'$'+Math.round(v/1000)+'K':'$'+v.toLocaleString('en-US')); }
+  function tlLegend(){
+    var el=$('legend'), sc=TL.sc[bed]||(TL.sc[bed]=tlScale()); if(!el||!sc) return;
+    el.innerHTML='<div class="ts-wrap"><div class="ts-top"><span class="ts-lab">Color scale</span><span class="ts-note">same color = same price in every year</span></div>'+
+      '<div class="ts-bar" style="background:linear-gradient(90deg,'+RAMP.join(',')+')"></div>'+
+      '<div class="ts-ticks">'+[0,.25,.5,.75,1].map(function(q,k){ return '<span>'+(k===0?'under ':'')+tlFm(sc.lo+(sc.hi-sc.lo)*q)+(k===4?'+':'')+'</span>'; }).join('')+'</div></div>';
+  }
+  function tlApply(i){
+    TL.i=i; var lab=$('tmLabel'), bar=$('timebar');
+    if(i===null){ lab.textContent='now'; bar.classList.remove('live'); }
+    else { var m=TL.H.months[i]; lab.textContent=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m.slice(5,7)-1]+' '+m.slice(0,4); bar.classList.add('live'); }
+    if(layer) layer.setStyle(styleFor); relabelAll(); buildLegend();
+  }
+  function tlStop(){ if(TL.timer){ clearInterval(TL.timer); TL.timer=null; } $('tmPlay').innerHTML='▶'; }
+  function tlPlay(){
+    if(TL.timer){ tlStop(); return; } if(!TL.H) return;
+    $('tmPlay').innerHTML='⏸';
+    var n=TL.H.months.length, i=(TL.i===null||TL.i>=n-1)?-1:TL.i;
+    TL.timer=setInterval(function(){ i++; if(i>=n){ tlStop(); return; } $('tmSlider').value=i; tlApply(i); },300);
+  }
+  fetch('data/cb6-rank-history.json').then(function(r){return r.json();}).then(function(j){
+    TL.H=j; var sl=$('tmSlider'); sl.max=j.months.length-1; sl.value=j.months.length-1;
+    sl.addEventListener('input',function(){ tlStop(); tlApply(+this.value); });
+    $('tmPlay').addEventListener('click',tlPlay);
+    $('tmNow').addEventListener('click',function(){ tlStop(); sl.value=j.months.length-1; tlApply(null); });
+  }).catch(function(){ var t=$('timebar'); if(t) t.style.display='none'; });
 
   fetch('data/neighborhood-rents.geojson').then(function(r){return r.json();}).then(function(j){
     DATA={type:'FeatureCollection',features:j.features.filter(function(f){return f.properties.cd==='BKCB6';})};
