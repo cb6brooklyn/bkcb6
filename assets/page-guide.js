@@ -172,9 +172,8 @@
     var tg = document.querySelector('.rs-toggle');
     if (tg && !document.getElementById('pgNote')) {
       var nt = document.createElement('div'); nt.id = 'pgNote'; nt.className = 'pg-note';
-      nt.innerHTML = '<p>This shows what ' + (sale ? 'sellers have asked for homes' : 'landlords have asked for apartments') + ' listed for ' + (sale ? 'sale' : 'rent') + ' in ' + where[0] +
-        ', how that has changed since 2010, and what it takes to afford it. <b>It is based on listings, not what ' + (sale ? 'buyers paid at closing' : 'tenants already in their leases pay') + '.</b> ' +
-        'The map shows the median asking ' + (sale ? 'price' : 'rent') + ' by ' + where[1] + '. Press play to watch it change over time. Everything else is in the menu under the map.</p>' +
+      nt.innerHTML = '<p>Asking ' + (sale ? 'prices for homes for sale' : 'rents for apartments') + ' on the market in ' + where[0] + ', by ' + where[1] + ', since 2010. ' +
+        'Press play to see them change. More in the menu under the map.</p>' +
         '<p class="pg-sig">Mike Racioppo, District Manager, Brooklyn Community Board 6</p>';
       tg.parentNode.insertBefore(nt, tg);
       if (intro) { var ld = intro.querySelector('.pgi-lead'); if (ld) ld.style.display = 'none'; }
