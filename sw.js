@@ -1,5 +1,9 @@
 // CB6 & Beyond — Service Worker
+<<<<<<< Updated upstream
 const CACHE_VERSION = 'cb6-v6666666666693-7120309628171544222';
+=======
+const CACHE_VERSION = 'cb6-v6666666666692-7120309628171544222';
+>>>>>>> Stashed changes
 const CORE_ASSETS = [
   '/',
   '/index.html',
