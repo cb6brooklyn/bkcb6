@@ -604,11 +604,26 @@ var PLOGO={'Park Slope Armory YMCA':[['YMCA','ymca']],'Prospect Park YMCA':[['YM
 var PSD=null;
 function tcase(s){return String(s||'').toLowerCase().replace(/\b([a-z])/g,function(m){return m.toUpperCase();}).replace(/\b(Ps|Is|Jhs|Hs|Ms|Rc|Nycha|Ymca|Cuny)\b/g,function(m){return m.toUpperCase();});}
 function evToday(){
-  var d=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'})), y=d.getFullYear(), mo=d.getMonth()+1, da=d.getDate();
+  var d=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'})), y=d.getFullYear(), k=(d.getMonth()+1)*100+d.getDate(), hr=d.getHours()+d.getMinutes()/60;
   if(y!==2026) return null;
-  var k=mo*100+da;
-  if(k<1024||k>1101) return {past:k>1101,eday:k===1103};
-  return {h:(k===1027||k===1028)?'10 AM to 8 PM':(k===1029?'8 AM to 4 PM':'9 AM to 5 PM')};
+  var EVD=[[1024,9,17],[1025,9,17],[1026,9,17],[1027,10,20],[1028,10,20],[1029,8,16],[1030,9,17],[1031,9,17],[1101,9,17]];
+  var DN={1024:'Saturday',1025:'Sunday',1026:'Monday',1027:'Tuesday',1028:'Wednesday',1029:'Thursday',1030:'Friday',1031:'Saturday',1101:'Sunday'};
+  function f(x){return (x%12||12)+(x<12?' AM':' PM');}
+  var r={past:true};
+  for(var i=0;i<EVD.length;i++){ var x=EVD[i];
+    if(x[0]===k){
+      if(hr<x[1]){ r={evSub:'Opens today at '+f(x[1])+', open until '+f(x[2]),evCap:'Today'}; }
+      else if(hr<x[2]){ r={evSub:'Open now until '+f(x[2]),evCap:'Today'}; }
+      else if(EVD[i+1]){ var n=EVD[i+1]; r={evSub:'Closed for today. Open tomorrow, '+f(n[1])+' to '+f(n[2]),evCap:'Tomorrow'}; }
+      break;
+    }
+    if(x[0]>k){ r={evSub:'Opens '+DN[x[0]]+', '+f(x[1])+' to '+f(x[2]),evCap:'Early voting'}; break; }
+  }
+  if(!r.past) r.evSub+=(k===1101||(k===1031&&r.evCap==='Tomorrow'))?' · last day of early voting':' · last day Sun, Nov 1';
+  if(k===1103){ r.edCap='Today'; r.edSub=hr<6?'Opens today at 6 AM, open until 9 PM':(hr<21?'Open now until 9 PM':'Polls closed at 9 PM'); }
+  else if(k===1102){ r.edCap='Tomorrow'; r.edSub='Tomorrow, 6 AM to 9 PM'; }
+  else { r.edCap='Election Day'; r.edSub='Tue, Nov 3 · 6 AM to 9 PM'; }
+  return r;
 }
 function siteTile(r,label,sub){
   var lo=PLOGO[r[0]]||[];
@@ -621,15 +636,15 @@ function voteCard(a,k){
   (PSD?Promise.resolve(PSD):fetch('pollsites.json').then(function(r){return r.json();}).then(function(d){PSD=d;return d;})).then(function(P){
     var pair=P.d[ad+ed];
     if(!pair){ vc.hidden=false; vc.innerHTML='<p class="note">No poll site on file for Assembly District '+ad+', Election District '+parseInt(ed,10)+'. Check <a href="https://findmypollsite.vote.nyc/" target="_blank" rel="noopener">findmypollsite.vote.nyc</a>.</p>'; return; }
-    var s=P.s[pair[0]], v=P.v[pair[1]], t=evToday()||{}, stk=document.getElementById('stk');
+    var s=P.s[pair[0]], v=P.v[pair[1]], t=evToday()||{past:true,edCap:'Election Day',edSub:'Tue, Nov 3 · 6 AM to 9 PM'}, stk=document.getElementById('stk');
     var tiles='';
-    if(!t.past) tiles+=siteTile(v,'Early voting',t.h?'Open today, '+t.h+' · through Sun, Nov 1':'Sat, Oct 24 to Sun, Nov 1');
-    tiles+=siteTile(s,'Election Day',t.eday?'Today, 6 AM to 9 PM':'Tue, Nov 3 · 6 AM to 9 PM');
+    if(!t.past) tiles+=siteTile(v,'Early voting',t.evSub);
+    tiles+=siteTile(s,'Election Day',t.edSub);
     vc.hidden=false;
     function big(r,cap){var lo=(PLOGO[r[0]]||[]).slice(0,1);return '<span class="vi"><span class="vl">'+(lo.length?'<img src="/data/cb6vote/logos/'+lo[0][1]+'.png" alt="'+esc(lo[0][0])+'">':'<span class="vnm">'+esc(tcase(r[0]))+'</span>')+'</span><small>'+cap+'</small></span>';}
     var same=v[0]===s[0];
     vc.innerHTML='<div class="vrow"><img class="vstk" src="'+stk.getAttribute('src')+'" alt="'+esc(stk.alt)+'"><span class="vat">@</span>'+
-      (t.past?big(s,t.eday?'Today':'Election Day'):(same?big(v,(t.h?'Today':'Early voting')+' and Election Day'):big(v,t.h?'Today':'Early voting')+big(s,'Election Day')))+
+      (t.past?big(s,t.edCap):(same?big(v,t.evCap+' and Election Day'):big(v,t.evCap)+big(s,t.edCap)))+
 '</div><div class="vsites">'+tiles+'</div>';
   }).catch(function(){ vc.hidden=true; });
 }
