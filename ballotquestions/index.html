@@ -247,6 +247,27 @@ header .stk[src$="bkcb6.png"]{box-shadow:none}
 .qmore .chev{margin-left:auto;font-family:var(--mono);font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--acct)}
 .qmore[open] .chev{visibility:hidden}
 .qin{padding:0 12px 14px;display:grid;gap:16px}
+
+/* Where you vote: sticker @ early voting site, then Election Day site */
+.vcard{border-top:1px solid var(--line);padding-top:12px;display:grid;gap:10px}
+.vrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.vstk{width:68px;height:68px;border-radius:12px;display:block}
+.vat{font-size:1.6rem;font-weight:900;color:var(--navy);line-height:1}
+.vand{font-family:var(--mono);font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.vl{display:inline-flex;align-items:center;justify-content:center;min-width:54px;height:54px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px var(--navy);overflow:hidden;padding:4px}
+.vl img{width:46px;height:46px;object-fit:contain;border-radius:50%}
+.vl .vnm{font-size:.56rem;font-weight:800;line-height:1.1;text-align:center;color:var(--navy);padding:0 2px;max-width:76px}
+.vl:has(.vnm){border-radius:10px;height:auto;min-height:54px}
+.vsites{display:grid;gap:8px}
+.vsite{display:flex;gap:10px;align-items:flex-start;border:1.5px solid var(--line);border-radius:10px;padding:10px;background:#fff}
+.vlogo{flex:0 0 44px;display:flex;flex-wrap:wrap;gap:3px}
+.vlogo img{width:44px;height:44px;object-fit:contain;border-radius:50%;box-shadow:0 0 0 1.5px var(--line)}
+.vlogo .vnm{display:none}
+.vlogo:has(.vnm){display:none}
+.vtx{display:grid;gap:1px;font-size:.85rem;color:#333;line-height:1.4;min-width:0}
+.vtx b{font-family:var(--mono);font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:var(--navy)}
+.vtx .vsub{font-weight:700;color:var(--acct);font-size:.8rem}
+.vtx a{font-weight:700;font-size:.8rem}
 </style>
 </head>
 <body>
@@ -268,6 +289,7 @@ header .stk[src$="bkcb6.png"]{box-shadow:none}
       </form>
       <div class="or"><span>Or see a community board:</span><select id="board" aria-label="Community board"></select></div>
       <p class="msg" id="msg"></p>
+      <div class="vcard" id="vcard" hidden></div>
     </div>
     <div id="ballotOut" class="grp"></div>
     <p class="src" id="ballotSrc"></p>
@@ -522,11 +544,52 @@ function rebind(wrap){
     var k=btn.dataset.k, d=btn.dataset.d, chips=wrap.getAttribute('data-chips');
     chips=chips.replace(/aria-pressed="true"/g,'aria-pressed="false"').replace('data-d="'+d+'" aria-pressed="false"','data-d="'+d+'" aria-pressed="true"');
     wrap.innerHTML=contestHTML(D[k][d],k,d,chips); wrap.setAttribute('data-chips',chips); rebind(wrap);};});}
+
+var PLOGO={'Park Slope Armory YMCA':[['YMCA','ymca']],'Prospect Park YMCA':[['YMCA','ymca']],'Dodge YMCA':[['YMCA','ymca']],'JHS 51':[['M.S. 51 William Alexander','ms51']],
+    'John Jay HS':[['John Jay School for Law','johnjaylaw'],['Park Slope Collegiate','psc'],['Millennium Brooklyn HS','millennium'],['Cyberarts Studio Academy','cyberarts']],
+    'Park Slope Public Library':[['Brooklyn Public Library','bpl']],'PS 142 JHS':[['The Brooklyn New School, P.S. 146','bns146'],['Brooklyn Collaborative Studies','bcs']],
+    'PS 29':[['P.S. 29 John M. Harrigan','ps29']],'Joseph A Miccio Community Ctr':[['NYCHA','nycha']],'PS 15 New':[['P.S. 15 Patrick F. Daly','ps15']],
+    'PS 27':[['Red Hook Neighborhood School','rhns'],['Summit Academy Charter School','summit']],
+    'IS 293':[['Success Academy Cobble Hill','success'],['The Boerum Hill School for International Studies','bhs'],['Digital Arts and Cinema Technology High School','dact']],
+    'PS 58':[['P.S. 58 The Carroll','ps58']],'Wyckoff Gardens Comm Ctr':[['NYCHA','nycha']],'PS 133':[['P.S. 133 William A. Butler','ps133']],'PS 282':[['P.S. 282 Park Slope','ps282']],
+    'PS 321':[['P.S. 321 William Penn','ps321']],'Red Hook Recreation Center':[['Red Hook Recreation Center','rhrc']],'Brooklyn Borough Hall':[['Brooklyn Borough President','bp']]};
+var PSD=null;
+function tcase(s){return String(s||'').toLowerCase().replace(/\b([a-z])/g,function(m){return m.toUpperCase();}).replace(/\b(Ps|Is|Jhs|Hs|Ms|Rc|Nycha|Ymca|Cuny)\b/g,function(m){return m.toUpperCase();});}
+function evToday(){
+  var d=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'})), y=d.getFullYear(), mo=d.getMonth()+1, da=d.getDate();
+  if(y!==2026) return null;
+  var k=mo*100+da;
+  if(k<1024||k>1101) return {past:k>1101,eday:k===1103};
+  return {h:(k===1027||k===1028)?'10 AM to 8 PM':(k===1029?'8 AM to 4 PM':'9 AM to 5 PM')};
+}
+function siteTile(r,label,sub){
+  var lo=PLOGO[r[0]]||[];
+  var img=lo.length?lo.map(function(x){return '<img src="/data/cb6vote/logos/'+x[1]+'.png" alt="'+esc(x[0])+'" title="'+esc(x[0])+'">';}).join(''):'<span class="vnm">'+esc(tcase(r[0]))+'</span>';
+  return '<div class="vsite"><div class="vlogo">'+img+'</div><div class="vtx"><b>'+label+'</b>'+(sub?'<span class="vsub">'+sub+'</span>':'')+'<span>'+esc(tcase(r[0]))+', '+esc(r[1].replace(/\s+NY\s+\d{5}$/,'').replace(/,\s*$/,''))+'</span><a href="https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(r[1])+'" target="_blank" rel="noopener">Directions</a></div></div>';
+}
+function voteCard(a,k){
+  var vc=document.getElementById('vcard'); if(!vc) return;
+  var ad=String(parseInt(a.assemblyDistrict,10)), ed=String(parseInt(a.electionDistrict,10)); while(ed.length<3) ed='0'+ed;
+  (PSD?Promise.resolve(PSD):fetch('pollsites.json').then(function(r){return r.json();}).then(function(d){PSD=d;return d;})).then(function(P){
+    var pair=P.d[ad+ed];
+    if(!pair){ vc.hidden=false; vc.innerHTML='<p class="note">No poll site on file for Assembly District '+ad+', Election District '+parseInt(ed,10)+'. Check <a href="https://findmypollsite.vote.nyc/" target="_blank" rel="noopener">findmypollsite.vote.nyc</a>.</p>'; return; }
+    var s=P.s[pair[0]], v=P.v[pair[1]], t=evToday()||{}, stk=document.getElementById('stk');
+    var tiles='';
+    if(!t.past) tiles+=siteTile(v,'Early voting',t.h?'Open today, '+t.h+' · through Sun, Nov 1':'Sat, Oct 24 to Sun, Nov 1');
+    tiles+=siteTile(s,'Election Day',t.eday?'Today, 6 AM to 9 PM':'Tue, Nov 3 · 6 AM to 9 PM');
+    vc.hidden=false;
+    vc.innerHTML='<div class="vrow"><img class="vstk" src="'+stk.getAttribute('src')+'" alt="'+esc(stk.alt)+'"><span class="vat">@</span>'+
+      (t.past?'':'<span class="vl">'+((PLOGO[v[0]]||[]).slice(0,1).map(function(x){return '<img src="/data/cb6vote/logos/'+x[1]+'.png" alt="'+esc(x[0])+'">';}).join('')||'<span class="vnm">'+esc(tcase(v[0]))+'</span>')+'</span>')+
+      ((t.past||v[0]!==s[0])?(t.past?'':'<span class="vand">then</span>')+'<span class="vl">'+((PLOGO[s[0]]||[]).slice(0,1).map(function(x){return '<img src="/data/cb6vote/logos/'+x[1]+'.png" alt="'+esc(x[0])+'">';}).join('')||'<span class="vnm">'+esc(tcase(s[0]))+'</span>')+'</span>':'')+
+      '</div><div class="vsites">'+tiles+'</div><p class="src">Election District '+parseInt(ed,10)+', Assembly District '+ad+'. Poll sites: NYC Board of Elections, the same list as <a href="/elections.html">bkcb6.app/elections.html</a>.</p>';
+  }).catch(function(){ vc.hidden=true; });
+}
+
 var STK={bkcb6:'BKCB6',bk:'BK',mn:'MANH',bx:'BX',qn:'QNS',si:'SI'}, BC={'1':'mn','2':'bx','3':'bk','4':'qn','5':'si'}, BN={MANHATTAN:'mn',BRONX:'bx',BROOKLYN:'bk',QUEENS:'qn','STATEN ISLAND':'si'};
 function setBoro(k,place){ if(!STK[k]) k='bkcb6'; window.CB6ON=(k==='bkcb6'); var w=document.getElementById('where'); if(w) w.textContent=place||'Brooklyn Community Board 6'; if(window.reshowQ) window.reshowQ(); document.documentElement.setAttribute('data-boro',k); var s=document.getElementById('stk'); if(s){ s.src='stickers/'+k+'.png'; s.alt='In 2026 I voted in '+STK[k]+' sticker'; } }
 function boroFor(cdKey,boroName){ cdKey=String(cdKey||''); if(cdKey==='306') return 'bkcb6'; return BC[cdKey.charAt(0)]||BN[String(boroName||'').toUpperCase()]||'bkcb6'; }
 function placeFor(cdKey,boroName){ cdKey=String(cdKey||''); var BNM={'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'}; var b=BNM[cdKey.charAt(0)]; var n=parseInt(cdKey.slice(1),10); if(b&&n) return b+' Community Board '+n; var nm=String(boroName||''); return nm?nm.charAt(0).toUpperCase()+nm.slice(1).toLowerCase().replace(/ (\w)/g,function(m,c){return ' '+c.toUpperCase();}):''; }
-function showBoard(cd){ msg.innerHTML=''; setBoro(boroFor(cd),placeFor(cd)); render(null,{board:cd}); }
+function showBoard(cd){ var vc=document.getElementById('vcard'); if(vc){vc.hidden=true;vc.innerHTML='';} msg.innerHTML=''; setBoro(boroFor(cd),placeFor(cd)); render(null,{board:cd}); }
 fetch('ballot.json').then(function(r){return r.json();}).then(function(d){
   D=d;
   document.getElementById('ballotSrc').innerHTML=esc(d.papersNote)+' Candidates: <a href="'+esc(d.srcUrl)+'" target="_blank" rel="noopener">'+esc(d.src)+'</a>. Incumbent profiles from bkcb6.app.';
@@ -548,6 +611,7 @@ document.getElementById('addrForm').addEventListener('submit',function(e){
       var ad=String(parseInt(a.assemblyDistrict,10)), sd=String(parseInt(a.stateSenatorialDistrict,10)), cd=String(parseInt(a.congressionalDistrict,10)), boro=String(p.borough).toUpperCase();
       msg.innerHTML='<b>'+esc(p.label)+'</b> · Congressional District '+cd+' · Senate District '+sd+' · Assembly District '+ad;
       setBoro(boroFor(a.communityDistrict,boro),placeFor(a.communityDistrict,boro));
+      voteCard(a);
       render(null,{cd:cd,sd:sd,ad:ad,boro:boro});
       document.getElementById('ballot').scrollIntoView({behavior:'smooth',block:'start'});
     });
