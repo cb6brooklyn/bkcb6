@@ -117,7 +117,8 @@ function linkRow(date, e) {
 const links = {};
 for (const date of Object.keys(EVENTS).sort()) {
   for (const e of EVENTS[date]) {
-    const m = String(e.href || '').match(/(?:trickorstreets|spookycb6)\/\?e=([A-Za-z0-9]+)/);
+    // the map link is the entry's own link, or one of its extra links when the entry links elsewhere first (the Barnacle Parade page)
+    const m = [e.href].concat((e.links || []).map(l => l && l.href)).map(h => String(h || '').match(/(?:trickorstreets|spookycb6)\/\?e=([A-Za-z0-9]+)/)).find(Boolean);
     if (!m || links[m[1]]) continue; // first calendar entry wins (the CB6 entry for a closure that crosses a board line)
     links[m[1]] = linkRow(date, e);
   }
