@@ -44,6 +44,11 @@
 .hm-corner{display:none;gap:8px}
 .hm-corner select{flex:1;min-width:0;height:46px;border:1.5px solid #e6e1d8;border-radius:14px;padding:0 10px;font:400 15px 'DM Sans',sans-serif;color:var(--navy);background:#fff}
 .hm-corner button{flex:none;height:46px;border:0;border-radius:14px;padding:0 16px;background:var(--orange);color:#fff;font:700 15px 'DM Sans',sans-serif;cursor:pointer}
+.locrow{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-top:8px}
+.lochint{font-size:12px;color:#5b6675;line-height:1.3}
+#map.drop{cursor:crosshair}
+#map.drop .leaflet-interactive{cursor:crosshair}
+.upin{width:22px;height:22px;border-radius:50%;background:var(--orange);border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4)}
 .hm-drop{position:relative}
 .hm-drop ul{display:none;position:absolute;left:0;right:0;top:4px;z-index:1000;list-style:none;margin:0;padding:0;background:#fff;border:1px solid #e6e1d8;border-radius:12px;box-shadow:0 6px 18px rgba(13,27,75,.12);overflow:hidden}
 .hm-drop li{padding:10px 12px;font-size:14px;cursor:pointer;border-bottom:1px solid #f1efea}
@@ -165,6 +170,7 @@
         </div>
         <div class="hm-drop"><ul id="ac"></ul></div>
       </div>
+      <div class="locrow"><button type="button" class="fb" id="b-loc"><span class="d" style="background:#3080c0"></span>Use my location</button><button type="button" class="fb" id="b-drop"><span class="d" style="background:#f47920"></span>Drop a pin</button><span class="lochint" id="lochint"></span></div>
       <div id="corner-wrap" class="hm-corner">
         <select id="st" aria-label="Street"><option value="">Loading streets</option></select>
         <select id="cx" aria-label="Cross street"><option value="">Cross street</option></select>
@@ -173,14 +179,14 @@
     </div>
     <div class="mkey">
       <span><span class="rmark" style="display:inline-flex"><img src="/assets/map-icons/tcs-nyc-marathon-round.png" alt=""></span>Tap for the route</span>
-      <span id="keyvote"><span class="vmark" style="display:inline-block"></span>Early voting site, open 9 AM to 5 PM on marathon day</span>
+      <span id="keyvote" style="display:none"><span class="vmark" style="display:inline-block"></span>Early voting site, open 9 AM to 5 PM on marathon day</span>
       <span><i style="width:22px;height:8px;border-radius:4px;background:linear-gradient(#3080c0,#3080c0) 0 0/100% 100% no-repeat,#3080c0;position:relative;overflow:hidden"><b style="position:absolute;left:3px;right:3px;top:3px;height:2px;background:repeating-linear-gradient(90deg,#f8b030 0 4px,transparent 4px 7px)"></b></i>Marathon route in CB6 (Fourth Avenue)</span>
       <span><i style="background:#3080c0;opacity:.75;height:5px;border-radius:3px"></i>Marathon route, the other four boroughs and the rest of Brooklyn</span>
-      <span><i style="background:rgba(13,27,75,.25);border:1.5px solid #0d1b4b"></i>Central Park, park closure</span>
+      <span id="keypark" style="display:none"><i style="background:rgba(13,27,75,.25);border:1.5px solid #0d1b4b"></i>Central Park, park closure</span>
       <span><i style="border:2px solid #f47920;background:none"></i>BKCB6</span>
-      <span><i style="background:#f47920;opacity:.45"></i>Residential zoning</span>
+      <span id="keyzoning" style="display:none"><span><i style="background:#f47920;opacity:.45"></i>Residential zoning</span>
       <span><i style="background:#0d1b4b;opacity:.45"></i>Commercial zoning</span>
-      <span><i style="background:#fff;border:1.5px solid #0d1b4b"></i>Manufacturing zoning</span>
+      <span><i style="background:#fff;border:1.5px solid #0d1b4b"></i>Manufacturing zoning</span></span>
       <span id="keyx" style="display:contents"></span>
     </div>
     <div id="map"></div>
@@ -191,13 +197,13 @@
       <div class="tog">
         <button type="button" class="fb on" id="t-cb6">CB6</button>
         <button type="button" class="fb" id="t-all">Whole five-borough route</button>
-        <button type="button" class="fb on" id="t-zoning">Zoning</button>
-        <button type="button" class="fb on" id="t-park">Central Park closure</button>
-        <button type="button" class="fb on" id="t-vote">Early voting sites</button>
+        <button type="button" class="fb" id="t-zoning">Zoning</button>
+        <button type="button" class="fb" id="t-park">Central Park closure</button>
+        <button type="button" class="fb" id="t-vote">Early voting sites</button>
       </div>
       <div class="hm-lbl">TRANSPORTATION</div>
       <div class="tog" id="ttog">
-        <button type="button" class="fb on" data-t="subway"><span class="d" style="background:#EE352E"></span>Subway</button>
+        <button type="button" class="fb" data-t="subway"><span class="d" style="background:#EE352E"></span>Subway</button>
         <button type="button" class="fb" data-t="bus"><span class="d" style="background:#2563eb"></span>Bus routes</button>
         <button type="button" class="fb" data-t="busstops"><span class="d" style="background:#f59e0b"></span>Bus stops</button>
         <button type="button" class="fb" data-t="bike"><span class="d" style="background:#1d4ed8"></span>Bike routes</button>
@@ -259,8 +265,9 @@ map.createPane('routecb6');map.getPane('routecb6').style.zIndex=430;
 function zColor(z){z=String(z||'').toUpperCase();if(/^R/.test(z))return OR;if(/^C/.test(z))return NAVY;if(/^M/.test(z))return'#ffffff';if(/PARK/.test(z))return'#7cc47c';return'#b8bec6';}
 function zStyle(f){var z=String(f.properties.ZONEDIST||'').toUpperCase(),c=zColor(z);if(/^M/.test(z))return{color:NAVY,weight:1,opacity:.7,fillColor:'#ffffff',fillOpacity:.55};return{color:c,weight:1,opacity:.7,fillColor:c,fillOpacity:.28};}
 function zLabel(z){z=String(z||'').toUpperCase();if(/^R/.test(z))return'Residential';if(/^C/.test(z))return'Commercial';if(/^M/.test(z))return'Manufacturing';if(/PARK/.test(z))return'Park';return'Other';}
-var zones=null,zoningOn=true;
+var zones=null,zoningOn=false,zoningLoading=false;
 function loadZoning(b){
+  if(zones||zoningLoading)return;zoningLoading=true;
   var sw=b.getSouthWest(),ne=b.getNorthEast();
   var env={xmin:sw.lng,ymin:sw.lat,xmax:ne.lng,ymax:ne.lat,spatialReference:{wkid:4326}};
   fetch('https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nyzd/FeatureServer/0/query?where=1%3D1&outFields=ZONEDIST&returnGeometry=true&outSR=4326&geometry='+encodeURIComponent(JSON.stringify(env))+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&f=pgeojson').then(function(r){return r.json();}).then(function(z){
@@ -270,7 +277,7 @@ function loadZoning(b){
 }
 function pip(lng,lat,g){var rings=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];for(var p=0;p<rings.length;p++){var o=rings[p][0],ins=false;for(var i=0,j=o.length-1;i<o.length;j=i++){var xi=o[i][0],yi=o[i][1],xj=o[j][0],yj=o[j][1];if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))ins=!ins;}if(ins)return true;}return false;}
 
-var cb6Bounds=null,routeAll=null,routeCb6=null,park=null,parkOn=true,routeLines=[],pin=null,CB6ROW=null,DATA=null,VOTE=null,voteLayer=L.layerGroup(),voteOn=true,voteById={};
+var cb6Bounds=null,routeAll=null,routeCb6=null,park=null,parkOn=false,routeLines=[],pin=null,CB6ROW=null,DATA=null,VOTE=null,voteLayer=L.layerGroup(),voteOn=false,voteById={};
 function routePop(p){return '<img class="pop-logo" src="/assets/map-icons/tcs-nyc-marathon.png" alt=""><b>'+esc(p.name)+'</b><br>'+esc(p.part)+'<br><span style="color:#6b6760">'+esc(p.type)+' · '+esc(p.status)+'</span>'+(CB6ROW?'<br><b style="color:'+TCS+'">Fourth Avenue, '+esc(CB6ROW[1])+': '+esc(CB6ROW[3])+'</b>':'')+'<button type="button" class="pop-go" data-go="cb6" style="background:'+TCS+'">See the route through CB6</button><button type="button" class="pop-go" data-go="all" style="background:'+NAVY+'">See the whole five-borough route</button>';}
 function parkPop(p){return '<b>'+esc(p.name)+'</b><br>'+esc(p.part)+', '+esc(p.layer).toLowerCase()+'<br><span style="color:#6b6760">'+esc(p.type)+' · '+esc(p.status)+'</span>';}
 
@@ -297,11 +304,10 @@ Promise.all([fetch('/data/marathon-2026.geojson').then(function(r){return r.json
       rmark.on('click',function(){showCb6();flashRoute();setTimeout(function(){rmark.openPopup();},400);});
     }else if(f.id==='park'){
       park=L.geoJSON(f,{pane:'park',style:{color:NAVY,weight:1.5,fillColor:NAVY,fillOpacity:.25}});
-      park.bindPopup(parkPop(f.properties),{maxWidth:260});park.addTo(map);
+      park.bindPopup(parkPop(f.properties),{maxWidth:260});if(parkOn)park.addTo(map);
     }
   });
   showCb6();
-  loadZoning(cb6Bounds);
   sync();drawVotes();
   renderStrip();renderWaves();renderClosures();renderVotes();
 }).catch(function(){document.getElementById('closures').innerHTML='<div class="empty">The marathon data did not load. Refresh to try again.</div>';document.getElementById('strip').innerHTML='<div class="k">In CB6</div><div class="v">The closure list did not load. Refresh to try again.</div>';});
@@ -315,8 +321,8 @@ function showCb6(){var b=routeCb6?routeCb6.getBounds():cb6Bounds;map.fitBounds(b
 function showAll(){var b=routeAll.getBounds();if(park)b=b.extend(park.getBounds());map.fitBounds(b,{padding:[14,14]});document.getElementById('t-all').classList.add('on');document.getElementById('t-cb6').classList.remove('on');}
 document.getElementById('t-cb6').onclick=showCb6;
 document.getElementById('t-all').onclick=showAll;
-document.getElementById('t-zoning').onclick=function(){zoningOn=!zoningOn;this.classList.toggle('on',zoningOn);if(zones){if(zoningOn)zones.addTo(map);else map.removeLayer(zones);}};
-document.getElementById('t-park').onclick=function(){parkOn=!parkOn;this.classList.toggle('on',parkOn);if(park){if(parkOn)park.addTo(map);else map.removeLayer(park);}};
+document.getElementById('t-zoning').onclick=function(){zoningOn=!zoningOn;this.classList.toggle('on',zoningOn);document.getElementById('keyzoning').style.display=zoningOn?'contents':'none';if(zones){if(zoningOn)zones.addTo(map);else map.removeLayer(zones);}else if(zoningOn&&cb6Bounds)loadZoning(cb6Bounds);};
+document.getElementById('t-park').onclick=function(){parkOn=!parkOn;this.classList.toggle('on',parkOn);document.getElementById('keypark').style.display=parkOn?'':'none';if(park){if(parkOn)park.addTo(map);else map.removeLayer(park);}};
 document.getElementById('t-vote').onclick=function(){voteOn=!voteOn;this.classList.toggle('on',voteOn);document.getElementById('keyvote').style.display=voteOn?'':'none';if(voteOn)voteLayer.addTo(map);else map.removeLayer(voteLayer);};
 function votePop(s){return '<img class="pop-vote" src="/assets/map-icons/marathon-voter-2026.png" alt="NYC Marathon Voter 2026"><b>'+esc(s.name)+'</b><br>'+esc(s.where)+'<br><b style="color:'+OR+'">Sunday, November 1, '+esc(VOTE.hours)+'</b><br><span style="font-size:.74rem;color:#6b6760">Early voting site for '+s.eds+' CB6 election district'+(s.eds===1?'':'s')+'. '+(routeLines.length?'About '+Math.round(distFt(s.lat,s.lng)).toLocaleString()+' feet from the marathon route. ':'')+'Check yours before you go.</span><a class="pop-btn" style="display:block;margin-top:9px;background:'+OR+';color:#fff;font-weight:800;text-align:center;padding:9px 12px;border-radius:10px;text-decoration:none;font-size:.8rem" href="/elections.html'+(INAPP?'?app=1':'')+'">Find your early voting site</a>';}
 function drawVotes(){if(!VOTE)return;voteLayer.clearLayers();VOTE.sites.forEach(function(s){var m=L.marker([s.lat,s.lng],{pane:'tmarks',icon:L.divIcon({className:'tm-wrap',html:'<div class="vmark"></div>',iconSize:[48,48],iconAnchor:[24,24],popupAnchor:[0,-26]}),zIndexOffset:900}).bindPopup(votePop(s),{maxWidth:270});m.addTo(voteLayer);voteById[s.id]=m;});if(voteOn)voteLayer.addTo(map);}
@@ -329,7 +335,7 @@ document.addEventListener('click',function(ev){var v=ev.target.closest('.vsite[d
 // ---- the CB6 transportation layers, the same data and colors as bkcb6.app/transport-map-cb6.html ----
 map.createPane('tlines');map.getPane('tlines').style.zIndex=400;
 map.createPane('tmarks');map.getPane('tmarks').style.zIndex=440;
-var TL={},TON={subway:true,bus:true,busstops:true,citibike:true},MINZ={subway:0,bus:15,busstops:16,citibike:16,bike:0,truck:0,speed:0,sammys:0,asp:0},LOADING={},TRN=null,TRNP=null,SUBM=[],SUBMODE='';
+var TL={},TON={},MINZ={subway:0,bus:15,busstops:16,citibike:16,bike:0,truck:0,speed:0,sammys:0,asp:0},LOADING={},TRN=null,TRNP=null,SUBM=[],SUBMODE='';
 function drawn(k){return !!TON[k]&&map.getZoom()>=(MINZ[k]||0);}
 var LEGENDS={
   speed:[{c:'#2a9d8f',l:'20 mph',t:'line'},{c:'#4c78a8',l:'25 mph',t:'line'},{c:'#f4a261',l:'30 mph',t:'line'},{c:'#e63946',l:'35+ mph',t:'line'},{c:'#111827',l:'School zone',t:'line'}],
@@ -457,18 +463,39 @@ function distFt(lat,lng){
   routeLines.forEach(function(ln){for(var i=1;i<ln.length;i++){var a=ln[i-1],b=ln[i],ax=a[0],ay=a[1],bx=b[0],by=b[1];var dx=(bx-ax)*k,dy=by-ay,L2=dx*dx+dy*dy,t=L2?Math.max(0,Math.min(1,(((p[0]-ax)*k)*dx+(p[1]-ay)*dy)/L2)):0;var q=[ax+(bx-ax)*t,ay+(by-ay)*t];var d=m(p,q);if(d<best)best=d;}});
   return best*111195*3.28084;
 }
-function show(lat,lng,label){
-  map.setView([lat,lng],17);
-  if(pin)map.removeLayer(pin);
-  pin=L.circleMarker([lat,lng],{radius:9,color:'#fff',weight:3,fillColor:OR,fillOpacity:1}).addTo(map);
+function result(lat,lng,label){
   var z='';
-  if(zones)zones.eachLayer(function(l){if(!z&&pip(lng,lat,l.feature.geometry))z=l.feature.properties.ZONEDIST;});
+  if(zones&&zoningOn)zones.eachLayer(function(l){if(!z&&pip(lng,lat,l.feature.geometry))z=l.feature.properties.ZONEDIST;});
   var d=routeLines.length?Math.round(distFt(lat,lng)):null;
   var r=document.getElementById('res');
   r.style.display='block';
-  r.innerHTML='<b>'+esc(label)+'</b>'+(d!==null?' · '+(d<=80?'<b style="color:'+TCS+'">On the marathon route</b>':'About '+d.toLocaleString()+' feet from the marathon route'):'')+(z?' · Zoning: <b>'+esc(z)+'</b> ('+zLabel(z)+')':'');
+  r.innerHTML='<b>'+esc(label)+'</b>'+(d!==null?' \u00b7 '+(d<=80?'<b style="color:'+TCS+'">On the marathon route</b>':'About '+d.toLocaleString()+' feet from the marathon route'):'')+(z?' \u00b7 Zoning: <b>'+esc(z)+'</b> ('+zLabel(z)+')':'')+'<br><span style="font-size:12px;color:#5b6675">Drag the pin to move it.</span>';
+}
+function placePin(lat,lng,label){
+  if(pin)map.removeLayer(pin);
+  pin=L.marker([lat,lng],{draggable:true,zIndexOffset:2000,icon:L.divIcon({className:'tm-wrap',html:'<div class="upin"></div>',iconSize:[22,22],iconAnchor:[11,11]})}).addTo(map);
+  pin.on('dragend',function(){var ll=pin.getLatLng();result(ll.lat,ll.lng,'Pin');reverse(ll.lat,ll.lng,function(n){result(ll.lat,ll.lng,n);});});
+  result(lat,lng,label);
+}
+function tcase(s){return String(s||'').toLowerCase().replace(/\b([a-z])/g,function(m){return m.toUpperCase();});}
+function reverse(lat,lng,cb){fetch('https://geosearch.planninglabs.nyc/v2/reverse?point.lat='+lat+'&point.lon='+lng+'&size=1').then(function(r){return r.json();}).then(function(d){var f=d.features&&d.features[0];if(f&&f.properties.name)cb('Near '+tcase(f.properties.name));}).catch(function(){});}
+function show(lat,lng,label){
+  map.setView([lat,lng],17);
+  placePin(lat,lng,label);
   document.getElementById('map').scrollIntoView({behavior:'smooth',block:'start'});
 }
+// Use my location
+document.getElementById('b-loc').onclick=function(){
+  var hint=document.getElementById('lochint');
+  if(!navigator.geolocation){hint.textContent='Location is not available in this browser.';return;}
+  hint.textContent='Finding you\u2026';
+  navigator.geolocation.getCurrentPosition(function(pos){hint.textContent='';var la=pos.coords.latitude,ln=pos.coords.longitude;show(la,ln,'Your location');reverse(la,ln,function(n){result(la,ln,'Your location, '+n.replace(/^Near/,'near'));});},function(){hint.textContent='Location was not shared. Search an address or drop a pin instead.';},{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
+};
+// Drop a pin: arm, then one tap on the map places a draggable pin
+var dropMode=false;
+function setDrop(on){dropMode=on;document.getElementById('b-drop').classList.toggle('on',on);document.getElementById('map').classList.toggle('drop',on);document.getElementById('lochint').textContent=on?'Tap the map to drop the pin.':'';}
+document.getElementById('b-drop').onclick=function(){setDrop(!dropMode);if(dropMode)document.getElementById('map').scrollIntoView({behavior:'smooth',block:'start'});};
+map.on('click',function(e){if(!dropMode)return;setDrop(false);var la=e.latlng.lat,ln=e.latlng.lng;if(map.getZoom()<15)map.setView(e.latlng,16);placePin(la,ln,'Pin');reverse(la,ln,function(n){result(la,ln,n);});});
 var q=document.getElementById('q'),ac=document.getElementById('ac'),acT=null;
 q.addEventListener('input',function(){
   clearTimeout(acT);var v=q.value.trim();if(v.length<3){ac.style.display='none';return;}
