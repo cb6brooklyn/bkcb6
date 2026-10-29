@@ -14,12 +14,12 @@ Unit-size buttons become home types: Studio -> All homes, 1BR -> Condos, 2BR -> 
 import os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PAGES = [('rentcb6/index.html', 'salescb6/index.html', '/rentcb6', '/salescb6'),
+PAGES = [('rentcb6/index.html', 'salescb6/index.html', '/housecostavail', '/salescb6'),
          ('rent-map-cb6.html', 'sales-map-cb6.html', '/rent-map-cb6.html', '/sales-map-cb6.html'),
          ('bkrents/index.html', 'bksales/index.html', '/bkrents', '/bksales'),
          ('rent-map-boroughs.html', 'sales-map-boroughs.html', '/rent-map-boroughs.html', '/sales-map-boroughs.html'),
          ('nycrents/index.html', 'nycsales/index.html', '/nycrents', '/nycsales')]
-LINKS = [(a, b) for _, _, a, b in PAGES]
+LINKS = [(a, b) for _, _, a, b in PAGES] + [('/rentcb6', '/salescb6')]
 SALES_FILES = sorted(f for f in os.listdir(os.path.join(ROOT, 'data', 'sales')))
 
 # phrase replacements, longest first, applied only to prose (text nodes and prose-like string literals)
@@ -221,3 +221,7 @@ def build(src, dst, rent_url, sale_url):
 
 if __name__ == '__main__':
     for p in PAGES: build(*p)
+    # the CB6 page's own address is /housecostavail; /rentcb6 stays as the same page so old links keep working
+    os.makedirs(os.path.join(ROOT, 'housecostavail'), exist_ok=True)
+    open(os.path.join(ROOT, 'housecostavail/index.html'), 'w').write(open(os.path.join(ROOT, 'rentcb6/index.html')).read())
+    print('built housecostavail/index.html (same page as rentcb6)')
