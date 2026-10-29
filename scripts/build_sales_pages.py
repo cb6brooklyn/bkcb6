@@ -142,6 +142,12 @@ def toggle(here, rent_url, sale_url):
             # inside the apps the page is a screen of the app, not a website: no breadcrumbs, back links or share button
             + '<script>(function(){try{if(/[?&]app=1\\b/.test(location.search)||location.protocol==="bkcb:"||sessionStorage.getItem("bkapp")==="1")'
               'document.documentElement.classList.add("inapp")}catch(e){}})();</script>'
+            # inside the apps a page is a file in the pack: point Rent / For sale and the other levels at the file itself
+            + '<script>(function(){function go(){if(!document.documentElement.classList.contains("inapp"))return;'
+              'document.querySelectorAll(".rs-toggle a[href^=\'/\'],.lv-more a[href^=\'/\']").forEach(function(a){'
+              'var h=a.getAttribute("href").split("?")[0];if(!/\\.html$/.test(h))h=h.replace(/\\/$/,"")+"/index.html";'
+              'a.setAttribute("href",h+"?app=1");});}'
+              'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",go);else go();})();</script>'
               '<style>.inapp .breadcrumb,.inapp .back-link,.inapp .embed-fab,.inapp .embed-modal-bg{display:none!important}</style>'
             # the "On this page" menu, and the long parts folded until opened
             + '<script src="/assets/page-guide.js" defer></script>')
