@@ -173,10 +173,17 @@
     var tg = document.querySelector('.rs-toggle');
     if (tg && !document.getElementById('pgNote')) {
       var nt = document.createElement('div'); nt.id = 'pgNote'; nt.className = 'pg-note';
-      nt.innerHTML = '<p>Asking ' + (sale ? 'prices for homes for sale' : 'rents for apartments') + ' on the market in ' + where[0] + ', by ' + where[1] + ', since 2010. ' +
-        'Press play to see them change. More in the menu under the map.</p>' +
+      nt.innerHTML = '<p>' + (sale ? 'Homes for sale' : 'Apartments for rent') + ' on the market in ' + where[0] + ' and their asking ' + (sale ? 'prices' : 'rents') + ', by ' + where[1] + ', since 2010. ' +
+        '<b>Source: StreetEasy listings<span class="pg-asof"></span>.</b> Press play on the map to see it change. More in the menu under the map.</p>' +
         '<p class="pg-sig">Mike Racioppo, District Manager, Brooklyn Community Board 6</p>';
       tg.parentNode.insertBefore(nt, tg);
+      /* the page's other intro lines fold away: subtitle, as-of banner, data stamp (its month goes into the note) */
+      Array.prototype.forEach.call(document.querySelectorAll('.topbar > p, #asofBanner, .datastamp'), function (x) { if (!x.closest('[class^="emb-"]')) x.style.display = 'none'; });
+      var tries = 0, iv = setInterval(function () {
+        var ds = document.querySelector('.datastamp'), m = ds && /Latest data:\s*([A-Z][a-z]+ \d{4})/.exec(ds.textContent);
+        if (m) nt.querySelector('.pg-asof').textContent = ', latest ' + m[1];
+        if (m || ++tries > 40) clearInterval(iv);
+      }, 250);
       if (intro) { var ld = intro.querySelector('.pgi-lead'); if (ld) ld.style.display = 'none'; }
     }
     var fab = document.createElement('button'); fab.id = 'pgFab'; fab.type = 'button';
