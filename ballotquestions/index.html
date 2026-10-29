@@ -142,6 +142,13 @@ h1{font-size:clamp(1.7rem,6vw,2.4rem);line-height:1.1;margin:.3em 0 .35em;font-w
 .cand summary .sumend .lg{max-width:80px}
 .cand summary .sumend .lg img{height:auto;max-height:28px;max-width:72px;border-radius:4px}
 .cand summary .moreend{font-family:var(--mono);font-size:.7rem;color:var(--muted);padding:0 4px}
+.rpick{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.rpick button{flex:0 0 auto;font:inherit;cursor:pointer;border:2px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:6px 10px;display:flex;align-items:center;gap:6px}
+.rpick button b{font-size:.95rem}
+.rpick button span{font-size:.8rem;white-space:nowrap}
+.rpick button[aria-selected="true"]{border-color:var(--orange);background:var(--tint)}
+.rcount{font-family:var(--mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:4px 0 2px}
+.rnav{margin-top:6px}
 .note{font-size:.85rem;color:var(--muted);margin:0}
 .pending{color:var(--muted);font-style:italic}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -373,11 +380,11 @@ function infoHTML(person,named){
 function endRow(nm){
   var seen={},tiles='',total=0,shown=0;
   nm.split(/\s+and\s+/).forEach(function(pp){var I=(D.info||{})[pp]; if(!I) return;
-    (I.endorsements||[]).forEach(function(r){total++; var lg=endLogo(r[0]); if(!lg||seen[lg]) return; seen[lg]=1; shown++;
+    (I.endorsements||[]).forEach(function(r){total++; var lg=endLogo(r[0]); if(!lg||seen[lg]||shown>=8) return; seen[lg]=1; shown++;
       tiles+=tile(lg,r[0].replace(/ \(.*$/,''),['Endorsed '+pp],r[1],'Source');});});
   if(!total) return '';
   var more=total-shown;
-  return '<span class="sumend"><span class="spl">Endorsed by</span><span class="tiles">'+tiles+(more>0?'<span class="moreend">+'+more+' more</span>':'')+'</span></span>';}
+  return '<span class="sumend"><span class="spl">Endorsed by \u00b7 '+total+'</span><span class="tiles">'+tiles+(more>0?'<span class="moreend">+'+more+' more</span>':'')+'</span></span>';}
 function contestHTML(c,kind,dist,chips){
   var h=holder(kind,dist,c.o), inc=h?last(h[1].n):null, found=false;
   var what=kind==='state'?(h&&h[1].bio[1]?h[1].bio[1]:''):WHAT[kind];
@@ -403,32 +410,39 @@ function districtBlock(kind,list,label,noun){
   var chips=list.length>1?'<div class="dchips" role="group" aria-label="'+noun+' districts">'+list.map(function(r,i){
     return '<button type="button" data-k="'+kind+'" data-d="'+r[0]+'" aria-pressed="'+(i===0)+'">'+noun+' '+r[0]+' · '+r[1]+' EDs</button>';}).join('')+'</div>':'';
   return '<div id="'+id+'" data-chips="'+esc(chips)+'">'+contestHTML(D[kind][cur],kind,cur,chips)+'</div>';}
+var STEPS=[],CUR=0;
+function shortLabel(c,kind){return kind==='state'?({'Governor and Lieutenant Governor':'Governor','State Comptroller':'Comptroller','Attorney General':'Attorney General'})[c.t]||c.t:({cd:'Congress',sd:'State Senate',ad:'Assembly',sc:'Supreme Court'})[kind];}
 function render(kind2,opts){
-  var html='<h3>Statewide · every voter in New York</h3>'+D.state.map(function(c){return contestHTML(c,'state',null,'');}).join('');
+  STEPS=[];
+  D.state.forEach(function(c){STEPS.push({lab:shortLabel(c,'state'),scope:'Statewide · every voter in New York',html:contestHTML(c,'state',null,'')});});
   if(opts.board){
-    var b=D.boards[opts.board], n=function(k){return b[k].length;};
-    html+='<h3>By district · '+esc(b.l)+'</h3><p class="note">'+esc(b.l)+' is split among '+n('cd')+' congressional, '+n('sd')+' state senate and '+n('ad')+' assembly district'+(n('ad')>1?'s':'')+'. Each voter is in one of each. Tap a district to see its race; the count is how many of the board’s election districts it covers.</p>';
-    html+=districtBlock('cd',b.cd,'Congress','CD')+districtBlock('sd',b.sd,'State Senate','SD')+districtBlock('ad',b.ad,'Assembly','AD');
-    if(D.sc[b.b]) html+=contestHTML(D.sc[b.b],'sc',null,'');
+    var b=D.boards[opts.board];
+    [['cd','CD'],['sd','SD'],['ad','AD']].forEach(function(x){ if(b[x[0]].length) STEPS.push({lab:shortLabel(null,x[0]),scope:'By district · '+b.l+(b[x[0]].length>1?' · '+b[x[0]].length+' districts, each voter is in one':''),html:districtBlock(x[0],b[x[0]],'',x[1])}); });
+    if(D.sc[b.b]) STEPS.push({lab:'Supreme Court',scope:'By borough',html:contestHTML(D.sc[b.b],'sc',null,'')});
   } else {
-    html+='<h3>Your districts</h3>';
-    [['cd',opts.cd],['sd',opts.sd],['ad',opts.ad]].forEach(function(p){ if(D[p[0]][p[1]]) html+=contestHTML(D[p[0]][p[1]],p[0],p[1],''); });
-    if(D.sc[opts.boro]) html+=contestHTML(D.sc[opts.boro],'sc',null,'');
+    [['cd',opts.cd],['sd',opts.sd],['ad',opts.ad]].forEach(function(p){ if(D[p[0]][p[1]]) STEPS.push({lab:shortLabel(null,p[0]),scope:'Your district',html:contestHTML(D[p[0]][p[1]],p[0],p[1],'')}); });
+    if(D.sc[opts.boro]) STEPS.push({lab:'Supreme Court',scope:'Your borough',html:contestHTML(D.sc[opts.boro],'sc',null,'')});
   }
-  out.innerHTML=html;
-  out.querySelectorAll('.dchips button').forEach(function(btn){btn.onclick=function(){
-    var k=btn.dataset.k, d=btn.dataset.d, wrap=document.getElementById('dc-'+k), chips=wrap.getAttribute('data-chips');
-    chips=chips.replace(/aria-pressed="true"/g,'aria-pressed="false"').replace('data-d="'+d+'" aria-pressed="false"','data-d="'+d+'" aria-pressed="true"');
-    wrap.innerHTML=contestHTML(D[k][d],k,d,chips); wrap.setAttribute('data-chips',chips);
-    wrap.querySelectorAll('.dchips button').forEach(function(b2){b2.onclick=btn.onclick.bind(null);});
-    rebind(wrap);
-  };});}
+  CUR=0; drawStep();
+}
+function drawStep(){
+  var st=STEPS[CUR];
+  out.innerHTML='<div class="rpick" role="tablist">'+STEPS.map(function(x,i){return '<button type="button" role="tab" data-i="'+i+'" aria-selected="'+(i===CUR)+'"><b>'+(i+1)+'</b><span>'+esc(x.lab)+'</span></button>';}).join('')+'</div>'+
+    '<div class="rcount">Race '+(CUR+1)+' of '+STEPS.length+' · '+esc(st.scope)+'</div>'+st.html+
+    '<div class="nav rnav"><button type="button" id="rprev"'+(CUR===0?' disabled':'')+'>← '+(CUR>0?esc(STEPS[CUR-1].lab):'')+'</button><button type="button" id="rnext"'+(CUR===STEPS.length-1?' disabled':'')+'>'+(CUR<STEPS.length-1?esc(STEPS[CUR+1].lab):'')+' →</button></div>';
+  out.querySelectorAll('.rpick button').forEach(function(b){b.onclick=function(){CUR=+b.dataset.i;drawStep();};});
+  document.getElementById('rprev').onclick=function(){if(CUR>0){CUR--;drawStep();scrollBallot();}};
+  document.getElementById('rnext').onclick=function(){if(CUR<STEPS.length-1){CUR++;drawStep();scrollBallot();}};
+  out.querySelectorAll('[id^="dc-"]').forEach(rebind);
+  var a=out.querySelector('.rpick [aria-selected="true"]'); if(a&&a.scrollIntoView) try{a.scrollIntoView({block:'nearest',inline:'center'});}catch(e){}
+}
+function scrollBallot(){var r=out.getBoundingClientRect(); if(r.top<0) out.scrollIntoView({behavior:'smooth',block:'start'});}
 function rebind(wrap){
   wrap.querySelectorAll('.dchips button').forEach(function(btn){btn.onclick=function(){
     var k=btn.dataset.k, d=btn.dataset.d, chips=wrap.getAttribute('data-chips');
     chips=chips.replace(/aria-pressed="true"/g,'aria-pressed="false"').replace('data-d="'+d+'" aria-pressed="false"','data-d="'+d+'" aria-pressed="true"');
     wrap.innerHTML=contestHTML(D[k][d],k,d,chips); wrap.setAttribute('data-chips',chips); rebind(wrap);};});}
-function showBoard(cd){ msg.innerHTML=''; render(null,{board:cd}); out.querySelectorAll('[id^="dc-"]').forEach(rebind); }
+function showBoard(cd){ msg.innerHTML=''; render(null,{board:cd}); }
 fetch('ballot.json').then(function(r){return r.json();}).then(function(d){
   D=d;
   document.getElementById('ballotSrc').innerHTML=esc(d.papersNote)+' Candidates: <a href="'+esc(d.srcUrl)+'" target="_blank" rel="noopener">'+esc(d.src)+'</a>. Incumbent profiles from bkcb6.app.';
