@@ -19,6 +19,7 @@
     '.pg-guide a.on{background:#fff1e5}.pg-guide a.on .n{background:#0d1b4b}' +
     '.pg-guide .go:before{content:"\\203A";font-size:1.1rem;color:#f47920}.pg-guide a.on .go:before{content:"\\2304"}' +
     '.pg-note{margin:10px 12px 4px;padding:12px 15px;background:#fff;border-left:3px solid #f47920;border-radius:4px;font:400 .9rem/1.55 "DM Sans",sans-serif;color:#132D65;max-width:78ch}.pg-note p{margin:0}.pg-note .pg-sig{margin-top:6px;font:500 .66rem "DM Mono",monospace;color:#6b7280}' +
+    '#nowbar,#bed-controls,.unitbar,#legend,.legend-sticky,.timebar,#tmScale,.tmscale,.tmlead{position:relative!important;top:auto!important}' +
     '.pg-how{border-top:1px solid #e5e2db}.pg-how>summary{cursor:pointer;padding:9px 15px;font:700 .62rem "DM Mono",monospace;text-transform:uppercase;letter-spacing:.08em;color:#f47920;list-style:none}' +
     '.pg-how>summary::-webkit-details-marker{display:none}.pg-how>summary:after{content:" \\25BE"}.pg-how[open]>summary:after{content:" \\25B4"}' +
     '.pg-guide a:hover,.pg-guide a:focus{background:#fff6ee;outline:none}' +
