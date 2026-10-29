@@ -338,6 +338,14 @@ body > #nowbar{flex:0 0 auto}
 #legend .ts-note{font-family:'DM Sans',sans-serif;font-size:.66rem;color:rgba(255,255,255,.65)}
 #legend .ts-bar{height:12px;border-radius:3px}
 #legend .ts-ticks{display:flex;justify-content:space-between;margin-top:3px;font-family:'DM Mono',monospace;font-size:.6rem;color:#fff}
+.bn-tab{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 2px}
+.bn-tab th{font:600 11px 'DM Mono',monospace;color:#6b7280;text-align:right;padding:4px 6px}
+.bn-tab td{text-align:right;padding:5px 6px;border-top:1px solid #eee;font-variant-numeric:tabular-nums}
+.bn-tab td.bn-n{text-align:left;font-weight:600;white-space:nowrap}
+.bn-tab .on{color:#0d1b4b;font-weight:700;background:#fff4ea}
+.bn-tab .bn-sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.bn-asof{font:400 11px 'DM Mono',monospace;color:#9ca3af;margin:2px 0 8px}
+#boroBeds{margin:8px 0}
 </style>
 <script src="/assets/vendor/chartjs-4.4.1/chart.umd.min.js"></script>
 </head>
@@ -418,6 +426,12 @@ body > #nowbar{flex:0 0 auto}
     <span class="sect-cv"></span></summary>
   <div class="boro-wrap">
     <div class="boro-chips" id="boroChips"></div>
+    <div class="rank-beds" id="boroBeds">
+      <button type="button" class="rank-bed" data-bed="studio">All homes</button>
+      <button type="button" class="rank-bed active" data-bed="1br">Condos</button>
+      <button type="button" class="rank-bed" data-bed="2br">Co-ops</button>
+      <button type="button" class="rank-bed" data-bed="3br">Single-family</button>
+    </div>
     <div id="boroMap"></div>
     <div class="boro-now" id="boroNow"></div>
     <div class="boro-chartwrap"><canvas id="boroChart" height="180"></canvas></div>
@@ -1137,7 +1151,8 @@ body > #nowbar{flex:0 0 auto}
 (function(){
   var BOROS=['Manhattan','Brooklyn','Queens','Bronx','Staten Island'];
   var COLOR={'Manhattan':'#f47920','Brooklyn':'#132D65','Queens':'#2e8b57','Bronx':'#b3300c','Staten Island':'#7a5cc6'};
-  function curMode(){ if(typeof mode!=='undefined') return mode; var c=window.curBed; return ({studio:'studio',br1:'1br',br2:'2br',br3:'3br'})[c]||(document.querySelector('#bed-controls .rent-btn.active')||{getAttribute:function(){return '1br';}}).getAttribute('data-bed')||'1br'; }
+  var BMODE='1br';
+  function curMode(){ return BMODE; }
   var HOME="Brooklyn";
   var sel = HOME ? [HOME] : BOROS.slice();
   var GEO=null, HIST=null, bmap=null, blayer=null, bchart=null, booted=false;
@@ -1180,10 +1195,14 @@ body > #nowbar{flex:0 0 auto}
       var a=HIST.cds.filter(function(x){return x.name===b;})[0];
       return {b:b, v:a?unpackAt(a.s[bedK()],last):null};
     }).sort(function(x,y){return (y.v||0)-(x.v||0);});
-    document.getElementById('boroNow').innerHTML=rows.map(function(r){
-      return '<div class="bn-row"><span class="bn-sw" style="background:'+COLOR[r.b]+'"></span>'+
-             '<span class="bn-n">'+r.b+'</span><span class="bn-v">'+money(r.v)+'</span></div>';
-    }).join('');
+    var BK=[['studio','All homes'],['br1','Condos'],['br2','Co-ops'],['br3','Single-family']];
+    document.getElementById('boroNow').innerHTML='<table class="bn-tab"><thead><tr><th></th>'+
+      BK.map(function(k){return '<th'+(k[0]===bedK()?' class="on"':'')+'>'+k[1]+'</th>';}).join('')+'</tr></thead><tbody>'+
+      rows.map(function(r){
+        var a=HIST.cds.filter(function(x){return x.name===r.b;})[0];
+        return '<tr><td class="bn-n"><span class="bn-sw" style="background:'+COLOR[r.b]+'"></span>'+r.b+'</td>'+
+          BK.map(function(k){return '<td'+(k[0]===bedK()?' class="on"':'')+'>'+money(a?unpackAt(a.s[k[0]],last):null)+'</td>';}).join('')+'</tr>';
+      }).join('')+'</tbody></table><div class="bn-asof">Median asking price, '+HIST.months[last]+'</div>';
 
     // over time
     var ds=sel.map(function(b){
@@ -1213,7 +1232,10 @@ body > #nowbar{flex:0 0 auto}
   }
   var sect=document.getElementById('boroSect');
   if(sect) sect.addEventListener('toggle',function(){ if(sect.open) boot(); });
-  document.querySelectorAll('.rent-btn').forEach(function(b){ b.addEventListener('click',function(){ setTimeout(render,40); }); });
+  document.querySelectorAll('#boroBeds .rank-bed').forEach(function(b){ b.addEventListener('click',function(){
+    BMODE=this.getAttribute('data-bed');
+    document.querySelectorAll('#boroBeds .rank-bed').forEach(function(x){ x.classList.toggle('active',x===b); });
+    render(); }); });
 })();
 
 /* per-bedroom listing counts */
