@@ -149,6 +149,13 @@ def toggle(here, rent_url, sale_url):
               'a.setAttribute("href",h+"?app=1");});}'
               'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",go);else go();})();</script>'
               '<style>.inapp .breadcrumb,.inapp .back-link,.inapp .embed-fab,.inapp .embed-modal-bg{display:none!important}</style>'
+            # inside the apps: if a data file fails to load, say which one on the page
+            + '<script>(function(){try{if(!(/[?&]app=1\\b/.test(location.search)||location.protocol==="bkcb:"))return;var of=window.fetch;if(!of)return;'
+              'function note(u,why){var b=document.getElementById("loadErr");if(!b){b=document.createElement("div");b.id="loadErr";'
+              'b.style.cssText="background:#c0392b;color:#fff;font:600 12px DM Mono,monospace;padding:6px 12px;white-space:pre-wrap";'
+              '(document.body||document.documentElement).insertBefore(b,(document.body||document.documentElement).firstChild);}b.textContent+="Could not load "+u+" ("+why+")\\n";}'
+              'window.fetch=function(u,o){return of.apply(this,arguments).then(function(r){if(!r.ok)note(String(u),r.status);return r;},function(e){note(String(u),e&&e.message||"error");throw e;});};'
+              'window.addEventListener("error",function(e){if(e&&e.message)note(location.pathname,e.message);});}catch(e){}})();</script>'
             # the "On this page" menu, and the long parts folded until opened
             + '<script src="/assets/page-guide.js" defer></script>')
 
