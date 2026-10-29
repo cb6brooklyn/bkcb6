@@ -107,6 +107,7 @@ function linkRow(date, e) {
   const pr = profileFor(e.type); if (pr) row.profile = pr;
   if (row.org === e.type && pr) { const t = (fs.readFileSync(path.join(ROOT, pr.replace(/\/$/, '/index.html').replace(/^\//, '')), 'utf8').match(/<title>([^<]+)<\/title>/) || [])[1]; if (t) row.org = ent(t.replace(/&mdash;|&ndash;/g, '—')).split(/\s+[—–|-]\s+/)[0].trim(); } // a park's name from its page
   const fl = flyerPath(e.flyer); if (fl) row.flyer = fl;
+  const rm = flyerPath(e.route); if (rm) row.route = rm;
   const ic = iconPath(e.type); if (ic) row.icon = ic;
   return row;
 }
