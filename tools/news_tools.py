@@ -49,6 +49,8 @@ KW=[ # (regex on article text, tool key)
  (r'\bzoning\b|land use','landusemap'),
  (r'\brent(s|al)?\b[^.]{0,40}(median|asking|afford|stabiliz)','rents'),
 ]
+import json
+EXTRA=json.load(open(R+'extra_tools.json')) if os.path.exists(R+'extra_tools.json') else {} # page -> tool keys from the email's Happenings tiles
 START='<section class="tools-embed"';END='</section><!--/tools-embed-->'
 def section(keys,related=()):
     out=['<section class="tools-embed" style="margin:34px 0 10px;border-top:1px solid #e5dcc8;padding-top:18px">',
@@ -71,6 +73,8 @@ for f in sorted(os.listdir(R)):
     a=s.find('<article>');b=s.find('</article>')
     keys=[]
     for k in LINK.findall(s[a:b]):
+        if k in TOOLS and TOOLS[k][0] not in [TOOLS[x][0] for x in keys]: keys.append(k)
+    for k in EXTRA.get(f,[]):
         if k in TOOLS and TOOLS[k][0] not in [TOOLS[x][0] for x in keys]: keys.append(k)
     txt=re.sub(r'<[^>]+>',' ',s[a:b]).lower()
     have={TOOLS[k][0] for k in keys};rel=[]
