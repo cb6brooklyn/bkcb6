@@ -6,7 +6,7 @@ TOOLS={ # key: (path, title, graphic)
 'blockbyblock':('blockbyblock/','Block by Block','https://bkcb6.app/tiles/blockbyblock.png'),
 'useofland':('useofland/','The Use of Land Hub','https://bkcb6.app/og-useofland.png'),
 'elections':('elections/','The Elections Hub','https://bkcb6.app/og-cb6-votes.png'),
-'poll-finder-bk':('poll-finder-bk.html','Where Do I Vote?','https://bkcb6.app/og-poll-finder-bk.png'),
+'poll-finder-bk':('poll-finder-bk.html','Where Do I Vote?',None),
 'spookycb6':('spookycb6/','Spooky CB6',T+'tile-spookycb6-2026.png'),
 'spooky':('spookycb6/','Spooky CB6',T+'tile-spookycb6-2026.png'),
 'rents':('rents/','Rents, Then and Now','https://bkcb6.app/tiles/rents.png'),
@@ -16,10 +16,10 @@ TOOLS={ # key: (path, title, graphic)
 'sammyslaw':('sammyslaw/','Sammy’s Law, daylighting and low traffic neighborhoods','https://bkcb6.app/sammyslaw/og.jpg'),
 'housecostavail':('housecostavail/','Housing, costs & availability in CB6, BK & NYC',T+'tile-housecostavail.png'),
 'cooldown':('cooldown.html','CB6 Weather & Safety','https://bkcb6.app/og-cb6-cooldown.png'),
-'cobble-hill-health-center':('cobble-hill-health-center/','Cobble Hill Health Center','https://bkcb6.app/site-icons/cobble-hill-health-center.png'),
+'cobble-hill-health-center':('cobble-hill-health-center/','Cobble Hill Health Center',None),
 'marathon':('marathon/','2026 TCS NYC Marathon in CB6',T+'tile-marathon-2026.png'),
 'knicks':('knicks/','Knicks Parade Route','https://bkcb6.app/knicks-og.png'),
-'friends-of-fort-defiance':('friends-of-fort-defiance/','Friends of Fort Defiance','https://bkcb6.app/friends-of-fort-defiance-og.png'),
+'friends-of-fort-defiance':('friends-of-fort-defiance/','Friends of Fort Defiance',None),
 'fhgs':('fhgs/','Fair Housing Growth Strategy',T+'tile-fhgs.png'),
 'electionexplainer':('electionexplainer/','An Attempt to Explain Your Ballot',T+'tile-electionexplainer-2026.png'),
 'november2026':('electionexplainer/','An Attempt to Explain Your Ballot',T+'tile-electionexplainer-2026.png'),
@@ -58,9 +58,9 @@ def section(keys,related=()):
         if i==len(keys) and keys and related: out.append('<h2 style="font-size:1.05rem;margin:20px 0 12px">Related tools</h2>')
         p,t,g=TOOLS[k];u='https://bkcb6.app/'+p
         out.append('<figure style="margin:0 0 26px">'
-          '<a href="%s"><img src="%s" alt="%s" loading="lazy" style="display:block;width:100%%;max-width:560px;height:auto;margin:0 auto 10px;border-radius:8px"></a>'
+          +('<a href="%s"><img src="%s" alt="%s" loading="lazy" style="display:block;width:100%%;max-width:560px;height:auto;margin:0 auto 10px;border-radius:8px"></a>'%(u,html.escape(g),html.escape(t)) if g else '')+
           '<iframe src="%s" title="%s" loading="lazy" style="width:100%%;height:640px;border:1px solid #e5dcc8;border-radius:10px;background:#fff" allowfullscreen></iframe>'
-          '<figcaption style="font-size:.9rem;margin-top:6px"><a href="%s">Open %s full screen &rarr;</a></figcaption></figure>'%(u,html.escape(g),html.escape(t),u,html.escape(t),u,html.escape(t)))
+          '<figcaption style="font-size:.9rem;margin-top:6px"><a href="%s">Open %s full screen &rarr;</a></figcaption></figure>'%(u,html.escape(t),u,html.escape(t)))
     out.append(END)
     return '\n'.join(out)
 n=0
