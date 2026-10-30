@@ -9,7 +9,7 @@ WHITE = (255, 255, 255)
 F = "/usr/share/fonts/truetype/google-fonts/Poppins-Bold.ttf"
 
 
-def make(src, date, out, W=1200, H=675):
+def make(src, date, out, W=1200, H=800):
     im = Image.new("RGB", (W, H), NAVY)
     d = ImageDraw.Draw(im)
     d.rectangle([0, 0, W, 8], fill=ORANGE)
@@ -18,9 +18,9 @@ def make(src, date, out, W=1200, H=675):
     side = H - 16
     r = side / pic.height
     pic = pic.resize((max(1, int(pic.width * r)), side), Image.LANCZOS)
-    if pic.width > W // 2 + 60:
-        x0 = (pic.width - (W // 2 + 60)) // 2
-        pic = pic.crop((x0, 0, x0 + W // 2 + 60, side))
+    if pic.width > W - 400:
+        x0 = (pic.width - (W - 400)) // 2
+        pic = pic.crop((x0, 0, x0 + W - 400, side))
     im.paste(pic, (W - pic.width, 8))
     left = W - pic.width
     pad = 48
