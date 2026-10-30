@@ -1,14 +1,26 @@
 /* bkcb6.app site bar: one strip on every page. Logo home, the page's section, search of every page, App Store.
    Hidden inside the apps (bkcb:, ?app=1), inside frames and on ?embed= pages.
+   Inside the apps a page is a screen, not a website: no bar, no survey strip, no App Store or Play badge, and the
+   page's own site header hides (body.app), on this page and on every page it links to in the same session.
    Section rules are written by tools/build_site_index.py; edit them there. */
 (function () {
   'use strict';
+  function inApp() {
+    try {
+      var q = location.search || '';
+      if (location.protocol === 'bkcb:' || /[?&]app=1\b/.test(q) || /^bkcb:/.test(document.referrer)) {
+        try { sessionStorage.setItem('bkapp', '1'); } catch (e) {}
+        return true;
+      }
+      if (sessionStorage.getItem('bkapp') === '1') return true;
+    } catch (e) {}
+    return false;
+  }
   function hidden() {
     try {
       var q = location.search || '';
       if (self !== top) return true;
-      if (location.protocol === 'bkcb:' || /[?&]app=1\b/.test(q) || /[?&]embed=/.test(q) || /[?&]nobar\b/.test(q)) return true;
-      if (sessionStorage.getItem('bkapp') === '1' || /^bkcb:/.test(document.referrer)) return true;
+      if (inApp() || /[?&]embed=/.test(q) || /[?&]nobar\b/.test(q)) return true;
       if (document.documentElement.hasAttribute('data-nobar')) return true;
     } catch (e) { return true; }
     return false;
@@ -168,6 +180,18 @@
   function svCss() { var t = document.createElement('style'); t.textContent = SVCSS; document.head.appendChild(t); }
   var svPart = true;
   try { svPart = self !== top || /[?&]embed=/.test(location.search || '') || document.documentElement.classList.contains('embed'); } catch (e) { svPart = true; }
+  if (inApp()) {
+    // A screen in the apps: nothing that belongs to the website. The survey is a button in the apps already.
+    var appCss = function () {
+      var t = document.createElement('style');
+      t.textContent = '#asb,.asb,.appstore,a[href*="apps.apple.com"],a[href*="play.google.com"],img[src*="appstore-badge"],img[src*="google-play"],img[src*="play-badge"]{display:none!important}';
+      (document.head || document.documentElement).appendChild(t);
+    };
+    var appMark = function () { document.documentElement.classList.add('app'); if (document.body) document.body.classList.add('app'); };
+    appCss();
+    if (document.body) appMark(); else document.addEventListener('DOMContentLoaded', appMark);
+    return;
+  }
   if (hidden() || document.getElementById('cb6bar')) {
     if (!svPart && !document.getElementById('cb6sv')) {
       var svMount = function () { svCss(); document.body.insertBefore(svStrip(true), document.body.firstChild); };
