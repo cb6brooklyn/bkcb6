@@ -22,15 +22,17 @@ for f in sorted(os.listdir(R)):
     body=re.sub(r'<iframe[^>]*></iframe>','',body)
     body=re.sub(r'href="/',r'href="https://bkcb6.app/',body)
     body=re.sub(r'src="/',r'src="https://bkcb6.app/',body)
-    content=body+(('\n<p>'+re.sub(r'<div class="signoff">|</div>','',sign).strip()+'</p>') if sign else '')
+    ban=re.search(r'<img class="banner" src="([^"]+)"',s)
+    bimg=('https://bkcb6.app'+ban.group(1)) if ban and ban.group(1).startswith('/') else (ban.group(1) if ban else '')
+    content=(('<p><img src="%s" alt="%s" width="700" height="200"></p>\n'%(bimg,html.escape(t,quote=True))) if bimg else '')+body+(('\n<p>'+re.sub(r'<div class="signoff">|</div>','',sign).strip()+'</p>') if sign else '')
     desc=re.search(r'<meta name="description" content="([^"]*)"',s)
     d=datetime.datetime.fromisoformat(dt)
-    items.append((d,t,f,desc.group(1) if desc else '',content))
+    items.append((d,t,f,desc.group(1) if desc else '',content,bimg))
 items.sort(reverse=True)
-out=['<?xml version="1.0" encoding="UTF-8"?>','<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel>','<title>The CB6 Newsletter</title><link>https://bkcb6.app/news/</link><description>District Manager Mike Racioppo\'s newsletter for Brooklyn Community Board 6.</description><language>en-us</language>']
-for d,t,f,desc,c in items:
+out=['<?xml version="1.0" encoding="UTF-8"?>','<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/"><channel>','<title>The CB6 Newsletter</title><link>https://bkcb6.app/news/</link><description>District Manager Mike Racioppo\'s newsletter for Brooklyn Community Board 6.</description><language>en-us</language>']
+for d,t,f,desc,c,bimg in items:
     url='https://bkcb6.app/news/'+f
-    out.append('<item><title>%s</title><link>%s</link><guid isPermaLink="true">%s</guid><dc:creator>Mike Racioppo</dc:creator><pubDate>%s</pubDate><description>%s</description><content:encoded><![CDATA[%s]]></content:encoded></item>'%(t,url,url,email.utils.format_datetime(d),desc,c.replace(']]>',']]&gt;')))
+    out.append('<item><title>%s</title><link>%s</link><guid isPermaLink="true">%s</guid><dc:creator>Mike Racioppo</dc:creator><pubDate>%s</pubDate><description>%s</description>%s<content:encoded><![CDATA[%s]]></content:encoded></item>'%(t,url,url,email.utils.format_datetime(d),desc,(('<enclosure url="%s" type="image/png" length="0"/><media:content url="%s" medium="image"/>'%(bimg,bimg)) if bimg else ''),c.replace(']]>',']]&gt;')))
 out.append('</channel></rss>')
 open(R+'feed-full.xml','w').write('\n'.join(out))
 print(len(items), os.path.getsize(R+'feed-full.xml')//1024,'KB')
