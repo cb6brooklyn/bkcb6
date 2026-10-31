@@ -470,6 +470,7 @@ details.onpage[open]>summary::before{content:"\2212"}
 .ccredit b{color:var(--navy)}
 .ccredit:hover span{color:var(--navy)}
 @media(max-width:520px){.ccredit{flex-direction:column;align-items:flex-start;gap:6px}}
+.c311w{background:none;border:0}.c311{position:relative;border-radius:50%;background:#ffef00}.c311 img{width:100%;height:100%;display:block;border-radius:50%}.c311 span{position:absolute;right:-9px;top:-7px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;color:#fff;font:700 9px/16px "DM Mono",monospace;text-align:center;border:1.5px solid #fff}
 </style>
 </head>
 <body><script src="/assets/site-bar.js?v=1" defer></script><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a><script>(function(){try{var a=document.getElementById("asb"),q=/[?&]app=1\b/.test(location.search);if(q)sessionStorage.setItem("bkapp","1");if(location.protocol==="bkcb:"||q||sessionStorage.getItem("bkapp")==="1"||/^bkcb:/.test(document.referrer)){a.style.display="none"}}catch(e){}})();</script>
@@ -1018,20 +1019,31 @@ details.onpage[open]>summary::before{content:"\2212"}
         var ic={t311parking:ICO.parking311,t311street:ICO.street311,t311signal:ICO.signal311,t311vehicle:ICO.vehicle311}[k];
         var pts=[];
         d.rows.forEach(function(r){ if(want[r[2]]) pts.push(r); });
+        function tip(r){ return '<b>'+escH(d.types[r[2]])+'</b><br>'+escH(r[4]||'')+(r[5]?('<br>'+escH(r[5])):'')+'<br>'+esc(r[3]); }
         function paint(){
           lay.clearLayers();
           var z=cb6Map.getZoom();
-          if(z>=16){
-            pts.forEach(function(r){
-              L.marker([r[0],r[1]],{icon:svgIcon(20,ic)})
-                .bindTooltip('<b>'+escH(d.types[r[2]])+'</b><br>'+escH(r[4]||'')+(r[5]?('<br>'+escH(r[5])):'')+'<br>'+esc(r[3]),{sticky:true,className:'vz-tip'}).addTo(lay);
-            });
-          } else {
-            pts.forEach(function(r){
-              L.circleMarker([r[0],r[1]],{renderer:cv,radius:3,color:col,weight:0,fillColor:col,fillOpacity:.6})
-                .bindTooltip('<b>'+escH(d.types[r[2]])+'</b><br>'+escH(r[4]||'')+(r[5]?('<br>'+escH(r[5])):'')+'<br>'+esc(r[3]),{sticky:true,className:'vz-tip'}).addTo(lay);
-            });
+          if(z>=18){
+            pts.forEach(function(r){ L.marker([r[0],r[1]],{icon:svgIcon(20,ic)}).bindTooltip(tip(r),{sticky:true,className:'vz-tip'}).addTo(lay); });
+            return;
           }
+          /* one NYC 311 circle per area; areas split as you zoom in */
+          var cell=z>=17?70:z>=16?95:z>=15?130:z>=14?180:240, cells={};
+          pts.forEach(function(r){
+            var pp=cb6Map.project([r[0],r[1]],z), key=Math.floor(pp.x/cell)+':'+Math.floor(pp.y/cell);
+            var c=cells[key]||(cells[key]={n:0,la:0,lo:0,t:{},one:null}); c.n++; c.la+=r[0]; c.lo+=r[1]; c.t[r[2]]=(c.t[r[2]]||0)+1; c.one=r;
+          });
+          Object.keys(cells).forEach(function(key){
+            var c=cells[key], ll=[c.la/c.n,c.lo/c.n];
+            if(c.n===1){ L.marker([c.one[0],c.one[1]],{icon:svgIcon(20,ic)}).bindTooltip(tip(c.one),{sticky:true,className:'vz-tip'}).addTo(lay); return; }
+            var sz=Math.round(Math.min(38,24+Math.log10(c.n)*4));
+            var html='<div class="c311" style="width:'+sz+'px;height:'+sz+'px;box-shadow:0 0 0 2px '+col+',0 1px 4px rgba(0,0,0,.35)"><img src="/assets/map-icons/nyc311.png" alt=""><span style="background:'+col+'">'+(c.n>999?(Math.round(c.n/100)/10+'k'):c.n)+'</span></div>';
+            var top=Object.keys(c.t).sort(function(a,b){return c.t[b]-c.t[a];}).slice(0,4).map(function(t){return escH(d.types[t])+': '+c.t[t];}).join('<br>');
+            L.marker(ll,{icon:L.divIcon({className:'c311w',html:html,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]})})
+              .bindTooltip('<b>'+c.n.toLocaleString()+' 311 complaints here</b><br>'+top+'<br><i>Zoom in or tap to see each one</i>',{sticky:true,className:'vz-tip'})
+              .on('click',function(){ cb6Map.setView(ll,Math.min(18,z+1)); })
+              .addTo(lay);
+          });
         }
         paint(); cb6Map.on('zoomend',function(){ if(ON[k]) paint(); });
         return lay; });
