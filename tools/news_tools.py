@@ -31,6 +31,7 @@ TOOLS={ # key: (path, title, graphic)
 'zoninghistory':('zoninghistory/','CB6 Zoning, 1961 to Today',T+'tile-zoninghistory.png'),
 'calendar':('calendar.html','Community Calendar',T+'tile-calendar.png'),
 'jobs':('jobs/','Jobs',T+'tile-jobs.png'),
+'visionzerocb6':('visionzerocb6/','Vision Zero in CB6',T+'tile-visionzerocb6.png'),
 }
 LINK=re.compile(r'href="https?://(?:www\.)?bkcb6\.app/([a-z0-9_-]+)(?:\.html)?/?(?:index\.html)?["#?]')
 KW=[ # (regex on article text, tool key)
