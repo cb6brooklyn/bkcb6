@@ -247,7 +247,7 @@ function districtMap(el, cfg){
 LEAF = '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>'
 
 def page(title, body, base='', hero='', desc='', extra=''):
-    return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    return f'''<!doctype html><html lang="en"><head><meta name="apple-itunes-app" content="app-id=6813967208"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(title)}</title><meta name="description" content="{esc(desc)}">{LEAF}<link rel="stylesheet" href="{base}app.css"><script src="{base}app.js"></script>{extra}</head>
 <body><div class="phone">{hero}<main>{body}</main></div></body></html>'''
 

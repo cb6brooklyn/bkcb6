@@ -41,7 +41,7 @@ for a, local in AGENCY_DUP.items():
             FORWARD['/agencies/%s/' % a] = '/%s/' % local
 
 def redirect(to, title):
-    return ('<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8"><title>%s | bkcb6.app</title>\n'
+    return ('<!DOCTYPE html>\n<html lang="en"><head><meta name="apple-itunes-app" content="app-id=6813967208"><meta charset="UTF-8"><title>%s | bkcb6.app</title>\n'
             '<link rel="canonical" href="https://bkcb6.app%s">\n<meta http-equiv="refresh" content="0; url=%s">\n'
             "<script>location.replace('%s'+location.search+location.hash);</script>\n"
             '</head><body><a href="%s">%s</a></body></html>\n') % (html.escape(title), to, to, to, to, html.escape(title))

@@ -11,7 +11,7 @@ CAT_JSON = json.dumps(cats, ensure_ascii=False)
 
 HTML = r'''<!DOCTYPE html>
 <html lang="en">
-<head>
+<head><meta name="apple-itunes-app" content="app-id=6813967208">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Brooklyn History Jeopardy, Brooklyn CB6</title>

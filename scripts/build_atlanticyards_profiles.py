@@ -69,7 +69,7 @@ def page(slug, title, sub, kpis, body, kind, target, desc):
     k = ''.join(f'<div class="kp"><div class="v">{v}</div><div class="k">{t}</div></div>' for v, t in kpis)
     return f'''<!DOCTYPE html>
 <html lang="en">
-<head>
+<head><meta name="apple-itunes-app" content="app-id=6813967208">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(title)}, Atlantic Yards &mdash; bkcb6.app</title>
@@ -285,7 +285,7 @@ groups = [('Built', [e for e in DIR if e['k'] in ('built', 'arena')]), ('Phase I
 cards = ''.join(f'<section class="sec"><h2>{g}</h2><div class="lede">{len(es)} {"buildings" if g=="Built" else "sites"}</div></section><div class="dgrid">' + ''.join(dcard(e) for e in es) + '</div>' for g, es in groups)
 dirhtml = f'''<!DOCTYPE html>
 <html lang="en">
-<head>
+<head><meta name="apple-itunes-app" content="app-id=6813967208">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Atlantic Yards directory &mdash; bkcb6.app</title>

@@ -282,7 +282,7 @@ for j in J:
     desc = re.sub('<[^>]+>', '', j['d'])
     page = f'''<!DOCTYPE html>
 <html lang="en">
-<head>
+<head><meta name="apple-itunes-app" content="app-id=6813967208">
 {HEAD}
 <title>{esc(j["title"])}, Gowanus rezoning &mdash; bkcb6.app</title>
 <meta name="description" content="{esc(desc)}">
@@ -382,7 +382,7 @@ kp = [(str(len(n['open'])), f'buildings open, with {fmt(u["open"])} apartments, 
 K = ''.join(f'<div class="kp"><div class="v">{v}</div><div class="k">{t}</div></div>' for v, t in kp)
 index = f'''<!DOCTYPE html>
 <html lang="en">
-<head>
+<head><meta name="apple-itunes-app" content="app-id=6813967208">
 {HEAD}
 <title>New buildings in the Gowanus rezoning &mdash; bkcb6.app</title>
 <meta name="description" content="Every new building filed in the Gowanus rezoning area since it passed in November 2021, on one map: open, permitted or filed, with apartments, affordable units, zoning and land use for each.">
@@ -440,7 +440,7 @@ def card(j):
 groups = ''.join(f'<section class="sec" id="{k}"><h2>{STAT[k]}</h2><div class="lede">{len(n[k])} buildings, {fmt(u[k])} apartments</div></section><div class="dgrid">' + ''.join(card(j) for j in n[k]) + '</div>' for k in ('open', 'building', 'filed') if n[k])
 d = f'''<!DOCTYPE html>
 <html lang="en">
-<head>
+<head><meta name="apple-itunes-app" content="app-id=6813967208">
 {HEAD}
 <title>Gowanus rezoning directory &mdash; bkcb6.app</title>
 <meta name="description" content="Every new building filed in the Gowanus rezoning area since November 2021: what it is, its zoning and land use, each with its own profile.">
@@ -465,7 +465,7 @@ GM = os.path.join(ROOT, 'gowanusmap')
 os.makedirs(GM, exist_ok=True)
 gm = f'''<!DOCTYPE html>
 <html lang="en">
-<head>
+<head><meta name="apple-itunes-app" content="app-id=6813967208">
 {HEAD}
 <title>Gowanus rezoning map &mdash; bkcb6.app</title>
 <meta name="description" content="The Gowanus rezoning on one map: zoning, land use, every new building since the rezoning with its profile, NYCHA, community groups, subway and buses. Search any address.">

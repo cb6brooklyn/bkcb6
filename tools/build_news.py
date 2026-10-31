@@ -97,7 +97,7 @@ def article_page(issue, prev_issue, next_issue):
 
     return f"""<!DOCTYPE html>
 <html lang="en">
-<head>
+<head><meta name="apple-itunes-app" content="app-id=6813967208">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title} &middot; CB6 Newsletter</title>
@@ -309,7 +309,7 @@ def index_page(issues):
     rows_html = "\n".join(rows)
     return f"""<!DOCTYPE html>
 <html lang="en">
-<head>
+<head><meta name="apple-itunes-app" content="app-id=6813967208">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Newsletter Archive &middot; Brooklyn Community Board 6</title>

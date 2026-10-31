@@ -56,7 +56,7 @@ CF = '<!-- Cloudflare Web Analytics --><script type=\'module\' src=\'https://sta
 FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
          '<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700;900&display=swap" rel="stylesheet">')
 def head(title, desc, canon, og):
-    return (f'<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">\n'
+    return (f'<!DOCTYPE html>\n<html lang="en"><head><meta name="apple-itunes-app" content="app-id=6813967208"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">\n'
             f'<title>{E(title)} &mdash; bkcb6.app</title>\n<meta name="description" content="{E(desc)}">\n<link rel="canonical" href="https://bkcb6.app{canon}">\n'
             f'<meta property="og:site_name" content="Brooklyn Community Board 6"><meta property="og:type" content="website">\n'
             f'<meta property="og:title" content="{E(title)}"><meta property="og:url" content="https://bkcb6.app{canon}">\n<meta property="og:description" content="{E(desc)}">\n'

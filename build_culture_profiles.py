@@ -177,7 +177,7 @@ def page(p):
     notice = nt['html'] + '\n' if nt and nt.get('until', '9999') >= today else ''
 
     return """<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head><meta name="apple-itunes-app" content="app-id=6813967208"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>%(name)s &mdash; bkcb6.app</title>
 <meta name="description" content="%(desc)s">
 <link rel="canonical" href="https://bkcb6.app/c/%(slug)s">

@@ -111,7 +111,7 @@ def collect():
 
 PAGE = """<!DOCTYPE html>
 <html lang="en">
-<head>
+<head><meta name="apple-itunes-app" content="app-id=6813967208">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{name} &mdash; CB6 Calendar</title>
@@ -149,7 +149,7 @@ location.replace({cal_json});
 
 INDEX_HEAD = """<!DOCTYPE html>
 <html lang="en">
-<head>
+<head><meta name="apple-itunes-app" content="app-id=6813967208">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Government calendars &mdash; CB6</title>

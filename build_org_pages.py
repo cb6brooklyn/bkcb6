@@ -280,7 +280,7 @@ WHERE = """  <div class="sec"><h2>Where it is</h2>
 """
 
 TPL = """<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head><meta name="apple-itunes-app" content="app-id=6813967208"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{title} &mdash; bkcb6.app</title>
 <meta name="description" content="{desc}">
 <link rel="canonical" href="https://bkcb6.app/{slug}">

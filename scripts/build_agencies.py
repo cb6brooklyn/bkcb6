@@ -246,7 +246,7 @@ FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="
 E = html.escape
 
 def head(title, desc, canon, og):
-    return (f'<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">\n'
+    return (f'<!DOCTYPE html>\n<html lang="en"><head><meta name="apple-itunes-app" content="app-id=6813967208"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">\n'
             f'<title>{E(title)} &mdash; bkcb6.app</title>\n<meta name="description" content="{E(desc)}">\n'
             f'<link rel="canonical" href="https://bkcb6.app{canon}">\n'
             f'<meta property="og:site_name" content="Brooklyn Community Board 6"><meta property="og:type" content="website">\n'
