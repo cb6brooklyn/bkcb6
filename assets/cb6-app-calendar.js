@@ -210,9 +210,23 @@
     $('.cc-grid').innerHTML = html;
   }
 
+  // Time, organization and place, each said once: drops a place segment or comma piece that repeats the organization, the title or an earlier piece.
+  function metaOf(e, isCb6) {
+    var nz = function (x) { return String(x || '').toLowerCase().replace(/&amp;/g, '&').replace(/[^a-z0-9]/g, ''); };
+    var org = isCb6 ? '' : orgName(e), kept = [nz(org), nz(e.l)], parts = [];
+    String(cleanLoc(e.loc) || '').replace(/,\s*United States$/, '').split(/\s*\u00b7\s*/).forEach(function (seg) {
+      var pieces = seg.split(/\s*,\s*/).filter(function (pc) {
+        var k = nz(pc); if (!k) return false;
+        for (var i = 0; i < kept.length; i++) if (kept[i] && kept[i].indexOf(k) > -1) return false;
+        kept.push(k); return true;
+      });
+      if (pieces.length) parts.push(pieces.join(', '));
+    });
+    return [e.t ? e.t + (e.e ? ' to ' + e.e : '') : '', org].concat(parts).filter(Boolean).join(' \u00b7 ');
+  }
   function card(e) {
     var isCb6 = e.ty === CB6, ic = isCb6 ? 'https://bkcb6.app/cb6-logo-square.png' : icon(e.ty);
-    var meta = [e.t ? e.t + (e.e ? ' to ' + e.e : '') : '', isCb6 ? '' : orgName(e), cleanLoc(e.loc)].filter(Boolean).join(' · ');
+    var meta = metaOf(e, isCb6);
     var logo = ic ? '<img class="lg" src="' + esc(ic) + '" alt="" loading="lazy">' : '<span class="lg ph" style="background:' + color(e.ty) + '">' + esc(orgName(e).charAt(0)) + '</span>';
     var thumb = e.f ? '<img class="cc-thumb" src="' + esc(BASE + 'flyers/' + e.f) + '" alt="" loading="lazy" onerror="this.onerror=null;this.src=\'https://bkcb6.app/' + esc(e.f) + '\'">' : '';
     var links = e.h ? '<span class="lk"><a href="' + esc(e.h) + '" target="_blank" rel="noopener">' + esc(e.lt || 'Details') + ' &#8599;</a></span>' : '';
