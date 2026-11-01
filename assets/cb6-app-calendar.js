@@ -222,7 +222,7 @@
       });
       if (pieces.length) parts.push(pieces.join(', '));
     });
-    return [e.t ? e.t + (e.e ? ' to ' + e.e : '') : '', org].concat(parts).filter(Boolean).join(' \u00b7 ');
+    return [e.t ? e.t + (e.e && minutes(e.e) > minutes(e.t) ? ' to ' + e.e : '') : '', org].concat(parts).filter(Boolean).join(' \u00b7 ');
   }
   function card(e) {
     var isCb6 = e.ty === CB6, ic = isCb6 ? 'https://bkcb6.app/cb6-logo-square.png' : icon(e.ty);
