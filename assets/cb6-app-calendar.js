@@ -148,8 +148,7 @@
     '.cc-orgtoggle{border:0;background:none;color:' + NAVY + ';font-size:14px;font-weight:600;padding:4px 2px 8px;text-decoration:underline;text-underline-offset:3px}' +
     '.cc-orgtoggle.on{color:' + ORANGE + '}' +
     '.cc-orgs[hidden]{display:none}' +
-    '.cc-cal.v-day .cc-grid{display:none}.cc-cal.v-day{padding-bottom:4px}' +
-    '.cc-cal.v-week .cc-grid{grid-template-columns:repeat(7,1fr)}' +
+    '.cc-day.wk{background:#eef0f7}.cc-day.wk.sel{background:' + NAVY + '}' +
     '.cc-day .dw{font-family:"DM Mono",monospace;font-size:11px;text-transform:uppercase;color:#6b6b80}.cc-day.sel .dw{color:#c9cee0}' +
     '.cc-gh{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:' + NAVY + ';margin:16px 4px 8px}' +
     '.cc-gh span{font-family:"DM Mono",monospace;font-weight:500;color:#8a8a99;letter-spacing:0}' +
@@ -270,27 +269,16 @@
       '<span class="dots">' + cols.slice(0, 3).map(function (x) { return '<i style="background:' + x + '"></i>'; }).join('') + '</span>' +
       '<span class="more">' + (evs.length ? evs.length : '') + '</span></button>';
   }
+  // The month calendar is always there; the view (Today, Day, Week, Month) sets what the list below it shows.
   function renderGrid() {
-    var v = view(), cal = $('.cc-cal'), grid = $('.cc-grid');
-    cal.className = 'cc-cal v-' + v;
-    if (v === 'month') {
-      var y = S.ym.y, m = S.ym.m;
-      $('.cc-mh h3').textContent = MONTHS[m] + ' ' + y;
-      var first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
-      var html = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(function (d) { return '<div class="cc-dow">' + d + '</div>'; }).join('');
-      for (var i = 0; i < first; i++) html += '<div class="cc-day blank"></div>';
-      for (var d = 1; d <= days; d++) html += dayButton(ds(y, m, d), '<span class="dn">' + d + '</span>');
-      grid.innerHTML = html;
-    } else if (v === 'week') {
-      var w0 = weekStart(S.sel), w6 = addDays(w0, 6);
-      $('.cc-mh h3').textContent = shortDate(w0) + ' to ' + shortDate(w6);
-      var h = '';
-      for (var k = 0; k < 7; k++) { var key = addDays(w0, k), x = parse(key); h += dayButton(key, '<span class="dw">' + DOWS[x.getDay()].slice(0, 3) + '</span><span class="dn">' + x.getDate() + '</span>'); }
-      grid.innerHTML = h;
-    } else {
-      $('.cc-mh h3').textContent = (S.sel === nyToday() ? 'Today, ' : '') + longDate(S.sel);
-      grid.innerHTML = '';
-    }
+    var v = view(), y = S.ym.y, m = S.ym.m, w0 = weekStart(S.sel), w6 = addDays(w0, 6);
+    $('.cc-cal').className = 'cc-cal v-' + v;
+    $('.cc-mh h3').textContent = MONTHS[m] + ' ' + y;
+    var first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
+    var html = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(function (d) { return '<div class="cc-dow">' + d + '</div>'; }).join('');
+    for (var i = 0; i < first; i++) html += '<div class="cc-day blank"></div>';
+    for (var d = 1; d <= days; d++) { var key = ds(y, m, d); html += dayButton(key, '<span class="dn">' + d + '</span>', v === 'week' && key >= w0 && key <= w6 ? ' wk' : ''); }
+    $('.cc-grid').innerHTML = html;
   }
 
   // Time, organization and place, each said once: drops a place segment or comma piece that repeats the organization, the title or an earlier piece.
@@ -380,10 +368,13 @@
       if (!all.length) out += '<div class="cc-empty">Nothing on the calendar matches that search.</div>';
       if (up.length) out += '<div class="cc-dh" style="color:#0d1b4b">Upcoming</div>' + group(up, false);
       if (past.length) out += '<div class="cc-dh" style="color:#0d1b4b">Past, most recent first</div>' + group(past, true);
-    } else if (v === 'week') {
-      var w0 = weekStart(S.sel);
-      for (var k = 0; k < 7; k++) {
+    } else if (v === 'week' || v === 'month') {
+      var w0 = v === 'week' ? weekStart(S.sel) : (S.ym.y + '-' + String(S.ym.m + 1).padStart(2, '0') + '-01'), nd = v === 'week' ? 7 : new Date(S.ym.y, S.ym.m + 1, 0).getDate();
+      if (v === 'month' && today.slice(0, 7) === w0.slice(0, 7)) { nd -= +today.slice(8) - 1; w0 = today; }
+      out = '<div class="cc-dh" style="color:#0d1b4b">' + (v === 'week' ? 'Week of ' + shortDate(weekStart(S.sel)) + ' to ' + shortDate(addDays(weekStart(S.sel), 6)) : MONTHS[S.ym.m] + (w0 === today ? ', from today' : '')) + '</div>';
+      for (var k = 0; k < nd; k++) {
         var d = addDays(w0, k), evs = dayEvents(d);
+        if (v === 'month' && !evs.length) continue;
         out += '<div class="cc-dh' + (d === S.sel ? ' sel' : '') + '">' + longDate(d) + (d === today ? ' &middot; today' : '') + '</div>';
         if (!evs.length) { out += '<div class="cc-empty">Nothing on the calendar.</div>'; continue; }
         var its = items(d, evs), ncb6 = its.filter(function (it) { return it.e.ty === CB6; }).length, top = its.slice(0, Math.max(3, ncb6));
@@ -391,7 +382,7 @@
       }
     } else {
       var de = dayEvents(S.sel);
-      out = '<div class="cc-dh">' + de.length + ' event' + (de.length === 1 ? '' : 's') + '</div>' +
+      out = '<div class="cc-dh">' + (S.sel === today ? 'Today, ' : '') + longDate(S.sel) + ' &middot; ' + de.length + ' event' + (de.length === 1 ? '' : 's') + '</div>' +
         (de.length ? (S.mode === 'all' && !S.org ? groupDay(S.sel, de, GROUP_LIMIT) : flatDay(S.sel, de, 8)) : '<div class="cc-empty">Nothing on the calendar this day.</div>');
     }
     $('.cc-list').innerHTML = out;
@@ -418,8 +409,8 @@
     if (t.dataset.umb) { var uk = t.dataset.umb; if (S.exp[uk]) delete S.exp[uk]; else S.exp[uk] = 1; renderList(); return; }
     if (t.dataset.n) {
       var n = +t.dataset.n, v = view();
-      if (v === 'month') { var m = S.ym.m + n, y = S.ym.y; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } S.ym = { y: y, m: m }; S.sel = ds(y, m, 1); var td = nyToday(); if (td.slice(0, 7) === S.sel.slice(0, 7)) S.sel = td; }
-      else { setSel(addDays(S.sel, v === 'week' ? 7 * n : n)); if (S.view === 'today') S.view = 'day'; }
+      var m = S.ym.m + n, y = S.ym.y; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } S.ym = { y: y, m: m }; S.sel = ds(y, m, 1); var td = nyToday(); if (td.slice(0, 7) === S.sel.slice(0, 7)) S.sel = td;
+      if (S.view === 'today' && S.sel !== td) S.view = 'day';
       renderAll(); return;
     }
     if (t.dataset.day) { setSel(t.dataset.day); S.view = 'day'; savePrefs(); renderAll(); root.querySelector('.cc-list').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
