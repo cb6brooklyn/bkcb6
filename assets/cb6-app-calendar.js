@@ -10,13 +10,18 @@
   var PREF_KEY = 'cb6cal.prefs.v1';
   var NAVY = '#0d1b4b', ORANGE = '#f47920';
   var PALETTE = ['#2d6a4f', '#1a56db', '#c0392b', '#3b0764', '#e8a020', '#1a4b8c', '#6b0a14', '#3a7d44', '#7a1a1a', '#2c5f9e', '#4c6028', '#d4512a'];
+  // Categories, as on the bkcb6.app calendar. The calendar data carries which calendar types fall in each (cats).
   var MODES = [
-    { id: 'all', label: 'Everything', test: function () { return true; } },
-    { id: 'cb6', label: 'CB6 meetings', test: function (e) { return e.ty === CB6; } },
-    { id: 'events', label: 'Events', test: function (e) { return e.g === 'cb6' && e.ty !== CB6; } },
-    { id: 'council', label: 'City Council', test: function (e) { return e.g === 'council'; } },
-    { id: 'hearing', label: 'Hearings', test: function (e) { return e.g === 'hearing'; } }
+    { id: 'all', label: 'All' },
+    { id: 'cb6', label: 'CB6 meetings' },
+    { id: 'civic', label: 'Civic' },
+    { id: 'community', label: 'Community' },
+    { id: 'parks', label: 'Parks' },
+    { id: 'food', label: 'Food & Markets' },
+    { id: 'arts', label: 'Arts' }
   ];
+  var VIEWS = [{ id: 'today', label: 'Today' }, { id: 'day', label: 'Day' }, { id: 'week', label: 'Week' }, { id: 'month', label: 'Month' }];
+  var GROUP_LIMIT = 3;
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   var DOWS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -24,9 +29,10 @@
   if (!root) return;
 
   function loadPrefs() { try { return JSON.parse(localStorage.getItem(PREF_KEY)) || {}; } catch (e) { return {}; } }
-  function savePrefs() { try { localStorage.setItem(PREF_KEY, JSON.stringify({ mode: S.mode, hidden: Object.keys(S.hidden), q: S.q })); } catch (e) {} }
+  function savePrefs() { try { localStorage.setItem(PREF_KEY, JSON.stringify({ mode: S.mode, view: S.view, hidden: Object.keys(S.hidden), q: S.q })); } catch (e) {} }
   var P = loadPrefs();
-  var S = { mode: P.mode || 'all', hidden: {}, q: P.q || '', org: null, ym: null, sel: null, types: {}, events: [], byDate: {} };
+  var OLDMODE = { events: 'all', council: 'civic', hearing: 'civic' };
+  var S = { mode: OLDMODE[P.mode] || P.mode || 'all', view: P.view || 'today', hidden: {}, q: P.q || '', org: null, ym: null, sel: null, types: {}, cats: {}, events: [], byDate: {}, exp: {}, orgsOpen: false };
   (P.hidden || []).forEach(function (t) { S.hidden[t] = 1; });
 
   var DEC = document.createElement('textarea');
@@ -49,9 +55,19 @@
     return e.l.replace(/^CB6 Committee Meeting\s*[–—-]\s*/i, '').replace(/^CB6 Committee Meeting-\s*/i, '').replace(/\s*Committee Meeting$/i, ' Committee').replace(/\s*·\s*6:30pm$/i, '');
   }
 
-  function modeOf(id) { for (var i = 0; i < MODES.length; i++) if (MODES[i].id === id) return MODES[i]; return MODES[0]; }
+  function catsOf(e) {
+    if (e._c) return e._c;
+    var c = {}, k = e.k || '';
+    if (e.ty === CB6) c.cb6 = 1;
+    if (e.g === 'council' || e.g === 'hearing') c.civic = 1;
+    if (/^park-/.test(k)) c.parks = 1;
+    if (/^lib-/.test(k)) c.community = 1;
+    Object.keys(S.cats).forEach(function (cat) { if (S.cats[cat][k]) c[cat] = 1; });
+    return (e._c = c);
+  }
+  function inMode(e, id) { return id === 'all' || !!catsOf(e)[id]; }
   function visible(e) {
-    if (!modeOf(S.mode).test(e)) return false;
+    if (!inMode(e, S.mode)) return false;
     if (S.hidden[e.ty]) return false;
     if (S.org && e.ty !== S.org && !(e.also || []).some(function (a) { return a.ty === S.org; })) return false;
     if (S.q) {
@@ -124,6 +140,36 @@
     '.cc-thumb{width:56px;height:56px;flex:none;border-radius:8px;object-fit:cover}' +
     '.cc-empty{color:#6b6b80;font-size:15px;padding:12px 4px}' +
     '.cc-note{font-family:"DM Mono",monospace;font-size:12px;color:#8a8a99;margin:6px 4px 0}' +
+    '.cc-views{display:flex;background:#fff;border:1.5px solid #e2dccd;border-radius:999px;padding:3px;margin:0 0 12px;gap:2px}' +
+    '.cc-view{flex:1;border:0;background:none;border-radius:999px;padding:9px 6px;font-size:15px;font-weight:700;color:' + NAVY + '}' +
+    '.cc-view.on{background:' + NAVY + ';color:#fff}' +
+    '.cc-chip .n{font-family:"DM Mono",monospace;font-size:12px;color:#8a8a99;font-weight:500}.cc-chip.on .n{color:#c9cee0}' +
+    '.cc-orgwrap{margin:-2px 0 6px}' +
+    '.cc-orgtoggle{border:0;background:none;color:' + NAVY + ';font-size:14px;font-weight:600;padding:4px 2px 8px;text-decoration:underline;text-underline-offset:3px}' +
+    '.cc-orgtoggle.on{color:' + ORANGE + '}' +
+    '.cc-orgs[hidden]{display:none}' +
+    '.cc-cal.v-day .cc-grid{display:none}.cc-cal.v-day{padding-bottom:4px}' +
+    '.cc-cal.v-week .cc-grid{grid-template-columns:repeat(7,1fr)}' +
+    '.cc-day .dw{font-family:"DM Mono",monospace;font-size:11px;text-transform:uppercase;color:#6b6b80}.cc-day.sel .dw{color:#c9cee0}' +
+    '.cc-gh{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:' + NAVY + ';margin:16px 4px 8px}' +
+    '.cc-gh span{font-family:"DM Mono",monospace;font-weight:500;color:#8a8a99;letter-spacing:0}' +
+    '.cc-dh.sel{color:' + NAVY + '}' +
+    '.cc-more{display:block;width:100%;border:1.5px dashed #d8d0bf;background:none;border-radius:12px;padding:9px;font-size:14px;font-weight:600;color:' + NAVY + ';margin:-2px 0 10px}' +
+    '.cc-list .cc-card{padding:10px 12px;gap:12px;border-radius:12px;margin-bottom:8px}' +
+    '.cc-list .cc-card .lg{width:40px;height:40px;border-radius:8px}' +
+    '.cc-list .cc-card .tt{font-size:16px}' +
+    '.cc-list .cc-card .mt{font-size:13px}' +
+    '.cc-list .cc-thumb{width:40px;height:40px}' +
+    '.cc-umb{background:#fff;border:1.5px solid #ece6d8;border-radius:12px;margin-bottom:8px}' +
+    '.cc-umbh{display:flex;gap:12px;align-items:center;padding:10px 12px;cursor:pointer;color:' + NAVY + '}' +
+    '.cc-umbh .lg{width:40px;height:40px;flex:none;border-radius:8px;object-fit:contain;background:#fff}' +
+    '.cc-umbh .lg.ph{display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}' +
+    '.cc-umbh .b{flex:1;min-width:0}.cc-umbh .tt{display:block;font-size:16px;font-weight:700}' +
+    '.cc-umbh .cnt{font-family:"DM Mono",monospace;font-size:12px;font-weight:500;color:#fff;background:' + NAVY + ';border-radius:999px;padding:2px 8px;margin-left:4px;vertical-align:2px}' +
+    '.cc-umbh .mt{display:block;font-size:13px;color:#5a5a6e;margin-top:2px}' +
+    '.cc-umbh .pv{display:block;font-size:13px;color:#3d3d52;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '.cc-umbh .ch{flex:none;color:' + ORANGE + ';font-size:24px;font-weight:700;transition:transform .15s}.cc-umb.open .cc-umbh .ch{transform:rotate(90deg)}' +
+    '.cc-umbb{padding:0 10px 4px 22px;border-top:1px solid #f0ebe0}.cc-umbb .cc-card{border:0;border-bottom:1px solid #f0ebe0;border-radius:0;margin:0;background:none}.cc-umbb .cc-card:last-child{border-bottom:0}.cc-umbb .cc-card .lg{display:none}' +
     '@media(max-width:560px){#cb6-app-calendar{padding:10px;border-radius:12px}.cc-day{min-height:54px}.cc-day .dn{font-size:16px}.cc-mh h3{font-size:20px}.cc-card .tt{font-size:17px}.cc-lead .t{font-size:17px}.cc-lead img{width:48px;height:48px}}';
 
   if (!document.getElementById('cb6-app-calendar-css')) {
@@ -137,8 +183,10 @@
 
   root.innerHTML = '<div class="cc-lead"></div>' +
     '<div class="cc-search"><input type="search" placeholder="Search events, organizations, places" aria-label="Search the calendar"><button type="button" class="cc-clear">Clear</button></div>' +
-    '<div class="cc-row cc-modes"></div><div class="cc-row cc-orgs"></div>' +
-    '<div class="cc-cal"><div class="cc-mh"><button type="button" data-n="-1" aria-label="Previous month">&lsaquo;</button><h3></h3><button type="button" data-n="1" aria-label="Next month">&rsaquo;</button></div><div class="cc-grid"></div></div>' +
+    '<div class="cc-views" role="tablist"></div>' +
+    '<div class="cc-row cc-modes"></div>' +
+    '<div class="cc-orgwrap"><button type="button" class="cc-orgtoggle"></button><div class="cc-row cc-orgs" hidden></div></div>' +
+    '<div class="cc-cal"><div class="cc-mh"><button type="button" data-n="-1" aria-label="Previous">&lsaquo;</button><h3></h3><button type="button" data-n="1" aria-label="Next">&rsaquo;</button></div><div class="cc-grid"></div></div>' +
     '<div class="cc-list"><div class="cc-empty">Loading the calendar…</div></div>';
   var $ = function (s) { return root.querySelector(s); };
   var input = $('.cc-search input');
@@ -164,21 +212,43 @@
     }).join('');
   }
 
-  function renderModes() {
-    $('.cc-modes').innerHTML = MODES.map(function (m) {
-      return '<button type="button" class="cc-chip' + (S.mode === m.id ? ' on' : '') + '" data-mode="' + m.id + '">' + m.label + '</button>';
+  function addDays(d, n) { var x = parse(d); x.setDate(x.getDate() + n); return ds(x.getFullYear(), x.getMonth(), x.getDate()); }
+  function weekStart(d) { var x = parse(d); return addDays(d, -x.getDay()); }
+  function shortDate(d) { var x = parse(d); return MONTHS[x.getMonth()].slice(0, 3) + ' ' + x.getDate(); }
+  function view() { return S.view === 'today' ? 'day' : S.view; }
+  function dayEvents(d) { return (S.byDate[d] || []).filter(visible).sort(sortDay); }
+
+  function renderViews() {
+    var today = nyToday();
+    $('.cc-views').innerHTML = VIEWS.map(function (v) {
+      var on = v.id === 'today' ? (S.view === 'today' || (S.view === 'day' && S.sel === today)) : (S.view === v.id && !(v.id === 'day' && S.sel === today));
+      return '<button type="button" class="cc-view' + (on ? ' on' : '') + '" data-view="' + v.id + '" role="tab" aria-selected="' + on + '">' + v.label + '</button>';
     }).join('');
   }
-
-  function monthEvents() {
-    var pre = S.ym.y + '-' + String(S.ym.m + 1).padStart(2, '0');
-    return S.events.filter(function (e) { return e.d.slice(0, 7) === pre && modeOf(S.mode).test(e); });
+  function renderModes() {
+    $('.cc-modes').innerHTML = MODES.map(function (m) {
+      var n = periodEvents(m.id).length;
+      if (m.id !== 'all' && m.id !== S.mode && !n) return '';
+      return '<button type="button" class="cc-chip' + (S.mode === m.id ? ' on' : '') + '" data-mode="' + m.id + '">' + esc(m.label) + ' <span class="n">' + n + '</span></button>';
+    }).join('');
+  }
+  // The events in what is on screen (the day, the week or the month), for the counts on the filters.
+  function periodEvents(mode) {
+    var from, to, v = view();
+    if (v === 'month') { from = S.ym.y + '-' + String(S.ym.m + 1).padStart(2, '0') + '-01'; to = from.slice(0, 8) + '31'; }
+    else if (v === 'week') { from = weekStart(S.sel); to = addDays(from, 6); }
+    else { from = to = S.sel; }
+    return S.events.filter(function (e) { return e.d >= from && e.d <= to && inMode(e, mode) && !S.hidden[e.ty]; });
   }
 
   function renderOrgs() {
     var counts = {};
-    monthEvents().forEach(function (e) { counts[e.ty] = (counts[e.ty] || 0) + 1; });
+    periodEvents(S.mode).forEach(function (e) { counts[e.ty] = (counts[e.ty] || 0) + 1; });
     var tys = Object.keys(counts).sort(function (a, b) { return (b === CB6) - (a === CB6) || counts[b] - counts[a]; });
+    var hid = Object.keys(S.hidden).length;
+    $('.cc-orgtoggle').innerHTML = (S.org ? 'Organization: ' + esc((S.types[S.org] && S.types[S.org].name) || S.org) : 'Filter by organization') + (hid ? ' &middot; ' + hid + ' hidden' : '') + ' <span>' + (S.orgsOpen ? '&#9652;' : '&#9662;') + '</span>';
+    $('.cc-orgtoggle').classList.toggle('on', !!S.org);
+    $('.cc-orgs').hidden = !S.orgsOpen;
     var html = '<button type="button" class="cc-chip cc-all' + (S.org ? ' dim' : '') + '" data-org="">All</button>';
     html += tys.map(function (ty) {
       var ic = icon(ty), name = (S.types[ty] && S.types[ty].name) || ty;
@@ -190,24 +260,37 @@
     $('.cc-orgs').innerHTML = html;
   }
 
+  function dayButton(key, label, cls) {
+    var evs = dayEvents(key), today = nyToday();
+    var cols = [], seen = {};
+    evs.forEach(function (e) { var c = color(e.ty); if (!seen[c]) { seen[c] = 1; cols.push(c); } });
+    var isCb6 = evs.some(function (e) { return e.ty === CB6; });
+    var c = 'cc-day' + (cls || '') + (isCb6 ? ' cb6' : '') + (key === today ? ' today' : '') + (key === S.sel ? ' sel' : '') + (key < today ? ' past' : '');
+    return '<button type="button" class="' + c + '" data-d="' + key + '" aria-label="' + longDate(key) + ', ' + evs.length + ' events">' + label +
+      '<span class="dots">' + cols.slice(0, 3).map(function (x) { return '<i style="background:' + x + '"></i>'; }).join('') + '</span>' +
+      '<span class="more">' + (evs.length ? evs.length : '') + '</span></button>';
+  }
   function renderGrid() {
-    var y = S.ym.y, m = S.ym.m, today = nyToday();
-    $('.cc-mh h3').textContent = MONTHS[m] + ' ' + y;
-    var first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
-    var html = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(function (d) { return '<div class="cc-dow">' + d + '</div>'; }).join('');
-    for (var i = 0; i < first; i++) html += '<div class="cc-day blank"></div>';
-    for (var d = 1; d <= days; d++) {
-      var key = ds(y, m, d);
-      var evs = (S.byDate[key] || []).filter(visible);
-      var cols = [], seen = {};
-      evs.forEach(function (e) { var c = color(e.ty); if (!seen[c]) { seen[c] = 1; cols.push(c); } });
-      var isCb6 = evs.some(function (e) { return e.ty === CB6; });
-      var cls = 'cc-day' + (isCb6 ? ' cb6' : '') + (key === today ? ' today' : '') + (key === S.sel ? ' sel' : '') + (key < today ? ' past' : '');
-      html += '<button type="button" class="' + cls + '" data-d="' + key + '" aria-label="' + longDate(key) + ', ' + evs.length + ' events"><span class="dn">' + d + '</span>' +
-        '<span class="dots">' + cols.slice(0, 3).map(function (c) { return '<i style="background:' + c + '"></i>'; }).join('') + '</span>' +
-        '<span class="more">' + (evs.length > 3 ? '+' + (evs.length - 3) : '') + '</span></button>';
+    var v = view(), cal = $('.cc-cal'), grid = $('.cc-grid');
+    cal.className = 'cc-cal v-' + v;
+    if (v === 'month') {
+      var y = S.ym.y, m = S.ym.m;
+      $('.cc-mh h3').textContent = MONTHS[m] + ' ' + y;
+      var first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
+      var html = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(function (d) { return '<div class="cc-dow">' + d + '</div>'; }).join('');
+      for (var i = 0; i < first; i++) html += '<div class="cc-day blank"></div>';
+      for (var d = 1; d <= days; d++) html += dayButton(ds(y, m, d), '<span class="dn">' + d + '</span>');
+      grid.innerHTML = html;
+    } else if (v === 'week') {
+      var w0 = weekStart(S.sel), w6 = addDays(w0, 6);
+      $('.cc-mh h3').textContent = shortDate(w0) + ' to ' + shortDate(w6);
+      var h = '';
+      for (var k = 0; k < 7; k++) { var key = addDays(w0, k), x = parse(key); h += dayButton(key, '<span class="dw">' + DOWS[x.getDay()].slice(0, 3) + '</span><span class="dn">' + x.getDate() + '</span>'); }
+      grid.innerHTML = h;
+    } else {
+      $('.cc-mh h3').textContent = (S.sel === nyToday() ? 'Today, ' : '') + longDate(S.sel);
+      grid.innerHTML = '';
     }
-    $('.cc-grid').innerHTML = html;
   }
 
   // Time, organization and place, each said once: drops a place segment or comma piece that repeats the organization, the title or an earlier piece.
@@ -239,8 +322,52 @@
   }
   function sortDay(a, b) { return (b.ty === CB6) - (a.ty === CB6) || minutes(a.t) - minutes(b.t); }
 
+  // One organization, one entry a day: two or more events from the same organization on a day sit under one card that opens to list them.
+  function items(d, evs) {
+    var by = {}, order = [];
+    evs.forEach(function (e) {
+      var k = e.ty === CB6 ? CB6 + '|' + order.length : e.ty;
+      if (!by[k]) { by[k] = []; order.push(k); }
+      by[k].push(e);
+    });
+    return order.map(function (k) { var list = by[k]; return { e: list[0], list: list, html: list.length > 1 ? umbrella(d, list) : card(list[0]) }; });
+  }
+  function umbrella(d, list) {
+    var e = list[0], ty = e.ty, ic = icon(ty), key = d + '|org|' + ty, open = !!S.exp[key];
+    var times = list.map(function (x) { return x.t; }).filter(Boolean);
+    var span = times.length ? 'From ' + times[0] : '';
+    var logo = ic ? '<img class="lg" src="' + esc(ic) + '" alt="" loading="lazy">' : '<span class="lg ph" style="background:' + color(ty) + '">' + esc(orgName(e).charAt(0)) + '</span>';
+    var preview = list.slice(0, 3).map(function (x) { return esc(x.l); }).join(' &middot; ') + (list.length > 3 ? ' &middot; +' + (list.length - 3) + ' more' : '');
+    return '<div class="cc-umb' + (open ? ' open' : '') + '"><div class="cc-umbh" role="button" tabindex="0" aria-expanded="' + open + '" data-umb="' + esc(key) + '">' + logo +
+      '<span class="b"><span class="tt">' + esc(orgName(e)) + ' <span class="cnt">' + list.length + ' events</span></span><span class="mt">' + esc(span) + '</span>' +
+      (open ? '' : '<span class="pv">' + preview + '</span>') + '</span><span class="ch">&rsaquo;</span></div>' +
+      (open ? '<div class="cc-umbb">' + list.map(card).join('') + '</div>' : '') + '</div>';
+  }
+
+  // A day's events grouped by category, CB6 first, a few of each with the rest a tap away.
+  var GROUPS = [['cb6', 'CB6 meetings'], ['civic', 'Civic'], ['community', 'Community'], ['parks', 'Parks'], ['food', 'Food & Markets'], ['arts', 'Arts'], ['other', 'More events']];
+  function groupDay(d, evs, limit) {
+    var by = {};
+    items(d, evs).forEach(function (it) {
+      var c = catsOf(it.e), g = 'other';
+      for (var j = 0; j < GROUPS.length - 1; j++) if (c[GROUPS[j][0]]) { g = GROUPS[j][0]; break; }
+      (by[g] = by[g] || []).push(it);
+    });
+    return GROUPS.filter(function (g) { return by[g[0]]; }).map(function (g) {
+      var list = by[g[0]], key = d + '|' + g[0], open = S.exp[key], lim = g[0] === 'cb6' ? 99 : limit;
+      var shown = open ? list : list.slice(0, lim), rest = list.length - shown.length;
+      var n = list.reduce(function (a, it) { return a + it.list.length; }, 0);
+      return '<div class="cc-gh">' + g[1] + ' <span>' + n + '</span></div>' + shown.map(function (it) { return it.html; }).join('') +
+        (rest > 0 ? '<button type="button" class="cc-more" data-exp="' + esc(key) + '">Show ' + rest + ' more</button>' : '');
+    }).join('');
+  }
+  function flatDay(d, evs, limit) {
+    var its = items(d, evs), key = d + '|flat', open = S.exp[key], shown = open ? its : its.slice(0, limit), rest = its.length - shown.length;
+    return shown.map(function (it) { return it.html; }).join('') + (rest > 0 ? '<button type="button" class="cc-more" data-exp="' + esc(key) + '">Show ' + rest + ' more</button>' : '');
+  }
+
   function renderList() {
-    var today = nyToday(), out = '';
+    var today = nyToday(), out = '', v = view();
     if (S.q) {
       var all = S.events.filter(visible);
       var up = all.filter(function (e) { return e.d >= today; }), past = all.filter(function (e) { return e.d < today; });
@@ -253,19 +380,32 @@
       if (!all.length) out += '<div class="cc-empty">Nothing on the calendar matches that search.</div>';
       if (up.length) out += '<div class="cc-dh" style="color:#0d1b4b">Upcoming</div>' + group(up, false);
       if (past.length) out += '<div class="cc-dh" style="color:#0d1b4b">Past, most recent first</div>' + group(past, true);
+    } else if (v === 'week') {
+      var w0 = weekStart(S.sel);
+      for (var k = 0; k < 7; k++) {
+        var d = addDays(w0, k), evs = dayEvents(d);
+        out += '<div class="cc-dh' + (d === S.sel ? ' sel' : '') + '">' + longDate(d) + (d === today ? ' &middot; today' : '') + '</div>';
+        if (!evs.length) { out += '<div class="cc-empty">Nothing on the calendar.</div>'; continue; }
+        var its = items(d, evs), ncb6 = its.filter(function (it) { return it.e.ty === CB6; }).length, top = its.slice(0, Math.max(3, ncb6));
+        out += top.map(function (it) { return it.html; }).join('') + (its.length > top.length ? '<button type="button" class="cc-more" data-day="' + d + '">See all ' + evs.length + ' that day &rsaquo;</button>' : '');
+      }
     } else {
-      var evs = (S.byDate[S.sel] || []).filter(visible).sort(sortDay);
-      out = '<div class="cc-dh">' + longDate(S.sel) + '</div>' + (evs.length ? evs.map(card).join('') : '<div class="cc-empty">Nothing on the calendar this day.</div>');
+      var de = dayEvents(S.sel);
+      out = '<div class="cc-dh">' + longDate(S.sel) + ' &middot; ' + de.length + ' event' + (de.length === 1 ? '' : 's') + '</div>' +
+        (de.length ? (S.mode === 'all' && !S.org ? groupDay(S.sel, de, GROUP_LIMIT) : flatDay(S.sel, de, 8)) : '<div class="cc-empty">Nothing on the calendar this day.</div>');
     }
     $('.cc-list').innerHTML = out;
   }
 
-  function renderAll() { renderModes(); renderOrgs(); renderGrid(); renderList(); }
+  function renderAll() { renderViews(); renderModes(); renderOrgs(); renderGrid(); renderList(); }
+  function setSel(d) { S.sel = d; var x = parse(d); S.ym = { y: x.getFullYear(), m: x.getMonth() }; }
 
   root.addEventListener('click', function (ev) {
     var t = ev.target.closest('button,[role=button]');
     if (!t || !root.contains(t)) return;
+    if (t.dataset.view) { S.view = t.dataset.view; if (S.view === 'today') setSel(nyToday()); if (S.q) { S.q = ''; input.value = ''; } savePrefs(); renderAll(); return; }
     if (t.dataset.mode) { S.mode = t.dataset.mode; S.org = null; savePrefs(); renderAll(); return; }
+    if (t.classList.contains('cc-orgtoggle')) { S.orgsOpen = !S.orgsOpen; renderOrgs(); return; }
     if (t.dataset.org !== undefined && t.classList.contains('cc-chip')) {
       var ty = t.dataset.org;
       if (ev.detail === 2 && ty) { if (S.hidden[ty]) delete S.hidden[ty]; else S.hidden[ty] = 1; if (S.org === ty) S.org = null; savePrefs(); renderAll(); return; }
@@ -274,12 +414,24 @@
       else S.org = S.org === ty ? null : ty;
       renderAll(); return;
     }
-    if (t.dataset.n) { var m = S.ym.m + +t.dataset.n, y = S.ym.y; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } S.ym = { y: y, m: m }; S.sel = ds(y, m, 1); var td = nyToday(); if (td.slice(0, 7) === S.sel.slice(0, 7)) S.sel = td; renderAll(); return; }
-    if (t.dataset.d) { S.sel = t.dataset.d; if (S.q) { S.q = ''; input.value = ''; savePrefs(); } renderGrid(); renderList(); return; }
+    if (t.dataset.exp) { S.exp[t.dataset.exp] = 1; renderList(); return; }
+    if (t.dataset.umb) { var uk = t.dataset.umb; if (S.exp[uk]) delete S.exp[uk]; else S.exp[uk] = 1; renderList(); return; }
+    if (t.dataset.n) {
+      var n = +t.dataset.n, v = view();
+      if (v === 'month') { var m = S.ym.m + n, y = S.ym.y; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } S.ym = { y: y, m: m }; S.sel = ds(y, m, 1); var td = nyToday(); if (td.slice(0, 7) === S.sel.slice(0, 7)) S.sel = td; }
+      else { setSel(addDays(S.sel, v === 'week' ? 7 * n : n)); if (S.view === 'today') S.view = 'day'; }
+      renderAll(); return;
+    }
+    if (t.dataset.day) { setSel(t.dataset.day); S.view = 'day'; savePrefs(); renderAll(); root.querySelector('.cc-list').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+    if (t.dataset.d) {
+      setSel(t.dataset.d); if (S.q) { S.q = ''; input.value = ''; savePrefs(); }
+      if (S.view === 'today') S.view = 'day';
+      renderAll(); return;
+    }
     if (t.classList.contains('cc-clear')) { S.q = ''; input.value = ''; savePrefs(); renderAll(); return; }
     if (t.classList.contains('cc-card') && !ev.target.closest('a')) { t.classList.toggle('open'); t.setAttribute('aria-expanded', t.classList.contains('open')); }
   });
-  root.addEventListener('keydown', function (ev) { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.classList && ev.target.classList.contains('cc-card')) { ev.preventDefault(); ev.target.click(); } });
+  root.addEventListener('keydown', function (ev) { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.classList && (ev.target.classList.contains('cc-card') || ev.target.classList.contains('cc-umbh'))) { ev.preventDefault(); ev.target.click(); } });
   var qt;
   input.addEventListener('input', function () { clearTimeout(qt); qt = setTimeout(function () { S.q = input.value.trim(); savePrefs(); renderAll(); }, 150); });
 
@@ -290,11 +442,13 @@
   ]).then(function (both) {
     var d = both[0], a = both[1], today0 = nyToday();
     S.types = Object.assign({}, a.types || {}, d.types || {});
+    Object.keys(d.cats || {}).forEach(function (c) { S.cats[c] = {}; d.cats[c].forEach(function (k) { S.cats[c][k] = 1; }); });
     S.events = (a.events || []).filter(function (e) { return e.d < today0; }).concat((d.events || []).filter(function (e) { return e.d >= today0; }));
     S.events.forEach(function (e) { (S.byDate[e.d] = S.byDate[e.d] || []).push(e); });
     var today = nyToday(), t = parse(today);
     S.ym = { y: t.getFullYear(), m: t.getMonth() };
     S.sel = today;
+    if (S.view === 'day') S.view = 'today';
     renderLead(); renderAll();
     window.dispatchEvent(new Event('resize'));
   }).catch(function () { $('.cc-list').innerHTML = '<div class="cc-empty">The calendar could not load. Reload the page to try again.</div>'; });

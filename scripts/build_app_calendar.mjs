@@ -44,6 +44,8 @@ const EVENTS = grab('EVENTS');
 const TYPES = grab('TYPES');
 const ORG_ICONS = grab('ORG_ICONS');
 const SUPPRESSED_LIVE = grab('SUPPRESSED_LIVE');
+// The calendar's categories (CB6, Arts, Food & Markets, Civic, Parks, Community), by calendar type key, for the web calendars that filter by them.
+const CATS = Object.fromEntries(Object.entries(grab('CAT_TYPES')).map(([c, set]) => [c, [...set].sort()]));
 
 const ent = s => String(s || '').replace(/&amp;/g, '&').replace(/&#39;|&rsquo;/g, '’').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 const TYPE_NAMES = {};
@@ -281,7 +283,7 @@ const write = (rel, obj) => {
   return true;
 };
 const changed = [];
-if (write('civic/cal/calendar-bk.json', { types, events: bk })) changed.push('civic/cal/calendar-bk.json');
+if (write('civic/cal/calendar-bk.json', { types, cats: CATS, events: bk })) changed.push('civic/cal/calendar-bk.json');
 if (write('civic/cal/calendar-city.json', { types: cityTypes, events: city })) changed.push('civic/cal/calendar-city.json');
 fs.writeFileSync(TYPEMAP_FILE, JSON.stringify(Object.fromEntries(Object.entries(typeMap).filter(([k]) => !GENERIC.has(k)).sort()), null, 1) + '\n');
 
