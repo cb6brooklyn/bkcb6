@@ -391,7 +391,7 @@
       }
     } else {
       var de = dayEvents(S.sel);
-      out = '<div class="cc-dh">' + longDate(S.sel) + ' &middot; ' + de.length + ' event' + (de.length === 1 ? '' : 's') + '</div>' +
+      out = '<div class="cc-dh">' + de.length + ' event' + (de.length === 1 ? '' : 's') + '</div>' +
         (de.length ? (S.mode === 'all' && !S.org ? groupDay(S.sel, de, GROUP_LIMIT) : flatDay(S.sel, de, 8)) : '<div class="cc-empty">Nothing on the calendar this day.</div>');
     }
     $('.cc-list').innerHTML = out;
