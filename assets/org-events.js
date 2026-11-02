@@ -262,7 +262,7 @@
       var rows = [], seen = new Set();
       Object.keys(EVENTS).sort().forEach(function(key){
         (EVENTS[key] || []).forEach(function(ev){
-          if(!ev || ev.type !== window.ORG || !ev.label) return;
+          if(!ev || (ev.type !== window.ORG && (ev.orgs||[]).indexOf(window.ORG)<0) || !ev.label) return;
           var k = key + '|' + ev.label.replace(/\s+/g,' ').trim().toLowerCase();
           if(seen.has(k)) return;
           seen.add(k);
