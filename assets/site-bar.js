@@ -5,6 +5,17 @@
    Section rules are written by tools/build_site_index.py; edit them there. */
 (function () {
   'use strict';
+  // The credit line at the bottom of every page (not inside frames or ?embed= pages).
+  (function () {
+    try { if (self !== top || /[?&]embed=/.test(location.search || '') || document.documentElement.hasAttribute('data-nocredit')) return; } catch (e) { return; }
+    var mount = function () {
+      if (document.getElementById('bk-credit') || !document.body) return;
+      var d = document.createElement('div'); d.id = 'bk-credit'; d.textContent = 'Designed and developed by Mike Racioppo';
+      d.style.cssText = 'font:400 11px/1.4 "DM Mono",ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em;color:#8a8a99;text-align:center;padding:18px 16px 22px;clear:both;position:relative';
+      document.body.appendChild(d);
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
+  })();
   function inApp() {
     try {
       var q = location.search || '';
