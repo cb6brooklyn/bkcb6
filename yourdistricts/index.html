@@ -69,6 +69,24 @@ h1{margin:4px 0 0;font-size:1.5rem;line-height:1.15}
 .dlogo{background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.25);overflow:hidden;border:1.5px solid #fff}
 .dlogo img{width:100%;height:100%;object-fit:contain;display:block}
 .foot{font-size:.75rem;color:var(--muted);padding:14px 14px 0}
+.elhd{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.site{display:flex;gap:12px;align-items:center;background:#fff;border:1.5px solid var(--orange);border-radius:14px;padding:12px;margin-top:4px}
+.site img{width:56px;height:56px;border-radius:50%;flex:none}
+.site .st{min-width:0;flex:1}
+.site .st small{display:block;font:500 .66rem var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--orange)}
+.site .st b{font-size:1rem;display:block}
+.site .st span{display:block;font-size:.88rem;color:var(--muted)}
+.site .st a{display:inline-block;margin-top:4px;font-weight:700;color:var(--navy)}
+.ballot{display:grid;gap:8px;margin-top:10px}
+.race{background:#fff;border:1px solid var(--border);border-left:4px solid var(--c,#0d1b4b);border-radius:0 10px 10px 0;padding:9px 12px}
+.race small{display:block;font:500 .64rem var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.race b{display:block;font-size:.95rem;margin:1px 0 4px}
+.race .c{font-size:.86rem;line-height:1.4}
+.race .c span{color:var(--muted)}
+.race a{color:var(--navy);font-weight:700}
+.qs{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.qs a{font:600 .78rem 'DM Sans',sans-serif;padding:6px 10px;border-radius:999px;border:1.5px solid var(--orange);color:var(--navy);text-decoration:none;background:#fff}
+.votedpin{filter:drop-shadow(0 1px 3px rgba(0,0,0,.35))}
 </style>
 </head><body><script src="/assets/site-bar.js?v=1" defer></script>
 <div class="wrap">
@@ -101,6 +119,7 @@ h1{margin:4px 0 0;font-size:1.5rem;line-height:1.15}
         <span><i style="background:#f47920;opacity:.5"></i>Your election district</span>
         <span><i style="background:linear-gradient(135deg,#06024e 50%,#f28f2a 50%)"></i>Each district in the colors of its own logo; boroughs in their seal colors</span>
         <span><i style="background:#fff url(/elected/CB6_540.png) center/cover;border:1px solid #ccc"></i>Logos appear as you zoom in</span>
+        <span><i style="background:#fff url(/assets/map-icons/voted-bkcb6.png) center/cover;border-radius:50%"></i>Your Election Day poll site</span>
       </div></details>
     </div>
   </div>
@@ -114,6 +133,14 @@ h1{margin:4px 0 0;font-size:1.5rem;line-height:1.15}
   <div class="sec" id="ringsec">
     <h2 id="ringhd">Your districts</h2>
     <div class="rings" id="rings"><p class="note">Search, use your location or tap the map to start.</p></div>
+  </div>
+
+  <div class="sec" id="elsec" hidden>
+    <div class="elhd"><h2>Election Day</h2><button type="button" class="chip on" id="elchip" style="--c:#f47920"><i></i>Poll site and ballot</button></div>
+    <div id="elbody">
+      <div class="site" id="site"></div>
+      <div class="ballot" id="ballot"></div>
+    </div>
   </div>
 
   <p class="foot">Election districts: NYC Board of Elections, via the Department of City Planning. Districts: the State Board of Elections certification for November 3, 2026 and the NYC Board of Elections contest list for each election district. Council districts and community boards are matched to election districts by area.</p>
@@ -140,7 +167,7 @@ var map=L.map('map',{preferCanvas:true,zoomControl:false,scrollWheelZoom:false})
 L.control.zoom({position:'topright'}).addTo(map);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{subdomains:'abcd',maxZoom:20,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
 var canvas=L.canvas({padding:.3});
-var EDS=null,LAY=null,D=null,byId={},boxes=[],edLayer=null,kindLayers={},logoLayers={},mine={},pin=null,on={ed:true},onAll={},cur=null,scope='all';
+var EDS=null,LAY=null,D=null,byId={},boxes=[],edLayer=null,kindLayers={},logoLayers={},mine={},pin=null,on={ed:true},onAll={},cur=null,scope='all',PS=null,B=null,siteMk=null,elOn=true;
 
 function bbox(g){var a=[180,90,-180,-90];(function w(c){if(typeof c[0]==='number'){if(c[0]<a[0])a[0]=c[0];if(c[1]<a[1])a[1]=c[1];if(c[0]>a[2])a[2]=c[0];if(c[1]>a[3])a[3]=c[1]}else c.forEach(w)})(g.coordinates);return a}
 function inRing(x,y,r){var c=false;for(var i=0,j=r.length-1;i<r.length;j=i++){var xi=r[i][0],yi=r[i][1],xj=r[j][0],yj=r[j][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c}return c}
@@ -189,7 +216,7 @@ function layers(fit){
       else{if(kindLayers[l.k])map.removeLayer(kindLayers[l.k]);if(logoLayers[l.k])map.removeLayer(logoLayers[l.k])}});
     var shown=[];L_.slice().reverse().forEach(function(l){if(!on[l.k]||!myId(l.k))return;var g=mineLayer(l.k);if(g){g.addTo(map);g.eachLayer(function(x){if(x.bringToFront)x.bringToFront()});shown.push(g)}});
     if(fit&&shown.length){var b=null;shown.forEach(function(g){b=b?b.extend(g.getBounds()):g.getBounds()});map.fitBounds(b,{padding:[20,20],maxZoom:16})}
-    if(pin)pin.bringToFront();return;
+    if(pin)pin.bringToFront();if(siteMk&&elOn)siteMk.addTo(map);return;
   }
   if(edLayer){if(on.ed&&z>=13)edLayer.addTo(map);else map.removeLayer(edLayer)}
   L_.forEach(function(l){if(l.k==='ed'||!LAY)return;
@@ -212,7 +239,29 @@ function setHash(){try{if(cur){var ks=L_.filter(function(l){return on[l.k]&&myId
 function setPin(lat,lng){if(pin)map.removeLayer(pin);pin=L.circleMarker([lat,lng],{renderer:canvas,radius:7,color:'#fff',weight:2,fillColor:'#0d1b4b',fillOpacity:1}).addTo(map)}
 function msg(h){document.getElementById('msg').innerHTML=h}
 function res(h){var r=document.getElementById('res');r.style.display=h?'block':'none';r.innerHTML=h||''}
-function startFrom(p,label,fit){cur=p;scope='mine';onAll={};pickOutline(null);for(var key in mine){map.removeLayer(mine[key])}mine={};
+function raceHtml(r,k,v){var d=k&&v?info(k,v):{s:'#0d1b4b'};return '<div class="race" style="--c:'+d.s+'"><small>'+esc(r.d||'')+(r.vf>1?' · vote for '+r.vf:'')+'</small><b>'+esc(r.o||r.t)+'</b><div class="c">'+r.c.map(function(c){return esc(c[0])+' <span>('+esc((c[1]||[]).join(', '))+')</span>'}).join('<br>')+'</div></div>'}
+function election(p){
+  var el=document.getElementById('elsec'),st=document.getElementById('site'),bl=document.getElementById('ballot');el.hidden=false;
+  if(siteMk){map.removeLayer(siteMk);siteMk=null}
+  var pair=PS&&PS.d[p.id],s=pair&&PS.s[pair[0]];
+  if(s){var addr=s[1].replace(/,\s*NY\s*\d{5}$/,'');
+    st.innerHTML='<img src="/assets/map-icons/voted-bkcb6.png" alt=""><div class="st"><small>Election Day · Tuesday, November 3 · 6 AM to 9 PM</small><b>'+esc(s[0])+'</b><span>'+esc(addr)+(s[4]?' · '+esc(s[4]):'')+'</span>'+(s[2]&&s[2]!==s[3]?'<span>Enter at '+esc(s[2])+'</span>':'')+'<a href="https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(s[1])+'" target="_blank" rel="noopener">Directions ↗</a></div>';
+    var lat=+s[5],lng=+s[6];if(lat&&lng){siteMk=L.marker([lat,lng],{icon:L.divIcon({className:'votedpin',html:'<img src="/assets/map-icons/voted-bkcb6.png" style="width:44px;height:44px;border-radius:50%">',iconSize:[44,44],iconAnchor:[22,22]})});siteMk.bindTooltip('<span><small>Your Election Day poll site</small>'+esc(s[0])+'</span>',{className:'dtip',direction:'top',offset:[0,-24]});if(elOn)siteMk.addTo(map)}
+  }else st.innerHTML='<div class="st"><small>Election Day</small><b>No poll site on file for this election district.</b><span>Check <a href="https://findmypollsite.vote.nyc/" target="_blank" rel="noopener">findmypollsite.vote.nyc</a>.</span></div>';
+  if(!B){bl.innerHTML='';return}
+  var h='';
+  (B.state||[]).forEach(function(r){h+=raceHtml(r)});
+  if(p.cd&&B.cd[p.cd])h+=raceHtml(B.cd[p.cd],'cd',p.cd);
+  if(p.sd&&B.sd[p.sd])h+=raceHtml(B.sd[p.sd],'sd',p.sd);
+  if(p.ad&&B.ad[p.ad])h+=raceHtml(B.ad[p.ad],'ad',p.ad);
+  if(p.cc&&B.ccl&&B.ccl[p.cc])h+=raceHtml(B.ccl[p.cc],'cc',p.cc);
+  [B.sur,B.sc,B.ccc].forEach(function(o){if(o&&o[p.bo])h+=raceHtml(o[p.bo],'bo',p.bo)});
+  if(p.mc&&B.ccd&&B.ccd[p.mc])h+=raceHtml(B.ccd[p.mc],'mc',p.mc);
+  h+='<div class="race" style="--c:#f47920"><small>Back of the ballot · every NYC voter</small><b>Five City Charter questions</b><div class="qs">'+[1,2,3,4,5].map(function(n){return '<a href="/vote/#q'+n+'">Question '+n+'</a>'}).join('')+'</div></div>';
+  bl.innerHTML=h;
+}
+document.getElementById('elchip').onclick=function(){elOn=!elOn;this.classList.toggle('on',elOn);document.getElementById('elbody').style.display=elOn?'':'none';if(siteMk){if(elOn)siteMk.addTo(map);else map.removeLayer(siteMk)}};
+function startFrom(p,label,fit){cur=p;scope='mine';onAll={};pickOutline(null);for(var key in mine){map.removeLayer(mine[key])}mine={};election(p);
   on={ed:true,ad:true,sd:true,cd:true,cc:true,mc:false,cb:true,bo:false};
   res((label?'<b>'+esc(label)+'</b> · ':'')+esc(edName(p.id))+' · '+esc(info('cb',p.cb).n));
   rings(p);chips();layers(fit);setHash();
@@ -221,7 +270,7 @@ function atPoint(lat,lng,label){if(!EDS)return;setPin(lat,lng);var f=hit(lat,lng
   if(!f){res('<b>That point is not inside a New York City election district.</b>');return}
   startFrom(f.properties,label,true)}
 function selectDistrict(k,v){
-  cur=null;scope='all';for(var key in mine)map.removeLayer(mine[key]);pick.k=k;pick.v=v;
+  cur=null;scope='all';document.getElementById('elsec').hidden=true;if(siteMk){map.removeLayer(siteMk);siteMk=null}for(var key in mine)map.removeLayer(mine[key]);pick.k=k;pick.v=v;
   if(!on[k]){on[k]=true}chips();layers(false);pickOutline(k,v,true);setHash();var d=info(k,v);
   var eds=[];for(var id in byId)if(byId[id].properties[k]===v)eds.push(byId[id].properties);
   var el=document.getElementById('rings');document.getElementById('ringhd').textContent=d.n;
@@ -260,8 +309,8 @@ document.getElementById('go').onclick=function(){var a=document.getElementById('
 document.getElementById('loc').onclick=function(){if(!navigator.geolocation){msg('Location is not available on this device.');return}msg('Finding you…');
   navigator.geolocation.getCurrentPosition(function(p){msg('Or tap anywhere on the map.');atPoint(p.coords.latitude,p.coords.longitude,'Your location')},function(){msg('Location was not shared. Search an address or tap the map.')},{enableHighAccuracy:true,timeout:10000})};
 
-Promise.all([fetch('/electionexplainer/map/eds.geojson').then(function(r){return r.json()}),fetch('/electionexplainer/map/layers.json').then(function(r){return r.json()}),fetch('districts.json').then(function(r){return r.json()})]).then(function(a){
-  EDS=a[0];LAY=a[1];D=a[2];
+Promise.all([fetch('/electionexplainer/map/eds.geojson').then(function(r){return r.json()}),fetch('/electionexplainer/map/layers.json').then(function(r){return r.json()}),fetch('districts.json').then(function(r){return r.json()}),fetch('/electionexplainer/pollsites.json').then(function(r){return r.json()}).catch(function(){return null}),fetch('/electionexplainer/ballot.json').then(function(r){return r.json()}).catch(function(){return null})]).then(function(a){
+  EDS=a[0];LAY=a[1];D=a[2];PS=a[3];B=a[4];
   EDS.features.forEach(function(f){byId[f.properties.id]=f;var b=bbox(f.geometry);b.push(f);boxes.push(b)});
   edLayer=L.geoJSON(EDS,{renderer:canvas,interactive:false,style:{color:'#f47920',weight:.7,opacity:.6,fillOpacity:0}});
   chips();layers();fillPick();
