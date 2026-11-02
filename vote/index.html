@@ -6,7 +6,7 @@
 <title>Vote: where, who and what is on your ballot &mdash; bkcb6.app</title>
 <meta name="description" content="Type in your address, drop a pin or tap the map: where you vote on November 3, your districts, every race and candidate on your ballot, and the five City Charter questions.">
 <link rel="canonical" href="https://bkcb6.app/vote/">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="/assets/vendor/leaflet-1.9.4/leaflet.css">
 <meta property="og:type" content="website"><meta property="og:site_name" content="Brooklyn Community Board 6">
 <meta property="og:title" content="Vote: where, who and what is on your ballot">
 <meta property="og:description" content="Type in your address, drop a pin or tap the map: where you vote on November 3, your districts, every race and candidate on your ballot, and the five City Charter questions.">
@@ -311,6 +311,7 @@ header .stk{grid-row:2/4}
 .mchip{font:600 .78rem 'DM Sans',sans-serif;padding:6px 10px;border-radius:999px;border:1.5px solid var(--c);background:#fff;color:#0d1b4b;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .mchip i{width:10px;height:10px;border-radius:2px;background:var(--c)}
 .mchip.on{background:var(--c);color:#fff}.mchip.on i{background:#fff}
+.stlab{font:500 10px "DM Sans",sans-serif;color:#8a8a99;letter-spacing:.02em}
 .rings{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 .ring{border:0;border-left:4px solid var(--c);padding:8px 10px;border-radius:0 8px 8px 0;background:#fff;cursor:pointer;text-align:left;font:inherit;color:#0d1b4b}
 .ring:hover,.ring.sel{background:var(--tint)}
@@ -727,6 +728,7 @@ fetch('/electionexplainer/ballot.json').then(function(r){return r.json();}).then
 }).catch(function(){out.innerHTML='<p class="note">The ballot data did not load. Reload the page to try again.</p>';});
 document.getElementById('addrForm').addEventListener('submit',function(e){
   e.preventDefault(); var t=document.getElementById('addr').value.trim(); if(!t||!D) return;
+  if(navigator.onLine===false||window.__bkcbOffline===true){ msg.innerHTML='<b>No connection.</b> Address search needs one. Use my location or tap the map: your poll site, districts and ballot are on this phone.'; return; }
   msg.textContent='Looking up your districts…';
   fetch('https://geosearch.planninglabs.nyc/v2/search?size=1&text='+encodeURIComponent(t)).then(function(r){return r.json();}).then(function(g){
     var f=g.features&&g.features[0], p=f&&f.properties;
@@ -743,7 +745,7 @@ document.getElementById('addrForm').addEventListener('submit',function(e){
       var go=function(){ render(null,{ed:edk,cd:cd,sd:sd,ad:ad,boro:boro,cc:String(parseInt(a.cityCouncilDistrict,10)),mc:String(a.civilCourtDistrict||'').padStart(2,'0')}); };
       if(window.EDS) go(); else fetch('/electionexplainer/eds.json').then(function(r){return r.json();}).then(function(x){window.EDS=x;go();}).catch(go);
     });
-  }).catch(function(){ msg.innerHTML='<b>The address lookup did not respond.</b> Try again, or pick a community board instead.'; });
+  }).catch(function(){ msg.innerHTML='<b>The address lookup did not respond.</b> Use my location or tap the map, or pick a community board instead.'; });
 });
 })();
 </script>
@@ -768,7 +770,7 @@ document.getElementById('addrForm').addEventListener('submit',function(e){
 })();
 </script>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/assets/vendor/leaflet-1.9.4/leaflet.js"></script>
 <script>
 (function(){
 var L_=[{k:'ed',n:'Election District',p:'Election districts',c:'#f47920'},{k:'ad',n:'Assembly District',p:'Assembly',c:'#1d4ed8'},{k:'sd',n:'State Senate District',p:'State Senate',c:'#7c3aed'},{k:'cd',n:'Congressional District',p:'Congress',c:'#0f766e'},{k:'cc',n:'City Council District',p:'City Council',c:'#be185d'},{k:'mc',n:'Civil Court District',p:'Civil Court',c:'#92400e'},{k:'cb',n:'Community Board',p:'Community boards',c:'#ea580c'},{k:'bo',n:'Borough',p:'Boroughs',c:'#0d1b4b'}];
@@ -778,7 +780,21 @@ function ord(n){n=+n;var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]|
 function name(k,v){if(!v)return '';if(k==='ed')return 'AD '+(+v.slice(0,2))+' · ED '+v.slice(2);if(k==='ad')return 'Assembly District '+v;if(k==='sd')return 'Senate District '+v;if(k==='cd')return 'Congressional District '+v;if(k==='cc')return 'Council District '+v;if(k==='mc'){var p=v.split('|');return ord(+p[1])+' Municipal Court District, '+(BN[p[0]]||p[0])}if(k==='cb')return (CBB[v[0]]||'')+' Community Board '+(+v.slice(1));if(k==='bo')return BN[v]||v;return v}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 var map=L.map('vmap',{preferCanvas:true,scrollWheelZoom:false}).setView([40.676,-73.995],13);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:19}).addTo(map);
+var tiles=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:19}).addTo(map);
+// Offline: the streets of CB6 and around it from the packed basemap, so the map still reads without tiles.
+var streetsOn=false;
+function streets(){if(streetsOn)return;streetsOn=true;fetch('/app/data/civic/basemap/cb6-basemap.json').then(function(r){return r.json()}).then(function(b){
+  var g=L.layerGroup();
+  (b.land||[]).forEach(function(poly){g.addLayer(L.polygon(poly.map(function(c){return [c[1],c[0]]}),{renderer:canvas,interactive:false,stroke:false,fillColor:'#f1efe9',fillOpacity:1}))});
+  (b.streets||[]).forEach(function(st){g.addLayer(L.polyline(st.l.map(function(c){return [c[1],c[0]]}),{renderer:canvas,interactive:false,color:st.c>=2?'#c9c6bd':'#dcd9d1',weight:st.c>=2?2.2:1.2,opacity:1}))});
+  var lab=L.layerGroup();
+  (b.labels||[]).forEach(function(x){if(x.c<2&&x.L<0.006)return;lab.addLayer(L.marker([x.p[1],x.p[0]],{interactive:false,icon:L.divIcon({className:'stlab',html:'<span style="display:inline-block;transform:rotate('+(-(x.a||0))+'deg);white-space:nowrap">'+esc(x.n)+'</span>',iconSize:[0,0]})}))});
+  g.addTo(map);g.setZIndex&&g.setZIndex(0);map.on('zoomend',function(){if(map.getZoom()>=14)lab.addTo(map);else map.removeLayer(lab)});if(map.getZoom()>=14)lab.addTo(map);
+  map.getContainer().style.background='#faf8f4';
+}).catch(function(){})}
+tiles.on('tileerror',streets);
+if(window.__bkcbOffline===true||navigator.onLine===false)streets();
+window.addEventListener('offline',streets);
 var canvas=L.canvas({padding:.3}),EDS=null,LAY=null,byId={},boxes=[],outl={},hi=null,pin=null,edLayer=null,on={ed:true};
 function bbox(g){var a=[180,90,-180,-90];(function w(c){if(typeof c[0]==='number'){if(c[0]<a[0])a[0]=c[0];if(c[1]<a[1])a[1]=c[1];if(c[0]>a[2])a[2]=c[0];if(c[1]>a[3])a[3]=c[1]}else c.forEach(w)})(g.coordinates);return a}
 function inRing(x,y,r){var c=false;for(var i=0,j=r.length-1;i<r.length;j=i++){var xi=r[i][0],yi=r[i][1],xj=r[j][0],yj=r[j][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c}return c}
