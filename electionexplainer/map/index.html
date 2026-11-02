@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en"><head><meta name="apple-itunes-app" content="app-id=6813967208"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Your districts, from your election district outward | bkcb6.app</title>
+<meta name="description" content="Every New York City election district and the districts it sits in: Assembly, State Senate, Congress, City Council, Civil Court, community board and borough, with what is on the November 3, 2026 ballot for each.">
+<link rel="canonical" href="https://bkcb6.app/electionexplainer/map/">
+<meta property="og:title" content="Your districts, from your election district outward">
+<meta property="og:description" content="Search an address, drop a pin or tap the map: your election district, then every district around it, with what is on your ballot.">
+<meta property="og:image" content="https://bkcb6.app/electionexplainer/og.jpg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--navy:#0d1b4b;--orange:#f47920;--paper:#f8f7f4;--line:#e5e2db;--muted:#6b6760;--mono:'DM Mono',ui-monospace,Menlo,monospace}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--navy);font-family:'DM Sans',-apple-system,system-ui,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:16px}
+.kick{font:500 .72rem var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--orange)}
+h1{font-size:1.55rem;line-height:1.15;margin:6px 0 6px}
+.lede{color:var(--muted);font-size:.95rem;margin:0 0 12px;max-width:70ch}
+.search{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.search input{flex:1 1 240px;min-width:0;padding:11px 12px;font:inherit;border:1px solid var(--line);border-radius:8px;background:#fff}
+.search button{font:700 .9rem 'DM Sans',sans-serif;padding:10px 16px;border-radius:8px;border:0;background:var(--navy);color:#fff;cursor:pointer}
+.search button.alt{background:#fff;color:var(--navy);border:1px solid var(--navy)}
+.msg{font-size:.85rem;color:var(--muted);min-height:1.2em;margin-bottom:8px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:14px}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+#map{height:620px;border-radius:12px;border:1px solid var(--line);background:#eee}
+@media(max-width:860px){#map{height:440px}}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.chip{font:600 .78rem 'DM Sans',sans-serif;padding:6px 10px;border-radius:999px;border:1.5px solid var(--c);background:#fff;color:var(--navy);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.chip i{width:10px;height:10px;border-radius:2px;background:var(--c);display:inline-block}
+.chip.on{background:var(--c);color:#fff}
+.chip.on i{background:#fff}
+.pick{display:flex;gap:6px;margin:0 0 10px;flex-wrap:wrap}
+.pick select{font:inherit;font-size:.85rem;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--navy);flex:1 1 140px;min-width:0}
+.panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;max-height:620px;overflow:auto}
+@media(max-width:860px){.panel{max-height:none}}
+.panel h2{font-size:1.05rem;margin:0 0 4px}
+.panel .sub{font:500 .72rem var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.ring{border-left:4px solid var(--c);padding:8px 10px;margin:0 0 8px;border-radius:0 8px 8px 0;background:var(--paper);cursor:pointer}
+.ring:hover,.ring.sel{background:#fff3e8}
+.ring .rt{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.ring .rk{font:500 .68rem var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.ring .rn{font-weight:800;font-size:.98rem}
+.ring .race{font-size:.82rem;margin-top:4px;line-height:1.35}
+.ring .race b{font-weight:700}
+.ring .race span{color:var(--muted)}
+.ring .none{font-size:.78rem;color:var(--muted);margin-top:3px}
+.empty{color:var(--muted);font-size:.9rem}
+.foot{font-size:.75rem;color:var(--muted);margin-top:12px}
+.foot a,.lede a{color:var(--navy)}
+.leaflet-tooltip.edtip{font:600 12px 'DM Sans',sans-serif;color:var(--navy)}
+</style>
+</head><body>
+<div class="wrap">
+  <div class="kick">November 3, 2026 · Election explainer</div>
+  <h1>Your districts, from your election district outward</h1>
+  <p class="lede">Search an address, drop a pin or tap anywhere in the five boroughs. You get your election district, then each district around it, out to the borough, with what is on the ballot for each one. Pick any district below to see someone else's. <a href="/electionexplainer/">Back to the explainer</a></p>
+  <form class="search" id="f" autocomplete="off">
+    <input id="q" type="search" placeholder="Type an address, e.g. 250 Baltic Street" aria-label="Address">
+    <button type="submit">Find</button>
+    <button type="button" class="alt" id="loc">Use my location</button>
+  </form>
+  <div class="msg" id="msg">Loading every election district in the city…</div>
+  <div class="chips" id="chips"></div>
+  <div class="pick">
+    <select id="pl" aria-label="Kind of district"></select>
+    <select id="pv" aria-label="District"></select>
+  </div>
+  <div class="grid">
+    <div id="map"></div>
+    <div class="panel" id="panel"><p class="empty">Tap the map or search an address to start with an election district.</p></div>
+  </div>
+  <p class="foot">Election districts: NYC Board of Elections, via the Department of City Planning (redistricting as of the 2020 Census). Races and candidates: New York State Board of Elections certification of October 7, 2026, and the NYC Board of Elections contest list for each election district. Council districts and community boards are matched to election districts by area.</p>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function(){
+var L_=[
+ {k:'ed',n:'Election District',c:'#f47920'},
+ {k:'ad',n:'Assembly District',c:'#1d4ed8'},
+ {k:'sd',n:'State Senate District',c:'#7c3aed'},
+ {k:'cd',n:'Congressional District',c:'#0f766e'},
+ {k:'cc',n:'City Council District',c:'#be185d'},
+ {k:'mc',n:'Civil Court District',c:'#92400e'},
+ {k:'cb',n:'Community Board',c:'#ea580c'},
+ {k:'bo',n:'Borough',c:'#0d1b4b'}];
+var LK={};L_.forEach(function(l){LK[l.k]=l});
+var BNAME={MANHATTAN:'Manhattan',BRONX:'The Bronx',BROOKLYN:'Brooklyn',QUEENS:'Queens','STATEN ISLAND':'Staten Island'};
+var CBB={'1':'Manhattan','2':'Bronx','3':'Brooklyn','4':'Queens','5':'Staten Island'};
+var JD={MANHATTAN:'1st',BRONX:'12th',BROOKLYN:'2nd',QUEENS:'11th','STATEN ISLAND':'13th'};
+function ord(n){n=+n;var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
+function name(k,v){
+  if(!v) return '';
+  if(k==='ed') return 'AD '+v.slice(0,2).replace(/^0/,'')+' · ED '+v.slice(2);
+  if(k==='ad') return 'Assembly District '+v;
+  if(k==='sd') return 'Senate District '+v;
+  if(k==='cd') return 'Congressional District '+v;
+  if(k==='cc') return 'Council District '+v;
+  if(k==='mc'){var p=v.split('|');return ord(+p[1])+' Municipal Court District, '+(BNAME[p[0]]||p[0])}
+  if(k==='cb') return (CBB[v[0]]||'')+' Community Board '+(+v.slice(1));
+  if(k==='bo') return BNAME[v]||v;
+  return v;
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+
+var map=L.map('map',{zoomControl:true,preferCanvas:true}).setView([40.705,-73.95],11);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:19}).addTo(map);
+var canvas=L.canvas({padding:.3});
+var EDS=null,LAY=null,B=null,edLayer=null,byId={},boxes=[],outlines={},hi=null,pin=null,sel=null,focusK=null;
+var on={ed:true,ad:false,sd:false,cd:false,cc:false,mc:false,cb:false,bo:false};
+
+function bbox(g){var a=[180,90,-180,-90];(function w(c){if(typeof c[0]==='number'){if(c[0]<a[0])a[0]=c[0];if(c[1]<a[1])a[1]=c[1];if(c[0]>a[2])a[2]=c[0];if(c[1]>a[3])a[3]=c[1];}else c.forEach(w)})(g.coordinates);return a}
+function inRing(x,y,r){var i,j,c=false;for(i=0,j=r.length-1;i<r.length;j=i++){var xi=r[i][0],yi=r[i][1],xj=r[j][0],yj=r[j][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c}return c}
+function inPoly(x,y,p){if(!inRing(x,y,p[0]))return false;for(var h=1;h<p.length;h++)if(inRing(x,y,p[h]))return false;return true}
+function hit(lat,lng){for(var i=0;i<boxes.length;i++){var b=boxes[i];if(lng<b[0]||lng>b[2]||lat<b[1]||lat>b[3])continue;var g=b[4].geometry,ps=g.type==='Polygon'?[g.coordinates]:g.coordinates;for(var j=0;j<ps.length;j++)if(inPoly(lng,lat,ps[j]))return b[4]}return null}
+
+function drawChips(){
+  document.getElementById('chips').innerHTML=L_.map(function(l){return '<button type="button" class="chip'+(on[l.k]?' on':'')+'" data-k="'+l.k+'" style="--c:'+l.c+'"><i></i>'+(l.k==='ed'?'Election districts':l.n.replace('District','Districts').replace('Board','Boards').replace(/Borough$/,'Boroughs'))+'</button>'}).join('');
+  [].forEach.call(document.querySelectorAll('.chip'),function(b){b.onclick=function(){var k=b.dataset.k;on[k]=!on[k];drawChips();showLayers()}});
+}
+function showLayers(){
+  if(edLayer){if(on.ed)edLayer.addTo(map);else map.removeLayer(edLayer)}
+  L_.forEach(function(l){if(l.k==='ed'||!LAY)return;
+    if(on[l.k]){if(!outlines[l.k])outlines[l.k]=L.geoJSON(LAY[l.k],{renderer:canvas,interactive:false,style:{color:l.c,weight:2,opacity:.8,fill:false}});outlines[l.k].addTo(map)}
+    else if(outlines[l.k])map.removeLayer(outlines[l.k]);
+  });
+}
+function feat(k,v){if(!LAY||!LAY[k])return null;var f=LAY[k].features;for(var i=0;i<f.length;i++)if(f[i].properties.id===v)return f[i];return null}
+function highlight(k,v,fit){
+  if(hi){map.removeLayer(hi);hi=null}
+  var f=k==='ed'?byId[v]:feat(k,v);if(!f)return;
+  var c=LK[k].c;
+  hi=L.geoJSON(f,{interactive:false,style:{color:c,weight:k==='ed'?3:3.5,opacity:1,fillColor:c,fillOpacity:k==='ed'?.35:.12}}).addTo(map);
+  if(fit)map.fitBounds(hi.getBounds(),{padding:[24,24],maxZoom:k==="ed"?16:15});
+}
+function races(k,v,p){
+  if(!B)return [];var r=[];
+  if(k==='ad'&&B.ad[v])r.push(B.ad[v]);
+  if(k==='sd'&&B.sd[v])r.push(B.sd[v]);
+  if(k==='cd'&&B.cd[v])r.push(B.cd[v]);
+  if(k==='cc'&&B.ccl&&B.ccl[v])r.push(B.ccl[v]);
+  if(k==='mc'&&B.ccd&&B.ccd[v])r.push(B.ccd[v]);
+  if(k==='bo'){[B.sc,B.ccc,B.sur].forEach(function(o){if(o&&o[v])r.push(o[v])});}
+  return r;
+}
+function raceHtml(r){
+  return '<div class="race"><b>'+esc(r.t)+'</b>'+(r.vf>1?' <span>· vote for '+r.vf+'</span>':'')+'<br>'+r.c.map(function(c){return esc(c[0])+' <span>('+esc((c[1]||[]).join(', '))+')</span>'}).join('<br>')+'</div>';
+}
+function render(p){
+  sel=p;var P=document.getElementById('panel');
+  var rows=[['ed',p.id],['ad',p.ad],['sd',p.sd],['cd',p.cd],['cc',p.cc],['mc',p.mc],['cb',p.cb],['bo',p.bo]];
+  var h='<h2>'+esc(name('ed',p.id))+'</h2><div class="sub">From your election district outward · tap a ring to see it</div>';
+  if(B&&!p.id) {}
+  var st=B?B.state:[];
+  rows.forEach(function(x){
+    var k=x[0],v=x[1],l=LK[k];if(!v&&k!=='mc'&&k!=='cc')return;
+    if(!v){h+='<div class="ring" style="--c:'+l.c+';cursor:default"><div class="rt"><span class="rk">'+l.n+'</span></div><div class="none">No '+(k==='mc'?'Civil Court district race':'Council race')+' on this ballot here.</div></div>';return}
+    var rs=races(k,v,p);
+    h+='<div class="ring" data-k="'+k+'" data-v="'+esc(v)+'" style="--c:'+l.c+'"><div class="rt"><span class="rn">'+esc(name(k,v))+'</span><span class="rk">'+(k==='ed'?'Where you vote from':l.n)+'</span></div>'
+      +(rs.length?rs.map(raceHtml).join(''):(k==='ed'||k==='cb'?'':'<div class="none">No race for this seat on this ballot.</div>'))+'</div>';
+  });
+  h+='<div class="ring" style="--c:#0d1b4b;cursor:default"><div class="rt"><span class="rn">New York State</span><span class="rk">Statewide</span></div>'+st.map(raceHtml).join('')+'<div class="race"><b>Five City Charter questions</b> <span>· on the back of every NYC ballot</span><br><a href="/electionexplainer/#q1" target="_top">What a yes or a no vote does on each</a></div></div>';
+  P.innerHTML=h;
+  [].forEach.call(P.querySelectorAll('.ring[data-k]'),function(el){el.onclick=function(){[].forEach.call(P.querySelectorAll('.ring'),function(x){x.classList.remove('sel')});el.classList.add('sel');focusK=el.dataset.k;highlight(el.dataset.k,el.dataset.v,true);setHash(el.dataset.k,el.dataset.v)}});
+}
+function setHash(k,v){try{history.replaceState(null,'','#'+k+'='+encodeURIComponent(v))}catch(e){}}
+function chooseEd(f,fit){if(!f)return;render(f.properties);highlight('ed',f.properties.id,fit);setHash('ed',f.properties.id)}
+function atPoint(lat,lng,label){
+  var f=hit(lat,lng);
+  if(pin)map.removeLayer(pin);
+  pin=L.circleMarker([lat,lng],{radius:7,color:'#fff',weight:2,fillColor:'#0d1b4b',fillOpacity:1}).addTo(map);
+  if(!f){msg('That point is not inside a New York City election district.');return}
+  msg((label?'<b>'+esc(label)+'</b> · ':'')+esc(name('ed',f.properties.id)));
+  chooseEd(f,true);
+}
+function msg(h){document.getElementById('msg').innerHTML=h}
+function anyDistrict(k,v){
+  // Any district: draw it and list what it overlaps, counted in election districts.
+  highlight(k,v,true);setHash(k,v);sel=null;
+  var eds=[];for(var id in byId)if(byId[id].properties[k]===v)eds.push(byId[id].properties);
+  var l=LK[k],P=document.getElementById('panel');
+  var h='<h2>'+esc(name(k,v))+'</h2><div class="sub">'+eds.length+' election district'+(eds.length===1?'':'s')+' · what it overlaps · tap any one to see it</div>';
+  var rs=races(k,v);h+='<div class="ring" style="--c:'+l.c+';cursor:default"><div class="rt"><span class="rn">'+esc(name(k,v))+'</span><span class="rk">'+l.n+'</span></div>'+(rs.length?rs.map(raceHtml).join(''):'<div class="none">'+(k==='cb'||k==='ed'?'Community boards are not on the ballot.':'No race for this seat on this ballot.')+'</div>')+'</div>';
+  L_.forEach(function(o){if(o.k===k)return;var c={};eds.forEach(function(p){var x=p[o.k];if(x)c[x]=(c[x]||0)+1});var ks=Object.keys(c);if(!ks.length)return;
+    ks.sort(function(a,b){return c[b]-c[a]});
+    if(o.k==='ed'){h+='<div class="ring" style="--c:'+o.c+';cursor:default"><div class="rt"><span class="rn">'+ks.length+' election districts</span><span class="rk">Election District</span></div><div class="none">Tap the map inside it to start from one.</div></div>';return}
+    h+='<div class="ring" style="--c:'+o.c+';cursor:default"><div class="rt"><span class="rk">'+o.n+(ks.length>1?'s':'')+'</span></div>'+ks.map(function(x){return '<div class="race"><a href="#'+o.k+'='+encodeURIComponent(x)+'" data-k="'+o.k+'" data-v="'+esc(x)+'" class="go">'+esc(name(o.k,x))+'</a> <span>· '+c[x]+' of '+eds.length+' EDs</span></div>'}).join('')+'</div>'});
+  P.innerHTML=h;
+  [].forEach.call(P.querySelectorAll('a.go'),function(a){a.onclick=function(e){e.preventDefault();anyDistrict(a.dataset.k,a.dataset.v)}});
+  msg(esc(name(k,v))+' · tap the map inside it to start from an election district');
+}
+function fillPick(){
+  var pl=document.getElementById('pl'),pv=document.getElementById('pv');
+  pl.innerHTML='<option value="">See any district…</option>'+L_.map(function(l){return '<option value="'+l.k+'">'+l.n+'</option>'}).join('');
+  pl.onchange=function(){var k=pl.value;if(!k){pv.innerHTML='';return}
+    var ids=k==='ed'?Object.keys(byId):LAY[k].features.map(function(f){return f.properties.id});
+    ids.sort(function(a,b){return k==='bo'||k==='mc'?a.localeCompare(b):(+a.replace(/\D/g,'')||0)-(+b.replace(/\D/g,'')||0)||a.localeCompare(b)});
+    pv.innerHTML='<option value="">Pick one…</option>'+ids.map(function(i){return '<option value="'+esc(i)+'">'+esc(name(k,i))+'</option>'}).join('');};
+  pv.onchange=function(){var k=pl.value,v=pv.value;if(!k||!v)return;if(k==='ed')chooseEd(byId[v],true);else anyDistrict(k,v)};
+}
+map.on('click',function(e){if(EDS)atPoint(e.latlng.lat,e.latlng.lng)});
+map.on('contextmenu',function(e){if(EDS)atPoint(e.latlng.lat,e.latlng.lng)});
+document.getElementById('f').onsubmit=function(e){e.preventDefault();var t=document.getElementById('q').value.trim();if(!t)return;msg('Looking up that address…');
+  fetch('https://geosearch.planninglabs.nyc/v2/search?size=1&text='+encodeURIComponent(t)).then(function(r){return r.json()}).then(function(g){var f=g.features&&g.features[0];if(!f){msg('<b>No match.</b> Try a street address in one of the five boroughs.');return}
+    var c=f.geometry.coordinates;atPoint(c[1],c[0],f.properties.label)}).catch(function(){msg('The address lookup did not respond. Try again, or tap the map.')})};
+document.getElementById('loc').onclick=function(){if(!navigator.geolocation){msg('Location is not available on this device.');return}msg('Finding you…');
+  navigator.geolocation.getCurrentPosition(function(p){atPoint(p.coords.latitude,p.coords.longitude,'Your location')},function(){msg('Location was not shared. Search an address or tap the map instead.')},{enableHighAccuracy:true,timeout:10000})};
+
+Promise.all([fetch('eds.geojson').then(function(r){return r.json()}),fetch('layers.json').then(function(r){return r.json()}),fetch('../ballot.json').then(function(r){return r.json()}).catch(function(){return null})]).then(function(a){
+  EDS=a[0];LAY=a[1];B=a[2];
+  EDS.features.forEach(function(f){byId[f.properties.id]=f;var b=bbox(f.geometry);b.push(f);boxes.push(b)});
+  edLayer=L.geoJSON(EDS,{renderer:canvas,style:{color:'#f47920',weight:.6,opacity:.55,fillOpacity:0}});
+  edLayer.on('click',function(e){L.DomEvent.stopPropagation(e);atPoint(e.latlng.lat,e.latlng.lng)});
+  drawChips();showLayers();fillPick();
+  msg('All '+EDS.features.length.toLocaleString()+' election districts in the city. Search, drop a pin or tap the map.');
+  var m=/^#(ed|ad|sd|cd|cc|mc|cb|bo)=(.+)$/.exec(location.hash);
+  if(m){var k=m[1],v=decodeURIComponent(m[2]);if(k==='ed'&&byId[v])chooseEd(byId[v],true);else if(k!=='ed')anyDistrict(k,v)}
+  else{var cb6=null;for(var id in byId){if(byId[id].properties.cb==='306'){cb6=1;break}}if(cb6&&!/[?&]all=1/.test(location.search)){anyDistrict('cb','306')}}
+}).catch(function(){msg('The district map did not load. Reload the page to try again.')});
+})();
+</script>
+</body></html>
