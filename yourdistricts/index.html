@@ -106,7 +106,7 @@ h1{margin:4px 0 0;font-size:1.5rem;line-height:1.15}
   </div>
 
   <div class="sec">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><h2 id="chiphd">Show on the map</h2><div class="seg2" id="scope" style="display:none"><button type="button" id="sc-mine" class="on">Mine</button><button type="button" id="sc-all">All of NYC</button></div></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><h2 id="chiphd">Show on the map</h2></div>
     <div class="chips" id="chips"></div>
     <div class="pick"><select id="pl" aria-label="Kind of district"></select><select id="pv" aria-label="District"></select></div>
   </div>
@@ -140,7 +140,7 @@ var map=L.map('map',{preferCanvas:true,zoomControl:false,scrollWheelZoom:false})
 L.control.zoom({position:'topright'}).addTo(map);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{subdomains:'abcd',maxZoom:20,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
 var canvas=L.canvas({padding:.3});
-var EDS=null,LAY=null,D=null,byId={},boxes=[],edLayer=null,kindLayers={},logoLayers={},mine={},pin=null,on={ed:true},cur=null,scope='all';
+var EDS=null,LAY=null,D=null,byId={},boxes=[],edLayer=null,kindLayers={},logoLayers={},mine={},pin=null,on={ed:true},onAll={},cur=null,scope='all';
 
 function bbox(g){var a=[180,90,-180,-90];(function w(c){if(typeof c[0]==='number'){if(c[0]<a[0])a[0]=c[0];if(c[1]<a[1])a[1]=c[1];if(c[0]>a[2])a[2]=c[0];if(c[1]>a[3])a[3]=c[1]}else c.forEach(w)})(g.coordinates);return a}
 function inRing(x,y,r){var c=false;for(var i=0,j=r.length-1;i<r.length;j=i++){var xi=r[i][0],yi=r[i][1],xj=r[j][0],yj=r[j][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c}return c}
@@ -152,10 +152,9 @@ function tip(k,v){var d=k==='ed'?{n:edName(v),logo:''}:info(k,v);return (d.logo?
 function styleFor(k,v,hover){var d=info(k,v);return {color:d.s,weight:hover?3.5:2,opacity:1,fillColor:d.f,fillOpacity:FILL[d.l]||.3}}
 function myId(k){return cur?(k==='ed'?cur.id:cur[k]):''}
 function chips(){var el=document.getElementById('chips'),m=cur&&scope==='mine';
-  el.innerHTML=m?'':L_.map(function(l){return '<button type="button" class="chip'+(on[l.k]?' on':'')+'" data-k="'+l.k+'" style="--c:'+l.c+'" title="'+esc(l.n)+'"><i></i>'+esc(l.p)+'</button>'}).join('');
-  [].forEach.call(el.querySelectorAll('.chip'),function(b){b.onclick=function(){toggle(b.dataset.k)}});
-  var sc=document.getElementById('scope');sc.style.display=cur?'flex':'none';document.getElementById('sc-mine').classList.toggle('on',scope==='mine');document.getElementById('sc-all').classList.toggle('on',scope!=='mine');
-  document.getElementById('chiphd').textContent=m?'Showing your districts: tap one below to show or hide it':'Show on the map';
+  el.innerHTML=L_.map(function(l){if(m&&l.k==='ed')return '';var isOn=m?onAll[l.k]:on[l.k];return '<button type="button" class="chip'+(isOn?' on':'')+'" data-k="'+l.k+'" style="--c:'+l.c+'" title="'+esc(l.n)+'"><i></i>'+esc(m?'All '+(l.k==='bo'?'boroughs':l.k==='cb'?'community boards':l.n.replace('District','districts')):l.p)+'</button>'}).join('');
+  [].forEach.call(el.querySelectorAll('.chip'),function(b){b.onclick=function(){if(m){onAll[b.dataset.k]=!onAll[b.dataset.k];chips();layers(false);setHash()}else toggle(b.dataset.k)}});
+  document.getElementById('chiphd').textContent=m?'Add every district of a kind':'Show on the map';
   [].forEach.call(document.querySelectorAll('#rings .ring[data-k]'),function(r){r.classList.toggle('sel',!!on[r.dataset.k]&&m)});
 }
 function toggle(k){on[k]=!on[k];chips();layers(true);setHash()}
@@ -185,8 +184,10 @@ function layers(fit){
   var z=map.getZoom(),m=cur&&scope==='mine';
   for(var key in mine)map.removeLayer(mine[key]);
   if(m){
-    map.removeLayer(edLayer);L_.forEach(function(l){if(l.k==='ed')return;if(kindLayers[l.k])map.removeLayer(kindLayers[l.k]);if(logoLayers[l.k])map.removeLayer(logoLayers[l.k])});
-    var shown=[];L_.slice().reverse().forEach(function(l){if(!on[l.k]||!myId(l.k))return;var g=mineLayer(l.k);if(g){g.addTo(map);shown.push(g)}});
+    map.removeLayer(edLayer);L_.forEach(function(l){if(l.k==='ed')return;
+      if(onAll[l.k]){kindLayer(l.k).addTo(map);if(z>=l.z)logoLayer(l.k).addTo(map);else if(logoLayers[l.k])map.removeLayer(logoLayers[l.k])}
+      else{if(kindLayers[l.k])map.removeLayer(kindLayers[l.k]);if(logoLayers[l.k])map.removeLayer(logoLayers[l.k])}});
+    var shown=[];L_.slice().reverse().forEach(function(l){if(!on[l.k]||!myId(l.k))return;var g=mineLayer(l.k);if(g){g.addTo(map);g.eachLayer(function(x){if(x.bringToFront)x.bringToFront()});shown.push(g)}});
     if(fit&&shown.length){var b=null;shown.forEach(function(g){b=b?b.extend(g.getBounds()):g.getBounds()});map.fitBounds(b,{padding:[20,20],maxZoom:16})}
     if(pin)pin.bringToFront();return;
   }
@@ -207,11 +208,11 @@ function rings(p){var el=document.getElementById('rings');document.getElementByI
   el.innerHTML=[['ed',p.id],['ad',p.ad],['sd',p.sd],['cd',p.cd],['cc',p.cc],['mc',p.mc],['cb',p.cb],['bo',p.bo]].filter(function(x){return x[1]}).map(function(x){var k=x[0],v=x[1],d=k==='ed'?{n:edName(v),logo:'',s:'#f47920'}:info(k,v);
     return '<button type="button" class="ring'+(on[k]?' sel':'')+'" data-k="'+k+'" data-v="'+esc(v)+'" style="--c:'+d.s+'">'+(d.logo?'<img src="'+d.logo+'" alt="">':'')+'<span><small>'+(k==='ed'?'Your election district':LK[k].n)+'</small><b>'+esc(d.n)+'</b></span></button>'}).join('');
   [].forEach.call(el.querySelectorAll('.ring'),function(b){b.onclick=function(){toggle(b.dataset.k)}})}
-function setHash(){try{if(cur){var ks=L_.filter(function(l){return on[l.k]&&myId(l.k)}).map(function(l){return l.k});history.replaceState(null,'','#ed='+cur.id+(scope==='mine'?'&show='+ks.join(','):'&all=1'))}else if(pick.k)history.replaceState(null,'','#'+pick.k+'='+encodeURIComponent(pick.v))}catch(e){}}
+function setHash(){try{if(cur){var ks=L_.filter(function(l){return on[l.k]&&myId(l.k)}).map(function(l){return l.k});var ka=L_.filter(function(l){return onAll[l.k]}).map(function(l){return l.k});history.replaceState(null,'','#ed='+cur.id+'&show='+ks.join(',')+(ka.length?'&all='+ka.join(','):''))}else if(pick.k)history.replaceState(null,'','#'+pick.k+'='+encodeURIComponent(pick.v))}catch(e){}}
 function setPin(lat,lng){if(pin)map.removeLayer(pin);pin=L.circleMarker([lat,lng],{renderer:canvas,radius:7,color:'#fff',weight:2,fillColor:'#0d1b4b',fillOpacity:1}).addTo(map)}
 function msg(h){document.getElementById('msg').innerHTML=h}
 function res(h){var r=document.getElementById('res');r.style.display=h?'block':'none';r.innerHTML=h||''}
-function startFrom(p,label,fit){cur=p;scope='mine';pickOutline(null);for(var key in mine){map.removeLayer(mine[key])}mine={};
+function startFrom(p,label,fit){cur=p;scope='mine';onAll={};pickOutline(null);for(var key in mine){map.removeLayer(mine[key])}mine={};
   on={ed:true,ad:true,sd:true,cd:true,cc:true,mc:false,cb:true,bo:false};
   res((label?'<b>'+esc(label)+'</b> · ':'')+esc(edName(p.id))+' · '+esc(info('cb',p.cb).n));
   rings(p);chips();layers(fit);setHash();
@@ -237,8 +238,6 @@ function fillPick(){var pl=document.getElementById('pl'),pv=document.getElementB
     ids.sort(function(a,b){return k==='bo'||k==='mc'?a.localeCompare(b):(+a.replace(/\D/g,'')||0)-(+b.replace(/\D/g,'')||0)||a.localeCompare(b)});
     pv.innerHTML='<option value="">Pick one…</option>'+ids.map(function(i){return '<option value="'+esc(i)+'">'+esc(info(k,i).n)+'</option>'}).join('')};
   pv.onchange=function(){var k=pl.value,v=pv.value;if(k&&v)selectDistrict(k,v)}}
-document.getElementById('sc-mine').onclick=function(){if(!cur)return;scope='mine';chips();layers(true);setHash()};
-document.getElementById('sc-all').onclick=function(){scope='all';on={ed:true};chips();layers(false);setHash()};
 map.on('click',function(e){atPoint(e.latlng.lat,e.latlng.lng)});
 
 // Address, with suggestions as you type
@@ -267,7 +266,7 @@ Promise.all([fetch('/electionexplainer/map/eds.geojson').then(function(r){return
   edLayer=L.geoJSON(EDS,{renderer:canvas,interactive:false,style:{color:'#f47920',weight:.7,opacity:.6,fillOpacity:0}});
   chips();layers();fillPick();
   var h=location.hash.slice(1),prm={};h.split('&').forEach(function(x){var i=x.indexOf('=');if(i>0)prm[x.slice(0,i)]=decodeURIComponent(x.slice(i+1))});
-  if(prm.ed&&byId[prm.ed]){var p=byId[prm.ed].properties;startFrom(p,'',true);if(prm.show){on={};prm.show.split(',').forEach(function(k){if(LK[k])on[k]=true});chips();layers(true)}else if(prm.all){scope='all';on={ed:true};chips();layers(false)}}
+  if(prm.ed&&byId[prm.ed]){var p=byId[prm.ed].properties;startFrom(p,'',true);if(prm.show){on={};prm.show.split(',').forEach(function(k){if(LK[k])on[k]=true});chips();layers(true)}if(prm.all){prm.all.split(',').forEach(function(k){if(LK[k])onAll[k]=true});chips();layers(false)}}
   else{var k=Object.keys(prm).filter(function(x){return LK[x]&&x!=='ed'})[0];if(k)selectDistrict(k,prm[k]);else{pick.k='cb';pick.v='306';pickOutline('cb','306',false);map.setView([40.676,-73.995],13)}}
 }).catch(function(){res('The district map did not load. Reload the page to try again.')});
 })();
