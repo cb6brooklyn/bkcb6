@@ -295,7 +295,7 @@ TPL = """<!DOCTYPE html>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,700;9..40,800;9..40,900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/org-profile.css?v=1">{brandcss}
 </head>
-<body><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a><script>(function(){{try{{var a=document.getElementById("asb"),q=/[?&]app=1\\b/.test(location.search);if(q)sessionStorage.setItem("bkapp","1");if(location.protocol==="bkcb:"||q||sessionStorage.getItem("bkapp")==="1"||/^bkcb:/.test(document.referrer)){{a.style.display="none"}}}}catch(e){{}}}})();</script>
+<body><script src="/assets/site-bar.js?v=1" defer></script><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a><script>(function(){{try{{var a=document.getElementById("asb"),q=/[?&]app=1\\b/.test(location.search);if(q)sessionStorage.setItem("bkapp","1");if(location.protocol==="bkcb:"||q||sessionStorage.getItem("bkapp")==="1"||/^bkcb:/.test(document.referrer)){{a.style.display="none"}}}}catch(e){{}}}})();</script>
 <div class="pwrap">
 
   <div class="phead">
@@ -411,7 +411,7 @@ EVJS = r"""
     var rows=[], seen={};
     function add(date, ev){
       if(!ev || !ev.label) return;
-      if(ev.type!==ORG && !ALSO.some(function(a){ return String(ev.label).toLowerCase().indexOf(a.toLowerCase())!==-1; })) return;
+      if(ev.type!==ORG && (ev.orgs||[]).indexOf(ORG)<0 && !ALSO.some(function(a){ return String(ev.label).toLowerCase().indexOf(a.toLowerCase())!==-1; })) return;
       if(LOC && String(ev.location||'').toLowerCase().indexOf(LOC.toLowerCase())===-1) return;
       var k=date+'|'+String(ev.label).replace(/\s+/g,' ').trim().toLowerCase();
       if(seen[k]) return; seen[k]=1;
