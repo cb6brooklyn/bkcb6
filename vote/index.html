@@ -323,8 +323,18 @@ header .stk{grid-row:2/4}
 .leaflet-tooltip.dtip{font:600 12.5px 'DM Sans',sans-serif;color:#0d1b4b;border:1px solid #e5e2db;border-radius:8px;padding:5px 8px;display:flex;align-items:center;gap:7px;box-shadow:0 3px 10px rgba(13,27,75,.12)}
 .leaflet-tooltip.dtip img{width:28px;height:28px;object-fit:contain;border-radius:5px}
 .leaflet-tooltip.dtip small{display:block;font:500 10px 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#6b6760}
-.dlogo{background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.25);overflow:hidden;border:1.5px solid #fff}
-.dlogo img{width:100%;height:100%;object-fit:contain;display:block}
+.dlogo{background:none;border:0;box-shadow:none;overflow:visible;pointer-events:auto}
+.dlogo img{width:100%;height:100%;object-fit:contain;display:block;background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.25);border:1.5px solid #fff;box-sizing:border-box}
+.dlogo b{position:absolute;font:700 10.5px/1 'DM Sans',sans-serif;color:#0d1b4b;background:#fff;border-radius:999px;padding:3px 6px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.dlogo.lb-b b{top:100%;left:50%;transform:translate(-50%,3px)}
+.dlogo.lb-l b{right:100%;top:50%;transform:translate(-3px,-50%)}
+.dlogo.lb-r b{left:100%;top:50%;transform:translate(3px,-50%)}
+.dlogo.dbo img{border-radius:50%}
+.dlogo.dbo b{font-size:12px;padding:4px 8px}
+.zlo .dlogo.dbo{width:36px!important;height:36px!important;margin-left:-18px!important;margin-top:-18px!important}
+.zmid .dlogo:not(.dbo) img{display:none}
+.zmid .dlogo:not(.dbo) b{top:50%;left:50%;right:auto;transform:translate(-50%,-50%);font-size:11px;padding:4px 7px;border:1.5px solid #0d1b4b}
+.zlo .dlogo.dbo b{font-size:11px;padding:3px 7px}
 .votedpin{filter:drop-shadow(0 1px 3px rgba(0,0,0,.35))}
 .ring small{display:block;font:500 .66rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#6b6760}
 .ring b{font-size:.95rem}
@@ -801,8 +811,8 @@ var L_=[
  {k:'cd',n:'Congressional District',p:'Congress',c:'#dc2626',z:11},
  {k:'cc',n:'City Council District',p:'City Council',c:'#0f766e',z:12},
  {k:'mc',n:'Civil Court District',p:'Civil Court',c:'#92400e',z:12},
- {k:'cb',n:'Community Board',p:'Community boards',c:'#0d1b4b',z:12},
- {k:'bo',n:'Borough',p:'Boroughs',c:'#1a3a8a',z:10}];
+ {k:'cb',n:'Community Board',p:'Community boards',c:'#0d1b4b',z:10},
+ {k:'bo',n:'Borough',p:'Boroughs',c:'#1a3a8a',z:0}];
 var LK={};L_.forEach(function(l){LK[l.k]=l});
 var FILL=[.14,.24,.34,.44,.54];
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
@@ -832,7 +842,7 @@ function inPoly(x,y,p){if(!inRing(x,y,p[0]))return false;for(var h=1;h<p.length;
 function hit(lat,lng){for(var i=0;i<boxes.length;i++){var b=boxes[i];if(lng<b[0]||lng>b[2]||lat<b[1]||lat>b[3])continue;var g=b[4].geometry,ps=g.type==='Polygon'?[g.coordinates]:g.coordinates;for(var j=0;j<ps.length;j++)if(inPoly(lng,lat,ps[j]))return b[4]}return null}
 function info(k,v){return (D&&D.d[k]&&D.d[k][v])||{n:v,logo:'',s:LK[k].c,f:LK[k].c,l:0,c:null}}
 function tip(k,v){var d=k==='ed'?{n:edName(v),logo:''}:info(k,v);return (d.logo?'<img src="'+d.logo+'" alt="">':'')+'<span><small>'+esc(k==='ed'?'Your election district':LK[k].n)+'</small>'+esc(d.n)+'</span>'}
-function styleFor(k,v,hover){var d=info(k,v);return {color:d.s,weight:hover?3.5:2,opacity:1,fillColor:d.f,fillOpacity:FILL[d.l]||.3}}
+function styleFor(k,v,hover){var d=info(k,v);return {color:d.s,weight:hover?3.5:(k==='bo'?3:2),opacity:1,fillColor:d.f,fillOpacity:k==='bo'?.5:(FILL[d.l]||.3)}}
 function myId(k){return cur?(k==='ed'?cur.id:cur[k]):''}
 function chips(){var el=document.getElementById('mchips'),m=!!cur;
   el.innerHTML=L_.map(function(l){if(m&&l.k==='ed')return '';var isOn=m?onAll[l.k]:on[l.k];return '<button type="button" class="mchip'+(isOn?' on':'')+'" data-k="'+l.k+'" style="--c:'+l.c+'" title="'+esc(l.n)+'"><i></i>'+esc(m?'All '+(l.k==='bo'?'boroughs':l.k==='cb'?'community boards':l.n.replace('District','districts')):l.p)+'</button>'}).join('');
@@ -846,10 +856,12 @@ function kindLayer(k){if(kindLayers[k])return kindLayers[k];
       ly.on('mouseover',function(){ly.setStyle(styleFor(k,v,true));if(ly.bringToFront)ly.bringToFront()});ly.on('mouseout',function(){ly.setStyle(styleFor(k,v))});
       ly.on('click',function(e){L.DomEvent.stopPropagation(e);MAPX.tap(e.latlng.lat,e.latlng.lng)})}});
   kindLayers[k]=g;return g}
+var BOLBL={MANHATTAN:'l',BRONX:'r',QUEENS:'r'};
+function shortName(k,v,d){if(k==='bo')return d.n||v;if(k==='cb')return 'CB '+(+String(v).slice(-2));if(k==='ad')return 'AD '+v;if(k==='sd')return 'SD '+v;if(k==='cd')return 'NY-'+v;if(k==='cc')return 'District '+v;if(k==='mc')return 'MC '+String(v).split('|').pop();return String(v)}
 function logoLayer(k){if(logoLayers[k])return logoLayers[k];
   var g=L.layerGroup(),rows=D.d[k]||{};
   Object.keys(rows).forEach(function(v){var d=rows[v];if(!d.logo||!d.c)return;
-    var m=L.marker(d.c,{interactive:true,keyboard:false,icon:L.divIcon({className:'dlogo',html:'<img src="'+d.logo+'" alt="">',iconSize:[40,40],iconAnchor:[20,20]})});
+    var m=L.marker(d.c,{interactive:true,keyboard:false,icon:L.divIcon({className:'dlogo'+(k==='bo'?' dbo':'')+' lb-'+(k==='bo'?(BOLBL[v]||'b'):'b'),html:'<img src="'+d.logo+'" alt=""><b>'+esc(shortName(k,v,d))+'</b>',iconSize:k==='bo'?[54,54]:[40,40],iconAnchor:k==='bo'?[27,27]:[20,20]})});
     m.bindTooltip(tip(k,v),{className:'dtip',direction:'top',offset:[0,-22]});m.on('click',function(){MAPX.district(k,v)});g.addLayer(m)});
   logoLayers[k]=g;return g}
 function mineLayer(k){var v=myId(k),key=k+':'+v;if(mine[key])return mine[key];var f=feat(k,v);if(!f)return null;var d=k==='ed'?{s:'#f47920',f:'#f47920',logo:''}:info(k,v);
@@ -871,14 +883,16 @@ function layers(fit){if(!LAY)return;var z=map.getZoom();
   L_.forEach(function(l){if(l.k==='ed')return;
     if(on[l.k]){kindLayer(l.k).addTo(map);if(z>=l.z)logoLayer(l.k).addTo(map);else if(logoLayers[l.k])map.removeLayer(logoLayers[l.k])}
     else{if(kindLayers[l.k])map.removeLayer(kindLayers[l.k]);if(logoLayers[l.k])map.removeLayer(logoLayers[l.k])}});
+  if(on.bo&&kindLayers.bo)kindLayers.bo.bringToBack();
   if(pick.g){pick.g.addTo(map);pick.g.bringToFront()}
   if(pin)pin.bringToFront();
 }
 map.on('zoomend',function(){layers(false)});
+function zcls(){var z=map.getZoom(),c=map.getContainer().classList;c.toggle('zlo',z<=9);c.toggle('zmid',z<=11)}map.on('zoomend',zcls);zcls();
 function anyOn(){var o=cur?onAll:on;return ['ad','sd','cd','cc','mc','cb','bo'].some(function(k){return o[k]})}
 function zoomTo(w){
-  if(w==='nyc'){if(!cur&&!anyOn())on.bo=true;chips();layers(false);map.fitBounds([[40.495,-74.26],[40.918,-73.70]],{padding:[6,6],animate:false});return}
-  if(w==='bo'){if(!cur&&!anyOn())on.cb=true;chips();layers(false);var bo=cur?cur.bo:'BROOKLYN',f=feat('bo',bo);if(f){map.fitBounds(L.geoJSON(f).getBounds(),{padding:[10,10],animate:false})}return}
+  if(w==='nyc'){if(!cur){on={ed:true,bo:true}}else{onAll.bo=true}chips();layers(false);map.fitBounds([[40.495,-74.26],[40.918,-73.70]],{padding:[6,6],animate:false});return}
+  if(w==='bo'){if(!cur){on={ed:true,cb:true}}chips();layers(false);var bo=cur?cur.bo:'BROOKLYN',f=feat('bo',bo);if(f){map.fitBounds(L.geoJSON(f).getBounds(),{padding:[10,10],animate:false})}return}
   if(cur){layers(true)}else if(pick.g){map.fitBounds(pick.g.getBounds(),{padding:[20,20],maxZoom:15,animate:false})}}
 [].forEach.call(document.querySelectorAll('#zoomrow [data-z]'),function(b){b.onclick=function(){zoomTo(b.dataset.z)}});
 function feat(k,v){if(k==='ed')return byId[v];var f=LAY&&LAY[k]?LAY[k].features:[];for(var i=0;i<f.length;i++)if(f[i].properties.id===v)return f[i];return null}
