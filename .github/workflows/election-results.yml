@@ -1,0 +1,39 @@
+name: Election results
+
+# Election night, November 3 to 4, 2026: pulls the NYC Board of Elections' unofficial results by election district
+# into data/results/2026-general.json for bkcb6.app/results/. Every 5 minutes from 9 PM to 3 AM Eastern, and on demand.
+on:
+  schedule:
+    - cron: '*/5 2-8 4 11 *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: election-results
+  cancel-in-progress: false
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Pull results
+        run: python scripts/enr_results.py || true
+      - name: Commit
+        run: |
+          git config user.email "Mike@bkcb6.org"
+          git config user.name "Mike Racioppo"
+          git add data/results
+          git diff --cached --quiet && exit 0
+          git commit -m "Election results $(date -u +%H:%M)"
+          for i in 1 2 3 4 5; do
+            git pull --rebase --autostash -q origin main && git push && exit 0
+            sleep 10
+          done
+          exit 1
