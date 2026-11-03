@@ -767,14 +767,18 @@ document.getElementById('addrForm').addEventListener('submit',function(e){
     var f=g.features&&g.features[0], p=f&&f.properties;
     if(f&&window.MAPX){try{MAPX.pin(f.geometry.coordinates[1],f.geometry.coordinates[0])}catch(e){}}
     if(!p||!p.housenumber||!p.street||!p.borough){ msg.innerHTML='<b>No match.</b> Try a street address with a building number in one of the five boroughs.'; return; }
-    return fetch('https://api.nyc.gov/geoclient/v2/address.json?houseNumber='+encodeURIComponent(p.housenumber)+'&street='+encodeURIComponent(p.street)+'&borough='+encodeURIComponent(p.borough),{headers:{'Ocp-Apim-Subscription-Key':GC_KEY}})
+    var tm=t.match(/^\s*(\d+(?:-\d+)?[A-Za-z]?)\s/), hn=tm?tm[1]:p.housenumber;
+    if(hn!==p.housenumber){ p.label=(hn+' '+p.street).toUpperCase()+', '+(p.borough==='Manhattan'?'New York':p.borough)+', NY, USA'; }
+    return fetch('https://api.nyc.gov/geoclient/v2/address.json?houseNumber='+encodeURIComponent(hn)+'&street='+encodeURIComponent(p.street)+'&borough='+encodeURIComponent(p.borough),{headers:{'Ocp-Apim-Subscription-Key':GC_KEY}})
     .then(function(r){return r.json();}).then(function(j){
-      var a=j&&j.address; if(!a||!a.assemblyDistrict){ msg.innerHTML='<b>Could not find districts for that address.</b> Try the building number without an apartment.'; return; }
+      var a=j&&j.address;
+      if(!a||!a.assemblyDistrict){ msg.innerHTML='<b>Could not find districts for that address.</b> Try the building number without an apartment.'; return; }
       var ad=String(parseInt(a.assemblyDistrict,10)), sd=String(parseInt(a.stateSenatorialDistrict,10)), cd=String(parseInt(a.congressionalDistrict,10)), boro=String(p.borough).toUpperCase();
       msg.innerHTML='<b>'+esc(p.label)+'</b> · Congressional District '+cd+' · Senate District '+sd+' · Assembly District '+ad;
       setBoro(boroFor(a.communityDistrict,boro),placeFor(a.communityDistrict,boro)); if(sel) sel.value=(D.boards[a.communityDistrict]?a.communityDistrict:'');
       voteCard(a);
       var edk=String(parseInt(a.assemblyDistrict,10)).padStart(2,'0')+String(parseInt(a.electionDistrict,10)).padStart(3,'0');
+      if(window.MAPX&&MAPX.ed){try{MAPX.ed(edk,a.latitude?+a.latitude:null,a.longitude?+a.longitude:null)}catch(e){}}
       var go=function(){ render(null,{ed:edk,cd:cd,sd:sd,ad:ad,boro:boro,cc:String(parseInt(a.cityCouncilDistrict,10)),mc:String(a.civilCourtDistrict||'').padStart(2,'0')}); };
       if(window.EDS) go(); else fetch('/electionexplainer/eds.json').then(function(r){return r.json();}).then(function(x){window.EDS=x;go();}).catch(go);
     });
@@ -924,6 +928,7 @@ function startFrom(p,fit){cur=p;onAll={};pickOutline(null);for(var key in mine)m
 var pending=null;
 window.MAPX={
   pin:function(lat,lng){if(!EDS){pending=[lat,lng];return}setPin(lat,lng);var f=hit(lat,lng);if(f)startFrom(f.properties,true)},
+  ed:function(id,lat,lng){if(!EDS){pending=[lat,lng];return}var f=byId[id];if(!f)return;if(lat)setPin(lat,lng);startFrom(f.properties,true)},
   tap:function(lat,lng){if(!EDS)return;setPin(lat,lng);var f=hit(lat,lng);var m=document.getElementById('msg');if(!f){if(m)m.textContent='That point is not inside a New York City election district.';return}startFrom(f.properties,true);if(window.VX&&VX.fromEd)VX.fromEd(f.properties)},
   district:function(k,v){if(!EDS){pending=[k,v,1];return}cur=null;if(siteMk){map.removeLayer(siteMk);siteMk=null}for(var key in mine)map.removeLayer(mine[key]);if(!on[k])on[k]=true;chips();layers(false);pickOutline(k,v,true);
     var d=info(k,v),el=document.getElementById('rings');el.innerHTML='<button type="button" class="ring sel" style="--c:'+d.s+';cursor:default">'+(d.logo?'<img src="'+d.logo+'" alt="">':'')+'<span><small>'+LK[k].n+'</small><b>'+esc(d.n)+'</b></span></button>'}

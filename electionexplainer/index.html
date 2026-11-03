@@ -681,9 +681,13 @@ document.getElementById('addrForm').addEventListener('submit',function(e){
   fetch('https://geosearch.planninglabs.nyc/v2/search?size=1&text='+encodeURIComponent(t)).then(function(r){return r.json();}).then(function(g){
     var f=g.features&&g.features[0], p=f&&f.properties;
     if(!p||!p.housenumber||!p.street||!p.borough){ msg.innerHTML='<b>No match.</b> Try a street address with a building number in one of the five boroughs.'; return; }
-    return fetch('https://api.nyc.gov/geoclient/v2/address.json?houseNumber='+encodeURIComponent(p.housenumber)+'&street='+encodeURIComponent(p.street)+'&borough='+encodeURIComponent(p.borough),{headers:{'Ocp-Apim-Subscription-Key':GC_KEY}})
+    var tm=t.match(/^\s*(\d+(?:-\d+)?[A-Za-z]?)\s/), hn=tm?tm[1]:p.housenumber;
+    if(hn!==p.housenumber){ p.label=(hn+' '+p.street).toUpperCase()+', '+(p.borough==='Manhattan'?'New York':p.borough)+', NY, USA'; }
+    return fetch('https://api.nyc.gov/geoclient/v2/address.json?houseNumber='+encodeURIComponent(hn)+'&street='+encodeURIComponent(p.street)+'&borough='+encodeURIComponent(p.borough),{headers:{'Ocp-Apim-Subscription-Key':GC_KEY}})
     .then(function(r){return r.json();}).then(function(j){
-      var a=j&&j.address; if(!a||!a.assemblyDistrict){ msg.innerHTML='<b>Could not find districts for that address.</b> Try the building number without an apartment.'; return; }
+      var a=j&&j.address;
+      if(a&&a.latitude&&a.longitude&&hn!==p.housenumber&&window.MAPX){try{MAPX.pin(+a.latitude,+a.longitude)}catch(e){}}
+      if(!a||!a.assemblyDistrict){ msg.innerHTML='<b>Could not find districts for that address.</b> Try the building number without an apartment.'; return; }
       var ad=String(parseInt(a.assemblyDistrict,10)), sd=String(parseInt(a.stateSenatorialDistrict,10)), cd=String(parseInt(a.congressionalDistrict,10)), boro=String(p.borough).toUpperCase();
       msg.innerHTML='<b>'+esc(p.label)+'</b> · Congressional District '+cd+' · Senate District '+sd+' · Assembly District '+ad;
       setBoro(boroFor(a.communityDistrict,boro),placeFor(a.communityDistrict,boro)); if(sel) sel.value=(D.boards[a.communityDistrict]?a.communityDistrict:'');
