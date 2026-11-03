@@ -23,11 +23,40 @@ def get(url):
     with urllib.request.urlopen(req, timeout=120) as r:
         return r.read().decode('utf-8', 'ignore')
 
+COUNTY = {'New York': 'New York', 'Kings': 'Kings', 'Queens': 'Queens', 'Bronx': 'Bronx', 'Richmond': 'Richmond'}
+
+def race_key(name):
+    """Canonical key for a race, the same on the ballot (electionexplainer/ballot.json) and in the Board's files:
+    gov, comp, ag, cd10, sd26, ad52, cc3, sc2, surMN, cccBK, mcBK6. Same function in scripts/build_ed_pages.py and /edresults/."""
+    if re.match(r'(Democratic|Republican|Conservative|Working Families|Green|Libertarian)\b', str(name)): return None  # primaries: one race per party
+    s = ' ' + re.sub(r'[^a-z0-9 ]', ' ', str(name).lower()) + ' '
+    s = re.sub(r'(\d+)(st|nd|rd|th) ', r'\1 ', s)
+    m = re.search(r' (\d+) ', s); n = str(int(m.group(1))) if m else ''
+    c = 'BK' if ' kings ' in s or ' brooklyn ' in s else 'QN' if ' queens ' in s else 'BX' if ' bronx ' in s else 'SI' if ' richmond ' in s or ' staten island ' in s else 'MN' if ' new york ' in s or ' manhattan ' in s else ''
+    if 'governor' in s: return 'gov'
+    if 'comptroller' in s: return 'comp'
+    if 'attorney general' in s: return 'ag'
+    if 'congress' in s and n: return 'cd' + n
+    if 'senat' in s and n and 'committee' not in s: return 'sd' + n
+    if 'assembly' in s and n and 'member' in s: return 'ad' + n
+    if 'council' in s and n: return 'cc' + n
+    if 'supreme court' in s and n: return 'sc' + n
+    if 'surrogate' in s and c: return 'sur' + c
+    if 'civil court' in s and 'municipal' in s and n and c: return 'mc' + c + n
+    if 'civil court' in s and c: return 'ccc' + c
+    return None
+
 def contest_name(fname):
     base = re.sub(r'\s*EDLevel\.csv$', '', os.path.basename(fname))
-    m = re.match(r'(\d+)(.*)$', base)
+    m = re.match(r'(\w{11})(.*)$', base)
     cid, rest = (m.group(1), m.group(2).strip()) if m else (base, base)
-    rest = re.sub(r'^(New York|Kings|Queens|Bronx|Richmond|Citywide|Crossover)\s+', '', rest)
+    county = ''
+    for c in ('New York', 'Kings', 'Queens', 'Bronx', 'Richmond', 'Citywide'):
+        if rest.startswith(c + ' '): county = c; rest = rest[len(c) + 1:]; break
+    rest = re.sub(r'\s+Citywide$', '', rest)
+    # county offices keep their county so the same office in two counties stays two races
+    if re.search(r'Surrogate|Civil Court|Supreme Court', rest) and county in COUNTY and county not in rest:
+        rest += ' (%s)' % county
     return cid, rest
 
 def parse_csv(text):
@@ -80,9 +109,10 @@ def main():
     # A race split into one file per county (citywide and statewide races) becomes one contest.
     merged = {}
     for c in contests:
-        k = re.sub(r'\s+(Citywide|New York|Kings|Queens|Bronx|Richmond)$', '', c['name']).strip()
+        c['k'] = race_key(c['name'])
+        k = c['k'] or c['name']
         if k not in merged:
-            merged[k] = dict(c, name=k); continue
+            merged[k] = c; continue
         m = merged[k]
         names = [x['n'] for x in m['c']]
         for x in c['c']:

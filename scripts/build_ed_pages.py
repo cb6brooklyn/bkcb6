@@ -15,6 +15,8 @@ Run: python3 scripts/build_ed_pages.py [--cb 306 ...]   (default: every election
 import json, os, sys, html
 from shapely.geometry import shape
 from shapely.strtree import STRtree
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from boe_edlevel import race_key
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 J = lambda p: json.load(open(os.path.join(ROOT, p)))
@@ -99,7 +101,7 @@ iframe{width:100%;border:0;display:block;min-height:900px;background:transparent
 function score(a,b){a=norm(a).split(' ');b=norm(b).split(' ');var n=0;a.forEach(function(w){if(w&&b.indexOf(w)>=0)n++});return n/Math.max(a.length,b.length)}
 fetch('/data/results/2026-general.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){if(!d||!d.contests||!d.contests.length)return;
 var cards=[].slice.call(document.querySelectorAll('.race[data-race]')),used={};
-d.contests.forEach(function(c){var e=c.ed&&c.ed[ED];if(!e)return;var best=null,bs=.5;cards.forEach(function(k,i){if(used[i])return;var s=score(k.dataset.race,c.name);if(s>bs){bs=s;best=i}});
+d.contests.forEach(function(c){var e=c.ed&&c.ed[ED];if(!e)return;var best=null,bs=.5;cards.forEach(function(k,i){if(used[i]||best!=null&&bs>1)return;if(c.k&&k.dataset.k===c.k){best=i;bs=2;return}var s=score(k.dataset.race,c.name);if(s>bs){bs=s;best=i}});
 var v=e.v||[],tot=v.reduce(function(a,b){return a+b},0),ord=c.c.map(function(x,i){return i}).sort(function(a,b){return v[b]-v[a]});
 var h='<div class="t">'+(e.r?'This election district':'This election district, not yet reported')+' · '+tot.toLocaleString()+' votes'+(d.final?'':' · unofficial')+'</div><div class="rr">'+ord.map(function(i){var p=tot?100*v[i]/tot:0;return '<span>'+c.c[i].n.replace(/[<>&]/g,'')+'</span><b>'+v[i].toLocaleString()+'</b><span>'+p.toFixed(1)+'%</span><span class="bar"><b style="width:'+p.toFixed(1)+'%"></b></span>'}).join('')+'</div>';
 var box;if(best!=null){used[best]=1;box=cards[best].querySelector('.res')}else{var k=document.createElement('div');k.className='card race';k.innerHTML='<div class="rh"><b>'+c.name.replace(/[<>&]/g,'')+'</b></div><div class="res"></div>';var last=document.querySelector('.race:last-of-type');last.parentNode.insertBefore(k,last.nextSibling);box=k.querySelector('.res')}
@@ -147,7 +149,7 @@ var n=document.getElementById('resnote');if(n&&d.updated)n.textContent='Every ra
         VF = {1: 'Vote for one', 2: 'Vote for up to two', 3: 'Vote for up to three', 4: 'Vote for up to four', 5: 'Vote for up to five', 6: 'Vote for up to six'}
         def racecard(r):
             cands = ''.join('<li><b>%s</b> <span class="pl">%s</span></li>' % (esc(c[0]), esc(' · '.join(c[1]))) for c in r['c'])
-            return '<div class="card race" data-race="%s"><div class="rh"><b>%s</b><span>%s</span></div><ul class="cl">%s</ul><div class="res" hidden></div></div>' % (esc(r['t']), esc(r['t']), esc(VF.get(r['vf'], 'Vote for %d' % r['vf'])), cands)
+            return '<div class="card race" data-race="%s" data-k="%s"><div class="rh"><b>%s</b><span>%s</span></div><ul class="cl">%s</ul><div class="res" hidden></div></div>' % (esc(r['t']), race_key(r['t']) or '', esc(r['t']), esc(VF.get(r['vf'], 'Vote for %d' % r['vf'])), cands)
         racehtml = '<h2>On the ballot November 3, 2026</h2><p class="note" id="resnote" style="margin:0 0 10px">Every race on this election district\'s ballot, with every candidate and party line. Results for this election district appear under each race once the Board of Elections reports them.</p>' + ''.join(racecard(r) for r in rc) + \
             '<div class="card race"><div class="rh"><b>City Charter questions 1 to 5</b><span>Back of the ballot</span></div><p style="margin:6px 0 0">Public space, contractor paperwork, street safety projects and City property, building permits, and the City\'s rainy day funds. What a yes and a no does on each at <a href="/vote/#questions">bkcb6.app/vote</a>.</p></div>'
         nb = neighbors(e)
@@ -168,6 +170,19 @@ var n=document.getElementById('resnote');if(n&&d.updated)n.textContent='Every ra
         page += '<p class="note">Election district lines are the NYC Board of Elections 2026 map. Poll site from the Board\'s Find My Poll Site, October 29, 2026. Races from the State Board of Elections certification of October 7, 2026.</p></div>' + RESIZE + LIVE + '</body></html>'
         d = os.path.join(ROOT, 'ed', e); os.makedirs(d, exist_ok=True)
         open(os.path.join(d, 'index.html'), 'w').write(page)
+
+    # every ED's ballot for /edresults/: race key -> race, ED -> race keys in ballot order
+    RACES = {}; EDB = {}
+    for e in sorted(byid):
+        ks = []
+        for r in races(byid[e]['properties']):
+            k = race_key(r['t'])
+            if not k: raise SystemExit('no race key for ' + r['t'])
+            RACES.setdefault(k, {'t': r['t'], 'vf': r['vf'], 'c': [[c[0], c[1]] for c in r['c']]}); ks.append(k)
+        EDB[e] = ks
+    json.dump({'src': 'Races: New York State Board of Elections certification, October 7, 2026 (electionexplainer/ballot.json); election districts: NYC Board of Elections 2026 map',
+               'races': RACES, 'ed': EDB}, open(os.path.join(ROOT, 'data/results/ed-ballots.json'), 'w'), separators=(',', ':'))
+    print('ballots for', len(EDB), 'election districts,', len(RACES), 'races', file=sys.stderr)
 
     # index: by borough, then community board; an ED that crosses a line is listed under each board it is in
     BOORD = ['MANHATTAN', 'BRONX', 'BROOKLYN', 'QUEENS', 'STATEN ISLAND']
