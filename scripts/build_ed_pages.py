@@ -50,16 +50,16 @@ def main():
         return r['n'] if r else None
 
     def races(p):
-        out = [r['t'] for r in B['state']]
+        out = list(B['state'])
         for k, v in (('cd', p['cd']), ('sd', p['sd']), ('ad', p['ad'])):
             r = B[k].get(str(int(v)) if v else '')
-            if r: out.append(r['t'])
+            if r: out.append(r)
         boro = p['bo']
         for k in ('sur', 'sc', 'ccc'):
             r = B.get(k, {}).get(boro)
-            if r: out.append(r['t'])
-        if p.get('mc') and B['ccd'].get(p['mc']): out.append(B['ccd'][p['mc']]['t'])
-        if p.get('cc') and B['ccl'].get(str(int(p['cc']))): out.append(B['ccl'][str(int(p['cc']))]['t'])
+            if r: out.append(r)
+        if p.get('mc') and B['ccd'].get(p['mc']): out.append(B['ccd'][p['mc']])
+        if p.get('cc') and B['ccl'].get(str(int(p['cc']))): out.append(B['ccl'][str(int(p['cc']))])
         return out
 
     def neighbors(e):
@@ -81,10 +81,24 @@ h2{font-size:1.05rem;margin:22px 0 8px}.card{background:#fff;border:1px solid va
 ul.r{margin:0;padding-left:18px;line-height:1.55}a{color:var(--navy)}
 .reg{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:.92rem}.reg td{padding:6px 4px;border-bottom:1px solid #f0eee9}.reg td.n{text-align:right;font-weight:700}
 .nb{display:flex;flex-wrap:wrap;gap:6px}.nb a{font:600 .82rem 'DM Sans',sans-serif;border:1.5px solid var(--line);border-radius:999px;padding:5px 10px;text-decoration:none;background:#fff}
+/*race*/.race{margin:0 0 10px}.rh{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}.rh span{font:500 .68rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--orange)}
+.cl{margin:8px 0 0;padding:0;list-style:none}.cl li{padding:5px 0;border-top:1px solid #f0eee9}.pl{font:500 .66rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-left:6px}
+.res{margin-top:10px;border-top:2px solid var(--navy);padding-top:8px}.res .t{font:500 .68rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.rr{display:grid;grid-template-columns:1fr auto auto;gap:4px 12px;font-variant-numeric:tabular-nums;font-size:.92rem}.rr .bar{grid-column:1/4;height:5px;background:#f0eee9;border-radius:3px;overflow:hidden;margin-bottom:4px}.rr .bar b{display:block;height:100%;background:var(--navy)}
 iframe{width:100%;border:0;display:block;min-height:900px;background:transparent}.note{font-size:.82rem;color:var(--muted);line-height:1.5;margin-top:16px}
 .nav{display:flex;justify-content:space-between;gap:8px;margin:18px 0 0;flex-wrap:wrap}.nav a{font-weight:700;text-decoration:none}"""
     HEAD = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="apple-itunes-app" content="app-id=6813967208">'
     FONTS = '<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&display=swap" rel="stylesheet">'
+    LIVE = """<script>(function(){var ED=document.body.dataset.ed;function norm(x){return String(x||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\\b(the|of|and|new york|kings|county|citywide)\\b/g,' ').replace(/\\s+/g,' ').trim()}
+function score(a,b){a=norm(a).split(' ');b=norm(b).split(' ');var n=0;a.forEach(function(w){if(w&&b.indexOf(w)>=0)n++});return n/Math.max(a.length,b.length)}
+fetch('/data/results/2026-general.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){if(!d||!d.contests||!d.contests.length)return;
+var cards=[].slice.call(document.querySelectorAll('.race[data-race]')),used={};
+d.contests.forEach(function(c){var e=c.ed&&c.ed[ED];if(!e)return;var best=null,bs=.5;cards.forEach(function(k,i){if(used[i])return;var s=score(k.dataset.race,c.name);if(s>bs){bs=s;best=i}});
+var v=e.v||[],tot=v.reduce(function(a,b){return a+b},0),ord=c.c.map(function(x,i){return i}).sort(function(a,b){return v[b]-v[a]});
+var h='<div class="t">'+(e.r?'This election district':'This election district, not yet reported')+' · '+tot.toLocaleString()+' votes'+(d.final?'':' · unofficial')+'</div><div class="rr">'+ord.map(function(i){var p=tot?100*v[i]/tot:0;return '<span>'+c.c[i].n.replace(/[<>&]/g,'')+'</span><b>'+v[i].toLocaleString()+'</b><span>'+p.toFixed(1)+'%</span><span class="bar"><b style="width:'+p.toFixed(1)+'%"></b></span>'}).join('')+'</div>';
+var box;if(best!=null){used[best]=1;box=cards[best].querySelector('.res')}else{var k=document.createElement('div');k.className='card race';k.innerHTML='<div class="rh"><b>'+c.name.replace(/[<>&]/g,'')+'</b></div><div class="res"></div>';var last=document.querySelector('.race:last-of-type');last.parentNode.insertBefore(k,last.nextSibling);box=k.querySelector('.res')}
+box.innerHTML=h;box.hidden=false});
+var n=document.getElementById('resnote');if(n&&d.updated)n.textContent='Every race on this election district\\'s ballot, with every candidate and party line, and this election district\\'s results from the Board of Elections, updated '+new Date(d.updated).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+'. Every community board: bkcb6.app/results.'}).catch(function(){})})();</script>"""
     RESIZE = "<script>addEventListener('message',function(e){if(e.data&&e.data.bkcbEmbedHeight){var f=document.getElementById('edmap');if(f)f.style.height=(e.data.bkcbEmbedHeight+8)+'px'}});</script>"
     PARTY = enr['parties']
     PN = {'DEM': 'Democratic', 'REP': 'Republican', 'CON': 'Conservative', 'WOR': 'Working Families', 'OTH': 'Other parties', 'BLANK': 'No party'}
@@ -122,7 +136,12 @@ iframe{width:100%;border:0;display:block;min-height:900px;background:transparent
                 '<tr><td>%s</td><td class="n">%s</td><td class="n" style="color:var(--muted);font-weight:500">%s%%</td></tr>' % (PN.get(k, k), format(reg[j], ','), round(100 * reg[j] / tot, 1) if tot else 0) for j, k in enumerate(PARTY)) + \
                 '<tr><td><b>Total</b></td><td class="n">%s</td><td></td></tr><tr><td>Active</td><td class="n">%s</td><td></td></tr></table><p class="note" style="margin:8px 0 0">NYS Board of Elections, enrollment by election district, %s. Total includes inactive voters.</p></div>' % (format(tot, ','), format(reg[len(PARTY) + 1], ','), 'February 20, 2026')
         rc = races(p)
-        racehtml = '<h2>On the ballot November 3, 2026</h2><div class="card"><ul class="r">' + ''.join('<li>%s</li>' % esc(r) for r in rc) + '</ul><p class="note" style="margin:8px 0 0">Plus the five City Charter questions on the back. Candidates and what each office does at <a href="/vote/">bkcb6.app/vote</a>.</p></div>'
+        VF = {1: 'Vote for one', 2: 'Vote for up to two', 3: 'Vote for up to three', 4: 'Vote for up to four', 5: 'Vote for up to five', 6: 'Vote for up to six'}
+        def racecard(r):
+            cands = ''.join('<li><b>%s</b> <span class="pl">%s</span></li>' % (esc(c[0]), esc(' · '.join(c[1]))) for c in r['c'])
+            return '<div class="card race" data-race="%s"><div class="rh"><b>%s</b><span>%s</span></div><ul class="cl">%s</ul><div class="res" hidden></div></div>' % (esc(r['t']), esc(r['t']), esc(VF.get(r['vf'], 'Vote for %d' % r['vf'])), cands)
+        racehtml = '<h2>On the ballot November 3, 2026</h2><p class="note" id="resnote" style="margin:0 0 10px">Every race on this election district\'s ballot, with every candidate and party line. Results for this election district appear under each race once the Board of Elections reports them.</p>' + ''.join(racecard(r) for r in rc) + \
+            '<div class="card race"><div class="rh"><b>City Charter questions 1 to 5</b><span>Back of the ballot</span></div><p style="margin:6px 0 0">Public space, contractor paperwork, street safety projects and City property, building permits, and the City\'s rainy day funds. What a yes and a no does on each at <a href="/vote/#questions">bkcb6.app/vote</a>.</p></div>'
         nb = neighbors(e)
         nbhtml = '<h2>Neighboring election districts</h2><div class="nb">' + ''.join('<a href="/ed/%s/">%s</a>' % (n, esc(edlabel(n))) for n in nb) + '</div>' if nb else ''
         prev_ = pick[i - 1] if i > 0 else None; next_ = pick[i + 1] if i + 1 < len(pick) else None
@@ -132,13 +151,13 @@ iframe{width:100%;border:0;display:block;min-height:900px;background:transparent
             edlong(e), cbtxt, (dname('ad', p['ad']) or '').split(' · ')[-1], (dname('sd', p['sd']) or '').split(' · ')[-1], (dname('cd', p['cd']) or '').split(' · ')[-1], (dname('cc', p['cc']) or '').split(' · ')[-1])
         if site: desc += ' On Election Day they vote at %s, %s.' % (site[0], site[2])
         title = '%s · %s' % (edlong(e), cbshort(max(share, key=share.get)))
-        page = HEAD + '<title>%s · bkcb6.app</title><meta name="description" content="%s"><meta property="og:title" content="%s"><meta property="og:description" content="%s"><link rel="canonical" href="https://bkcb6.app/ed/%s/">%s<style>%s</style></head><body><script src="/assets/site-bar.js?v=1" defer></script>' % (
-            esc(title), esc(desc), esc(edlong(e)), esc(desc), e, FONTS, CSS)
+        page = HEAD + '<title>%s · bkcb6.app</title><meta name="description" content="%s"><meta property="og:title" content="%s"><meta property="og:description" content="%s"><link rel="canonical" href="https://bkcb6.app/ed/%s/">%s<style>%s</style></head><body data-ed="%s"><script src="/assets/site-bar.js?v=1" defer></script>' % (
+            esc(title), esc(desc), esc(edlong(e)), esc(desc), e, FONTS, CSS, e)
         page += '<header><div class="in"><div class="eyebrow"><a href="/ed/">Election districts</a> · %s</div><h1>%s</h1><p class="lede">%s</p></div></header><div class="wrap">' % (esc(cbname(max(share, key=share.get))), esc(edlong(e)), esc(desc))
         page += '<div class="card"><dl class="kv">%s</dl></div>' % kv
         page += '<h2>On the map</h2><iframe id="edmap" title="Map of %s and the districts it is part of" src="/yourdistricts/?embed=1#ed=%s&fit=ed" loading="lazy"></iframe>' % (esc(edlong(e)), e)
         page += sitehtml + racehtml + reghtml + nbhtml + nav
-        page += '<p class="note">Election district lines are the NYC Board of Elections 2026 map. Poll site from the Board\'s Find My Poll Site, October 29, 2026. Races from the State Board of Elections certification of October 7, 2026.</p></div>' + RESIZE + '</body></html>'
+        page += '<p class="note">Election district lines are the NYC Board of Elections 2026 map. Poll site from the Board\'s Find My Poll Site, October 29, 2026. Races from the State Board of Elections certification of October 7, 2026.</p></div>' + RESIZE + LIVE + '</body></html>'
         d = os.path.join(ROOT, 'ed', e); os.makedirs(d, exist_ok=True)
         open(os.path.join(d, 'index.html'), 'w').write(page)
 
