@@ -323,6 +323,8 @@ header .stk{grid-row:2/4}
 .leaflet-tooltip.dtip{font:600 12.5px 'DM Sans',sans-serif;color:#0d1b4b;border:1px solid #e5e2db;border-radius:8px;padding:5px 8px;display:flex;align-items:center;gap:7px;box-shadow:0 3px 10px rgba(13,27,75,.12)}
 .leaflet-tooltip.dtip img{width:28px;height:28px;object-fit:contain;border-radius:5px}
 .leaflet-tooltip.dtip small{display:block;font:500 10px 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#6b6760}
+.bobadge{position:absolute;top:10px;right:10px;z-index:800;display:none;align-items:center;gap:7px;background:#fff;border-radius:999px;padding:4px 10px 4px 4px;box-shadow:0 2px 8px rgba(13,27,75,.18);font:700 12.5px/1 'DM Sans',sans-serif;color:#0d1b4b;pointer-events:none}
+.bobadge img{width:28px;height:28px;border-radius:50%;object-fit:contain;background:#fff;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
 .dlogo{background:none;border:0;box-shadow:none;overflow:visible;pointer-events:auto}
 .dlogo img{width:100%;height:100%;object-fit:contain;display:block;background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.25);border:1.5px solid #fff;box-sizing:border-box}
 .dlogo b{position:absolute;font:700 10.5px/1 'DM Sans',sans-serif;color:#0d1b4b;background:#fff;border-radius:999px;padding:3px 6px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.25)}
@@ -859,13 +861,19 @@ function kindLayer(k){if(kindLayers[k])return kindLayers[k];
 var CBBO={1:'MANHATTAN',2:'BRONX',3:'BROOKLYN',4:'QUEENS',5:'STATEN ISLAND'},cbBoro=null;
 function cbBoroOf(v){return CBBO[String(v).charAt(0)]||''}
 function setCbBoro(b){if(cbBoro===b)return;cbBoro=b;if(kindLayers.cb){map.removeLayer(kindLayers.cb);delete kindLayers.cb}if(logoLayers.cb){map.removeLayer(logoLayers.cb);delete logoLayers.cb}}
+var boBaseL=null;function boBase(){if(boBaseL)return boBaseL;boBaseL=L.geoJSON(LAY.bo,{renderer:canvas,interactive:false,style:function(f){var d=info('bo',f.properties.id);return {color:d.s,weight:1.5,opacity:.9,fill:false}}});return boBaseL}
+function boroLabels(){if(!LAY||!D)return;boBase().addTo(map);boBase().bringToBack();logoLayer('bo').addTo(map);boroBadge()}
+function pipRing(pt,ring){var x=pt[0],y=pt[1],ins=false;for(var i=0,j=ring.length-1;i<ring.length;j=i++){var xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))ins=!ins}return ins}
+function boroAt(lat,lng){if(!LAY)return null;var pt=[lng,lat],fs=LAY.bo.features;for(var i=0;i<fs.length;i++){var g=fs[i].geometry,polys=g.type==='Polygon'?[g.coordinates]:g.coordinates;for(var p=0;p<polys.length;p++){if(pipRing(pt,polys[p][0])){var hole=false;for(var h=1;h<polys[p].length;h++)if(pipRing(pt,polys[p][h])){hole=true;break}if(!hole)return fs[i].properties.id}}}return null}
+function boroBadge(){var el=document.getElementById('bobadge');if(!el){el=L.DomUtil.create('div','bobadge',map.getContainer());el.id='bobadge'}var z=map.getZoom();if(z<=9||!LAY||!D){el.style.display='none';if(logoLayers.bo)logoLayers.bo.eachLayer(function(m){var e=m.getElement();if(e)e.style.display=''});return}var c=map.getCenter(),b=boroAt(c.lat,c.lng);if(!b){el.style.display='none';return}var d=info('bo',b);el.innerHTML='<img src="'+d.logo+'" alt=""><b>'+esc(d.n)+'</b>';el.style.display='flex';if(logoLayers.bo)logoLayers.bo.eachLayer(function(m){var e=m.getElement();if(e)e.style.display=(z>=11&&m._did===b)?'none':''})}
+map.on('moveend zoomend',boroBadge);
 var BOLBL={MANHATTAN:'l',BRONX:'r',QUEENS:'r'};
 function shortName(k,v,d){if(k==='bo')return d.n||v;if(k==='cb'){var BC={1:'MN',2:'BX',3:'BK',4:'QN',5:'SI'};return (cbBoro?'':(BC[String(v).charAt(0)]||'')+' ')+'CB '+(+String(v).slice(-2))}if(k==='ad')return 'AD '+v;if(k==='sd')return 'SD '+v;if(k==='cd')return 'NY-'+v;if(k==='cc')return 'District '+v;if(k==='mc')return 'MC '+String(v).split('|').pop();return String(v)}
 function logoLayer(k){if(logoLayers[k])return logoLayers[k];
   var g=L.layerGroup(),rows=D.d[k]||{};
   Object.keys(rows).forEach(function(v){var d=rows[v];if(!d.logo||!d.c)return;if(k==='cb'&&cbBoro&&cbBoroOf(v)!==cbBoro)return;
     var m=L.marker(d.c,{interactive:true,keyboard:false,icon:L.divIcon({className:'dlogo'+(k==='bo'?' dbo':'')+' lb-'+(k==='bo'?(BOLBL[v]||'b'):'b'),html:'<img src="'+d.logo+'" alt=""><b>'+esc(shortName(k,v,d))+'</b>',iconSize:k==='bo'?[54,54]:[40,40],iconAnchor:k==='bo'?[27,27]:[20,20]})});
-    m.bindTooltip(tip(k,v),{className:'dtip',direction:'top',offset:[0,-22]});m.on('click',function(){MAPX.district(k,v)});g.addLayer(m)});
+    m._did=v;m.bindTooltip(tip(k,v),{className:'dtip',direction:'top',offset:[0,-22]});m.on('click',function(){MAPX.district(k,v)});g.addLayer(m)});
   logoLayers[k]=g;return g}
 function mineLayer(k){var v=myId(k),key=k+':'+v;if(mine[key])return mine[key];var f=feat(k,v);if(!f)return null;var d=k==='ed'?{s:'#f47920',f:'#f47920',logo:''}:info(k,v);
   var g=L.geoJSON(f,{renderer:canvas,style:{color:d.s,weight:3,opacity:1,fillColor:d.f,fillOpacity:k==='ed'?.42:.18},
@@ -880,13 +888,14 @@ function layers(fit){if(!LAY)return;var z=map.getZoom();
       else{if(kindLayers[l.k])map.removeLayer(kindLayers[l.k]);if(logoLayers[l.k])map.removeLayer(logoLayers[l.k])}});
     var shown=[];L_.slice().reverse().forEach(function(l){if(!on[l.k]||!myId(l.k))return;var g=mineLayer(l.k);if(g){g.addTo(map);g.eachLayer(function(x){if(x.bringToFront)x.bringToFront()});shown.push(g)}});
     if(fit&&shown.length){var b=null;shown.forEach(function(g){b=b?b.extend(g.getBounds()):g.getBounds()});map.fitBounds(b,{padding:[20,20],maxZoom:16})}
-    if(pin)pin.bringToFront();if(siteMk)siteMk.addTo(map);return;
+    boroLabels();if(pin)pin.bringToFront();if(siteMk)siteMk.addTo(map);return;
   }
   if(edLayer){if(on.ed&&z>=13)edLayer.addTo(map);else map.removeLayer(edLayer)}
   L_.forEach(function(l){if(l.k==='ed')return;
     if(on[l.k]){kindLayer(l.k).addTo(map);if(z>=l.z)logoLayer(l.k).addTo(map);else if(logoLayers[l.k])map.removeLayer(logoLayers[l.k])}
     else{if(kindLayers[l.k])map.removeLayer(kindLayers[l.k]);if(logoLayers[l.k])map.removeLayer(logoLayers[l.k])}});
   if(on.bo&&kindLayers.bo)kindLayers.bo.bringToBack();
+  boroLabels();
   if(pick.g){pick.g.addTo(map);pick.g.bringToFront()}
   if(pin)pin.bringToFront();
 }
