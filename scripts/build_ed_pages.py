@@ -10,26 +10,29 @@ Every fact on a page comes from the site's own data files:
   data/enrollment/cb6.json            registered voters by party (NYS BOE, February 20, 2026)
 The map is bkcb6.app/yourdistricts/ in embed mode, opened at the ED.
 
-Run: python3 scripts/build_ed_pages.py [--cb 306 ...]   (default: Brooklyn Community Board 6)
+Run: python3 scripts/build_ed_pages.py [--cb 306 ...]   (default: every election district in the city)
 """
 import json, os, sys, html
 from shapely.geometry import shape
+from shapely.strtree import STRtree
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 J = lambda p: json.load(open(os.path.join(ROOT, p)))
 esc = html.escape
 
 BORO = {'1': 'Manhattan', '2': 'The Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island'}
+BOFULL = {'MANHATTAN': 'Manhattan', 'BRONX': 'The Bronx', 'BROOKLYN': 'Brooklyn', 'QUEENS': 'Queens', 'STATEN ISLAND': 'Staten Island'}
+BONUM = {'MANHATTAN': '1', 'BRONX': '2', 'BROOKLYN': '3', 'QUEENS': '4', 'STATEN ISLAND': '5'}
 BC = {'1': 'MN', '2': 'BX', '3': 'BK', '4': 'QN', '5': 'SI'}
 def ordinal(n):
     n = int(n); s = 'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th'); return '%d%s' % (n, s)
-def cbname(c): return '%s Community Board %d' % (BORO[c[0]], int(c[1:]))
+def cbname(c): return '%s Community Board %d' % (BORO[c[0]].replace('The ', ''), int(c[1:]))
 def cbshort(c): return '%s CB %d' % (BC[c[0]], int(c[1:]))
 def edlabel(e): return 'AD %d · ED %d' % (int(e[:2]), int(e[2:]))
 def edlong(e): return 'Election District %d, Assembly District %d' % (int(e[2:]), int(e[:2]))
 
 def main():
-    cbs = ['306']
+    cbs = None
     if '--cb' in sys.argv: cbs = sys.argv[sys.argv.index('--cb') + 1:]
     eds = J('electionexplainer/map/eds.geojson')['features']
     split = J('electionexplainer/map/ed-cb-split.json')['d']
@@ -41,8 +44,10 @@ def main():
     geo = {k: shape(f['geometry']).buffer(0) for k, f in byid.items()}
 
     def cbs_of(e):
-        return split.get(e) or {byid[e]['properties']['cb']: 1.0}
-    pick = sorted([e for e in byid if any(c in cbs for c in cbs_of(e))])
+        if e in split: return split[e]
+        c = byid[e]['properties']['cb']
+        return {c: 1.0} if c else {}
+    pick = sorted([e for e in byid if cbs is None or any(c in cbs for c in cbs_of(e))])
     print(len(pick), 'election districts', file=sys.stderr)
 
     def dname(kind, v):
@@ -62,12 +67,13 @@ def main():
         if p.get('cc') and B['ccl'].get(str(int(p['cc']))): out.append(B['ccl'][str(int(p['cc']))])
         return out
 
+    keys = list(geo); tree = STRtree([geo[k] for k in keys])
     def neighbors(e):
         g = geo[e]; out = []
-        for k, h in geo.items():
-            if k != e and g.bounds[0] <= h.bounds[2] and h.bounds[0] <= g.bounds[2] and g.bounds[1] <= h.bounds[3] and h.bounds[1] <= g.bounds[3]:
-                if g.intersection(h).length > 0 or g.touches(h):
-                    out.append(k)
+        for j in tree.query(g):
+            k = keys[int(j)]; h = geo[k]
+            if k != e and (g.intersection(h).length > 0 or g.touches(h)):
+                out.append(k)
         return sorted(out)
 
     CSS = """:root{--navy:#0d1b4b;--orange:#f47920;--bg:#f8f7f4;--line:#e5e2db;--muted:#6b6760;--mono:'DM Mono',ui-monospace,monospace}
@@ -112,10 +118,12 @@ var n=document.getElementById('resnote');if(n&&d.updated)n.textContent='Every ra
         acres = geo[e].area * (111320 ** 2) * math.cos(math.radians(lat)) / 4046.86
         ps = PS['d'].get(e)
         site = PS['s'][ps[0]] if ps else None
-        cbtxt = ' and '.join('%s (%d%% of its area)' % (cbname(c), round(f * 100)) for c, f in sorted(share.items(), key=lambda x: -x[1])) if len(share) > 1 else cbname(list(share)[0])
+        top = max(share, key=share.get) if share else None
+        bo = BOFULL[p['bo']]
+        cbtxt = 'No community district (%s)' % bo if not share else ' and '.join('%s (%d%% of its area)' % (cbname(c), round(f * 100)) for c, f in sorted(share.items(), key=lambda x: -x[1])) if len(share) > 1 else cbname(list(share)[0])
         rows = [
             ('Community board', cbtxt),
-            ('Borough', BORO[list(share)[0][0]]),
+            ('Borough', bo),
             ('Assembly', dname('ad', p['ad']) or 'Assembly District %s' % p['ad']),
             ('State Senate', dname('sd', p['sd']) or 'Senate District %s' % p['sd']),
             ('Congress', dname('cd', p['cd']) or 'Congressional District %s' % p['cd']),
@@ -150,10 +158,10 @@ var n=document.getElementById('resnote');if(n&&d.updated)n.textContent='Every ra
         desc = '%s is in %s. Its voters are represented by %s in the Assembly, %s in the State Senate, %s in Congress and %s on the City Council.' % (
             edlong(e), cbtxt, (dname('ad', p['ad']) or '').split(' · ')[-1], (dname('sd', p['sd']) or '').split(' · ')[-1], (dname('cd', p['cd']) or '').split(' · ')[-1], (dname('cc', p['cc']) or '').split(' · ')[-1])
         if site: desc += ' On Election Day they vote at %s, %s.' % (site[0], site[2])
-        title = '%s · %s' % (edlong(e), cbshort(max(share, key=share.get)))
+        title = '%s · %s' % (edlong(e), cbshort(top) if top else bo)
         page = HEAD + '<title>%s · bkcb6.app</title><meta name="description" content="%s"><meta property="og:title" content="%s"><meta property="og:description" content="%s"><link rel="canonical" href="https://bkcb6.app/ed/%s/">%s<style>%s</style></head><body data-ed="%s"><script src="/assets/site-bar.js?v=1" defer></script>' % (
             esc(title), esc(desc), esc(edlong(e)), esc(desc), e, FONTS, CSS, e)
-        page += '<header><div class="in"><div class="eyebrow"><a href="/ed/">Election districts</a> · %s</div><h1>%s</h1><p class="lede">%s</p></div></header><div class="wrap">' % (esc(cbname(max(share, key=share.get))), esc(edlong(e)), esc(desc))
+        page += '<header><div class="in"><div class="eyebrow"><a href="/ed/">Election districts</a> · %s</div><h1>%s</h1><p class="lede">%s</p></div></header><div class="wrap">' % (esc(cbname(top) if top else bo), esc(edlong(e)), esc(desc))
         page += '<div class="card"><dl class="kv">%s</dl></div>' % kv
         page += '<h2>On the map</h2><iframe id="edmap" title="Map of %s and the districts it is part of" src="/yourdistricts/?embed=1#ed=%s&fit=ed" loading="lazy"></iframe>' % (esc(edlong(e)), e)
         page += sitehtml + racehtml + reghtml + nbhtml + nav
@@ -161,13 +169,34 @@ var n=document.getElementById('resnote');if(n&&d.updated)n.textContent='Every ra
         d = os.path.join(ROOT, 'ed', e); os.makedirs(d, exist_ok=True)
         open(os.path.join(d, 'index.html'), 'w').write(page)
 
-    # index
-    byad = {}
-    for e in pick: byad.setdefault(int(e[:2]), []).append(e)
-    groups = ''.join('<h2>Assembly District %d</h2><div class="nb">%s</div>' % (ad, ''.join('<a href="/ed/%s/">ED %d</a>' % (e, int(e[2:])) for e in es)) for ad, es in sorted(byad.items()))
-    idx = HEAD + '<title>Election districts · bkcb6.app</title><meta name="description" content="Every election district in %s: its districts, representatives, poll site, ballot, registered voters and map."><link rel="canonical" href="https://bkcb6.app/ed/">%s<style>%s</style></head><body><script src="/assets/site-bar.js?v=1" defer></script>' % (esc(', '.join(cbname(c) for c in cbs)), FONTS, CSS)
-    idx += '<header><div class="in"><div class="eyebrow">Election districts · 2026 map</div><h1>Election districts in %s</h1><p class="lede">%d election districts, each with its own page: its districts and representatives, Election Day poll site, ballot, registered voters and a map of everything it is part of.</p></div></header><div class="wrap">%s<p class="note">Includes election districts that cross into %s from a neighboring community district.</p></div></body></html>' % (
-        esc(', '.join(cbname(c) for c in cbs)), len(pick), groups, esc(', '.join(cbshort(c) for c in cbs)))
+    # index: by borough, then community board; an ED that crosses a line is listed under each board it is in
+    BOORD = ['MANHATTAN', 'BRONX', 'BROOKLYN', 'QUEENS', 'STATEN ISLAND']
+    bycb = {}
+    for e in pick:
+        sh = cbs_of(e)
+        if not sh: bycb.setdefault(BONUM[byid[e]['properties']['bo']] + 'none', []).append((e, 1.0))
+        for c, f in sh.items():
+            if cbs is None or c in cbs: bycb.setdefault(c, []).append((e, f))
+    secs = ''
+    for b in BOORD:
+        n = BONUM[b]; keys = sorted(k for k in bycb if k.startswith(n))
+        if not keys: continue
+        secs += '<section class="bo" id="%s"><h2 class="boh">%s</h2>' % (b.lower().replace(' ', '-'), esc(BOFULL[b]))
+        for k in keys:
+            name = 'Not in a community district' if k.endswith('none') else cbname(k)
+            lst = bycb[k]
+            secs += '<details class="cbk" id="cb%s"><summary><b>%s</b> <span class="pl">%d election districts</span></summary><div class="nb">%s</div></details>' % (
+                k, esc(name), len(lst), ''.join('<a href="/ed/%s/" data-k="%s %d %d">%s%s</a>' % (e, e, int(e[:2]), int(e[2:]), esc(edlabel(e)), (' <span class="pl">%d%%</span>' % round(f * 100)) if f < 1 else '') for e, f in lst))
+        secs += '</section>'
+    where = 'New York City' if cbs is None else ', '.join(cbname(c) for c in cbs)
+    XCSS = '.boh{font-size:1.3rem;margin:26px 0 8px}.cbk{background:#fff;border:1px solid var(--line);border-radius:12px;margin:0 0 8px;padding:10px 14px}.cbk summary{cursor:pointer}.cbk .nb{margin-top:10px}#q{width:100%;font:500 1rem DM Sans,sans-serif;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--navy)}.jump{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0}.jump a{font-weight:700;text-decoration:none;border:1.5px solid var(--line);border-radius:999px;padding:5px 12px;background:#fff}'
+    FIND = """<script>(function(){var q=document.getElementById('q');q.addEventListener('input',function(){var v=q.value.trim().toLowerCase().replace(/[^0-9 ]/g,' ').replace(/\\s+/g,' ').trim();var parts=v.split(' ');
+document.querySelectorAll('.cbk').forEach(function(d){var any=false;d.querySelectorAll('a').forEach(function(a){var k=a.dataset.k.split(' ');var ok=!v||(parts.length==1?(k[0]==parts[0]||k[0].indexOf(parts[0])==0):(k[1]==parts[0]&&k[2]==parts[1]));a.style.display=ok?'':'none';if(ok)any=true});d.style.display=any?'':'none';d.open=!!v&&any});
+document.querySelectorAll('.bo').forEach(function(s){s.style.display=[].some.call(s.querySelectorAll('.cbk'),function(d){return d.style.display!='none'})?'':'none'})})})();</script>"""
+    idx = HEAD + '<title>Election districts · bkcb6.app</title><meta name="description" content="Every election district in %s: its districts, representatives, poll site, ballot, results and map."><link rel="canonical" href="https://bkcb6.app/ed/">%s<style>%s%s</style></head><body><script src="/assets/site-bar.js?v=1" defer></script>' % (esc(where), FONTS, CSS, XCSS)
+    idx += '<header><div class="in"><div class="eyebrow">Election districts · 2026 map</div><h1>Election districts in %s</h1><p class="lede">%s election districts, each with its own page: its districts and representatives, Election Day poll site, every race on its ballot with its results, and a map of everything it is part of.</p></div></header><div class="wrap">' % (esc(where), format(len(pick), ','))
+    idx += '<input id="q" type="search" inputmode="numeric" placeholder="Election district, like 52046 or 52 46 (Assembly, then ED)" aria-label="Find an election district"><div class="jump">%s</div>' % ''.join('<a href="#%s">%s</a>' % (b.lower().replace(' ', '-'), esc(BOFULL[b])) for b in BOORD)
+    idx += secs + '<p class="note">An election district that crosses a community district line is listed under each board it is in, with the share of its area in that board. Election district lines are the NYC Board of Elections 2026 map.</p></div>' + FIND + '</body></html>'
     os.makedirs(os.path.join(ROOT, 'ed'), exist_ok=True)
     open(os.path.join(ROOT, 'ed', 'index.html'), 'w').write(idx)
     print('wrote', len(pick), 'pages + index', file=sys.stderr)
