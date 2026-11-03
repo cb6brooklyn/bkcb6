@@ -180,8 +180,7 @@
     }
   }
 
-  root.innerHTML = '<a class="cc-vote" href="https://bkcb6.app/vote/" target="_top" style="display:block;background:#0d1b4b;color:#fff;text-decoration:none;border:2px solid #f47920;border-radius:14px;overflow:hidden;margin:0 0 14px;font-family:DM Sans,system-ui,sans-serif"><div style="background:#f47920;color:#0d1b4b;font-size:15px;font-weight:600;line-height:1.35;padding:9px 14px"><b style="font-weight:800">Election Day is Tuesday, November 3.</b> Polls are open 6 AM to 9 PM.</div><div style="display:flex;align-items:center;gap:14px;padding:13px 14px 15px"><img src="https://bkcb6.app/electionexplainer/stickers/bkcb6.png" alt="" width="64" height="64" style="width:64px;height:64px;flex:none;border-radius:50%"><div style="min-width:0"><div style="font-size:20px;font-weight:800;line-height:1.12;color:#fff">Where you vote, who is running and what is on your ballot</div><div style="font-size:13.5px;line-height:1.4;color:rgba(255,255,255,.8);margin:6px 0 10px">Type your address for your poll site, your districts, every race and the five City Charter questions.</div><span style="display:inline-block;background:#fff;color:#0d1b4b;font-size:14px;font-weight:800;line-height:1;padding:10px 14px;border-radius:999px">Your poll site and your ballot &rsaquo;</span></div></div></a>' +
-    '<div class="cc-lead"></div>' +
+  root.innerHTML = '<div class="cc-lead"></div>' +
     '<div class="cc-search"><input type="search" placeholder="Search events, organizations, places" aria-label="Search the calendar"><button type="button" class="cc-clear">Clear</button></div>' +
     '<div class="cc-views" role="tablist"></div>' +
     '<div class="cc-row cc-modes"></div>' +
@@ -189,7 +188,6 @@
     '<div class="cc-cal"><div class="cc-mh"><button type="button" data-n="-1" aria-label="Previous">&lsaquo;</button><h3></h3><button type="button" data-n="1" aria-label="Next">&rsaquo;</button></div><div class="cc-grid"></div></div>' +
     '<div class="cc-list"><div class="cc-empty">Loading the calendar…</div></div>';
   var $ = function (s) { return root.querySelector(s); };
-  try { if (nyToday() > '2026-11-03') $('.cc-vote').style.display = 'none'; } catch (e) {}
   var input = $('.cc-search input');
   input.value = S.q;
 
