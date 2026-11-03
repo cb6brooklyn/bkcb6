@@ -34,6 +34,8 @@ input,select{font:500 1rem 'DM Sans',sans-serif;color:var(--navy);padding:11px 1
 .sides button small{display:block;color:var(--muted);font-weight:500;margin-top:2px}
 #map{height:min(64vh,620px);border-radius:14px;border:1px solid var(--line);margin-top:12px;background:#dfe7ea}
 .scope{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}.scope button{font:700 .88rem 'DM Sans',sans-serif;border:1.5px solid var(--line);background:#fff;color:var(--navy);border-radius:999px;padding:7px 13px;cursor:pointer}.scope button[aria-pressed=true]{background:var(--orange);border-color:var(--orange);color:#fff}
+.tg{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.tg button{font:600 .82rem 'DM Sans',sans-serif;border:1.5px solid var(--c,var(--line));background:#fff;color:var(--navy);border-radius:999px;padding:6px 11px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}.tg button i{width:10px;height:10px;border-radius:3px;background:var(--c)}.tg button[aria-pressed=true]{background:var(--c);color:#fff}.tg button[aria-pressed=true] i{background:#fff}
+.ps{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start}
 .mapbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.mapbar label{font:500 .7rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}.mapbar select{flex:1 1 280px;width:auto}
 .key{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.85rem;margin-top:8px}.key span{display:inline-flex;align-items:center;gap:6px}.key i{width:14px;height:14px;border-radius:4px;display:inline-block}
 .status{font:500 .72rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:8px}
@@ -87,6 +89,7 @@ input,select{font:500 1rem 'DM Sans',sans-serif;color:var(--navy);padding:11px 1
 </div>
 
 <div class="scope" id="scope"><button data-s="cb6" aria-pressed="true">BK CB6</button><button data-s="BROOKLYN" aria-pressed="false">Brooklyn</button><button data-s="MANHATTAN" aria-pressed="false">Manhattan</button><button data-s="BRONX" aria-pressed="false">The Bronx</button><button data-s="QUEENS" aria-pressed="false">Queens</button><button data-s="STATEN ISLAND" aria-pressed="false">Staten Island</button><button data-s="nyc" aria-pressed="false">All of NYC</button></div>
+<div class="tg" id="tg"><button data-l="ed" aria-pressed="true" style="--c:#3d4a72"><i></i>Election districts</button><button data-l="ps" aria-pressed="true" style="--c:#f47920"><i></i>Poll sites</button><button data-l="ad" aria-pressed="false" style="--c:#2e7d32"><i></i>Assembly</button><button data-l="sd" aria-pressed="false" style="--c:#6a1b9a"><i></i>State Senate</button><button data-l="cd" aria-pressed="false" style="--c:#c62828"><i></i>Congress</button><button data-l="cc" aria-pressed="false" style="--c:#00796b"><i></i>City Council</button><button data-l="mc" aria-pressed="false" style="--c:#8d4b2b"><i></i>Civil Court</button><button data-l="cb" aria-pressed="false" style="--c:#0d1b4b"><i></i>Community boards</button><button data-l="bo" aria-pressed="false" style="--c:#1a3e8c"><i></i>Boroughs</button></div>
 <div class="mapbar"><label for="race">Color the map by</label><select id="race"></select></div>
 <div id="map"></div>
 <div class="key" id="key"></div>
@@ -124,9 +127,10 @@ var PCOL={'Democratic':'#1f5fbf','Republican':'#c62828','Conservative':'#e08a00'
 var PAL=['#2a9d8f','#8d6e63','#5c6bc0','#ad1457','#558b2f','#00838f','#6d4c41','#9e9d24'];
 function candColor(race,i){var c=race.c[i],p=(c&&c[1]&&c[1][0])||'';if(PCOL[p])return PCOL[p];return PAL[i%PAL.length]}
 
+var LCOL={ad:'#2e7d32',sd:'#6a1b9a',cd:'#c62828',cc:'#00796b',mc:'#8d4b2b',cb:'#0d1b4b',bo:'#1a3e8c'},LAY={},LAYD=null,DN=null,PS=null,psLayer=null,psSel=null,showEDs=true,showPS=true;
 var BAL=null,RES=null,RESK={},EDF={},layer=null,map,sel=null,pin=null,curRace='gov',scope='cb6',SPLIT={};
 function inScope(e){if(scope==='nyc')return true;var l=EDF[e];if(!l)return false;var p=l.feature.properties;if(scope==='cb6')return p.cb==='306'||!!(SPLIT[e]&&SPLIT[e]['306']);return p.bo===scope}
-function setScope(s,fit){scope=s;[].forEach.call(document.querySelectorAll('#scope button'),function(b){b.setAttribute('aria-pressed',b.dataset.s===s)});restyle();if(fit!==false){var b=null;layer.eachLayer(function(l){if(inScope(l.feature.properties.id))b=b?b.extend(l.getBounds()):L.latLngBounds(l.getBounds().getSouthWest(),l.getBounds().getNorthEast())});if(b)map.fitBounds(b,{padding:[12,12]})}}
+function setScope(s,fit){scope=s;[].forEach.call(document.querySelectorAll('#scope button'),function(b){b.setAttribute('aria-pressed',b.dataset.s===s)});restyle();drawPS();if(fit!==false){var b=null;layer.eachLayer(function(l){if(inScope(l.feature.properties.id))b=b?b.extend(l.getBounds()):L.latLngBounds(l.getBounds().getSouthWest(),l.getBounds().getNorthEast())});if(b)map.fitBounds(b,{padding:[12,12]})}}
 [].forEach.call(document.querySelectorAll('#scope button'),function(b){b.onclick=function(){if(layer)setScope(b.dataset.s)}});
 
 map=L.map('map',{preferCanvas:true,zoomControl:true}).setView([40.705,-73.94],11);
@@ -136,6 +140,7 @@ var renderer=L.canvas({padding:.3});
 function contestFor(k){return RESK[k]||null}
 function edResult(k,e){var c=contestFor(k);if(!c||!c.ed)return null;var r=c.ed[e];return r?{c:c,r:r}:null}
 function styleFor(e){
+  if(layer&&!showEDs&&sel!==e)return {renderer:renderer,weight:0,opacity:0,fillOpacity:0};
   if(layer&&!inScope(e)&&sel!==e)return {renderer:renderer,weight:0,opacity:0,fillOpacity:0};
   var base={renderer:renderer,weight:sel===e?3:.8,color:sel===e?'#f47920':'#3d4a72',opacity:sel===e?1:.75,fillOpacity:.12,fillColor:'#9aa3b8'};
   var on=BAL&&BAL.ed[e]&&BAL.ed[e].indexOf(curRace)>=0;
@@ -169,6 +174,28 @@ function loadResults(){
     $('status').textContent=n?('Board of Elections, '+(d.final?'final':'unofficial')+', updated '+new Date(d.updated).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})):'No results yet. Polls close at 9 PM; this page fills in as the Board of Elections reports.';
     restyle();if(sel)showEd(sel,true)}).catch(function(){})}
 
+
+function edProps(e){return EDF[e]?EDF[e].feature.properties:{}}
+function partOf(kind,e){var p=edProps(e);if(kind==='ad')return String(parseInt(e.slice(0,2),10));if(kind==='cb')return p.cb;if(kind==='bo')return p.bo;if(kind==='mc')return p.mc;return p[kind]?String(parseInt(p[kind],10)):''}
+function dname(kind,id){var r=DN&&DN.d[kind]&&DN.d[kind][id];return r?r.n:({ad:'Assembly District ',sd:'Senate District ',cd:'Congressional District ',cc:'Council District '}[kind]||'')+id}
+function lstyle(kind,id){var on=sel&&partOf(kind,sel)===String(id);return {renderer:renderer,color:LCOL[kind],weight:on?4:(kind==='bo'?2.5:1.6),opacity:on?1:.8,fillColor:LCOL[kind],fillOpacity:on?.08:0,interactive:false}}
+function drawLayer(kind){
+  if(LAY[kind]){LAY[kind].addTo(map);return}
+  var go=function(){LAY[kind]=L.geoJSON(LAYD[kind],{style:function(f){return lstyle(kind,f.properties.id)},interactive:false}).addTo(map);
+    LAY[kind].eachLayer(function(l){l.bindTooltip(dname(kind,l.feature.properties.id),{sticky:true})});if(layer)layer.bringToFront()};
+  if(LAYD)go();else{msg.textContent='Loading district lines…';Promise.all([fetch('/electionexplainer/map/layers.json').then(function(r){return r.json()}),fetch('/yourdistricts/districts.json').then(function(r){return r.json()})]).then(function(a){LAYD=a[0];DN=a[1];msg.textContent='';go()})}}
+function restyleLayers(){Object.keys(LAY).forEach(function(k){LAY[k].eachLayer(function(l){l.setStyle(lstyle(k,l.feature.properties.id))})})}
+function siteOf(e){var x=PS&&PS.d[e];return x?PS.s[x[0]]:null}
+function appleDir(s){return 'https://maps.apple.com/?daddr='+encodeURIComponent(s[1])+'&dirflg=w'}
+function drawPS(){
+  if(!PS)return;
+  if(psLayer){map.removeLayer(psLayer);psLayer=null}
+  if(showPS){var seen={};psLayer=L.layerGroup();Object.keys(PS.d).forEach(function(e){if(!inScope(e))return;var i=PS.d[e][0];if(seen[i])return;seen[i]=1;var s=PS.s[i];
+    L.circleMarker([+s[5],+s[6]],{renderer:renderer,radius:4,color:'#fff',weight:1.5,fillColor:'#f47920',fillOpacity:1}).bindTooltip(esc(s[0])).bindPopup('<b>'+esc(s[0])+'</b><br>'+esc(s[1])+'<br><a href="'+appleDir(s)+'" target="_blank" rel="noopener">Directions in Apple Maps</a>').addTo(psLayer)});psLayer.addTo(map)}
+  if(psSel){map.removeLayer(psSel);psSel=null}
+  var s=sel&&siteOf(sel);if(s){psSel=L.marker([+s[5],+s[6]],{icon:L.divIcon({className:'',html:'<div style="width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#0d1b4b;border:3px solid #f47920;box-shadow:0 2px 6px rgba(0,0,0,.35)"></div>',iconSize:[26,26],iconAnchor:[13,26]}),zIndexOffset:1000}).bindPopup('<b>Election Day poll site for '+esc(edLabel(sel))+'</b><br>'+esc(s[0])+'<br>'+esc(s[1])+'<br><a href="'+appleDir(s)+'" target="_blank" rel="noopener">Directions in Apple Maps</a>').addTo(map)}}
+[].forEach.call(document.querySelectorAll('#tg button'),function(b){b.onclick=function(){var on=b.getAttribute('aria-pressed')!=='true';b.setAttribute('aria-pressed',on);var k=b.dataset.l;
+  if(k==='ed'){showEDs=on;restyle()}else if(k==='ps'){showPS=on;drawPS()}else if(on)drawLayer(k);else if(LAY[k])map.removeLayer(LAY[k])}});
 function showEd(e,quiet){
   if(!BAL||!BAL.ed[e]){msg.innerHTML='<b>'+esc(e)+'</b> is not an election district on the 2026 map.';return}
   if(layer&&!inScope(e)){var bp=EDF[e]&&EDF[e].feature.properties.bo;if(bp)setScope(bp,false)}
@@ -178,6 +205,7 @@ function showEd(e,quiet){
   var h='<h2 style="margin-top:22px">Ballot and results</h2><div class="card"><div class="edh"><h2>'+esc(edLong(e))+'</h2><a href="/ed/'+e+'/">This election district’s page</a></div>';
   if(p.bo)h+='<p class="kv">'+esc(BONAME[{MANHATTAN:1,BRONX:2,BROOKLYN:3,QUEENS:4,'STATEN ISLAND':5}[p.bo]]||'')+(p.cd?' · Congressional District '+p.cd:'')+(p.sd?' · Senate District '+p.sd:'')+' · Assembly District '+parseInt(e.slice(0,2),10)+(p.cc?' · Council District '+p.cc:'')+'</p>';
   h+='</div>';
+  var site=siteOf(e);if(site)h+='<div class="card race"><div class="ps"><div><div class="t" style="margin-top:0">Election Day poll site · 6 AM to 9 PM</div><b>'+esc(site[0])+'</b><br>'+esc(site[1])+(site[3]&&site[3]!==site[2]?'<br>Entrance: '+esc(site[3]):'')+(site[4]?'<br>Room: '+esc(site[4]):'')+'</div><a class="btn" style="text-decoration:none" href="'+appleDir(site)+'" target="_blank" rel="noopener">Directions in Apple Maps</a></div></div>';
   BAL.ed[e].forEach(function(k){
     var race=BAL.races[k],x=edResult(k,e);
     h+='<div class="card race"><div class="rh"><b>'+esc(race.t)+'</b><span>'+esc(VF[race.vf]||('Vote for '+race.vf))+'</span></div>';
@@ -187,7 +215,7 @@ function showEd(e,quiet){
     else{h+='<div class="rr">'+race.c.map(function(c,i){return '<span>'+esc(c[0])+'<span class="pl">'+esc((c[1]||[]).join(' · '))+'</span></span><b style="color:var(--muted);font-weight:500">–</b><span></span><span class="bar"><b style="width:0"></b></span>'}).join('')+'</div><div class="t">'+(contestFor(k)?'No votes reported for this election district yet':'Results appear here once the Board of Elections reports')+'</div>'}
     h+='</div>'});
   h+='<div class="card race"><div class="rh"><b>City Charter questions 1 to 5</b><span>Back of the ballot</span></div><p style="margin:6px 0 0">What a yes and a no does on each at <a href="/vote/#questions">bkcb6.app/vote</a>.</p></div>';
-  $('edbox').innerHTML=h;
+  $('edbox').innerHTML=h;restyleLayers();drawPS();
   try{history.replaceState(null,'','#'+e)}catch(err){}
   if(!quiet)$('edbox').scrollIntoView({behavior:'smooth',block:'start'})}
 
@@ -258,8 +286,8 @@ $('to').onchange=function(){var f=$('from').value,t=this.value,st=$('street').va
   [].forEach.call($('sides').querySelectorAll('button'),function(btn){btn.onclick=function(){showEd(btn.dataset.e)}})};
 
 // load
-Promise.all([fetch('/data/results/ed-ballots.json').then(function(r){return r.json()}),fetch('/electionexplainer/map/eds.geojson').then(function(r){return r.json()}),fetch('/electionexplainer/map/ed-cb-split.json').then(function(r){return r.json()}).catch(function(){return {d:{}}})]).then(function(a){
-  BAL=a[0];SPLIT=a[2].d||{};raceOptions();
+Promise.all([fetch('/data/results/ed-ballots.json').then(function(r){return r.json()}),fetch('/electionexplainer/map/eds.geojson').then(function(r){return r.json()}),fetch('/electionexplainer/map/ed-cb-split.json').then(function(r){return r.json()}).catch(function(){return {d:{}}}),fetch('/electionexplainer/pollsites.json').then(function(r){return r.json()}).catch(function(){return null})]).then(function(a){
+  BAL=a[0];SPLIT=a[2].d||{};PS=a[3];raceOptions();
   layer=L.geoJSON(a[1],{style:function(f){return styleFor(f.properties.id)},onEachFeature:function(f,l){EDF[f.properties.id]=l;l.bindTooltip(edLabel(f.properties.id),{sticky:true});l.on('click',function(ev){L.DomEvent.stopPropagation(ev);setPin(ev.latlng.lat,ev.latlng.lng);msg.innerHTML=esc(edLabel(f.properties.id));showEd(f.properties.id,true);$('edbox').scrollIntoView({behavior:'smooth',block:'start'})})}}).addTo(map);
   setScope('cb6');
   return loadResults()}).then(function(){var h=location.hash.replace('#','');if(/^\d{5}$/.test(h))showEd(h)});
