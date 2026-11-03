@@ -91,7 +91,7 @@ input[type=search]{flex:1 1 220px}
       </div>
     </div>
   </div>
-  <p class="note">Unofficial results from the <a href="https://vote.nyc/page/election-results-summary" target="_blank" rel="noopener">NYC Board of Elections</a> election night reporting. Election night counts do not include all absentee, affidavit and early mail ballots, and change until the Board certifies the results. Community board figures add up every election district whose center falls in that community district. Find your poll site, districts and ballot at <a href="/vote/">bkcb6.app/vote</a>.</p>
+  <p class="note">Unofficial results from the <a href="https://vote.nyc/page/election-results-summary" target="_blank" rel="noopener">NYC Board of Elections</a> election night reporting. Election night counts do not include all absentee, affidavit and early mail ballots, and change until the Board certifies the results. Community board figures add up every election district in that community district; an election district that crosses a community district line is split by the share of its area on each side (an election district 80% in CB6 counts 80% of its votes toward CB6). Find your poll site, districts and ballot at <a href="/vote/">bkcb6.app/vote</a>.</p>
 </div>
 <script src="/assets/vendor/leaflet-1.9.4/leaflet.js"></script>
 <script>
@@ -109,21 +109,23 @@ function pct(a,b){return b?(100*a/b):0}
 var map=L.map('map',{preferCanvas:true,scrollWheelZoom:false}).setView([40.70,-73.95],10);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{subdomains:'abcd',attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:19}).addTo(map);
 var canvas=L.canvas({padding:.3});
-var EDS=null,CBL=null,edCb={},D=null,cur=null,mode='cb',layer=null,sortK='tot',sortD=-1;
+var EDS=null,CBL=null,edCb={},SPLIT={},D=null,cur=null,mode='cb',layer=null,sortK='tot',sortD=-1;
 var sel=document.getElementById('contest');
 function colorFor(c,i){var p=(c.p||'').toLowerCase();if(/democrat/.test(p))return PARTY.dem;if(/republican/.test(p))return PARTY.rep;if(/working/.test(p))return PARTY.wf;if(/conservative/.test(p))return PARTY.con;return PAL[i%PAL.length]}
 function contestCands(c){return c.c.map(function(x,i){return {n:x.n,p:x.p||'',col:colorFor(x,i),i:i}})}
 // sum EDs into CBs for a contest
-function roll(c){var by={},tot=new Array(c.c.length).fill(0),rep=0,eds=0;
+function roll(c){var by={},tot=new Array(c.c.length).fill(0),rep=0,eds=0,off=0,offEds=0;
   Object.keys(c.ed||{}).forEach(function(ed){var v=c.ed[ed];var cb=edCb[ed];eds++;if(v.r)rep++;
-    var row=v.v||[];row.forEach(function(n,i){tot[i]+=n});if(!cb)return;
-    var b=by[cb]||(by[cb]={v:new Array(c.c.length).fill(0),eds:0,rep:0});b.eds++;if(v.r)b.rep++;row.forEach(function(n,i){b.v[i]+=n})});
-  return {by:by,tot:tot,eds:eds,rep:rep}}
+    var row=v.v||[];row.forEach(function(n,i){tot[i]+=n});
+    var fr=SPLIT[ed]||(cb?(function(){var o={};o[cb]=1;return o})():null);if(!fr){off+=row.reduce(function(a,b){return a+b},0);offEds++;return}
+    Object.keys(fr).forEach(function(k){var w=fr[k];var b=by[k]||(by[k]={v:new Array(c.c.length).fill(0),eds:0,rep:0});b.eds++;if(v.r)b.rep++;row.forEach(function(n,i){b.v[i]+=n*w})})});
+  Object.keys(by).forEach(function(k){by[k].v=by[k].v.map(function(x){return Math.round(x)})});
+  return {by:by,tot:tot,eds:eds,rep:rep,off:off,offEds:offEds}}
 function leader(v){var m=-1,i=-1,s=0,sec=0;v.forEach(function(n,k){s+=n;if(n>m){sec=m<0?0:m;m=n;i=k}else if(n>sec)sec=n});return {i:i,m:m,s:s,margin:s?(m-sec)/s:0}}
 function shade(margin){return .25+Math.min(.6,margin*1.4)}
 function drawTotals(c,R){var el=document.getElementById('totals'),cs=contestCands(c),s=R.tot.reduce(function(a,b){return a+b},0);
   var order=cs.slice().sort(function(a,b){return R.tot[b.i]-R.tot[a.i]});
-  el.innerHTML='<div class="ct"><h2>'+esc(c.name)+'</h2><div class="sub">'+fmt(s)+' votes · '+(c.vf>1?'vote for up to '+c.vf+' · ':'')+(R.eds?(R.rep+' of '+R.eds+' election districts reporting'):'no districts reporting yet')+'</div></div><div class="cands">'+
+  el.innerHTML='<div class="ct"><h2>'+esc(c.name)+'</h2><div class="sub">'+fmt(s)+' votes · '+(c.vf>1?'vote for up to '+c.vf+' · ':'')+(R.eds?(R.rep+' of '+R.eds+' election districts reporting'):'no districts reporting yet')+'</div>'+(R.off?'<div class="sub" style="margin-top:4px">'+fmt(R.off)+' votes in '+R.offEds+' election district'+(R.offEds==1?'':'s')+' not on the 2026 district map are in the total but not in any community board</div>':'')+'</div><div class="cands">'+
    order.map(function(x){var v=R.tot[x.i],p=pct(v,s);return '<div class="cand"><span class="sw" style="background:'+x.col+'"></span><span class="nm">'+esc(x.n)+(x.p?'<small>'+esc(x.p)+'</small>':'')+'</span><span class="v">'+fmt(v)+'<small>'+p.toFixed(1)+'%</small></span><span class="bar"><b style="width:'+p.toFixed(1)+'%;background:'+x.col+'"></b></span></div>'}).join('')+'</div>';}
 function tip(title,v,cs){var s=v.reduce(function(a,b){return a+b},0);var o=cs.slice().sort(function(a,b){return v[b.i]-v[a.i]}).slice(0,4);
   return '<b>'+esc(title)+'</b>'+(s?o.map(function(x){return '<div class="row"><span><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:'+x.col+';margin-right:5px"></i>'+esc(x.n)+'</span><span>'+pct(v[x.i],s).toFixed(1)+'%</span></div>'}).join('')+'<div class="row muted"><span>Votes</span><span>'+fmt(s)+'</span></div>':'<div class="row muted">No votes reported</div>')}
@@ -157,8 +159,8 @@ function status(){var lv=document.getElementById('live'),t=document.getElementBy
   t.textContent=has?(D.final?'Election night count complete':'Live · updates every few minutes'):'Waiting for results';
   u.textContent=D&&D.updated?'Updated '+new Date(D.updated).toLocaleString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit',month:'short',day:'numeric'}):'Polls close at 9 PM; first results usually post within the hour.'}
 function load(){return fetch(DATA_URL+'?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){if(!d)return;D=d;status();if(D.contests&&D.contests.length){fill();render()}}).catch(function(){})}
-Promise.all([fetch('/electionexplainer/map/eds.geojson').then(function(r){return r.json()}),fetch('/electionexplainer/map/layers.json').then(function(r){return r.json()})]).then(function(a){
-  EDS=a[0];CBL=a[1].cb;EDS.features.forEach(function(f){edCb[f.properties.id]=f.properties.cb});
+Promise.all([fetch('/electionexplainer/map/eds.geojson').then(function(r){return r.json()}),fetch('/electionexplainer/map/layers.json').then(function(r){return r.json()}),fetch('/electionexplainer/map/ed-cb-split.json').then(function(r){return r.json()}).catch(function(){return {d:{}}})]).then(function(a){
+  EDS=a[0];CBL=a[1].cb;SPLIT=(a[2]&&a[2].d)||{};EDS.features.forEach(function(f){edCb[f.properties.id]=f.properties.cb});
   L.geoJSON(a[1].bo,{renderer:canvas,interactive:false,style:{color:'#0d1b4b',weight:1.5,fill:false,opacity:.6}}).addTo(map);
   return load()}).then(function(){setInterval(load,120000)});
 })();
