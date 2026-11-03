@@ -33,6 +33,7 @@ input,select{font:500 1rem 'DM Sans',sans-serif;color:var(--navy);padding:11px 1
 .sides{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.sides button{flex:1 1 220px;text-align:left;font:600 .92rem 'DM Sans',sans-serif;border:1.5px solid var(--line);background:#fff;color:var(--navy);border-radius:12px;padding:10px 12px;cursor:pointer}
 .sides button small{display:block;color:var(--muted);font-weight:500;margin-top:2px}
 #map{height:min(64vh,620px);border-radius:14px;border:1px solid var(--line);margin-top:12px;background:#dfe7ea}
+.scope{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}.scope button{font:700 .88rem 'DM Sans',sans-serif;border:1.5px solid var(--line);background:#fff;color:var(--navy);border-radius:999px;padding:7px 13px;cursor:pointer}.scope button[aria-pressed=true]{background:var(--orange);border-color:var(--orange);color:#fff}
 .mapbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.mapbar label{font:500 .7rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}.mapbar select{flex:1 1 280px;width:auto}
 .key{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.85rem;margin-top:8px}.key span{display:inline-flex;align-items:center;gap:6px}.key i{width:14px;height:14px;border-radius:4px;display:inline-block}
 .status{font:500 .72rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:8px}
@@ -85,6 +86,7 @@ input,select{font:500 1rem 'DM Sans',sans-serif;color:var(--navy);padding:11px 1
 <p class="msg" id="msg"></p>
 </div>
 
+<div class="scope" id="scope"><button data-s="cb6" aria-pressed="true">BK CB6</button><button data-s="BROOKLYN" aria-pressed="false">Brooklyn</button><button data-s="MANHATTAN" aria-pressed="false">Manhattan</button><button data-s="BRONX" aria-pressed="false">The Bronx</button><button data-s="QUEENS" aria-pressed="false">Queens</button><button data-s="STATEN ISLAND" aria-pressed="false">Staten Island</button><button data-s="nyc" aria-pressed="false">All of NYC</button></div>
 <div class="mapbar"><label for="race">Color the map by</label><select id="race"></select></div>
 <div id="map"></div>
 <div class="key" id="key"></div>
@@ -122,7 +124,10 @@ var PCOL={'Democratic':'#1f5fbf','Republican':'#c62828','Conservative':'#e08a00'
 var PAL=['#2a9d8f','#8d6e63','#5c6bc0','#ad1457','#558b2f','#00838f','#6d4c41','#9e9d24'];
 function candColor(race,i){var c=race.c[i],p=(c&&c[1]&&c[1][0])||'';if(PCOL[p])return PCOL[p];return PAL[i%PAL.length]}
 
-var BAL=null,RES=null,RESK={},EDF={},layer=null,map,sel=null,pin=null,curRace='gov';
+var BAL=null,RES=null,RESK={},EDF={},layer=null,map,sel=null,pin=null,curRace='gov',scope='cb6',SPLIT={};
+function inScope(e){if(scope==='nyc')return true;var l=EDF[e];if(!l)return false;var p=l.feature.properties;if(scope==='cb6')return p.cb==='306'||!!(SPLIT[e]&&SPLIT[e]['306']);return p.bo===scope}
+function setScope(s,fit){scope=s;[].forEach.call(document.querySelectorAll('#scope button'),function(b){b.setAttribute('aria-pressed',b.dataset.s===s)});restyle();if(fit!==false){var b=null;layer.eachLayer(function(l){if(inScope(l.feature.properties.id))b=b?b.extend(l.getBounds()):L.latLngBounds(l.getBounds().getSouthWest(),l.getBounds().getNorthEast())});if(b)map.fitBounds(b,{padding:[12,12]})}}
+[].forEach.call(document.querySelectorAll('#scope button'),function(b){b.onclick=function(){if(layer)setScope(b.dataset.s)}});
 
 map=L.map('map',{preferCanvas:true,zoomControl:true}).setView([40.705,-73.94],11);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'© OpenStreetMap © CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
@@ -131,7 +136,8 @@ var renderer=L.canvas({padding:.3});
 function contestFor(k){return RESK[k]||null}
 function edResult(k,e){var c=contestFor(k);if(!c||!c.ed)return null;var r=c.ed[e];return r?{c:c,r:r}:null}
 function styleFor(e){
-  var base={renderer:renderer,weight:sel===e?3:.5,color:sel===e?'#f47920':'#5b6684',opacity:sel===e?1:.55,fillOpacity:.12,fillColor:'#9aa3b8'};
+  if(layer&&!inScope(e)&&sel!==e)return {renderer:renderer,weight:0,opacity:0,fillOpacity:0};
+  var base={renderer:renderer,weight:sel===e?3:.8,color:sel===e?'#f47920':'#3d4a72',opacity:sel===e?1:.75,fillOpacity:.12,fillColor:'#9aa3b8'};
   var on=BAL&&BAL.ed[e]&&BAL.ed[e].indexOf(curRace)>=0;
   if(!on){base.fillOpacity=0;base.opacity=sel===e?1:.18;return base}
   var x=edResult(curRace,e);if(!x)return base;
@@ -165,6 +171,7 @@ function loadResults(){
 
 function showEd(e,quiet){
   if(!BAL||!BAL.ed[e]){msg.innerHTML='<b>'+esc(e)+'</b> is not an election district on the 2026 map.';return}
+  if(layer&&!inScope(e)){var bp=EDF[e]&&EDF[e].feature.properties.bo;if(bp)setScope(bp,false)}
   var prev=sel;sel=e;
   if(layer){if(prev&&EDF[prev])EDF[prev].setStyle(styleFor(prev));if(EDF[e]){EDF[e].setStyle(styleFor(e));EDF[e].bringToFront();if(!quiet)map.fitBounds(EDF[e].getBounds(),{maxZoom:16,padding:[30,30]})}}
   var p=EDF[e]&&EDF[e].feature.properties||{};
@@ -251,10 +258,10 @@ $('to').onchange=function(){var f=$('from').value,t=this.value,st=$('street').va
   [].forEach.call($('sides').querySelectorAll('button'),function(btn){btn.onclick=function(){showEd(btn.dataset.e)}})};
 
 // load
-Promise.all([fetch('/data/results/ed-ballots.json').then(function(r){return r.json()}),fetch('/electionexplainer/map/eds.geojson').then(function(r){return r.json()})]).then(function(a){
-  BAL=a[0];raceOptions();
+Promise.all([fetch('/data/results/ed-ballots.json').then(function(r){return r.json()}),fetch('/electionexplainer/map/eds.geojson').then(function(r){return r.json()}),fetch('/electionexplainer/map/ed-cb-split.json').then(function(r){return r.json()}).catch(function(){return {d:{}}})]).then(function(a){
+  BAL=a[0];SPLIT=a[2].d||{};raceOptions();
   layer=L.geoJSON(a[1],{style:function(f){return styleFor(f.properties.id)},onEachFeature:function(f,l){EDF[f.properties.id]=l;l.bindTooltip(edLabel(f.properties.id),{sticky:true});l.on('click',function(ev){L.DomEvent.stopPropagation(ev);setPin(ev.latlng.lat,ev.latlng.lng);msg.innerHTML=esc(edLabel(f.properties.id));showEd(f.properties.id,true);$('edbox').scrollIntoView({behavior:'smooth',block:'start'})})}}).addTo(map);
-  map.fitBounds(layer.getBounds(),{padding:[10,10]});
+  setScope('cb6');
   return loadResults()}).then(function(){var h=location.hash.replace('#','');if(/^\d{5}$/.test(h))showEd(h)});
 setInterval(loadResults,120000);
 })();
