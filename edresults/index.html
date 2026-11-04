@@ -220,16 +220,18 @@ function drawKey(){
   $('key').innerHTML=c?race.c.map(function(x,i){var col=candColor(race,i);return '<span><i style="width:34px;background:linear-gradient(90deg,'+lightOf(col)+','+col+')"></i>'+esc(x[0])+'</span>'}).join('')+'<span style="color:var(--muted)">Light to full color: a 0% to 60%+ margin in that election district. Gray: tied.</span>':'<span style="color:var(--muted)">'+esc(race.t)+': no results reported yet. The map shades in as election districts report.</span>'}
 
 function raceOptions(){
-  var ks=Object.keys(BAL.races),bos={};ks.forEach(function(k){bos[k]={}});
-  Object.keys(BAL.ed).forEach(function(e){var bo=FE[e]&&FE[e].p.bo;if(!bo)return;BAL.ed[e].forEach(function(k){if(bos[k])bos[k][bo]=1})});
+  // only the races on the ballot in the area the page is showing (BK CB6 by default); by borough only for all of NYC
+  var area=dArea||'306',ks=Object.keys(BAL.races),bos={},here={};ks.forEach(function(k){bos[k]={}});
+  Object.keys(BAL.ed).forEach(function(e){var f=FE[e];if(!f||!(areaW(area,e)>0))return;var bo=f.p.bo;BAL.ed[e].forEach(function(k){here[k]=1;if(bo&&bos[k])bos[k][bo]=1})});
+  ks=ks.filter(function(k){return here[k]});
   var BO=['BROOKLYN','MANHATTAN','BRONX','QUEENS','STATEN ISLAND'];
   function grp(p){return ks.filter(function(k){return k.indexOf(p)===0&&!(p==='cc'&&k.indexOf('ccc')===0)}).sort(function(a,b){return (parseInt(a.replace(/\D/g,''),10)||0)-(parseInt(b.replace(/\D/g,''),10)||0)||a.localeCompare(b)})}
   function opts(l){return l.map(function(k){return '<option value="'+k+'">'+esc(BAL.races[k].t)+'</option>'}).join('')}
   function og(label,l){return l.length?'<optgroup label="'+esc(label)+'">'+opts(l)+'</optgroup>':''}
-  function byBoro(label,l){return BO.map(function(b){return og(label+' · '+BOF[b],l.filter(function(k){return bos[k][b]}))}).join('')}
+  function byBoro(label,l){return area==='nyc'?BO.map(function(b){return og(label+' · '+BOF[b],l.filter(function(k){return bos[k][b]}))}).join(''):og(label,l)}
   var courts=grp('sc').concat(grp('sur'),grp('ccc'),grp('mc'));
-  $('race').innerHTML=og('Statewide races',['gov','comp','ag'].filter(function(k){return BAL.races[k]}))+og('City Charter questions',grp('q'))+byBoro('Congress',grp('cd'))+byBoro('State Senate',grp('sd'))+byBoro('Assembly',grp('ad'))+byBoro('City Council',grp('cc'))+byBoro('Courts',courts);
-  $('race').value=curRace}
+  $('race').innerHTML=og('Statewide races',['gov','comp','ag'].filter(function(k){return here[k]}))+og('City Charter questions',grp('q'))+byBoro('Congress',grp('cd'))+byBoro('State Senate',grp('sd'))+byBoro('Assembly',grp('ad'))+byBoro('City Council',grp('cc'))+byBoro('Courts',courts);
+  if(!here[curRace])curRace=here.gov?'gov':ks[0];$('race').value=curRace}
 $('race').onchange=function(){curRace=this.value;restyle();drawEdTable()};
 
 
@@ -272,7 +274,7 @@ function areaOptions(){var cbs={};Object.keys(FE).forEach(function(e){var c=FE[e
   [3,1,2,4,5].forEach(function(b){ks.filter(function(c){return c[0]==String(b)}).sort(function(a,c){return parseInt(a,10)-parseInt(c,10)}).forEach(function(c){h+='<option value="'+c+'">'+esc(areaLong(c))+'</option>'})});
   h+='</optgroup><optgroup label="Boroughs">'+BOS.map(function(b){return '<option value="'+b+'">'+esc(BOF[b])+'</option>'}).join('')+'</optgroup><optgroup label="Citywide"><option value="nyc">New York City</option></optgroup>';
   $('area').innerHTML=h;$('area').value=dArea}
-$('area').onchange=function(){dArea=this.value;drawDash();var sc=dArea==='nyc'?'nyc':BOF[dArea]?dArea:(dArea==='306'?'cb6':dArea);if(layer&&sc!==scope)setScope(sc)};
+$('area').onchange=function(){dArea=this.value;raceOptions();restyle();drawDash();var sc=dArea==='nyc'?'nyc':BOF[dArea]?dArea:(dArea==='306'?'cb6':dArea);if(layer&&sc!==scope)setScope(sc)};
 
 var DESC=null;
 function shortSt(n){return n.replace(/\bStreet\b/g,'St').replace(/\bAvenue\b/g,'Ave').replace(/\bPlace\b/g,'Pl').replace(/\bBoulevard\b/g,'Blvd').replace(/\bRoad\b/g,'Rd').replace(/\bParkway\b/g,'Pkwy').replace(/\bDrive\b/g,'Dr').replace(/\bCourt\b(?!\s+St)/g,'Ct').replace(/\bTerrace\b/g,'Ter').replace(/\bExpressway\b/g,'Expy')}
