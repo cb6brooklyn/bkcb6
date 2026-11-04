@@ -7,8 +7,8 @@ Every fact on a page comes from the site's own data files:
   yourdistricts/districts.json        district names and the officials who hold them
   electionexplainer/pollsites.json    Election Day poll site for each ED (BOE Find My Poll Site, Oct 29, 2026)
   electionexplainer/ballot.json       races on the November 3, 2026 ballot (State BOE certification, Oct 7, 2026)
-  data/enrollment/cb6.json            registered voters by party (NYS BOE, February 20, 2026)
-The map is bkcb6.app/yourdistricts/ in embed mode, opened at the ED.
+  data/enrollment/nyc-20260220.json   registered voters by party, every NYC ED (NYS BOE, February 20, 2026)
+The map is Apple Maps (MapKit JS, assets/ed-map.js): the ED, its neighbors, and the districts it is part of as toggles.
 
 Run: python3 scripts/build_ed_pages.py [--cb 306 ...]   (default: every election district in the city)
 """
@@ -41,7 +41,7 @@ def main():
     D = J('yourdistricts/districts.json')['d']
     PS = J('electionexplainer/pollsites.json')
     B = J('electionexplainer/ballot.json')
-    enr = J('data/enrollment/cb6.json')['dates'][-1]
+    enr = J('data/enrollment/nyc-20260220.json'); CHG = set(enr['chg'])
     byid = {f['properties']['id']: f for f in eds}
     geo = {k: shape(f['geometry']).buffer(0) for k, f in byid.items()}
 
@@ -93,7 +93,7 @@ ul.r{margin:0;padding-left:18px;line-height:1.55}a{color:var(--navy)}
 .cl{margin:8px 0 0;padding:0;list-style:none}.cl li{padding:5px 0;border-top:1px solid #f0eee9}.pl{font:500 .66rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-left:6px}
 .res{margin-top:10px;border-top:2px solid var(--navy);padding-top:8px}.res .t{font:500 .68rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
 .rr{display:grid;grid-template-columns:1fr auto auto;gap:4px 12px;font-variant-numeric:tabular-nums;font-size:.92rem}.rr .bar{grid-column:1/4;height:5px;background:#f0eee9;border-radius:3px;overflow:hidden;margin-bottom:4px}.rr .bar b{display:block;height:100%;background:var(--navy)}
-iframe{width:100%;border:0;display:block;min-height:900px;background:transparent}.note{font-size:.82rem;color:var(--muted);line-height:1.5;margin-top:16px}
+#edmap{width:100%;height:min(70vh,560px);border-radius:14px;border:1px solid var(--line);background:#dfe7ea}.tg{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}.tg button{font:600 .82rem 'DM Sans',sans-serif;border:1.5px solid var(--c,var(--line));background:#fff;color:var(--navy);border-radius:999px;padding:6px 11px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}.tg button i{width:10px;height:10px;border-radius:3px;background:var(--c)}.tg button[aria-pressed=true]{background:var(--c);color:#fff}.tg button[aria-pressed=true] i{background:#fff}.note{font-size:.82rem;color:var(--muted);line-height:1.5;margin-top:16px}
 .nav{display:flex;justify-content:space-between;gap:8px;margin:18px 0 0;flex-wrap:wrap}.nav a{font-weight:700;text-decoration:none}"""
     HEAD = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="apple-itunes-app" content="app-id=6813967208">'
     FONTS = '<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&display=swap" rel="stylesheet">'
@@ -107,7 +107,8 @@ var h='<div class="t">'+(e.r?'This election district':'This election district, n
 var box;if(best!=null){used[best]=1;box=cards[best].querySelector('.res')}else{var k=document.createElement('div');k.className='card race';k.innerHTML='<div class="rh"><b>'+c.name.replace(/[<>&]/g,'')+'</b></div><div class="res"></div>';var last=document.querySelector('.race:last-of-type');last.parentNode.insertBefore(k,last.nextSibling);box=k.querySelector('.res')}
 box.innerHTML=h;box.hidden=false});
 var n=document.getElementById('resnote');if(n&&d.updated)n.textContent='Every race on this election district\\'s ballot, with every candidate and party line, and this election district\\'s results from the Board of Elections, updated '+new Date(d.updated).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+'. Every community board: bkcb6.app/results.'}).catch(function(){})})();</script>"""
-    RESIZE = "<script>addEventListener('message',function(e){if(e.data&&e.data.bkcbEmbedHeight){var f=document.getElementById('edmap');if(f)f.style.height=(e.data.bkcbEmbedHeight+8)+'px'}});</script>"
+    MAPJS = '<script src="https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js"></script><script src="/assets/ed-map.js?v=1"></script>'
+    TG = '<div class="tg" id="edtg"><button data-l="nb" aria-pressed="true" style="--c:#3d4a72"><i></i>Neighboring election districts</button><button data-l="ad" aria-pressed="false" style="--c:#2e7d32"><i></i>Assembly</button><button data-l="sd" aria-pressed="false" style="--c:#6a1b9a"><i></i>State Senate</button><button data-l="cd" aria-pressed="false" style="--c:#c62828"><i></i>Congress</button><button data-l="cc" aria-pressed="false" style="--c:#00796b"><i></i>City Council</button><button data-l="mc" aria-pressed="false" style="--c:#8d4b2b"><i></i>Civil Court</button><button data-l="cb" aria-pressed="false" style="--c:#0d1b4b"><i></i>Community boards</button><button data-l="bo" aria-pressed="false" style="--c:#1a3e8c"><i></i>Boroughs</button></div>'
     PARTY = enr['parties']
     PN = {'DEM': 'Democratic', 'REP': 'Republican', 'CON': 'Conservative', 'WOR': 'Working Families', 'OTH': 'Other parties', 'BLANK': 'No party'}
 
@@ -142,9 +143,14 @@ var n=document.getElementById('resnote');if(n&&d.updated)n.textContent='Every ra
         reghtml = ''
         if reg:
             tot = reg[len(PARTY)]
+            chgnote = ' The election district\'s lines were changed on the 2026 map after this count, so these figures describe its previous lines.' if e in CHG else ''
             reghtml = '<h2>Registered voters</h2><div class="card"><table class="reg">' + ''.join(
                 '<tr><td>%s</td><td class="n">%s</td><td class="n" style="color:var(--muted);font-weight:500">%s%%</td></tr>' % (PN.get(k, k), format(reg[j], ','), round(100 * reg[j] / tot, 1) if tot else 0) for j, k in enumerate(PARTY)) + \
-                '<tr><td><b>Total</b></td><td class="n">%s</td><td></td></tr><tr><td>Active</td><td class="n">%s</td><td></td></tr></table><p class="note" style="margin:8px 0 0">NYS Board of Elections, enrollment by election district, %s. Total includes inactive voters.</p></div>' % (format(tot, ','), format(reg[len(PARTY) + 1], ','), 'February 20, 2026')
+                '<tr><td><b>Total</b></td><td class="n">%s</td><td></td></tr>%s</table><p class="note" style="margin:8px 0 0">NYS Board of Elections, enrollment by election district, %s. Total includes inactive voters.%s</p></div>' % (
+                    format(tot, ','), ('<tr><td>Active</td><td class="n">%s</td><td></td></tr>' % format(reg[len(PARTY) + 1], ',')) if reg[len(PARTY) + 1] is not None else '', 'February 20, 2026', chgnote)
+        else:
+            reghtml = '<h2>Registered voters</h2><div class="card"><p class="note" style="margin:0">This election district number is new on the 2026 map, so the State Board of Elections\' February 20, 2026 enrollment count has no figures for it.</p></div>'
+        nb = neighbors(e)
         rc = races(p)
         VF = {1: 'Vote for one', 2: 'Vote for up to two', 3: 'Vote for up to three', 4: 'Vote for up to four', 5: 'Vote for up to five', 6: 'Vote for up to six'}
         def racecard(r):
@@ -152,7 +158,6 @@ var n=document.getElementById('resnote');if(n&&d.updated)n.textContent='Every ra
             return '<div class="card race" data-race="%s" data-k="%s"><div class="rh"><b>%s</b><span>%s</span></div><ul class="cl">%s</ul><div class="res" hidden></div></div>' % (esc(r['t']), race_key(r['t']) or '', esc(r['t']), esc(VF.get(r['vf'], 'Vote for %d' % r['vf'])), cands)
         racehtml = '<h2>On the ballot November 3, 2026</h2><p class="note" id="resnote" style="margin:0 0 10px">Every race on this election district\'s ballot, with every candidate and party line. Results for this election district appear under each race once the Board of Elections reports them.</p>' + ''.join(racecard(r) for r in rc) + \
             '<div class="card race"><div class="rh"><b>City Charter questions 1 to 5</b><span>Back of the ballot</span></div><p style="margin:6px 0 0">Public space, contractor paperwork, street safety projects and City property, building permits, and the City\'s rainy day funds. What a yes and a no does on each at <a href="/vote/#questions">bkcb6.app/vote</a>.</p></div>'
-        nb = neighbors(e)
         nbhtml = '<h2>Neighboring election districts</h2><div class="nb">' + ''.join('<a href="/ed/%s/">%s</a>' % (n, esc(edlabel(n))) for n in nb) + '</div>' if nb else ''
         prev_ = pick[i - 1] if i > 0 else None; next_ = pick[i + 1] if i + 1 < len(pick) else None
         nav = '<div class="nav"><span>%s</span><a href="/ed/">All election districts</a><span>%s</span></div>' % (
@@ -165,9 +170,9 @@ var n=document.getElementById('resnote');if(n&&d.updated)n.textContent='Every ra
             esc(title), esc(desc), esc(edlong(e)), esc(desc), e, FONTS, CSS, e)
         page += '<header><div class="in"><div class="eyebrow"><a href="/ed/">Election districts</a> · %s</div><h1>%s</h1><p class="lede">%s</p></div></header><div class="wrap">' % (esc(cbname(top) if top else bo), esc(edlong(e)), esc(desc))
         page += '<div class="card"><dl class="kv">%s</dl></div>' % kv
-        page += '<h2>On the map</h2><iframe id="edmap" title="Map of %s and the districts it is part of" src="/yourdistricts/?embed=1#ed=%s&fit=ed" loading="lazy"></iframe>' % (esc(edlong(e)), e)
+        page += '<h2>On the map</h2>' + TG + '<div id="edmap" data-ed="%s" data-nb="%s" role="img" aria-label="Map of %s"></div><p class="note" style="margin-top:8px">Tap a neighboring election district to open its page. Toggles draw the districts this election district is part of, with its own drawn heavier.</p>' % (e, ','.join(nb), esc(edlong(e)))
         page += sitehtml + racehtml + reghtml + nbhtml + nav
-        page += '<p class="note">Election district lines are the NYC Board of Elections 2026 map. Poll site from the Board\'s Find My Poll Site, October 29, 2026. Races from the State Board of Elections certification of October 7, 2026.</p></div>' + RESIZE + LIVE + '</body></html>'
+        page += '<p class="note">Election district lines are the NYC Board of Elections 2026 map. Poll site from the Board\'s Find My Poll Site, October 29, 2026. Races from the State Board of Elections certification of October 7, 2026.</p></div>' + MAPJS + LIVE + '</body></html>'
         d = os.path.join(ROOT, 'ed', e); os.makedirs(d, exist_ok=True)
         open(os.path.join(d, 'index.html'), 'w').write(page)
 
