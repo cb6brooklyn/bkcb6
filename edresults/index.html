@@ -43,7 +43,7 @@ input,select{font:500 1rem 'DM Sans',sans-serif;color:var(--navy);padding:11px 1
 details.grp{background:#fff;border:1px solid var(--line);border-radius:12px;margin:0 0 8px;padding:10px 14px}details.grp summary{cursor:pointer;font-weight:700}details.grp .dc{border-top:1px solid #f0eee9;padding-top:8px;margin-top:10px}
 .edt{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:.88rem}.edt th{font:500 .64rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:right;padding:8px 6px;border-bottom:2px solid var(--navy);vertical-align:bottom}.edt th:first-child,.edt td:first-child{text-align:left}.edt td{padding:6px;border-bottom:1px solid #f0eee9;text-align:right;white-space:nowrap}.edt tr.r{cursor:pointer}.edt .st{display:block;white-space:normal;font-size:.78rem;color:var(--muted);max-width:340px;line-height:1.35;margin-top:2px}.edt td a.go{font:600 .76rem 'DM Sans',sans-serif;margin-left:6px}.edt tr.hl td{background:#fdf1e7}.edt tr.r:hover td{background:#fdf1e7}.edt tr.tt td{font-weight:800;border-top:2px solid var(--navy)}.edt .lead{font-weight:800}.edt .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px}
 .cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,46%);gap:20px;align-items:start}.colL{min-width:0}.colR{min-width:0;position:sticky;top:12px}
-@media(max-width:900px){.cols{grid-template-columns:1fr}.colR{position:static;order:-1}}
+@media(max-width:900px){.cols{grid-template-columns:1fr}.colR{position:static}}
 .mlab{display:flex;align-items:center;gap:10px;margin:0 0 8px}.mlab img{width:38px;height:38px;border-radius:8px;object-fit:contain;background:#fff;border:1px solid var(--line)}.mlab h2{margin:0;font-size:1.15rem}.mlab small{display:block;font:500 .66rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 #map{position:relative}.mbadge{position:absolute;z-index:3;left:10px;top:10px;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:999px;padding:5px 11px 5px 6px;font:700 .82rem 'DM Sans',sans-serif;color:var(--navy);display:flex;align-items:center;gap:7px;box-shadow:0 2px 6px rgba(13,27,75,.12);pointer-events:none}.mbadge img{width:22px;height:22px;border-radius:5px;object-fit:contain}
 .mapbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.mapbar label{font:500 .7rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}.mapbar select{flex:1 1 280px;width:auto}
@@ -136,6 +136,7 @@ function edLong(e){return 'Election District '+parseInt(e.slice(2),10)+', Assemb
 
 // same canonical race key as scripts/boe_edlevel.py race_key()
 function raceKey(name){
+  var pm=String(name).match(/Proposal(?: Number)?\s*(\d+)/i);if(pm)return 'q'+pm[1];
   if(/^(Democratic|Republican|Conservative|Working Families|Green|Libertarian)\b/.test(name))return null;
   var s=' '+String(name).toLowerCase().replace(/[^a-z0-9 ]/g,' ')+' ';s=s.replace(/(\d+)(st|nd|rd|th) /g,'$1 ');
   var m=s.match(/ (\d+) /),n=m?String(parseInt(m[1],10)):'';
@@ -219,7 +220,7 @@ function drawKey(){
 function raceOptions(){
   var order=['gov','comp','ag'],ks=Object.keys(BAL.races);
   function grp(p){return ks.filter(function(k){return k.indexOf(p)===0&&!(p==='cc'&&false)}).sort(function(a,b){return (parseInt(a.replace(/\D/g,''),10)||0)-(parseInt(b.replace(/\D/g,''),10)||0)||a.localeCompare(b)})}
-  var groups=[['Statewide',order],['Congress',grp('cd')],['State Senate',grp('sd')],['Assembly',grp('ad')],['City Council',grp('cc')],['Supreme Court',grp('sc')],['Surrogate',grp('sur')],['Civil Court, countywide',grp('ccc')],['Civil Court, municipal court districts',grp('mc')]];
+  var groups=[['Statewide',order],['Congress',grp('cd')],['State Senate',grp('sd')],['Assembly',grp('ad')],['City Council',grp('cc')],['Supreme Court',grp('sc')],['Surrogate',grp('sur')],['Civil Court, countywide',grp('ccc')],['Civil Court, municipal court districts',grp('mc')],['City Charter questions',grp('q')]];
   $('race').innerHTML=groups.filter(function(g){return g[1].length}).map(function(g){return '<optgroup label="'+esc(g[0])+'">'+g[1].map(function(k){return '<option value="'+k+'">'+esc(BAL.races[k].t)+'</option>'}).join('')+'</optgroup>'}).join('');
   $('race').value=curRace}
 $('race').onchange=function(){curRace=this.value;restyle();drawEdTable()};
@@ -253,7 +254,7 @@ function drawDash(){
   var n=RES&&RES.contests&&RES.contests.length;
   if($('dstat'))$('dstat').textContent=n?('NYC Board of Elections, '+(RES.final?'final':'unofficial')+', updated '+new Date(RES.updated).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+(STATE&&STATE.updated?' · statewide: '+(STATE.source||'New York State Board of Elections')+', updated '+new Date(STATE.updated).toLocaleString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'}):'')):'No results reported yet. Every race fills in as the Board of Elections reports.';
   // every race in the chosen area
-  var groups=[['Statewide',['gov','comp','ag']],['Congress','cd'],['State Senate','sd'],['Assembly','ad'],['City Council','cc'],['Supreme Court','sc'],['Surrogate','sur'],['Civil Court, countywide','ccc'],['Civil Court, municipal court districts','mc']];
+  var groups=[['Statewide',['gov','comp','ag']],['Congress','cd'],['State Senate','sd'],['Assembly','ad'],['City Council','cc'],['Supreme Court','sc'],['Surrogate','sur'],['Civil Court, countywide','ccc'],['Civil Court, municipal court districts','mc'],['City Charter questions','q']];
   var ks=Object.keys(BAL.races),h='';
   groups.forEach(function(g){var list=Array.isArray(g[1])?g[1]:ks.filter(function(k){return k.indexOf(g[1])===0&&!(g[1]==='cc'&&k.indexOf('ccc')===0)}).sort(function(a,b){return (parseInt(a.replace(/\D/g,''),10)||0)-(parseInt(b.replace(/\D/g,''),10)||0)||a.localeCompare(b)});
     var cards=list.map(function(k){var x=agg(k,dArea);return x?'<div class="dc"><h3>'+esc(BAL.races[k].t)+'</h3>'+arow(areaName(dArea),x)+'</div>':''}).filter(Boolean);

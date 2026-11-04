@@ -112,6 +112,9 @@ var n=document.getElementById('resnote');if(n&&d.updated)n.textContent='Every ra
     PARTY = enr['parties']
     PN = {'DEM': 'Democratic', 'REP': 'Republican', 'CON': 'Conservative', 'WOR': 'Working Families', 'OTH': 'Other parties', 'BLANK': 'No party'}
 
+    QS = [(1, 'Speed Up Process for Granting a Revocable Consent to Use Public Space'), (2, 'Reduce City Contractor Paperwork; Require Regular Meetings of Procurement Policy Board'),
+          (3, 'Speed Up Street Safety Projects, Disposition of Unused City Property, Office Leasing'), (4, 'Simplify Building Permitting and Move Waterfront Permitting to Department of Buildings'),
+          (5, 'Set Contribution Targets for Rainy Day Fund to Promote Sufficient Budgetary Reserves')]
     for i, e in enumerate(pick):
         p = byid[e]['properties']
         share = cbs_of(e)
@@ -157,7 +160,7 @@ var n=document.getElementById('resnote');if(n&&d.updated)n.textContent='Every ra
             cands = ''.join('<li><b>%s</b> <span class="pl">%s</span></li>' % (esc(c[0]), esc(' · '.join(c[1]))) for c in r['c'])
             return '<div class="card race" data-race="%s" data-k="%s"><div class="rh"><b>%s</b><span>%s</span></div><ul class="cl">%s</ul><div class="res" hidden></div></div>' % (esc(r['t']), race_key(r['t']) or '', esc(r['t']), esc(VF.get(r['vf'], 'Vote for %d' % r['vf'])), cands)
         racehtml = '<h2>On the ballot November 3, 2026</h2><p class="note" id="resnote" style="margin:0 0 10px">Every race on this election district\'s ballot, with every candidate and party line. Results for this election district appear under each race once the Board of Elections reports them.</p>' + ''.join(racecard(r) for r in rc) + \
-            '<div class="card race"><div class="rh"><b>City Charter questions 1 to 5</b><span>Back of the ballot</span></div><p style="margin:6px 0 0">Public space, contractor paperwork, street safety projects and City property, building permits, and the City\'s rainy day funds. What a yes and a no does on each at <a href="/vote/#questions">bkcb6.app/vote</a>.</p></div>'
+            ''.join('<div class="card race" data-race="Proposal Number %d" data-k="q%d"><div class="rh"><b>City Charter Question %d: %s</b><span>Back of the ballot · Yes or No</span></div><p class="note" style="margin:6px 0 0">What a yes and a no does: <a href="/vote/#questions">bkcb6.app/vote</a>.</p><div class="res" hidden></div></div>' % (n, n, n, esc(t)) for n, t in QS)
         nbhtml = '<h2>Neighboring election districts</h2><div class="nb">' + ''.join('<a href="/ed/%s/">%s</a>' % (n, esc(edlabel(n))) for n in nb) + '</div>' if nb else ''
         prev_ = pick[i - 1] if i > 0 else None; next_ = pick[i + 1] if i + 1 < len(pick) else None
         nav = '<div class="nav"><span>%s</span><a href="/ed/">All election districts</a><span>%s</span></div>' % (
@@ -178,13 +181,14 @@ var n=document.getElementById('resnote');if(n&&d.updated)n.textContent='Every ra
 
     # every ED's ballot for /edresults/: race key -> race, ED -> race keys in ballot order
     RACES = {}; EDB = {}
+    for n, t in QS: RACES['q%d' % n] = {'t': 'City Charter Question %d: %s' % (n, t), 'vf': 1, 'c': [['Yes', []], ['No', []]]}
     for e in sorted(byid):
         ks = []
         for r in races(byid[e]['properties']):
             k = race_key(r['t'])
             if not k: raise SystemExit('no race key for ' + r['t'])
             RACES.setdefault(k, {'t': r['t'], 'vf': r['vf'], 'c': [[c[0], c[1]] for c in r['c']]}); ks.append(k)
-        EDB[e] = ks
+        EDB[e] = ks + ['q%d' % n for n, _ in QS]
     json.dump({'src': 'Races: New York State Board of Elections certification, October 7, 2026 (electionexplainer/ballot.json); election districts: NYC Board of Elections 2026 map',
                'races': RACES, 'ed': EDB}, open(os.path.join(ROOT, 'data/results/ed-ballots.json'), 'w'), separators=(',', ':'))
     print('ballots for', len(EDB), 'election districts,', len(RACES), 'races', file=sys.stderr)
