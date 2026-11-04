@@ -142,7 +142,7 @@ def ed_rows(src, ad):
         pc = pct(r[1][0]) if len(r) > 1 else None
         votes = [num(r[i][0]) if i < len(r) else None for i in vote_idx]
         votes = [v or 0 for v in votes]
-        out['%02d%03d' % (ad, ed)] = {'r': bool(pc and pc > 0 and sum(votes) > 0), 'p': pc, 'v': votes}
+        out['%02d%03d' % (ad, ed)] = {'r': bool(pc and pc > 0), 'p': pc, 'v': votes}
     return cols, out
 
 def scrape(start):
@@ -173,7 +173,7 @@ def scrape(start):
             for k, e in eds.items():
                 v = [0] * len(order)
                 for i, n in zip(idx, e['v']): v[i] += n
-                merged[k] = {'r': bool(e['p'] and e['p'] > 0 and sum(v) > 0), 'p': e['p'], 'v': v}
+                merged[k] = {'r': bool(e['p'] and e['p'] > 0), 'p': e['p'], 'v': v}  # the Board's own reporting figure; an ED can report with no votes cast
             cid = re.search(r'CD(\d+)ADI0', adi).group(1)
             k = race_key(name)
             result.append({'id': cid, 'k': k, 'name': name, 'c': [{'n': n, 'p': ' / '.join(party[n])} for n in order], 'ed': merged})
