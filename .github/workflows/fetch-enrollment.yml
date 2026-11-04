@@ -1,0 +1,21 @@
+name: Fetch NYS enrollment by ED
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download the five NYC counties, February 20, 2026
+        run: |
+          mkdir -p data/enrollment/src/nyc-20260220
+          for c in bronx kings new-york queens richmond; do
+            curl -sS -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36" -o data/enrollment/src/nyc-20260220/$c.xlsx -w "$c %{http_code} %{size_download}\n" "https://elections.ny.gov/$c-02202026"
+          done
+          file data/enrollment/src/nyc-20260220/*
+      - name: Commit
+        run: |
+          git config user.name "Mike Racioppo"; git config user.email "Mike@bkcb6.org"
+          if file data/enrollment/src/nyc-20260220/*.xlsx | grep -v "Microsoft\|Zip" ; then echo "not all xlsx"; exit 1; fi
+          git add data/enrollment/src/nyc-20260220 && git commit -m "NYS enrollment by ED, NYC counties, February 20, 2026" && git pull --rebase && git push
