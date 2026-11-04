@@ -41,7 +41,7 @@ input,select{font:500 1rem 'DM Sans',sans-serif;color:var(--navy);padding:11px 1
 .lg{font-size:.84rem;line-height:1.45;font-variant-numeric:tabular-nums}.lg span{display:inline-flex;align-items:center;gap:5px;margin-right:10px;flex-wrap:wrap}.lg b{font-weight:700}.lg em{width:9px;height:9px;border-radius:2px;display:inline-block}
 .atabs{display:flex;gap:6px;flex-wrap:wrap;margin:18px 0 8px}.atabs button{font:700 .88rem 'DM Sans',sans-serif;border:1.5px solid var(--line);background:#fff;color:var(--navy);border-radius:999px;padding:7px 13px;cursor:pointer}.atabs button[aria-pressed=true]{background:var(--navy);border-color:var(--navy);color:#fff}
 details.grp{background:#fff;border:1px solid var(--line);border-radius:12px;margin:0 0 8px;padding:10px 14px}details.grp summary{cursor:pointer;font-weight:700}details.grp .dc{border-top:1px solid #f0eee9;padding-top:8px;margin-top:10px}
-.edt{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:.88rem}.edt th{font:500 .64rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:right;padding:8px 6px;border-bottom:2px solid var(--navy);vertical-align:bottom}.edt th:first-child,.edt td:first-child{text-align:left}.edt td{padding:6px;border-bottom:1px solid #f0eee9;text-align:right;white-space:nowrap}.edt tr.r{cursor:pointer}.edt tr.r:hover td{background:#fdf1e7}.edt tr.tt td{font-weight:800;border-top:2px solid var(--navy)}.edt .lead{font-weight:800}.edt .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px}
+.edt{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:.88rem}.edt th{font:500 .64rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:right;padding:8px 6px;border-bottom:2px solid var(--navy);vertical-align:bottom}.edt th:first-child,.edt td:first-child{text-align:left}.edt td{padding:6px;border-bottom:1px solid #f0eee9;text-align:right;white-space:nowrap}.edt tr.r{cursor:pointer}.edt .st{display:block;white-space:normal;font-size:.78rem;color:var(--muted);max-width:340px;line-height:1.35;margin-top:2px}.edt td a.go{font:600 .76rem 'DM Sans',sans-serif;margin-left:6px}.edt tr.hl td{background:#fdf1e7}.edt tr.r:hover td{background:#fdf1e7}.edt tr.tt td{font-weight:800;border-top:2px solid var(--navy)}.edt .lead{font-weight:800}.edt .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px}
 .mapbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.mapbar label{font:500 .7rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}.mapbar select{flex:1 1 280px;width:auto}
 .key{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.85rem;margin-top:8px}.key span{display:inline-flex;align-items:center;gap:6px}.key i{width:14px;height:14px;border-radius:4px;display:inline-block}
 .status{font:500 .72rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:8px}
@@ -233,6 +233,12 @@ function areaOptions(){var cbs={};Object.keys(FE).forEach(function(e){var c=FE[e
   $('area').innerHTML=h;$('area').value=dArea}
 $('area').onchange=function(){dArea=this.value;drawDash();var sc=dArea==='nyc'?'nyc':BOF[dArea]?dArea:(dArea==='306'?'cb6':BON[dArea[0]]);if(layer&&sc!==scope)setScope(sc)};
 
+var DESC=null;
+function shortSt(n){return n.replace(/\bStreet\b/g,'St').replace(/\bAvenue\b/g,'Ave').replace(/\bPlace\b/g,'Pl').replace(/\bBoulevard\b/g,'Blvd').replace(/\bRoad\b/g,'Rd').replace(/\bParkway\b/g,'Pkwy').replace(/\bDrive\b/g,'Dr').replace(/\bCourt\b(?!\s+St)/g,'Ct').replace(/\bTerrace\b/g,'Ter').replace(/\bExpressway\b/g,'Expy')}
+function edStreets(e){var d=DESC&&DESC[e];if(!d)return '';if(!d[0].length&&!d[1].length)return 'No streets (park, water or airport land)';return (d[0].length?'Edges: '+d[0].map(shortSt).join(', '):'')+(d[1].length?(d[0].length?' · ':'')+'Inside: '+d[1].map(shortSt).join(', '):'')}
+var hlE=null;
+function hilite(e){if(hlE&&hlE!==e&&EDF[hlE]){applyEd(hlE)}hlE=e;if(!e||!EDF[e])return;var st=styleFor(e)||{};st.color='#f47920';st.weight=4;st.opacity=1;st.fillColor='#f47920';st.fillOpacity=Math.max(st.fillOpacity||0,.35);EDF[e].style=St(st);if(!shown[e]){map.addOverlay(EDF[e]);shown[e]=1}else{map.removeOverlay(EDF[e]);map.addOverlay(EDF[e])}}
+
 function drawEdTable(){
   if(!BAL||!Object.keys(FE).length)return;
   var k=curRace,race=BAL.races[k],c=RESK[k];
@@ -246,10 +252,12 @@ function drawEdTable(){
   var T=cols.map(function(){return 0}),TT=0,rep=0;
   eds.forEach(function(e){var r=c&&c.ed[e],w=areaW(dArea,e),v=cols.map(function(x){return r&&x.i>=0?(r.v[x.i]||0):0}),tot=v.reduce(function(a,b){return a+b},0),mx=Math.max.apply(0,v);if(r&&r.r)rep++;
     v.forEach(function(n,i){T[i]+=n*w});TT+=tot*w;
-    h+='<tr class="r" data-e="'+e+'"><td><b>'+esc(edLabel(e))+'</b>'+(w<1?' <span class="pl">'+Math.round(w*100)+'% inside</span>':'')+'</td><td>'+(r?(r.r?'Yes':'Not yet'):'–')+'</td>'+v.map(function(n){return '<td'+(tot&&n===mx?' class="lead"':'')+'>'+(r?n.toLocaleString()+(tot?' <span class="pl">'+(100*n/tot).toFixed(0)+'%</span>':''):'–')+'</td>'}).join('')+'<td>'+(r?tot.toLocaleString():'–')+'</td></tr>'});
+    h+='<tr class="r" data-e="'+e+'"><td><b>'+esc(edLabel(e))+'</b>'+(w<1?' <span class="pl">'+Math.round(w*100)+'% inside</span>':'')+'<a class="go" href="/ed/'+e+'/">ED page →</a><span class="st">'+esc(edStreets(e))+'</span></td><td>'+(r?(r.r?'Yes':'Not yet'):'–')+'</td>'+v.map(function(n){return '<td'+(tot&&n===mx?' class="lead"':'')+'>'+(r?n.toLocaleString()+(tot?' <span class="pl">'+(100*n/tot).toFixed(0)+'%</span>':''):'–')+'</td>'}).join('')+'<td>'+(r?tot.toLocaleString():'–')+'</td></tr>'});
   h+='<tr class="tt"><td>'+esc(areaName(dArea))+' total</td><td>'+rep+' of '+eds.length+'</td>'+T.map(function(n){return '<td>'+(TT?Math.round(n).toLocaleString()+' <span class="pl">'+(100*n/TT).toFixed(1)+'%</span>':'–')+'</td>'}).join('')+'<td>'+(TT?Math.round(TT).toLocaleString():'–')+'</td></tr>';
   $('edt').innerHTML=h;
-  [].forEach.call($('edt').querySelectorAll('tr.r'),function(tr){tr.onclick=function(){showEd(tr.dataset.e)}})}
+  [].forEach.call($('edt').querySelectorAll('tr.r'),function(tr){var e=tr.dataset.e;
+    tr.onmouseenter=function(){hilite(e)};tr.onmouseleave=function(){hilite(null);if(EDF[e])applyEd(e)};
+    tr.onclick=function(ev){if(ev.target.closest('a'))return;[].forEach.call($('edt').querySelectorAll('tr.hl'),function(x){x.classList.remove('hl')});tr.classList.add('hl');showEd(e,true);fitBB(FE[e].bb,true);hilite(e);msg.innerHTML=esc(edLabel(e))+' · '+esc(edStreets(e));$('map').scrollIntoView({behavior:'smooth',block:'center'})}})}
 function loadResults(){
   return fetch('/data/results/2026-general.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){
     if(!d)return;RES=d;RESK={};(d.contests||[]).forEach(function(c){var k=c.k||raceKey(c.name);if(k)RESK[k]=c});
@@ -287,6 +295,7 @@ function showEd(e,quiet){
   if(layer){if(prev&&EDF[prev])applyEd(prev);if(EDF[e]){applyEd(e);map.removeOverlay(EDF[e]);map.addOverlay(EDF[e]);if(!quiet)fitBB(FE[e].bb,true)}}
   var p=FE[e]&&FE[e].p||{};
   var h='<h2 style="margin-top:22px">Ballot and results</h2><div class="card"><div class="edh"><h2>'+esc(edLong(e))+'</h2><a href="/ed/'+e+'/">This election district’s page</a></div>';
+  if(DESC&&DESC[e])h+='<p class="kv" style="color:var(--navy)">'+esc(edStreets(e))+'</p>';
   if(p.bo)h+='<p class="kv">'+esc(BONAME[{MANHATTAN:1,BRONX:2,BROOKLYN:3,QUEENS:4,'STATEN ISLAND':5}[p.bo]]||'')+(p.cd?' · Congressional District '+p.cd:'')+(p.sd?' · Senate District '+p.sd:'')+' · Assembly District '+parseInt(e.slice(0,2),10)+(p.cc?' · Council District '+p.cc:'')+'</p>';
   h+='</div>';
   BAL.ed[e].forEach(function(k){
@@ -367,8 +376,8 @@ $('to').onchange=function(){var f=$('from').value,t=this.value,st=$('street').va
   [].forEach.call($('sides').querySelectorAll('button'),function(btn){btn.onclick=function(){showEd(btn.dataset.e)}})};
 
 // load
-Promise.all([fetch('/data/results/ed-ballots.json').then(function(r){return r.json()}),fetch('/electionexplainer/map/eds.geojson').then(function(r){return r.json()}),fetch('/electionexplainer/map/ed-cb-split.json').then(function(r){return r.json()}).catch(function(){return {d:{}}}),fetch('/electionexplainer/pollsites.json').then(function(r){return r.json()}).catch(function(){return null})]).then(function(a){
-  BAL=a[0];SPLIT=a[2].d||{};PS=a[3];raceOptions();
+Promise.all([fetch('/data/results/ed-ballots.json').then(function(r){return r.json()}),fetch('/electionexplainer/map/eds.geojson').then(function(r){return r.json()}),fetch('/electionexplainer/map/ed-cb-split.json').then(function(r){return r.json()}).catch(function(){return {d:{}}}),fetch('/electionexplainer/pollsites.json').then(function(r){return r.json()}).catch(function(){return null}),fetch('/data/edstreets/ed-desc.json').then(function(r){return r.json()}).catch(function(){return null})]).then(function(a){
+  BAL=a[0];SPLIT=a[2].d||{};PS=a[3];DESC=a[4];raceOptions();
   a[1].features.forEach(function(f){var e=f.properties.id;FE[e]={p:f.properties,g:f.geometry,bb:bbox(f.geometry)};EDF[e]=new mapkit.PolygonOverlay(rings(f.geometry),{enabled:false,data:{id:e}})});layer=true;
   setScope('cb6');
   return loadResults()}).then(function(){var h=location.hash.replace('#','');if(/^\d{5}$/.test(h))showEd(h)});
