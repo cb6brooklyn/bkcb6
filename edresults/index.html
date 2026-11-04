@@ -75,7 +75,7 @@ details.grp{background:#fff;border:1px solid var(--line);border-radius:12px;marg
 <button role="tab" aria-selected="false" data-p="pNum">District number</button>
 </div>
 <div class="pane" id="pAddr">
-<div class="row"><input id="addr" type="search" autocomplete="off" placeholder="250 Baltic Street, Brooklyn" aria-label="Address"><button class="btn" id="addrGo">Find</button></div>
+<div class="row"><input id="addr" type="search" autocomplete="off" placeholder="250 Baltic Street, Brooklyn" aria-label="Address"><button class="btn" id="addrGo">Find</button><button class="btn ghost" id="loc2" type="button">Use my location</button></div>
 <ul class="sugg" id="sugg"></ul>
 </div>
 <div class="pane" id="pBlock" hidden>
@@ -140,6 +140,13 @@ var PCOL={'Democratic':'#1f5fbf','Republican':'#c62828','Conservative':'#e08a00'
 var PAL=['#2a9d8f','#8d6e63','#5c6bc0','#ad1457','#558b2f','#00838f','#6d4c41','#9e9d24'];
 function candColor(race,i){var c=race.c[i],p=(c&&c[1]&&c[1][0])||'';if(PCOL[p])return PCOL[p];return PAL[i%PAL.length]}
 
+var FIND=/[?&]find\b/.test(location.search);
+if(FIND){(function(){var wrap=document.querySelector('.wrap'),fd=$('finder'),dash=$('dash');
+  document.querySelector('h1').textContent='Your election district’s results';document.querySelector('.lede').textContent='Search your address, use your location, drop a pin or tap the map. Then see every race on your election district’s ballot and how it voted, with a link to everything about it.';
+  fd.open=true;fd.querySelector('summary').style.display='none';fd.style.padding='0';fd.style.border='0';fd.style.background='transparent';var h=document.createElement('h2');h.textContent='Find your election district';wrap.insertBefore(h,wrap.firstChild);wrap.insertBefore(fd,h.nextSibling);
+  $('status').parentNode.insertBefore($('edbox'),$('edtt'));
+  var d=document.createElement('details');d.className='grp';d.innerHTML='<summary>Results for BK CB6, any community board, a borough or all of New York City</summary>';d.appendChild(dash);wrap.insertBefore(d,document.querySelector('.wrap > p.note'));
+  dash.querySelector('h2').style.marginTop='12px'})()}
 var LCOL={ad:'#2e7d32',sd:'#6a1b9a',cd:'#c62828',cc:'#00796b',mc:'#8d4b2b',cb:'#0d1b4b',bo:'#1a3e8c'},LAY={},LAYD=null,DN=null,PS=null,psLayer=null,psSel=null,showEDs=true,showPS=false;
 var BAL=null,RES=null,RESK={},EDF={},FE={},layer=null,map,sel=null,pin=null,curRace='gov',scope='cb6',SPLIT={},shown={};
 function inScope(e){if(scope==='nyc')return true;var f=FE[e];if(!f)return false;var p=f.p;if(scope==='cb6')return p.cb==='306'||!!(SPLIT[e]&&SPLIT[e]['306']);return p.bo===scope}
@@ -294,7 +301,7 @@ function showEd(e,quiet){
   var prev=sel;sel=e;
   if(layer){if(prev&&EDF[prev])applyEd(prev);if(EDF[e]){applyEd(e);map.removeOverlay(EDF[e]);map.addOverlay(EDF[e]);if(!quiet)fitBB(FE[e].bb,true)}}
   var p=FE[e]&&FE[e].p||{};
-  var h='<h2 style="margin-top:22px">Ballot and results</h2><div class="card"><div class="edh"><h2>'+esc(edLong(e))+'</h2><a href="/ed/'+e+'/">This election district’s page</a></div>';
+  var h='<h2 style="margin-top:22px">Ballot and results</h2><div class="card"><div class="edh"><h2>'+esc(edLong(e))+'</h2><a class="btn" style="text-decoration:none" href="/ed/'+e+'/">Everything about this election district →</a></div>';
   if(DESC&&DESC[e])h+='<p class="kv" style="color:var(--navy)">'+esc(edStreets(e))+'</p>';
   if(p.bo)h+='<p class="kv">'+esc(BONAME[{MANHATTAN:1,BRONX:2,BROOKLYN:3,QUEENS:4,'STATEN ISLAND':5}[p.bo]]||'')+(p.cd?' · Congressional District '+p.cd:'')+(p.sd?' · Senate District '+p.sd:'')+' · Assembly District '+parseInt(e.slice(0,2),10)+(p.cc?' · Council District '+p.cc:'')+'</p>';
   h+='</div>';
@@ -342,8 +349,9 @@ function pick(f,typed){
     msg.innerHTML='<b>'+esc(hn+' '+p.street)+', '+esc(p.borough)+'</b> · '+esc(edLabel(e));showEd(e)}).catch(function(){fromPoint(c[1],c[0],p.label)})}
 
 // location
-$('loc').onclick=function(){if(!navigator.geolocation){msg.textContent='This browser does not share location. Tap the map instead.';return}msg.textContent='Finding you…';
-  navigator.geolocation.getCurrentPosition(function(p){fromPoint(p.coords.latitude,p.coords.longitude,'Your location')},function(){msg.textContent='Location is off for this site. Tap the map instead.'},{enableHighAccuracy:true,timeout:15000})};
+function useLoc(){if(!navigator.geolocation){msg.textContent='This browser does not share location. Tap the map instead.';return}msg.textContent='Finding you…';
+  navigator.geolocation.getCurrentPosition(function(p){fromPoint(p.coords.latitude,p.coords.longitude,'Your location')},function(){msg.textContent='Location is off for this site. Tap the map instead.'},{enableHighAccuracy:true,timeout:15000})}
+$('loc').onclick=useLoc;$('loc2').onclick=useLoc;
 
 // district number
 function goNum(){var v=$('num').value.trim().replace(/[^0-9 ]/g,' ').trim().split(/\s+/),e;if(v.length>1)e=String(parseInt(v[0],10)).padStart(2,'0')+String(parseInt(v[1],10)).padStart(3,'0');else e=v[0];if(e&&e.length===5){msg.textContent=edLabel(e);showEd(e)}else msg.textContent='Type the Assembly District and election district, like 52046 or 52 46.'}
@@ -379,7 +387,7 @@ $('to').onchange=function(){var f=$('from').value,t=this.value,st=$('street').va
 Promise.all([fetch('/data/results/ed-ballots.json').then(function(r){return r.json()}),fetch('/electionexplainer/map/eds.geojson').then(function(r){return r.json()}),fetch('/electionexplainer/map/ed-cb-split.json').then(function(r){return r.json()}).catch(function(){return {d:{}}}),fetch('/electionexplainer/pollsites.json').then(function(r){return r.json()}).catch(function(){return null}),fetch('/data/edstreets/ed-desc.json').then(function(r){return r.json()}).catch(function(){return null})]).then(function(a){
   BAL=a[0];SPLIT=a[2].d||{};PS=a[3];DESC=a[4];raceOptions();
   a[1].features.forEach(function(f){var e=f.properties.id;FE[e]={p:f.properties,g:f.geometry,bb:bbox(f.geometry)};EDF[e]=new mapkit.PolygonOverlay(rings(f.geometry),{enabled:false,data:{id:e}})});layer=true;
-  setScope('cb6');
+  setScope(FIND?'nyc':'cb6');
   return loadResults()}).then(function(){var h=location.hash.replace('#','');if(/^\d{5}$/.test(h))showEd(h)});
 setInterval(loadResults,120000);
 })();
