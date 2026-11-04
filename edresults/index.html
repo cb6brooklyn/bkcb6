@@ -220,10 +220,15 @@ function drawKey(){
   $('key').innerHTML=c?race.c.map(function(x,i){var col=candColor(race,i);return '<span><i style="width:34px;background:linear-gradient(90deg,'+lightOf(col)+','+col+')"></i>'+esc(x[0])+'</span>'}).join('')+'<span style="color:var(--muted)">Light to full color: a 0% to 60%+ margin in that election district. Gray: tied.</span>':'<span style="color:var(--muted)">'+esc(race.t)+': no results reported yet. The map shades in as election districts report.</span>'}
 
 function raceOptions(){
-  var order=['gov','comp','ag'],ks=Object.keys(BAL.races);
-  function grp(p){return ks.filter(function(k){return k.indexOf(p)===0&&!(p==='cc'&&false)}).sort(function(a,b){return (parseInt(a.replace(/\D/g,''),10)||0)-(parseInt(b.replace(/\D/g,''),10)||0)||a.localeCompare(b)})}
-  var groups=[['Statewide',order],['Congress',grp('cd')],['State Senate',grp('sd')],['Assembly',grp('ad')],['City Council',grp('cc')],['Supreme Court',grp('sc')],['Surrogate',grp('sur')],['Civil Court, countywide',grp('ccc')],['Civil Court, municipal court districts',grp('mc')],['City Charter questions',grp('q')]];
-  $('race').innerHTML=groups.filter(function(g){return g[1].length}).map(function(g){return '<optgroup label="'+esc(g[0])+'">'+g[1].map(function(k){return '<option value="'+k+'">'+esc(BAL.races[k].t)+'</option>'}).join('')+'</optgroup>'}).join('');
+  var ks=Object.keys(BAL.races),bos={};ks.forEach(function(k){bos[k]={}});
+  Object.keys(BAL.ed).forEach(function(e){var bo=FE[e]&&FE[e].p.bo;if(!bo)return;BAL.ed[e].forEach(function(k){if(bos[k])bos[k][bo]=1})});
+  var BO=['BROOKLYN','MANHATTAN','BRONX','QUEENS','STATEN ISLAND'];
+  function grp(p){return ks.filter(function(k){return k.indexOf(p)===0&&!(p==='cc'&&k.indexOf('ccc')===0)}).sort(function(a,b){return (parseInt(a.replace(/\D/g,''),10)||0)-(parseInt(b.replace(/\D/g,''),10)||0)||a.localeCompare(b)})}
+  function opts(l){return l.map(function(k){return '<option value="'+k+'">'+esc(BAL.races[k].t)+'</option>'}).join('')}
+  function og(label,l){return l.length?'<optgroup label="'+esc(label)+'">'+opts(l)+'</optgroup>':''}
+  function byBoro(label,l){return BO.map(function(b){return og(label+' · '+BOF[b],l.filter(function(k){return bos[k][b]}))}).join('')}
+  var courts=grp('sc').concat(grp('sur'),grp('ccc'),grp('mc'));
+  $('race').innerHTML=og('Statewide races',['gov','comp','ag'].filter(function(k){return BAL.races[k]}))+og('City Charter questions',grp('q'))+byBoro('Congress',grp('cd'))+byBoro('State Senate',grp('sd'))+byBoro('Assembly',grp('ad'))+byBoro('City Council',grp('cc'))+byBoro('Courts',courts);
   $('race').value=curRace}
 $('race').onchange=function(){curRace=this.value;restyle();drawEdTable()};
 
@@ -414,8 +419,8 @@ $('to').onchange=function(){var f=$('from').value,t=this.value,st=$('street').va
 
 // load
 Promise.all([fetch('/data/results/ed-ballots.json').then(function(r){return r.json()}),fetch('/electionexplainer/map/eds.geojson').then(function(r){return r.json()}),fetch('/electionexplainer/map/ed-cb-split.json').then(function(r){return r.json()}).catch(function(){return {d:{}}}),fetch('/electionexplainer/pollsites.json').then(function(r){return r.json()}).catch(function(){return null}),fetch('/data/edstreets/ed-desc.json').then(function(r){return r.json()}).catch(function(){return null}),fetch('/yourdistricts/districts.json').then(function(r){return r.json()}).catch(function(){return null})]).then(function(a){
-  BAL=a[0];SPLIT=a[2].d||{};PS=a[3];DESC=a[4];DN=a[5];raceOptions();
-  a[1].features.forEach(function(f){var e=f.properties.id;FE[e]={p:f.properties,g:f.geometry,bb:bbox(f.geometry)};EDF[e]=new mapkit.PolygonOverlay(rings(f.geometry),{enabled:false,data:{id:e}})});layer=true;
+  BAL=a[0];SPLIT=a[2].d||{};PS=a[3];DESC=a[4];DN=a[5];
+  a[1].features.forEach(function(f){var e=f.properties.id;FE[e]={p:f.properties,g:f.geometry,bb:bbox(f.geometry)};EDF[e]=new mapkit.PolygonOverlay(rings(f.geometry),{enabled:false,data:{id:e}})});layer=true;raceOptions();
   setScope(FIND?'nyc':'cb6');
   return loadResults()}).then(function(){var h=location.hash.replace('#','');if(/^\d{5}$/.test(h))showEd(h)});
 setInterval(loadResults,120000);
