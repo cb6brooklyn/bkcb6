@@ -8,7 +8,6 @@
 <meta property="og:url" content="https://bkcb6.app/results/">
 <link rel="canonical" href="https://bkcb6.app/results/">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/vendor/leaflet-1.9.4/leaflet.css">
 <style>
 :root{--navy:#0d1b4b;--orange:#f47920;--bg:#f8f7f4;--line:#e5e2db;--muted:#6b6760;--mono:'DM Mono',ui-monospace,monospace}
 *{box-sizing:border-box}
@@ -61,9 +60,9 @@ input[type=search]{flex:1 1 220px}
 .note{font-size:.84rem;line-height:1.5;color:var(--muted);margin:14px 0 0}
 .note a{color:var(--navy);font-weight:700}
 .empty{padding:28px 16px;text-align:center;color:var(--muted);line-height:1.5}
-.leaflet-tooltip.rt{font:600 12.5px 'DM Sans',sans-serif;color:var(--navy);border:1px solid var(--line);border-radius:8px;padding:7px 9px;box-shadow:0 3px 10px rgba(13,27,75,.12);min-width:180px}
-.leaflet-tooltip.rt b{display:block;font-size:13px;margin-bottom:3px}
-.leaflet-tooltip.rt .row{display:flex;justify-content:space-between;gap:12px;font-weight:500}
+#map{position:relative}.rt{position:absolute;z-index:5;pointer-events:none;background:#fff;font:600 12.5px 'DM Sans',sans-serif;color:var(--navy);border:1px solid var(--line);border-radius:8px;padding:7px 9px;box-shadow:0 3px 10px rgba(13,27,75,.12);min-width:180px;max-width:260px}.rt[hidden]{display:none}
+.rt b{display:block;font-size:13px;margin-bottom:3px}
+.rt .row{display:flex;justify-content:space-between;gap:12px;font-weight:500}
 .key{display:flex;flex-wrap:wrap;gap:6px 12px;padding:10px 12px;border-top:1px solid var(--line);font-size:.8rem}
 .key span{display:inline-flex;align-items:center;gap:6px}
 .key i{width:12px;height:12px;border-radius:3px}
@@ -93,7 +92,7 @@ input[type=search]{flex:1 1 220px}
   </div>
   <p class="note">Unofficial results from the <a href="https://vote.nyc/page/election-results-summary" target="_blank" rel="noopener">NYC Board of Elections</a> election night reporting. Election night counts do not include all absentee, affidavit and early mail ballots, and change until the Board certifies the results. Community board figures add up every election district in that community district; an election district that crosses a community district line is split by the share of its area on each side (an election district 80% in CB6 counts 80% of its votes toward CB6). Find your poll site, districts and ballot at <a href="/vote/">bkcb6.app/vote</a>.</p>
 </div>
-<script src="/assets/vendor/leaflet-1.9.4/leaflet.js"></script>
+<script src="https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js"></script>
 <script>
 (function(){
 var DATA_URL='/data/results/2026-general.json';
@@ -106,10 +105,24 @@ function cbLong(id){id=String(id);return BN[id.charAt(0)]+' Community Board '+(+
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function fmt(n){return (n||0).toLocaleString('en-US')}
 function pct(a,b){return b?(100*a/b):0}
-var map=L.map('map',{preferCanvas:true,scrollWheelZoom:false}).setView([40.70,-73.95],10);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{subdomains:'abcd',attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:19}).addTo(map);
-var canvas=L.canvas({padding:.3});
-var EDS=null,CBL=null,edCb={},SPLIT={},D=null,cur=null,mode='cb',layer=null,sortK='tot',sortD=-1;
+mapkit.init({authorizationCallback:function(done){done('eyJraWQiOiI0SjZVQlRDRFpEIiwidHlwIjoiSldUIiwiYWxnIjoiRVMyNTYifQ.eyJpc3MiOiJGN0hGR1Y1UVIyIiwiaWF0IjoxNzkzNzQ5OTEyLCJvcmlnaW4iOiJia2NiNi5hcHAiLCJzY29wZSI6Im1hcGtpdF9qcyJ9.LpYs4ZPhfyWiHXBTv_qniPsZ-ciCJhQ-aCjQOuWsfIpQ6HFKgQGNGYlFEoci3dSys9c4oh5Te8dbp3N1R9vMyw')},language:'en'});
+var mapEl=document.getElementById('map');
+var map=new mapkit.Map(mapEl,{showsCompass:mapkit.FeatureVisibility.Hidden,showsZoomControl:true,showsMapTypeControl:true,isRotationEnabled:false,showsPointsOfInterest:false,isScrollEnabled:true,region:new mapkit.CoordinateRegion(new mapkit.Coordinate(40.70,-73.95),new mapkit.CoordinateSpan(.38,.5))});
+var tipEl=document.createElement('div');tipEl.className='rt';tipEl.hidden=true;mapEl.appendChild(tipEl);
+function C(c){return new mapkit.Coordinate(c[1],c[0])}
+function rings(g){var o=[];(g.type==='Polygon'?[g.coordinates]:g.coordinates).forEach(function(p){p.forEach(function(r){o.push(r.map(C))})});return o}
+function bbox(g){var b=[180,90,-180,-90];(g.type==='Polygon'?[g.coordinates]:g.coordinates).forEach(function(poly){poly[0].forEach(function(c){if(c[0]<b[0])b[0]=c[0];if(c[1]<b[1])b[1]=c[1];if(c[0]>b[2])b[2]=c[0];if(c[1]>b[3])b[3]=c[1]})});return b}
+function fitBB(b,pad){pad=pad||.004;map.setRegionAnimated(new mapkit.BoundingRegion(b[3]+pad,b[2]+pad,b[1]-pad,b[0]-pad).toCoordinateRegion(),true)}
+function St(o){return new mapkit.Style({fillColor:o.fillColor||'#000',fillOpacity:o.fillOpacity||0,strokeColor:o.color||'#fff',strokeOpacity:o.opacity==null?1:o.opacity,lineWidth:o.weight==null?1:o.weight,fillRule:'evenodd'})}
+function inRing(x,y,r){var ins=false;for(var i=0,j=r.length-1;i<r.length;j=i++){var xi=r[i][0],yi=r[i][1],xj=r[j][0],yj=r[j][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))ins=!ins}return ins}
+function hitG(g,x,y){var ps=g.type==='Polygon'?[g.coordinates]:g.coordinates;for(var i=0;i<ps.length;i++){if(inRing(x,y,ps[i][0])){var h=false;for(var k=1;k<ps[i].length;k++)if(inRing(x,y,ps[i][k]))h=true;if(!h)return true}}return false}
+var ITEMS=[];
+function itemAt(lat,lng){for(var i=0;i<ITEMS.length;i++){var b=ITEMS[i].bb;if(lng<b[0]||lng>b[2]||lat<b[1]||lat>b[3])continue;if(hitG(ITEMS[i].g,lng,lat))return ITEMS[i]}return null}
+function showTip(html,x,y){tipEl.innerHTML=html;tipEl.hidden=false;var r=mapEl.getBoundingClientRect();var L=x+14,T=y+14;if(L+tipEl.offsetWidth>r.width-8)L=x-tipEl.offsetWidth-14;if(T+tipEl.offsetHeight>r.height-8)T=y-tipEl.offsetHeight-14;tipEl.style.left=Math.max(4,L)+'px';tipEl.style.top=Math.max(4,T)+'px'}
+mapEl.addEventListener('mousemove',function(ev){var r=mapEl.getBoundingClientRect();var c=map.convertPointOnPageToCoordinate(new DOMPoint(ev.pageX,ev.pageY));var it=itemAt(c.latitude,c.longitude);if(it)showTip(it.tip,ev.clientX-r.left,ev.clientY-r.top);else tipEl.hidden=true});
+mapEl.addEventListener('mouseleave',function(){tipEl.hidden=true});
+map.addEventListener('single-tap',function(ev){var c=map.convertPointOnPageToCoordinate(ev.pointOnPage);var it=itemAt(c.latitude,c.longitude);var r=mapEl.getBoundingClientRect();if(it)showTip(it.tip,ev.pointOnPage.x-r.left-window.scrollX,ev.pointOnPage.y-r.top-window.scrollY);else tipEl.hidden=true});
+var EDS=null,CBL=null,edCb={},SPLIT={},D=null,cur=null,mode='cb',layer=null,sortK='tot',sortD=-1,BORO=null,fitted=false;
 var sel=document.getElementById('contest');
 function colorFor(c,i){var p=(c.p||'').toLowerCase();if(/democrat/.test(p))return PARTY.dem;if(/republican/.test(p))return PARTY.rep;if(/working/.test(p))return PARTY.wf;if(/conservative/.test(p))return PARTY.con;return PAL[i%PAL.length]}
 function contestCands(c){return c.c.map(function(x,i){return {n:x.n,p:x.p||'',col:colorFor(x,i),i:i}})}
@@ -129,12 +142,12 @@ function drawTotals(c,R){var el=document.getElementById('totals'),cs=contestCand
    order.map(function(x){var v=R.tot[x.i],p=pct(v,s);return '<div class="cand"><span class="sw" style="background:'+x.col+'"></span><span class="nm">'+esc(x.n)+(x.p?'<small>'+esc(x.p)+'</small>':'')+'</span><span class="v">'+fmt(v)+'<small>'+p.toFixed(1)+'%</small></span><span class="bar"><b style="width:'+p.toFixed(1)+'%;background:'+x.col+'"></b></span></div>'}).join('')+'</div>';}
 function tip(title,v,cs){var s=v.reduce(function(a,b){return a+b},0);var o=cs.slice().sort(function(a,b){return v[b.i]-v[a.i]}).slice(0,4);
   return '<b>'+esc(title)+'</b>'+(s?o.map(function(x){return '<div class="row"><span><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:'+x.col+';margin-right:5px"></i>'+esc(x.n)+'</span><span>'+pct(v[x.i],s).toFixed(1)+'%</span></div>'}).join('')+'<div class="row muted"><span>Votes</span><span>'+fmt(s)+'</span></div>':'<div class="row muted">No votes reported</div>')}
-function drawMap(c,R){if(layer){map.removeLayer(layer);layer=null}var cs=contestCands(c);
-  if(mode==='cb'){layer=L.geoJSON(CBL,{renderer:canvas,filter:function(f){return !!R.by[f.properties.id]},style:function(f){var b=R.by[f.properties.id];var l=leader(b.v);return {color:'#fff',weight:1.2,fillColor:l.s?cs[l.i].col:'#cbd5e1',fillOpacity:l.s?shade(l.margin):.35}},
-    onEachFeature:function(f,ly){var id=f.properties.id,b=R.by[id];ly.bindTooltip(tip(cbLong(id),b.v,cs),{className:'rt',sticky:true});}}).addTo(map)}
-  else{layer=L.geoJSON(EDS,{renderer:canvas,filter:function(f){return !!c.ed[f.properties.id]},style:function(f){var v=c.ed[f.properties.id].v||[];var l=leader(v);return {color:'#fff',weight:.4,fillColor:l.s?cs[l.i].col:'#cbd5e1',fillOpacity:l.s?shade(l.margin):.3}},
-    onEachFeature:function(f,ly){var id=f.properties.id;ly.bindTooltip(tip('AD '+(+id.slice(0,2))+' · ED '+id.slice(2)+' · '+cbName(f.properties.cb),c.ed[id].v||[],cs),{className:'rt',sticky:true})}}).addTo(map)}
-  try{var b=layer.getBounds();if(b.isValid())map.fitBounds(b,{padding:[10,10]})}catch(e){}
+function drawMap(c,R){if(layer){map.removeOverlays(layer);layer=null}var cs=contestCands(c);ITEMS=[];var ovs=[],bb=null;
+  function add(f,st,tp){var g=f.geometry,b=bbox(g);ITEMS.push({id:f.properties.id,g:g,bb:b,tip:tp});ovs.push(new mapkit.PolygonOverlay(rings(g),{style:St(st),enabled:false}));bb=bb?[Math.min(bb[0],b[0]),Math.min(bb[1],b[1]),Math.max(bb[2],b[2]),Math.max(bb[3],b[3])]:b.slice()}
+  if(mode==='cb'){CBL.features.forEach(function(f){var b=R.by[f.properties.id];if(!b)return;var l=leader(b.v);add(f,{color:'#fff',weight:1.2,fillColor:l.s?cs[l.i].col:'#cbd5e1',fillOpacity:l.s?shade(l.margin):.35},tip(cbLong(f.properties.id),b.v,cs))})}
+  else{EDS.features.forEach(function(f){var id=f.properties.id;if(!c.ed[id])return;var v=c.ed[id].v||[],l=leader(v);add(f,{color:'#fff',weight:.4,fillColor:l.s?cs[l.i].col:'#cbd5e1',fillOpacity:l.s?shade(l.margin):.3},tip('AD '+(+id.slice(0,2))+' · ED '+id.slice(2)+' · '+cbName(f.properties.cb),v,cs))})}
+  layer=ovs;map.addOverlays(ovs);if(BORO)map.addOverlays(BORO);
+  if(bb&&!fitted){fitBB(bb);fitted=true}
   document.getElementById('key').innerHTML=cs.map(function(x){return '<span><i style="background:'+x.col+'"></i>'+esc(x.n)+'</span>'}).join('')+'<span class="muted">Darker means a wider lead</span>'}
 function drawTable(c,R){var cs=contestCands(c),q=document.getElementById('q').value.trim().toLowerCase();
   var rows=Object.keys(R.by).map(function(id){var b=R.by[id],l=leader(b.v);return {id:id,b:b,l:l,tot:l.s,share:l.s?l.m/l.s:0}});
@@ -145,7 +158,7 @@ function drawTable(c,R){var cs=contestCands(c),q=document.getElementById('q').va
   document.getElementById('tbl').innerHTML='<thead><tr><th data-k="id">Board</th><th>Leading</th>'+top.map(function(x){return '<th class="r">'+esc(x.n.split(/\s+and\s+/)[0].replace(/\s+(Jr\.?|Sr\.?|II|III)$/,'').split(' ').slice(-1)[0])+'</th>'}).join('')+'<th class="r" data-k="tot">Votes</th></tr></thead><tbody>'+
    rows.map(function(r){var s=r.tot;return '<tr data-id="'+r.id+'"><td style="white-space:nowrap"><b>'+esc(cbName(r.id))+'</b><br><span class="muted" style="font-size:.76rem">'+r.b.rep+'/'+r.b.eds+' EDs</span></td><td>'+(s?'<span class="lead"><i style="background:'+cs[r.l.i].col+'"></i>'+esc(cs[r.l.i].n)+'</span>':'<span class="muted">No votes yet</span>')+'</td>'+top.map(function(x){return '<td class="r">'+(s?pct(r.b.v[x.i],s).toFixed(1)+'%':'')+'</td>'}).join('')+'<td class="r">'+fmt(s)+'</td></tr>'}).join('')+'</tbody>';
   [].forEach.call(document.querySelectorAll('#tbl th[data-k]'),function(th){th.onclick=function(){var k=th.dataset.k;if(sortK===k)sortD=-sortD;else{sortK=k;sortD=k==='id'?1:-1}drawTable(c,R)}});
-  [].forEach.call(document.querySelectorAll('#tbl tr[data-id]'),function(tr){tr.onclick=function(){var id=tr.dataset.id;if(mode!=='cb'){mode='cb';setSeg();render()}layer.eachLayer(function(ly){if(ly.feature.properties.id===id){map.fitBounds(ly.getBounds(),{padding:[20,20]});ly.openTooltip(ly.getBounds().getCenter())}});document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'})}})}
+  [].forEach.call(document.querySelectorAll('#tbl tr[data-id]'),function(tr){tr.onclick=function(){var id=tr.dataset.id;if(mode!=='cb'){mode='cb';setSeg();render()}var it=ITEMS.filter(function(x){return x.id===id})[0];if(it){fitBB(it.bb,.006);var r=mapEl.getBoundingClientRect();showTip(it.tip,r.width/2,r.height/2)}document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'})}})}
 function render(){if(!D||!D.contests||!D.contests.length||!EDS)return;var c=D.contests.find(function(x){return x.id===sel.value})||D.contests[0];cur=c;var R=roll(c);drawTotals(c,R);drawMap(c,R);drawTable(c,R)}
 function setSeg(){[].forEach.call(document.querySelectorAll('.seg button'),function(b){b.classList.toggle('on',b.dataset.v===mode)})}
 [].forEach.call(document.querySelectorAll('.seg button'),function(b){b.onclick=function(){mode=b.dataset.v;setSeg();render()}});
@@ -161,7 +174,7 @@ function status(){var lv=document.getElementById('live'),t=document.getElementBy
 function load(){return fetch(DATA_URL+'?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){if(!d)return;D=d;status();if(D.contests&&D.contests.length){fill();render()}}).catch(function(){})}
 Promise.all([fetch('/electionexplainer/map/eds.geojson').then(function(r){return r.json()}),fetch('/electionexplainer/map/layers.json').then(function(r){return r.json()}),fetch('/electionexplainer/map/ed-cb-split.json').then(function(r){return r.json()}).catch(function(){return {d:{}}})]).then(function(a){
   EDS=a[0];CBL=a[1].cb;SPLIT=(a[2]&&a[2].d)||{};EDS.features.forEach(function(f){edCb[f.properties.id]=f.properties.cb});
-  L.geoJSON(a[1].bo,{renderer:canvas,interactive:false,style:{color:'#0d1b4b',weight:1.5,fill:false,opacity:.6}}).addTo(map);
+  BORO=a[1].bo.features.map(function(f){return new mapkit.PolygonOverlay(rings(f.geometry),{style:St({color:'#0d1b4b',weight:1.5,opacity:.6}),enabled:false})});map.addOverlays(BORO);
   return load()}).then(function(){setInterval(load,120000)});
 })();
 </script>
