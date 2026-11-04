@@ -63,7 +63,7 @@ details.grp{background:#fff;border:1px solid var(--line);border-radius:12px;marg
 </div></header>
 <div class="wrap">
 <section class="dash" id="dash"><h2>Results</h2><p class="msg" id="dstat" style="margin:-4px 0 10px"></p><div class="dgrid" id="dtop"></div>
-<div class="atabs" id="atabs"><button data-a="nyc" aria-pressed="false">New York City</button><button data-a="bk" aria-pressed="false">Brooklyn</button><button data-a="cb6" aria-pressed="true">BK CB6</button></div>
+<div class="atabs"><select id="area" aria-label="Community board, borough or the whole city" style="max-width:420px"></select></div>
 <div id="dall"></div></section>
 <h2>Find an election district</h2>
 <div class="card">
@@ -190,8 +190,10 @@ $('race').onchange=function(){curRace=this.value;restyle()};
 
 
 // dashboard: statewide races for the state, NYC, Brooklyn and BK CB6, then every race in an area
-var STATE=null,dArea='cb6',AREAN={state:'New York State',nyc:'New York City',bk:'Brooklyn',cb6:'BK CB6'};
-function areaW(a,e){var f=FE[e];if(!f)return 0;if(a==='nyc')return 1;if(a==='bk')return f.p.bo==='BROOKLYN'?1:0;if(SPLIT[e])return SPLIT[e]['306']||0;return f.p.cb==='306'?1:0}
+var STATE=null,dArea='306',BOS=['MANHATTAN','BRONX','BROOKLYN','QUEENS','STATEN ISLAND'],BOF={MANHATTAN:'Manhattan',BRONX:'The Bronx',BROOKLYN:'Brooklyn',QUEENS:'Queens','STATEN ISLAND':'Staten Island'},BOC={1:'MN',2:'BX',3:'BK',4:'QN',5:'SI'},BON={1:'MANHATTAN',2:'BRONX',3:'BROOKLYN',4:'QUEENS',5:'STATEN ISLAND'};
+function areaName(a){if(a==='nyc')return 'New York City';if(BOF[a])return BOF[a];return BOC[a[0]]+' CB'+parseInt(a.slice(1),10)}
+function areaLong(a){if(a==='nyc'||BOF[a])return areaName(a);return (BOF[BON[a[0]]]||'').replace('The ','')+' Community Board '+parseInt(a.slice(1),10)}
+function areaW(a,e){var f=FE[e];if(!f)return 0;if(a==='nyc')return 1;if(BOF[a])return f.p.bo===a?1:0;if(SPLIT[e])return SPLIT[e][a]||0;return f.p.cb===a?1:0}
 function agg(k,a){var race=BAL.races[k],c=RESK[k],exp=0,rep=0;
   Object.keys(BAL.ed).forEach(function(e){if(BAL.ed[e].indexOf(k)>=0&&areaW(a,e)>0){exp++;var r=c&&c.ed&&c.ed[e];if(r&&r.r)rep++}});
   if(!exp)return null;
@@ -208,19 +210,25 @@ function arow(label,g){
   h+='<div class="sb">'+(g.tot?g.rows.map(function(r){return r.v?'<i style="width:'+(100*r.v/g.tot).toFixed(2)+'%;background:'+r.col+'"></i>':''}).join(''):'')+'</div>';
   h+='<div class="lg">'+g.rows.filter(function(r){return r.v||!g.tot}).map(function(r){return '<span><em style="background:'+r.col+'"></em>'+esc(r.n)+(g.tot?' <b>'+(100*r.v/g.tot).toFixed(1)+'%</b> '+r.v.toLocaleString():'')+'</span>'}).join('')+'</div></div>';return h}
 function drawDash(){
-  if(!BAL||!Object.keys(FE).length)return;
+  if(!BAL||!Object.keys(FE).length)return;if(!$('area').options.length)areaOptions();
   $('dtop').innerHTML=['gov','comp','ag'].map(function(k){var race=BAL.races[k];var st=stateAgg(k);
-    return '<div class="card dc"><h3>'+esc(race.t)+'</h3>'+(st?arow('New York State',st):'<div class="ar"><div class="al"><span>New York State</span><span>'+(RES&&RES.contests&&RES.contests.length?'Statewide count not loaded yet':'')+'</span></div></div>')+arow('New York City',agg(k,'nyc'))+arow('Brooklyn',agg(k,'bk'))+arow('BK CB6',agg(k,'cb6'))+'</div>'}).join('');
+    var rows='';if(dArea!=='nyc'&&!BOF[dArea])rows+=arow(areaName(dArea),agg(k,dArea));var bo=BOF[dArea]?dArea:(dArea==='nyc'?null:BON[dArea[0]]);if(bo)rows+=arow(BOF[bo],agg(k,bo));rows+=arow('New York City',agg(k,'nyc'));
+    return '<div class="card dc"><h3>'+esc(race.t)+'</h3>'+rows+(st?arow('New York State',st):'<div class="ar"><div class="al"><span>New York State</span><span>'+(RES&&RES.contests&&RES.contests.length?'Statewide count not loaded yet':'')+'</span></div></div>')+'</div>'}).join('');
   var n=RES&&RES.contests&&RES.contests.length;
   $('dstat').textContent=n?('NYC Board of Elections, '+(RES.final?'final':'unofficial')+', updated '+new Date(RES.updated).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+(STATE&&STATE.updated?' · statewide: '+(STATE.source||'New York State Board of Elections')+', updated '+new Date(STATE.updated).toLocaleString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'}):'')):'No results reported yet. Every race fills in as the Board of Elections reports.';
   // every race in the chosen area
   var groups=[['Statewide',['gov','comp','ag']],['Congress','cd'],['State Senate','sd'],['Assembly','ad'],['City Council','cc'],['Supreme Court','sc'],['Surrogate','sur'],['Civil Court, countywide','ccc'],['Civil Court, municipal court districts','mc']];
   var ks=Object.keys(BAL.races),h='';
   groups.forEach(function(g){var list=Array.isArray(g[1])?g[1]:ks.filter(function(k){return k.indexOf(g[1])===0&&!(g[1]==='cc'&&k.indexOf('ccc')===0)}).sort(function(a,b){return (parseInt(a.replace(/\D/g,''),10)||0)-(parseInt(b.replace(/\D/g,''),10)||0)||a.localeCompare(b)});
-    var cards=list.map(function(k){var x=agg(k,dArea);return x?'<div class="dc"><h3>'+esc(BAL.races[k].t)+'</h3>'+arow(AREAN[dArea]+(k==='gov'||k==='comp'||k==='ag'||dArea!=='nyc'?'':''),x)+'</div>':''}).filter(Boolean);
-    if(cards.length)h+='<details class="grp"'+(g[0]==='Statewide'||dArea==='cb6'?' open':'')+'><summary>'+esc(g[0])+' <span class="pl">'+cards.length+(cards.length===1?' race':' races')+' in '+esc(AREAN[dArea])+'</span></summary>'+cards.join('')+'</details>'});
-  $('dall').innerHTML=h+'<p class="note" style="margin-top:6px">Totals for '+esc(AREAN[dArea])+' count only the votes cast there'+(dArea==='cb6'?'; election districts that cross the BK CB6 line count by the share of their area inside it':'')+'.</p>'}
-[].forEach.call(document.querySelectorAll('#atabs button'),function(b){b.onclick=function(){dArea=b.dataset.a;[].forEach.call(document.querySelectorAll('#atabs button'),function(x){x.setAttribute('aria-pressed',x===b)});drawDash()}});
+    var cards=list.map(function(k){var x=agg(k,dArea);return x?'<div class="dc"><h3>'+esc(BAL.races[k].t)+'</h3>'+arow(areaName(dArea),x)+'</div>':''}).filter(Boolean);
+    if(cards.length)h+='<details class="grp"'+(g[0]==='Statewide'||(dArea!=='nyc'&&!BOF[dArea])?' open':'')+'><summary>'+esc(g[0])+' <span class="pl">'+cards.length+(cards.length===1?' race':' races')+' in '+esc(areaName(dArea))+'</span></summary>'+cards.join('')+'</details>'});
+  $('dall').innerHTML=h+'<p class="note" style="margin-top:6px">Totals for '+esc(areaLong(dArea))+' count only the votes cast there'+(dArea!=='nyc'&&!BOF[dArea]?'; election districts that cross its line count by the share of their area inside it':'')+'.</p>'}
+function areaOptions(){var cbs={};Object.keys(FE).forEach(function(e){var c=FE[e].p.cb;if(c)cbs[c]=1});Object.keys(SPLIT).forEach(function(e){Object.keys(SPLIT[e]).forEach(function(c){cbs[c]=1})});
+  var ks=Object.keys(cbs).sort(),h='<optgroup label="Community boards">';
+  [3,1,2,4,5].forEach(function(b){ks.filter(function(c){return c[0]==String(b)}).sort(function(a,c){return parseInt(a,10)-parseInt(c,10)}).forEach(function(c){h+='<option value="'+c+'">'+esc(areaLong(c))+'</option>'})});
+  h+='</optgroup><optgroup label="Boroughs">'+BOS.map(function(b){return '<option value="'+b+'">'+esc(BOF[b])+'</option>'}).join('')+'</optgroup><optgroup label="Citywide"><option value="nyc">New York City</option></optgroup>';
+  $('area').innerHTML=h;$('area').value=dArea}
+$('area').onchange=function(){dArea=this.value;drawDash()};
 function loadResults(){
   return fetch('/data/results/2026-general.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){
     if(!d)return;RES=d;RESK={};(d.contests||[]).forEach(function(c){var k=c.k||raceKey(c.name);if(k)RESK[k]=c});
