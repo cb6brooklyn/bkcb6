@@ -136,9 +136,21 @@ function raceKey(name){
   if(s.indexOf('civil court')>=0&&s.indexOf('municipal')>=0&&n&&c)return 'mc'+c+n;if(s.indexOf('civil court')>=0&&c)return 'ccc'+c;return null}
 
 // colors: by the candidate's first party line; others from a fixed palette
-var PCOL={'Democratic':'#1f5fbf','Republican':'#c62828','Conservative':'#e08a00','Working Families':'#7b3fa0'};
-var PAL=['#2a9d8f','#8d6e63','#5c6bc0','#ad1457','#558b2f','#00838f','#6d4c41','#9e9d24'];
-function candColor(race,i){var c=race.c[i],p=(c&&c[1]&&c[1][0])||'';if(PCOL[p])return PCOL[p];return PAL[i%PAL.length]}
+// colors as on bkcb6.app/electionhistory: the two leading candidates are navy and orange, the rest from a fixed palette,
+// write-ins gray; a district's fill runs from the light tint at a 0% margin to the full color at a 60% margin or more
+var NAVY='#0d1b4b',ORANGE='#f47920',NAVY_LIGHT='#5b85d4',ORANGE_LIGHT='#f4a86a',GRAY='#9a958c',EDMAX=.6;
+var OTHER=['#2d6a4f','#8e2b20','#7b6cd0','#b8860b','#2e7d8f','#c2508f','#6d8b2f','#a0522d','#4b6cb7'];
+var PAL=OTHER;
+function mix(a,b,t){function h(x){return [parseInt(x.slice(1,3),16),parseInt(x.slice(3,5),16),parseInt(x.slice(5,7),16)]}var A=h(a),B=h(b);return 'rgb('+A.map(function(x,i){return Math.round(x+(B[i]-x)*t)}).join(',')+')'}
+function lighten(hex){return mix(hex,'#ffffff',.55)}
+function lightOf(col){return col===NAVY?NAVY_LIGHT:col===ORANGE?ORANGE_LIGHT:lighten(col)}
+var COLS={};
+function colorsFor(k){if(COLS[k])return COLS[k];var race=BAL.races[k],c=RESK[k],tot=race.c.map(function(){return 0});
+  if(c){var idx=matchIdx(race,c);Object.keys(c.ed).forEach(function(e){(c.ed[e].v||[]).forEach(function(n,i){if(idx[i]>=0)tot[idx[i]]+=n})})}
+  var real=race.c.map(function(x,i){return i}).filter(function(i){return !/write-?in/i.test(race.c[i][0])}).sort(function(a,b){return tot[b]-tot[a]||a-b});
+  var out=race.c.map(function(){return GRAY}),j=0;real.forEach(function(i,r){out[i]=r===0?NAVY:r===1?ORANGE:OTHER[j++%OTHER.length]});COLS[k]=out;return out}
+function candColor(race,i){var k=null;Object.keys(BAL.races).some(function(x){if(BAL.races[x]===race){k=x;return true}});var cs=k?colorsFor(k):null;return cs?cs[i]:OTHER[i%OTHER.length]}
+function fillFor(tot,top,sec,col){if(!tot)return ['#d1d5db',.5];if(top===sec)return [GRAY,.75];return [mix(lightOf(col),col,Math.max(.14,Math.min(1,(top-sec)/tot/EDMAX))),.8]}
 
 var FIND=/[?&]find\b/.test(location.search);
 if(FIND){(function(){var wrap=document.querySelector('.wrap'),fd=$('finder'),dash=$('dash');
@@ -178,8 +190,8 @@ function styleFor(e){
   var x=edResult(curRace,e);if(!x)return base;
   var v=x.r.v||[],tot=0,b=-1,bv=-1,sec=0;v.forEach(function(n,i){tot+=n;if(n>bv){sec=bv<0?0:bv;bv=n;b=i}else if(n>sec)sec=n});
   if(!tot)return base;
-  var race=BAL.races[curRace],idx=matchIdx(race,x.c);var bi=idx[b];
-  base.fillColor=bi!=null&&bi>=0?candColor(race,bi):PAL[b%PAL.length];base.fillOpacity=.25+.6*Math.min(1,(bv-sec)/tot*2.5);return base}
+  var race=BAL.races[curRace],idx=matchIdx(race,x.c);var bi=idx[b];var col=bi!=null&&bi>=0?candColor(race,bi):GRAY;
+  var f=fillFor(tot,bv,sec,col);base.fillColor=f[0];base.fillOpacity=f[1];base.color=sel===e?'#f47920':'#ffffff';base.opacity=sel===e?1:.9;return base}
 function applyEd(e){var o=EDF[e],st=styleFor(e);if(!st){if(shown[e]){map.removeOverlay(o);delete shown[e]}return}o.style=St(st);if(!shown[e]){map.addOverlay(o);shown[e]=1}}
 function restyle(){if(layer){var add=[],rm=[];Object.keys(EDF).forEach(function(e){var o=EDF[e],st=styleFor(e);if(!st){if(shown[e]){rm.push(o);delete shown[e]}return}o.style=St(st);if(!shown[e]){add.push(o);shown[e]=1}});if(rm.length)map.removeOverlays(rm);if(add.length)map.addOverlays(add);if(sel&&shown[sel]){map.removeOverlay(EDF[sel]);map.addOverlay(EDF[sel])}}drawKey()}
 // map each result candidate to the ballot candidate of the same name (for colors)
@@ -188,7 +200,7 @@ function matchIdx(race,c){if(c._idx&&c._idx.race===race)return c._idx.m;var m=c.
 function drawKey(){
   var race=BAL&&BAL.races[curRace];if(!race){$('key').innerHTML='';return}
   var c=contestFor(curRace);
-  $('key').innerHTML=c?race.c.map(function(x,i){return '<span><i style="background:'+candColor(race,i)+'"></i>'+esc(x[0])+'</span>'}).join('')+'<span style="color:var(--muted)">Darker means a wider lead in that election district</span>':'<span style="color:var(--muted)">'+esc(race.t)+': no results reported yet. The map shades in as election districts report.</span>'}
+  $('key').innerHTML=c?race.c.map(function(x,i){var col=candColor(race,i);return '<span><i style="width:34px;background:linear-gradient(90deg,'+lightOf(col)+','+col+')"></i>'+esc(x[0])+'</span>'}).join('')+'<span style="color:var(--muted)">Light to full color: a 0% to 60%+ margin in that election district. Gray: tied.</span>':'<span style="color:var(--muted)">'+esc(race.t)+': no results reported yet. The map shades in as election districts report.</span>'}
 
 function raceOptions(){
   var order=['gov','comp','ag'],ks=Object.keys(BAL.races);
@@ -267,7 +279,7 @@ function drawEdTable(){
     tr.onclick=function(ev){if(ev.target.closest('a'))return;[].forEach.call($('edt').querySelectorAll('tr.hl'),function(x){x.classList.remove('hl')});tr.classList.add('hl');showEd(e,true);fitBB(FE[e].bb,true);hilite(e);msg.innerHTML=esc(edLabel(e))+' · '+esc(edStreets(e));$('map').scrollIntoView({behavior:'smooth',block:'center'})}})}
 function loadResults(){
   return fetch('/data/results/2026-general.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){
-    if(!d)return;RES=d;RESK={};(d.contests||[]).forEach(function(c){var k=c.k||raceKey(c.name);if(k)RESK[k]=c});
+    if(!d)return;RES=d;RESK={};COLS={};(d.contests||[]).forEach(function(c){var k=c.k||raceKey(c.name);if(k)RESK[k]=c});
     var n=(d.contests||[]).length;
     $('status').textContent=n?('Board of Elections, '+(d.final?'final':'unofficial')+', updated '+new Date(d.updated).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})):'No results reported yet. This page fills in as the Board of Elections reports.';
     restyle();drawDash();if(sel)showEd(sel,true)}).catch(function(){}).then(function(){return fetch('/data/results/2026-state.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){STATE=d;drawDash()}).catch(function(){})})}

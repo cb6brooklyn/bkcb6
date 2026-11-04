@@ -96,8 +96,14 @@ input[type=search]{flex:1 1 220px}
 <script>
 (function(){
 var DATA_URL='/data/results/2026-general.json';
-var PARTY={dem:'#1d4ed8',rep:'#dc2626',wf:'#7c3aed',con:'#ea580c'};
-var PAL=['#1d4ed8','#dc2626','#0f766e','#7c3aed','#ca8a04','#db2777','#0891b2','#65a30d','#9a3412','#475569'];
+// colors as on bkcb6.app/electionhistory: the two leading candidates navy and orange, others from a fixed palette, write-ins gray;
+// fill runs from the light tint at a 0% margin to the full color at a 60% margin or more
+var NAVY='#0d1b4b',ORANGE='#f47920',NAVY_LIGHT='#5b85d4',ORANGE_LIGHT='#f4a86a',GRAY='#9a958c',EDMAX=.6;
+var OTHER=['#2d6a4f','#8e2b20','#7b6cd0','#b8860b','#2e7d8f','#c2508f','#6d8b2f','#a0522d','#4b6cb7'];
+function mix(a,b,t){function h(x){return [parseInt(x.slice(1,3),16),parseInt(x.slice(3,5),16),parseInt(x.slice(5,7),16)]}var A=h(a),B=h(b);return 'rgb('+A.map(function(x,i){return Math.round(x+(B[i]-x)*t)}).join(',')+')'}
+function lighten(hex){return mix(hex,'#ffffff',.55)}
+function lightOf(col){return col===NAVY?NAVY_LIGHT:col===ORANGE?ORANGE_LIGHT:lighten(col)}
+function fillFor(l){if(!l.s)return ['#d1d5db',.5];if(l.m===l.sec)return [GRAY,.75];return [mix(lightOf(l.col),l.col,Math.max(.14,Math.min(1,l.margin/EDMAX))),.8]}
 var BC={1:'MN',2:'BX',3:'BK',4:'QN',5:'SI'};
 var BN={1:'Manhattan',2:'The Bronx',3:'Brooklyn',4:'Queens',5:'Staten Island'};
 function cbName(id){id=String(id);return (BC[id.charAt(0)]||'')+' CB '+(+id.slice(1))}
@@ -124,8 +130,10 @@ mapEl.addEventListener('mouseleave',function(){tipEl.hidden=true});
 map.addEventListener('single-tap',function(ev){var c=map.convertPointOnPageToCoordinate(ev.pointOnPage);var it=itemAt(c.latitude,c.longitude);var r=mapEl.getBoundingClientRect();if(it)showTip(it.tip,ev.pointOnPage.x-r.left-window.scrollX,ev.pointOnPage.y-r.top-window.scrollY);else tipEl.hidden=true});
 var EDS=null,CBL=null,edCb={},SPLIT={},D=null,cur=null,mode='cb',layer=null,sortK='tot',sortD=-1,BORO=null,fitted=false;
 var sel=document.getElementById('contest');
-function colorFor(c,i){var p=(c.p||'').toLowerCase();if(/democrat/.test(p))return PARTY.dem;if(/republican/.test(p))return PARTY.rep;if(/working/.test(p))return PARTY.wf;if(/conservative/.test(p))return PARTY.con;return PAL[i%PAL.length]}
-function contestCands(c){return c.c.map(function(x,i){return {n:x.n,p:x.p||'',col:colorFor(x,i),i:i}})}
+function contestCands(c){if(c._cands)return c._cands;var tot=c.c.map(function(){return 0});Object.keys(c.ed||{}).forEach(function(e){(c.ed[e].v||[]).forEach(function(n,i){tot[i]+=n})});
+  var real=c.c.map(function(x,i){return i}).filter(function(i){return !/write-?in/i.test(c.c[i].n)}).sort(function(a,b){return tot[b]-tot[a]||a-b});
+  var col=c.c.map(function(){return GRAY}),j=0;real.forEach(function(i,r){col[i]=r===0?NAVY:r===1?ORANGE:OTHER[j++%OTHER.length]});
+  c._cands=c.c.map(function(x,i){return {n:x.n,p:x.p||'',col:col[i],i:i}});return c._cands}
 // sum EDs into CBs for a contest
 function roll(c){var by={},tot=new Array(c.c.length).fill(0),rep=0,eds=0,off=0,offEds=0;
   Object.keys(c.ed||{}).forEach(function(ed){var v=c.ed[ed];var cb=edCb[ed];eds++;if(v.r)rep++;
@@ -134,8 +142,7 @@ function roll(c){var by={},tot=new Array(c.c.length).fill(0),rep=0,eds=0,off=0,o
     Object.keys(fr).forEach(function(k){var w=fr[k];var b=by[k]||(by[k]={v:new Array(c.c.length).fill(0),eds:0,rep:0});b.eds++;if(v.r)b.rep++;row.forEach(function(n,i){b.v[i]+=n*w})})});
   Object.keys(by).forEach(function(k){by[k].v=by[k].v.map(function(x){return Math.round(x)})});
   return {by:by,tot:tot,eds:eds,rep:rep,off:off,offEds:offEds}}
-function leader(v){var m=-1,i=-1,s=0,sec=0;v.forEach(function(n,k){s+=n;if(n>m){sec=m<0?0:m;m=n;i=k}else if(n>sec)sec=n});return {i:i,m:m,s:s,margin:s?(m-sec)/s:0}}
-function shade(margin){return .25+Math.min(.6,margin*1.4)}
+function leader(v){var m=-1,i=-1,s=0,sec=0;v.forEach(function(n,k){s+=n;if(n>m){sec=m<0?0:m;m=n;i=k}else if(n>sec)sec=n});return {i:i,m:m,s:s,sec:sec,margin:s?(m-sec)/s:0}}
 function drawTotals(c,R){var el=document.getElementById('totals'),cs=contestCands(c),s=R.tot.reduce(function(a,b){return a+b},0);
   var order=cs.slice().sort(function(a,b){return R.tot[b.i]-R.tot[a.i]});
   el.innerHTML='<div class="ct"><h2>'+esc(c.name)+'</h2><div class="sub">'+fmt(s)+' votes · '+(c.vf>1?'vote for up to '+c.vf+' · ':'')+(R.eds?(R.rep+' of '+R.eds+' election districts reporting'):'no districts reporting yet')+'</div>'+(R.off?'<div class="sub" style="margin-top:4px">'+fmt(R.off)+' votes in '+R.offEds+' election district'+(R.offEds==1?'':'s')+' not on the 2026 district map are in the total but not in any community board</div>':'')+'</div><div class="cands">'+
@@ -144,11 +151,11 @@ function tip(title,v,cs){var s=v.reduce(function(a,b){return a+b},0);var o=cs.sl
   return '<b>'+esc(title)+'</b>'+(s?o.map(function(x){return '<div class="row"><span><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:'+x.col+';margin-right:5px"></i>'+esc(x.n)+'</span><span>'+pct(v[x.i],s).toFixed(1)+'%</span></div>'}).join('')+'<div class="row muted"><span>Votes</span><span>'+fmt(s)+'</span></div>':'<div class="row muted">No votes reported</div>')}
 function drawMap(c,R){if(layer){map.removeOverlays(layer);layer=null}var cs=contestCands(c);ITEMS=[];var ovs=[],bb=null;
   function add(f,st,tp){var g=f.geometry,b=bbox(g);ITEMS.push({id:f.properties.id,g:g,bb:b,tip:tp});ovs.push(new mapkit.PolygonOverlay(rings(g),{style:St(st),enabled:false}));bb=bb?[Math.min(bb[0],b[0]),Math.min(bb[1],b[1]),Math.max(bb[2],b[2]),Math.max(bb[3],b[3])]:b.slice()}
-  if(mode==='cb'){CBL.features.forEach(function(f){var b=R.by[f.properties.id];if(!b)return;var l=leader(b.v);add(f,{color:'#fff',weight:1.2,fillColor:l.s?cs[l.i].col:'#cbd5e1',fillOpacity:l.s?shade(l.margin):.35},tip(cbLong(f.properties.id),b.v,cs))})}
-  else{EDS.features.forEach(function(f){var id=f.properties.id;if(!c.ed[id])return;var v=c.ed[id].v||[],l=leader(v);add(f,{color:'#fff',weight:.4,fillColor:l.s?cs[l.i].col:'#cbd5e1',fillOpacity:l.s?shade(l.margin):.3},tip('AD '+(+id.slice(0,2))+' · ED '+id.slice(2)+' · '+cbName(f.properties.cb),v,cs))})}
+  if(mode==='cb'){CBL.features.forEach(function(f){var b=R.by[f.properties.id];if(!b)return;var l=leader(b.v);l.col=l.s?cs[l.i].col:GRAY;var fl=fillFor(l);add(f,{color:'#fff',weight:1.2,fillColor:fl[0],fillOpacity:fl[1]},tip(cbLong(f.properties.id),b.v,cs))})}
+  else{EDS.features.forEach(function(f){var id=f.properties.id;if(!c.ed[id])return;var v=c.ed[id].v||[],l=leader(v);l.col=l.s?cs[l.i].col:GRAY;var fl=fillFor(l);add(f,{color:'#fff',weight:.4,fillColor:fl[0],fillOpacity:fl[1]},tip('AD '+(+id.slice(0,2))+' · ED '+id.slice(2)+' · '+cbName(f.properties.cb),v,cs))})}
   layer=ovs;map.addOverlays(ovs);if(BORO)map.addOverlays(BORO);
   if(bb&&!fitted){fitBB(bb);fitted=true}
-  document.getElementById('key').innerHTML=cs.map(function(x){return '<span><i style="background:'+x.col+'"></i>'+esc(x.n)+'</span>'}).join('')+'<span class="muted">Darker means a wider lead</span>'}
+  document.getElementById('key').innerHTML=cs.map(function(x){return '<span><i style="width:34px;background:linear-gradient(90deg,'+lightOf(x.col)+','+x.col+')"></i>'+esc(x.n)+'</span>'}).join('')+'<span class="muted">Light to full color: a 0% to 60%+ winning margin. Gray: tied.</span>'}
 function drawTable(c,R){var cs=contestCands(c),q=document.getElementById('q').value.trim().toLowerCase();
   var rows=Object.keys(R.by).map(function(id){var b=R.by[id],l=leader(b.v);return {id:id,b:b,l:l,tot:l.s,share:l.s?l.m/l.s:0}});
   if(q)rows=rows.filter(function(r){return (cbName(r.id)+' '+cbLong(r.id)).toLowerCase().indexOf(q)>=0});
