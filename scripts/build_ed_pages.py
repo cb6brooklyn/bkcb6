@@ -12,7 +12,7 @@ The map is Apple Maps (MapKit JS, assets/ed-map.js): the ED, its neighbors, and 
 
 Run: python3 scripts/build_ed_pages.py [--cb 306 ...]   (default: every election district in the city)
 """
-import json, os, sys, html
+import json, os, sys, html, re
 from shapely.geometry import shape
 from shapely.strtree import STRtree
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -155,12 +155,14 @@ var n=document.getElementById('resnote');if(n&&d.updated)n.textContent='Every ra
             reghtml = '<h2>Registered voters</h2><div class="card"><p class="note" style="margin:0">This election district number is new on the 2026 map, so the State Board of Elections\' February 20, 2026 enrollment count has no figures for it.</p></div>'
         nb = neighbors(e)
         rc = races(p)
+        JUDGE = lambda r: bool(re.match(r'(sc|sur|ccc|mc)', race_key(r['t']) or ''))
         VF = {1: 'Vote for one', 2: 'Vote for up to two', 3: 'Vote for up to three', 4: 'Vote for up to four', 5: 'Vote for up to five', 6: 'Vote for up to six'}
         def racecard(r):
             cands = ''.join('<li><b>%s</b> <span class="pl">%s</span></li>' % (esc(c[0]), esc(' · '.join(c[1]))) for c in r['c'])
             return '<div class="card race" data-race="%s" data-k="%s"><div class="rh"><b>%s</b><span>%s</span></div><ul class="cl">%s</ul><div class="res" hidden></div></div>' % (esc(r['t']), race_key(r['t']) or '', esc(r['t']), esc(VF.get(r['vf'], 'Vote for %d' % r['vf'])), cands)
-        racehtml = '<h2>On the ballot November 3, 2026</h2><p class="note" id="resnote" style="margin:0 0 10px">Every race on this election district\'s ballot, with every candidate and party line. Results for this election district appear under each race once the Board of Elections reports them.</p>' + ''.join(racecard(r) for r in rc) + \
-            ''.join('<div class="card race" data-race="Proposal Number %d" data-k="q%d"><div class="rh"><b>City Charter Question %d: %s</b><span>Back of the ballot · Yes or No</span></div><p class="note" style="margin:6px 0 0">What a yes and a no does: <a href="/vote/#questions">bkcb6.app/vote</a>.</p><div class="res" hidden></div></div>' % (n, n, n, esc(t)) for n, t in QS)
+        racehtml = '<h2>On the ballot November 3, 2026</h2><p class="note" id="resnote" style="margin:0 0 10px">Every race on this election district\'s ballot, with every candidate and party line. Results for this election district appear under each race once the Board of Elections reports them.</p>' + ''.join(racecard(r) for r in rc if not JUDGE(r)) + \
+            ''.join('<div class="card race" data-race="Proposal Number %d" data-k="q%d"><div class="rh"><b>City Charter Question %d: %s</b><span>Back of the ballot · Yes or No</span></div><p class="note" style="margin:6px 0 0">What a yes and a no does: <a href="/vote/#questions">bkcb6.app/vote</a>.</p><div class="res" hidden></div></div>' % (n, n, n, esc(t)) for n, t in QS) + \
+            (('<details class="card" style="margin:0 0 10px"><summary style="cursor:pointer;font-weight:700">Judges</summary>' + ''.join(racecard(r) for r in rc if JUDGE(r)) + '</details>') if any(JUDGE(r) for r in rc) else '')
         nbhtml = '<h2>Neighboring election districts</h2><div class="nb">' + ''.join('<a href="/ed/%s/">%s</a>' % (n, esc(edlabel(n))) for n in nb) + '</div>' if nb else ''
         prev_ = pick[i - 1] if i > 0 else None; next_ = pick[i + 1] if i + 1 < len(pick) else None
         nav = '<div class="nav"><span>%s</span><a href="/ed/">All election districts</a><span>%s</span></div>' % (
