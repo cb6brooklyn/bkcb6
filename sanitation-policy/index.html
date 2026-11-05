@@ -376,22 +376,35 @@ map.annotationForCluster=c=>{const m=c.memberAnnotations[0],n=c.memberAnnotation
 const sumPins=cat=>sum.filter(s=>s[0]===cat).map(s=>pin(s[4],s[5],'ticket',SUM[cat][1],cap(s[1])+(s[7]!=null?' · '+usd(s[7])+' fine':''),[s[3],dlab(s[2]),s[6]].filter(Boolean).join(' · '),'s-'+cat));
 let cur={a:[],o:[]};
 const legend=document.getElementById('legend'), info=document.getElementById('info');
-function clear(){map.removeAnnotations(cur.a);map.removeOverlays(cur.o);cur={a:[],o:[]};if(typeof graded!=='undefined'&&graded){graded=false;restyleBlocks()}}
 const addA=a=>{map.addAnnotations(a);cur.a.push(...a)}, remA=a=>{map.removeAnnotations(a);cur.a=cur.a.filter(x=>!a.includes(x))};
 const addO=o=>{map.addOverlays(o);cur.o.push(...o)};
 const sw=(c,t,sq)=>`<span><span class="sw${sq?' sq':''}" style="background:${c}"></span>${t}</span>`;
 const lg=(g,c,t)=>`<span>${badge(g,c)}${t}</span>`;
 const cnt=c=>sum.filter(s=>s[0]===c).length;
-function toggles(groups,labels,on){legend.innerHTML=Object.keys(groups).map(k=>`<label><input type="checkbox" data-t="${esc(k)}"${on(k)?' checked':''}>${badge(labels[k][0],labels[k][1])}${esc(labels[k][2])}</label>`).join('');
- Object.keys(groups).forEach(k=>{if(on(k))addA(groups[k])});
- legend.querySelectorAll('input').forEach(i=>i.onchange=()=>{const g=groups[i.dataset.t];i.checked?addA(g):remA(g)})}
+// pins are kept off the map until the viewer zooms in to street level
+const NEAR=900; let pinGroups={}, pinOn={};
+const zoomHint=()=>document.getElementById('zoomhint');
+function syncPins(){const near=map.cameraDistance<NEAR;Object.keys(pinGroups).forEach(k=>{const g=pinGroups[k],want=near&&pinOn[k];if(want&&!g.on){map.addAnnotations(g.a);g.on=true}else if(!want&&g.on){map.removeAnnotations(g.a);g.on=false}});
+ const z=zoomHint();if(z)z.innerHTML=Object.keys(pinGroups).length?(near?'Each pin is one record. Tap a pin for the details, or a block for its totals.':'<b>Zoom in</b> to street level to see each one as a pin. Tap any block for its totals.'):''}
+map.addEventListener('region-change-end',syncPins);
+function clearPins(){Object.values(pinGroups).forEach(g=>{if(g.on)map.removeAnnotations(g.a)});pinGroups={};pinOn={}}
+function clear(){clearPins();map.removeAnnotations(cur.a);map.removeOverlays(cur.o);cur={a:[],o:[]};graded=false;shade=null;restyleBlocks()}
+// legend with checkboxes: each group is {a:[pins], count:fn(blockProps)}
+function toggles(groups,labels,on){pinGroups=groups;Object.keys(groups).forEach(k=>{pinOn[k]=!!on(k);groups[k].on=false});
+ legend.insertAdjacentHTML('beforeend',Object.keys(groups).map(k=>`<label><input type="checkbox" data-t="${esc(k)}"${on(k)?' checked':''}>${badge(labels[k][0],labels[k][1])}${esc(labels[k][2])}</label>`).join('')+'<span id="zoomhint" style="flex-basis:100%;color:var(--muted)"></span>');
+ legend.querySelectorAll('input').forEach(i=>i.onchange=()=>{pinOn[i.dataset.t]=i.checked;syncPins();restyleBlocks()});syncPins()}
+
 map.addEventListener('select',e=>{const o=e.overlay;if(o&&o.data&&o.data.f){highlight(o);return}if(o&&o.data&&o.data.html){info.innerHTML=o.data.html;info.style.display='block'}});
 
 // ---------- Blocks: tap or hover any block ----------
 let graded=false, hiBlock=null;
 const gcol=x=>x==null?'#e5e7eb':LCOL[letter(x)];
 const abbr=n=>n.replace(/\bStreet\b/,'St').replace(/\bAvenue\b/,'Ave').replace(/\bPlace\b/,'Pl').replace(/\bBoulevard\b/,'Blvd').replace(/\bParkway\b/,'Pkwy').replace(/\bExpressway\b/,'Expwy').replace(/\bExtension\b/,'Ext');
-const bStyle=(f,hi)=>{const r=f.properties.r;if(hi)return Sty({s:NAVY,w:4,f:'#ffd400',fo:.6});return graded?Sty({s:'#ffffff',w:.8,f:gcol(r?r[0]:null),fo:.55}):Sty({s:'#5b6394',w:.7,so:.45,f:'#5b6394',fo:.06})};
+let shade=null; // {color, fn(blockProps)->count}
+const ramp=n=>n<=0?.04:n<=2?.22:n<=5?.42:n<=10?.62:.82;
+const hexa=(c,a)=>c+Math.round(a*255).toString(16).padStart(2,'0');
+const rampLegend=(c,what)=>`<span><b>Block color</b> = ${what} on the block:</span>`+[[0,'0'],[1,'1 to 2'],[3,'3 to 5'],[6,'6 to 10'],[11,'11 or more']].map(([n,t])=>sw(hexa(c,ramp(n)),t,1)).join('');
+const bStyle=(f,hi)=>{const r=f.properties.r;if(hi)return Sty({s:NAVY,w:4,f:'#ffd400',fo:.6});if(graded)return Sty({s:'#ffffff',w:.8,f:gcol(r?r[0]:null),fo:.55});if(shade)return Sty({s:'#ffffff',w:.8,f:shade.color,fo:ramp(shade.fn(f.properties))});return Sty({s:'#5b6394',w:.7,so:.45,f:'#5b6394',fo:.06})};
 const SUMN={containers:'trash not in a bin',organics:'composting',recycling:'recycling',cleaning:'dirty sidewalk or curb',dumping:'dumping',other:'other'};
 const secRank=Object.keys(ss).filter(k=>ss[k].last12[0]!=null).sort((a,b)=>ss[b].last12[0]-ss[a].last12[0]);
 function blockName(p){return p.names&&p.names.length?p.names.join(', ').replace(/, ([^,]*)$/,' and $1'):'Tax block '+p.b}
@@ -412,7 +425,7 @@ const bOv=blocks.features.map(f=>{const o=new mapkit.PolygonOverlay(rings(f.geom
 const garage=new mapkit.ImageAnnotation(new mapkit.Coordinate(40.6709872,-73.9943264),{url:{1:'dsny-seal.png',2:'dsny-seal.png'},size:{width:52,height:52},anchorOffset:new DOMPoint(0,0),title:'DSNY Brooklyn District 6 Garage',subtitle:'127 2nd Avenue',displayPriority:mapkit.Annotation.DisplayPriority.Required});
 map.addAnnotation(garage);
 map.addOverlays(bOv);
-const TAPHINT='<span class="bsw" style="vertical-align:-3px;margin-right:8px"></span><b>Tap any block</b> on the map. It turns yellow and shows its grade. Its summonses, fines and 311 complaints show here.';info.innerHTML=TAPHINT;info.style.display='block';
+const TAPHINT='<span class="bsw" style="vertical-align:-3px;margin-right:8px"></span><b>Tap any block</b>. Darker blocks have more. The block turns yellow and its grade, summonses, fines and 311 complaints show here.';info.innerHTML=TAPHINT;info.style.display='block';
 function restyleBlocks(){bOv.forEach(o=>o.style=bStyle(o.data.f,o===hiBlock))}
 let blockLabel=null;
 function highlight(o){if(hiBlock===o)return;const prev=hiBlock;hiBlock=o;if(prev)prev.style=bStyle(prev.data.f,false);if(blockLabel){map.removeAnnotation(blockLabel);blockLabel=null}
@@ -425,10 +438,13 @@ const BB=blocks.features.map(f=>{let a=[180,90,-180,-90];(f.geometry.type==='Pol
 const inR=(x,y,r)=>{let i=false;for(let a=0,b=r.length-1;a<r.length;b=a++){const xi=r[a][0],yi=r[a][1],xj=r[b][0],yj=r[b][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))i=!i}return i};
 const hitB=(x,y)=>{for(let i=0;i<BB.length;i++){const a=BB[i];if(x<a[0]||x>a[2]||y<a[1]||y>a[3])continue;const g=blocks.features[i].geometry;const ps=g.type==='Polygon'?[g.coordinates]:g.coordinates;if(ps.some(p=>inR(x,y,p[0])))return bOv[i]}return null};
 const LAY={
- bins(){addA(sumPins('containers'));legend.innerHTML=lg('ticket',SUM.containers[1],`${fmt(cnt('containers'))} summonses for trash not in a bin or container, ${usd(oc.usd)} in fines, ${win}. Each ticket is a summons at that lot; tap one for the charge and fine.`)},
+ bins(){shade={color:OR,fn:p=>p.sum.containers||0};restyleBlocks();
+   legend.innerHTML=rampLegend(OR,'summonses for trash not in a bin or container');
+   toggles({containers:{a:sumPins('containers'),on:false}},{containers:['ticket',SUM.containers[1],`Show each summons when zoomed in (${fmt(cnt('containers'))}, ${usd(oc.usd)} in fines)`]},()=>true)},
  compost(){const fsp=fs.map(x=>pin(x.lat,x.lon,'compost','#2f7d4f',x.name,'Food scrap drop-off · '+x.loc+' · '+x.hours.replace(/\s*\(.*\)/,''),null));addA(fsp);
-   toggles({organics:sumPins('organics'),recycling:sumPins('recycling')},{organics:['ticket',SUM.organics[1],`Composting summonses (${fmt(cnt('organics'))}, ${usd(O.cb6.organics.usd)})`],recycling:['ticket',SUM.recycling[1],`Recycling summonses (${fmt(cnt('recycling'))}, ${usd(O.cb6.recycling.usd)})`]},()=>true);
-   legend.insertAdjacentHTML('beforeend',lg('compost','#2f7d4f',`Food scrap drop-off (${fs.length})`))},
+   shade={color:'#2f7d4f',fn:p=>(pinOn.organics?(p.sum.organics||0):0)+(pinOn.recycling?(p.sum.recycling||0):0)};
+   legend.innerHTML=rampLegend('#2f7d4f','composting and recycling summonses')+lg('compost','#2f7d4f',`Food scrap drop-off (${fs.length})`);
+   toggles({organics:{a:sumPins('organics')},recycling:{a:sumPins('recycling')}},{organics:['ticket',SUM.organics[1],`Composting summonses (${fmt(cnt('organics'))}, ${usd(O.cb6.organics.usd)})`],recycling:['ticket',SUM.recycling[1],`Recycling summonses (${fmt(cnt('recycling'))}, ${usd(O.cb6.recycling.usd)})`]},()=>true);restyleBlocks()},
  cwz(){const ov=cwz.features.map(f=>{const z=f.properties.zone,me=z==='BK-2',done=PHASE[z][1].startsWith('Done');const o=new mapkit.PolygonOverlay(rings(f.geometry),{style:Sty({s:me?OR:NAVY,w:me?3:1,f:me?OR:done?NAVY:'#c9cde0',fo:me?.3:.2})});
      o.data={html:`${badge('truck',me?OR:NAVY)}<b>${f.properties.name}</b> (${z}) &middot; Phase ${PHASE[z][0]}: ${PHASE[z][1]}<br>Carters: ${CARTERS[z].join(', ')}<br>Covers ${esc(f.properties.cd)}`};return o});
    addO(ov);
@@ -439,13 +455,13 @@ const LAY={
    legend.innerHTML=sw(OR,'Brooklyn West, our zone',1)+'<span>✅ In service</span><span>⏳ Coming</span><span>Tap a zone for its carters</span>'},
  clean(){graded=true;restyleBlocks();
    legend.innerHTML='<span><b>Block grade</b> for the share of streets the City rated acceptably clean:</span>'+sw(LCOL['A'],'A 93 to 100',1)+sw(LCOL['A-'],'A- 90 to 92.9',1)+sw(LCOL['B+'],'B+ 87 to 89.9',1)+sw(LCOL['B'],'B 83 to 86.9',1)+sw(LCOL['B-'],'B- 80 to 82.9',1)+sw(LCOL['C+'],'C+ 77 to 79.9',1)+sw(LCOL['C'],'C 73 to 76.9',1)+sw(LCOL['C-'],'C- 70 to 72.9',1)+sw(LCOL['D+'],'D+ 67 to 69.9',1)+sw(LCOL['D'],'D 63 to 66.9',1)+sw(LCOL['D-'],'D- 60 to 62.9',1)+sw(LCOL['N'],'N under 60',1);
-   const g={baskets:bas.map(b=>pin(b[3],b[4],'basket','#111827',b[0],cap(b[1])+' at '+cap(b[2]),'b')),cleaning:sumPins('cleaning')};
-   const lab={baskets:['basket','#111827',`Litter baskets (${fmt(K.cb6)})`],cleaning:['ticket',SUM.cleaning[1],`Dirty sidewalk or curb summonses (${fmt(cnt('cleaning'))}, ${usd(oc2.usd)})`]};
-   const h=legend.innerHTML;toggles(g,lab,k=>false);legend.insertAdjacentHTML('afterbegin',h)},
+   toggles({baskets:{a:bas.map(b=>pin(b[3],b[4],'basket','#111827',b[0],cap(b[1])+' at '+cap(b[2]),'b'))},cleaning:{a:sumPins('cleaning')}},{baskets:['basket','#111827',`Litter baskets (${fmt(K.cb6)})`],cleaning:['ticket',SUM.cleaning[1],`Dirty sidewalk or curb summonses (${fmt(cnt('cleaning'))}, ${usd(oc2.usd)})`]},k=>true)},
  c311(){const types=[...new Set(p311.map(p=>p[0]))];const counts={};p311.forEach(p=>counts[p[0]]=(counts[p[0]]||0)+1);types.sort((a,b)=>counts[b]-counts[a]);
    const ic=t=>T311[t]||['alert','#4b5563'];const groups={},labels={};
-   types.forEach(t=>{groups[t]=p311.filter(p=>p[0]===t).map(p=>pin(p[4],p[5],ic(t)[0],ic(t)[1],t+(p[1]?': '+p[1]:''),[p[3],dlab(p[2]),p[6]].filter(Boolean).join(' · '),'t-'+t));labels[t]=[...ic(t),`${t} (${fmt(counts[t])})`]});
-   toggles(groups,labels,t=>types.indexOf(t)<2)}
+   types.forEach(t=>{groups[t]={a:p311.filter(p=>p[0]===t).map(p=>pin(p[4],p[5],ic(t)[0],ic(t)[1],t+(p[1]?': '+p[1]:''),[p[3],dlab(p[2]),p[6]].filter(Boolean).join(' · '),'t-'+t))};labels[t]=[...ic(t),`${t} (${fmt(counts[t])})`]});
+   shade={color:SL,fn:p=>Object.values(p.c311).reduce((n,v)=>n+v,0)};
+   legend.innerHTML=rampLegend(SL,'all 311 sanitation complaints')+'<span style="flex-basis:100%"><b>Pins</b>, when zoomed in, for the kinds you check:</span>';
+   toggles(groups,labels,t=>types.indexOf(t)<1);restyleBlocks()}
 };
 function show(k,keep){clear();if(k!=='cwz')fitCB6();LAY[k]();document.querySelectorAll('#layers button').forEach(b=>b.classList.toggle('on',b.dataset.l===k));if(!keep)try{history.replaceState(null,'','#'+k)}catch(e){}}
 document.querySelectorAll('#layers button').forEach(b=>b.onclick=()=>show(b.dataset.l));
