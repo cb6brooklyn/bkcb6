@@ -206,7 +206,7 @@ details summary{cursor:pointer;font-weight:700;color:var(--navy);font-size:.85re
 (async function(){
 const NAVY='#0d1b4b',OR='#f47920',SL='#5b6394';
 const j=u=>fetch(u).then(r=>r.json());
-const [D,secs,cwz,sum,p311,bas,fs,bound]=await Promise.all([j('cb6.json'),j('sections.geojson'),j('cwz.geojson'),j('cb6-summonses.json'),j('cb6-311.json'),j('cb6-baskets.json'),j('cb6-foodscrap.json'),j('/cb6-boundary-line.geojson')]);
+const [D,secs,cwz,sum,p311,bas,fs,bound,blocks]=await Promise.all([j('cb6.json'),j('sections.geojson'),j('cwz.geojson'),j('cb6-summonses.json'),j('cb6-311.json'),j('cb6-baskets.json'),j('cb6-foodscrap.json'),j('/cb6-boundary-line.geojson'),j('cb6-blocks.geojson')]);
 const usd=n=>'$'+Math.round(n).toLocaleString('en-US');
 const fmt=n=>n==null?'—':Number(n).toLocaleString('en-US');
 const ord=n=>{const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])};
@@ -356,7 +356,7 @@ map.annotationForCluster=c=>{const m=c.memberAnnotations[0];return new mapkit.Ma
 const sumPins=cat=>sum.filter(s=>s[0]===cat).map(s=>pin(s[4],s[5],'ticket',SUM[cat][1],cap(s[1])+(s[7]!=null?' · '+usd(s[7])+' fine':''),[s[3],dlab(s[2]),s[6]].filter(Boolean).join(' · '),'s-'+cat));
 let cur={a:[],o:[]};
 const legend=document.getElementById('legend'), info=document.getElementById('info');
-function clear(){map.removeAnnotations(cur.a);map.removeOverlays(cur.o);cur={a:[],o:[]};info.style.display='none'}
+function clear(){map.removeAnnotations(cur.a);map.removeOverlays(cur.o);cur={a:[],o:[]};if(typeof graded!=='undefined'&&graded){graded=false;restyleBlocks()}}
 const addA=a=>{map.addAnnotations(a);cur.a.push(...a)}, remA=a=>{map.removeAnnotations(a);cur.a=cur.a.filter(x=>!a.includes(x))};
 const addO=o=>{map.addOverlays(o);cur.o.push(...o)};
 const sw=(c,t,sq)=>`<span><span class="sw${sq?' sq':''}" style="background:${c}"></span>${t}</span>`;
@@ -365,7 +365,34 @@ const cnt=c=>sum.filter(s=>s[0]===c).length;
 function toggles(groups,labels,on){legend.innerHTML=Object.keys(groups).map(k=>`<label><input type="checkbox" data-t="${esc(k)}"${on(k)?' checked':''}>${badge(labels[k][0],labels[k][1])}${esc(labels[k][2])}</label>`).join('');
  Object.keys(groups).forEach(k=>{if(on(k))addA(groups[k])});
  legend.querySelectorAll('input').forEach(i=>i.onchange=()=>{const g=groups[i.dataset.t];i.checked?addA(g):remA(g)})}
-map.addEventListener('select',e=>{const o=e.overlay;if(o&&o.data&&o.data.html){info.innerHTML=o.data.html;info.style.display='block'}});
+map.addEventListener('select',e=>{const o=e.overlay;if(o&&o.data&&o.data.f){highlight(o);return}if(o&&o.data&&o.data.html){info.innerHTML=o.data.html;info.style.display='block'}});
+
+// ---------- Blocks: tap or hover any block ----------
+let graded=false, hiBlock=null;
+const gcol=x=>x==null?'#e5e7eb':x>=96?'#1d3a8a':x>=94?'#5b6394':x>=92?'#a3a9cc':'#f4b183';
+const bStyle=(f,hi)=>{const r=f.properties.r;return graded?Sty({s:hi?OR:'#ffffff',w:hi?3:.8,f:gcol(r?r[0]:null),fo:hi?.75:.55}):Sty({s:hi?OR:'#5b6394',w:hi?3:.6,so:hi?1:.5,f:hi?OR:'#5b6394',fo:hi?.18:.04})};
+const SUMN={containers:'trash not in a bin',organics:'composting',recycling:'recycling',cleaning:'dirty sidewalk or curb',dumping:'dumping',other:'other'};
+const secRank=Object.keys(ss).filter(k=>ss[k].last12[0]!=null).sort((a,b)=>ss[b].last12[0]-ss[a].last12[0]);
+function blockHTML(f){const p=f.properties,ns=Object.values(p.sum).reduce((a,b)=>a+b,0),n3=Object.values(p.c311).reduce((a,b)=>a+b,0);
+ const where=p.st.length?p.st.join(', '):'';
+ const grade=p.r&&p.r[0]!=null?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0"><span class="chip">Streets ${p.r[0]}% clean</span><span class="chip">Sidewalks ${p.r[1]}% clean</span><span class="chip o">Section ${p.sec}: ${ord(secRank.indexOf(p.sec)+1)} of ${secRank.length} in CB6</span></div><div style="font-size:.74rem;color:var(--muted)">City Scorecard grade for this block's cleaning section, ${mlab(S.window[0])} to ${mlab(S.window[1])}, the latest published.</div>`:'<div style="font-size:.78rem;color:var(--muted)">No published Scorecard grade for this block\'s section.</div>';
+ const sl=Object.entries(p.sum).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${v} ${SUMN[k]}`).join(', ');
+ const tl=Object.entries(p.c311).slice(0,4).map(([k,v])=>`${v} ${k.toLowerCase()}`).join(', ');
+ return `<b>Tax block ${p.b}</b>${where?` &middot; ${esc(where)}`:''}${grade}
+ <div style="margin-top:6px">${badge('ticket',NAVY)}<b>${ns}</b> summons${ns===1?'':'es'}${ns?`, ${usd(p.usd)} in fines: ${sl}`:''}</div>
+ <div>${badge('broom',SL)}<b>${n3}</b> sanitation complaint${n3===1?'':'s'} to 311${n3?`: ${esc(tl)}`:''}</div>
+ <div>${badge('trash',OR)}<b>${p.bins}</b> of ${p.lots} lots must use NYC Bins${p.bask?` &middot; ${badge('basket','#111827')}<b>${p.bask}</b> litter basket${p.bask===1?'':'s'}`:''}</div>
+ <div style="font-size:.72rem;color:var(--muted);margin-top:4px">Summonses and 311, ${win}.</div>`}
+const bOv=blocks.features.map(f=>{const o=new mapkit.PolygonOverlay(rings(f.geometry),{style:bStyle(f,false)});o.data={f,html:blockHTML(f)};return o});
+map.addOverlays(bOv);
+info.innerHTML='<b>Tap any block</b> (or hover with a mouse) to see its cleanliness grade, summonses, fines and 311 complaints.';info.style.display='block';
+function restyleBlocks(){bOv.forEach(o=>o.style=bStyle(o.data.f,o===hiBlock))}
+function highlight(o){if(hiBlock===o)return;const prev=hiBlock;hiBlock=o;if(prev)prev.style=bStyle(prev.data.f,false);if(o){o.style=bStyle(o.data.f,true);info.innerHTML=o.data.html;info.style.display='block'}}
+// hover (mouse): find the block under the pointer
+const BB=blocks.features.map(f=>{let a=[180,90,-180,-90];(f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates).forEach(p=>p[0].forEach(c=>{a[0]=Math.min(a[0],c[0]);a[1]=Math.min(a[1],c[1]);a[2]=Math.max(a[2],c[0]);a[3]=Math.max(a[3],c[1])}));return a});
+const inR=(x,y,r)=>{let i=false;for(let a=0,b=r.length-1;a<r.length;b=a++){const xi=r[a][0],yi=r[a][1],xj=r[b][0],yj=r[b][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))i=!i}return i};
+const hitB=(x,y)=>{for(let i=0;i<BB.length;i++){const a=BB[i];if(x<a[0]||x>a[2]||y<a[1]||y>a[3])continue;const g=blocks.features[i].geometry;const ps=g.type==='Polygon'?[g.coordinates]:g.coordinates;if(ps.some(p=>inR(x,y,p[0])))return bOv[i]}return null};
+let raf=0;document.getElementById('map').addEventListener('mousemove',e=>{if(raf)return;raf=requestAnimationFrame(()=>{raf=0;try{const c=map.convertPointOnPageToCoordinate(new DOMPoint(e.pageX,e.pageY));const o=hitB(c.longitude,c.latitude);if(o)highlight(o)}catch(err){}})});
 const LAY={
  bins(){addA(sumPins('containers'));legend.innerHTML=lg('ticket',SUM.containers[1],`${fmt(cnt('containers'))} summonses for trash not in a bin or container, ${usd(oc.usd)} in fines, ${win}. Each ticket is a summons at that lot; tap one for the charge and fine.`)},
  compost(){const fsp=fs.map(x=>pin(x.lat,x.lon,'compost','#2f7d4f',x.name,'Food scrap drop-off · '+x.loc+' · '+x.hours.replace(/\s*\(.*\)/,''),null));addA(fsp);
@@ -379,12 +406,8 @@ const LAY={
      return new mapkit.Annotation(new mapkit.Coordinate(y/big.length,x/big.length),()=>{const d=document.createElement('div');d.textContent=(done?'✅ ':'⏳ ')+f.properties.name;d.style.cssText=`font:700 11px DM Sans,sans-serif;color:${me?'#9a4a0f':NAVY};white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;pointer-events:none`;return d},{enabled:false,displayPriority:mapkit.Annotation.DisplayPriority.Required})});
    addA(labs);map.showItems(ov,{animate:true,padding:new mapkit.Padding(20,20,20,20)});
    legend.innerHTML=sw(OR,'Brooklyn West, our zone',1)+'<span>✅ In service</span><span>⏳ Coming</span><span>Tap a zone for its carters</span>'},
- clean(){const v=k=>(ss[k]||{}).last12?ss[k].last12[0]:null;
-   const col=x=>x==null?'#e5e7eb':x>=96?'#1d3a8a':x>=94?'#5b6394':x>=92?'#a3a9cc':'#f4b183';
-   const ov=secs.features.map(f=>{const k=f.properties.section,s=ss[k];const o=new mapkit.PolygonOverlay(rings(f.geometry),{style:Sty({s:'#fff',w:1.5,f:col(v(k)),fo:.5})});
-     o.data={html:`<b>Cleaning section ${k}</b> &middot; Streets ${s?s.last12[0]:'—'}% acceptably clean, sidewalks ${s?s.last12[1]:'—'}%, ${mlab(S.window[0])} to ${mlab(S.window[1])}`};return o});
-   addO(ov);
-   legend.innerHTML='<span>Streets acceptably clean:</span>'+sw('#1d3a8a','96%+',1)+sw('#5b6394','94 to 96%',1)+sw('#a3a9cc','92 to 94%',1)+sw('#f4b183','Under 92%',1);
+ clean(){graded=true;restyleBlocks();
+   legend.innerHTML='<span>Every block shaded by its section\'s streets rated acceptably clean:</span>'+sw('#1d3a8a','96%+',1)+sw('#5b6394','94 to 96%',1)+sw('#a3a9cc','92 to 94%',1)+sw('#f4b183','Under 92%',1);
    const g={baskets:bas.map(b=>pin(b[3],b[4],'basket','#111827',b[0],cap(b[1])+' at '+cap(b[2]),'b')),cleaning:sumPins('cleaning')};
    const lab={baskets:['basket','#111827',`Litter baskets (${fmt(K.cb6)})`],cleaning:['ticket',SUM.cleaning[1],`Dirty sidewalk or curb summonses (${fmt(cnt('cleaning'))}, ${usd(oc2.usd)})`]};
    const h=legend.innerHTML;toggles(g,lab,k=>k==='baskets');legend.insertAdjacentHTML('afterbegin',h)},
