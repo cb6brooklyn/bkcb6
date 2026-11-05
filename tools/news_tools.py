@@ -32,6 +32,8 @@ TOOLS={ # key: (path, title, graphic)
 'calendar':('calendar.html','Community Calendar',T+'tile-calendar.png'),
 'jobs':('jobs/','Jobs',T+'tile-jobs.png'),
 'vote':('vote/','Vote: where, who and what is on your ballot','https://bkcb6.app/electionexplainer/og.jpg'),
+'edresults':('edresults/','Election results by election district','https://bkcb6.app/press/edresults/og-edresults-v2.png'),
+'hudvspentagon':('hudvspentagon/','HUD vs the Pentagon',None),
 'visionzerocb6':('visionzerocb6/','Vision Zero in CB6',T+'tile-visionzerocb6.png'),
 }
 LINK=re.compile(r'href="https?://(?:www\.)?bkcb6\.app/([a-z0-9_-]+)(?:\.html)?/?(?:index\.html)?["#?]')
