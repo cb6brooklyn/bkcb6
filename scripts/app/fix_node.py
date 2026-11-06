@@ -7,6 +7,7 @@ here = os.path.dirname(os.path.abspath(__file__))
 views = os.path.join(R, 'BKCB6/App/Views')
 shutil.copy(os.path.join(here, 'FileNode.swift'), os.path.join(views, 'FileNode.swift'))
 shutil.copy(os.path.join(here, f'FileNodeSources-{V}.swift'), os.path.join(views, 'FileNodeSources.swift'))
+shutil.copy(os.path.join(here, 'FileMap.swift'), os.path.join(views, 'FileMap.swift'))
 uc = os.path.join(R, 'BKCB6/App/Services/UIConfig.swift'); s = open(uc).read()
 if 'var raw: [String: Any]' not in s:
     o = '        var height: Double = 0\n    }'
@@ -34,5 +35,14 @@ if 'case "node":' not in s:
     o = '        case "header":\n            SectionHeader(text: title)'
     assert s.count(o) == 1, 'FilePart header'
     s = s.replace(o, '        case "node":\n            FileNode((p["node"] as? [String: Any]) ?? p)\n' + o)
+    open(tl, 'w').write(s)
+s = open(tl).read()
+if 'hasPrefix("node:")' not in s:
+    o = '    static func view(_ key: String) -> AnyView {\n'
+    assert s.count(o) == 1, 'ScreenRouter.view'
+    s = s.replace(o, o + '        if key.hasPrefix("node:") { return AnyView(FileNodeScreen(name: String(key.dropFirst(5)))) }\n')
+    o = '            if r.hasPrefix("web:") { return AnyView(SitePageView(path: String(r.dropFirst(4)))) }\n'
+    assert s.count(o) == 1, 'ScreenRouter replace'
+    s = s.replace(o, o + '            if r.hasPrefix("node:") { return AnyView(FileNodeScreen(name: String(r.dropFirst(5)))) }\n')
     open(tl, 'w').write(s)
 print('node ok', R)

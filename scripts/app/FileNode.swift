@@ -132,6 +132,11 @@ enum FN {
                     let ap = raw.hasSuffix("pm") ? "PM" : "AM"
                     let hm = raw.dropLast(2); v = hm.contains(":") ? "\(hm) \(ap)" : "\(hm):00 \(ap)"
                 } else { v = t }
+            case "join": if let a = v as? [Any] { v = a.map { string($0) }.joined(separator: arg.isEmpty ? ", " : arg) }
+            case "and": if let a = (v as? [Any])?.map({ string($0) }), !a.isEmpty { v = a.count == 1 ? a[0] : a.dropLast().joined(separator: ", ") + " and " + a.last! }
+            case "count": v = String((v as? [Any])?.count ?? (v as? [String: Any])?.count ?? 0)
+            case "money": if let x = DK.num(v) { let nf = NumberFormatter(); nf.numberStyle = .currency; nf.currencyCode = "USD"; nf.maximumFractionDigits = 0; v = nf.string(from: NSNumber(value: x)) ?? "" }
+            case "number": if let x = DK.num(v) { let nf = NumberFormatter(); nf.numberStyle = .decimal; nf.maximumFractionDigits = Int(arg) ?? 0; v = nf.string(from: NSNumber(value: x)) ?? "" }
             case "upper": v = string(v).uppercased()
             case "lower": v = string(v).lowercased()
             case "default": if string(v).isEmpty { v = arg }
@@ -335,6 +340,8 @@ struct FileNode: View {
             SitePageWeb(path: s("page")).frame(height: f("height") ?? 320)
         case "tools":
             ToolGrid(title: s("title"), tools: Tools.list(s("list")), tap: { _ in }, link: ScreenRouter.tool)
+        case "map":
+            FileMap(spec: n, ctx: ctx)
         case "part":
             FileNodePart(name: s("name"))
         default:
@@ -383,7 +390,7 @@ struct FileNode: View {
             .padding(FN.edges(n["pad"]) ?? EdgeInsets())
             .frame(minHeight: f("minHeight"))
             .frame(maxWidth: s("maxWidth") == "full" || s("width") == "full" ? .infinity : nil, alignment: FN.frameAlign(s("align").isEmpty ? "topLeading" : s("align")))
-            .frame(width: s("width") == "full" ? nil : f("width"), height: DK.str(n["type"]) == "image" ? nil : f("height"))
+            .frame(width: s("width") == "full" ? nil : f("width"), height: ["image", "map"].contains(DK.str(n["type"])) ? nil : f("height"))
             .background(background, in: shape)
             .overlay(shape.stroke(FN.color(n["border"], ctx, .clear), lineWidth: n["border"] == nil ? 0 : (f("borderWidth") ?? 2)))
             .clipShape(shape)
