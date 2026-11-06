@@ -2,6 +2,16 @@
    Load https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js first, then this file. Pages keep their Leaflet code. */
 (function(){
 if(window.L&&window.L.__mapkit)return;
+/* Apple's map key works only on bkcb6.app. Anywhere else (a page inside the apps, a preview) the page gets Leaflet, as before. */
+if(location.hostname!=='bkcb6.app'&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)&&!window.__mkForce){
+  var inApp=!/^https?:$/.test(location.protocol);
+  document.write('<script src="'+(inApp?'/vendor/leaflet/leaflet.js':'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js')+'"><\/script>');
+  if(document.querySelector('link[href*="MarkerCluster"]')){
+    document.write('<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"><\/script>');
+    document.write('<script>if(window.L&&!L.markerClusterGroup){L.markerClusterGroup=function(){var g=L.featureGroup();g.addLayers=function(a){a.forEach(function(x){g.addLayer(x)});return g};g.removeLayers=function(a){a.forEach(function(x){g.removeLayer(x)});return g};g.refreshClusters=function(){return g};return g}}<\/script>');
+  }
+  return;
+}
 var MK=window.mapkit;
 var TOKEN='eyJraWQiOiI0SjZVQlRDRFpEIiwidHlwIjoiSldUIiwiYWxnIjoiRVMyNTYifQ.eyJpc3MiOiJGN0hGR1Y1UVIyIiwiaWF0IjoxNzkzNzQ5OTEyLCJvcmlnaW4iOiJia2NiNi5hcHAiLCJzY29wZSI6Im1hcGtpdF9qcyJ9.LpYs4ZPhfyWiHXBTv_qniPsZ-ciCJhQ-aCjQOuWsfIpQ6HFKgQGNGYlFEoci3dSys9c4oh5Te8dbp3N1R9vMyw';
 var inited=false;
