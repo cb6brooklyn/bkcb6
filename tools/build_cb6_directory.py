@@ -180,7 +180,7 @@ block = ('<!--cb6profiles--><section class="cb6p">'
  '<div class="cbpn0" id="cbpn0" hidden>Nothing matches that.</div></div>'
  '%s</section>') % (len(items), chips, secs)
 
-block += ('<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>'
+block += ('<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script src="https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js"></script><script src="/assets/mapkit-leaflet.js"></script>'
  '<style>.cb6p{margin:18px 0 26px}.cb6p>h2{font-size:1.15rem;font-weight:800;color:#0d1b4b;margin:0 0 6px}.cb6p>h2 span,.cbph span{font-family:"DM Mono",monospace;font-size:.7rem;color:#f47920;margin-left:6px}'
  '.cb6p>p{font-size:.88rem;color:#555;margin:0 0 10px}#cbpq{width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #e1dfd8;border-radius:10px;font:inherit}'
  '.cbph{font-size:1.02rem;font-weight:800;color:#0d1b4b;margin:22px 0 8px;padding-bottom:5px;border-bottom:2px solid #f47920}'

@@ -244,7 +244,7 @@ function districtMap(el, cfg){
 }
 """
 
-LEAF = '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>'
+LEAF = '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script src="https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js"></script><script src="/assets/mapkit-leaflet.js"></script>'
 
 def page(title, body, base='', hero='', desc='', extra=''):
     return f'''<!doctype html><html lang="en"><head><meta name="apple-itunes-app" content="app-id=6813967208"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

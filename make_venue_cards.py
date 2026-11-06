@@ -135,7 +135,7 @@ TPL = """<!DOCTYPE html>
 
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js"></script><script src="/assets/mapkit-leaflet.js"></script>
 <script src="/{js}"></script>
 <script>
 (function(){{

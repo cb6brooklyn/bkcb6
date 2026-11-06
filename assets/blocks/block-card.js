@@ -3,7 +3,7 @@
 var el=document.getElementById('map');
 if(el){
   var css=document.createElement('link');css.rel='stylesheet';css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(css);
-  var js=document.createElement('script');js.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';js.onload=function(){
+  var mk=document.createElement('script');mk.src='https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js';var js=document.createElement('script');js.src='/assets/mapkit-leaflet.js';mk.onload=function(){document.head.appendChild(js)};js.onload=function(){
     var lines=JSON.parse(el.getAttribute('data-lines'));var mid=el.getAttribute('data-mid').split(',');
     var map=L.map('map',{scrollWheelZoom:false,zoomControl:false,dragging:false,touchZoom:false,doubleClickZoom:false}).setView([parseFloat(mid[0]),parseFloat(mid[1])],17);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:19}).addTo(map);
@@ -53,7 +53,7 @@ if(el){
       map.on('moveend zoomend resize',draw);
       map.whenReady(function(){setTimeout(draw,60);setTimeout(draw,500);});
     })();
-  };document.head.appendChild(js);
+  };document.head.appendChild(mk);
 }
 var b=document.getElementById('shareBtn');
 if(b)b.addEventListener('click',function(){
