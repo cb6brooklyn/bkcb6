@@ -180,7 +180,12 @@ struct FileMap: View {
             if spec["toggles"] as? Bool ?? false { toggles }
             if spec["legend"] as? Bool ?? false { legend }
         }
-        .onAppear { if !started { started = true; position = initial(layers) } }
+        .onAppear {
+            if !started { started = true; position = initial(layers) }
+            // Test hooks: "-mapPick lat,lon" taps that point; "-mapSearch text" types into the address box.
+            if let p = Hook.value("-mapPick")?.split(separator: ",").compactMap({ Double($0) }), p.count == 2 { picked = hit(.init(latitude: p[0], longitude: p[1]), layers) }
+            if let q = Hook.value("-mapSearch") { query = q }
+        }
         .navigationDestination(isPresented: Binding(get: { pendingDest != nil }, set: { if !$0 { pendingDest = nil } })) {
             FileNodeDest(dest: pendingDest ?? "")
         }
