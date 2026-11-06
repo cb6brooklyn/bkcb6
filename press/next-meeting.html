@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Next board meeting</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;700;800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;height:100%;background:#f8f7f4;overflow:hidden}
+body{font-family:'DM Sans',-apple-system,system-ui,sans-serif;-webkit-text-size-adjust:100%}
+a.card{box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;height:calc(100% - 4px);margin:2px 0;padding:14px 16px 12px;border-radius:18px;background:#0d1b4b;border:2px solid #f47920;color:#fff;text-decoration:none;-webkit-tap-highlight-color:transparent}
+.k{font:500 11px/1.2 'DM Mono',ui-monospace,Menlo,monospace;letter-spacing:.14em;color:#f47920;text-transform:uppercase}
+.row{display:flex;align-items:flex-end;gap:14px;margin-top:6px}
+.d{display:flex;align-items:baseline;gap:6px;line-height:1}
+.d .m{font-size:20px;font-weight:700}.d .n{font-size:44px;font-weight:800;letter-spacing:-.02em}
+.w{min-width:0}.w b{display:block;font-size:17px;font-weight:700}.w span{display:block;font-size:14px;color:#d7dbea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f{display:flex;align-items:center;justify-content:space-between;margin-top:8px;color:#f47920;font-weight:700;font-size:15px}
+.f small{font:500 11px 'DM Sans';color:#aeb5cf;margin-left:8px}
+</style></head><body>
+<a class="card" id="c" href="https://bkcb6.app/calendar.html">
+ <div class="k" id="k">Next CB6 meeting</div>
+ <div class="row"><div class="d"><span class="m" id="m"></span><span class="n" id="n"></span></div><div class="w"><b id="t">Full Board</b><span id="w"></span></div></div>
+ <div class="f"><span>Calendar<small id="s"></small></span><span>›</span></div>
+</a>
+<script>
+(function(){
+var q=new URLSearchParams(location.search),cd=(q.get('cd')||'').replace(/\D/g,'');if(!/^[1-5]\d\d$/.test(cd))cd='306';
+var BASE='https://bkcb6.app/';
+var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],DAY=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+var today=new Date();today.setHours(0,0,0,0);
+function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function parse(s){var p=s.split('-');return new Date(+p[0],+p[1]-1,+p[2])}
+function nice(t){return String(t||'').replace(/\s*([ap])\.?m\.?$/i,function(_,x){return ' '+x.toUpperCase()+'M'}).replace(/^(\d+)([AP]M)$/,'$1:00 $2')}
+function fromRule(rule){/* "Third Thursday, 7:00pm" -> next date */
+ var m=/^(First|Second|Third|Fourth|Last)\s+(\w+)/i.exec(rule||'');if(!m)return null;
+ var nth={first:1,second:2,third:3,fourth:4,last:-1}[m[1].toLowerCase()],wd=DAY.map(function(x){return x.toLowerCase()}).indexOf(m[2].toLowerCase());if(wd<0)return null;
+ for(var k=0;k<14;k++){var y=today.getFullYear(),mo=today.getMonth()+k,first=new Date(y,mo,1),d;
+  if(nth>0){d=new Date(y,mo,1+((wd-first.getDay()+7)%7)+7*(nth-1));if(d.getMonth()!==first.getMonth())continue}
+  else{var last=new Date(y,mo+1,0);d=new Date(y,mo+1,0-((last.getDay()-wd+7)%7))}
+  if(d>=today)return d}
+ return null}
+function show(o){var d=o.date;document.getElementById('m').textContent=MON[d.getMonth()];document.getElementById('n').textContent=d.getDate();
+ document.getElementById('t').textContent=o.title||'Full Board';
+ document.getElementById('w').textContent=DAY[d.getDay()]+(o.time?', '+nice(o.time):'');
+ if(o.note)document.getElementById('s').textContent=o.note}
+function get(u){return fetch(BASE+u,{cache:'no-cache'}).then(function(r){if(!r.ok)throw 0;return r.json()})}
+get('press/board-meetings.json').then(function(M){
+ var b=M.boards[cd]||M.boards['306'];document.getElementById('k').textContent='Next '+b.short+' meeting';
+ var ruleTime=(/,\s*(.+)$/.exec(b.rule||'')||[])[1];
+ var fallback=function(){var d=fromRule(b.rule);if(d)show({date:d,time:ruleTime,note:'Regular schedule'})};
+ if(cd==='306'){
+  return get('app/data/civic/cal/calendar-bk.json').then(function(C){
+   var ev=(C.events||[]).filter(function(e){return e.g==='cb6'&&e.k==='board'&&e.d>=iso(today)}).sort(function(a,b){return a.d<b.d?-1:1})[0];
+   if(!ev)return fallback();
+   var t=(/(\d{1,2}(:\d\d)?\s*[ap]\.?m)/i.exec(ev.t||ev.l)||[])[1];
+   show({date:parse(ev.d),time:t,title:/full board/i.test(ev.l)?'Full Board':ev.l.replace(/^CB6\s*/,'')});
+  }).catch(fallback);
+ }
+ if(cd[0]==='3'){
+  return get('data/civic-calendar/brooklyn-cbs.json').then(function(C){
+   var bd=C.boards[String(+cd.slice(1))]||{};
+   var ev=(bd.events||[]).filter(function(e){return e.date>=iso(today)&&/full board|general meeting|board meeting/i.test(e.label)}).sort(function(a,b){return a.date<b.date?-1:1})[0];
+   if(!ev)return fallback();
+   show({date:parse(ev.date),time:ev.time,note:ev.source==='standing'?'Regular schedule':''});
+  }).catch(fallback);
+ }
+ fallback();
+}).catch(function(){});
+})();
+</script>
+</body></html>
