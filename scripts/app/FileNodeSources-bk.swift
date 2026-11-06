@@ -8,7 +8,13 @@ enum FileNodeSources {
         switch name {
         case "nextmeeting":
             if cd == "306" { return store.nextBoardMeeting.map { [row($0)] } ?? [] }
-            guard let e = BoardMeetings.next(cd, store: store) else { return [] }
+            // Only full board meetings: a board's own meeting, never a committee or a community event in its district.
+            let hidden = CalHidden.current
+            guard let e = CalData.merged(.city, meetings: store.meetings).first(where: { e in
+                let c = e.cd ?? ""
+                guard !c.isEmpty, cd.isEmpty || c == cd, !hidden.contains(CalHidden.key(e)), e.key != "committee" else { return false }
+                return e.key == "board" || e.type == "cbmeeting" || e.label.range(of: "full board|general meeting|board meeting", options: [.regularExpression, .caseInsensitive]) != nil
+            }) else { return [] }
             let b = cd.isEmpty ? (e.cd ?? "") : cd
             return [["date": e.day, "time": e.time ?? "", "title": e.label, "board": BKBoards.board(b)?.short ?? FN.boardShort(b), "cd": b]]
         case "meetings":

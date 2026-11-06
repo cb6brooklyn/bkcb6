@@ -45,7 +45,7 @@ enum FN {
     // MARK: context
 
     static var board: String {
-        let b = UserDefaults.standard.string(forKey: "bk.board") ?? ""
+        let b = Hook.value("-board") ?? UserDefaults.standard.string(forKey: "bk.board") ?? ""
         return b.isEmpty && UIConfig.app == "cb6" ? "306" : b
     }
     static var nyc: TimeZone { TimeZone(identifier: "America/New_York") ?? .current }
