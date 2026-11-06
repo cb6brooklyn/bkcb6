@@ -104,6 +104,7 @@ td.n{text-align:right;font-variant-numeric:tabular-nums}
 .br{margin-top:4px}
 .blab{position:relative;display:flex;gap:8px;align-items:center;background:var(--navy);color:#fff;border:2px solid #ffd400;border-radius:12px;padding:6px 10px 6px 6px;font:700 11px 'DM Sans',sans-serif;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.35);text-align:left;cursor:pointer}
 .blab .bg{width:34px;height:34px;font-size:1.2rem;border-radius:8px}
+.plab{white-space:normal;width:max-content;max-width:250px;align-items:flex-start}.plab .bdg{flex:none;width:26px;height:26px}.plab .bt i{margin-top:2px}
 .blab .bt b{display:block;font-size:11.5px}
 .blab .bt i{display:block;font:500 10px 'DM Sans',sans-serif;color:#d6dbef}
 .blab .bt u{display:block;font:700 10px 'DM Sans',sans-serif;color:#ffd400;text-decoration:none;margin-top:2px}
@@ -439,7 +440,32 @@ const SUM={containers:['trash',OR,'Trash not in a bin or container'],organics:['
 const T311={'Dirty Condition':['broom',SL],'Missed Collection':['truck','#b42318'],'Illegal Dumping':['sofa','#a16207'],'Rodent':['rat','#4b5563'],'Derelict Vehicles':['caroff','#0891b2'],'Graffiti':['spray','#7c3aed'],'Residential Disposal Complaint':['trash',OR],'Street Sweeping Complaint':['road','#1d48a4'],'Obstruction':['cone','#ca8a04'],'Dead Animal':['paw','#6b7280'],'Litter Basket Request':['basket','#2f7d4f'],'Litter Basket Complaint':['basket','#166534'],'Abandoned Bike':['bike','#0e7490'],'Dumpster Complaint':['dumpster','#78350f'],'Vendor Enforcement':['cart','#be185d'],'Sanitation Worker or Vehicle Complaint':['worker','#b45309'],'Commercial Disposal Complaint':['store','#9a3412'],'Lot Condition':['fence','#57534e'],'Illegal Posting':['sign','#db2777'],'Institution Disposal Complaint':['school','#475569']};
 // clusters: show the group's icon and count
 map.annotationForCluster=c=>{const m=c.memberAnnotations[0],n=c.memberAnnotations.length;return new mapkit.MarkerAnnotation(c.coordinate,{titleVisibility:mapkit.FeatureVisibility.Hidden,subtitleVisibility:mapkit.FeatureVisibility.Hidden,glyphText:n>=1000?Math.round(n/1000)+'k':String(n),color:m.color,title:n+' here. Zoom in to see each one.',subtitle:m.title,data:{cluster:true},collisionMode:mapkit.Annotation.CollisionMode.Circle})};
-const sumPins=cat=>sum.filter(s=>s[0]===cat).map(s=>pin(s[4],s[5],'ticket',SUM[cat][1],cap(s[1])+(s[7]!=null?' · '+usd(s[7])+' fine':''),[s[3],dlab(s[2]),s[6]].filter(Boolean).join(' · '),'s-'+cat));
+// every summons charge in plain words, each kind with its own color and icon
+const SUBS=[
+ ['c-biz','containers',/NON-RESIDENTIAL/,['store','#9a3412','Business trash not in a bin']],
+ ['c-early','containers',/STORAGE OF RECEPTACLE|PLACED OUT PRIOR/,['sign','#7c3aed','Trash put out too early or left out']],
+ ['c-spill','containers',/SPILLAGE|UNCOVERED/,['dumpster','#a16207','Uncovered or spilling trash bin']],
+ ['c-home','containers',/./,['trash',OR,'Trash bags not in a bin']],
+ ['k-gutter','cleaning',/18 IN/,['road','#1d4ed8','Gutter not cleaned (18 inches into the street)']],
+ ['k-snow','cleaning',/SNOW/,['alert','#0891b2','Snow or ice not cleared']],
+ ['k-side','cleaning',/DIRTY SIDEWALK|DIRTY SDWLK/,['broom',SL,'Dirty sidewalk']],
+ ['k-area','cleaning',/./,['trash','#4b5563','Loose trash or a dirty area']],
+ ['o-yard','organics',/LEAF|YARD/,['compost','#65a30d','Leaf and yard waste not separated']],
+ ['o-food','organics',/ORGANIC WASTE/,['apple','#2f7d4f','Food scraps not separated']],
+ ['o-other','organics',/./,['sign','#166534','Carter sticker for organics not posted']],
+ ['r-out','recycling',/FAILURE TO PROPERLY PUT/,['recycle','#1d48a4','Recycling not put out properly']],
+ ['r-mix','recycling',/NON-RECYC|MISUSE|MISUSED/,['recycle','#0e7490','Recycling mixed with trash']],
+ ['r-other','recycling',/./,['recycle','#334155','Recycling not sorted or bundled']],
+ ['d-bed','dumping',/BEDDING/,['sofa','#b42318','Mattress or bedding not bagged']],
+ ['d-dump','dumping',/./,['sofa','#7f1d1d','Illegal dumping']],
+ ['x-obst','other',/OBSTRUCTION/,['cone','#ca8a04','Sidewalk or street blocked']],
+ ['x-other','other',/./,['alert','#9ca3af','Other sanitation rules']]].filter(x=>x[3]);
+const subOf=s=>SUBS.find(x=>x[1]===s[0]&&x[2].test(s[1]))||SUBS.find(x=>x[1]===s[0]);
+const sumPin=s=>{const t=subOf(s),a=pin(s[4],s[5],t[3][0],t[3][1],'Summons: '+t[3][2],[s[7]!=null?usd(s[7])+' fine':'',dlab(s[2])].filter(Boolean).join(' · '),'s-'+t[0]);a.data.more=[cap(s[3]),cap(s[1]),s[6]?'Hearing: '+cap(s[6]):''].filter(Boolean).join(' · ');return a};
+const sumPins=cat=>sum.filter(s=>s[0]===cat).map(sumPin);
+// one checkbox per kind of summons in these categories, biggest first
+function sumGroups(cats,groups,labels){const by={};sum.filter(s=>cats.includes(s[0])).forEach(s=>{const t=subOf(s);(by[t[0]]=by[t[0]]||{t,list:[]}).list.push(s)});
+ Object.values(by).sort((a,b)=>b.list.length-a.list.length).forEach(({t,list})=>{groups[t[0]]={a:list.map(sumPin)};labels[t[0]]=[t[3][0],t[3][1],`${t[3][2]} (${fmt(list.length)}, ${usd(list.reduce((n,s)=>n+(s[7]||0),0))})`]});return [groups,labels]}
 let cur={a:[],o:[]};
 const legend=document.getElementById('legend'), info=document.getElementById('info');
 const addA=a=>{map.addAnnotations(a);cur.a.push(...a)}, remA=a=>{map.removeAnnotations(a);cur.a=cur.a.filter(x=>!a.includes(x))};
@@ -454,13 +480,18 @@ function syncPins(){const near=map.cameraDistance<NEAR;Object.keys(pinGroups).fo
  const z=zoomHint();if(z)z.innerHTML=Object.keys(pinGroups).some(k=>pinOn[k])?(near?'Each pin is one record. Tap a pin for the details, or a block for its totals.':'<b>Zoom in</b> to street level to see each one as a pin. Tap any block for its totals.'):''}
 map.addEventListener('region-change-end',syncPins);
 function clearPins(){Object.values(pinGroups).forEach(g=>{if(g.on)map.removeAnnotations(g.a)});pinGroups={};pinOn={}}
-function clear(){clearPins();map.removeAnnotations(cur.a);map.removeOverlays(cur.o);cur={a:[],o:[]};graded=false;shade=null;restyleBlocks()}
+function clear(){dropPinLabel();clearPins();map.removeAnnotations(cur.a);map.removeOverlays(cur.o);cur={a:[],o:[]};graded=false;shade=null;restyleBlocks()}
 // legend with checkboxes: each group is {a:[pins], count:fn(blockProps)}
 function toggles(groups,labels,on){pinGroups=groups;Object.keys(groups).forEach(k=>{pinOn[k]=!!on(k);groups[k].on=false});
  legend.insertAdjacentHTML('beforeend',Object.keys(groups).map(k=>`<label><input type="checkbox" data-t="${esc(k)}"${on(k)?' checked':''}>${badge(labels[k][0],labels[k][1])}${esc(labels[k][2])}</label>`).join('')+'<span id="zoomhint" style="flex-basis:100%;color:var(--muted)"></span>');
  legend.querySelectorAll('input').forEach(i=>i.onchange=()=>{pinOn[i.dataset.t]=i.checked;syncPins();restyleBlocks()});syncPins()}
 
-map.addEventListener('select',e=>{const o=e.overlay;if(o&&o.data&&o.data.f){highlight(o);return}if(o&&o.data&&o.data.html){info.innerHTML=o.data.html;info.style.display='block'}});
+let pinLabel=null;const dropPinLabel=()=>{if(pinLabel){map.removeAnnotation(pinLabel);pinLabel=null}};
+map.addEventListener('select',e=>{const o=e.overlay;if(o&&o.data&&o.data.f){highlight(o);return}if(o&&o.data&&o.data.html){info.innerHTML=o.data.html;info.style.display='block'}
+ const a=e.annotation;if(a&&a.data&&a.data.g&&!a.data.lab){dropPinLabel();
+  pinLabel=new mapkit.Annotation(a.coordinate,()=>{const d=document.createElement('div');d.className='blab plab';d.innerHTML=`${badge(a.data.g,a.color)}<span class="bt"><b>${esc(a.title)}</b><i>${esc(a.subtitle)}</i>${a.data.more?`<i>${esc(a.data.more)}</i>`:''}</span>`;return d},{anchorOffset:new DOMPoint(0,62),displayPriority:mapkit.Annotation.DisplayPriority.Required,enabled:false,data:{lab:1}});
+  map.addAnnotation(pinLabel)}});
+map.addEventListener('deselect',e=>{const a=e.annotation;if(a&&a.data&&a.data.g&&!a.data.lab)dropPinLabel()});
 
 // ---------- Blocks: tap or hover any block ----------
 let graded=false, hiBlock=null;
@@ -511,11 +542,13 @@ const hitB=(x,y)=>{for(let i=0;i<BB.length;i++){const a=BB[i];if(x<a[0]||x>a[2]|
 const LAY={
  bins(){shade={color:OR,fn:p=>p.sum.containers||0};restyleBlocks();
    legend.innerHTML=rampLegend(OR,'summonses for trash not in a bin or container');
-   toggles({containers:{a:sumPins('containers'),on:false}},{containers:['ticket',SUM.containers[1],`Show each summons when zoomed in (${fmt(cnt('containers'))}, ${usd(oc.usd)} in fines)`]},()=>false)},
+   legend.insertAdjacentHTML('beforeend','<span style="flex-basis:100%"><b>Show each summons</b> when zoomed in, by kind:</span>');
+   toggles(...sumGroups(['containers'],{},{}),()=>false)},
  compost(){const fsp=fs.map(x=>pin(x.lat,x.lon,'compost','#2f7d4f',x.name,'Food scrap drop-off · '+x.loc+' · '+x.hours.replace(/\s*\(.*\)/,''),null));addA(fsp);
    shade={color:'#2f7d4f',fn:p=>(p.sum.organics||0)+(p.sum.recycling||0)};
    legend.innerHTML=rampLegend('#2f7d4f','composting and recycling summonses')+lg('compost','#2f7d4f',`Food scrap drop-off (${fs.length})`);
-   toggles({organics:{a:sumPins('organics')},recycling:{a:sumPins('recycling')}},{organics:['ticket',SUM.organics[1],`Composting summonses (${fmt(cnt('organics'))}, ${usd(O.cb6.organics.usd)})`],recycling:['ticket',SUM.recycling[1],`Recycling summonses (${fmt(cnt('recycling'))}, ${usd(O.cb6.recycling.usd)})`]},()=>false);restyleBlocks()},
+   legend.insertAdjacentHTML('beforeend','<span style="flex-basis:100%"><b>Show each summons</b> when zoomed in, by kind:</span>');
+   toggles(...sumGroups(['organics','recycling'],{},{}),()=>false);restyleBlocks()},
  cwz(){const ov=cwz.features.map(f=>{const z=f.properties.zone,me=z==='BK-2',done=PHASE[z][1].startsWith('Done');const o=new mapkit.PolygonOverlay(rings(f.geometry),{style:Sty({s:me?OR:NAVY,w:me?3:1,f:me?OR:done?NAVY:'#c9cde0',fo:me?.3:.2})});
      o.data={html:`${badge('truck',me?OR:NAVY)}<b>${f.properties.name}</b> (${z}) &middot; Phase ${PHASE[z][0]}: ${PHASE[z][1]}<br>Carters: ${CARTERS[z].join(', ')}<br>Covers ${esc(f.properties.cd)}`};return o});
    addO(ov);
@@ -526,7 +559,8 @@ const LAY={
    legend.innerHTML=sw(OR,'Brooklyn West, our zone',1)+'<span>✅ In service</span><span>⏳ Coming</span><span>Tap a zone for its carters</span>'},
  clean(){graded=true;restyleBlocks();
    legend.innerHTML='<span><b>Block grade</b> for the share of streets the City rated acceptably clean:</span>'+sw(LCOL['A'],'A 93 to 100',1)+sw(LCOL['A-'],'A- 90 to 92.9',1)+sw(LCOL['B+'],'B+ 87 to 89.9',1)+sw(LCOL['B'],'B 83 to 86.9',1)+sw(LCOL['B-'],'B- 80 to 82.9',1)+sw(LCOL['C+'],'C+ 77 to 79.9',1)+sw(LCOL['C'],'C 73 to 76.9',1)+sw(LCOL['C-'],'C- 70 to 72.9',1)+sw(LCOL['D+'],'D+ 67 to 69.9',1)+sw(LCOL['D'],'D 63 to 66.9',1)+sw(LCOL['D-'],'D- 60 to 62.9',1)+sw(LCOL['N'],'N under 60',1);
-   toggles({baskets:{a:bas.map(b=>pin(b[3],b[4],'basket','#111827',b[0],cap(b[1])+' at '+cap(b[2]),'b'))},cleaning:{a:sumPins('cleaning')}},{baskets:['basket','#111827',`Litter baskets (${fmt(K.cb6)})`],cleaning:['ticket',SUM.cleaning[1],`Dirty sidewalk or curb summonses (${fmt(cnt('cleaning'))}, ${usd(oc2.usd)})`]},k=>false)},
+   const cg={baskets:{a:bas.map(b=>pin(b[3],b[4],'basket','#111827','Litter basket: '+b[0],cap(b[1])+' at '+cap(b[2]),'b'))}},cl={baskets:['basket','#111827',`Litter baskets (${fmt(K.cb6)})`]};
+   toggles(...sumGroups(['cleaning'],cg,cl),k=>false)},
  c311(){const types=[...new Set(p311.map(p=>p[0]))];const counts={};p311.forEach(p=>counts[p[0]]=(counts[p[0]]||0)+1);types.sort((a,b)=>counts[b]-counts[a]);
    const ic=t=>T311[t]||['alert','#4b5563'];const groups={},labels={};
    types.forEach(t=>{groups[t]={a:p311.filter(p=>p[0]===t).map(p=>pin(p[4],p[5],ic(t)[0],ic(t)[1],t+(p[1]?': '+p[1]:''),[p[3],dlab(p[2]),p[6]].filter(Boolean).join(' · '),'t-'+t))};labels[t]=[...ic(t),`${t} (${fmt(counts[t])})`]});
