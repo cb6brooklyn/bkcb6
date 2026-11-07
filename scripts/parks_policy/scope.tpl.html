@@ -47,11 +47,14 @@ tr.me td{background:#fff3c4}
     <button data-l="trees">Street trees</button>
     <button data-l="cap">Capital projects</button>
     <button data-l="c311">311 complaints</button>
+    <button data-l="ny4p">Open space profile</button>
   </div>
   <div class="mapcard"><div id="map"></div><div class="info" id="info"></div><div class="legend" id="legend"></div></div>
 
   <details class="sec" id="glance-sec" open><summary><h2>{{NAME}} at a glance</h2><span class="sub">{{GLANCESUB}}</span></summary><div class="body"><div class="kpis" id="glance"></div></div></details>
   <details class="sec" id="rank-sec"><summary><h2>Rankings</h2><span class="sub">Every community district, every borough and the city, in each category</span></summary><div class="body rk"><div class="ctl"><select id="rk-cat"></select><select id="rk-who"></select></div><div class="note" id="rk-note"></div><div id="rk-out"></div><p class="qs" id="rk-src"></p></div></details>
+
+  <details class="sec" id="ny4p-sec"><summary><h2>Open space profile</h2><span class="sub">New Yorkers for Parks' 2021 profile of every community district</span></summary><div class="body rk" id="ny4pS"></div></details>
 
   <details class="sec" id="dist-sec"><summary><h2>Every community district</h2><span class="sub">The main numbers side by side</span></summary>
     <div class="body"><div class="tw"><table id="distT"></table></div></div>
@@ -85,6 +88,7 @@ tr.me td{background:#fff3c4}
 </div>
 
 <script src="https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js"></script>
+<script src="/parks-policy/ny4p.js?v=1"></script>
 <script>
 (async function(){
 const NAVY='#0d1b4b',OR='#f47920',SL='#5b6394',GR='#2e7d32';
@@ -232,12 +236,16 @@ map.annotationForCluster=c=>{const m=c.memberAnnotations[0],n=c.memberAnnotation
 let capPins=null;
 const rampLegend=(c,what,br,unit,low)=>`<span><b>District color</b> = ${what}:</span>`+[[low||'Least','up to '+br[0]],['','to '+br[1]],['','to '+br[2]],['','to '+br[3]],['','over '+br[3]]].map(([l,t],i)=>sw(hexa(c,A[i]),t)).join('')+`<span style="color:var(--muted)">${unit}</span>`;
 const V={acres:['#2e7d32',p=>p.acresPer1k,'park acres per 1,000 residents',''],play:['#e65100',p=>p.playPer10k,"children's play areas per 10,000 residents",''],trees:['#33691e',p=>p.treesPer1k,'street trees per 1,000 residents',''],c311:['#455a64',p=>p.c311Per1k,'311 complaints to the Parks Department per 1,000 residents',YR]};
-function show(l){mode=l;dropPinLabel();if(capPins){map.removeAnnotations(capPins);capPins=null}
+function show(l){if(NY4P.active&&l!=='ny4p'){NY4P.off();if(window.clearD)clearD();map.addOverlays(dOv);map.showItems(dOv,{animate:true,padding:new mapkit.Padding(24,24,24,24)})}
+ if(l==='ny4p'){if(!NY4P.active){if(window.clearD)clearD();map.removeOverlays(dOv);NY4P.on()}mode=l;dropPinLabel();if(capPins){map.removeAnnotations(capPins);capPins=null}shade=null;restyle();document.querySelectorAll('#layers button').forEach(b=>b.classList.toggle('on',b.dataset.l===l));return}
+ mode=l;dropPinLabel();if(capPins){map.removeAnnotations(capPins);capPins=null}
  if(V[l]){const [c,fn,what,u]=V[l];shade={color:c,fn,br:qb(props.map(fn))};legend.innerHTML=rampLegend(c,what,shade.br,u)+sw('#2e7d32','Park')}
  else if(l==='insp'){shade={color:'#5b6394',fn:p=>p.pipOverall==null?null:100-p.pipOverall,br:qb(props.map(p=>p.pipOverall==null?null:100-p.pipOverall))};legend.innerHTML='<span><b>Park color</b> = share of inspections rated acceptable:</span>'+[[95,'95% or more'],[85,'85 to 94%'],[70,'70 to 84%'],[50,'50 to 69%'],[0,'under 50%'],[null,'no inspection']].map(([v,t])=>sw(gcol(v),t)).join('')+'<span style="color:var(--muted)">Darker districts had fewer rated acceptable. Zoom in to see each park.</span>'}
  else if(l==='cap'){shade=null;capPins=S.cap.map(c=>pin(c.lat,c.lon,'crane',(PH[c.ph]||['#757575'])[0],c.t,[(PH[c.ph]||[0,c.ph])[1],c.park,c.fund].filter(Boolean).join(' · ')));map.addAnnotations(capPins);legend.innerHTML=Object.keys(PH).filter(k=>k!=='design-procurement').map(k=>`<span>${badge('crane',PH[k][0])}${PH[k][1]}</span>`).join('')+`<span style="color:var(--muted)">${fmt(S.cap.length)} projects. Tap a pin for the project.</span>`}
  restyle();document.querySelectorAll('#layers button').forEach(b=>b.classList.toggle('on',b.dataset.l===l))}
 document.querySelectorAll('#layers button').forEach(b=>b.onclick=()=>show(b.dataset.l));
+NY4P.init({map,home:null,scope:'{{SCOPE}}',base:'/parks-policy/',legend,info,section:document.getElementById('ny4pS')});
+document.addEventListener('click',e=>{const l=e.target.closest('a[data-l]');if(l){e.preventDefault();show(l.dataset.l);document.getElementById('map').scrollIntoView({behavior:'smooth',block:'start'})}});
 document.addEventListener('click',e=>{const t=e.target.closest('[data-d]');if(t){e.preventDefault();document.getElementById('map').scrollIntoView({behavior:'smooth',block:'start'});showD(dOv.find(o=>o.data.d.b===t.dataset.d),true);return}
  const q=e.target.closest('[data-p]');if(q){e.preventDefault();document.getElementById('map').scrollIntoView({behavior:'smooth',block:'start'});showP(pOv.find(o=>o.data.p.id===q.dataset.p),true)}});
 show('acres');
