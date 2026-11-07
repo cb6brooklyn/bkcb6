@@ -117,6 +117,6 @@ for u in E['units']:
     if k in GDP: u['gdpCur'] = GDP[k]['cur']; u['gdpReal'] = GDP[k]['real']
     if k in LA: u['lf'] = [LA[k][str(y)]['lf'] for y in UY]; u['un'] = [LA[k][str(y)]['un'] for y in UY]
 E['econ'] = dict(gdpYears=GY, ueYears=UY, ueLastMonths=LA['manhattan'][str(UY[-1])]['m'],
-    westchester=dict(gdpCur=GDP['westchester']['cur'], gdpReal=GDP['westchester']['real'], lf=[LA['westchester'][str(y)]['lf'] for y in UY], un=[LA['westchester'][str(y)]['un'] for y in UY]))
+    westchester=dict(gdpCur=GDP['westchester']['cur'], gdpReal=GDP['westchester']['real'], lf=[LA['westchester'][str(y)]['lf'] for y in UY], un=[LA['westchester'][str(y)]['un'] for y in UY], pop=WEST))
 json.dump(E, open(R + '/ballotmeasures/1894/build/units.json', 'w'), separators=(',', ':'))
 print('econ added', os.path.getsize(R + '/ballotmeasures/1894/build/units.json') // 1024, 'KB')
