@@ -10,7 +10,8 @@ from shapely import make_valid
 
 R = '/root/bkcb6'
 H = os.path.dirname(os.path.abspath(__file__))
-YEARS = [1900, 1910, 1920, 1930, 1940, 1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020]
+YEARS = [1900, 1910, 1920, 1930, 1940, 1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020, 2021, 2022, 2023, 2024, 2025]
+EST_FROM = 2021  # July 1 estimates, Census Bureau Population Estimates Program, Vintage 2025 (sub-est2025.csv)
 
 POP = {
  'manhattan': [1850093, 2331542, 2284103, 1867312, 1889924, 1960101, 1698281, 1539233, 1428285, 1487536, 1537195, 1585873, 1694251],
@@ -24,7 +25,14 @@ POP = {
  'mtvernon':  [21228, 30919, 42726, 61499, 67362, 71899, 76010, 72778, 66713, 67153, 68381, 67292, 73893],
  'newrochelle': [14720, 28867, 36213, 54000, 58408, 59725, 76812, 75385, 70794, 67265, 72182, 77062, 79726],
 }
-WEST = [184257, 283055, 344436, 520947, 573558, 625816, 808891, 894404, 866599, 874866, 923459, 949113, 1004457]
+EST = {
+ 'manhattan': [1569781, 1593919, 1631534, 1665510, 1664862], 'bronx': [1420980, 1384053, 1380478, 1406052, 1406332],
+ 'brooklyn': [2634576, 2600751, 2611893, 2658657, 2653963], 'queens': [2328520, 2291363, 2314747, 2367034, 2358182],
+ 'staten': [494101, 492579, 495182, 499572, 501290], 'nassau': [1391787, 1388346, 1388940, 1397783, 1398939],
+ 'suffolk': [1533742, 1531736, 1533173, 1543330, 1546090], 'yonkers': [210137, 208926, 209192, 211546, 212603],
+ 'mtvernon': [72867, 71997, 71691, 72148, 72304], 'newrochelle': [81460, 82558, 84300, 85667, 85864]}
+for k, v in EST.items(): POP[k] = POP[k] + v
+WEST = [184257, 283055, 344436, 520947, 573558, 625816, 808891, 894404, 866599, 874866, 923459, 949113, 1004457, 1000252, 994313, 998335, 1009165, 1015743]
 POP['westrest'] = [w - a - b - c for w, a, b, c in zip(WEST, POP['yonkers'], POP['mtvernon'], POP['newrochelle'])]
 
 # Colors: one per unit; every pair is at least 15 apart in OKLab (normal vision). Names on the map and the table carry identity too.
@@ -71,7 +79,7 @@ for u in U:
     k = u['id']
     if k in ATTR:
         p = ATTR[k]['properties']; hu, land = p['HU100'], p['AREALAND']
-        assert p['POP100'] == POP[k][-1], (k, p['POP100'])
+        assert p['POP100'] == POP[k][12], (k, p['POP100'])
     elif k in CSA:
         _, hu, land = CSA[k]
     else:
@@ -85,7 +93,7 @@ LAB = {'manhattan': [40.7831, -73.9712], 'bronx': [40.8350, -73.8700], 'brooklyn
        'nassau': [40.7400, -73.5900], 'suffolk': [40.8600, -72.8500], 'yonkers': [40.9480, -73.9350], 'mtvernon': [40.9000, -73.8120], 'newrochelle': [40.9300, -73.7300], 'westrest': [41.1500, -73.7700]}
 for u in U: u['lab'] = LAB[u['id']]
 os.makedirs(R + '/ballotmeasures/1894/build', exist_ok=True)
-json.dump(dict(years=YEARS, units=U), open(R + '/ballotmeasures/1894/build/units.json', 'w'), separators=(',', ':'))
+json.dump(dict(years=YEARS, estFrom=EST_FROM, units=U), open(R + '/ballotmeasures/1894/build/units.json', 'w'), separators=(',', ':'))
 for u in U: print(u['id'], u['pop'][0], u['pop'][-1], u['hu2020'], u['sqmi'])
 print(os.path.getsize(R + '/ballotmeasures/1894/build/units.json') // 1024, 'KB')
 
