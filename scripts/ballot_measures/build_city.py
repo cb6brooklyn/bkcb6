@@ -32,22 +32,22 @@ EST = {
  'suffolk': [1533742, 1531736, 1533173, 1543330, 1546090], 'yonkers': [210137, 208926, 209192, 211546, 212603],
  'mtvernon': [72867, 71997, 71691, 72148, 72304], 'newrochelle': [81460, 82558, 84300, 85667, 85864]}
 for k, v in EST.items(): POP[k] = POP[k] + v
+WM = json.load(open(H + '/raw/westchester-municipalities.json'))
+for k, n in (('eastchester', 'Eastchester town'), ('pelham', 'Pelham town')): POP[k] = [WM[n][str(y)] for y in YEARS]
 WEST = [184257, 283055, 344436, 520947, 573558, 625816, 808891, 894404, 866599, 874866, 923459, 949113, 1004457, 1000252, 994313, 998335, 1009165, 1015743]
 POP['westrest'] = [w - a - b - c for w, a, b, c in zip(WEST, POP['yonkers'], POP['mtvernon'], POP['newrochelle'])]
 
 # Colors: one per unit; every pair is at least 15 apart in OKLab (normal vision). Names on the map and the table carry identity too.
 U = [
  dict(id='manhattan', name='Manhattan', sub='New York County', kind='Borough', inNow=True, color='#e6194b'),
- dict(id='bronx', name='The Bronx', sub='Bronx County', kind='Borough', inNow=True, color='#df9555'),
+ dict(id='bronx', name='The Bronx', sub='West Bronx and Town of Westchester', kind='Borough', inNow=True, color='#df9555'),
  dict(id='brooklyn', name='Brooklyn', sub='Kings County', kind='Borough', inNow=True, color='#4363d8'),
- dict(id='queens', name='Queens', sub='Queens County', kind='Borough', inNow=True, color='#57c43c'),
+ dict(id='queens', name='Queens', sub='Western towns of 1894 Queens', kind='Borough', inNow=True, color='#57c43c'),
  dict(id='staten', name='Staten Island', sub='Richmond County', kind='Borough', inNow=True, color='#8c0888'),
- dict(id='nassau', name='Nassau County', sub='Hempstead, North Hempstead, Oyster Bay, Glen Cove, Long Beach', kind='County', inNow=False, color='#46b5e4'),
- dict(id='suffolk', name='Suffolk County', sub='Eastern Long Island', kind='County', inNow=False, color='#dd77f4'),
- dict(id='yonkers', name='Yonkers', sub='City in Westchester County', kind='City', inNow=False, color='#3e6102'),
- dict(id='mtvernon', name='Mount Vernon', sub='City in Westchester County', kind='City', inNow=False, color='#8c352a'),
- dict(id='newrochelle', name='New Rochelle', sub='City in Westchester County', kind='City', inNow=False, color='#a5619f'),
- dict(id='westrest', name='Rest of Westchester', sub='Westchester County outside Yonkers, Mount Vernon and New Rochelle', kind='County part', inNow=False, color='#269364'),
+ dict(id='nassau', name='Nassau County', sub='Eastern towns of 1894 Queens', kind='County', inNow=False, color='#46b5e4'),
+ dict(id='mtvernon', name='Mount Vernon', sub='Voted no; stayed out', kind='Westchester', inNow=False, color='#8c352a'),
+ dict(id='eastchester', name='Eastchester', sub='Part that stayed in Westchester', kind='Westchester', inNow=False, color='#269364'),
+ dict(id='pelham', name='Pelham', sub='Part that stayed in Westchester', kind='Westchester', inNow=False, color='#a5619f'),
 ]
 
 def rnd(g, n=4):
@@ -59,20 +59,19 @@ def rnd(g, n=4):
 boro = {f['properties']['boroname']: make_valid(shape(f['geometry'])) for f in json.load(open(R + '/data/boro-simple.geojson'))['features']}
 cty = {f['properties']['COUNTY']: f for f in json.load(open(H + '/raw/counties2020.geojson'))['features']}
 cs = {f['properties']['NAME']: make_valid(shape(f['geometry'])) for f in json.load(open(H + '/raw/cousub.geojson'))['features']}
-CS = {'yonkers': 'Yonkers city', 'mtvernon': 'Mount Vernon city', 'newrochelle': 'New Rochelle city'}
+CS = {'mtvernon': 'Mount Vernon city', 'eastchester': 'Eastchester town', 'pelham': 'Pelham town'}
 # 2020 attributes from TIGERweb (Census 2020)
 ATTR = {
  'manhattan': cty['061'], 'bronx': cty['005'], 'brooklyn': cty['047'], 'queens': cty['081'], 'staten': cty['085'],
- 'nassau': cty['059'], 'suffolk': cty['103']}
-CSA = {'yonkers': (211569, 85528, 46634435), 'mtvernon': (73893, 30350, 11375581), 'newrochelle': (79726, 30531, 26640876)}
+ 'nassau': cty['059']}
+WA = json.load(open(H + '/raw/westchester-cousub-2020.json'))
+CSA = {k: (WA[n]['POP100'], WA[n]['HU100'], WA[n]['AREALAND']) for k, n in CS.items()}
 geo = {
  'manhattan': boro['Manhattan'], 'bronx': boro['Bronx'], 'brooklyn': boro['Brooklyn'], 'queens': boro['Queens'], 'staten': boro['Staten Island'],
  'nassau': unary_union([g for n, g in cs.items() if n in [f['properties']['NAME'] for f in json.load(open(H + '/raw/cousub.geojson'))['features'] if f['properties']['COUNTY'] == '059']]),
- 'suffolk': make_valid(shape(cty['103']['geometry'])),
 }
 for k, n in CS.items(): geo[k] = cs[n]
 west = unary_union([g for n, g in cs.items() if n in [f['properties']['NAME'] for f in json.load(open(H + '/raw/cousub.geojson'))['features'] if f['properties']['COUNTY'] == '119']])
-geo['westrest'] = west.difference(unary_union([cs[n] for n in CS.values()]))
 SQM = 2589988.11
 wa = cty['119']['properties']
 for u in U:
@@ -81,16 +80,16 @@ for u in U:
         p = ATTR[k]['properties']; hu, land = p['HU100'], p['AREALAND']
         assert p['POP100'] == POP[k][12], (k, p['POP100'])
     elif k in CSA:
-        _, hu, land = CSA[k]
+        pp, hu, land = CSA[k]; assert pp == POP[k][12], (k, pp)
     else:
         hu = wa['HU100'] - sum(v[1] for v in CSA.values()); land = wa['AREALAND'] - sum(v[2] for v in CSA.values())
     u['pop'] = POP[k]; u['hu2020'] = hu; u['sqmi'] = round(land / SQM, 1)
-    g = geo[k].simplify(0.0015 if k in ('suffolk', 'westrest', 'nassau') else 0.0006, preserve_topology=True)
+    g = geo[k].simplify(0.0015 if k == 'nassau' else 0.0006, preserve_topology=True)
     u['g'] = rnd(g)
-    c = geo[k].representative_point() if k != 'suffolk' else geo[k].centroid
+    c = geo[k].representative_point()
     u['lab'] = [round(c.y, 4), round(c.x, 4)]
 LAB = {'manhattan': [40.7831, -73.9712], 'bronx': [40.8350, -73.8700], 'brooklyn': [40.6500, -73.9496], 'queens': [40.7282, -73.7949], 'staten': [40.5795, -74.1502],
-       'nassau': [40.7400, -73.5900], 'suffolk': [40.8600, -72.8500], 'yonkers': [40.9480, -73.9350], 'mtvernon': [40.9000, -73.8120], 'newrochelle': [40.9300, -73.7300], 'westrest': [41.1500, -73.7700]}
+       'nassau': [40.7400, -73.5900], 'mtvernon': [40.9150, -73.8850], 'eastchester': [40.9620, -73.8100], 'pelham': [40.9000, -73.7420]}
 for u in U: u['lab'] = LAB[u['id']]
 os.makedirs(R + '/ballotmeasures/1894/build', exist_ok=True)
 json.dump(dict(years=YEARS, estFrom=EST_FROM, units=U), open(R + '/ballotmeasures/1894/build/units.json', 'w'), separators=(',', ':'))
