@@ -110,13 +110,14 @@ json.dump(D, open(R + '/ballotmeasures/1894.json', 'w'), separators=(',', ':'))
 # ---- Economy: GDP (BEA CAGDP1, 2001-2024) and unemployment (NYS DOL / BLS LAUS, 1990-2026) ----
 GDP = json.load(open(H + '/raw/bea-cagdp1.json'))      # thousands of dollars; 'cur' current dollars, 'real' chained 2017 dollars
 LA = json.load(open(H + '/raw/laus-annual.json'))      # annual average of monthly, not seasonally adjusted: lf, un, rate, m (months)
-GY = list(range(2001, 2025)); UY = list(range(1990, 2027))
+GY = list(range(2001, 2025)); UY = list(range(1976, 2027))
 E = json.load(open(R + '/ballotmeasures/1894/build/units.json'))
 for u in E['units']:
     k = u['id']
     if k in GDP: u['gdpCur'] = GDP[k]['cur']; u['gdpReal'] = GDP[k]['real']
-    if k in LA: u['lf'] = [LA[k][str(y)]['lf'] for y in UY]; u['un'] = [LA[k][str(y)]['un'] for y in UY]
+    if k in LA: u['lf'] = [LA[k][str(y)]['lf'] if str(y) in LA[k] else None for y in UY]; u['un'] = [LA[k][str(y)]['un'] if str(y) in LA[k] else None for y in UY]
 E['econ'] = dict(gdpYears=GY, ueYears=UY, ueLastMonths=LA['manhattan'][str(UY[-1])]['m'],
-    westchester=dict(gdpCur=GDP['westchester']['cur'], gdpReal=GDP['westchester']['real'], lf=[LA['westchester'][str(y)]['lf'] for y in UY], un=[LA['westchester'][str(y)]['un'] for y in UY], pop=WEST))
+    westchester=dict(gdpCur=GDP['westchester']['cur'], gdpReal=GDP['westchester']['real'], lf=[LA['westchester'].get(str(y), {}).get('lf') for y in UY], un=[LA['westchester'].get(str(y), {}).get('un') for y in UY], pop=WEST),
+    nyc=dict(lf=[LA['nyc'][str(y)]['lf'] for y in UY], un=[LA['nyc'][str(y)]['un'] for y in UY]))
 json.dump(E, open(R + '/ballotmeasures/1894/build/units.json', 'w'), separators=(',', ':'))
 print('econ added', os.path.getsize(R + '/ballotmeasures/1894/build/units.json') // 1024, 'KB')
