@@ -162,6 +162,7 @@ details summary{cursor:pointer;font-weight:700;color:var(--navy);font-size:.85re
 .mfoot .layers button .ic{width:32px;height:32px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex:none;overflow:hidden;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.08)}.mfoot .layers button .ic img{width:100%;height:100%;object-fit:contain;display:block}
 .mfoot .layers button.on{color:#fff;border-color:transparent}
 .mfoot .layers button.on .ic{box-shadow:0 0 0 2px #fff}.mfoot .layers button .ic.pk{background:#7bc043;position:relative;overflow:visible}.mfoot .layers button .ic.pk i{position:absolute;right:-3px;bottom:-3px;width:14px;height:14px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px rgba(0,0,0,.12)}
+.achip{display:grid;gap:3px;background:#fff;border-radius:12px;padding:3px;box-shadow:0 1px 5px rgba(0,0,0,.25);cursor:pointer}.achip .ai{position:relative;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}.achip .ai b{position:absolute;right:-4px;top:-5px;background:#0d1b4b;color:#fff;font:700 9px 'DM Sans',sans-serif;border-radius:8px;padding:0 3px;line-height:13px}
 </style>
 </head>
 <body><script src="/assets/site-bar.js?v=1" defer></script><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:6px 0"><img src="/appstore-badge.png" alt="Download on the App Store" height="34" style="height:34px;width:auto;vertical-align:middle"></a><script>(function(){try{var a=document.getElementById("asb"),q=/[?&]app=1\b/.test(location.search);if(q)sessionStorage.setItem("bkapp","1");if(location.protocol==="bkcb:"||q||sessionStorage.getItem("bkapp")==="1"||/^bkcb:/.test(document.referrer)){a.style.display="none"}}catch(e){}})();</script>
@@ -330,7 +331,7 @@ const PK=D.parks,byId={};PK.forEach(p=>byId[p.id]=p);
 document.getElementById('parksRule').innerHTML=`The Parks Department runs ${X.parks} properties in CB6, covering ${fmt(X.acres)} acres, or ${X.acresPer1k} acres for every 1,000 residents, against ${BK.acresPer1k} in Brooklyn and ${NY.acresPer1k} citywide. Prospect Park, ${fmt(Math.round(D.prospect.acres))} acres on our eastern edge, isn't counted in any community district: the City treats it as its own district. Tap a park to see it on the map.`;
 const ONE={play:"children's play area",restrooms:'restroom',fountains:'drinking fountain',spray:'spray shower',pools:'pool',skate:'skatepark',dogs:'dog run',gardens:'community garden',monuments:'monument'};
 const spN=(k,v)=>{const w=k.toLowerCase(),f=/soccer|softball|baseball|football|cricket|rugby|lacrosse|kickball|frisbee/.test(w)?'field':/track/.test(w)?'':/multi/.test(w)?'field':'court';return v+' '+w+(f?' '+f+(v>1?'s':''):(v>1?'s':''))};
-const amenChips=p=>Object.entries(p.amen).filter(([k])=>AM[k]).map(([k,v])=>chip(v===1?`1 ${ONE[k]}`:`${v} ${AM[k][2].toLowerCase()}`)).join('')+Object.entries(p.sports||{}).sort((a,b)=>b[1]-a[1]).map(([k,v])=>chip(spN(k,v))).join('');
+const amenChips=p=>Object.entries(p.amen).filter(([k])=>AM[k]).map(([k,v])=>chip(badge(AM[k][0],AM[k][1])+(v===1?`1 ${ONE[k]}`:`${v} ${AM[k][2].toLowerCase()}`))).join('')+Object.entries(p.sports||{}).sort((a,b)=>b[1]-a[1]).map(([k,v])=>chip(badge(spOf(k)[0],spOf(k)[1])+spN(k,v))).join('');
 document.getElementById('parkList').innerHTML=PK.map(p=>`<button class="pc" data-p="${p.id}"><div class="bh"><span class="gb" style="background:${gcol(p.insp.o)};color:${gtxt(p.insp.o)}">${p.insp.o==null?'–':Math.round(p.insp.o)+'%'}</span><div><b>${esc(p.n)}</b><div class="t">${esc(p.type)} &middot; ${p.acres} acres${p.inCB6<.95?` (${Math.round(p.inCB6*100)}% in CB6)`:''}</div></div></div><div class="t">${esc(p.loc||p.addr||'')}</div><div class="chips">${amenChips(p)}${p.cap.length?chip(p.cap.length+' capital project'+(p.cap.length>1?'s':''),1):''}</div></button>`).join('');
 
 // ---------- Inspections ----------
@@ -466,10 +467,10 @@ info.innerHTML=HINT;info.style.display='block';
 // pin layers
 const NEAR=1400;let groups={},on={};let cur=[];
 const zh=()=>document.getElementById('zoomhint');
-function sync(){const near=map.cameraDistance<NEAR;Object.keys(groups).forEach(k=>{const g=groups[k],want=on[k]&&(!g.near||near);if(want&&!g.on){map.addAnnotations(g.a);g.on=true}else if(!want&&g.on){map.removeAnnotations(g.a);g.on=false}});
+function sync(){const near=map.cameraDistance<NEAR;if(window.amenRefresh)amenRefresh();Object.keys(groups).forEach(k=>{const g=groups[k],want=on[k]&&(!g.near||near);if(want&&!g.on){map.addAnnotations(g.a);g.on=true}else if(!want&&g.on){map.removeAnnotations(g.a);g.on=false}});
  const z=zh();if(z){const needs=Object.keys(groups).some(k=>on[k]&&groups[k].near);z.innerHTML=needs&&!near?'<b>Zoom in</b> to street level to see each one as a pin.':Object.keys(groups).some(k=>on[k])?'Tap a pin for the details.':''}}
 map.addEventListener('region-change-end',sync);
-function clearPins(){Object.values(groups).forEach(g=>{if(g.on)map.removeAnnotations(g.a)});groups={};on={};map.removeAnnotations(cur);cur=[]}
+function clearPins(){if(window.amenClear)amenClear();Object.values(groups).forEach(g=>{if(g.on)map.removeAnnotations(g.a)});groups={};on={};map.removeAnnotations(cur);cur=[]}
 function toggles(gs,labels,isOn){groups=gs;Object.keys(gs).forEach(k=>{on[k]=!!isOn(k);gs[k].on=false});
  legend.insertAdjacentHTML('beforeend',Object.keys(gs).map(k=>`<label><input type="checkbox" data-t="${esc(k)}"${on[k]?' checked':''}>${badge(labels[k][0],labels[k][1])}${esc(labels[k][2])}</label>`).join('')+'<span id="zoomhint" style="flex-basis:100%;color:var(--muted)"></span>');
  legend.querySelectorAll('input[data-t]').forEach(i=>i.onchange=()=>{on[i.dataset.t]=i.checked;sync()});sync()}
@@ -482,14 +483,25 @@ map.addEventListener('select',e=>{const o=e.overlay;if(o&&o.data&&o.data.p){show
 map.addEventListener('deselect',e=>{const a=e.annotation;if(a&&a.data&&a.data.g&&!a.data.lab)dropPinLabel()});
 
 const parkN=id=>(byId[id]||{}).n||'';
+let parkChips=[];
+window.amenClear=()=>{map.removeAnnotations(parkChips);parkChips=[];window.amenRefresh=null};
+function amenParks(){
+ const kinds=p=>{const o=[];Object.keys(AM).forEach(k=>{const n=(p.amen||{})[k];if(n&&on[k])o.push([AM[k][0],AM[k][1],n,AM[k][2]])});Object.entries(p.sports||{}).sort((a,b)=>b[1]-a[1]).forEach(([k,n])=>{if(on['sp-'+k]){const t=spOf(k);o.push([t[0],t[1],n,k])}});return o};
+ window.amenRefresh=()=>{map.removeAnnotations(parkChips);parkChips=[];if(mode!=='amen'||map.cameraDistance<NEAR)return;
+  PK.forEach(p=>{const ks=kinds(p);if(!ks.length)return;
+   parkChips.push(new mapkit.Annotation(new mapkit.Coordinate(p.lat,p.lon),()=>{const d=document.createElement('div');d.className='achip';d.title=p.n;d.style.gridTemplateColumns=`repeat(${Math.min(ks.length,6)},22px)`;
+    d.innerHTML=ks.map(([g,c,n,t])=>`<span class="ai" style="background:${c}" title="${esc(t)}"><svg viewBox="0 0 24 24" width="13" height="13"><path fill="#fff" d="${ICO[g]}"/></svg>${n>1?`<b>${n}</b>`:''}</span>`).join('');
+    d.addEventListener('click',ev=>{ev.stopPropagation();const o=pOv.find(x=>x.data.p.id===p.id);if(o)showPark(o,false)});return d},{calloutEnabled:false,displayPriority:Math.min(1000,300+ks.length*60),collisionMode:mapkit.Annotation.CollisionMode.Rectangle}))});
+  map.addAnnotations(parkChips)};
+ amenRefresh()}
 const LAY={
  parks(){legend.innerHTML=sw('#43a047','Parks Department property in CB6')+sw('#a5d6a7','Prospect Park, next door')+'<span>Tap a park for its card</span>'},
  insp(){legend.innerHTML='<span><b>Park color</b> = share of inspections rated acceptable overall:</span>'+[[95,'95% or more'],[85,'85 to 94%'],[70,'70 to 84%'],[50,'50 to 69%'],[0,'under 50%'],[null,'no inspection']].map(([v,t])=>sw(gcol(v),t)).join('')},
  amen(){const gs={},lb={};
-  Object.keys(AM).forEach(k=>{const L=pins[k]||[];if(!L.length)return;gs[k]={a:L.map(x=>pin(x[0],x[1],AM[k][0],AM[k][1],k==='restrooms'?'Restroom at '+x[2]:x[2],k==='restrooms'?'Comfort station':k==='gardens'?[x[3],x[4]==='DPR'?'Parks Department garden':''].filter(Boolean).join(' · '):x[3]||AM[k][2].replace(/s$/,''),k==='monuments'?x[4]:k==='fountains'||k==='spray'||k==='play'?parkN(x[x.length-1]):''))};lb[k]=[AM[k][0],AM[k][1],`${AM[k][2]} (${L.length})`]});
+  Object.keys(AM).forEach(k=>{const L=pins[k]||[];if(!L.length)return;gs[k]={near:true,a:L.map(x=>pin(x[0],x[1],AM[k][0],AM[k][1],k==='restrooms'?'Restroom at '+x[2]:x[2],k==='restrooms'?'Comfort station':k==='gardens'?[x[3],x[4]==='DPR'?'Parks Department garden':''].filter(Boolean).join(' · '):x[3]||AM[k][2].replace(/s$/,''),k==='monuments'?x[4]:k==='fountains'||k==='spray'||k==='play'?parkN(x[x.length-1]):''))};lb[k]=[AM[k][0],AM[k][1],`${AM[k][2]} (${L.length})`]});
   const bySp={};pins.athletic.forEach(x=>{(bySp[x[3]]=bySp[x[3]]||[]).push(x)});
-  Object.entries(bySp).sort((a,b)=>b[1].length-a[1].length).forEach(([s,L])=>{const t=spOf(s);gs['sp-'+s]={a:L.map(x=>pin(x[0],x[1],t[0],t[1],s+(x[2]?' at '+x[2]:''),x[4]||'',''))};lb['sp-'+s]=[t[0],t[1],`${s} (${L.length})`]});
-  legend.innerHTML='<span style="flex-basis:100%"><b>Show</b>:</span>';toggles(gs,lb,k=>['play','restrooms','pools','spray','dogs','skate'].includes(k))},
+  Object.entries(bySp).sort((a,b)=>b[1].length-a[1].length).forEach(([s,L])=>{const t=spOf(s);gs['sp-'+s]={near:true,a:L.map(x=>pin(x[0],x[1],t[0],t[1],s+(x[2]?' at '+x[2]:''),x[4]||'',''))};lb['sp-'+s]=[t[0],t[1],`${s} (${L.length})`]});
+  legend.innerHTML='<span style="flex-basis:100%"><b>Show</b> (each park shows an icon for every kind it has; zoom in to see each one in place):</span>';toggles(gs,lb,k=>!['fountains','monuments'].includes(k));amenParks()},
  cap(){const gs={},lb={};const L=D.cap.filter(c=>c.lat);
   ['construction','procurement','design','proposed','completed'].forEach(ph=>{const li=L.filter(c=>(c.ph==='design-procurement'?'design':c.ph)===ph);if(!li.length)return;const P=PH[ph];
    gs[ph]={a:li.map(c=>pin(c.lat,c.lon,ph==='completed'?'hammer':'crane',P[0],c.t,[P[1],parkN((c.pid||'').split(',')[0])||c.park,c.fund].filter(Boolean).join(' · '),c.ph==='completed'&&c.dates.constructionactual?'Finished '+mlab(c.dates.constructionactual):''))};lb[ph]=[ph==='completed'?'hammer':'crane',P[0],`${P[1]} (${li.length})`]});
