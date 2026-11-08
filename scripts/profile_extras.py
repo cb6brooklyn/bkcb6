@@ -66,6 +66,8 @@ def map_html(chamber, district, title, sub):
             '<div class="mtools" data-map-toggles hidden></div><div class="mhint">Tap the map anywhere to drop a pin and open that lot.</div></div>') % (title, sub, chamber, district)
 
 
+SEATHIST = ('<!--seathistory--><details class="sec seathist"><summary><h2 style="display:inline">Who has held this seat</h2></summary>'
+            '<div style="margin-top:10px">%s</div></details><!--/seathistory-->')
 done = {'official': 0, 'board': 0}
 for path, kind in pages.items():
     k, _, ident = kind.partition(':')
@@ -114,12 +116,15 @@ for path, kind in pages.items():
                 seatdiv = '<div data-rep-seat="%s" data-boro="%s"></div>' % (office, dist)
             else:
                 seatdiv = '<div data-rep-seat="%s"></div>' % office
-        ins = ''
+        ins = ''; hist = ''
         if mapblock:
             ins += '<!--seatmap-->' + mapblock + '<!--/seatmap-->'
         if seatdiv:
-            ins += '<!--seathistory--><div class="sec"><h2>Who has held this seat</h2>' + seatdiv + '</div><!--/seathistory-->'
+            hist = SEATHIST % seatdiv
         s = s[:he] + '\n' + ins + s[he:]  # the newline goes with the block (strip_block removes it)
+        if hist:   # who has held the seat: closed, at the bottom, above the page's footnote
+            fi = s.find('<div class="pfoot"')
+            s = (s[:fi] + hist + '\n  ' + s[fi:]) if fi > -1 else s.replace('</body>', hist + '\n</body>', 1)
         assert s.count('data-profile-map') <= 1, f
     else:
         s, _ = strip_block(s, '<!--rephistory-->', '<!--/rephistory-->')

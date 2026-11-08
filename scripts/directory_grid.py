@@ -78,7 +78,12 @@ def main():
         if o['type'] in ('citywide', 'statewide', 'ussenate'): boros = list(BORO.values())
         tiles.append([o['name'] + ' \u00b7 ' + re.sub(r'\s*\u00b7.*', '', o.get('seat', '')), '/' + o['slug'] + '/', icon,
                       'Elected officials', OFF_TOPIC.get(o['type'], 'Elected officials'), 0, boros, o.get('district') or 0])
-    groups = ['Elected officials', 'Government agencies', 'Community groups', 'Business improvement districts',
+    # the 59 community boards, by borough, each to its board page
+    for b in J('app/data/civic/boards.json'):
+        logo = f"/app/data/Logos/{b.get('logo') or 'cb' + b['borocd']}.png"
+        logo = logo if os.path.exists(os.path.join(ROOT, logo.lstrip('/'))) else ''
+        tiles.append([b['name'], '/' + b['slug'] + '.html', logo, 'Community boards', b['borough'], 0, [b['borough']], int(b['borocd'][1:])])
+    groups = ['Elected officials', 'Community boards', 'Government agencies', 'Community groups', 'Business improvement districts',
               'Schools, parks and facilities', 'Local businesses']
     groups += sorted({t[3] for t in tiles} - set(groups))
     topics = {}
@@ -86,6 +91,7 @@ def main():
         ts = sorted({t[4] for t in tiles if t[3] == g})
         if g == 'Elected officials': ts = [x for x in OFF_ORDER if x in ts] + [x for x in ts if x not in OFF_ORDER]
         if g == 'Government agencies': ts = ['New York City', 'New York State']
+        if g == 'Community boards': ts = [x for x in ['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'] if x in ts]
         topics[g] = ts
     tiles.sort(key=lambda t: (groups.index(t[3]), topics[t[3]].index(t[4]), t[7], re.sub(r'^the ', '', t[0].lower())))
     # where: boroughs for officials, neighborhoods for everything located in CB6
@@ -93,9 +99,9 @@ def main():
     wheres = {}
     for g in groups:
         ws = {w for t in tiles if t[3] == g for w in t[6]}
-        wheres[g] = [b for b in BORDER if b in ws] if g == 'Elected officials' else sorted(ws, key=lambda w: (-sum(1 for t in tiles if t[3] == g and w in t[6]), w))
+        wheres[g] = [b for b in BORDER if b in ws] if g in ('Elected officials', 'Community boards') else sorted(ws, key=lambda w: (-sum(1 for t in tiles if t[3] == g and w in t[6]), w))
     os.makedirs(os.path.join(ROOT, 'profiles'), exist_ok=True)
-    data = {'groups': [{'name': g, 'topics': topics[g], 'where': wheres[g], 'whereLabel': 'Borough' if g == 'Elected officials' else 'Neighborhood'} for g in groups],
+    data = {'groups': [{'name': g, 'topics': topics[g], 'where': wheres[g], 'whereLabel': 'Borough' if g in ('Elected officials', 'Community boards') else 'Neighborhood'} for g in groups],
             'tiles': [[t[0], t[1], t[2], groups.index(t[3]), topics[t[3]].index(t[4]), t[5], [wheres[t[3]].index(w) for w in t[6]]] for t in tiles]}
     json.dump(data, open(os.path.join(ROOT, 'profiles/tiles.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
     page = open(os.path.join(ROOT, 'scripts/directory_grid.html'), encoding='utf-8').read()
