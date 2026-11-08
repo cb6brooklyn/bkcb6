@@ -27,6 +27,10 @@ h1{margin:0 0 8px;font-size:1.5rem;color:var(--navy);font-family:'DM Sans',sans-
 .chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
 .chips.sub .chip{font-weight:500;font-size:.78rem;padding:6px 11px}
 .chips.sub .chip.on{background:var(--orange);border-color:var(--orange)}
+.chips.where .chip.on{background:#0f766e;border-color:#0f766e}
+.chips .lab{flex:0 0 auto;align-self:center;font-family:'DM Mono',monospace;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:2px}
+.ghead{grid-column:1/-1;margin:10px 0 0;font-family:'DM Mono',monospace;font-size:.74rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:6px}
+.ghead:first-child{margin-top:0}
 .bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 0 12px;font-family:'DM Mono',monospace;font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .flip{display:flex;gap:8px}
 .flip button{font:inherit;font-family:'DM Sans',sans-serif;font-size:.9rem;font-weight:700;letter-spacing:0;text-transform:none;padding:9px 16px;border-radius:10px;border:1px solid var(--navy);background:#fff;color:var(--navy);cursor:pointer}
@@ -51,6 +55,7 @@ h1{margin:0 0 8px;font-size:1.5rem;color:var(--navy);font-family:'DM Sans',sans-
   <div class="search"><input id="q" type="search" placeholder="Search by name" autocomplete="off" aria-label="Search profiles by name"></div>
   <div class="chips" id="groups" role="tablist" aria-label="Sections"></div>
   <div class="chips sub" id="topics" aria-label="Topics"></div>
+  <div class="chips sub where" id="wheres" aria-label="Where"></div>
   <div class="bar"><span id="where"></span><span class="flip"><button type="button" id="prev" aria-label="Previous page">&lsaquo; Prev</button><button type="button" id="next" aria-label="Next page">Next &rsaquo;</button></span></div>
   <div class="cbo-grid" id="grid" aria-live="polite"></div>
   <div class="bar foot"><span id="where2"></span><span class="flip"><button type="button" id="prev2" aria-label="Previous page">&lsaquo; Prev</button><button type="button" id="next2" aria-label="Next page">Next &rsaquo;</button></span></div>
@@ -58,12 +63,12 @@ h1{margin:0 0 8px;font-size:1.5rem;color:var(--navy);font-family:'DM Sans',sans-
 <script>
 window.cboNoLogo = function (img) { var s = document.createElement('span'); s.className = 'cbo-name'; s.textContent = img.alt; img.replaceWith(s); };
 (function () {
-  var D = null, g = 0, t = -1, p = 0, q = '', PER = 24;
+  var D = null, g = 0, t = -1, w = -1, p = 0, q = '', PER = 24;
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function list() {
     var n = q.toLowerCase();
-    return D.tiles.filter(function (x) { return n ? x[0].toLowerCase().indexOf(n) > -1 : (x[3] === g && (t < 0 || x[4] === t)); });
+    return D.tiles.filter(function (x) { return n ? x[0].toLowerCase().indexOf(n) > -1 : (x[3] === g && (t < 0 || x[4] === t) && (w < 0 || x[6].indexOf(w) > -1)); });
   }
   function tile(x) {
     var a = '<a class="cbo-tile" href="' + esc(x[1]) + '"' + (x[5] ? ' target="_blank" rel="noopener noreferrer"' : '') + ' aria-label="' + esc(x[0]) + '" title="' + esc(x[0]) + '">';
@@ -80,24 +85,35 @@ window.cboNoLogo = function (img) { var s = document.createElement('span'); s.cl
     $('topics').innerHTML = q || ts.length < 2 ? '' : ['<button type="button" class="chip' + (t < 0 ? ' on' : '') + '" data-t="-1">All</button>'].concat(ts.map(function (x, i) {
       return '<button type="button" class="chip' + (i === t ? ' on' : '') + '" data-t="' + i + '">' + esc(x) + '</button>';
     })).join('');
+    var ws = D.groups[g].where || [];
+    $('wheres').innerHTML = q || ws.length < 2 ? '' : ['<span class="lab">' + esc(D.groups[g].whereLabel) + '</span><button type="button" class="chip' + (w < 0 ? ' on' : '') + '" data-w="-1">All</button>'].concat(ws.map(function (x, i) {
+      return '<button type="button" class="chip' + (i === w ? ' on' : '') + '" data-w="' + i + '">' + esc(x) + '</button>';
+    })).join('');
   }
   function draw(keepScroll) {
     var L = list(), pages = Math.max(1, Math.ceil(L.length / PER));
     if (p >= pages) p = pages - 1; if (p < 0) p = 0;
-    $('grid').innerHTML = L.length ? L.slice(p * PER, p * PER + PER).map(tile).join('') : '<div class="empty" style="grid-column:1/-1">Nothing matches.</div>';
-    var w = (q ? L.length + ' matching' : (D.groups[g].name + (t > -1 ? ' · ' + D.groups[g].topics[t] : ''))) + ' · page ' + (p + 1) + ' of ' + pages;
-    $('where').textContent = w; $('where2').textContent = 'Page ' + (p + 1) + ' of ' + pages;
+    var last = null, h = '';
+    L.slice(p * PER, p * PER + PER).forEach(function (x) {
+      var k = x[3] + '.' + x[4];
+      if (k !== last) { last = k; h += '<div class="ghead">' + esc((q ? D.groups[x[3]].name + ' · ' : '') + (D.groups[x[3]].topics[x[4]] || D.groups[x[3]].name) + (w > -1 && !q ? ' · ' + D.groups[g].where[w] : '')) + '</div>'; }
+      h += tile(x);
+    });
+    $('grid').innerHTML = L.length ? h : '<div class="empty" style="grid-column:1/-1">Nothing matches.</div>';
+    var lab = (q ? L.length + ' matching' : (D.groups[g].name + (t > -1 ? ' · ' + D.groups[g].topics[t] : '') + (w > -1 ? ' · ' + D.groups[g].where[w] : '') + ' · ' + L.length)) + ' · page ' + (p + 1) + ' of ' + pages;
+    $('where').textContent = lab; $('where2').textContent = 'Page ' + (p + 1) + ' of ' + pages;
     ['prev', 'prev2'].forEach(function (id) { $(id).disabled = p === 0; });
     ['next', 'next2'].forEach(function (id) { $(id).disabled = p >= pages - 1; });
     chips();
-    try { history.replaceState(null, '', '#' + (q ? 'q=' + encodeURIComponent(q) : 'g=' + g + (t > -1 ? '&t=' + t : '')) + (p ? '&p=' + (p + 1) : '')); } catch (e) {}
+    try { history.replaceState(null, '', '#' + (q ? 'q=' + encodeURIComponent(q) : 'g=' + g + (t > -1 ? '&t=' + t : '') + (w > -1 ? '&w=' + w : '')) + (p ? '&p=' + (p + 1) : '')); } catch (e) {}
     if (!keepScroll) { var r = $('groups').getBoundingClientRect(); if (r.top < 0) window.scrollBy(0, r.top - 10); }
   }
   function flip(d) { p += d; draw(); }
   $('prev').onclick = $('prev2').onclick = function () { flip(-1); };
   $('next').onclick = $('next2').onclick = function () { flip(1); };
-  $('groups').onclick = function (e) { var b = e.target.closest('[data-g]'); if (!b) return; g = +b.dataset.g; t = -1; p = 0; q = ''; $('q').value = ''; draw(true); };
+  $('groups').onclick = function (e) { var b = e.target.closest('[data-g]'); if (!b) return; g = +b.dataset.g; t = -1; w = -1; p = 0; q = ''; $('q').value = ''; draw(true); };
   $('topics').onclick = function (e) { var b = e.target.closest('[data-t]'); if (!b) return; t = +b.dataset.t; p = 0; draw(true); };
+  $('wheres').onclick = function (e) { var b = e.target.closest('[data-w]'); if (!b) return; w = +b.dataset.w; p = 0; draw(true); };
   $('q').oninput = function () { q = this.value.trim(); p = 0; draw(true); };
   document.addEventListener('keydown', function (e) { if (e.target.tagName === 'INPUT') return; if (e.key === 'ArrowRight') flip(1); if (e.key === 'ArrowLeft') flip(-1); });
   var sx = null, sy = null;
@@ -112,6 +128,7 @@ window.cboNoLogo = function (img) { var s = document.createElement('span'); s.cl
     if (h.get('q')) { q = h.get('q'); $('q').value = q; }
     if (h.get('g') && D.groups[+h.get('g')]) g = +h.get('g');
     if (h.get('t') && D.groups[g].topics[+h.get('t')] !== undefined) t = +h.get('t');
+    if (h.get('w') && (D.groups[g].where || [])[+h.get('w')] !== undefined) w = +h.get('w');
     if (h.get('p')) p = (+h.get('p') || 1) - 1;
     draw(true);
   }).catch(function () { $('grid').innerHTML = '<div class="empty" style="grid-column:1/-1">The directory did not load. Check your connection and reload.</div>'; });
