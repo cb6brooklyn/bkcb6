@@ -15,7 +15,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FOLDERS = ['park', 'school', 'nypd-sector', 'biz', 'subway', 'citibike', 'library', 'firehouse', 'food-place',
            'culture-place', 'poll-site', 'lift-site', 'childcare', 'vaccine-site', 'agencies']
 DIR_ONLY = ['site-icons/agencies/']                       # logos the agency pages show
-FILES = ['assets/place-profile.css', 'data/calendar-events.json']
+FILES = ['assets/place-profile.css', 'data/calendar-events.json', 'assets/site-bar.js']
 
 def pages():
     out = []
@@ -45,6 +45,16 @@ def main():
         src['dirs']['site/' + d] = d
     for f in FILES:
         src['files']['site/' + f] = f
+    # the flip-through directory (profiles/index.html, scripts/directory_grid.py) and every logo its tiles show,
+    # so the apps' Directory tab opens it from the pack
+    tj = os.path.join(ROOT, 'profiles/tiles.json')
+    if os.path.exists(tj):
+        for f in ('profiles/index.html', 'profiles/tiles.json'):
+            src['files']['site/' + f] = f
+        for t in json.load(open(tj))['tiles']:
+            im = t[2] if len(t) > 2 and isinstance(t[2], str) else ''
+            if im.startswith('/') and os.path.exists(os.path.join(ROOT, im[1:])):
+                src['files']['site' + im] = im[1:]
     json.dump(src, open(ps, 'w'), ensure_ascii=False, indent=0)
     n = 0
     for p in ('data/profile-index.json', 'app/data/civic/profile-index.json'):
