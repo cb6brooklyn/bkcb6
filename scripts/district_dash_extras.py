@@ -18,6 +18,7 @@ BORO = {'Manhattan': '1', 'Bronx': '2', 'Brooklyn': '3', 'Queens': '4', 'Staten 
 
 def main():
     chp = json.load(open('data/health/chp.json'))
+    CHP = list(chp['meta'])
     out = {'chp': {k: {'label': chp['meta'][k]['label'], 'def': chp['meta'][k].get('def', ''), 'years': chp['meta'][k].get('years', ''),
                        'unit': chp['meta'][k].get('unit', ''), 'src': chp['meta'][k].get('src', '')} for k in CHP},
            'chp_source': chp['source'], 'chp_url': chp['url'], 'cd': {}}

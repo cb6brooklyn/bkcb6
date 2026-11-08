@@ -119,6 +119,12 @@
         + '<div class="dd-src">* Estimated. The Health Department publishes these only by ZIP code. Each ZIP code\u2019s counts are split by the share of its land inside the district, which assumes people and cases are spread evenly across the ZIP code, so the figures point the right way but are not exact. ZIP codes counted, with the share of each inside the district: '
         + Z.zips.filter(function (z) { return z[0] !== '99999'; }).map(function (z) { return esc(z[0]) + ' ' + z[1] + '%'; }).join(', ') + '. City figures count only cases with a known ZIP code. Vaccination can read above 100% in some ZIP codes, as the Health Department notes, because its population figures are estimates. Source: ' + esc(X.zip.sources) + '.</div></div>';
     }
+    if (Z && Z.kids && X.zip.kids_labels) {
+      var KL = X.zip.kids_labels, KC = (X.zip.city || {}).kids || {};
+      h += '<div class="dd-card"><h3>Childhood vaccination*</h3><p class="sub">As of ' + esc(X.zip.kids_asof) + ', from the Health Department\u2019s Childhood Vaccination Data, published by ZIP code.</p><div class="dd-tiles" style="margin:0 0 8px">'
+        + ['series', 'mmr', 'hpv', 'flu'].filter(function (k) { return Z.kids[k] != null; }).map(function (k) { return '<div class="dd-tile"><div class="v">' + Z.kids[k] + '%</div><div class="k">' + esc(KL[k]) + '*</div><div class="k" style="margin-top:3px">city ' + (KC[k] != null ? KC[k] + '%' : '\u2013') + '</div></div>'; }).join('')
+        + '</div><div class="dd-src">* Estimated from ZIP codes the same way as the COVID-19 figures above: each ZIP code\u2019s vaccinated children and child population are split by the share of its land inside the district. It can read above 100% where the Health Department\u2019s child population estimate is lower than the number vaccinated. City figures are as the Health Department publishes them. Source: github.com/nychealth/immunization-data; www.nyc.gov/site/doh/data/data-sets/childhood-vaccination-data.page.</div></div>';
+    }
     if (d.boards && d.boards.length) {
       var CD = X.cd || {}, M = (X.cd && X.cd.chp) || {}, C = (X.cd && X.cd.cd) || {};
       var f1 = function (v, u) { return v == null ? '\u2013' : (u === 'percent' ? (Math.round(v * 10) / 10) + '%' : u === 'people' ? fmt(Math.round(v)) : (Math.round(v * 10) / 10)); };
@@ -135,6 +141,17 @@
           + '</tbody></table></div><div class="dd-src">' + esc(X.cd.chp_source) + '. ' + cols.map(function (k) { return esc(M[k].label) + ': ' + esc(M[k].def) + ' (' + esc(M[k].src.replace(/\s+/g, ' ')) + ')'; }).join('. ') + '. Trash and recycling: ' + esc(X.cd.dsny_source) + ', tons collected over the 12 months. * COVID-19 vaccine: estimated from ZIP codes, as above.</div>';
       }
       h += '</div>';
+      if ((X.cd && X.cd.chp) || X.ehdp) {
+        var opts = '', first = '';
+        if (X.cd && X.cd.chp) { opts += '<optgroup label="Community Health Profiles 2026">' + Object.keys(X.cd.chp).filter(function (k) { return k !== 'Overall_Pop'; }).map(function (k) { if (!first) first = 'c:' + k; return '<option value="c:' + k + '">' + esc(X.cd.chp[k].label) + ' (' + esc(X.cd.chp[k].years) + ')</option>'; }).join('') + '</optgroup>'; }
+        if (X.ehdp) {
+          var tp = {}; Object.keys(X.ehdp.m).forEach(function (k) { var m = X.ehdp.m[k]; (tp[m.topic] = tp[m.topic] || []).push(k); });
+          Object.keys(tp).sort().forEach(function (t) { opts += '<optgroup label="' + esc(t) + '">' + tp[t].sort(function (a, b) { return X.ehdp.m[a].name < X.ehdp.m[b].name ? -1 : 1; }).map(function (k) { return '<option value="e:' + k + '">' + esc(X.ehdp.m[k].name) + ' (' + esc(X.ehdp.m[k].period) + ')</option>'; }).join('') + '</optgroup>'; });
+        }
+        h += '<div class="dd-card"><h3>Health and environment by community district</h3><p class="sub">Pick any measure the Health Department publishes by community district. Each is shown as published for each community district this district covers, next to the city.</p>'
+          + '<select data-dd-pick style="width:100%;max-width:100%;font:inherit;font-size:.9rem;padding:8px 10px;border:1.5px solid #e5e2db;border-radius:10px;background:#fff;color:#0d1b4b;margin-bottom:10px">' + opts + '</select><div data-dd-out></div></div>';
+        el.__ddPick = first;
+      }
     }
     h += '<div class="dd-src">Borough figures are as published, one bar per week from ' + esc((W.covid_ed || {}).weeks ? W.covid_ed.weeks[0] : '') + '. '
         + (Wd ? '* Estimated. The Health Department publishes case rates and emergency room visits by United Hospital Fund neighborhood; these are the average of the neighborhoods this district covers, weighted by the share of its land in each: ' + Wd.uhf.map(function (u) { return esc(u[0]) + ' ' + u[1] + '%'; }).join(', ') + '. ' : '')
@@ -142,13 +159,32 @@
     }
     h += '<div class="dd-src">Population: ' + esc(d.population_source) + '. 311: ' + esc(d['311_source']) + '.</div></div>';
     el.innerHTML = h;
+    var sel = el.querySelector('[data-dd-pick]');
+    if (sel) {
+      var out = el.querySelector('[data-dd-out]');
+      var show = function () {
+        var v = sel.value, rows = [], city = null, unit = '', src = '', per = '';
+        if (v.charAt(0) === 'c') { var k = v.slice(2), M = X.cd.chp[k]; unit = M.unit; src = M.def + ' ' + M.src + '. ' + X.cd.chp_source; per = M.years; city = (X.cd.city || {})[k];
+          d.boards.forEach(function (b) { var x = (X.cd.cd[b.cd] || {})[k]; rows.push([b.name.replace(' Community Board ', ' CB'), x]); }); }
+        else { var m = X.ehdp.m[v.slice(2)]; unit = m.type; src = m.src + '. ' + X.ehdp.source; per = m.period; city = m.city;
+          d.boards.forEach(function (b) { rows.push([b.name.replace(' Community Board ', ' CB'), m.v[String(+b.cd)] != null ? m.v[String(+b.cd)] : m.v[b.cd]]); }); }
+        rows.push(['New York City', city]);
+        var vals = rows.map(function (r) { return r[1]; }).filter(function (x) { return x != null; });
+        var mx = Math.max.apply(null, vals.concat([0.0001]));
+        var nf = function (x) { return x == null ? 'not published' : (Math.round(x * 10) / 10).toLocaleString('en-US') + (/percent/i.test(unit) ? '%' : ''); };
+        out.innerHTML = rows.map(function (r, i) { var c = i === rows.length - 1; return '<div class="dd-row"><span' + (c ? ' style="color:#6b6760"' : '') + '>' + esc(r[0]) + '</span><span class="dd-bar"><span style="width:' + (r[1] == null ? 0 : Math.max(1, r[1] / mx * 100)).toFixed(1) + '%;background:' + (c ? '#a8a49c' : '#0f766e') + '"></span></span><span class="n">' + nf(r[1]) + '</span></div>'; }).join('')
+          + '<div class="dd-src">' + esc(per) + (unit && !/percent/i.test(unit) ? ' \u00b7 ' + esc(unit) : '') + '. ' + esc(String(src).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ')) + '</div>';
+      };
+      if (el.__ddPick) sel.value = el.__ddPick;
+      sel.addEventListener('change', show); show();
+    }
   }
   var X = {};
   function go() {
     var j = function (u) { return fetch(u).then(function (r) { return r.json(); }).catch(function () { return null; }); };
     [].forEach.call(document.querySelectorAll('[data-district-dash]'), function (el) {
-      Promise.all([j('/data/dashboards/' + el.getAttribute('data-district-dash') + '.json'), j('/data/dashboards/_cd.json'), j('/data/dashboards/_resp.json'), j('/data/dashboards/_zip.json'), j('/data/dashboards/_wk.json')])
-        .then(function (r) { if (!r[0]) return; X.cd = r[1]; X.resp = r[2]; X.zip = r[3]; X.wk = r[4]; render(el, r[0]); });
+      Promise.all([j('/data/dashboards/' + el.getAttribute('data-district-dash') + '.json'), j('/data/dashboards/_cd.json'), j('/data/dashboards/_resp.json'), j('/data/dashboards/_zip.json'), j('/data/dashboards/_wk.json'), j('/data/dashboards/_ehdp.json')])
+        .then(function (r) { if (!r[0]) return; X.cd = r[1]; X.resp = r[2]; X.zip = r[3]; X.wk = r[4]; X.ehdp = r[5]; render(el, r[0]); });
     });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();

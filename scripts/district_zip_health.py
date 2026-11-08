@@ -42,6 +42,24 @@ def main():
     vax = {r['MODZCTA']: r for r in csv.DictReader(open(os.path.join(NYCH, 'covid-vaccine-data/people/coverage-by-modzcta-allages.csv')))}
     asof_cases = next((r['NUMBER_OF_NYC_RESIDENTS'] for r in csv.DictReader(open(os.path.join(NYCH, 'coronavirus-data/totals/summary.csv'))) if r['MEASURE'] == 'DATE_UPDATED'), '')
     asof_vax = next(iter(vax.values()))['DATE'] if vax else ''
+    # childhood vaccination by ZIP code area (github.com/nychealth/immunization-data), latest quarter published
+    IM = os.path.join(NYCH, 'immunization-data')
+    geo = list(csv.DictReader(open(os.path.join(IM, 'geo/Main_Routine_Vaccine_Geo.csv'))))
+    yq = max((r['YEAR_COVERAGE'], r['QUARTER']) for r in geo)
+    KIDS = {'series': ('4313314', '24 - 35 months', None, 'Two-year-olds with the full 7-vaccine series'),
+            'mmr': ('MMR', '24 - 35 months', None, 'Two-year-olds with the measles (MMR) vaccine'),
+            'hpv': ('HPV', '13 - 17 years', '2 or 3', 'Teens 13 to 17 who finished the HPV vaccine series')}
+    kid = {k: {} for k in KIDS}
+    for r in geo:
+        if (r['YEAR_COVERAGE'], r['QUARTER']) != yq: continue
+        for k, (g, a, dz, _) in KIDS.items():
+            if r['VACCINE_GROUP'] == g and r['AGE_GROUP'] == a and (dz is None or r['DOSES'] == dz):
+                kid[k][r['MODZCTA']] = (float(r['COUNT_PEOPLE_VAC'] or 0), float(r['POP_DENOMINATOR'] or 0))
+    fl = sorted(glob.glob(os.path.join(IM, 'visualizations/Flu_geo_all_*.csv')))[-1]
+    fr = list(csv.DictReader(open(fl)))
+    kid['flu'] = {str(r['MODZCTA']): (float(r['COUNT_PEOPLE_VAC'] or 0), float(r['POP_DENOMINATOR'] or 0)) for r in fr}
+    KIDS['flu'] = (None, None, None, 'Children 6 months to 17 who got a flu shot, ' + fr[0]['YEAR_COVERAGE'].replace(' ', '') + ' season')
+    kids_asof = '%s %s' % (yq[1], yq[0])
     keys = list(zips)
     tree = STRtree([zips[k] for k in keys])
     targets = []
@@ -67,12 +85,16 @@ def main():
                 acc['cases'] += share * float(c['COVID_CASE_COUNT']); acc['deaths'] += share * float(c['COVID_DEATH_COUNT']); acc['pop_c'] += share * float(c['POP_DENOMINATOR'])
             if v:
                 acc['vax'] += share * float(v['COUNT_1PLUS_CUMULATIVE']); acc['pop_v'] += share * float(v['POP_DENOMINATOR'])
+            for k in kid:
+                kv = kid[k].get(z)
+                if kv: acc.setdefault('k_' + k, [0.0, 0.0]); acc['k_' + k][0] += share * kv[0]; acc['k_' + k][1] += share * kv[1]
             parts.append([z, round(share * 100, 1)])
         if not parts: continue
         out['d'][name] = {'cases': round(acc['cases']), 'deaths': round(acc['deaths']), 'pop': round(acc['pop_c']),
                           'case_rate': round(acc['cases'] / acc['pop_c'] * 100000) if acc['pop_c'] else None,
                           'death_rate': round(acc['deaths'] / acc['pop_c'] * 100000, 1) if acc['pop_c'] else None,
                           'vax_1plus': round(acc['vax']), 'vax_pct': round(acc['vax'] / acc['pop_v'] * 100, 1) if acc['pop_v'] else None,
+                          'kids': {k: round(acc['k_' + k][0] / acc['k_' + k][1] * 100, 1) for k in kid if acc.get('k_' + k) and acc['k_' + k][1]},
                           'zips': sorted(parts, key=lambda x: -x[1])}
     cs = [case[z] for z in case]
     out['city'] = {'cases': sum(int(r['COVID_CASE_COUNT']) for r in cs), 'deaths': sum(int(r['COVID_DEATH_COUNT']) for r in cs),
@@ -81,8 +103,20 @@ def main():
     out['city']['death_rate'] = round(out['city']['deaths'] / out['city']['pop'] * 100000, 1)
     vs = list(vax.values())
     out['city']['vax_pct'] = round(sum(float(r['COUNT_1PLUS_CUMULATIVE']) for r in vs) / sum(float(r['POP_DENOMINATOR']) for r in vs) * 100, 1)
+    out['kids_labels'] = {k: v[3] for k, v in KIDS.items()}
+    out['kids_asof'] = kids_asof
+    # citywide as the Health Department publishes it (borough files, 'Citywide' row)
+    out['city']['kids'] = {}
+    for r in (r for f in glob.glob(os.path.join(IM, 'visualizations/*borough*.csv')) for r in csv.DictReader(open(f))):
+        if r.get('BOROUGH') != 'Citywide': continue
+        y, q = r['YEAR_COVERAGE'], r['QUARTER']
+        for k, (g, a, dz, _) in KIDS.items():
+            if k == 'flu': hit = r['VACCINE_GROUP'] == 'Flu' and r['AGE_GROUP'] == '6 months - 17 years' and y.replace(' ', '') == fr[0]['YEAR_COVERAGE'].replace(' ', '') and q == fr[0]['QUARTER']
+            else: hit = (y, q) == yq and r['VACCINE_GROUP'] == g and r['AGE_GROUP'] == a and (dz is None or r['DOSES'] == dz)
+            if hit and k not in out['city']['kids']: out['city']['kids'][k] = float(r['PERC_VAC'])
+    out['sources'] += '; childhood vaccination: immunization-data (geo/Main_Routine_Vaccine_Geo.csv, visualizations/' + os.path.basename(fl) + ')'
     json.dump(out, open('data/dashboards/_zip.json', 'w'), separators=(',', ':'))
-    print(len(out['d']), 'areas;', out['cases_asof'], out['vax_asof'], json.dumps(out['d'].get('cb-306')), json.dumps(out['city']))
+    print(out['kids_asof'], out['city']['kids']); print(len(out['d']), 'areas;', out['cases_asof'], out['vax_asof'], json.dumps(out['d'].get('cb-306')), json.dumps(out['city']))
 
 if __name__ == '__main__':
     main()
