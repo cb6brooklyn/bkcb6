@@ -184,6 +184,15 @@ details summary{cursor:pointer;font-weight:700;color:var(--navy);font-size:.85re
 .ps-what{font-weight:800;font-size:1.05rem;text-transform:uppercase;line-height:1.15}.ps-sub{font-weight:600;font-size:.86rem}.ps-meta{font-size:.76rem;color:#d7e3da;line-height:1.35}
 .ps-note{font-size:.72rem;color:#6b7280;margin-top:6px}
 @media(max-width:420px){.ps-leaf svg{width:72px;height:72px;padding:10px}.ps-name{font-size:1.05rem}}
+.pkname{background:#22392b;padding:4px;border-radius:4px;box-shadow:0 3px 10px rgba(0,0,0,.4);font-family:'DM Sans',sans-serif;color:#efe3c4;text-align:center;pointer-events:none}
+.pkname.tap{pointer-events:auto;cursor:pointer;position:relative;transform:translateY(-10px)}
+.pkname.tap:after{content:'';position:absolute;left:50%;bottom:-9px;margin-left:-8px;border:8px solid transparent;border-top:9px solid #22392b;border-bottom:0}
+.pkname.hov{position:fixed;z-index:50}
+.pkin{border:2px solid #efe3c4;border-radius:2px;padding:10px 16px 9px;min-width:110px;max-width:220px}
+.pkn{font-weight:700;font-size:15px;letter-spacing:.14em;line-height:1.3}
+.pkl{width:44px;height:44px;border:1.5px solid #efe3c4;border-radius:50%;margin:8px auto 2px;display:flex;align-items:center;justify-content:center}.pkl svg{width:30px;height:30px}
+.pkm{font-size:10.5px;font-weight:500;margin-top:7px;color:#d9d0b6;letter-spacing:.02em}
+.pku{font-size:10.5px;font-weight:700;color:#ffd400;margin-top:2px}
 </style>
 </head>
 <body><script src="/assets/site-bar.js?v=1" defer></script><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:6px 0"><img src="/appstore-badge.png" alt="Download on the App Store" height="34" style="height:34px;width:auto;vertical-align:middle"></a><script>(function(){try{var a=document.getElementById("asb"),q=/[?&]app=1\b/.test(location.search);if(q)sessionStorage.setItem("bkapp","1");if(location.protocol==="bkcb:"||q||sessionStorage.getItem("bkapp")==="1"||/^bkcb:/.test(document.referrer)){a.style.display="none"}}catch(e){}})();</script>
@@ -487,9 +496,22 @@ function parkHTML(p){const i=p.insp,l=i.rows[0];
   `<div class="bq"><a href="${p.url}" target="_blank" rel="noopener">${esc(p.n)} on nycgovparks.org ↗</a></div>`}
 function showPark(o,fly){if(!o)return;if(hiPark!==o){const prev=hiPark;hiPark=o;if(prev)prev.style=pStyle(prev.data.p,false);o.style=pStyle(o.data.p,true)}
  const p=o.data.p;if(parkLabel)map.removeAnnotation(parkLabel);
- parkLabel=new mapkit.Annotation(new mapkit.Coordinate(p.lat,p.lon),()=>{const d=document.createElement('div');d.className='blab';d.innerHTML=`<span class="bg" style="background:${gcol(p.insp.o)};color:${gtxt(p.insp.o)};font-size:.8rem">${p.insp.o==null?'–':Math.round(p.insp.o)+'%'}</span><span class="bt"><b>${esc(p.n)}</b><i>${p.acres} acres${p.insp.n?' · '+p.insp.o+'% acceptable':''}</i><u>More info ↓</u></span>`;d.onclick=ev=>{ev.stopPropagation();info.scrollIntoView({behavior:'smooth',block:'start'})};return d},{anchorOffset:new DOMPoint(0,40),displayPriority:mapkit.Annotation.DisplayPriority.Required,collisionMode:mapkit.Annotation.CollisionMode.None});
+ parkLabel=new mapkit.Annotation(new mapkit.Coordinate(p.lat,p.lon),()=>{const d=document.createElement('div');d.className='pkname tap';d.innerHTML=pkSign(p,true);d.onclick=ev=>{ev.stopPropagation();info.scrollIntoView({behavior:'smooth',block:'start'})};return d},{anchorOffset:new DOMPoint(0,0),displayPriority:mapkit.Annotation.DisplayPriority.Required,collisionMode:mapkit.Annotation.CollisionMode.None});
+ pkHov.style.display='none';
  map.addAnnotation(parkLabel);info.innerHTML=parkHTML(p);info.style.display='block';
  if(fly)map.showItems([o],{animate:true,padding:new mapkit.Padding(70,40,40,40)})}
+const pkLeaf=`<svg viewBox="0 0 24 24"><path fill="none" stroke="#efe3c4" stroke-width="1.1" stroke-linejoin="round" d="${ICO.maple}"/></svg>`;
+function pkSign(p,more){return `<div class="pkin"><div class="pkn">${(w=>w.length<=4?w.map(esc).join('<br>'):esc(w.join(' ')))(p.n.toUpperCase().split(/\s+/))}</div><div class="pkl">${pkLeaf}</div>${more?`<div class="pkm">${p.acres} acres${p.insp.n?' · '+p.insp.o+'% acceptable':''}</div><div class="pku">More info ↓</div>`:''}</div>`}
+const pkHov=document.createElement('div');pkHov.className='pkname hov';pkHov.style.display='none';document.body.appendChild(pkHov);
+const pkBox=PK.map(p=>{let a=1e9,b=1e9,c=-1e9,d=-1e9;(p.g.type==='Polygon'?[p.g.coordinates]:p.g.coordinates).forEach(q=>q[0].forEach(([x,y])=>{a=Math.min(a,x);b=Math.min(b,y);c=Math.max(c,x);d=Math.max(d,y)}));return[a,b,c,d]});
+const inRing=(x,y,r)=>{let k=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const[xi,yi]=r[i],[xj,yj]=r[j];if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi)k=!k}return k};
+const parkAt=(x,y)=>{for(let i=0;i<PK.length;i++){const b=pkBox[i];if(x<b[0]||x>b[2]||y<b[1]||y>b[3])continue;const g=PK[i].g;for(const q of(g.type==='Polygon'?[g.coordinates]:g.coordinates)){if(inRing(x,y,q[0])&&!q.slice(1).some(h=>inRing(x,y,h)))return PK[i]}}return null};
+if(matchMedia('(hover:hover) and (pointer:fine)').matches){let raf=0,cur=null;const me=document.getElementById('map');
+ me.addEventListener('mousemove',e=>{if(raf)return;const cx=e.clientX,cy=e.clientY,px=e.pageX,py=e.pageY;raf=requestAnimationFrame(()=>{raf=0;let c;try{c=map.convertPointOnPageToCoordinate(new DOMPoint(px,py))}catch(_){return}
+  const p=parkAt(c.longitude,c.latitude);if(!p||(hiPark&&hiPark.data.p===p)){pkHov.style.display='none';cur=null;me.style.cursor='';return}
+  if(p!==cur){cur=p;pkHov.innerHTML=pkSign(p,false)}me.style.cursor='pointer';pkHov.style.display='block';
+  const w=pkHov.offsetWidth,h=pkHov.offsetHeight;pkHov.style.left=Math.max(6,Math.min(innerWidth-w-6,cx-w/2))+'px';pkHov.style.top=(cy-h-18<6?cy+22:cy-h-18)+'px'})});
+ me.addEventListener('mouseleave',()=>{pkHov.style.display='none';cur=null});}
 const HINT='<span class="hint"></span><span class="bsw" style="vertical-align:-3px;margin-right:8px"></span><b>Tap any park</b>. It turns yellow and its inspections, playgrounds, courts, capital projects and events show here.';
 window.clearPark=()=>{const prev=hiPark;hiPark=null;if(prev)prev.style=pStyle(prev.data.p,false);if(parkLabel){map.removeAnnotation(parkLabel);parkLabel=null}info.innerHTML=HINT;info.style.display='block'};
 info.innerHTML=HINT;info.style.display='block';
