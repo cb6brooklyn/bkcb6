@@ -827,7 +827,7 @@
     var toggleBtn = {};
     function setLayer(key, on) {
       var b = toggleBtn[key];
-      if (b) b.classList.toggle('on', on);
+      if (b) { b.classList.toggle('on', on); if (b._paint) b._paint(on); }
       if (on) {
         return Promise.resolve(layers[key].load()).then(function () {
           if (!b || b.classList.contains('on')) {
@@ -840,17 +840,91 @@
       if (layers[key].legend) showLegend(false);
       return Promise.resolve();
     }
-    function addToggle(key, label) {
-      if (!toggleWrap || !layers[key]) return;
+    // the toggles look like the chips on the apps' Home map: an icon tile in the layer's color (or the body's seal)
+    // and a plain name; a chip that is on fills with its color
+    var G = {
+      grid: '<path d="M4 4h4v4H4zM10 4h4v4h-4zM16 4h4v4h-4zM4 10h4v4H4zM10 10h4v4h-4zM16 10h4v4h-4zM4 16h4v4H4zM10 16h4v4h-4zM16 16h4v4h-4z"/>',
+      map: '<path d="M3 5.5 8.5 3.5l7 2.5 5.5-2v14.5l-5.5 2-7-2.5L3 20z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8.5 3.5v14.5M15.5 6v14.5" stroke="currentColor" stroke-width="1.8"/>',
+      train: '<path d="M7 3h10a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3zm0 3v4h10V6zm1 7.2a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zm8 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zM7 19h2l-1.5 2.5h-2zm8 0h2l1.5 2.5h-2z"/>',
+      bus: '<path d="M6 3h12a2 2 0 0 1 2 2v12a2 2 0 0 1-1 1.7V21h-3v-2H8v2H5v-2.3A2 2 0 0 1 4 17V5a2 2 0 0 1 2-2zm0 3v6h12V6zm1.5 8.5a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zm9 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z"/>',
+      stop: '<circle cx="12" cy="9" r="5"/><path d="M11 13h2v8h-2z"/>',
+      bike: '<circle cx="6" cy="16" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="16" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6 16l4-7h5l3 7M10 9l2 7h-6M13 6h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+      gauge: '<path d="M12 4a9 9 0 0 0-9 9 9 9 0 0 0 1.4 4.8h15.2A9 9 0 0 0 21 13a9 9 0 0 0-9-9zm4.6 4.2-3.3 5.3a1.6 1.6 0 1 1-2.2-1.6z"/>',
+      tree: '<path d="M12 2a5 5 0 0 0-4.6 3A4.5 4.5 0 0 0 4 9.5 4.5 4.5 0 0 0 8.5 14H11v4.5H8.5V21h7v-2.5H13V14h2.5A4.5 4.5 0 0 0 20 9.5 4.5 4.5 0 0 0 16.6 5 5 5 0 0 0 12 2z"/>',
+      school: '<path d="M12 3 1 9l11 6 9-4.9V17h2V9zM5 13.2V17c0 1.7 3.1 3.5 7 3.5s7-1.8 7-3.5v-3.8l-7 3.8z"/>',
+      child: '<circle cx="12" cy="5" r="2.6"/><path d="M8.5 9h7l1.5 6h-2.2l-.8 6h-4l-.8-6H7z"/>',
+      book: '<path d="M4 4.5C6.5 3.5 9.5 3.5 11.2 5v15c-1.7-1.5-4.7-1.5-7.2-.5zM12.8 5c1.7-1.5 4.7-1.5 7.2-.5v15c-2.5-1-5.5-1-7.2.5z"/>',
+      shot: '<path d="M10 3h4v2h-1v2h3v2h-1v9l-3 3-3-3V9H8V7h3V5h-1z"/>',
+      shield: '<path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/>',
+      people: '<circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="8" r="3"/><path d="M2 19c0-3.3 2.7-6 6-6s6 2.7 6 6zM13.5 19c0-1.7-.6-3.3-1.6-4.6.9-.9 2.2-1.4 4.6-1.4 3.3 0 5.5 2.7 5.5 6z"/>',
+      store: '<path d="M3 4h18l1 5a3 3 0 0 1-5 2.2A3 3 0 0 1 12 11a3 3 0 0 1-5 .2A3 3 0 0 1 2 9zM4 13h16v8H4zm4 2v4h4v-4z"/>',
+      home: '<path d="M12 3 2 11h3v10h5v-6h4v6h5V11h3z"/>',
+      columns: '<path d="M12 2 2 7h20zM4 9h3v9H4zm6.5 0h3v9h-3zM17 9h3v9h-3zM2 20h20v2H2z"/>'
+    };
+    var CHIP = {
+      landuse: ['#8a5a2b', 'grid'], zoning: ['#7c3aed', 'map'], transport: ['#0039a6', 'train'], busroutes: ['#2563eb', 'bus'],
+      busstops: ['#3b82f6', 'stop'], citibike: ['#0f7cc4', 'bike'], speed: ['#dc2626', 'gauge'], parks: ['#15803d', 'tree'],
+      schools: ['#4242d7', 'school'], childcare: ['#db2777', 'child'], libraries: ['#3d5aad', 'book'], vaccines: ['#0f7b6c', 'shot'],
+      schooldistricts: ['#4242d7', 'school'], landmarks: ['#7a5c2e', null, '/assets/map-chips/lpc.png'], nypd: ['#1e3a8a', 'shield'],
+      fire: ['#b91c1c', null, '/assets/map-chips/fdny.png'], bids: ['#ea580c', 'store'], rents: ['#0f766e', 'home'],
+      'overlap-council': ['#0d1b4b', null, '/assets/map-chips/council.png'], 'overlap-assembly': ['#1a7a4a', null, '/assets/map-chips/assembly.png'],
+      'overlap-senate': ['#0f766e', null, '/assets/map-chips/senate.png'], 'overlap-congress': ['#b45309', null, '/assets/map-chips/congress.png'],
+      'overlap-cb': ['#be185d', 'people']
+    };
+    (function () {
+      if (document.getElementById('pmap-chip-css')) return;
+      var st = document.createElement('style'); st.id = 'pmap-chip-css';
+      st.textContent = '.mtools{gap:8px !important}'
+        + '.mtools .mtog{display:inline-flex;align-items:center;gap:9px;font-family:"DM Sans",sans-serif !important;font-size:.92rem !important;font-weight:600 !important;letter-spacing:0 !important;text-transform:none !important;color:#0d1b4b !important;background:#fff !important;border:1.5px solid #e5e2db !important;border-radius:999px !important;padding:5px 14px 5px 5px !important;cursor:pointer;line-height:1.2;text-align:left}'
+        + '.mtools .mtog .ic{flex:0 0 auto;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff}'
+        + '.mtools .mtog .ic svg{width:19px;height:19px;fill:currentColor}'
+        + '.mtools .mtog .ic.seal{border-radius:50%;background:#fff;overflow:hidden}'
+        + '.mtools .mtog .ic.seal img{width:100%;height:100%;object-fit:contain;display:block}'
+        + '.mtools .mtog.on{color:#fff !important}'
+        + '.mtools .mtog.on .ic:not(.seal){background:#fff !important}'
+        + '.mtools .mtog .tx small{display:block;font-size:.72rem;font-weight:500;opacity:.75}'
+        + '.mtools .mtsec{flex:0 0 100%;font-family:"DM Mono",monospace;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:#6b6760;font-weight:700;margin:10px 0 0}';
+      document.head.appendChild(st);
+    })();
+    function chipFor(key) {
+      var k = key.replace(/^minor-/, 'overlap-');
+      return CHIP[k] || ['#0d1b4b', 'map'];
+    }
+    function makeChip(key, label) {
+      var c = chipFor(key);
       var b = document.createElement('button');
       b.type = 'button';
       b.className = 'mtog';
-      b.textContent = label;
-      toggleBtn[key] = b;
+      var ic = document.createElement('span');
+      if (c[2]) { ic.className = 'ic seal'; ic.innerHTML = '<img src="' + c[2] + '" alt="">'; }
+      else { ic.className = 'ic'; ic.style.background = c[0]; ic.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + G[c[1]] + '</svg>'; }
+      var tx = document.createElement('span'); tx.className = 'tx'; tx.textContent = label;
+      b.appendChild(ic); b.appendChild(tx);
       b.addEventListener('click', function () {
-        setLayer(key, !b.classList.contains('on'));
+        var on = !b.classList.contains('on');
+        setLayer(key, on);
       });
+      b._paint = function (on) {
+        b.style.setProperty('background', on ? c[0] : '#fff', 'important');
+        b.style.setProperty('border-color', on ? c[0] : '#e5e2db', 'important');
+        if (!c[2]) ic.style.color = on ? c[0] : '#fff';
+      };
+      return b;
+    }
+    function setChipText(b, label, sub) {
+      var tx = b && b.querySelector('.tx'); if (!tx) return;
+      tx.textContent = label;
+      if (sub) { var sm = document.createElement('small'); sm.textContent = sub; tx.appendChild(sm); }
+    }
+    function addToggle(key, label) {
+      if (!toggleWrap || !layers[key]) return;
+      var b = makeChip(key, label);
+      toggleBtn[key] = b;
       toggleWrap.appendChild(b);
+    }
+    function addSection(text) {
+      if (!toggleWrap) return;
+      var d = document.createElement('div'); d.className = 'mtsec'; d.textContent = text; toggleWrap.appendChild(d);
     }
 
     // a view-scoped layer goes stale the moment the map moves
@@ -871,49 +945,43 @@
       startDefaults.done = true;
       setLayer('zoning', true);
     }
-    OVERLAPS.forEach(function (k) {
-      if (!bidSlug && k === chamber) return;
-      addToggle('overlap-' + k, 'Overlapping ' + CHAMBERS[k].label.toLowerCase());
-    });
-
     // once the overlap index is in: drop toggles with nothing in this district, and say which ones each shows
     ovxReady.then(function () {
       if (!OVX) return;
-      var NAME = { council: 'Council districts', assembly: 'Assembly districts', senate: 'Senate districts', congress: 'Congressional districts', cb: 'Community boards' };
+      var NAME = { council: 'City Council', assembly: 'State Assembly', senate: 'State Senate', congress: 'Congress', cb: 'Community boards' };
       var BN = { '1': 'MN', '2': 'BX', '3': 'BK', '4': 'QN', '5': 'SI' };
-      function setT(key, kind, label, fmt) {
+      var FMT = { cb: function (c) { return BN[c.charAt(0)] + parseInt(c.slice(1), 10); }, congress: function (n) { return 'NY-' + n; } };
+      var WORD = { council: 'District', assembly: 'District', senate: 'District', congress: '', cb: '' };
+      function ids(k, l) { var f = FMT[k] || String; var w = l.map(f).join(', '); return (WORD[k] ? (l.length > 1 ? 'Districts ' : 'District ') : '') + w; }
+      function setT(key, kind, label, sub) {
         var b = toggleBtn[key]; if (!b) return;
         var l = ovxList(kind);
         if (!l) return;
         if (!l.length) { b.remove(); delete toggleBtn[key]; return; }
-        b.textContent = label + (l.length <= 8 ? ' ' + l.map(fmt || String).join(', ') : ' (' + l.length + ')');
+        setChipText(b, label, sub(l));
       }
-      // the small but real overlaps (a few blocks, from the election districts) get a toggle of their own
+      // the small but real overlaps (a few blocks, from the election districts) get a chip of their own
       OVERLAPS.forEach(function (k) {
         var l = ovxList(k + '_minor'); if (!l || !l.length || (!bidSlug && k === chamber)) return;
         var key = 'minor-' + k; layers[key] = overlapLayer(k, k + '_minor');
-        var fmt = k === 'cb' ? function (c) { return BN[c.charAt(0)] + parseInt(c.slice(1), 10); } : k === 'congress' ? function (n) { return 'NY-' + n; } : String;
-        var after = toggleBtn['overlap-' + k];
-        var b = document.createElement('button'); b.type = 'button'; b.className = 'mtog';
-        b.textContent = NAME[k] + ', a few blocks: ' + l.map(fmt).join(', ');
+        var b = makeChip(key, NAME[k]); setChipText(b, NAME[k] + ', a few blocks', ids(k, l));
         toggleBtn[key] = b;
-        b.addEventListener('click', function () { setLayer(key, !b.classList.contains('on')); });
+        var after = toggleBtn['overlap-' + k];
         if (after && after.parentNode) after.parentNode.insertBefore(b, after.nextSibling);
-        else if (toggleWrap) toggleWrap.insertBefore(b, toggleWrap.firstChild);
+        else if (toggleWrap) toggleWrap.appendChild(b);
       });
-      OVERLAPS.forEach(function (k) {
-        setT('overlap-' + k, k, NAME[k], k === 'cb' ? function (c) { return BN[c.charAt(0)] + parseInt(c.slice(1), 10); } : k === 'congress' ? function (n) { return 'NY-' + n; } : null);
-      });
-      setT('schooldistricts', 'school', 'School districts');
-      setT('nypd', 'precinct', 'NYPD precincts');
-      setT('fire', 'fire', 'Fire battalions');
-      setT('bids', 'bid', 'Business improvement districts', function () { return ''; });
-      setT('landmarks', 'historic', 'Historic districts', function () { return ''; });
-      ['bids', 'landmarks'].forEach(function (k) { var b = toggleBtn[k], l = ovxList(k === 'bids' ? 'bid' : 'historic'); if (b && l) b.textContent = (k === 'bids' ? 'Business improvement districts' : 'Historic districts') + ' (' + l.length + ')'; });
+      OVERLAPS.forEach(function (k) { setT('overlap-' + k, k, NAME[k], function (l) { return ids(k, l); }); });
+      setT('schooldistricts', 'school', 'School districts', function (l) { return (l.length > 1 ? 'Districts ' : 'District ') + l.join(', '); });
+      setT('nypd', 'precinct', 'NYPD precincts', function (l) { return l.map(function (n) { return n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] && !(n % 100 >= 11 && n % 100 <= 13) ? { 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] : 'th'); }).join(', '); });
+      setT('fire', 'fire', 'Fire battalions', function (l) { return (l.length > 1 ? 'Battalions ' : 'Battalion ') + l.join(', '); });
+      setT('bids', 'bid', 'Business improvement districts', function (l) { return l.length + ' in the district'; });
+      setT('landmarks', 'historic', 'Historic districts', function (l) { return l.length + ' in the district'; });
     });
 
     // the toggle strip starts closed so it does not swallow the page
     var togBtn = el.parentNode.querySelector('[data-map-toggle-btn]');
+    // as on the apps' Home map, the chips are always out: no button to open them
+    if (togBtn && toggleWrap) { toggleWrap.hidden = false; togBtn.style.display = 'none'; }
     if (togBtn && toggleWrap) {
       togBtn.addEventListener('click', function () {
         var on = toggleWrap.hidden;
@@ -921,24 +989,31 @@
         togBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
       });
     }
+    addSection('On the map');
+    addToggle('landuse', 'Land use');
+    addToggle('zoning', 'Zoning');
     addToggle('transport', 'Subway and bike lanes');
     addToggle('busroutes', 'Bus routes');
     addToggle('busstops', 'Bus stops');
     addToggle('citibike', 'Citi Bike');
     addToggle('speed', 'Speed limits');
-    addToggle('landuse', 'Land use');
-    addToggle('zoning', 'Zoning');
     addToggle('parks', 'Parks');
     addToggle('schools', 'Schools');
     addToggle('childcare', 'Child care and pre-K');
     addToggle('libraries', 'Libraries');
     addToggle('vaccines', 'Vaccine sites');
-    addToggle('schooldistricts', 'School districts');
-    addToggle('landmarks', 'Landmarks');
-    addToggle('nypd', 'NYPD precincts');
-    addToggle('fire', 'Fire battalions');
+    addToggle('landmarks', 'Historic districts');
     addToggle('bids', 'Business improvement districts');
     addToggle('rents', 'Rents');
+    addSection('What overlaps it');
+    var OVNAME = { council: 'City Council', assembly: 'State Assembly', senate: 'State Senate', congress: 'Congress', cb: 'Community boards' };
+    OVERLAPS.forEach(function (k) {
+      if (!bidSlug && k === chamber) return;
+      addToggle('overlap-' + k, OVNAME[k]);
+    });
+    addToggle('schooldistricts', 'School districts');
+    addToggle('nypd', 'NYPD precincts');
+    addToggle('fire', 'Fire battalions');
 
     // ---- address search and pin drop ----
     var form = el.parentNode.querySelector('[data-map-search]') || el.parentNode.querySelector('.msearch');
