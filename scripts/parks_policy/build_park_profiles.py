@@ -72,6 +72,8 @@ def head(title, desc, slug):
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/place-profile.css?v=2">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js"></script><script src="/assets/mapkit-leaflet.js"></script>
 <style>
 .psn{{display:inline-block;background:#22392b;padding:3px;border-radius:3px;margin:10px 0 4px;color:#efe3c4;text-align:center}}
 .psn>div{{border:1.5px solid #efe3c4;padding:7px 14px 6px}}
@@ -217,6 +219,7 @@ def page(pid):
           f'    {sign(name)}\n    <h1>{E(name)}</h1>\n    <div class="pseat">{E(ty)}{" &middot; " + E(nb) if nb else ""} &middot; {acres:,.2f} acres</div>\n  </div>\n')
     if src.get('about'): h += sec('What it is', ''.join(f'<p>{E(x)}</p>' for x in src['about']))
     h += sec('Details', kv(facts(pid, ps) + hours(pid)) + chips(pid, ps, slug))
+    h += mapsec(p0, name, acres)
     w = whats_here(pid, ps, src)
     if w: h += sec("What's here", w)
     if src.get('history'): h += sec('History', ''.join(f'<p>{E(x)}</p>' for x in src['history']) + f'<p class="subnote">From NYC Parks\' history of the park (its Historical Signs Project), in our words.</p>')
@@ -230,11 +233,22 @@ def page(pid):
     h += foot(pid in S.GT)
     return slug, h
 
+def mapsec(p, name, acres, sub=False):
+    z = 16 if acres > 5 else 18 if acres < .3 else 17
+    m = ('<details class="mapwrap" open><summary>Map of the park<span class="msub">zoning, boundary, overlaps, land use</span><span class="marr2">&#9660;</span></summary>'
+         f'<div class="mapinner"><div class="mapttl">{E(p["loc"] or name)} <span>the park, its block and the zoning around it</span></div>'
+         '<div class="msearch"><input type="search" placeholder="Search an address to drop a pin" autocomplete="off"><button type="button">Find</button><button type="button" class="mreset" data-map-reset>Reset</button></div>'
+         f'<div class="pmap" id="map-{p["id"]}" data-profile-map data-chamber="cb" data-district="306" data-start-zoning="1" data-point-lat="{p["lat"]}" data-point-lng="{p["lon"]}" data-point-zoom="{z}" '
+         f'data-point-label="{E(name)}" data-point-icon="/park/park-pin.svg" data-point-icon-w="200" data-point-icon-h="200"></div>'
+         '<div class="mstat" data-map-status></div><button type="button" class="mtoggle" aria-expanded="false" data-map-toggle-btn><span style="flex:1;text-align:left">Add to the map</span><span class="marr">&#9660;</span></button>'
+         '<div class="mtools" data-map-toggles hidden></div><div class="mhint">Tap the map anywhere to drop a pin and open that lot.</div></div></details>')
+    return m if sub else f'  <div class="sec"><h2>Where it is</h2>\n    {m}\n  </div>\n'
+
 def foot(garden=False):
     return ('  <div class="pfoot">Sources: NYC Parks\' page and history for each park (nycgovparks.org); NYC Parks Properties, Parks Inspection Program, '
             'facilities and Capital Project Tracker data and the Parks sign inventory (NYC Open Data)' + ('; GreenThumb Garden Info (NYC Open Data)' if garden else '') +
             '; New Yorkers for Parks report cards and Open Space Profile (ny4p.org).<br>\n'
-            '  <a href="/parks-policy/">Parks in CB6</a> &middot; <a href="/park/cb6-small-spaces.html">Small park spaces in CB6</a> &middot; <a href="/">bkcb6.app</a></div>\n</div>\n</body></html>\n')
+            '  <a href="/parks-policy/">Parks in CB6</a> &middot; <a href="/park/cb6-small-spaces.html">Small park spaces in CB6</a> &middot; <a href="/">bkcb6.app</a></div>\n</div>\n<script src="/assets/profile-map.js?v=20261026lbl"></script>\n</body></html>\n')
 
 def small_page():
     name = 'Small park spaces in CB6'
@@ -252,6 +266,7 @@ def small_page():
         nm = p['n'] if p['n'] != 'Park' else f'Unnamed ({p["loc"] or i})'
         body += (f'<div class="sm" id="{i}"><h3>{E(nm)}</h3>' + kv([('Where', E(p['loc'] or '')), ('Size', f'{p["acres"]} acres, about {round(p["acres"] * 43560, -1):,.0f} square feet'),
                  ('Type', E(TYPE.get(p['type'], p['type']))), ('Parks ID', E(i)), ('A park since', E(p['acq']) if p.get('acq') and p['acq'] > '1800' else '')]) +
+                 mapsec(p, nm, p['acres'], True) +
                  ''.join(f'<p>{E(x)}</p>' for x in src.get('about', []) + src.get('history', [])) +
                  (f'<p><b>New Yorkers for Parks:</b> listed as &ldquo;{E(S.NY4P_LIST[i])}&rdquo; among the district\'s parks in its {NY["year"]} Open Space Profile.</p>' if i in S.NY4P_LIST else '') +
                  f'<div class="chips"><a class="chip" href="/parks-policy/#park-{i}">On the map</a>' + (f'<a class="chip" href="https://www.nycgovparks.org/parks/{i}" target="_blank" rel="noopener">NYC Parks page &#8599;</a>' if i not in NO_PAGE else '') + '</div></div>')
