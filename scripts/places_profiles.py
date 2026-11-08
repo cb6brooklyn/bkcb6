@@ -1,4 +1,5 @@
 """Schools, libraries, child care, parks, hospitals and health care, and gyms and athletic facilities in the apps' Directory
+# After this runs, run scripts/parks_policy/park_banners.py to put the NYC Parks sign banner back on each park profile.
 tab, under "Schools, parks and facilities". Run after biz_profiles.py; rerunnable (its own place-* entries are replaced).
 Sources:
   data/facdb-cb6.json            NYC Facilities Database (data.cityofnewyork.us ji82-xba5), community district 306

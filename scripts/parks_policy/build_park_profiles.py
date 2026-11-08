@@ -86,13 +86,35 @@ def head(title, desc, slug):
 .ins{{font-size:.9rem;margin:6px 0;line-height:1.45}}.ins.u b{{color:#c62828}}
 .sm{{border-top:1px solid var(--border,#e2e2e2);padding-top:14px;margin-top:14px}}.sm:first-child{{border:0;margin:0;padding:0}}
 .sm h3{{margin:0 0 4px;font-size:1.05rem}}
-{RULES_CSS}</style>
+{RULES_CSS}{BANNER_CSS}</style>
 </head><body><script src="/assets/site-bar.js?v=1" defer></script><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:8px 0;line-height:0;text-decoration:none"><img src="/appstore-badge.png" alt="Download BKCB6 on the App Store" width="121" height="40" style="height:40px;width:auto;border:0;display:inline-block"></a><script>(function(){{try{{var a=document.getElementById("asb"),q=/[?&]app=1\\b/.test(location.search);if(q)sessionStorage.setItem("bkapp","1");if(location.protocol==="bkcb:"||q||sessionStorage.getItem("bkapp")==="1"||/^bkcb:/.test(document.referrer)){{a.style.display="none"}}}}catch(e){{}}}})();</script>
 <div class="pwrap">
 '''
 
 LEAF = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'parks_logo_leaf100.txt')).read().strip()  # NYC Parks leaf, traced from a Parks sign
 LOGO = f'<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="47.1" fill="none" stroke="#fff" stroke-width="5.8"/><path fill="#fff" d="{LEAF}"/></svg>'
+BANNER_PICS = ['litter', 'smoking', 'alcohol', 'poop']
+BANNER_CSS = """.pbn{background:#1D3425;color:#fff;border-radius:8px;overflow:hidden;font-family:'DM Sans',sans-serif;margin:10px 0 6px;max-width:640px}
+.pbn-top{display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1.5px solid rgba(255,255,255,.85)}
+.pbn-logo svg{width:58px;height:58px;display:block}
+.pbn-name{font-weight:800;font-size:26px;line-height:1.05;letter-spacing:.01em;text-transform:uppercase}
+.pbn-bot{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;padding:9px 16px 10px;flex-wrap:wrap}
+.pbn-hrs b{display:block;font-size:11px;font-weight:800;letter-spacing:.04em}.pbn-hrs span{display:block;font-weight:800;font-size:17px;line-height:1.15}
+.pbn-pics{display:flex;gap:7px}.pbn-pics svg{width:34px;height:34px;display:block}
+@media(max-width:420px){.pbn-name{font-size:21px}.pbn-logo svg{width:48px;height:48px}.pbn-pics svg{width:30px;height:30px}}
+"""
+
+def park_hours(pid):
+    hs = sorted({x['hours'] for x in signs_for(pid) if x.get('hours') and (x.get('what') or '').startswith('Park ')})
+    return hs[0] if hs else ''
+
+def banner(name, pid=None, hours=None):
+    if hours is None: hours = park_hours(pid) if pid else ''
+    T = {x['id']: x for x in PRULES['tiles']}
+    pics = ''.join(f'<svg viewBox="0 0 40 40" role="img" aria-label="{E(T[k]["l"])}"><title>{E(T[k]["l"])}</title>{T[k]["pic"]}</svg>' for k in BANNER_PICS)
+    hrs = (f'<div class="pbn-hrs"><b>OPERATING HOURS</b><span>{E(hours.replace(" to ", "–"))}</span></div>' if hours else '<div class="pbn-hrs"><b>NYC PARKS</b></div>')
+    return f'<div class="pbn"><div class="pbn-top"><div class="pbn-logo">{LOGO}</div><div class="pbn-name">{E(name)}</div></div><div class="pbn-bot">{hrs}<div class="pbn-pics">{pics}</div></div></div>'
+
 def sign(name):
     w = name.upper().split()
     return (f'<div class="psn" aria-hidden="true"><i>{LOGO}</i><b>{E(" ".join(w))}</b></div>')
@@ -211,19 +233,20 @@ def chips(pid, ps, slug):
 def money(n): return f'${n:,}'
 
 def tile(x, compact=False):
+    pic = f'<span class="rpic"><svg viewBox="0 0 40 40" aria-hidden="true">{x["pic"]}</svg></span>'
+    if compact:
+        return f'<a class="rc" href="/park/rules.html#r-{x["id"]}">{pic}<span>{E(x["l"])}</span></a>'
     u = PRULES['urls'][x['s']]
-    fine = (f'<span class="rfine">{money(x["f"])} fine</span>' if x.get('f') else '')
-    extra = '' if compact else (f'<span class="rmore">{E(x["more"])} If you don\'t answer the summons: {money(x["d"])}.</span>' if x.get('more') and x.get('d') else
-                                (f'<span class="rmore">If you don\'t answer the summons: {money(x["d"])}.</span>' if x.get('d') and x['d'] != x.get('f') else ''))
-    return (f'<div class="rti" id="r-{x["id"]}"><span class="rpic"><svg viewBox="0 0 40 40" aria-hidden="true">{x["pic"]}</svg></span><div class="rtx"><b>{E(x["l"])}</b>'
-            + ('' if compact else f'<p>{E(x["t"])}</p>') + f'<div class="rmeta">{fine}<a href="{u}" target="_blank" rel="noopener">{E(x["c"])}</a>'
-            + ('<span class="rsign">On the entrance sign</span>' if x.get('sign') and not compact else '') + f'</div>{extra}</div></div>')
+    return (f'<div class="rti" id="r-{x["id"]}">{pic}<div class="rtx"><b>{E(x["l"])}</b><p>{E(x["t"])}</p><div class="rmeta">'
+            + ('<span class="rsign">On the entrance sign</span>' if x.get('sign') else '') + f'<a href="{u}" target="_blank" rel="noopener">{E(x["c"])}</a></div></div></div>')
 
 def rules_html(compact=False):
+    if compact:
+        return '<div class="rcg">' + ''.join(tile(x, True) for x in PRULES['tiles']) + '</div>'
     out = ''
     for g, gl in PRULES['groups']:
         ts = [x for x in PRULES['tiles'] if x['g'] == g]
-        out += f'<div class="rgrp"><h3>{E(gl)}</h3><div class="rgrid">' + ''.join(tile(x, compact) for x in ts) + '</div></div>'
+        out += f'<div class="rgrp"><h3>{E(gl)}</h3><div class="{"rcg" if compact else "rgrid"}">' + ''.join(tile(x, compact) for x in ts) + '</div></div>'
     return out
 
 RULES_CSS_RAW = """.rgrp h3{{font:500 .63rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.11em;color:#6b7280;margin:14px 0 6px}}.rgrp:first-child h3{{margin-top:0}}
@@ -232,10 +255,11 @@ RULES_CSS_RAW = """.rgrp h3{{font:500 .63rem 'DM Mono',monospace;text-transform:
 .rpic{{flex:none;width:42px;height:42px;border-radius:50%;background:#1D3425;display:flex}}.rpic svg{{width:42px;height:42px}}
 .rtx b{{display:block;font-size:.95rem;color:#0d1b4b;line-height:1.2}}.rtx p{{margin:3px 0 0;font-size:.84rem;line-height:1.4;color:#333}}
 .rmeta{{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:5px;font-size:.74rem}}.rmeta a{{color:#5b6675}}
-.rfine{{background:#fff4e8;color:#a34a00;border:1px solid #f3c99b;border-radius:6px;padding:1px 6px;font-weight:800}}
+.rcg{{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 12px}}.bio a.rc,.rc{{display:flex;align-items:center;gap:7px;text-decoration:none;color:#0d1b4b;font-weight:700;font-size:.8rem;line-height:1.15;border:0;padding:2px 0;margin:0;background:none}}.rc .rpic,.rc .rpic svg{{width:30px;height:30px}}
+.rgrp h3{{margin:10px 0 5px}}
 .rsign{{background:#e8f0ea;color:#1D3425;border-radius:6px;padding:1px 6px;font-weight:700}}
 .rmore{{display:block;font-size:.74rem;color:#6b7280;margin-top:3px}}
-.rhere{{background:#1D3425;color:#fff;border-radius:10px;padding:12px 14px;margin-bottom:12px}}.rhere b{{color:#fff}}.rhere p{{margin:3px 0;color:#fff}}
+.rhere{{background:#1D3425;color:#fff;border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:.88rem}}.rhere b{{color:#fff}}.rhere p{{margin:3px 0;color:#fff}}
 """
 
 RULES_CSS = RULES_CSS_RAW.replace("{{", "{").replace("}}", "}")
@@ -251,26 +275,24 @@ def here_sec(pid):
     return f'<div class="rhere"><b>At this park</b><p>{h}</p>' + (f'<p>{dog}</p>' if dog else '') + '</div>'
 
 def rules_sec(pid):
-    body = here_sec(pid) + rules_html(compact=True) + ('<div class="chips" style="margin-top:12px"><a class="chip hot" href="/park/rules.html">Every rule, explained, with the fines</a></div>'
-            '<p class="subnote">From the Parks Department rules (Title 56 of the Rules of the City of New York) and its penalty schedule, § 1-07. Fines are the civil penalties a hearing officer can impose.</p>')
-    return sec('Park rules and fines', body, 'rules')
+    body = here_sec(pid) + rules_html(compact=True) + ('<div class="chips" style="margin-top:12px"><a class="chip hot" href="/park/rules.html">Every rule, explained</a></div>'
+            '<p class="subnote">From the Parks Department rules (Title 56 of the Rules of the City of New York). Tap a rule to read it.</p>')
+    return sec('Park rules', body, 'rules')
 
 def rules_page():
-    title = 'NYC park rules and fines'
-    desc = 'Every rule on an NYC Parks entrance sign, plus the other common ones, in plain words with the fine for breaking it and the rule it comes from.'
+    title = 'NYC park rules'
+    desc = 'Every rule on an NYC Parks entrance sign, plus the other common ones, in plain words with the rule it comes from.'
     h = head(title, desc, 'rules')
     h += ('  <div class="phead">\n    <div class="pcrumb"><a href="/" style="color:inherit">bkcb6.app</a> &middot; <a href="/parks-policy/" style="color:inherit">Parks in CB6</a></div>\n'
-          f'    {sign("Park rules")}\n    <h1>{E(title)}</h1>\n    <div class="pseat">What the entrance signs say, what else the rules say, and the fines</div>\n  </div>\n')
+          f'    {banner("Park rules", hours="")}\n    <h1>{E(title)}</h1>\n    <div class="pseat">What the entrance signs say, and what else the rules say</div>\n  </div>\n')
     h += sec('Share this', '<p>Tap a rule to get a link straight to it, or share the whole page.</p><div class="chips"><button class="chip hot" id="shareAll" type="button">Share these rules</button>'
              '<button class="chip" type="button" onclick="print()">Print</button></div>')
     h += sec('The rules', rules_html())
-    h += sec('About the fines', '<p>The fines are the civil penalties in the Parks Department\'s penalty schedule (56 RCNY § 1-07), which a hearing officer at the Office of Administrative Trials and Hearings can impose on a summons. '
-             'If you don\'t answer a summons, the higher &ldquo;default&rdquo; penalty applies. Breaking a park rule can also be charged separately as an offense, punishable by up to a day in jail or a fine of up to $200; some are misdemeanors with higher penalties.</p>'
-             f'<p class="subnote">Read {PRULES["src"]["read"]} from <a href="{PRULES["src"]["rules"]}" target="_blank" rel="noopener">NYC Parks Rules &amp; Regulations</a>, '
-             f'<a href="{PRULES["urls"]["1-07"]}" target="_blank" rel="noopener">56 RCNY § 1-07</a> and <a href="{PRULES["urls"]["dogs"]}" target="_blank" rel="noopener">Dogs in NYC Parks</a>. '
+    h += sec('Sources', f'<p class="subnote">Read {PRULES["src"]["read"]} from <a href="{PRULES["src"]["rules"]}" target="_blank" rel="noopener">NYC Parks Rules &amp; Regulations</a> '
+             f'(Title 56 of the Rules of the City of New York) and <a href="{PRULES["urls"]["dogs"]}" target="_blank" rel="noopener">Dogs in NYC Parks</a>. '
              'Some parks post different hours or have their own rules; the signs at the park govern there.</p>')
     h += foot().replace('</div>\n</body>', '</div>\n<script>document.querySelectorAll(".rti").forEach(t=>{t.style.cursor="pointer";t.onclick=e=>{if(e.target.closest("a"))return;const u=location.origin+location.pathname+"#"+t.id;history.replaceState(null,"","#"+t.id);(navigator.share?navigator.share({title:t.querySelector("b").textContent+": NYC park rules",url:u}):navigator.clipboard.writeText(u).then(()=>{t.style.outline="2px solid #1D3425";setTimeout(()=>t.style.outline="",900)})).catch(()=>{})}});'
-                                                  'document.getElementById("shareAll").onclick=()=>{const u=location.origin+location.pathname;(navigator.share?navigator.share({title:"NYC park rules and fines",url:u}):navigator.clipboard.writeText(u).then(()=>alert("Link copied"))).catch(()=>{})};</script>\n</body>', 1)
+                                                  'document.getElementById("shareAll").onclick=()=>{const u=location.origin+location.pathname;(navigator.share?navigator.share({title:"NYC park rules",url:u}):navigator.clipboard.writeText(u).then(()=>alert("Link copied"))).catch(()=>{})};</script>\n</body>', 1)
     return h
 
 def page(pid):
@@ -282,7 +304,7 @@ def page(pid):
     desc = f"{name}: a {ty.lower()} in {nb + ', ' if nb else ''}Brooklyn Community Board 6. {acres:,.2f} acres. History, hours, what's there, inspections, projects and what New Yorkers for Parks has found."
     h = head(name, desc, slug)
     h += ('  <div class="phead">\n    <div class="pcrumb"><a href="/" style="color:inherit">bkcb6.app</a> &middot; <a href="/parks-policy/" style="color:inherit">Parks in CB6</a></div>\n'
-          f'    {sign(name)}\n    <h1>{E(name)}</h1>\n    <div class="pseat">{E(ty)}{" &middot; " + E(nb) if nb else ""} &middot; {acres:,.2f} acres</div>\n  </div>\n')
+          f'    {banner(name, pid)}\n    <h1>{E(name)}</h1>\n    <div class="pseat">{E(ty)}{" &middot; " + E(nb) if nb else ""} &middot; {acres:,.2f} acres</div>\n  </div>\n')
     if src.get('about'): h += sec('What it is', ''.join(f'<p>{E(x)}</p>' for x in src['about']))
     h += sec('Details', kv(facts(pid, ps) + hours(pid)) + chips(pid, ps, slug))
     h += mapsec(p0, name, acres)
@@ -331,7 +353,7 @@ def small_page():
     for i in SMALL:
         p = PK[i]; src = S.P.get(i, {})
         nm = p['n'] if p['n'] != 'Park' else f'Unnamed ({p["loc"] or i})'
-        body += (f'<div class="sm" id="{i}"><h3>{E(nm)}</h3>' + kv([('Where', E(p['loc'] or '')), ('Size', f'{p["acres"]} acres, about {round(p["acres"] * 43560, -1):,.0f} square feet'),
+        body += (f'<div class="sm" id="{i}">{banner(p["n"] if p["n"] != "Park" else "Park", i)}<h3>{E(nm)}</h3>' + kv([('Where', E(p['loc'] or '')), ('Size', f'{p["acres"]} acres, about {round(p["acres"] * 43560, -1):,.0f} square feet'),
                  ('Type', E(TYPE.get(p['type'], p['type']))), ('Parks ID', E(i)), ('A park since', E(p['acq']) if p.get('acq') and p['acq'] > '1800' else '')]) +
                  mapsec(p, nm, p['acres'], True) +
                  ''.join(f'<p>{E(x)}</p>' for x in src.get('about', []) + src.get('history', [])) +
