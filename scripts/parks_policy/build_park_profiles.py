@@ -75,11 +75,9 @@ def head(title, desc, slug):
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js"></script><script src="/assets/mapkit-leaflet.js"></script>
 <style>
-.psn{{display:inline-block;background:#22392b;padding:3px;border-radius:3px;margin:10px 0 4px;color:#efe3c4;text-align:center}}
-.psn>div{{border:1.5px solid #efe3c4;padding:7px 14px 6px}}
-.psn b{{display:block;font:700 12px 'DM Sans',sans-serif;letter-spacing:.14em;line-height:1.3}}
-.psn i{{display:flex;width:26px;height:26px;margin:5px auto 0;border:1.2px solid #efe3c4;border-radius:50%;align-items:center;justify-content:center}}
-.psn svg{{width:18px;height:18px}}
+.psn{{display:inline-flex;flex-direction:column;align-items:flex-start;background:#1D3425;border-radius:4px;margin:10px 0 4px;color:#fff;min-width:150px;max-width:260px}}
+.psn i{{display:block;padding:9px 12px 7px}}.psn svg{{width:44px;height:44px;display:block}}
+.psn b{{display:block;align-self:stretch;border-top:1px solid rgba(255,255,255,.8);padding:6px 12px 8px;font:800 15px 'DM Sans',sans-serif;letter-spacing:.02em;line-height:1.15}}
 .hl{{margin:0;padding-left:18px}}.hl li{{margin:4px 0;line-height:1.5}}
 .rc{{border-left:3px solid #2e7d32;padding:2px 0 2px 10px;margin:10px 0}}.rc b{{display:block}}.rc a{{font-size:.8rem}}
 .ins{{font-size:.9rem;margin:6px 0;line-height:1.45}}.ins.u b{{color:#c62828}}
@@ -90,11 +88,11 @@ def head(title, desc, slug):
 <div class="pwrap">
 '''
 
-LEAF = 'M21.79,13L16,16L17,18L13,17.25V21H11V17.25L7,18L8,16L2.21,13L3.21,11.27L1.61,8L5.21,7.77L6.21,6L9.63,9.9L8,5H10L12,2L14,5H16L14.37,9.9L17.79,6L18.79,7.73L22.39,7.96L20.79,11.19L21.79,13Z'
+LEAF = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'parks_logo_leaf100.txt')).read().strip()  # NYC Parks leaf, traced from a Parks sign
+LOGO = f'<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="47.1" fill="none" stroke="#fff" stroke-width="5.8"/><path fill="#fff" d="{LEAF}"/></svg>'
 def sign(name):
     w = name.upper().split()
-    return (f'<div class="psn" aria-hidden="true"><div><b>{"<br>".join(E(x) for x in w) if len(w) <= 4 else E(" ".join(w))}</b>'
-            f'<i><svg viewBox="0 0 24 24"><path fill="none" stroke="#efe3c4" stroke-width="1.2" stroke-linejoin="round" d="{LEAF}"/></svg></i></div></div>')
+    return (f'<div class="psn" aria-hidden="true"><i>{LOGO}</i><b>{E(" ".join(w))}</b></div>')
 
 def sec(title, body, id_=''):
     return f'  <div class="sec"{f" id={chr(34)}{id_}{chr(34)}" if id_ else ""}><h2>{title}</h2><div class="bio">{body}</div></div>\n'
