@@ -16,7 +16,9 @@
     city: { label: 'New York City', folder: 'city', color: '#0d1b4b', count: 0 },
     // a police precinct's or a school district's own profile: its boundary, no sibling toggles
     precinct: { label: 'Police precincts', folder: 'precinct', color: '#1b4c7e', count: 0, codes: [] },
-    school: { label: 'School districts', folder: 'school', color: '#4242d7', count: 0, codes: [] }
+    school: { label: 'School districts', folder: 'school', color: '#4242d7', count: 0, codes: [] },
+    // an NYPD sector's own profile: its boundary, no sibling toggles
+    sector: { label: 'NYPD sectors', folder: 'sector', color: '#1b4c7e', count: 0, codes: [] }
   };
   // the chambers offered as overlays on any district page
   var OVERLAPS = ['council', 'assembly', 'senate', 'congress', 'cb'];
@@ -317,7 +319,7 @@
       homeBounds = own.getBounds();
       // neighborhoods, the district and the borough, so the map reads at a glance
       var dl = bidSlug ? '' : chamber === 'council' ? 'Council District ' + district : chamber === 'assembly' ? 'Assembly District ' + district
-        : chamber === 'senate' ? 'Senate District ' + district : chamber === 'congress' ? 'NY-' + district : chamber === 'cb' ? (district.length === 3 ? ({ '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island' })[district.charAt(0)] + ' CB' + parseInt(district.slice(1), 10) : 'Brooklyn CB' + district) : chamber === 'precinct' ? (function (n) { n = parseInt(n, 10); var s = (n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th'; return n + s + ' Precinct'; })(district) : chamber === 'school' ? 'School District ' + district : chamber === 'borough' ? '' : '';
+        : chamber === 'senate' ? 'Senate District ' + district : chamber === 'congress' ? 'NY-' + district : chamber === 'cb' ? (district.length === 3 ? ({ '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island' })[district.charAt(0)] + ' CB' + parseInt(district.slice(1), 10) : 'Brooklyn CB' + district) : chamber === 'precinct' ? (function (n) { n = parseInt(n, 10); var s = (n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th'; return n + s + ' Precinct'; })(district) : chamber === 'school' ? 'School District ' + district : chamber === 'sector' ? 'Sector ' + district : chamber === 'borough' ? '' : '';
       withLabels(function (ML) { ML.add(map, { bounds: homeBounds, district: dl, boroughs: chamber === 'borough' ? [({ '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island', 'brooklyn': 'Brooklyn' })[district] || 'Brooklyn'] : chamber === 'city' ? ['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'] : undefined }); });
       // a BID is a small shape in a small frame, so it can sit tighter
       if (withCb6) viewHome();
