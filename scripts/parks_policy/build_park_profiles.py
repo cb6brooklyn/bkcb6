@@ -23,6 +23,7 @@ J = lambda p: json.load(open(os.path.join(ROOT, p), encoding='utf-8'))
 D = J('parks-policy/cb6.json')
 SIGNS = J('parks-policy/signs.json')['signs']
 NY = J('parks-policy/ny4p.json')
+PRULES = J('scripts/parks_policy/park_rules.json')
 PROF = {p['name']: p for p in J('app/data/civic/orgs/orgs-profiles.json')['profiles'] if p['slug'].startswith('place-')}
 CAP = {c['id']: c for c in D['cap']}
 PK = {p['id']: p for p in D['parks']}
@@ -78,6 +79,8 @@ def head(title, desc, slug):
 .psn{{display:inline-flex;flex-direction:column;align-items:flex-start;background:#1D3425;border-radius:4px;margin:10px 0 4px;color:#fff;min-width:150px;max-width:260px}}
 .psn i{{display:block;padding:9px 12px 7px}}.psn svg{{width:44px;height:44px;display:block}}
 .psn b{{display:block;align-self:stretch;border-top:1px solid rgba(255,255,255,.8);padding:6px 12px 8px;font:800 15px 'DM Sans',sans-serif;letter-spacing:.02em;line-height:1.15}}
+.prl{{background:#1D3425;color:#fff;border-radius:6px;padding:14px 16px;font-size:.88rem;line-height:1.4}}.prl b{{display:block;color:#fff;font-weight:800;margin-top:8px}}.prl b:first-child{{margin-top:0}}.prl p{{margin:3px 0;color:#fff}}.prl ul{{margin:3px 0 0;padding-left:18px}}
+.prp{{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.7)}}.prp svg{{width:44px;height:44px}}
 .hl{{margin:0;padding-left:18px}}.hl li{{margin:4px 0;line-height:1.5}}
 .rc{{border-left:3px solid #2e7d32;padding:2px 0 2px 10px;margin:10px 0}}.rc b{{display:block}}.rc a{{font-size:.8rem}}
 .ins{{font-size:.9rem;margin:6px 0;line-height:1.45}}.ins.u b{{color:#c62828}}
@@ -205,6 +208,17 @@ def chips(pid, ps, slug):
     c.append('<a class="chip" href="/parks-policy/">Parks in CB6</a>')
     return '<div class="chips">' + ''.join(c) + '</div>'
 
+def rules_sec(pid):
+    ws = [x['what'] for x in signs_for(pid) if (x.get('what') or '').startswith('Park ')]
+    if not ws: return ''
+    R = PRULES['rules']; leash = any('No Off' in w for w in ws); offok = any('Off-Leash OK' in w for w in ws)
+    b = ('<div class="prl"><b>WELCOME</b><p>' + E(' '.join(R['welcome'])) + '</p><b>RULES PROHIBIT:</b><ul>' + ''.join(f'<li>{E(x)}</li>' for x in R['prohibit']) + '</ul>'
+         + ('<b>DOGS</b><ul>' + ''.join(f'<li>{E(x)}</li>' for x in R['dogs']) + '</ul>' if leash and not offok else '')
+         + f'<p><b style="display:inline">{E(R["q"])}</b></p><div class="prp">' + ''.join(f'<svg viewBox="0 0 40 40" role="img" aria-label="{E(t)}"><title>{E(t)}</title>{PRULES["picto"][k]}</svg>' for k, t in R['picto']) + '</div></div>')
+    note = ('These are the rules printed on NYC Parks\' park entrance signs (from the City Hall Park sign). The Parks sign inventory lists this park\'s entrance signs as: '
+            + E('; '.join(sorted(set(w.lower() for w in ws)))) + '. The exact wording on them is not in the City\'s data and may differ.')
+    return sec('Rules posted at the entrance', b + f'<p class="subnote">{note}</p>')
+
 def page(pid):
     ps = parts(pid); p0 = ps[0]; src = S.P.get(pid, {})
     slug = SLUG[pid]
@@ -225,6 +239,8 @@ def page(pid):
     if i: h += sec('Inspections', i)
     c = capital(ps)
     if c: h += sec('Capital projects', c)
+    r = rules_sec(pid)
+    if r: h += r
     s = signs_sec(pid, slug)
     if s: h += sec('Signs', s)
     h += sec('New Yorkers for Parks', ny4p(pid), 'ny4p')
