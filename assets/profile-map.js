@@ -147,6 +147,34 @@
     var startZoning = el.getAttribute('data-start-zoning') === '1';
     var self = bidSlug ? { label: 'BID', folder: 'bid', color: BID_LINE } : CHAMBERS[chamber];
     if (!self) return;
+    // what actually overlaps this district (data/districts/overlaps.json, from scripts/district_overlaps.py): the map
+    // offers and draws only those districts, boards, precincts, school districts, battalions, BIDs and historic districts
+    var OVX = null, ownGeo = null;
+    var ovxReady = getJSON('/data/districts/overlaps.json').then(function (d) {
+      OVX = d[bidSlug ? 'bid-' + bidSlug : self.folder + '-' + district] || null;
+    }).catch(function () { OVX = null; });
+    function ovxList(kind) { return OVX && OVX[kind] ? OVX[kind] : null; }
+    function ovxHas(kind, id) { var l = ovxList(kind); return !l || l.indexOf(String(id)) > -1; }
+    function ringIn(x, y, r) { var c = false; for (var i = 0, j = r.length - 1; i < r.length; j = i++) { var xi = r[i][0], yi = r[i][1], xj = r[j][0], yj = r[j][1]; if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) c = !c; } return c; }
+    function polyIn(x, y, p) { if (!ringIn(x, y, p[0])) return false; for (var i = 1; i < p.length; i++) if (ringIn(x, y, p[i])) return false; return true; }
+    // a point inside this district (with no district drawn yet, everything counts)
+    function inOwn(lat, lng) {
+      if (!ownGeo || !ownGeo.features) return true;
+      return ownGeo.features.some(function (f) {
+        var gm = f.geometry; if (!gm) return false;
+        if (gm.type === 'Polygon') return polyIn(lng, lat, gm.coordinates);
+        if (gm.type === 'MultiPolygon') return gm.coordinates.some(function (p) { return polyIn(lng, lat, p); });
+        return true;
+      });
+    }
+    // a shape with any of its corners inside this district
+    function shapeInOwn(gm) {
+      if (!ownGeo) return true;
+      var pts = []; (function w(c) { if (typeof c[0] === 'number') pts.push(c); else c.forEach(w); })(gm.coordinates || []);
+      var step = Math.max(1, Math.floor(pts.length / 60));
+      for (var i = 0; i < pts.length; i += step) if (inOwn(pts[i][1], pts[i][0])) return true;
+      return false;
+    }
     // an address profile pins its own front door and opens on it, so the map
     // reads as a place rather than as a district that happens to contain one
     var ptLat = parseFloat(el.getAttribute('data-point-lat'));
@@ -303,6 +331,7 @@
     var ownFile = bidSlug ? ('/data/districts/bid-' + bidSlug + '.geojson')
                           : ('/data/districts/' + self.folder + '-' + district + '.geojson');
     getJSON(ownFile).then(function (g) {
+      ownGeo = g;
       // The BID is a thin ribbon of frontage. A fill would hide the zoning
       // underneath it, so it gets a white casing and a dark line instead.
       if (bidSlug) {
@@ -356,9 +385,10 @@
         load: function () {
           if (loaded) return Promise.resolve();
           loaded = true;
+          return ovxReady.then(function () {
           if (!homeBounds) return Promise.resolve();
           var jobs = [];
-          (c.codes || (function () { var r = []; for (var i = 1; i <= c.count; i++) r.push(i); return r; })()).forEach(function (i) {
+          (ovxList(kind) || c.codes || (function () { var r = []; for (var i = 1; i <= c.count; i++) r.push(i); return r; })()).forEach(function (i) {
             jobs.push(getJSON('/data/districts/' + c.folder + '-' + i + '.geojson')
               .catch(function () { return null; }));
           });
@@ -371,14 +401,15 @@
               });
               // only draw the ones that actually overlap this member's district
               try {
-                if (homeBounds && !homeBounds.intersects(lyr.getBounds())) return;
+                if (!ovxList(kind) && homeBounds && !homeBounds.intersects(lyr.getBounds())) return;
               } catch (e) { return; }
               var num = g.features[0].properties.district;
               var BN = { '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island' };
-              lyr.bindTooltip(k === 'cb' ? (String(num).length === 3 ? BN[String(num).charAt(0)] + ' CB' + parseInt(String(num).slice(1), 10) : 'Brooklyn CB' + num) : k === 'congress' ? 'NY-' + num : c.label.replace(' districts', '') + ' District ' + num, { sticky: true });
+              lyr.bindTooltip(kind === 'cb' ? (String(num).length === 3 ? BN[String(num).charAt(0)] + ' CB' + parseInt(String(num).slice(1), 10) : 'Brooklyn CB' + num) : kind === 'congress' ? 'NY-' + num : c.label.replace(' districts', '') + ' District ' + num, { sticky: true });
               group.addLayer(lyr);
             });
             say('');
+          });
           });
         }
       };
@@ -478,7 +509,9 @@
           if (done) return Promise.resolve();
           done = true;
           say('Loading historic districts\u2026');
-          return getJSON('/data/historic-districts.geojson').then(function (g) {
+          return ovxReady.then(function () { return getJSON('/data/historic-districts.geojson'); }).then(function (g) {
+            var hl = ovxList('historic');
+            if (hl) g = { type: 'FeatureCollection', features: (g.features || []).filter(function (f, i) { return hl.indexOf(String(i)) > -1; }) };
             L.geoJSON(g, {
               style: { color: '#7a5c2e', weight: 1.2, fillColor: '#c8a24a', fillOpacity: 0.3 },
               onEachFeature: function (f, l) {
@@ -516,10 +549,11 @@
           if (done) return Promise.resolve();
           done = true;
           say('Loading business improvement districts\u2026');
-          return getJSON('/data/bids.geojson').then(function (g) {
+          return ovxReady.then(function () { return getJSON('/data/bids.geojson'); }).then(function (g) {
             var drawn = 0;
             (g.features || []).forEach(function (f) {
               var p = f.properties || {};
+              if (!ovxHas('bid', p.slug)) return;
               var own = isOwn(p);
               var lyr = L.geoJSON(f, {
                 style: own
@@ -527,7 +561,7 @@
                   : { color: '#0d1b4b', weight: 1, opacity: 0.5, fillColor: '#0d1b4b', fillOpacity: 0.12 }
               });
               try {
-                if (homeBounds && !homeBounds.intersects(lyr.getBounds())) return;
+                if (!ovxList('bid') && homeBounds && !homeBounds.intersects(lyr.getBounds())) return;
               } catch (e) { return; }
               lyr.bindTooltip(p.name + (own ? ' \u00b7 in this district' : ''), { sticky: true });
               lyr.bindPopup(popup(p));
@@ -602,7 +636,7 @@
         load: function () {
           if (data) { draw(); return Promise.resolve(); }
           say('Loading ' + o.label + '…');
-          return Promise.resolve(o.fetch()).then(function (d) { data = d; say(''); draw(); })
+          return ovxReady.then(function () { return o.fetch(); }).then(function (d) { data = d; say(''); draw(); })
             .catch(function () { say(o.label.charAt(0).toUpperCase() + o.label.slice(1) + ' did not load.'); });
         },
         refresh: function () { if (data) draw(); }
@@ -622,13 +656,14 @@
     layers.busstops = viewLayer({ label: 'bus stops', minZoom: 15, fetch: transportData, draw: function (g, all, b) {
       all.forEach(function (t) { if (!t || !t.busstops) return; featsIn(t.busstops.features, b).forEach(function (f) {
         var p = f.properties || {}, c = f.geometry.coordinates;
+        if (!inOwn(c[1], c[0])) return;
         L.circleMarker([c[1], c[0]], { radius: 4, color: '#fff', weight: 1.5, fillColor: '#2563eb', fillOpacity: 1 })
           .bindTooltip('<b>' + escT((p.routes || []).join(', ')) + '</b> ' + escT(p.stop_name || ''), { sticky: true }).addTo(g);
       }); });
     } });
     layers.citibike = viewLayer({ label: 'Citi Bike stations', minZoom: 14, fetch: function () { return getJSON('/data/citibike_station_information.json'); }, draw: function (g, d, b) {
       (((d || {}).data || {}).stations || []).forEach(function (s) {
-        if (!b.contains([s.lat, s.lon])) return;
+        if (!b.contains([s.lat, s.lon]) || !inOwn(s.lat, s.lon)) return;
         L.marker([s.lat, s.lon], { icon: ico('/assets/map-icons/citibike.png', 18) }).bindTooltip(escT(s.name) + (s.capacity ? ' &middot; ' + s.capacity + ' docks' : ''), { sticky: true }).addTo(g);
       });
     } });
@@ -642,6 +677,7 @@
     layers.parks = viewLayer({ label: 'parks', fetch: function () { return getJSON('/data/parks-citywide.geojson'); }, draw: function (g, d, b) {
       featsIn(d.features, b).forEach(function (f) {
         var p = f.properties || {};
+        if (!shapeInOwn(f.geometry)) return;
         L.geoJSON(f, { style: { color: '#15803d', weight: 1, fillColor: '#22c55e', fillOpacity: 0.32 } })
           .bindTooltip('<b>' + escT(p.n || 'Park') + '</b>' + (p.t ? '<br>' + escT(p.t) : '') + (p.ac ? ' &middot; ' + escT(p.ac) + ' acres' : ''), { sticky: true }).addTo(g);
       });
@@ -659,7 +695,7 @@
         .then(function (r) { SCHOOLLOGOS = r[1]; return r[0]; });
     }, draw: function (g, d, b) {
       d.rows.forEach(function (r) {
-        if (!b.contains([r[3], r[4]])) return;
+        if (!b.contains([r[3], r[4]]) || !inOwn(r[3], r[4])) return;
         var u = schoolIcon(r[0], r[1]);
         var m = u ? L.marker([r[3], r[4]], { icon: ico(u, 26) }) : L.circleMarker([r[3], r[4]], { radius: 5, color: '#fff', weight: 1.5, fillColor: '#7c3aed', fillOpacity: 1 });
         m.bindTooltip('<b>' + escT(r[0]) + '</b><br>' + escT(r[1].toLowerCase()) + (r[2] ? '<br>' + escT(r[2]) : ''), { sticky: true }).addTo(g);
@@ -667,7 +703,7 @@
     } });
     layers.childcare = viewLayer({ label: 'child care and pre-K', minZoom: 14, fetch: function () { return getJSON('/data/nyc-facdb-childcare.json'); }, draw: function (g, d, b) {
       d.rows.forEach(function (r) {
-        if (!b.contains([r[3], r[4]])) return;
+        if (!b.contains([r[3], r[4]]) || !inOwn(r[3], r[4])) return;
         L.marker([r[3], r[4]], { icon: ico('/assets/map-icons/childcare-nyc.png', 20) })
           .bindTooltip('<b>' + escT(r[0]) + '</b><br>' + escT(r[1].toLowerCase()) + (r[2] ? '<br>' + escT(r[2]) : ''), { sticky: true }).addTo(g);
       });
@@ -675,7 +711,7 @@
     layers.libraries = viewLayer({ label: 'libraries', fetch: function () { return getJSON('/data/nyc_libraries.geojson'); }, draw: function (g, d, b) {
       (d.features || []).forEach(function (f) {
         var p = f.properties || {}, lat = p.latitude, lng = p.longitude;
-        if (!isFinite(lat) || !isFinite(lng) || !b.contains([lat, lng])) return;
+        if (!isFinite(lat) || !isFinite(lng) || !b.contains([lat, lng]) || !inOwn(lat, lng)) return;
         L.marker([lat, lng], { icon: ico(p.system === 'BPL' ? '/assets/map-icons/library-bpl.png' : '/assets/map-icons/libraries.png', 24) })
           .bindTooltip('<b>' + escT(p.name) + '</b><br>' + escT(p.system_name || '') + (p.address ? '<br>' + escT(p.address) : ''), { sticky: true }).addTo(g);
       });
@@ -683,7 +719,7 @@
     // the NYC Health Map's vaccine sites; a place with a bkcb6.app profile shows its logo and opens its profile
     layers.vaccines = viewLayer({ label: 'vaccine sites', minZoom: 13, fetch: function () { return getJSON('/data/vaccine-sites.json'); }, draw: function (g, d, b) {
       (d.sites || []).forEach(function (v) {
-        if (!b.contains([v.lat, v.lng])) return;
+        if (!b.contains([v.lat, v.lng]) || !inOwn(v.lat, v.lng)) return;
         var m = v.i ? L.marker([v.lat, v.lng], { icon: ico(v.i, 24) })
                     : L.circleMarker([v.lat, v.lng], { radius: 5, color: '#fff', weight: 1.5, fillColor: '#0f7b6c', fillOpacity: 1 });
         m.bindTooltip('<b>' + escT(v.name) + '</b><br>' + escT((v.vaccines || []).join(', ')) + '<br>' + escT(v.address), { sticky: true });
@@ -694,14 +730,14 @@
     layers.schooldistricts = viewLayer({ label: 'school districts', fetch: function () {
       return Promise.all(['manhattan', 'bronx', 'brooklyn', 'queens', 'statenisland'].map(function (b) { return getJSON('/data/school-districts-' + b + '.geojson').catch(function () { return null; }); }));
     }, draw: function (g, all, b) {
-      all.forEach(function (d) { if (!d) return; featsIn(d.features, b).forEach(function (f) {
+      all.forEach(function (d) { if (!d) return; (ovxList('school') ? (d.features || []).filter(function (f) { return ovxHas('school', parseInt((f.properties || {}).schooldist, 10)); }) : featsIn(d.features, b)).forEach(function (f) {
         var n = (f.properties || {}).schooldist;
         L.geoJSON(f, { style: { color: '#7c3aed', weight: 2.2, dashArray: '6 4', fillColor: '#7c3aed', fillOpacity: 0.05 } })
           .bindTooltip('Community School District ' + escT(n), { sticky: true }).addTo(g);
       }); });
     } });
     layers.nypd = viewLayer({ label: 'NYPD precincts', fetch: function () { return getJSON('/data/police-precincts-lite.geojson'); }, draw: function (g, d, b) {
-      featsIn(d.features, b).forEach(function (f) {
+      (ovxList('precinct') ? (d.features || []).filter(function (f) { return ovxHas('precinct', (f.properties || {}).precinct); }) : featsIn(d.features, b)).forEach(function (f) {
         var n = (f.properties || {}).precinct;
         var lyr = L.geoJSON(f, { style: { color: '#1e3a8a', weight: 2, fillColor: '#1e3a8a', fillOpacity: 0.05 } })
           .bindTooltip('NYPD ' + escT(n) + ' Precinct', { sticky: true }).addTo(g);
@@ -711,7 +747,7 @@
       });
     } });
     layers.fire = viewLayer({ label: 'fire battalions', fetch: function () { return getJSON('/data/fire_battalions.geojson'); }, draw: function (g, d, b) {
-      featsIn(d.features, b).forEach(function (f) {
+      (ovxList('fire') ? (d.features || []).filter(function (f) { return ovxHas('fire', (f.properties || {}).fire_bn); }) : featsIn(d.features, b)).forEach(function (f) {
         L.geoJSON(f, { style: { color: '#b91c1c', weight: 2, fillColor: '#b91c1c', fillOpacity: 0.05 } })
           .bindTooltip('FDNY Battalion ' + escT((f.properties || {}).fire_bn), { sticky: true }).addTo(g);
       });
@@ -802,6 +838,29 @@
     OVERLAPS.forEach(function (k) {
       if (!bidSlug && k === chamber) return;
       addToggle('overlap-' + k, 'Overlapping ' + CHAMBERS[k].label.toLowerCase());
+    });
+
+    // once the overlap index is in: drop toggles with nothing in this district, and say which ones each shows
+    ovxReady.then(function () {
+      if (!OVX) return;
+      var NAME = { council: 'Council districts', assembly: 'Assembly districts', senate: 'Senate districts', congress: 'Congressional districts', cb: 'Community boards' };
+      var BN = { '1': 'MN', '2': 'BX', '3': 'BK', '4': 'QN', '5': 'SI' };
+      function setT(key, kind, label, fmt) {
+        var b = toggleBtn[key]; if (!b) return;
+        var l = ovxList(kind);
+        if (!l) return;
+        if (!l.length) { b.remove(); delete toggleBtn[key]; return; }
+        b.textContent = label + (l.length <= 8 ? ' ' + l.map(fmt || String).join(', ') : ' (' + l.length + ')');
+      }
+      OVERLAPS.forEach(function (k) {
+        setT('overlap-' + k, k, NAME[k], k === 'cb' ? function (c) { return BN[c.charAt(0)] + parseInt(c.slice(1), 10); } : k === 'congress' ? function (n) { return 'NY-' + n; } : null);
+      });
+      setT('schooldistricts', 'school', 'School districts');
+      setT('nypd', 'precinct', 'NYPD precincts');
+      setT('fire', 'fire', 'Fire battalions');
+      setT('bids', 'bid', 'Business improvement districts', function () { return ''; });
+      setT('landmarks', 'historic', 'Historic districts', function () { return ''; });
+      ['bids', 'landmarks'].forEach(function (k) { var b = toggleBtn[k], l = ovxList(k === 'bids' ? 'bid' : 'historic'); if (b && l) b.textContent = (k === 'bids' ? 'Business improvement districts' : 'Historic districts') + ' (' + l.length + ')'; });
     });
 
     // the toggle strip starts closed so it does not swallow the page
