@@ -230,6 +230,53 @@ def chips(pid, ps, slug):
     c.append('<a class="chip" href="/parks-policy/">Parks in CB6</a>')
     return '<div class="chips">' + ''.join(c) + '</div>'
 
+ICO = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ico.json')))
+AMK = {'play': ('slide', '#e65100', 'Playground'), 'spray': ('shower', '#00838f', 'Spray shower'), 'pools': ('pool', '#1565c0', 'Pool'),
+       'skate': ('skate', '#6a1b9a', 'Skatepark'), 'dogs': ('dog', '#795548', 'Dog run')}
+SPK = {'Basketball': ('basketball', '#ef6c00'), 'Handball': ('handball', '#5d4037'), 'Tennis': ('tennis', '#9e9d24'), 'Soccer': ('soccer', '#2e7d32'),
+       'Baseball': ('baseball', '#c62828'), 'Softball': ('baseball', '#ad1457'), 'Football': ('football', '#4e342e'), 'Volleyball': ('volleyball', '#f9a825'),
+       'Running track': ('track', '#1565c0'), 'Bocce': ('bocce', '#6d4c41'), 'Pickleball': ('pickle', '#558b2f'), 'Cricket': ('cricket', '#33691e')}
+
+def roundel(g, c):
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="19" fill="{c}" stroke="#fff" stroke-width="1.5"/>'
+            f'<circle cx="20" cy="20" r="15.2" fill="none" stroke="#fff" stroke-width="2"/><g transform="translate(10.4 10.4) scale(.8)"><path fill="#fff" d="{ICO.get(g, ICO["track"])}"/></g></svg>')
+
+def acts(pid):
+    ids = set(GROUPS.get(pid, [pid]))
+    out = {}
+    for k, L in D['pins'].items():
+        for x in L:
+            if x[-1] not in ids: continue
+            if k == 'athletic':
+                g, c = SPK.get(x[3], ('track', '#546e7a')); lab = x[3]
+            elif k in AMK:
+                g, c, lab = AMK[k]
+            else: continue
+            key = (lab, round(x[0], 4), round(x[1], 4))
+            if key in out: out[key]['n'] += 1
+            else: out[key] = {'lat': x[0], 'lon': x[1], 'g': g, 'c': c, 'l': lab, 'n': 1}
+    return list(out.values())
+
+def acts_script(pid):
+    A = acts(pid)
+    if not A: return ''
+    icons = {}
+    for a in A:
+        icons.setdefault(a['g'] + a['c'], roundel(a['g'], a['c']))
+    p0 = PK[GROUPS.get(pid, [pid])[0]]
+    import math
+    near = [a for a in A if math.hypot((a['lat'] - p0['lat']) * 111000, (a['lon'] - p0['lon']) * 84000) < 30]
+    pts = []
+    for a in A:
+        dx, dy = 0, 0
+        if a in near:
+            k = near.index(a); dx = round((k - (len(near) - 1) / 2) * 24); dy = 46
+        pts.append([a['lat'], a['lon'], a['g'] + a['c'], a['l'] + (f' ({a["n"]})' if a['n'] > 1 else ''), dx, dy])
+    return ('<script>(function(){var I=' + json.dumps(icons) + ',P=' + json.dumps(pts) + ';'
+            'function go(el){var m=el._pmap&&el._pmap.map;if(!m||!window.L)return;if(!m.getPane("acts")){m.createPane("acts");m.getPane("acts").style.zIndex=430}var M=[];P.forEach(function(p){var mk=L.marker([p[0],p[1]],{pane:"acts",icon:L.divIcon({className:"pk-act",iconSize:[20,20],iconAnchor:[10-p[4],10-p[5]],html:I[p[2]].replace("<svg ","<svg width=\\"20\\" height=\\"20\\" style=\\"display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))\\" ")}),title:p[3],zIndexOffset:-1100});mk.bindTooltip(p[3],{direction:"top",offset:[0,-10]});mk.addTo(m);M.push(mk)});(function(){for(var k in m._layers){var x=m._layers[k];var ic=x&&x.options&&x.options.icon;if(ic&&ic.options&&String(ic.options.html||"").indexOf("park-pin")>=0){m.removeLayer(x);x.addTo(m)}}})()}'
+            'document.addEventListener("profile-map-ready",function(e){var el=e.target;if(el&&el.id==="map-' + (GROUPS.get(pid, [pid])[0]) + '")go(el)});'
+            '})();</script>\n')
+
 def money(n): return f'${n:,}'
 
 def tile(x, compact=False):
@@ -319,7 +366,7 @@ def page(pid):
     s = signs_sec(pid, slug)
     if s: h += sec('Signs', s)
     h += sec('New Yorkers for Parks', ny4p(pid), 'ny4p')
-    h += foot(pid in S.GT)
+    h += foot(pid in S.GT).replace('<script src="/assets/profile-map.js', acts_script(pid) + '<script src="/assets/profile-map.js', 1)
     return slug, h
 
 def mapsec(p, name, acres, sub=False):
