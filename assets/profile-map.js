@@ -127,7 +127,7 @@
   function withLabels(fn) {
     if (window.MapLabels) return fn(window.MapLabels);
     var s = document.querySelector('script[data-maplabels]');
-    if (!s) { s = document.createElement('script'); s.src = '/assets/map-labels.js?v=20260829a'; s.setAttribute('data-maplabels', '1'); document.head.appendChild(s); }
+    if (!s) { s = document.createElement('script'); s.src = '/assets/map-labels.js?v=20261108a'; s.setAttribute('data-maplabels', '1'); document.head.appendChild(s); }
     s.addEventListener('load', function () { if (window.MapLabels) fn(window.MapLabels); });
   }
   function init(el) {
@@ -330,6 +330,32 @@
     // ---- the member's own district ----
     var ownFile = bidSlug ? ('/data/districts/bid-' + bidSlug + '.geojson')
                           : ('/data/districts/' + self.folder + '-' + district + '.geojson');
+    // the official's district office, as a small round pin with their logo, so the map orients at a glance
+    var officeSlug = (location.pathname.split('/')[1] || '');
+    var officeAt = null, officeReady = Promise.resolve();
+    if (!bidSlug && officeSlug && ['council', 'assembly', 'senate', 'congress', 'borough', 'city', 'state'].indexOf(chamber) > -1) {
+      officeReady = getJSON('/data/official-offices.json').then(function (d) {
+        var o = d[officeSlug]; if (!o) return;
+        officeAt = [o.lat, o.lng];
+        if (!document.getElementById('pmap-office-css')) {
+          var st = document.createElement('style'); st.id = 'pmap-office-css';
+          st.textContent = '.pmap-office{display:flex;flex-direction:column;align-items:center;pointer-events:auto}'
+            + '.pmap-office .dot{width:34px;height:34px;border-radius:50%;background:#fff;border:3px solid #f47920;box-shadow:0 2px 6px rgba(0,0,0,.35);overflow:hidden;display:flex;align-items:center;justify-content:center}'
+            + '.pmap-office .dot img{width:100%;height:100%;object-fit:contain;display:block}'
+            + '.pmap-office .tag{margin-top:3px;background:#0d1b4b;color:#fff;font:700 .62rem/1.2 "DM Sans",sans-serif;padding:2px 6px;border-radius:999px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.3)}';
+          document.head.appendChild(st);
+        }
+        var esc2 = function (t) { return String(t || '').replace(/[&<>"]/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]; }); };
+        L.marker([o.lat, o.lng], {
+          zIndexOffset: 1000,
+          icon: L.divIcon({ className: '', iconSize: [120, 56], iconAnchor: [60, 17],
+            html: '<div class="pmap-office"><span class="dot">' + (o.icon ? '<img src="' + esc2(o.icon) + '" alt="">' : '') + '</span><span class="tag">District office</span></div>' })
+        }).bindTooltip('<b>District office</b><br>' + esc2(o.a1) + '<br>' + esc2(o.a2), { direction: 'top', offset: [0, -14] })
+          .bindPopup('<b>' + esc2(o.name) + ' \u00b7 District office</b><br>' + esc2(o.a1) + '<br>' + esc2(o.a2)
+            + '<br><a href="https://maps.apple.com/?q=' + encodeURIComponent(o.a1 + ', ' + o.a2) + '" target="_blank" rel="noopener">Directions &#8599;</a>')
+          .addTo(map);
+      }).catch(function () {});
+    }
     getJSON(ownFile).then(function (g) {
       ownGeo = g;
       // The BID is a thin ribbon of frontage. A fill would hide the zoning
@@ -350,7 +376,16 @@
       // neighborhoods, the district and the borough, so the map reads at a glance
       var dl = bidSlug ? '' : chamber === 'council' ? 'Council District ' + district : chamber === 'assembly' ? 'Assembly District ' + district
         : chamber === 'senate' ? 'Senate District ' + district : chamber === 'congress' ? 'NY-' + district : chamber === 'cb' ? (district.length === 3 ? ({ '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island' })[district.charAt(0)] + ' CB' + parseInt(district.slice(1), 10) : 'Brooklyn CB' + district) : chamber === 'precinct' ? (function (n) { n = parseInt(n, 10); var s = (n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th'; return n + s + ' Precinct'; })(district) : chamber === 'school' ? 'School District ' + district : chamber === 'sector' ? 'Sector ' + district : chamber === 'borough' ? '' : '';
-      withLabels(function (ML) { ML.add(map, { bounds: homeBounds, district: dl, boroughs: chamber === 'borough' ? [({ '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island', 'brooklyn': 'Brooklyn' })[district] || 'Brooklyn'] : chamber === 'city' ? ['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'] : undefined }); });
+      // the district's name goes where it does not cover the office pin: the middle, or higher or lower in the district
+      var labelAt = null;
+      officeReady.then(function () {
+        if (officeAt && homeBounds) {
+          var c = homeBounds.getCenter(), h = homeBounds.getNorth() - homeBounds.getSouth();
+          var cands = [[c.lat, c.lng], [c.lat + h * 0.28, c.lng], [c.lat - h * 0.28, c.lng]];
+          labelAt = cands.sort(function (a, b) { return Math.abs(b[0] - officeAt[0]) - Math.abs(a[0] - officeAt[0]); })[0];
+        }
+      withLabels(function (ML) { ML.add(map, { bounds: homeBounds, districtLatLng: labelAt, district: dl, boroughs: chamber === 'borough' ? [({ '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island', 'brooklyn': 'Brooklyn' })[district] || 'Brooklyn'] : chamber === 'city' ? ['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'] : undefined }); });
+      });
       // a BID is a small shape in a small frame, so it can sit tighter
       if (withCb6) viewHome();
       else if (fitOwn) { var fb = L.latLngBounds(homeBounds.getSouthWest(), homeBounds.getNorthEast()); if (hasPoint) fb.extend([ptLat, ptLng]); map.fitBounds(fb, { padding: [14, 14] }); }

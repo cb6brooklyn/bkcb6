@@ -12,7 +12,8 @@
     var s = document.createElement('style'); s.id = 'maplbl-css';
     s.textContent = '.maplbl{background:none;border:0;box-shadow:none;white-space:nowrap;pointer-events:none;text-align:center;line-height:1.1}' +
       '.maplbl.nb{font-family:"DM Sans",sans-serif;font-weight:800;font-size:.7rem;color:#374151;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 5px #fff,0 0 8px #fff;letter-spacing:.01em}' +
-      '.maplbl.dist{font-family:"DM Sans",sans-serif;font-weight:900;font-size:.92rem;color:#0d1b4b;text-shadow:0 0 3px #fff,0 0 4px #fff,0 0 7px #fff,0 0 10px #fff;letter-spacing:.02em}' +
+      '.maplbl.dist{font-family:"DM Sans",sans-serif;font-weight:900;font-size:.86rem;color:#fff;background:#0d1b4b;padding:3px 9px;border-radius:999px;box-shadow:0 1px 4px rgba(0,0,0,.35);letter-spacing:.02em}' +
+      '.maplbl.lblhide{visibility:hidden}' +
       '.maplbl.boro{font-family:"DM Mono",monospace;font-weight:700;font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:#6b7280;text-shadow:0 0 3px #fff,0 0 5px #fff,0 0 8px #fff}';
     document.head.appendChild(s);
   }
@@ -51,6 +52,30 @@
         if (!show && map.hasLayer(nbGroup)) map.removeLayer(nbGroup);
       }
       map.on('zoomend', sync); sync();
+      // no label sits on another: the district's name and the boroughs first, then neighborhoods in the district,
+      // then the rest; any that would overlap one already shown is hidden until the map moves and it fits
+      function declutter() {
+        var root = map.getContainer ? map.getContainer() : document;
+        var els = [].slice.call(root.querySelectorAll('.maplbl'));
+        var rank = function (e) { return e.classList.contains('dist') ? 0 : e.classList.contains('boro') ? 1 : 2; };
+        els.sort(function (a, b) { return rank(a) - rank(b); });
+        var placed = [], extra = [].slice.call(root.querySelectorAll('.pmap-office'));
+        extra.forEach(function (e) { var r = e.getBoundingClientRect(); if (r.width) placed.push(r); });
+        els.forEach(function (e) {
+          e.classList.remove('lblhide'); e.style.opacity = '';
+          var r = e.getBoundingClientRect(); if (!r.width) return;
+          var hit = placed.some(function (q) { return !(r.right + 3 < q.left || r.left - 3 > q.right || r.bottom + 2 < q.top || r.top - 2 > q.bottom); });
+          if (hit && rank(e) > 0) { e.classList.add('lblhide'); e.style.opacity = '0'; } else placed.push(r);
+        });
+      }
+      var tmr = null;
+      function later() { clearTimeout(tmr); tmr = setTimeout(declutter, 120); }
+      setTimeout(declutter, 600); setTimeout(declutter, 1500);
+      // the map draws its labels again as it pans, zooms and scrolls into view, so keep checking while the page is up
+      setInterval(function () { if (!document.hidden) declutter(); }, 1000);
+      try { map.on('moveend', later); } catch (e) {}
+      try { map.on('zoomend', later); } catch (e) {}
+      window.__mapDeclutter = declutter;
     });
     return { neighborhoods: nbGroup, fixed: fixed };
   }
