@@ -21,11 +21,11 @@ BORON = {'1': 'Manhattan', '2': 'the Bronx', '3': 'Brooklyn', '4': 'Queens', '5'
 AT_LARGE = {
     'bpmanhattan': ('borough', '1', 'bp'), 'bpbronx': ('borough', '2', 'bp'), 'bpbrooklyn': ('borough', '3', 'bp'),
     'bpqueens': ('borough', '4', 'bp'), 'bpstatenisland': ('borough', '5', 'bp'),
-    'dabragg': ('borough', '1', None), 'daclark': ('borough', '2', None), 'dagonzalez': ('borough', '3', None),
-    'dakatz': ('borough', '4', None), 'damcmahon': ('borough', '5', None),
+    'dabragg': ('borough', '1', 'da'), 'daclark': ('borough', '2', 'da'), 'dagonzalez': ('borough', '3', 'da'),
+    'dakatz': ('borough', '4', 'da'), 'damcmahon': ('borough', '5', 'da'),
     'mayor': ('city', 'nyc', 'mayor'), 'publicadvocate': ('city', 'nyc', 'pa'), 'comptroller': ('city', 'nyc', 'comptroller'),
-    'governor': (None, None, 'governor'), 'lieutenantgovernor': (None, None, 'lg'), 'attorneygeneral': (None, None, 'ag'),
-    'statecomptroller': (None, None, 'statecomp'), 'ussenschumer': (None, None, 'ussenate:0'), 'ussengillibrand': (None, None, 'ussenate:1'),
+    'governor': ('state', 'ny', 'governor'), 'lieutenantgovernor': ('state', 'ny', 'lg'), 'attorneygeneral': ('state', 'ny', 'ag'),
+    'statecomptroller': ('state', 'ny', 'statecomp'), 'ussenschumer': ('state', 'ny', 'ussenate:0'), 'ussengillibrand': ('state', 'ny', 'ussenate:1'),
 }
 
 
@@ -102,14 +102,16 @@ for path, kind in pages.items():
             mapblock = ''
             if ch == 'borough':
                 mapblock = map_html('borough', dist, 'The borough of ' + BORON[dist].replace('the Bronx', 'the Bronx'), seat).replace('<div class="sec">', '<div class="sec" data-added="1">', 1)
+            elif ch == 'state':
+                mapblock = map_html('state', 'ny', 'New York State', seat).replace('<div class="sec">', '<div class="sec" data-added="1">', 1)
             elif ch == 'city':
                 mapblock = map_html('city', 'nyc', 'New York City', seat).replace('<div class="sec">', '<div class="sec" data-added="1">', 1)
             if office is None:
                 seatdiv = ''
             elif office.startswith('ussenate'):
                 seatdiv = '<div data-rep-seat="ussenate" data-seat="%s"></div>' % office.split(':')[1]
-            elif office == 'bp':
-                seatdiv = '<div data-rep-seat="bp" data-boro="%s"></div>' % dist
+            elif office in ('bp', 'da'):
+                seatdiv = '<div data-rep-seat="%s" data-boro="%s"></div>' % (office, dist)
             else:
                 seatdiv = '<div data-rep-seat="%s"></div>' % office
         ins = ''

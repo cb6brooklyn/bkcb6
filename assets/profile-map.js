@@ -14,6 +14,7 @@
     cb: { label: 'Community boards', folder: 'cb', color: '#be185d', count: 0, codes: ["101", "102", "103", "104", "105", "106", "107", "108", "109", "110", "111", "112", "201", "202", "203", "204", "205", "206", "207", "208", "209", "210", "211", "212", "301", "302", "303", "304", "305", "306", "307", "308", "309", "310", "311", "312", "313", "314", "315", "316", "317", "318", "401", "402", "403", "404", "405", "406", "407", "408", "409", "410", "411", "412", "413", "414", "501", "502", "503"] },
     borough: { label: 'Borough', folder: 'borough', color: '#0d1b4b', count: 1 },
     city: { label: 'New York City', folder: 'city', color: '#0d1b4b', count: 0 },
+    state: { label: 'New York State', folder: 'state', color: '#0d1b4b', count: 0 },
     // a police precinct's or a school district's own profile: its boundary, no sibling toggles
     precinct: { label: 'Police precincts', folder: 'precinct', color: '#1b4c7e', count: 0, codes: [] },
     school: { label: 'School districts', folder: 'school', color: '#4242d7', count: 0, codes: [] },
