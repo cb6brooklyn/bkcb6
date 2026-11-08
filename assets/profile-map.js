@@ -175,6 +175,27 @@
       for (var i = 0; i < pts.length; i += step) if (inOwn(pts[i][1], pts[i][0])) return true;
       return false;
     }
+    // a line kept only where it runs inside this district (each piece between two points is kept when its middle is inside)
+    function lineInOwn(f) {
+      if (!ownGeo || !f.geometry) return f;
+      var gm = f.geometry, lines = gm.type === 'LineString' ? [gm.coordinates] : gm.type === 'MultiLineString' ? gm.coordinates : null;
+      if (!lines) return f;
+      var out = [];
+      lines.forEach(function (ln) {
+        var run = null;
+        for (var i = 1; i < ln.length; i++) {
+          var a = ln[i - 1], b = ln[i];
+          if (inOwn((a[1] + b[1]) / 2, (a[0] + b[0]) / 2)) { if (!run) { run = [a]; out.push(run); } run.push(b); } else run = null;
+        }
+      });
+      return out.length ? { type: 'Feature', properties: f.properties, geometry: { type: 'MultiLineString', coordinates: out } } : null;
+    }
+    // a lot or shape whose middle is inside this district
+    function midInOwn(gm) {
+      if (!ownGeo) return true;
+      var b = bboxOf(gm); return inOwn((b[1] + b[3]) / 2, (b[0] + b[2]) / 2) || shapeAllIn(gm);
+    }
+    function shapeAllIn(gm) { var pts = []; (function w(c) { if (typeof c[0] === 'number') pts.push(c); else c.forEach(w); })(gm.coordinates || []); return pts.length > 0 && pts.every(function (p) { return inOwn(p[1], p[0]); }); }
     // an address profile pins its own front door and opens on it, so the map
     // reads as a place rather than as a district that happens to contain one
     var ptLat = parseFloat(el.getAttribute('data-point-lat'));
@@ -534,7 +555,7 @@
           if (map.getZoom() < 15) { say('Zoom in to see land use lot by lot.'); done = false; return Promise.resolve(); }
           say('Loading land use\u2026');
           return arcQuery('MAPPLUTO', 'LandUse,Address,ZoneDist1', map.getBounds(), 1500).then(function (g) {
-            if (clipOwn && g && g.features) g = { type: 'FeatureCollection', features: g.features.filter(function (f) { return f.geometry && shapeInOwn(f.geometry); }) };
+            if (clipOwn && g && g.features) g = { type: 'FeatureCollection', features: g.features.filter(function (f) { return f.geometry && midInOwn(f.geometry); }) };
             L.geoJSON(g, {
               pane: FILL_PANE || undefined,
               style: function (f) {
@@ -649,12 +670,14 @@
                 if (!f.geometry || f.geometry.type !== 'Point') return;
                 var c = f.geometry.coordinates;
                 if (!b.contains([c[1], c[0]])) return;
+                if (clipOwn && !inOwn(c[1], c[0])) return;
                 L.circleMarker([c[1], c[0]], { radius: 4, color: '#0d1b4b', weight: 1.5, fillColor: '#fff', fillOpacity: 1 })
                   .bindTooltip((f.properties.stop_name || f.properties.name || 'Subway'), { sticky: true })
                   .addTo(group);
               });
               (t.bike && t.bike.features ? t.bike.features : []).forEach(function (f) {
                 if (!f.geometry) return;
+                if (clipOwn) { f = lineInOwn(f); if (!f) return; }
                 var lyr = L.geoJSON(f, { style: { color: '#009E73', weight: 2, opacity: 0.75 } });
                 try { if (!b.intersects(lyr.getBounds())) return; } catch (e) { return; }
                 lyr.addTo(group);
@@ -702,6 +725,7 @@
     }
     layers.busroutes = viewLayer({ label: 'bus routes', fetch: transportData, draw: function (g, all, b) {
       all.forEach(function (t) { if (!t || !t.bus) return; featsIn(t.bus.features, b).forEach(function (f) {
+        if (clipOwn) { f = lineInOwn(f); if (!f) return; }
         var p = f.properties || {};
         L.geoJSON(f, { style: { color: p.display_color || '#2563eb', weight: 3, opacity: 0.85 } })
           .bindTooltip('<b>' + escT(p.route_short_name || p.route_id || 'Bus') + '</b> ' + escT(p.route_long_name || ''), { sticky: true }).addTo(g);
@@ -723,15 +747,20 @@
     } });
     layers.speed = viewLayer({ label: 'speed limits', minZoom: 14, fetch: transportData, draw: function (g, all, b) {
       all.forEach(function (t) { if (!t || !t.speed) return; featsIn(t.speed.features, b).forEach(function (f) {
+        if (clipOwn) { f = lineInOwn(f); if (!f) return; }
         var p = f.properties || {}, v = p.postvz_sl || p.sl;
         L.geoJSON(f, { style: { color: speedColor(v), weight: 3, opacity: 0.9 } })
           .bindTooltip(escT(p.street || '') + ' &middot; ' + (v ? escT(v) + ' MPH' : 'No posted limit in DOT data'), { sticky: true }).addTo(g);
       }); });
     } });
-    layers.parks = viewLayer({ label: 'parks', fetch: function () { return getJSON('/data/parks-citywide.geojson'); }, draw: function (g, d, b) {
+    layers.parks = viewLayer({ label: 'parks', fetch: function () {
+      // a district profile reads parks already cut to its boundary (scripts/district_zoning_clip.py)
+      if (clipOwn) return getJSON('/data/districts/parks/' + self.folder + '-' + district + '.geojson').catch(function () { clipOwn = false; return getJSON('/data/parks-citywide.geojson'); });
+      return getJSON('/data/parks-citywide.geojson');
+    }, draw: function (g, d, b) {
       featsIn(d.features, b).forEach(function (f) {
         var p = f.properties || {};
-        if (!shapeInOwn(f.geometry)) return;
+        if (!clipOwn && !shapeInOwn(f.geometry)) return;
         L.geoJSON(f, { style: { color: '#15803d', weight: 1, fillColor: '#22c55e', fillOpacity: 0.32 } })
           .bindTooltip('<b>' + escT(p.n || 'Park') + '</b>' + (p.t ? '<br>' + escT(p.t) : '') + (p.ac ? ' &middot; ' + escT(p.ac) + ' acres' : ''), { sticky: true }).addTo(g);
       });
