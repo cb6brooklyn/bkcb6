@@ -98,7 +98,7 @@ def mapblock(chamber, district, lat, lng, title, sub, icon='', zoom=16, fit=True
 FOOT = '''  <div class="pfoot">{src}<br>
   <a href="/publicsafety/">Public safety</a> &middot; <a href="/eduhub">Schools</a> &middot; <a href="/citywide-search.html">Search any address</a> &middot; <a href="/">bkcb6.app</a></div>
 </div>
-<script src="/assets/profile-map.js?v=20261108s"></script>
+<script src="/assets/profile-map.js?v=20261108z"></script>
 </body></html>
 '''
 
@@ -178,7 +178,7 @@ def inject(path, block, maps):
     if maps and 'mapkit-leaflet.js' not in s:
         s = s.replace('</head>', '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>\n<script src="https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js"></script><script src="/assets/mapkit-leaflet.js"></script>\n</head>', 1)
     if maps and 'profile-map.js' not in s:
-        s = s.replace('</body>', '<script src="/assets/profile-map.js?v=20261108s"></script>\n</body>', 1)
+        s = s.replace('</body>', '<script src="/assets/profile-map.js?v=20261108z"></script>\n</body>', 1)
     open(path, 'w').write(s)
 
 def write_school_page(x, block):

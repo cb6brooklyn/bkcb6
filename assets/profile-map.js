@@ -459,10 +459,27 @@
     // ---- zoning, live from City Planning ----
     // It queries whatever is in view, so once it is on it has to redraw as the
     // map moves or it silently goes stale the first time somebody pans.
+    // a district profile shows zoning only inside its own boundary, cut ahead of time
+    // (scripts/district_zoning_clip.py), the way the CB6 home map does
+    var clipOwn = !bidSlug && !hasPoint && chamber !== 'city' && chamber !== 'state';
     layers.zoning = (function () {
       var group = L.layerGroup();
-      var busy = false;
+      var busy = false, clipped = false;
+      function drawZ(g) {
+        L.geoJSON(g, {
+          pane: FILL_PANE || undefined,
+          style: function (f) { var fam = zoneFamily(f.properties.ZONEDIST); return { color: ZONE_FILL[fam], weight: 0.6, opacity: 1, fillColor: ZONE_FILL[fam], fillOpacity: 0.42 }; },
+          onEachFeature: function (f, l) { l.bindTooltip(f.properties.ZONEDIST || 'Zoning', { sticky: true }); }
+        }).addTo(group);
+      }
       function draw() {
+        if (clipOwn) {
+          if (clipped || busy) return Promise.resolve();
+          busy = true; say('Loading zoning\u2026');
+          return getJSON('/data/districts/zoning/' + self.folder + '-' + district + '.geojson').then(function (g) {
+            group.clearLayers(); drawZ(g); clipped = true; say('');
+          }).catch(function () { clipOwn = false; busy = false; return draw(); }).then(function () { busy = false; });
+        }
         if (busy) return Promise.resolve();
         if (map.getZoom() < 13) {
           group.clearLayers();
@@ -517,6 +534,7 @@
           if (map.getZoom() < 15) { say('Zoom in to see land use lot by lot.'); done = false; return Promise.resolve(); }
           say('Loading land use\u2026');
           return arcQuery('MAPPLUTO', 'LandUse,Address,ZoneDist1', map.getBounds(), 1500).then(function (g) {
+            if (clipOwn && g && g.features) g = { type: 'FeatureCollection', features: g.features.filter(function (f) { return f.geometry && shapeInOwn(f.geometry); }) };
             L.geoJSON(g, {
               pane: FILL_PANE || undefined,
               style: function (f) {

@@ -1,5 +1,5 @@
 // CB6 & Beyond — Service Worker
-const CACHE_VERSION = 'cb6-v66666666666666911-1794178694';
+const CACHE_VERSION = 'cb6-v66666666666666912-1794179578';
 const CORE_ASSETS = [
   '/',
   '/index.html',
