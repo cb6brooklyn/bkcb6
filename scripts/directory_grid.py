@@ -31,7 +31,7 @@ OWN_LOGO = {'repocasiocortez': '/elected/aoc.png', 'cmaviles': '/elected/aviles.
             'senmyrie': '/elected/myrie.png', 'repnadler': '/elected/nadler.png', 'bpbrooklyn': '/elected/reynoso.png',
             'bpqueens': '/elected/richards.png', 'ussenschumer': '/elected/schumer.png', 'amsimon': '/elected/simon.png',
             'repsuozzi': '/elected/suozzi.png', 'reptorres': '/elected/torres.png', 'repvelazquez': '/elected/velazquez.png',
-            'publicadvocate': '/elected/williams.png', 'attorneygeneral': '/elected/tish-james.png'}
+            'publicadvocate': '/elected/williams.png', 'attorneygeneral': '/elected/tish-james.png', 'lieutenantgovernor': '/elected/delgado.png'}
 SKIP_LINKS = ('/calendar', '/citywide-search', '/o/', '/park/rules', '/parks-policy', '/permits', '/transport-map')
 
 idx = J('data/profile-index.json')
