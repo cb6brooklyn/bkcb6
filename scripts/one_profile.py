@@ -184,6 +184,8 @@ EXTRA = {'nyc.gov/site/dot': '/nyc-dot/', 'nyc.gov/site/parks': '/nyc-parks-broo
          'governor.ny.gov/lt-governor-antonio-delgado': '/lieutenantgovernor/', 'nycgo.com': '/agencies/new-york-city-tourism-plus-conventions/'}
 for k, v in EXTRA.items():
     if v in idx['pages']: idx['urls'][k] = v
+import sys; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import directory_offline; directory_offline.add_index(idx)   # the directory's packed pages
 for p in ('data/profile-index.json', 'app/data/civic/profile-index.json'):
     json.dump(idx, open(os.path.join(ROOT, p), 'w'), ensure_ascii=False, indent=0, sort_keys=True)
 print('index:', len(idx['pages']), 'profiles,', len(idx['urls']), 'outside addresses,', len(FORWARD), 'forwards')
