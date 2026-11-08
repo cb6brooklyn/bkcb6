@@ -7,7 +7,7 @@ import json, os, re, sys, urllib.parse, urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, 'scripts'))
 from directory_grid import OWN_LOGO
-PLACE = {'cmjustinsanchez': (40.816665, -73.928627), 'cmbanks': (40.655012, -73.873252)}   # 416 Walton Ave; 1199 Elton St
+PLACE = {'cmbanks': (40.655012, -73.873252)}   # 1199 Elton St
 
 def main():
     out = {}
