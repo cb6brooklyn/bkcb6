@@ -376,7 +376,7 @@
     });
 
     // ---- overlapping districts from the other two chambers, faint ----
-    function overlapLayer(kind) {
+    function overlapLayer(kind, listKey) {
       var c = CHAMBERS[kind];
       var group = L.layerGroup();
       var loaded = false;
@@ -388,7 +388,7 @@
           return ovxReady.then(function () {
           if (!homeBounds) return Promise.resolve();
           var jobs = [];
-          (ovxList(kind) || c.codes || (function () { var r = []; for (var i = 1; i <= c.count; i++) r.push(i); return r; })()).forEach(function (i) {
+          (ovxList(listKey || kind) || (listKey ? [] : null) || c.codes || (function () { var r = []; for (var i = 1; i <= c.count; i++) r.push(i); return r; })()).forEach(function (i) {
             jobs.push(getJSON('/data/districts/' + c.folder + '-' + i + '.geojson')
               .catch(function () { return null; }));
           });
@@ -397,11 +397,12 @@
             all.forEach(function (g) {
               if (!g || !g.features || !g.features[0]) return;
               var lyr = L.geoJSON(g, {
-                style: { color: c.color, weight: 1, opacity: 0.55, fillColor: c.color, fillOpacity: 0.05 }
+                style: listKey ? { color: c.color, weight: 1.6, opacity: 0.8, dashArray: '4 4', fillColor: c.color, fillOpacity: 0.12 }
+                               : { color: c.color, weight: 1, opacity: 0.55, fillColor: c.color, fillOpacity: 0.05 }
               });
               // only draw the ones that actually overlap this member's district
               try {
-                if (!ovxList(kind) && homeBounds && !homeBounds.intersects(lyr.getBounds())) return;
+                if (!ovxList(listKey || kind) && homeBounds && !homeBounds.intersects(lyr.getBounds())) return;
               } catch (e) { return; }
               var num = g.features[0].properties.district;
               var BN = { '1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island' };
@@ -852,6 +853,19 @@
         if (!l.length) { b.remove(); delete toggleBtn[key]; return; }
         b.textContent = label + (l.length <= 8 ? ' ' + l.map(fmt || String).join(', ') : ' (' + l.length + ')');
       }
+      // the small but real overlaps (a few blocks, from the election districts) get a toggle of their own
+      OVERLAPS.forEach(function (k) {
+        var l = ovxList(k + '_minor'); if (!l || !l.length || (!bidSlug && k === chamber)) return;
+        var key = 'minor-' + k; layers[key] = overlapLayer(k, k + '_minor');
+        var fmt = k === 'cb' ? function (c) { return BN[c.charAt(0)] + parseInt(c.slice(1), 10); } : k === 'congress' ? function (n) { return 'NY-' + n; } : String;
+        var after = toggleBtn['overlap-' + k];
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'mtog';
+        b.textContent = NAME[k] + ', a few blocks: ' + l.map(fmt).join(', ');
+        toggleBtn[key] = b;
+        b.addEventListener('click', function () { setLayer(key, !b.classList.contains('on')); });
+        if (after && after.parentNode) after.parentNode.insertBefore(b, after.nextSibling);
+        else if (toggleWrap) toggleWrap.insertBefore(b, toggleWrap.firstChild);
+      });
       OVERLAPS.forEach(function (k) {
         setT('overlap-' + k, k, NAME[k], k === 'cb' ? function (c) { return BN[c.charAt(0)] + parseInt(c.slice(1), 10); } : k === 'congress' ? function (n) { return 'NY-' + n; } : null);
       });

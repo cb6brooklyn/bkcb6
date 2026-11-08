@@ -83,8 +83,50 @@ def main():
                     hits.append(ident)
             row[k] = sorted(hits, key=lambda x: (len(x), x))
         out[name] = row
+    add_minor(out)
     json.dump(out, open('data/districts/overlaps.json', 'w'), separators=(',', ':'))
     print(len(out), 'districts;', json.dumps(out.get('council-1')))
+
+def add_minor(out):
+    """Where the election districts say how two districts overlap (app/data/civic/officials.json: each Council, Assembly,
+    State Senate and Congress member's boards and the other chambers' districts, counted by election district), they
+    decide instead of the shapes: a board or district holding at least 10% of this district's election districts is a
+    main overlap; fewer, but at least one, is a small overlap (<kind>_minor), offered on the map as its own toggle,
+    such as the few blocks of CB6 in Senate District 25 or of Brooklyn CB10 and CB11 in Council District 50; none at
+    all drops a shape-only match. Board pages get the same from the board's side."""
+    FOLDER = {'council': 'council', 'assembly': 'assembly', 'senate': 'senate', 'congress': 'congress'}
+    def parse(label):
+        m = re.match(r'(Council|Assembly|Senate) District (\d+)$', label)
+        if m: return {'Council': 'council', 'Assembly': 'assembly', 'Senate': 'senate'}[m.group(1)], m.group(2)
+        m = re.match(r'NY-(\d+)$', label)
+        if m: return 'congress', m.group(1)
+        return None, None
+    ed = {}      # file name -> kind -> id -> election districts shared
+    total = {}   # file name -> its election districts
+    def put(a, kind, ident, n):
+        ed.setdefault(a, {}).setdefault(kind, {})[str(ident)] = n
+    for o in json.load(open('app/data/civic/officials.json')):
+        if o.get('type') not in FOLDER or not o.get('district'): continue
+        me = f"{FOLDER[o['type']]}-{o['district']}"
+        total[me] = sum(c.get('eds', 0) for c in o.get('cbs', []))
+        for c in o.get('cbs', []):
+            if c.get('eds', 0) > 0:
+                put(me, 'cb', c['cd'], c['eds']); put('cb-' + c['cd'], FOLDER[o['type']], o['district'], c['eds'])
+                if o['type'] == 'council': total['cb-' + c['cd']] = total.get('cb-' + c['cd'], 0) + c['eds']
+        for x in o.get('dists', []):
+            k, n = parse(x.get('label', ''))
+            if k and x.get('eds', 0) > 0:
+                put(me, k, n, x['eds'])
+    for name, kinds in ed.items():
+        if name not in out or not total.get(name): continue
+        for k, ids in kinds.items():
+            if name.startswith(k + '-'): continue
+            major = [i for i, n in ids.items() if n >= 0.10 * total[name]]
+            minor = [i for i, n in ids.items() if i not in major]
+            key = lambda x: (len(x), x)
+            out[name][k] = sorted(major, key=key)
+            if minor: out[name][k + '_minor'] = sorted(minor, key=key)
+            else: out[name].pop(k + '_minor', None)
 
 if __name__ == '__main__':
     main()
