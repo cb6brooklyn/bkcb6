@@ -46,6 +46,7 @@ def parks():
     for i in B.SMALL:
         n = B.PK[i]['n']
         if n != 'Park': out.append((i, 'small-' + i.lower(), n))
+    out.append(('SMALL', 'cb6-small-spaces', 'Small park spaces'))
     return out
 
 def main():
