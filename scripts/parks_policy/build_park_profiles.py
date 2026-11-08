@@ -23,6 +23,7 @@ J = lambda p: json.load(open(os.path.join(ROOT, p), encoding='utf-8'))
 D = J('parks-policy/cb6.json')
 SIGNS = J('parks-policy/signs.json')['signs']
 NY = J('parks-policy/ny4p.json')
+PINS = J('park/pins/pins.json') if os.path.exists(os.path.join(ROOT, 'park/pins/pins.json')) else {}
 PRULES = J('scripts/parks_policy/park_rules.json')
 PROF = {p['name']: p for p in J('app/data/civic/orgs/orgs-profiles.json')['profiles'] if p['slug'].startswith('place-')}
 CAP = {c['id']: c for c in D['cap']}
@@ -273,7 +274,7 @@ def acts_script(pid):
             k = near.index(a); dx = round((k - (len(near) - 1) / 2) * 24); dy = 46
         pts.append([a['lat'], a['lon'], a['g'] + a['c'], a['l'] + (f' ({a["n"]})' if a['n'] > 1 else ''), dx, dy])
     return ('<script>(function(){var I=' + json.dumps(icons) + ',P=' + json.dumps(pts) + ';'
-            'function go(el){var m=el._pmap&&el._pmap.map;if(!m||!window.L)return;if(!m.getPane("acts")){m.createPane("acts");m.getPane("acts").style.zIndex=430}var M=[];P.forEach(function(p){var mk=L.marker([p[0],p[1]],{pane:"acts",icon:L.divIcon({className:"pk-act",iconSize:[20,20],iconAnchor:[10-p[4],10-p[5]],html:I[p[2]].replace("<svg ","<svg width=\\"20\\" height=\\"20\\" style=\\"display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))\\" ")}),title:p[3],zIndexOffset:-1100});mk.bindTooltip(p[3],{direction:"top",offset:[0,-10]});mk.addTo(m);M.push(mk)});(function(){for(var k in m._layers){var x=m._layers[k];var ic=x&&x.options&&x.options.icon;if(ic&&ic.options&&String(ic.options.html||"").indexOf("park-pin")>=0){m.removeLayer(x);x.addTo(m)}}})()}'
+            'function go(el){var m=el._pmap&&el._pmap.map;if(!m||!window.L)return;if(!m.getPane("acts")){m.createPane("acts");m.getPane("acts").style.zIndex=430}var M=[];P.forEach(function(p){var mk=L.marker([p[0],p[1]],{pane:"acts",icon:L.divIcon({className:"pk-act",iconSize:[20,20],iconAnchor:[10-p[4],10-p[5]],html:I[p[2]].replace("<svg ","<svg width=\\"20\\" height=\\"20\\" style=\\"display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))\\" ")}),title:p[3],zIndexOffset:-1100});mk.bindTooltip(p[3],{direction:"top",offset:[0,-10]});mk.addTo(m);M.push(mk)});(function(){for(var k in m._layers){var x=m._layers[k];var ic=x&&x.options&&x.options.icon;if(ic&&ic.options&&String(ic.options.html||"").search(/park-pin|\\/park\\/pins\\//)>=0){m.removeLayer(x);x.addTo(m)}}})()}'
             'document.addEventListener("profile-map-ready",function(e){var el=e.target;if(el&&el.id==="map-' + (GROUPS.get(pid, [pid])[0]) + '")go(el)});'
             '})();</script>\n')
 
@@ -354,7 +355,7 @@ def page(pid):
           f'    {banner(name, pid)}\n    <h1>{E(name)}</h1>\n    <div class="pseat">{E(ty)}{" &middot; " + E(nb) if nb else ""} &middot; {acres:,.2f} acres</div>\n  </div>\n')
     if src.get('about'): h += sec('What it is', ''.join(f'<p>{E(x)}</p>' for x in src['about']))
     h += sec('Details', kv(facts(pid, ps) + hours(pid)) + chips(pid, ps, slug))
-    h += mapsec(p0, name, acres)
+    h += mapsec(p0, name, acres, pid=pid)
     w = whats_here(pid, ps, src)
     if w: h += sec("What's here", w)
     if src.get('history'): h += sec('History', ''.join(f'<p>{E(x)}</p>' for x in src['history']) + f'<p class="subnote">From NYC Parks\' history of the park (its Historical Signs Project), in our words.</p>')
@@ -369,15 +370,20 @@ def page(pid):
     h += foot(pid in S.GT).replace('<script src="/assets/profile-map.js', acts_script(pid) + '<script src="/assets/profile-map.js', 1)
     return slug, h
 
-def mapsec(p, name, acres, sub=False):
+def mapsec(p, name, acres, sub=False, pid=None):
+    pin = PINS.get(pid or p['id'])
     z = 16 if acres > 5 else 18 if acres < .3 else 17
     m = ('<details class="mapwrap" open><summary>Map of the park<span class="msub">zoning, boundary, overlaps, land use</span><span class="marr2">&#9660;</span></summary>'
          f'<div class="mapinner"><div class="mapttl">{E(p["loc"] or name)} <span>the park, its block and the zoning around it</span></div>'
          '<div class="msearch"><input type="search" placeholder="Search an address to drop a pin" autocomplete="off"><button type="button">Find</button><button type="button" class="mreset" data-map-reset>Reset</button></div>'
          f'<div class="pmap" id="map-{p["id"]}" data-profile-map data-chamber="cb" data-district="306" data-start-zoning="1" data-point-lat="{p["lat"]}" data-point-lng="{p["lon"]}" data-point-zoom="{z}" '
-         f'data-point-label="{E(name)}" data-point-icon="/park/park-pin.svg" data-point-icon-w="200" data-point-icon-h="200"></div>'
-         '<div class="mstat" data-map-status></div><button type="button" class="mtoggle" aria-expanded="false" data-map-toggle-btn><span style="flex:1;text-align:left">Add to the map</span><span class="marr">&#9660;</span></button>'
+         + (f'data-point-icon="{pin["pin"]}" data-point-icon-w="{pin["w"]}" data-point-icon-h="{pin["h"]}" data-point-icon-px="80" data-point-icon-plain="#1D3425"></div>' if pin else
+            f'data-point-label="{E(name)}" data-point-icon="/park/park-pin.svg" data-point-icon-w="200" data-point-icon-h="200"></div>')
+         + '<div class="mstat" data-map-status></div><button type="button" class="mtoggle" aria-expanded="false" data-map-toggle-btn><span style="flex:1;text-align:left">Add to the map</span><span class="marr">&#9660;</span></button>'
          '<div class="mtools" data-map-toggles hidden></div><div class="mhint">Tap the map anywhere to drop a pin and open that lot.</div></div></details>')
+    if pin:
+        m += ('<script>document.addEventListener("profile-map-ready",function(e){if(e.target&&e.target.id==="map-' + p['id'] + '"){var mm=e.target._pmap.map;'
+              'var dn=0;[600,1500,3000].forEach(function(t){setTimeout(function(){if(dn)return;try{var c0=mm.getCenter();mm.panBy([0,-70],{animate:false});var c1=mm.getCenter();if(c1&&c0&&c1.lat!==c0.lat)dn=1}catch(x){}},t)})}});</script>')
     return m if sub else f'  <div class="sec"><h2>Where it is</h2>\n    {m}\n  </div>\n'
 
 def foot(garden=False):
@@ -402,7 +408,7 @@ def small_page():
         nm = p['n'] if p['n'] != 'Park' else f'Unnamed ({p["loc"] or i})'
         body += (f'<div class="sm" id="{i}">{banner(p["n"] if p["n"] != "Park" else "Park", i)}<h3>{E(nm)}</h3>' + kv([('Where', E(p['loc'] or '')), ('Size', f'{p["acres"]} acres, about {round(p["acres"] * 43560, -1):,.0f} square feet'),
                  ('Type', E(TYPE.get(p['type'], p['type']))), ('Parks ID', E(i)), ('A park since', E(p['acq']) if p.get('acq') and p['acq'] > '1800' else '')]) +
-                 mapsec(p, nm, p['acres'], True) +
+                 mapsec(p, nm, p['acres'], True, pid=i) +
                  ''.join(f'<p>{E(x)}</p>' for x in src.get('about', []) + src.get('history', [])) +
                  (f'<p><b>New Yorkers for Parks:</b> listed as &ldquo;{E(S.NY4P_LIST[i])}&rdquo; among the district\'s parks in its {NY["year"]} Open Space Profile.</p>' if i in S.NY4P_LIST else '') +
                  f'<div class="chips"><a class="chip" href="/parks-policy/#park-{i}">On the map</a>' + (f'<a class="chip" href="https://www.nycgovparks.org/parks/{i}" target="_blank" rel="noopener">NYC Parks page &#8599;</a>' if i not in NO_PAGE else '') + '</div></div>')

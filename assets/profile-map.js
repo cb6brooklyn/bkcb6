@@ -153,6 +153,9 @@
     var ptIcon = el.getAttribute('data-point-icon') || '';
     var ptIconW = parseInt(el.getAttribute('data-point-icon-w') || '200', 10);
     var ptIconH = parseInt(el.getAttribute('data-point-icon-h') || '200', 10);
+    // optional: a pin that is its own sign (a park's NYC Parks sign) at its own width, no plate
+    var ptIconPx = parseInt(el.getAttribute('data-point-icon-px') || '58', 10);
+    var ptIconPlain = el.getAttribute('data-point-icon-plain') || '';
     var hasPoint = isFinite(ptLat) && isFinite(ptLng);
     // data-fit-own="1": open on the whole boundary (a precinct, a school district) with the office pinned in it
     var fitOwn = el.getAttribute('data-fit-own') === '1';
@@ -203,17 +206,18 @@
       if (ptIcon && L.divIcon) {
         // the logo in a white plate on a navy tail, the same pin the lot card
         // drops, so a place reads as itself rather than as a generic dot
-        var iw = 58, ih = Math.round(iw * (ptIconH / ptIconW)) || 58;
+        var iw = ptIconPx, ih = Math.round(iw * (ptIconH / ptIconW)) || ptIconPx;
+        var tail = ptIconPlain || '#0d1b4b';
         place = L.marker([ptLat, ptLng], {
           pane: LINE_PANE || undefined,
           icon: L.divIcon({
             className: '', iconSize: [iw, ih + 10], iconAnchor: [iw / 2, ih + 10],
             html: '<div style="text-align:center">'
               + '<img src="' + ptIcon + '" alt="" style="width:' + iw + 'px;height:' + ih
-              + 'px;display:block;background:#fff;border:2px solid #0d1b4b;border-radius:7px;'
+              + 'px;display:block;' + (ptIconPlain ? 'border-radius:4px;' : 'background:#fff;border:2px solid #0d1b4b;border-radius:7px;')
               + 'box-shadow:0 2px 6px rgba(0,0,0,.28)">'
               + '<div style="width:0;height:0;margin:0 auto;border-left:6px solid transparent;'
-              + 'border-right:6px solid transparent;border-top:9px solid #0d1b4b"></div></div>'
+              + 'border-right:6px solid transparent;border-top:9px solid ' + tail + '"></div></div>'
           })
         }).addTo(map);
       } else {
