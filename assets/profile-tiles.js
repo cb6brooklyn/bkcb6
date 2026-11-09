@@ -109,6 +109,9 @@
         (W.state || []).forEach(function (o) { tail.push(mk(o, 'New York State')); });
         (W.us || []).forEach(function (o) { tail.push(mk(o, 'U.S. Senate')); });
         tail.forEach(function (a) { grid.insertBefore(a, after); });
+        // the people come first in the grid, ahead of the board's own pages
+        var first = grid.firstChild;
+        Array.prototype.forEach.call(grid.querySelectorAll('a.ptile.cb'), function (a) { grid.insertBefore(a, first); });
       }).catch(function () {});
     }
     // fold every section after this block, one tile each
@@ -137,6 +140,28 @@
       grid.appendChild(b); entries.push({ el: b, text: (title + ' ' + (sec.textContent || '')).replace(/\s+/g, ' ').toLowerCase(), fold: d });
     }
     secs.forEach(foldSec);
+    // A community board page reads like an official's: the board's name, its bio, its map, the people who represent it,
+    // and every other part folded under its title.
+    var pw = document.querySelector('.page-wrap');
+    if (/^\/cb-[a-z]{2}-\d+\.html$/.test(location.pathname) && pw) {
+      var st = document.createElement('style');
+      st.textContent = '.page-wrap{min-width:0;max-width:min(1400px,100%)!important;box-sizing:border-box}.page-wrap>details.pfold{margin:0 0 10px;background:#fff;border-radius:12px}.page-wrap>.pbrief{background:#fff;border-radius:12px;margin:0 0 12px;padding:16px 18px 8px}.page-wrap>.ptiles{background:#fff;border-radius:12px;margin:0 0 12px}';
+      document.head.appendChild(st);
+      var hero = pw.querySelector(':scope > .cb-hero'), bx3 = pw.querySelector(':scope > .pbrief'), mp = pw.querySelector(':scope > #sec-map');
+      var at = hero;
+      [bx3, mp, el].forEach(function (n) { if (n && at) { at.parentNode.insertBefore(n, at.nextSibling); at = n; } });
+      Array.prototype.forEach.call(pw.children, function (n) {
+        if (n === hero || n === bx3 || n === mp || n === el || /^(SCRIPT|STYLE|A|BUTTON|DETAILS)$/.test(n.tagName)) return;
+        if (n.classList.contains('drop-section') || n.classList.contains('cb6-nav-grid') || n.id === 'share-modal' || n.style.display === 'none') return;
+        var h = n.querySelector('h2, h3'); if (!h) return;
+        var title = h.textContent.replace(/\s+/g, ' ').trim();
+        var d = document.createElement('details'); d.className = 'pfold';
+        var sm = document.createElement('summary'); sm.innerHTML = esc(title) + '<span class="arr">&#9660;</span>';
+        n.parentNode.insertBefore(d, n); d.appendChild(sm); d.appendChild(n);
+        // a map drawn while folded needs to redraw once it opens
+        d.addEventListener('toggle', function () { if (d.open) setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 60); });
+      });
+    }
     // sections other scripts add later (the related-officials block) get folded and tiled too
     var wrap = el.closest('.pwrap') || document.body;
     if (window.MutationObserver) new MutationObserver(function (ms) {
