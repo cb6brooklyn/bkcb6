@@ -78,6 +78,19 @@
     return getJSON(u);
   }
 
+  // the MTA's route bullet colors (app/data/civic/transit.json)
+  var SUBC = { '1': ['#EE352E', '#fff'], '2': ['#EE352E', '#fff'], '3': ['#EE352E', '#fff'], '4': ['#00933C', '#fff'], '5': ['#00933C', '#fff'], '6': ['#00933C', '#fff'],
+    '7': ['#B933AD', '#fff'], A: ['#0039A6', '#fff'], C: ['#0039A6', '#fff'], E: ['#0039A6', '#fff'], B: ['#FF6319', '#fff'], D: ['#FF6319', '#fff'], F: ['#FF6319', '#fff'],
+    M: ['#FF6319', '#fff'], G: ['#6CBE45', '#fff'], J: ['#996633', '#fff'], Z: ['#996633', '#fff'], L: ['#A7A9AC', '#fff'], N: ['#FCCC0A', '#000'], Q: ['#FCCC0A', '#000'],
+    R: ['#FCCC0A', '#000'], W: ['#FCCC0A', '#000'], S: ['#808183', '#fff'], SIR: ['#0078C6', '#fff'] };
+  (function () {
+    if (document.getElementById('pmap-sub-css')) return;
+    var st = document.createElement('style'); st.id = 'pmap-sub-css';
+    st.textContent = '.pmap-sub{display:inline-flex;gap:1px;padding:2px 3px;background:rgba(255,255,255,.95);border:1.5px solid #111;border-radius:13px;box-shadow:0 1px 5px rgba(0,0,0,.3);white-space:nowrap}'
+      + '.pmap-sub span{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font:800 11px/18px Helvetica,Arial,sans-serif}';
+    document.head.appendChild(st);
+  })();
+
   var STYLE_ID = 'pmap-legend-css';
   function injectCss() {
     if (document.getElementById(STYLE_ID)) return;
@@ -726,17 +739,39 @@
             return getJSON('/transport-data/' + b + '.json').catch(function () { return null; });
           })).then(function (all) {
             var b = map.getBounds();
+            // subway stations as the MTA's own route bullets, one marker per station complex with every line that stops there
+            var cx = {};
+            all.forEach(function (t) {
+              (t && t.subway && t.subway.features ? t.subway.features : []).forEach(function (f) {
+                if (!f.geometry || f.geometry.type !== 'Point') return;
+                var c = f.geometry.coordinates, p = f.properties || {};
+                if (clipOwn ? !inOwn(c[1], c[0]) : !b.pad(0.2).contains([c[1], c[0]])) return;
+                var k = p.complex_id || p.station_id || (c[0] + ',' + c[1]);
+                var o = cx[k] || (cx[k] = { c: c, name: p.stop_name || p.name || 'Subway', r: [] });
+                String(p.daytime_routes || p.routes || '').split(/\s+/).forEach(function (r) { if (r && o.r.indexOf(r) < 0) o.r.push(r); });
+              });
+            });
+            var ORDER = '1234567ACEBDFMGJZLNQRWS';
+            Object.keys(cx).forEach(function (k) {
+              var o = cx[k], rs = o.r.sort(function (a, z) { return ORDER.indexOf(a) - ORDER.indexOf(z); });
+              var html = '<div class="pmap-sub">' + rs.map(function (r) { var st = SUBC[r] || ['#111', '#fff']; return '<span style="background:' + st[0] + ';color:' + st[1] + '">' + r + '</span>'; }).join('') + '</div>';
+              var w = 8 + Math.max(1, rs.length) * 19;
+              L.marker([o.c[1], o.c[0]], { zIndexOffset: 500,
+                icon: L.divIcon({ className: '', iconSize: [w, 24], iconAnchor: [w / 2, 12], html: html }) })
+                .bindTooltip('<b>' + String(o.name).replace(/[<>&]/g, '') + '</b><br>' + rs.join(' \u00b7 '), { direction: 'top', offset: [0, -12] })
+                .addTo(group);
+            });
+            // the subway lines themselves, in each line's color
+            getSite('/data/nyc-subway-routes.geojson').then(function (rt) {
+              (rt.features || []).forEach(function (f) {
+                if (clipOwn) { f = lineInOwn(f); if (!f) return; }
+                var lyr = L.geoJSON(f, { pane: FILL_PANE || undefined, style: { color: (f.properties || {}).color || '#555', weight: 4, opacity: 0.9 } });
+                if (!clipOwn) { try { if (!b.pad(0.2).intersects(lyr.getBounds())) return; } catch (e) { return; } }
+                lyr.bindTooltip(String((f.properties || {}).name || 'Subway line').replace(/[<>&]/g, ''), { sticky: true }).addTo(group);
+              });
+            }).catch(function () {});
             all.forEach(function (t) {
               if (!t) return;
-              (t.subway && t.subway.features ? t.subway.features : []).forEach(function (f) {
-                if (!f.geometry || f.geometry.type !== 'Point') return;
-                var c = f.geometry.coordinates;
-                if (!b.contains([c[1], c[0]])) return;
-                if (clipOwn && !inOwn(c[1], c[0])) return;
-                L.circleMarker([c[1], c[0]], { radius: 4, color: '#0d1b4b', weight: 1.5, fillColor: '#fff', fillOpacity: 1 })
-                  .bindTooltip((f.properties.stop_name || f.properties.name || 'Subway'), { sticky: true })
-                  .addTo(group);
-              });
               (t.bike && t.bike.features ? t.bike.features : []).forEach(function (f) {
                 if (!f.geometry) return;
                 if (clipOwn) { f = lineInOwn(f); if (!f) return; }
