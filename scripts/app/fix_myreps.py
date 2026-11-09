@@ -37,6 +37,17 @@ dk = os.path.join(V, 'DistrictKit.swift')
 a = '                if !o.boro.isEmpty { DKPill(text: o.boro, fg: .white, bg: .white.opacity(0.18)) }\n            }\n'
 rep(dk, a, a + '            FollowRepButton(slug: o.slug)\n')
 
+# 3b. the row at the top of the Directory tab, for the apps civic/myreps.json lists under "directory"
+ot = os.path.join(V, 'OrgsTabView.swift')
+import re
+t = rd(ot)
+if 'MyRepsRow(' not in t:
+    m = re.search(r'\n( *)searchField\.padding\(\.top, Sz\("OrgsTabView\.z\.[0-9a-f]+", 12\)\)\n', t)
+    assert m, 'OrgsTabView searchField'
+    ind = m.group(1)
+    t = t[:m.start()] + '\n' + ind + 'if MyReps.inDirectory { MyRepsRow(open: { hookOfficial = $0 }).padding(.top, 12) }' + t[m.start():]
+    wr(ot, t)
+
 # 4. banners with one link per image
 uc = os.path.join(S, 'UIConfig.swift')
 rep(uc, 'struct Banner { let images: [String]; let url: URL; let label: String }',
@@ -89,6 +100,14 @@ enum MyReps {
     static let changed = Notification.Name("myreps.changed")
     static var cfg: [String: Any] { DK.json("myreps") as? [String: Any] ?? [:] }
     static func t(_ k: String, _ d: String) -> String { (cfg[k] as? String) ?? d }
+    /// Apps whose Directory tab opens with the row ("directory": ["cb6"]).
+    static var inDirectory: Bool { (cfg["directory"] as? [String])?.contains(UIConfig.app) ?? false }
+    /// With no saved block: the officials the file lists for this app ("fallback": {"cb6": [slugs]}), under "fallbackTitle".
+    static var fallback: [Official] {
+        let ord = order
+        return ((cfg["fallback"] as? [String: Any])?[UIConfig.app] as? [String] ?? []).compactMap { DKOfficials.bySlug[$0] }
+            .sorted { (rank($0, ord), $0.district ?? 0) < (rank($1, ord), $1.district ?? 0) }
+    }
     static var follows: [String] { (UserDefaults.standard.string(forKey: followKey) ?? "").split(separator: ",").map(String.init).filter { !$0.isEmpty } }
     static func isFollowing(_ s: String) -> Bool { follows.contains(s) }
     static func toggle(_ s: String) {
@@ -177,6 +196,9 @@ enum MyReps {
 
 /// Home: the officials for the saved address, then the ones followed. Each opens its profile.
 struct MyRepsRow: View {
+    /// Set where the screen opens a profile itself (the Directory tab); otherwise the row links to "official:<slug>".
+    var open: ((String) -> Void)? = nil
+    @State private var usingFallback = false
     @EnvironmentObject var store: DataStore
     @AppStorage(MyPlaceKeys.label) private var placeLabel = ""
     @AppStorage(MyReps.followKey) private var followRaw = ""
@@ -188,13 +210,14 @@ struct MyRepsRow: View {
     var body: some View {
         let c = MyReps.cfg
         VStack(alignment: .leading, spacing: 8) {
-            Text(MyReps.t("title", "Your reps").uppercased()).font(DM.mono(10, .medium)).tracking(1).foregroundStyle(Color.cb6Orange)
+            Text((usingFallback ? ((c["fallbackTitle"] as? [String: String])?[UIConfig.app] ?? MyReps.t("title", "Your reps")) : MyReps.t("title", "Your reps")).uppercased()).font(DM.mono(10, .medium)).tracking(1).foregroundStyle(Color.cb6Orange)
                 .padding(.horizontal, 14)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 8) {
                     ForEach(mine + more, id: \\.slug) { o in
-                        NavigationLink(value: "official:\\(o.slug)") { tile(o, label: MyReps.label(o, c), followed: followRaw.split(separator: ",").contains(Substring(o.slug))) }
-                            .buttonStyle(.plain)
+                        let t = tile(o, label: MyReps.label(o, c), followed: followRaw.split(separator: ",").contains(Substring(o.slug)))
+                        if let open { Button { open(o.slug) } label: { t }.buttonStyle(.plain) }
+                        else { NavigationLink(value: "official:\\(o.slug)") { t }.buttonStyle(.plain) }
                     }
                     Button { picking = true } label: {
                         Text(MyReps.t("add", "Follow\\nmore")).font(DM.sans(11, .bold)).multilineTextAlignment(.center).foregroundStyle(Color.cb6Navy)
@@ -205,7 +228,7 @@ struct MyRepsRow: View {
                 }
                 .padding(.horizontal, 14)
             }
-            if mine.isEmpty {
+            if MyPlace.current == nil {
                 Text(MyReps.t("noBlock", "Save your block to see who represents it")).font(DM.sans(12)).foregroundStyle(.white.opacity(0.85))
                     .padding(.horizontal, 14)
             }
@@ -214,7 +237,10 @@ struct MyRepsRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.cb6Navy, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .task(id: "\\(placeLabel)|\\(followRaw)|\\(tick)|\\(store.meetings.count)") {
-            mine = MyReps.mine()
+            var m = MyReps.mine()
+            usingFallback = m.isEmpty && !MyReps.fallback.isEmpty
+            if m.isEmpty { m = MyReps.fallback }
+            mine = m
             let have = Set(mine.map(\\.slug))
             more = MyReps.follows.filter { !have.contains($0) }.compactMap { DKOfficials.bySlug[$0] }
             soon = MyReps.soon(mine + more, meetings: store.meetings)
