@@ -201,6 +201,26 @@
     var appMark = function () { document.documentElement.classList.add('app'); if (document.body) document.body.classList.add('app'); };
     appCss();
     if (document.body) appMark(); else document.addEventListener('DOMContentLoaded', appMark);
+    // A page opened from inside an app screen (the Directory) gets the app's own way back: a Back button and a
+    // Directory button, pinned to the top. The directory itself does not need them.
+    var appNav = function () {
+      if (/^\/?profiles\/(index\.html)?$/.test(location.pathname.replace(/^\/+/, '/')) || document.getElementById('cb6appnav')) return;
+      // only on pages reached from the Directory (its links carry from=dir); other app screens have the app's own bar
+      var fromDir = /[?&]from=dir\b/.test(location.search || '');
+      try { if (fromDir) sessionStorage.setItem('bkdir', '1'); else fromDir = sessionStorage.getItem('bkdir') === '1'; } catch (e) {}
+      if (!fromDir) return;
+      var t = document.createElement('style');
+      t.textContent = '#cb6appnav{position:sticky;top:0;z-index:9500;display:flex;gap:8px;align-items:center;padding:8px 12px;background:#0d1b4b;border-bottom:3px solid #f47920;font:700 15px/1 "DM Sans",system-ui,-apple-system,sans-serif}'
+        + '#cb6appnav a{display:inline-flex;align-items:center;gap:6px;color:#fff;text-decoration:none;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.12);-webkit-tap-highlight-color:transparent}'
+        + '#cb6appnav a.dir{margin-left:auto;background:#f47920}';
+      document.head.appendChild(t);
+      var n = document.createElement('div'); n.id = 'cb6appnav';
+      var dir = location.protocol === 'bkcb:' ? '/profiles/index.html?app=1' : 'bkcb://site/profiles/index.html?app=1';
+      n.innerHTML = '<a href="#" class="bk">\u2039 Back</a><a class="dir" href="' + dir + '">Directory</a>';
+      n.querySelector('.bk').addEventListener('click', function (e) { e.preventDefault(); if (history.length > 1) history.back(); else location.href = dir; });
+      document.body.insertBefore(n, document.body.firstChild);
+    };
+    if (document.body) appNav(); else document.addEventListener('DOMContentLoaded', appNav);
     return;
   }
   if (hidden() || document.getElementById('cb6bar')) {
