@@ -45,7 +45,8 @@ if 'MyRepsRow(' not in t:
     m = re.search(r'\n( *)searchField\.padding\(\.top, Sz\("OrgsTabView\.z\.[0-9a-f]+", 12\)\)\n', t)
     assert m, 'OrgsTabView searchField'
     ind = m.group(1)
-    t = t[:m.start()] + '\n' + ind + 'if MyReps.inDirectory { MyRepsRow(open: { hookOfficial = $0 }).padding(.top, 12) }' + t[m.start():]
+    t = t[:m.start()] + '\n' + ind + 'if MyReps.inDirectory { MyRepsRow(open: { hookOfficial = $0 }).padding(.top, 12) }' + t[m.start():m.end()] + ind + 'RepsForAddress(query: query, open: { hookOfficial = $0 })\n' + t[m.end():]
+    t = t.replace('"Search a name or a topic, like housing or arts"', '"Search a name, a topic or your address"')
     wr(ot, t)
 
 # 4. banners with one link per image
@@ -85,7 +86,7 @@ rep(pm, a, '''        if let b = UIConfig.shared.banner(slug), !b.links.isEmpty,
 tl = os.path.join(V, 'Tools.swift')
 s = rd(tl)
 if 'enum MyReps' not in s:
-    if 'import UserNotifications' not in s: s = 'import UserNotifications\n' + s
+    if 'import UserNotifications' not in s: s = 'import UserNotifications\nimport CoreLocation\n' + s
     s = s.rstrip('\n') + '''
 
 
@@ -132,7 +133,11 @@ enum MyReps {
     /// Everyone who represents the saved address, in the row's order.
     static func mine() -> [Official] {
         guard let p = MyPlace.current else { return [] }
-        let c = p.coord, ord = order
+        return mine(at: p.coord, cd: p.cd)
+    }
+    /// Everyone who represents a point.
+    static func mine(at c: CLLocationCoordinate2D, cd pcd: Int = 0) -> [Official] {
+        let ord = order
         var slugs: [String] = []
         for k in CivicLookup.kinds {
             if let hit = DK.shapes.keys.filter({ $0.hasPrefix("\\(k.key)-") }).first(where: { DK.contains(DK.shapes[$0] ?? [], c) }) {
@@ -140,7 +145,7 @@ enum MyReps {
                 if let o = DKOfficials.all.first(where: { $0.type == k.type && $0.district == n }) { slugs.append(o.slug) }
             }
         }
-        let cd = CivicLookup.boards(.city).first { DK.contains(DK.shapes["cb-\\($0)"] ?? [], c) } ?? (p.cd > 0 ? String(p.cd) : "")
+        let cd = CivicLookup.boards(.city).first { DK.contains(DK.shapes["cb-\\($0)"] ?? [], c) } ?? (pcd > 0 ? String(pcd) : "")
         let boro = boros[String(cd.prefix(1))] ?? ""
         for o in DKOfficials.all {
             if (o.type == "bp" || o.type == "da"), !boro.isEmpty, o.boro == boro { slugs.append(o.slug) }
@@ -265,6 +270,63 @@ struct MyRepsRow: View {
             }
             Text(label).font(DM.mono(9, .medium)).foregroundStyle(.white.opacity(0.92)).lineLimit(2).multilineTextAlignment(.center)
                 .frame(width: 66)
+        }
+    }
+}
+
+/// In the Directory's search: an address typed there shows who represents it.
+struct RepsForAddress: View {
+    let query: String
+    var open: (String) -> Void
+    @AppStorage(MyPlaceKeys.label) private var placeLabel = ""
+    @State private var hit: AddressMatch?
+    @State private var reps: [Official] = []
+    var body: some View {
+        let c = MyReps.cfg
+        Group {
+            if let h = hit, !reps.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(MyReps.t("addressTitle", "Who represents").uppercased()).font(DM.mono(10, .medium)).tracking(1).foregroundStyle(Color.cb6Orange)
+                    Text(h.label).font(DM.sans(16, .bold)).foregroundStyle(.white)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(alignment: .top, spacing: 8) {
+                            ForEach(reps, id: \\.slug) { o in
+                                Button { open(o.slug) } label: {
+                                    VStack(spacing: 4) {
+                                        OfficialIcon(slug: o.slug, size: 46).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                            .padding(4).background(Color.white, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                        Text(MyReps.label(o, c)).font(DM.mono(9, .medium)).foregroundStyle(.white.opacity(0.92)).lineLimit(2).multilineTextAlignment(.center).frame(width: 66)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    if placeLabel != h.label {
+                        Button {
+                            MyPlace.save(MyPlace.Saved(label: h.label, coord: h.coord, slug: h.slug, cd: h.cd, bbl: "", number: Int(h.label.split(separator: " ").first.map { $0.filter(\\.isNumber) } ?? "") ?? 0))
+                            NotificationCenter.default.post(name: MyReps.changed, object: nil)
+                        } label: {
+                            Text(MyReps.t("saveBlock", "Save as my block")).font(DM.sans(13, .bold)).foregroundStyle(Color.cb6Navy)
+                                .padding(.horizontal, 14).padding(.vertical, 7).background(Color.cb6Orange, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.cb6Navy, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+        }
+        .task(id: query) {
+            let q = query.trimmingCharacters(in: .whitespaces)
+            guard q.count > 3, q.first?.isNumber == true else { hit = nil; reps = []; return }
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            if Task.isCancelled { return }
+            let exact = AddressIndex.points(q, scope: .city)
+            let h = exact.first ?? AddressIndex.search(q, scope: .city).first
+            hit = h
+            reps = h.map { MyReps.mine(at: $0.coord, cd: $0.cd) } ?? []
         }
     }
 }
