@@ -106,6 +106,7 @@
       + '.pmap-legend .lt{font-family:"DM Mono",monospace;font-size:.55rem;text-transform:uppercase;'
       + 'letter-spacing:.09em;color:#6b6760;font-weight:700;margin-bottom:5px}'
       + '.pmap-legend .li{display:flex;align-items:center;gap:6px;font-size:.7rem;font-weight:600;margin-top:3px}'
+      + '.pmap-legend{cursor:pointer}.pmap-legend.pmap-fold .li{display:none}.pmap-legend .ar{display:inline-block;transition:transform .15s}.pmap-legend:not(.pmap-fold) .ar{transform:rotate(180deg)}'
       + '.pmap-legend .sw{width:13px;height:13px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.18)}'
       + '.pmap-legend .ln{width:13px;height:0;flex:none;border-top:3px solid ' + BID_LINE + ';'
       + 'box-shadow:0 0 0 1px #fff}'
@@ -977,8 +978,10 @@
       if (on && !legend) {
         legend = L.control({ position: 'topright' });
         legend.onAdd = function () {
-          var d = L.DomUtil.create('div', 'pmap-legend');
-          d.innerHTML = legendHtml();
+          // starts folded to its title, so it does not cover the map; a tap opens it
+          var d = L.DomUtil.create('div', 'pmap-legend pmap-fold');
+          d.innerHTML = legendHtml().replace('<div class="lt">Zoning</div>', '<div class="lt">Zoning key <span class="ar">\u25be</span></div>');
+          d.addEventListener('click', function (e) { e.stopPropagation(); d.classList.toggle('pmap-fold'); });
           return d;
         };
         legend.addTo(map);

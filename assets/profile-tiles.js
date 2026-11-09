@@ -86,6 +86,16 @@
     var secs = [];
     var n = el.nextElementSibling;
     while (n) { var nx = n.nextElementSibling; if (n.classList && n.classList.contains('sec') && n.querySelector('h2')) secs.push(n); n = nx; }
+    // every section above it folds too, except the bio and the map
+    if (true) {
+      var above = [];
+      Array.prototype.forEach.call(document.querySelectorAll('.sec'), function (sc) {
+        if (sc === brief || secs.indexOf(sc) > -1 || !sc.querySelector('h2') || sc.closest('details') || sc.parentNode.closest('.sec')) return;
+        if (sc.querySelector('[data-profile-map]') && !sc.id) return;   // the district map stays open
+        if (sc.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) above.push(sc);
+      });
+      secs = above.concat(secs);
+    }
     function foldSec(sec) {
       if (sec.dataset.ptFolded) return; sec.dataset.ptFolded = '1';
       var h = sec.querySelector('h2'), title = h.textContent.trim();
