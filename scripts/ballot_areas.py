@@ -36,7 +36,7 @@ FIX = {'1913-state-amendment-2': O, '1919-state-amendment-1': E, '1921-state-ame
        '1973-state-amendment-6': CT, '1975-state-amendment-1': R, '1983-state-amendment-3': B, '1983-state-amendment-8': D, '1989-state-amendment-1': L,
        '2001-state-amendment-1': R, '2013-state-proposal-5': E, '2014-state-proposal-2': G, '2024-state-proposal-1': R}
 # titles a rule places in the wrong area, by title
-BYTITLE = [(r'energy conservation transportation', T), (r'pensions for the department of street cleaning', W), (r'^cleaning public property', L),
+BYTITLE = [(r'^city purchasing$', D), (r'^government administration$', L), (r'energy conservation transportation', T), (r'pensions for the department of street cleaning', W), (r'^cleaning public property', L),
            (r'^community boards: term limits', L), (r'more notice and time before votes', L), (r'^charter revision \(2001\)', L),
            (r'institutions of wards of the state', H), (r'measure the true cost of living', H),
            (r'industrial and manufacturing plants|job development authority|state debt for economic development|private sector job support', BJ),
