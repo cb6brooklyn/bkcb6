@@ -80,6 +80,12 @@ svg.ch text{font-family:'DM Sans',sans-serif}
 .cdr .tr s{position:absolute;top:5px;height:6px;border-radius:3px;background:#c9cede}
 .cdr .tr i{position:absolute;top:3px;width:10px;height:10px;margin-left:-5px;border-radius:50%;border:1.5px solid #fff}
 .cdr .tr u{position:absolute;top:-3px;bottom:-3px;border-left:2px dashed #1f2937}
+.arealist{margin-top:10px}.arealist summary{cursor:pointer;font-weight:700;color:var(--navy);font-size:.95rem;padding:6px 0}
+.arealist h4{margin:14px 0 4px;color:var(--navy);font-size:.98rem}
+.arealist ul{margin:0;padding:0;list-style:none}
+.arealist li{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:8px;padding:4px 0;border-bottom:1px solid #f0ede7;font-size:.86rem;line-height:1.35}
+.arealist li span:first-child{font:500 .8rem 'DM Mono',monospace;color:var(--muted)}
+.arealist li em{font-style:normal;font-weight:700;white-space:nowrap}
 .foot{margin-top:22px;text-align:center;font-size:.8rem;color:var(--muted)}
 </style>
 </head>
@@ -170,6 +176,14 @@ svg.ch text{font-family:'DM Sans',sans-serif}
         <div class="scrollhint">Swipe sideways to see the whole chart.</div><div class="scroll half"><svg class="ch" id="d3" viewBox="0 0 500 300"></svg></div>
         <p class="take" id="dt3"></p>
       </div>
+    </div>
+
+    <div class="card">
+      <h3>What voters say yes and no to, by policy area</h3>
+      <p class="what">Every question, statewide and city, sorted into one policy area by what its title says it did. The green part of each bar is the share approved; the number at the right is how many questions there were. Sorted from the area voters approved most to the area they approved least.</p>
+      <div class="scrollhint">Swipe sideways to see the whole chart.</div><div class="scroll"><svg class="ch" id="d5" viewBox="0 0 1000 620"></svg></div>
+      <p class="take" id="dt5"></p>
+      <details class="arealist"><summary>Every question in each policy area</summary><div id="d5l"></div></details>
     </div>
 
     <div class="card">
@@ -273,7 +287,7 @@ svg.ch text{font-family:'DM Sans',sans-serif}
 <div class="tip" id="tip"></div>
 <script>
 (async function(){
-const [BD,CD]=await Promise.all([fetch('../data.json').then(r=>r.json()),fetch('../1894/build/units.json').then(r=>r.json())]);
+const [BD,CD,AR]=await Promise.all([fetch('../data.json').then(r=>r.json()),fetch('../1894/build/units.json').then(r=>r.json()),fetch('../areas.json').then(r=>r.json()).catch(()=>null)]);
 const M=BD.measures;
 const fmt=n=>Math.round(n).toLocaleString('en-US');
 const pc=v=>(Math.round(v*10)/10).toFixed(1)+'%';
@@ -397,6 +411,18 @@ const by=decs.map(d=>({d,y:D.filter(m=>Math.floor(m.year/10)*10===d&&res(m)===1)
   const avg=sp.reduce((a,o)=>a+o.hi-o.lo,0)/sp.length,wide=sp.slice().sort((a,b)=>(b.hi-b.lo)-(a.hi-a.lo))[0],over20=sp.filter(o=>o.hi-o.lo>=20).length;
   $('dt4').innerHTML=`<b>On the average ballot, the most popular question beat the least popular by ${avg.toFixed(0)} points.</b> The gap was 20 points or more on ${over20} of ${sp.length} ballots. The widest was ${wide.d.slice(0,4)}: ${pc(wide.hi)} for one question and ${pc(wide.lo)} for another.`}
 }
+// ---------- policy areas ----------
+if(AR){const K={};M.forEach(m=>{const a=AR.by[m.id]||'Other';const o=K[a]=K[a]||{a,y:0,n:0,u:0,ps:[],ms:[]};const r=res(m);o.ms.push(m);if(r==null)o.u++;else{o[r?'y':'n']++;if(m.state&&m.state.pctYes!=null)o.ps.push(m.state.pctYes)}});
+ const ks=Object.values(K).filter(o=>o.y+o.n>0).sort((a,b)=>b.y/(b.y+b.n)-a.y/(a.y+a.n)||(b.y+b.n)-(a.y+a.n));
+ const W=1000,l=370,r=60,rh=30,H=ks.length*rh+8;$('d5').setAttribute('viewBox',`0 0 ${W} ${H}`);let s='';
+ ks.forEach((o,i)=>{const tot=o.y+o.n,p=o.y/tot,y=i*rh+4,w=W-l-r,avg=o.ps.length?o.ps.reduce((a,x)=>a+x,0)/o.ps.length:null;
+  const tp=T(`<b>${esc(o.a)}</b><br>${o.y} approved, ${o.n} turned down (${Math.round(100*p)}% approved)${avg!=null?`<br>Average yes share on the ${o.ps.length} statewide question${o.ps.length===1?'':'s'}: ${pc(avg)}`:''}${o.u?`<br>${o.u} with no recorded result, left out`:''}`);
+  s+=`<g ${tp}><text x="${l-10}" y="${y+18}" text-anchor="end" font-size="14.5" fill="#1f2937">${esc(o.a)}</text><rect x="${l}" y="${y+3}" width="${w}" height="20" rx="4" fill="var(--no)"/><rect x="${l}" y="${y+3}" width="${Math.max(0,w*p-(p<1?2:0))}" height="20" rx="4" fill="var(--yes)"/>${p>.08?`<text x="${l+7}" y="${y+18}" font-size="13" font-weight="700" fill="#fff">${Math.round(100*p)}% (${o.y})</text>`:''}${o.n&&1-p>.1?`<text x="${l+w-7}" y="${y+18}" text-anchor="end" font-size="13" font-weight="700" fill="#fff">${o.n}</text>`:''}<text x="${W-r+8}" y="${y+18}" font-size="13.5" fill="#4b5563">${tot}</text></g>`});
+ $('d5').innerHTML=s;
+ const big=ks.filter(o=>o.y+o.n>=10),top=big.filter(o=>o.n===0),lowest=big.slice().sort((a,b)=>a.y/(a.y+a.n)-b.y/(b.y+b.n)).slice(0,3),f=o=>`${o.a.toLowerCase()} (${o.y} of ${o.y+o.n})`;
+ $('dt5').innerHTML=`<b>Voters do not treat every subject alike.</b> ${top.length?`They have never turned down a question on ${top.map(o=>o.a.toLowerCase()+' ('+o.y+' of '+(o.y+o.n)+')').join(' or ')}. `:''}Among areas with ten or more questions, they approved the smallest shares on ${lowest.map(f).join(', ')}.`;
+ const order=ks.concat(Object.values(K).filter(o=>o.y+o.n===0));
+ $('d5l').innerHTML=order.map(o=>`<h4>${esc(o.a)}: ${o.y} approved, ${o.n} turned down${o.u?`, ${o.u} with no recorded result`:''}</h4><ul>`+o.ms.slice().sort((a,b)=>a.year-b.year).map(m=>{const r=res(m);return `<li><span>${m.year}</span><span>${esc(m.title)}${m.level==='city'?' (city)':''}</span><em style="color:${r===1?'var(--yes)':r===0?'var(--no)':'var(--muted)'}">${r===1?(/^Leading/.test(m.result)?'Leading yes':'Approved'):r===0?'Turned down':'No result on file'}${m.state&&m.state.pctYes!=null?' · '+pc(m.state.pctYes):m.nyc&&m.nyc.pctYes!=null?' · '+pc(m.nyc.pctYes):''}</em></li>`}).join('')+'</ul>').join('')}
 // ---------- 2026 ----------
 try{const Y=await fetch('../2026.json').then(r=>r.json());const Q=Y.questions;
  const asof=new Date(Y.asof.replace(/\+0000$/,'Z')).toLocaleString('en-US',{timeZone:'America/New_York',month:'long',day:'numeric',hour:'numeric',minute:'2-digit'});
