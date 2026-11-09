@@ -112,7 +112,9 @@ for n in range(1, 33):
                     ('<a class="btn hot" href="%s" target="_blank" rel="noopener">CEC %d website &#8599;</a>' % (esc(url(E['web'])), n)) if E.get('web') else '', n, n)]
         intro = '<p>The <b>Community Education Council for District %d</b> (CEC%d) is the elected parent council for the public elementary and middle schools of School District %d%s.</p>' % (n, n, n, (', which reaches into %s' % ', '.join('%s%d' % (BORO[cd[0]][2], int(cd[1:])) for cd, s in parts)) if parts else '')
         os.makedirs(cslug, exist_ok=True)
-        open(cslug + '/index.html', 'w', encoding='utf-8').write(page(cslug, name, 'Elected parent council &middot; School District %d' % n, logo, intro,
+        clogo = '/site-icons/cec-district-%d.png' % n   # the council's own logo where we have one, else the district's
+        clogo = clogo if os.path.exists(clogo[1:]) else logo
+        open(cslug + '/index.html', 'w', encoding='utf-8').write(page(cslug, name, 'Elected parent council &middot; School District %d' % n, clogo, intro,
             '%s <span>the council\'s office and School District %d</span>' % (esc(a1), n), n, geo[0] if geo else None, geo[1] if geo else None, secs,
             '%s, the elected parent council for School District %d.' % (name, n)))
         made.append(cslug)
