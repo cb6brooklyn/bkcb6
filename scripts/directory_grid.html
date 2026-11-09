@@ -64,6 +64,16 @@ h1{margin:0 0 8px;font-size:1.5rem;color:var(--navy);font-family:'DM Sans',sans-
 window.cboNoLogo = function (img) { var s = document.createElement('span'); s.className = 'cbo-name'; s.textContent = img.alt; img.replaceWith(s); };
 (function () {
   var D = null, g = 0, t = -1, w = -1, p = 0, q = '', PER = 24;
+  // Each app opens on its own area first (?scope=cb6 in BKCB6, ?scope=bk in BKCB); the full directory follows.
+  // A scoped section is one of the directory's sections narrowed to the tiles marked for that area (scripts/directory_grid.py).
+  var SCOPE = (/[?&]scope=(cb6|bk)\b/.exec(location.search) || [])[1] || '';
+  var VG = { cb6: [['CB6 elected officials', 0], ['CB6 community groups', 3], ['Government agencies', 2], ['CB6 community board', 1]],
+             bk: [['Brooklyn elected officials', 0], ['Brooklyn community boards', 1], ['Government agencies', 2], ['Community groups', 3]] }[SCOPE] || [];
+  // g >= 100 picks scoped section g - 100
+  function inScope(x) { return !SCOPE || (' ' + (x[8] || '') + ' ').indexOf(' ' + SCOPE + ' ') > -1; }
+  function base(gg) { return gg >= 100 ? VG[gg - 100][1] : gg; }
+  function grp(gg) { var G = D.groups[base(gg)]; return gg >= 100 ? { name: VG[gg - 100][0], topics: G.topics, where: G.where, whereLabel: G.whereLabel } : G; }
+  if (VG.length) g = 100;
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   // Search: every word typed has to match the start of a word in the name, the section, the kind, the borough or
@@ -104,7 +114,7 @@ window.cboNoLogo = function (img) { var s = document.createElement('span'); s.cl
   }
   function list() {
     if (q) { var F = found(); return gq < 0 ? F : F.filter(function (x) { return x[3] === gq; }); }
-    return D.tiles.filter(function (x) { return x[3] === g && (t < 0 || x[4] === t) && (w < 0 || x[6].indexOf(w) > -1); });
+    return D.tiles.filter(function (x) { return x[3] === base(g) && (g < 100 || inScope(x)) && (t < 0 || x[4] === t) && (w < 0 || x[6].indexOf(w) > -1); });
   }
   // In the apps this page is served from the app's pack. Profiles the pack carries (scripts/directory_offline.py)
   // open from the pack, offline; every other profile opens the live page on bkcb6.app.
@@ -124,17 +134,23 @@ window.cboNoLogo = function (img) { var s = document.createElement('span'); s.cl
   }
   function chips() {
     var F = q ? found() : null;
-    $('groups').innerHTML = (q ? '<button type="button" class="chip' + (gq < 0 ? ' on' : '') + '" data-g="-1">All results (' + F.length + ')</button>' : '') + D.groups.map(function (x, i) {
+    var vg = q ? '' : VG.map(function (v, k) {
+      var n = D.tiles.filter(function (y) { return y[3] === v[1] && inScope(y); }).length;
+      return n ? '<button type="button" class="chip' + (g === 100 + k ? ' on' : '') + '" data-g="' + (100 + k) + '">' + esc(v[0]) + ' (' + n + ')</button>' : '';
+    }).join('');
+    $('groups').innerHTML = (vg ? vg + '<span class="lab" style="flex-basis:100%;margin-top:6px">The full directory</span>' : '') + (q ? '<button type="button" class="chip' + (gq < 0 ? ' on' : '') + '" data-g="-1">All results (' + F.length + ')</button>' : '') + D.groups.map(function (x, i) {
       var n = (F || D.tiles).filter(function (y) { return y[3] === i; }).length;
       if (q && !n) return '';
       return '<button type="button" class="chip' + ((q ? i === gq : i === g) ? ' on' : '') + '" data-g="' + i + '">' + esc(x.name) + ' (' + n + ')</button>';
     }).join('');
-    var ts = D.groups[g].topics;
+    var ts = grp(g).topics;
     $('topics').innerHTML = q || ts.length < 2 ? '' : ['<button type="button" class="chip' + (t < 0 ? ' on' : '') + '" data-t="-1">All</button>'].concat(ts.map(function (x, i) {
+      // in a scoped section, only the kinds that have someone in it
+      if (g >= 100 && !D.tiles.some(function (y) { return y[3] === base(g) && y[4] === i && inScope(y); })) return '';
       return '<button type="button" class="chip' + (i === t ? ' on' : '') + '" data-t="' + i + '">' + esc(x) + '</button>';
     })).join('');
-    var ws = D.groups[g].where || [];
-    $('wheres').innerHTML = q || ws.length < 2 ? '' : ['<span class="lab">' + esc(D.groups[g].whereLabel) + '</span><button type="button" class="chip' + (w < 0 ? ' on' : '') + '" data-w="-1">All</button>'].concat(ws.map(function (x, i) {
+    var ws = grp(g).where || [];
+    $('wheres').innerHTML = q || ws.length < 2 ? '' : ['<span class="lab">' + esc(grp(g).whereLabel) + '</span><button type="button" class="chip' + (w < 0 ? ' on' : '') + '" data-w="-1">All</button>'].concat(ws.map(function (x, i) {
       return '<button type="button" class="chip' + (i === w ? ' on' : '') + '" data-w="' + i + '">' + esc(x) + '</button>';
     })).join('');
   }
@@ -144,11 +160,11 @@ window.cboNoLogo = function (img) { var s = document.createElement('span'); s.cl
     var last = null, h = '';
     L.slice(p * PER, p * PER + PER).forEach(function (x) {
       var k = x[3] + '.' + x[4];
-      if (k !== last) { last = k; h += '<div class="ghead">' + esc((q ? D.groups[x[3]].name + ' · ' : '') + (D.groups[x[3]].topics[x[4]] || D.groups[x[3]].name) + (w > -1 && !q ? ' · ' + D.groups[g].where[w] : '')) + '</div>'; }
+      if (k !== last) { last = k; h += '<div class="ghead">' + esc((q ? D.groups[x[3]].name + ' · ' : '') + (D.groups[x[3]].topics[x[4]] || D.groups[x[3]].name) + (w > -1 && !q ? ' · ' + grp(g).where[w] : '')) + '</div>'; }
       h += tile(x);
     });
     $('grid').innerHTML = L.length ? h : '<div class="empty" style="grid-column:1/-1">Nothing matches.</div>';
-    var lab = (q ? L.length + (gq > -1 ? ' in ' + D.groups[gq].name : '') + ' matching \u201c' + q + '\u201d' : (D.groups[g].name + (t > -1 ? ' · ' + D.groups[g].topics[t] : '') + (w > -1 ? ' · ' + D.groups[g].where[w] : '') + ' · ' + L.length)) + ' · page ' + (p + 1) + ' of ' + pages;
+    var lab = (q ? L.length + (gq > -1 ? ' in ' + D.groups[gq].name : '') + ' matching \u201c' + q + '\u201d' : (grp(g).name + (t > -1 ? ' · ' + grp(g).topics[t] : '') + (w > -1 ? ' · ' + grp(g).where[w] : '') + ' · ' + L.length)) + ' · page ' + (p + 1) + ' of ' + pages;
     $('where').textContent = lab; $('where2').textContent = 'Page ' + (p + 1) + ' of ' + pages;
     ['prev', 'prev2'].forEach(function (id) { $(id).disabled = p === 0; });
     ['next', 'next2'].forEach(function (id) { $(id).disabled = p >= pages - 1; });
@@ -174,9 +190,9 @@ window.cboNoLogo = function (img) { var s = document.createElement('span'); s.cl
     D = d;
     var h = new URLSearchParams(location.hash.slice(1));
     if (h.get('q')) { q = h.get('q'); $('q').value = q; }
-    if (h.get('g') && D.groups[+h.get('g')]) g = +h.get('g');
-    if (h.get('t') && D.groups[g].topics[+h.get('t')] !== undefined) t = +h.get('t');
-    if (h.get('w') && (D.groups[g].where || [])[+h.get('w')] !== undefined) w = +h.get('w');
+    if (h.get('g') && (+h.get('g') >= 100 ? VG[+h.get('g') - 100] : D.groups[+h.get('g')])) g = +h.get('g');
+    if (h.get('t') && grp(g).topics[+h.get('t')] !== undefined) t = +h.get('t');
+    if (h.get('w') && (grp(g).where || [])[+h.get('w')] !== undefined) w = +h.get('w');
     if (h.get('p')) p = (+h.get('p') || 1) - 1;
     draw(true);
   }).catch(function () { $('grid').innerHTML = '<div class="empty" style="grid-column:1/-1">The directory did not load. Check your connection and reload.</div>'; });
