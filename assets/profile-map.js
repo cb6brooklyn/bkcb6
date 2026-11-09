@@ -287,6 +287,23 @@
       }
     }
 
+    // a park's profile draws the park itself, its NYC Parks property outline (data/parks-citywide.geojson), and opens on
+    // the whole park: data-park="B431", or a park page's map id "map-B210F"
+    var parkId = el.getAttribute('data-park') || ((/^map-([A-Z][0-9][0-9A-Z-]*)$/.exec(el.id || '') || [])[1] || '');
+    if (parkId) {
+      // a park NYC Parks maps only in part (Brooklyn Bridge Park) has its full outline in data/park-shapes/<id>.geojson
+      getJSON(el.getAttribute('data-park-file') || '/data/parks-citywide.geojson').then(function (d) {
+        var fs = (d.features || []).filter(function (f) { return f.properties && f.properties.g === parkId; });
+        if (!fs.length) return;
+        var pl = L.geoJSON({ type: 'FeatureCollection', features: fs }, {
+          pane: LINE_PANE || undefined,
+          style: { color: '#14532d', weight: 3.5, opacity: 1, fillColor: '#16a34a', fillOpacity: 0.5 },
+          onEachFeature: function (f, l) { l.bindTooltip('<b>' + String(f.properties.n || 'Park').replace(/[<>&]/g, '') + '</b>' + (f.properties.ac ? '<br>' + f.properties.ac + ' acres' : ''), { sticky: true }); }
+        }).addTo(map);
+        try { parkBounds = pl.getBounds(); pointView(); } catch (e) {}
+      }).catch(function () {});
+    }
+
     // an event on the map: its flyer as the marker, linked to the calendar entry, until the day is over
     var evLat = parseFloat(el.getAttribute('data-event-lat')), evLng = parseFloat(el.getAttribute('data-event-lng'));
     var evImg = el.getAttribute('data-event-img') || '', evHref = el.getAttribute('data-event-href') || '#', evLabel = el.getAttribute('data-event-label') || '', evUntil = el.getAttribute('data-event-until') || '';
@@ -310,13 +327,20 @@
     // with the CB6 logo as its label, and open on the district with the place in it
     var withCb6 = el.getAttribute('data-cb6') === '1';
     var cb6Bounds = null;
+    // a place opens on itself; a park opens on the whole park once its outline is in
+    var parkBounds = null;
+    function pointView() {
+      if (parkBounds) map.fitBounds(parkBounds, { padding: [24, 24], maxZoom: 17 });
+      else map.setView([ptLat, ptLng], ptZoom);
+    }
     function viewHome() {
+      if (parkBounds) { pointView(); return; }
       if (withCb6 && cb6Bounds) {
         var b = L.latLngBounds(cb6Bounds.getSouthWest(), cb6Bounds.getNorthEast());
         if (hasPoint) b.extend([ptLat, ptLng]);
         map.fitBounds(b, { padding: [16, 16] });
       } else if (fitOwn && homeBounds) { var fb = L.latLngBounds(homeBounds.getSouthWest(), homeBounds.getNorthEast()); if (hasPoint) fb.extend([ptLat, ptLng]); map.fitBounds(fb, { padding: [14, 14] }); }
-      else if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
+      else if (hasPoint) pointView();
       else if (homeBounds) map.fitBounds(homeBounds, { padding: [14, 14] });
     }
     if (withCb6) {
@@ -410,7 +434,7 @@
       // a BID is a small shape in a small frame, so it can sit tighter
       if (withCb6) viewHome();
       else if (fitOwn) { var fb = L.latLngBounds(homeBounds.getSouthWest(), homeBounds.getNorthEast()); if (hasPoint) fb.extend([ptLat, ptLng]); map.fitBounds(fb, { padding: [14, 14] }); }
-      else if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
+      else if (hasPoint) pointView();
       else map.fitBounds(homeBounds, { padding: bidSlug ? [8, 8] : [14, 14] });
       if (!bidSlug) own.bringToBack();
       if (bidSlug) {
@@ -988,7 +1012,7 @@
     // On a BID page the boundary is a thin ribbon of frontage. Alone on a grey
     // basemap it says nothing, so the zoning underneath it starts switched on.
     function startDefaults() {
-      if ((!bidSlug && !startZoning) || startDefaults.done) return;
+      if ((!bidSlug && !startZoning) || parkId || startDefaults.done) return;  // a park opens on the park itself
       startDefaults.done = true;
       setLayer('zoning', true);
     }
@@ -1132,7 +1156,7 @@
         setTimeout(function () {
           map.invalidateSize();
           if (withCb6) viewHome();
-          else if (hasPoint) map.setView([ptLat, ptLng], ptZoom);
+          else if (hasPoint) pointView();
           else if (homeBounds) map.fitBounds(homeBounds, { padding: [14, 14] });
         }, 60);
       });
