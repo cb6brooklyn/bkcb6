@@ -47,6 +47,7 @@ if 'MyRepsRow(' not in t:
     ind = m.group(1)
     t = t[:m.start()] + '\n' + ind + 'if MyReps.inDirectory { MyRepsRow(open: { hookOfficial = $0 }).padding(.top, 12) }' + t[m.start():m.end()] + ind + 'RepsForAddress(query: query, open: { hookOfficial = $0 })\n' + t[m.end():]
     t = t.replace('"Search a name or a topic, like housing or arts"', '"Search a name, a topic or your address"')
+    t = t.replace('if let t = Hook.value("-orgTopic") { topic = t }', 'if let t = Hook.value("-orgTopic") { topic = t }\n                if let q = Hook.value("-orgQuery") { query = q }', 1)
     wr(ot, t)
 
 # 4. banners with one link per image
