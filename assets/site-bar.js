@@ -215,7 +215,9 @@
         + '#cb6appnav a.dir{margin-left:auto;background:#f47920}';
       document.head.appendChild(t);
       var n = document.createElement('div'); n.id = 'cb6appnav';
-      var dir = location.protocol === 'bkcb:' ? '/profiles/index.html?app=1' : 'bkcb://site/profiles/index.html?app=1';
+      var sc = ''; try { sc = sessionStorage.getItem('bkscope') || ''; } catch (e) {}
+      // back to the start of the directory, in the same app area it was opened in
+      var dir = '/profiles/index.html?app=1' + (sc ? '&scope=' + sc : '');
       n.innerHTML = '<a href="#" class="bk">\u2039 Back</a><a class="dir" href="' + dir + '">Directory</a>';
       n.querySelector('.bk').addEventListener('click', function (e) { e.preventDefault(); if (history.length > 1) history.back(); else location.href = dir; });
       document.body.insertBefore(n, document.body.firstChild);
