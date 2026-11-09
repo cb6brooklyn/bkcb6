@@ -139,9 +139,7 @@ council_url = {int(d): v[1] for d, v in people.get('council', {}).items()}
 for o in officials:
     urls = [(o.get('office') or {}).get('site', '')]
     if o.get('type') == 'council' and o.get('district') in council_url: urls.append(council_url[o['district']])
-    # the site page has the bio first, the district's own map and the banners; the apps open it, not the built-in screen
-    has = os.path.isfile(os.path.join(ROOT, o['slug'], 'index.html'))
-    add('/%s/' % o['slug'], ('web:%s/index.html?app=1' if has else 'official:%s') % o['slug'], *urls)
+    add('/%s/' % o['slug'], 'official:%s' % o['slug'], *urls)
 for s, p in profiles.items():
     if p.get('kind') == 'official' and p.get('official'):
         g = gov.get(s, {})
