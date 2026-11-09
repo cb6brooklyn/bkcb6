@@ -42,7 +42,14 @@
     var brief = null;
     Array.prototype.forEach.call(document.querySelectorAll('.sec'), function (sec) { var h = sec.querySelector('h2'); if (h && /^in brief$/i.test(h.textContent.trim())) brief = sec; });
     var bio = brief ? brief.querySelector('.bio') : null;
-    if (bio) { var bx = document.createElement('div'); bx.className = 'pbrief'; bx.appendChild(bio); el.parentNode.insertBefore(bx, el); }
+    // right under the name banner, so a visitor knows whose page this is before anything else
+    if (bio) {
+      var bx = document.createElement('div'); bx.className = 'pbrief'; bx.appendChild(bio);
+      var head = document.querySelector('.phead');
+      // an elected official's page (it carries data-elections) puts it right under the name; other pages keep it above the tiles
+      if (head && head.parentNode && el.hasAttribute('data-elections')) { head.parentNode.insertBefore(bx, head.nextSibling); brief.style.display = 'none'; }
+      else el.parentNode.insertBefore(bx, el);
+    }
     var cbd = document.querySelector('.cd-description');
     if (cbd && !bio) { var ps = cbd.querySelectorAll('p'); var bx2 = document.createElement('div'); bx2.className = 'pbrief'; var txt = ''; Array.prototype.forEach.call(ps, function (pp, i) { if (i < 2) txt += '<p>' + pp.innerHTML + '</p>'; }); if (txt) { bx2.innerHTML = txt; el.parentNode.insertBefore(bx2, el); } }
     var entries = [];
