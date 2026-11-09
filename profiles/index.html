@@ -52,7 +52,7 @@ h1{margin:0 0 8px;font-size:1.5rem;color:var(--navy);font-family:'DM Sans',sans-
   <div class="kick">bkcb6.app directory</div>
   <h1>Every profile</h1>
   <p class="lede">3,853 organizations, agencies, elected officials, schools, parks, facilities and businesses with a profile. Tap any logo to open its profile. Flip through a page at a time, pick a section, or search.</p>
-  <div class="search"><input id="q" type="search" placeholder="Search by name" autocomplete="off" aria-label="Search profiles by name"></div>
+  <div class="search"><input id="q" type="search" placeholder="Name, district (AD 44, CB6), agency, park or address" autocomplete="off" aria-label="Search the directory"></div>
   <div class="chips" id="groups" role="tablist" aria-label="Sections"></div>
   <div class="chips sub" id="topics" aria-label="Topics"></div>
   <div class="chips sub where" id="wheres" aria-label="Where"></div>
@@ -66,9 +66,45 @@ window.cboNoLogo = function (img) { var s = document.createElement('span'); s.cl
   var D = null, g = 0, t = -1, w = -1, p = 0, q = '', PER = 24;
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  // Search: every word typed has to match the start of a word in the name, the section, the kind, the borough or
+  // neighborhood, the page address or the tile's keywords (district numbers, short forms such as AD 44, CM, CB6, BP, DA),
+  // in any order. Names that match come first, then the rest; a section chip narrows the results.
+  var gq = -1, IDX = null;
+  var SYN = { cm: 'council', councilmember: 'council', councilman: 'council', councilwoman: 'council', am: 'assembly', assemblymember: 'assembly',
+    assemblyman: 'assembly', assemblywoman: 'assembly', sen: 'senat', senator: 'senat', senate: 'senat', congressman: 'congress',
+    congresswoman: 'congress', rep: 'congress', representative: 'congress', bk: 'brooklyn', bklyn: 'brooklyn', bx: 'bronx', mn: 'manhattan',
+    qns: 'queens', si: 'staten', nyc: 'new york city', st: 'st', ave: 'avenue', av: 'avenue', pl: 'place', blvd: 'boulevard', pkwy: 'parkway',
+    dept: 'department', doe: 'education', dot: 'transportation', dsny: 'sanitation', nypd: 'police', fdny: 'fire', hpd: 'housing preservation',
+    dob: 'buildings', dep: 'environmental protection', dcp: 'city planning', mta: 'transportation authority', '&': 'and' };
+  function norm(x) { return String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ').replace(/['\u2019.]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); }
+  function index() {
+    IDX = D.tiles.map(function (x) {
+      var G = D.groups[x[3]], wh = (x[6] || []).map(function (i) { return (G.where || [])[i] || ''; }).join(' ');
+      var slug = String(x[1] || '').replace(/^https?:\/\/[^/]+/, '').replace(/\.html$/, '').replace(/[\/_-]+/g, ' ');
+      return { n: ' ' + norm(x[0]) + ' ', k: ' ' + norm(x[7] || '') + ' ', h: ' ' + norm([x[0], G.name, G.topics[x[4]] || '', wh, slug, x[7] || ''].join(' ')) + ' ' };
+    });
+  }
+  function words(qq) { return norm(qq).split(' ').filter(Boolean).map(function (w) { return SYN[w] ? norm(SYN[w]) : w; }); }
+  // a word of one or two letters, or a number, has to be a whole word (DA, AD, 44); longer words can be the start of one
+  function hit1(hay, w) { return w.length < 3 || /^\d+$/.test(w) ? hay.indexOf(' ' + w + ' ') > -1 : hay.indexOf(' ' + w) > -1; }
+  function hits(hay, ws) { return ws.every(function (w) { return hit1(hay, w); }); }
+  function found() {
+    if (!IDX) index();
+    var ws = words(q), qn = ' ' + norm(q);
+    if (!ws.length) return [];
+    var r = [];
+    D.tiles.forEach(function (x, i) {
+      var I = IDX[i];
+      if (!hits(I.h, ws)) return;
+      var sc = I.n === qn + ' ' ? 7 : I.n.indexOf(qn + ' ') === 0 ? 6 : I.n.indexOf(qn) === 0 ? 5 : ws.every(function (w) { return I.k.indexOf(' ' + w + ' ') > -1; }) ? 4.5 : I.n.indexOf(qn) > -1 ? 4 : hits(I.n, ws) ? 3 : 1;
+      r.push([sc, i, x]);
+    });
+    r.sort(function (a, b) { return b[0] - a[0] || a[2][3] - b[2][3] || a[1] - b[1]; });
+    return r.map(function (y) { return y[2]; });
+  }
   function list() {
-    var n = q.toLowerCase();
-    return D.tiles.filter(function (x) { return n ? x[0].toLowerCase().indexOf(n) > -1 : (x[3] === g && (t < 0 || x[4] === t) && (w < 0 || x[6].indexOf(w) > -1)); });
+    if (q) { var F = found(); return gq < 0 ? F : F.filter(function (x) { return x[3] === gq; }); }
+    return D.tiles.filter(function (x) { return x[3] === g && (t < 0 || x[4] === t) && (w < 0 || x[6].indexOf(w) > -1); });
   }
   // In the apps this page is served from the app's pack. Profiles the pack carries (scripts/directory_offline.py)
   // open from the pack, offline; every other profile opens the live page on bkcb6.app.
@@ -87,9 +123,11 @@ window.cboNoLogo = function (img) { var s = document.createElement('span'); s.cl
                       : '<span class="cbo-name">' + esc(x[0]) + '<small>' + esc(topic) + '</small></span>') + '</a>';
   }
   function chips() {
-    $('groups').innerHTML = D.groups.map(function (x, i) {
-      var n = D.tiles.filter(function (y) { return y[3] === i; }).length;
-      return '<button type="button" class="chip' + (i === g && !q ? ' on' : '') + '" data-g="' + i + '">' + esc(x.name) + ' (' + n + ')</button>';
+    var F = q ? found() : null;
+    $('groups').innerHTML = (q ? '<button type="button" class="chip' + (gq < 0 ? ' on' : '') + '" data-g="-1">All results (' + F.length + ')</button>' : '') + D.groups.map(function (x, i) {
+      var n = (F || D.tiles).filter(function (y) { return y[3] === i; }).length;
+      if (q && !n) return '';
+      return '<button type="button" class="chip' + ((q ? i === gq : i === g) ? ' on' : '') + '" data-g="' + i + '">' + esc(x.name) + ' (' + n + ')</button>';
     }).join('');
     var ts = D.groups[g].topics;
     $('topics').innerHTML = q || ts.length < 2 ? '' : ['<button type="button" class="chip' + (t < 0 ? ' on' : '') + '" data-t="-1">All</button>'].concat(ts.map(function (x, i) {
@@ -110,7 +148,7 @@ window.cboNoLogo = function (img) { var s = document.createElement('span'); s.cl
       h += tile(x);
     });
     $('grid').innerHTML = L.length ? h : '<div class="empty" style="grid-column:1/-1">Nothing matches.</div>';
-    var lab = (q ? L.length + ' matching' : (D.groups[g].name + (t > -1 ? ' · ' + D.groups[g].topics[t] : '') + (w > -1 ? ' · ' + D.groups[g].where[w] : '') + ' · ' + L.length)) + ' · page ' + (p + 1) + ' of ' + pages;
+    var lab = (q ? L.length + (gq > -1 ? ' in ' + D.groups[gq].name : '') + ' matching \u201c' + q + '\u201d' : (D.groups[g].name + (t > -1 ? ' · ' + D.groups[g].topics[t] : '') + (w > -1 ? ' · ' + D.groups[g].where[w] : '') + ' · ' + L.length)) + ' · page ' + (p + 1) + ' of ' + pages;
     $('where').textContent = lab; $('where2').textContent = 'Page ' + (p + 1) + ' of ' + pages;
     ['prev', 'prev2'].forEach(function (id) { $(id).disabled = p === 0; });
     ['next', 'next2'].forEach(function (id) { $(id).disabled = p >= pages - 1; });
@@ -121,10 +159,10 @@ window.cboNoLogo = function (img) { var s = document.createElement('span'); s.cl
   function flip(d) { p += d; draw(); }
   $('prev').onclick = $('prev2').onclick = function () { flip(-1); };
   $('next').onclick = $('next2').onclick = function () { flip(1); };
-  $('groups').onclick = function (e) { var b = e.target.closest('[data-g]'); if (!b) return; g = +b.dataset.g; t = -1; w = -1; p = 0; q = ''; $('q').value = ''; draw(true); };
+  $('groups').onclick = function (e) { var b = e.target.closest('[data-g]'); if (!b) return; if (q) { gq = +b.dataset.g; p = 0; draw(true); return; } g = +b.dataset.g; t = -1; w = -1; p = 0; draw(true); };
   $('topics').onclick = function (e) { var b = e.target.closest('[data-t]'); if (!b) return; t = +b.dataset.t; p = 0; draw(true); };
   $('wheres').onclick = function (e) { var b = e.target.closest('[data-w]'); if (!b) return; w = +b.dataset.w; p = 0; draw(true); };
-  $('q').oninput = function () { q = this.value.trim(); p = 0; draw(true); };
+  $('q').oninput = function () { q = this.value.trim(); gq = -1; p = 0; draw(true); };
   document.addEventListener('keydown', function (e) { if (e.target.tagName === 'INPUT') return; if (e.key === 'ArrowRight') flip(1); if (e.key === 'ArrowLeft') flip(-1); });
   var sx = null, sy = null;
   $('grid').addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
@@ -132,7 +170,7 @@ window.cboNoLogo = function (img) { var s = document.createElement('span'); s.cl
     if (sx === null) return; var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; sx = null;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) { var L = list(); if (dx < 0 && (p + 1) * PER < L.length) flip(1); else if (dx > 0 && p > 0) flip(-1); }
   }, { passive: true });
-  fetch('/profiles/tiles.json?v=78851992').then(function (r) { return r.json(); }).then(function (d) {
+  fetch('/profiles/tiles.json?v=11429178').then(function (r) { return r.json(); }).then(function (d) {
     D = d;
     var h = new URLSearchParams(location.hash.slice(1));
     if (h.get('q')) { q = h.get('q'); $('q').value = q; }

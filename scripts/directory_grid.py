@@ -53,6 +53,15 @@ def site_page(p):
     if k and k in idx['urls']: return idx['urls'][k]
     return None
 
+# extra words each tile answers to in the directory search: district numbers and the short forms people type
+KEYS = {'assembly': 'ad{n} ad {n} assembly district {n} assemblymember assemblyman assemblywoman',
+        'council': 'cd{n} council district {n} cm councilmember councilman councilwoman',
+        'senate': 'sd{n} sd {n} senate district {n} senator state senator',
+        'congress': 'ny{n} ny-{n} ny {n} congressional district {n} congress member congressman congresswoman representative rep',
+        'bp': 'bp borough president', 'da': 'da district attorney prosecutor', 'ussenate': 'us senator united states senate',
+        'statewide': 'state of new york', 'citywide': 'city of new york nyc'}
+BABBR = {'Manhattan': 'mn', 'Bronx': 'bx', 'Brooklyn': 'bk', 'Queens': 'qn', 'Staten Island': 'si'}
+
 def main():
     d = J('app/data/civic/orgs/orgs-profiles.json')
     tiles = []
@@ -77,12 +86,15 @@ def main():
         boros = sorted({BORO[c['cd'][0]] for c in o.get('cbs', []) if c.get('eds', 1)}, key=list(BORO.values()).index)
         if o['type'] in ('citywide', 'statewide', 'ussenate'): boros = list(BORO.values())
         tiles.append([o['name'] + ' \u00b7 ' + re.sub(r'\s*\u00b7.*', '', o.get('seat', '')), '/' + o['slug'] + '/', icon,
-                      'Elected officials', OFF_TOPIC.get(o['type'], 'Elected officials'), 0, boros, o.get('district') or 0])
+                      'Elected officials', OFF_TOPIC.get(o['type'], 'Elected officials'), 0, boros, o.get('district') or 0,
+                      o.get('seat', '') + ' ' + KEYS.get(o['type'], '').format(n=o.get('district') or '')])
     # the 59 community boards, by borough, each to its board page
     for b in J('app/data/civic/boards.json'):
         logo = f"/app/data/Logos/{b.get('logo') or 'cb' + b['borocd']}.png"
         logo = logo if os.path.exists(os.path.join(ROOT, logo.lstrip('/'))) else ''
-        tiles.append([b['name'], '/' + b['slug'] + '.html', logo, 'Community boards', b['borough'], 0, [b['borough']], int(b['borocd'][1:])])
+        nn = int(b['borocd'][1:])
+        tiles.append([b['name'], '/' + b['slug'] + '.html', logo, 'Community boards', b['borough'], 0, [b['borough']], nn,
+                      'cb%d cb %d community district %d %s%d %s' % (nn, nn, nn, BABBR.get(b['borough'], ''), nn, b['borocd'])])
     groups = ['Elected officials', 'Community boards', 'Government agencies', 'Community groups', 'Business improvement districts',
               'Schools, parks and facilities', 'Local businesses']
     groups += sorted({t[3] for t in tiles} - set(groups))
@@ -102,7 +114,8 @@ def main():
         wheres[g] = [b for b in BORDER if b in ws] if g in ('Elected officials', 'Community boards') else sorted(ws, key=lambda w: (-sum(1 for t in tiles if t[3] == g and w in t[6]), w))
     os.makedirs(os.path.join(ROOT, 'profiles'), exist_ok=True)
     data = {'groups': [{'name': g, 'topics': topics[g], 'where': wheres[g], 'whereLabel': 'Borough' if g in ('Elected officials', 'Community boards') else 'Neighborhood'} for g in groups],
-            'tiles': [[t[0], t[1], t[2], groups.index(t[3]), topics[t[3]].index(t[4]), t[5], [wheres[t[3]].index(w) for w in t[6]]] for t in tiles]}
+            'tiles': [[t[0], t[1], t[2], groups.index(t[3]), topics[t[3]].index(t[4]), t[5], [wheres[t[3]].index(w) for w in t[6]]]
+                      + ([t[8].lower()] if len(t) > 8 and t[8] else []) for t in tiles]}
     json.dump(data, open(os.path.join(ROOT, 'profiles/tiles.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
     page = open(os.path.join(ROOT, 'scripts/directory_grid.html'), encoding='utf-8').read()
     page = page.replace('__N__', f'{len(tiles):,}').replace('__V__', str(abs(hash(json.dumps(data))) % 10**8))
