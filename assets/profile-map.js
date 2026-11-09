@@ -60,6 +60,14 @@
     });
   }
 
+  // In the apps the page comes from the app's pack; a data file the pack does not carry is read from bkcb6.app instead
+  function getSite(path) {
+    return getJSON(path).catch(function (e) {
+      if (/^https?:$/.test(location.protocol)) throw e;
+      return getJSON('https://bkcb6.app' + path);
+    });
+  }
+
   function arcQuery(service, fields, bounds, max) {
     var u = ARC + '/' + service + '/FeatureServer/0/query'
       + '?f=geojson&outFields=' + encodeURIComponent(fields)
@@ -293,7 +301,7 @@
     if (parkId) {
       // each park's NYC Parks Properties outline at full detail, data/park-shapes/<id>.geojson (Brooklyn Bridge Park's merged
       // with the park's own lots, since NYC Parks maps only its share)
-      getJSON(el.getAttribute('data-park-file') || '/data/park-shapes/' + parkId + '.geojson')
+      getSite(el.getAttribute('data-park-file') || '/data/park-shapes/' + parkId + '.geojson')
         .catch(function () { return getJSON('/data/parks-citywide.geojson'); }).then(function (d) {
         var fs = (d.features || []).filter(function (f) { return f.properties && f.properties.g === parkId; });
         if (!fs.length) return;
@@ -354,7 +362,7 @@
           signs.addTo(map); signsOn = true;
         } else if (!want && signsOn) { map.removeLayer(signs); signsOn = false; }
       };
-      getJSON('/data/park-signs/' + parkId + '.json').then(function (d) { signData = d; drawSigns(); map.on('zoomend', drawSigns); }).catch(function () {});
+      getSite('/data/park-signs/' + parkId + '.json').then(function (d) { signData = d; drawSigns(); map.on('zoomend', drawSigns); }).catch(function () {});
     }
 
     // a place opens on itself; a park opens on the whole park once its outline is in
@@ -551,7 +559,7 @@
         if (clipOwn) {
           if (clipped || busy) return Promise.resolve();
           busy = true; say('Loading zoning\u2026');
-          return getJSON('/data/districts/zoning/' + self.folder + '-' + district + '.geojson').then(function (g) {
+          return getSite('/data/districts/zoning/' + self.folder + '-' + district + '.geojson').then(function (g) {
             group.clearLayers(); drawZ(g); clipped = true; say('');
           }).catch(function () { clipOwn = false; busy = false; return draw(); }).then(function () { busy = false; });
         }
@@ -809,7 +817,7 @@
     } });
     layers.parks = viewLayer({ label: 'parks', fetch: function () {
       // a district profile reads parks already cut to its boundary (scripts/district_zoning_clip.py)
-      if (clipOwn) return getJSON('/data/districts/parks/' + self.folder + '-' + district + '.geojson').catch(function () { clipOwn = false; return getJSON('/data/parks-citywide.geojson'); });
+      if (clipOwn) return getSite('/data/districts/parks/' + self.folder + '-' + district + '.geojson').catch(function () { clipOwn = false; return getJSON('/data/parks-citywide.geojson'); });
       return getJSON('/data/parks-citywide.geojson');
     }, draw: function (g, d, b) {
       featsIn(d.features, b).forEach(function (f) {
