@@ -284,7 +284,7 @@ struct RepsForAddress: View {
     @State private var reps: [Official] = []
     var body: some View {
         let c = MyReps.cfg
-        Group {
+        VStack(spacing: 0) {
             if let h = hit, !reps.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(MyReps.t("addressTitle", "Who represents").uppercased()).font(DM.mono(10, .medium)).tracking(1).foregroundStyle(Color.cb6Orange)
@@ -324,8 +324,10 @@ struct RepsForAddress: View {
             guard q.count > 3, q.first?.isNumber == true else { hit = nil; reps = []; return }
             try? await Task.sleep(nanoseconds: 250_000_000)
             if Task.isCancelled { return }
-            let exact = AddressIndex.points(q, scope: .city)
-            let h = exact.first ?? AddressIndex.search(q, scope: .city).first
+            // Brooklyn first in the Brooklyn apps, then the rest of the city.
+            let home: FindScope = UIConfig.app == "beyond" ? .city : .borough("3")
+            let h = AddressIndex.points(q, scope: home).first ?? AddressIndex.search(q, scope: home).first
+                ?? AddressIndex.points(q, scope: .city).first ?? AddressIndex.search(q, scope: .city).first
             hit = h
             reps = h.map { MyReps.mine(at: $0.coord, cd: $0.cd) } ?? []
         }
