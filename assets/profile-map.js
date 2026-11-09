@@ -87,7 +87,10 @@
     if (document.getElementById('pmap-sub-css')) return;
     var st = document.createElement('style'); st.id = 'pmap-sub-css';
     st.textContent = '.pmap-sub{display:inline-flex;gap:1px;padding:2px 3px;background:rgba(255,255,255,.95);border:1.5px solid #111;border-radius:13px;box-shadow:0 1px 5px rgba(0,0,0,.3);white-space:nowrap}'
-      + '.pmap-sub span{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font:800 11px/18px Helvetica,Arial,sans-serif}';
+      + '.pmap-sub span{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font:800 11px/18px Helvetica,Arial,sans-serif}'
+      + '.pmap-bus{display:inline-flex;align-items:center;gap:2px;height:18px;padding:0 6px;border-radius:4px;color:#fff;font:800 11px/18px Helvetica,Arial,sans-serif;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.3);white-space:nowrap}'
+      + '.pmap-bus i{font-style:normal;font-size:8px;background:#fff;color:#0039A6;border-radius:2px;padding:0 2px;line-height:11px}'
+      + '.pmap-busstop{display:inline-flex;gap:2px;padding:2px;background:#0039A6;border-radius:5px;box-shadow:0 1px 4px rgba(0,0,0,.35);white-space:nowrap}';
     document.head.appendChild(st);
   })();
 
@@ -820,20 +823,39 @@
       v = String(v || '').replace(/[^0-9]/g, '');
       return { '10': '#166534', '15': '#dc2626', '20': '#2ecc71', '25': '#3498db', '30': '#f1c40f', '35': '#f97316', '40': '#e67e22', '45': '#e74c3c', '50': '#8e44ad' }[v] || '#9ca3af';
     }
+    // a bus route's name as the MTA writes it on the bus, in the route's own color
+    function busPill(r, c) { return '<span class="pmap-bus" style="background:' + (c || '#0039A6') + '">' + escT(String(r).replace(/-SBS$/, '').replace(/\+$/, '')) + (/-SBS$|\+$/.test(r) ? '<i>SBS</i>' : '') + '</span>'; }
     layers.busroutes = viewLayer({ label: 'bus routes', fetch: transportData, draw: function (g, all, b) {
+      var named = {};
       all.forEach(function (t) { if (!t || !t.bus) return; featsIn(t.bus.features, b).forEach(function (f) {
         if (clipOwn) { f = lineInOwn(f); if (!f) return; }
-        var p = f.properties || {};
-        L.geoJSON(f, { style: { color: p.display_color || '#2563eb', weight: 3, opacity: 0.85 } })
-          .bindTooltip('<b>' + escT(p.route_short_name || p.route_id || 'Bus') + '</b> ' + escT(p.route_long_name || ''), { sticky: true }).addTo(g);
+        var p = f.properties || {}, r = p.route_short_name || p.route_id || 'Bus', c = p.display_color || '#2563eb';
+        L.geoJSON(f, { style: { color: c, weight: 3, opacity: 0.85 } })
+          .bindTooltip(busPill(r, c) + ' ' + escT(p.route_long_name || ''), { sticky: true }).addTo(g);
+        // one label per route, at the middle of its longest run in view
+        var runs = f.geometry.type === 'LineString' ? [f.geometry.coordinates] : f.geometry.type === 'MultiLineString' ? f.geometry.coordinates : [];
+        runs.forEach(function (ln) {
+          var mid = ln[Math.floor(ln.length / 2)];
+          if (!mid || !b.contains([mid[1], mid[0]])) return;
+          if (!named[r] || ln.length > named[r].n) named[r] = { n: ln.length, at: mid, c: c, name: p.route_long_name || '' };
+        });
       }); });
+      Object.keys(named).forEach(function (r) {
+        var o = named[r];
+        L.marker([o.at[1], o.at[0]], { zIndexOffset: 400, icon: L.divIcon({ className: '', iconSize: [46, 22], iconAnchor: [23, 11], html: busPill(r, o.c) }) })
+          .bindTooltip(busPill(r, o.c) + ' ' + escT(o.name), { direction: 'top', offset: [0, -10] }).addTo(g);
+      });
     } });
     layers.busstops = viewLayer({ label: 'bus stops', minZoom: 15, fetch: transportData, draw: function (g, all, b) {
       all.forEach(function (t) { if (!t || !t.busstops) return; featsIn(t.busstops.features, b).forEach(function (f) {
         var p = f.properties || {}, c = f.geometry.coordinates;
         if (!inOwn(c[1], c[0])) return;
-        L.circleMarker([c[1], c[0]], { radius: 4, color: '#fff', weight: 1.5, fillColor: '#2563eb', fillOpacity: 1 })
-          .bindTooltip('<b>' + escT((p.routes || []).join(', ')) + '</b> ' + escT(p.stop_name || ''), { sticky: true }).addTo(g);
+        // a stop as its sign: the routes that stop there, each in its own color
+        var rs = (p.routes || []).filter(function (r, i, a) { return a.indexOf(r) === i; }), rc = p.route_colors || {};
+        var html = '<div class="pmap-busstop">' + rs.map(function (r) { return busPill(r, rc[r]); }).join('') + '</div>';
+        var w = 8 + rs.length * 40;
+        L.marker([c[1], c[0]], { icon: L.divIcon({ className: '', iconSize: [w, 24], iconAnchor: [w / 2, 12], html: html }) })
+          .bindTooltip('<b>' + escT(p.stop_name || 'Bus stop') + '</b><br>' + rs.map(function (r) { return busPill(r, rc[r]); }).join(' '), { direction: 'top', offset: [0, -12] }).addTo(g);
       }); });
     } });
     layers.citibike = viewLayer({ label: 'Citi Bike stations', minZoom: 14, fetch: function () { return getJSON('/data/citibike_station_information.json'); }, draw: function (g, d, b) {
