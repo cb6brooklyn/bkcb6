@@ -80,8 +80,37 @@
     (el.getAttribute('data-dists') || '').split('|').filter(Boolean).forEach(function (x) {
       var p = x.split(';'); var a = document.createElement('a'); a.className = 'ptile cb'; a.href = p[1];
       a.innerHTML = '<span class="k">' + esc(p[0].indexOf('NY-') === 0 ? 'Congress' : p[0].split(' District')[0]) + '</span><span class="t">' + esc(p[2] || p[0]) + '</span><span class="d">' + esc(p[0] + ' \u00b7 ' + p[3] + ' election district' + (p[3] === '1' ? '' : 's') + ' in this board') + '</span>';
+      a.setAttribute('data-kind', p[0].indexOf('Council') === 0 ? 'council' : 'other');
       grid.appendChild(a); entries.push({ el: a, text: (p[0] + ' ' + p[2]).toLowerCase() });
     });
+    // A community board page lists everyone who represents it, in the order people know them: council members, the
+    // Borough President, Assembly, State Senate, Congress, the District Attorney, then the city's Comptroller, Public
+    // Advocate and Mayor, the state's Attorney General, Comptroller, Governor and Lieutenant Governor, and the US senators.
+    if (/^\/cb-[a-z]{2}-\d+\.html$/.test(location.pathname) && el.getAttribute('data-dists') && window.fetch) {
+      var boroW = el.getAttribute('data-boro') || '';
+      fetch('/data/officials-wide.json').then(function (r) { return r.json(); }).then(function (W) {
+        var mk = function (o, kind) {
+          var a = document.createElement('a'); a.className = 'ptile cb'; a.href = '/' + o[0] + '/';
+          a.innerHTML = '<span class="k">' + esc(kind) + '</span><span class="t">' + esc(o[1]) + '</span><span class="d">' + esc(o[2]) + '</span>';
+          entries.push({ el: a, text: (kind + ' ' + o[1] + ' ' + o[2]).toLowerCase() });
+          return a;
+        };
+        Array.prototype.forEach.call(grid.querySelectorAll('a[data-kind]'), function (a) {
+          var sl = (a.getAttribute('href') || '').split('/')[1], t = a.querySelector('.t');
+          if (W.names && W.names[sl] && t && /Congressional District/.test(t.textContent)) t.textContent = 'Representative ' + W.names[sl];
+        });
+        var dist = grid.querySelectorAll('a[data-kind]');
+        var firstOther = grid.querySelector('a[data-kind="other"]'), lastDist = dist[dist.length - 1];
+        var after = lastDist ? lastDist.nextSibling : null;
+        if (W.bp[boroW]) grid.insertBefore(mk(W.bp[boroW], 'Borough President'), firstOther || after);
+        var tail = [];
+        if (W.da[boroW]) tail.push(mk(W.da[boroW], 'District Attorney'));
+        (W.city || []).forEach(function (o) { tail.push(mk(o, 'New York City')); });
+        (W.state || []).forEach(function (o) { tail.push(mk(o, 'New York State')); });
+        (W.us || []).forEach(function (o) { tail.push(mk(o, 'U.S. Senate')); });
+        tail.forEach(function (a) { grid.insertBefore(a, after); });
+      }).catch(function () {});
+    }
     // fold every section after this block, one tile each
     var secs = [];
     var n = el.nextElementSibling;
