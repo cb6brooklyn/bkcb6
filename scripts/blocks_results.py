@@ -3,7 +3,7 @@
 Elections' results by election district (data/results/2026-general.json): Governor, Comptroller, Attorney General,
 Congress, State Senate, Assembly, City Council where there was a race, and the five proposals. A block that sits in two
 election districts gets both. Written into every app/data/civic/blocks/<cd>.json.gz; the apps' Your block card shows it
-as the row {"id": "field:results26"} (lists.json "MyBlock.rows"). Re-run whenever the results file changes."""
+as the row {"id": "field:results26"} (lists.json "MyBlock.rows"). Also empties ballot26 (the "On your ballot" lines), now that the election is over. Re-run whenever the results file changes."""
 import json, gzip, glob, os, re
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 R = json.load(open(os.path.join(ROOT, 'data/results/2026-general.json')))
@@ -51,6 +51,8 @@ for f in sorted(glob.glob(os.path.join(ROOT, 'app/data/civic/blocks/*.json.gz'))
             if ls: txt.append(('Election District %d in Assembly District %d\n' % (e['ed'], e['ad'])) + '\n'.join(ls))
         new = '\n\n'.join(txt)
         nb += 1; nw += bool(new)
+        # the election is over: the sample ballot lines come off the block cards
+        if b.get('ballot26'): b['ballot26'] = []; ch = True
         if new:
             if b.get('results26') != new: b['results26'] = new; ch = True
         elif 'results26' in b: del b['results26']; ch = True
