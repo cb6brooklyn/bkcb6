@@ -58,8 +58,17 @@ def ed2cd(y):
     else:
         e = [v for k, v in CAT.items() if k.startswith(str(y) + '-11-') and k.endswith('general')][0]
         m = json.load(open('data/edhistory/geo/ed2cd%s.json' % e['release']))
+    global RAW
+    RAW = {k: str(c) for k, c in m.items()}
     return {k: c for k, c in m.items() if len(str(c)) == 3 and str(c)[0] in '12345' and 1 <= int(str(c)[1:]) <= 18}
+RAW = {}
+def boro_of(k):
+    # the borough of the election district's community district (Assembly District 64 is in two boroughs), else by Assembly District
+    c = RAW.get(k, '')
+    if len(c) == 3 and c[0] in '12345': return c[0]
+    ad = int(k[:2]); return '4' if ad <= 40 else '3' if ad <= 60 else '5' if ad <= 64 else '1' if ad <= 76 else '2'
 out = {'years': []}
+PER = collections.defaultdict(list)   # community district -> its election districts' votes, year by year (ballotmeasures/cd/<cd>.json)
 for y in range(2018, 2027):
     ms = measures(y)
     if not ms: continue
@@ -91,6 +100,20 @@ for y in range(2018, 2027):
             if c: cd[c][i][0] += v[0]; cd[c][i][1] += v[1]
             elif i == 0: outside[0] += v[0] + v[1]; outside[1] += 1 if v[0] + v[1] else 0
     cdyes = {c: sum(1 for a, b in v if a > b) for c, v in cd.items()}
+    bo = collections.defaultdict(lambda: [[0, 0, 0, 0] for _ in qs]); city = [[0, 0, 0, 0] for _ in qs]
+    for i, (_, e) in enumerate(qs):
+        for k, v in e.items():
+            if v[0] + v[1] == 0: continue
+            for t in (bo[boro_of(k)][i], city[i]):
+                t[0] += v[0]; t[1] += v[1]; t[2] += 1 if v[0] > v[1] else 0; t[3] += 1
+    edsby = collections.defaultdict(list)
+    for k in sorted(set.union(*[set(e) for _, e in qs])):
+        c = x.get(k)
+        if c and any(sum(e.get(k, [0, 0])) for _, e in qs): edsby[c].append([k] + [e.get(k, [0, 0]) for _, e in qs])
+    for c, rows in edsby.items():
+        PER[c].append({'year': y, 'unofficial': y == 2026 and not R.get('final'),
+                       'questions': [{'label': ('State ' if m['level'] == 'state' else 'City ') + str(num(m['label'])), 'title': m['title'], 'level': m['level']} for m, _ in qs],
+                       'cd': cd[c], 'boro': [t[:] for t in bo[c[0]]], 'city': [t[:] for t in city], 'eds': rows})
     out['years'].append({'year': y, 'n': n, 'unofficial': y == 2026 and not R.get('final'),
         'questions': [{'label': ('State ' if m['level'] == 'state' else 'City ') + str(num(m['label'])), 'title': m['title'],
                        'yes': sum(v[0] for v in e.values()), 'no': sum(v[1] for v in e.values()),
@@ -102,3 +125,7 @@ for y in range(2018, 2027):
         'cdSplit': sum(1 for v in cdyes.values() if 0 < v < n), 'outsideVotes': outside[0], 'outsideEDs': outside[1]})
     o = out['years'][-1]; print(y, n, 'questions', counted, 'districts: all', o['all'], 'split', o['split'], 'none', o['none'], '(%d%% split)' % round(100 * o['split'] / counted), '| CDs', len(o['cds']), 'all', o['cdAll'], 'split', o['cdSplit'], 'none', o['cdNone'], 'votes outside a CD', o['outsideVotes'])
 json.dump(out, open('ballotmeasures/edsplit.json', 'w'), ensure_ascii=False, separators=(',', ':'))
+os.makedirs('ballotmeasures/cd', exist_ok=True)
+for c, yrs in PER.items():
+    json.dump({'cd': c, 'years': sorted(yrs, key=lambda o: -o['year'])}, open('ballotmeasures/cd/%s.json' % c, 'w'), ensure_ascii=False, separators=(',', ':'))
+print(len(PER), 'community district files')
