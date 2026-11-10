@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # The jobs below save their own changes to main. Those saves do not start a push run, so this job follows each of them.
+  workflow_run:
+    workflows: ["App calendar", "App feeds", "App pack", "Civic calendar", "Election results", "Fetch NYS enrollment by ED", "lift-probe", "lift-sites", "Refresh calendar events", "Refresh permits data", "se-rents", "zap-districts", "zap-votes"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -23,7 +27,20 @@ jobs:
       url: https://bkcb6.app
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Anything new to put up?
+        id: new
+        run: |
+          HEAD=$(git rev-parse HEAD)
+          echo "sha=$HEAD" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_run" ] && [ "$HEAD" = "${{ github.event.workflow_run.head_sha }}" ]; then
+            echo "go=no" >> "$GITHUB_OUTPUT"; echo "That job saved nothing new."
+          else
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+          fi
       - name: Upload Pages artifact
+        if: steps.new.outputs.go == 'yes'
         id: artifact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -32,18 +49,19 @@ jobs:
       # that Pages sometimes needs longer to sync its files, so this step starts the same deployment through the Pages
       # API and waits up to 60 minutes without cancelling it.
       - name: Deploy to GitHub Pages
+        if: steps.new.outputs.go == 'yes'
         uses: actions/github-script@v7
         with:
           script: |
             const oidc = await core.getIDToken();
             const { owner, repo } = context.repo;
             const artifactId = Number('${{ steps.artifact.outputs.artifact_id }}');
-            core.info(`artifact ${artifactId}, version ${context.sha}`);
+            core.info(`artifact ${artifactId}, version ${{ steps.new.outputs.sha }}`);
             const created = await github.request('POST /repos/{owner}/{repo}/pages/deployments', {
-              owner, repo, artifact_id: artifactId, pages_build_version: context.sha, oidc_token: oidc,
+              owner, repo, artifact_id: artifactId, pages_build_version: '${{ steps.new.outputs.sha }}', oidc_token: oidc,
               headers: { 'X-GitHub-Api-Version': '2022-11-28' }
             });
-            const id = created.data.id || context.sha;
+            const id = created.data.id || '${{ steps.new.outputs.sha }}';
             core.info(`deployment ${id} created: ${created.data.status_url || ''}`);
             const done = ['succeed'];
             const failed = ['deployment_failed', 'deployment_content_failed', 'deployment_cancelled', 'deployment_lost', 'deployment_perms_error', 'deployment_attempt_error'];
