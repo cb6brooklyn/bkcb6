@@ -17,17 +17,46 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 75
     environment:
       name: github-pages
       url: https://bkcb6.app
     steps:
       - uses: actions/checkout@v4
       - name: Upload Pages artifact
+        id: artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
+      # actions/deploy-pages gives Pages at most 10 minutes and then cancels the deployment. The site is large enough
+      # that Pages sometimes needs longer to sync its files, so this step starts the same deployment through the Pages
+      # API and waits up to 60 minutes without cancelling it.
       - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v4
+        uses: actions/github-script@v7
         with:
-          # the site is large; the default 10 minutes is not always enough for Pages to take it
-          timeout: 1800000
+          script: |
+            const oidc = await core.getIDToken();
+            const { owner, repo } = context.repo;
+            const artifactId = Number('${{ steps.artifact.outputs.artifact_id }}');
+            core.info(`artifact ${artifactId}, version ${context.sha}`);
+            const created = await github.request('POST /repos/{owner}/{repo}/pages/deployments', {
+              owner, repo, artifact_id: artifactId, pages_build_version: context.sha, oidc_token: oidc,
+              headers: { 'X-GitHub-Api-Version': '2022-11-28' }
+            });
+            const id = created.data.id || context.sha;
+            core.info(`deployment ${id} created: ${created.data.status_url || ''}`);
+            const done = ['succeed'];
+            const failed = ['deployment_failed', 'deployment_content_failed', 'deployment_cancelled', 'deployment_lost', 'deployment_perms_error', 'deployment_attempt_error'];
+            const started = Date.now();
+            let last = '';
+            while (Date.now() - started < 60 * 60 * 1000) {
+              await new Promise(r => setTimeout(r, 10000));
+              let s;
+              try {
+                s = (await github.request('GET /repos/{owner}/{repo}/pages/deployments/{id}', { owner, repo, id, headers: { 'X-GitHub-Api-Version': '2022-11-28' } })).data.status;
+              } catch (e) { core.info(`status check failed: ${e.message}`); continue; }
+              if (s !== last) { core.info(`${Math.round((Date.now() - started) / 1000)}s: ${s}`); last = s; }
+              if (done.includes(s)) { core.info('deployed'); return; }
+              if (failed.includes(s)) { core.setFailed(`Pages reported ${s}`); return; }
+            }
+            core.setFailed(`Pages had not finished after 60 minutes (last status: ${last})`);
