@@ -50,6 +50,15 @@ def pick25(m):
 R = json.load(open('data/results/2026-general.json'))
 r26 = {int(c['k'][1:]): {k: e['v'][:2] for k, e in c['ed'].items()} for c in R['contests'] if re.match(r'q\d+$', c['k'])}
 
+# election district -> community district, from the district lines in force at each election
+CAT = {e['id']: e for e in json.load(open('data/edhistory/catalog.json'))['elections']}
+X26 = json.load(open('app/data/civic/ed-crosswalk.json'))
+def ed2cd(y):
+    if y == 2026: m = {k: str(v[3]) for k, v in X26.items() if len(v) > 3}
+    else:
+        e = [v for k, v in CAT.items() if k.startswith(str(y) + '-11-') and k.endswith('general')][0]
+        m = json.load(open('data/edhistory/geo/ed2cd%s.json' % e['release']))
+    return {k: c for k, c in m.items() if len(str(c)) == 3 and str(c)[0] in '12345' and 1 <= int(str(c)[1:]) <= 18}
 out = {'years': []}
 for y in range(2018, 2027):
     ms = measures(y)
@@ -74,12 +83,22 @@ for y in range(2018, 2027):
         if any(a + b == 0 for a, b in r): skipped += 1; continue
         bits = tuple(1 if a > b else 0 for a, b in r); pat[sum(bits)] += 1; combo[bits] += 1
     counted = sum(pat.values())
+    # by community district
+    x = ed2cd(y); cd = collections.defaultdict(lambda: [[0, 0] for _ in qs]); outside = [0, 0]
+    for i, (_, e) in enumerate(qs):
+        for k, v in e.items():
+            c = x.get(k)
+            if c: cd[c][i][0] += v[0]; cd[c][i][1] += v[1]
+            elif i == 0: outside[0] += v[0] + v[1]; outside[1] += 1 if v[0] + v[1] else 0
+    cdyes = {c: sum(1 for a, b in v if a > b) for c, v in cd.items()}
     out['years'].append({'year': y, 'n': n, 'unofficial': y == 2026 and not R.get('final'),
         'questions': [{'label': ('State ' if m['level'] == 'state' else 'City ') + str(num(m['label'])), 'title': m['title'],
                        'yes': sum(v[0] for v in e.values()), 'no': sum(v[1] for v in e.values()),
                        'edsYes': sum(1 for k in eds if e[k][0] > e[k][1]), 'edsNo': sum(1 for k in eds if e[k][1] > e[k][0])} for m, e in qs],
         'eds': counted, 'noVotes': skipped, 'all': pat.get(n, 0), 'none': pat.get(0, 0), 'split': counted - pat.get(n, 0) - pat.get(0, 0),
         'byCount': {str(i): pat.get(i, 0) for i in range(n, -1, -1)},
-        'combos': [[''.join('Y' if b else 'N' for b in bits), c] for bits, c in combo.most_common(6)]})
-    o = out['years'][-1]; print(y, n, 'questions', counted, 'districts: all', o['all'], 'split', o['split'], 'none', o['none'], '(%d%% split)' % round(100 * o['split'] / counted))
+        'combos': [[''.join('Y' if b else 'N' for b in bits), c] for bits, c in combo.most_common(6)],
+        'cds': {c: v for c, v in sorted(cd.items())}, 'cdAll': sum(1 for v in cdyes.values() if v == n), 'cdNone': sum(1 for v in cdyes.values() if v == 0),
+        'cdSplit': sum(1 for v in cdyes.values() if 0 < v < n), 'outsideVotes': outside[0], 'outsideEDs': outside[1]})
+    o = out['years'][-1]; print(y, n, 'questions', counted, 'districts: all', o['all'], 'split', o['split'], 'none', o['none'], '(%d%% split)' % round(100 * o['split'] / counted), '| CDs', len(o['cds']), 'all', o['cdAll'], 'split', o['cdSplit'], 'none', o['cdNone'], 'votes outside a CD', o['outsideVotes'])
 json.dump(out, open('ballotmeasures/edsplit.json', 'w'), ensure_ascii=False, separators=(',', ':'))

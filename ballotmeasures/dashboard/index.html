@@ -86,6 +86,17 @@ svg.ch text{font-family:'DM Sans',sans-serif}
 .arealist li{display:grid;grid-template-columns:58px minmax(0,1fr) auto;gap:8px;padding:4px 0;border-bottom:1px solid #f0ede7;font-size:.86rem;line-height:1.35}
 .arealist li span:first-child{font:500 .8rem 'DM Mono',monospace;color:var(--muted)}
 .arealist li em{font-style:normal;font-weight:700;white-space:nowrap}
+.cbg{border-collapse:separate;border-spacing:2px;font-size:.8rem;margin-top:6px;width:100%}
+.cbg th{font:500 .72rem 'DM Mono',monospace;color:var(--muted);padding:3px 4px;text-align:center;white-space:nowrap}
+.cbg th.n,.cbg td.n{position:sticky;left:0;background:#fff;text-align:right;padding-right:8px;font:500 .78rem 'DM Mono',monospace;color:#1f2937;z-index:1}
+.cbg td.n.me{color:var(--orange);font-weight:700}
+.cbg td.c{text-align:center;border-radius:5px;padding:4px 2px;font-weight:700;color:#fff;min-width:44px;cursor:default}
+.cbg tr.b td{padding-top:10px;font:700 .8rem 'DM Sans';color:var(--navy);text-align:left;background:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font:700 .86rem 'DM Sans',sans-serif;border:1px solid var(--border);background:#fff;color:var(--navy);border-radius:999px;padding:6px 13px;cursor:pointer}
+.chips button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.qkey{font-size:.84rem;color:#374151;line-height:1.5;margin:2px 0 6px}
+.qkey b{color:var(--navy)}
 .foot{margin-top:22px;text-align:center;font-size:.8rem;color:var(--muted)}
 </style>
 </head>
@@ -185,6 +196,19 @@ svg.ch text{font-family:'DM Sans',sans-serif}
       <div class="scrollhint">Swipe sideways to see the whole chart.</div><div class="scroll"><svg class="ch" id="d6" viewBox="0 0 1000 330"></svg></div>
       <p class="take" id="dt6"></p>
       <details class="arealist"><summary>The most common ways districts split, each year</summary><div id="d6l"></div></details>
+    </div>
+
+    <div class="card" id="cbsplitcard">
+      <h3>Community board by community board, year by year</h3>
+      <p class="what">Each row is one of the 59 community districts and each column is one year's ballot. The cell says how many of that year's questions the district approved: green for all of them, orange for some, red for none. Tap a cell for the district's vote on each question.</p>
+      <div class="legend"><span><span class="sw" style="background:var(--yes)"></span>Approved every question</span><span><span class="sw" style="background:var(--orange)"></span>Approved some</span><span><span class="sw" style="background:var(--no)"></span>Approved none</span></div>
+      <div class="scroll"><table class="cbg" id="d7"></table></div>
+      <p class="take" id="dt7"></p>
+      <h3 style="margin-top:18px">One year, every community district, every question</h3>
+      <p class="what">Pick a year. Each row is a community district; the dots are that year's questions by the share voting yes there, and the line runs from its lowest to its highest. Red dots are questions that failed there. Sorted from the strongest yes to the weakest.</p>
+      <div class="chips" id="d8y"></div>
+      <div id="d8q" class="qkey"></div>
+      <div id="d8" class="cdr"></div>
     </div>
 
     <div class="card">
@@ -431,6 +455,28 @@ if(ES&&ES.years.length){const ys=ES.years;const W=1000,l=120,r=70,rh=36,H=ys.len
  $('dt6').innerHTML=`<b>In ${hi.year}, ${Math.round(100*hi.split/hi.eds)}% of election districts approved some questions and turned down others.</b> The least splitting was in ${lo.year} (${Math.round(100*lo.split/lo.eds)}%), when there were ${lo.n} questions. Across these ${ys.length} ballots, districts split ${fmt(sp)} times and turned down everything ${fmt(no)} times out of ${fmt(tot)}. Every year, some districts turned down the whole ballot.${ys.some(o=>o.unofficial)?' * Unofficial election night count.':''} 2020 had no questions. 2014 and 2017 are left out because each has one question whose district file link on the Board of Elections site is broken, and no district files were found for 2013 and earlier.`;
  $('d6l').innerHTML=ys.map(o=>`<h4>${o.year}: ${o.questions.map(q=>esc(q.label)).join(', ')}</h4><ul>`+o.questions.map(q=>`<li><span>${esc(q.label.replace(/^(State|City) /,'$1 '))}</span><span>${esc(q.title)}</span><em style="color:${q.yes>q.no?'var(--yes)':'var(--no)'}">${pc(100*q.yes/(q.yes+q.no))} yes · ${fmt(q.edsYes)} districts yes, ${fmt(q.edsNo)} no</em></li>`).join('')+o.combos.map(([c,n])=>`<li><span>${fmt(n)}</span><span>districts voted ${c.split('').map((b,j)=>`${b==='Y'?'yes':'no'} on ${esc(o.questions[j].label)}`).join(', ')}</span><em>${pc(100*n/o.eds)}</em></li>`).join('')+'</ul>').join('')}
 else{const c=document.getElementById('edsplitcard');if(c)c.style.display='none'}
+// ---------- community boards, year by year ----------
+if(ES&&ES.years.length&&ES.years[0].cds){const ys=ES.years,BN={1:'MN',2:'BX',3:'BK',4:'QN',5:'SI'},BF={1:'Manhattan',2:'The Bronx',3:'Brooklyn',4:'Queens',5:'Staten Island'};
+ const nm=c=>BN[c[0]]+'CB'+(+c.slice(1)),pct=a=>a[0]+a[1]?100*a[0]/(a[0]+a[1]):null;
+ const cds=[...new Set(ys.flatMap(o=>Object.keys(o.cds)))].sort();
+ let h=`<tr><th class="n"></th>${ys.map(o=>`<th>${o.year}${o.unofficial?'*':''}<br>${o.n} q.</th>`).join('')}</tr>`,lastB='';
+ cds.forEach(c=>{if(c[0]!==lastB){lastB=c[0];h+=`<tr class="b"><td colspan="${ys.length+1}">${BF[c[0]]}</td></tr>`}
+  h+=`<tr><td class="n${c==='306'?' me':''}">${nm(c)}</td>`+ys.map(o=>{const v=o.cds[c];if(!v)return '<td></td>';const k=v.filter(a=>a[0]>a[1]).length,col=k===o.n?'var(--yes)':k===0?'var(--no)':'var(--orange)';
+   return `<td class="c" style="background:${col}" ${T(`<b>${nm(c)}, ${o.year}</b>: approved ${k} of ${o.n}<br>`+v.map((a,j)=>`${esc(o.questions[j].label)}: ${pct(a)==null?'no votes':pc(pct(a))+' yes'}${a[0]>a[1]?'':' (failed here)'}`).join('<br>'))}>${k}/${o.n}</td>`}).join('')+'</tr>'});
+ $('d7').innerHTML=h;
+ const tot=ys.reduce((a,o)=>a+Object.keys(o.cds).length,0),sp=ys.reduce((a,o)=>a+o.cdSplit,0),no=ys.reduce((a,o)=>a+o.cdNone,0),hi=ys.slice().sort((a,b)=>b.cdSplit-a.cdSplit)[0];
+ const always=cds.filter(c=>ys.every(o=>o.cds[c]&&o.cds[c].every(a=>a[0]>a[1]))),never=cds.filter(c=>ys.every(o=>o.cds[c]&&o.cds[c].some(a=>a[0]<=a[1])));
+ const six=ys.map(o=>{const v=o.cds['306'];return v?v.filter(a=>a[0]>a[1]).length+'/'+o.n:''}).join(', ');
+ $('dt7').innerHTML=`<b>In ${hi.year}, ${hi.cdSplit} of the 59 community districts approved some questions and turned down others.</b> Across the ${ys.length} ballots, a community district split its ballot ${sp} times and turned down every question ${no} times, out of ${tot}. ${always.length} district${always.length===1?'':'s'} approved every question in every one of these years${always.length&&always.length<=12?' ('+always.map(nm).join(', ')+')':''}; ${never.length} turned down at least one question every year${never.length&&never.length<=12?' ('+never.map(nm).join(', ')+')':''}. BKCB6 approved ${six}.${ys.some(o=>o.unofficial)?' * Unofficial election night count.':''} Votes in election districts outside any community district (parks and the like) are not in a row here.`;
+ const draw=yr=>{const o=ys.find(x=>x.year===yr);[...$('d8y').children].forEach(b=>b.classList.toggle('on',+b.dataset.y===yr));
+  $('d8q').innerHTML=o.questions.map((q,j)=>`<b>${esc(q.label)}</b> ${esc(q.title)} (${pc(100*q.yes/(q.yes+q.no))} yes citywide)`).join('<br>');
+  const rows=Object.entries(o.cds).map(([c,v])=>{const ps=v.map(pct).filter(x=>x!=null);return{c,v,ps,lo:Math.min(...ps),hi:Math.max(...ps),avg:ps.reduce((a,x)=>a+x,0)/ps.length}}).sort((a,b)=>b.avg-a.avg);
+  const X=v=>Math.max(0,Math.min(100,(v-10)/85*100));
+  $('d8').innerHTML=`<div class="ax"><b></b><div>${[10,30,50,70,90].map(v=>`<span style="left:${X(v)}%">${v}%</span>`).join('')}</div></div>`+rows.map(r=>`<div class="row${r.c==='306'?' me':''}" ${T(`<b>${nm(r.c)}, ${yr}</b><br>`+r.v.map((a,j)=>`${esc(o.questions[j].label)}: ${pct(a)==null?'no votes':pc(pct(a))}`).join('<br>'))}><b>${nm(r.c)}</b><div class="tr"><u style="left:${X(50)}%"></u><s style="left:${X(r.lo)}%;width:${X(r.hi)-X(r.lo)}%"></s>${r.ps.map(p=>`<i style="left:${X(p)}%;background:${p>50?'var(--yes)':'var(--no)'}"></i>`).join('')}</div></div>`).join('')};
+ $('d8y').innerHTML=ys.map(o=>`<button data-y="${o.year}">${o.year}${o.unofficial?'*':''}</button>`).join('');
+ $('d8y').addEventListener('click',e=>{const b=e.target.closest('button');if(b)draw(+b.dataset.y)});
+ draw((ys.find(o=>o.year===2025)||ys[ys.length-1]).year)}
+else{const c=document.getElementById('cbsplitcard');if(c)c.style.display='none'}
 // ---------- policy areas ----------
 if(AR){const K={};M.forEach(m=>{const a=AR.by[m.id]||'Other';const o=K[a]=K[a]||{a,y:0,n:0,u:0,ps:[],ms:[]};const r=res(m);o.ms.push(m);if(r==null)o.u++;else{o[r?'y':'n']++;if(m.state&&m.state.pctYes!=null)o.ps.push(m.state.pctYes)}});
  const ks=Object.values(K).filter(o=>o.y+o.n>0).sort((a,b)=>b.y/(b.y+b.n)-a.y/(a.y+a.n)||(b.y+b.n)-(a.y+a.n));
