@@ -185,7 +185,7 @@
     '@media(max-width:400px){#cb6sv a{font-size:13px;padding:7px 13px}}';
   function svStrip(inApp) {
     var d = document.createElement('div'); d.id = 'cb6sv';
-    d.innerHTML = '<a href="' + SURVEY + '" target="_blank" rel="noopener">Take our District Needs Survey <span>›</span></a>';
+    d.innerHTML = '<a href="' + SURVEY + '" target="_blank" rel="noopener">Take the BKCB6 District Needs Survey <span>›</span></a>';
     return d;
   }
   function svCss() { var t = document.createElement('style'); t.textContent = SVCSS; document.head.appendChild(t); }
