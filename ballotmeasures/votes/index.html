@@ -182,6 +182,7 @@ details.sec>p{margin:0 0 12px;color:#374151;font-size:1rem;line-height:1.55;max-
 .edlab{font:500 10px 'DM Mono',monospace;color:#0d1b4b;background:rgba(255,255,255,.82);border-radius:4px;padding:0 3px;white-space:nowrap;pointer-events:none}
 </style>
 <script src="https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js"></script>
+<script src="/assets/map-find.js?v=20261110a"></script>
 </head>
 <body><script src="/assets/site-bar.js?v=1" defer></script><a id="asb" href="https://apps.apple.com/us/app/bkcb6/id6813967208" target="_blank" rel="noopener" style="display:block;background:#0d1b4b;text-align:center;padding:6px 0"><img src="/appstore-badge.png" alt="Download on the App Store" height="34" style="height:34px;width:auto;vertical-align:middle"></a><script>(function(){try{var a=document.getElementById("asb"),q=/[?&]app=1\b/.test(location.search);if(q)sessionStorage.setItem("bkapp","1");if(location.protocol==="bkcb:"||q||sessionStorage.getItem("bkapp")==="1"||/^bkcb:/.test(document.referrer)){a.style.display="none"}}catch(e){}})();</script>
 <div class="wrap">
@@ -192,6 +193,7 @@ details.sec>p{margin:0 0 12px;color:#374151;font-size:1rem;line-height:1.55;max-
   </div>
   <div class="pick" style="margin-top:12px"><label for="cdsel">Community district</label><select id="cdsel"></select></div>
   <div class="card" style="padding:12px 14px;margin-top:12px">
+    <div id="find"></div>
     <div id="tophead" class="tophead"></div>
     <div id="topmap" class="edmap"></div>
     <div class="edkey"><b>Share voting yes</b><span id="topkey"></span></div>
@@ -252,6 +254,17 @@ const KEY0=[[80,'80%+'],[70,'70 to 80'],[60,'60 to 70'],[50,'50 to 60'],[40,'40 
 const KEY=KEY0;const TOKEN='eyJraWQiOiI0SjZVQlRDRFpEIiwidHlwIjoiSldUIiwiYWxnIjoiRVMyNTYifQ.eyJpc3MiOiJGN0hGR1Y1UVIyIiwiaWF0IjoxNzkzNzQ5OTEyLCJvcmlnaW4iOiJia2NiNi5hcHAiLCJzY29wZSI6Im1hcGtpdF9qcyJ9.LpYs4ZPhfyWiHXBTv_qniPsZ-ciCJhQ-aCjQOuWsfIpQ6HFKgQGNGYlFEoci3dSys9c4oh5Te8dbp3N1R9vMyw';
 let CUR=null,MKI=false;const GEO={};
 function ctr(rs){let A=0,x=0,y=0,best=rs[0];rs.forEach(r=>{if(r.length>best.length)best=r});const r=best;for(let i=0,j=r.length-1;i<r.length;j=i++){const f=r[j][0]*r[i][1]-r[i][0]*r[j][1];A+=f;x+=(r[j][0]+r[i][0])*f;y+=(r[j][1]+r[i][1])*f}return A?[x/(3*A),y/(3*A)]:r[0]}
+let FIND=null,TPICK={},TG=null,TP=null,DIST=null;
+const inRing=(x,y,r)=>{let c=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],b=r[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])c=!c}return c};
+const BNUM={BK:3,MN:1,BX:2,QN:4,SI:5};
+async function onPoint(lon,lat,label){await TP;let ed=TG&&Object.keys(TG).find(k=>TG[k].some(r=>inRing(lon,lat,r)));
+ if(!ed){try{DIST=DIST||await fetch('../districts.geojson').then(r=>r.json())}catch(e){}
+  const d=DIST&&DIST.features.find(f=>(f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates).some(p=>inRing(lon,lat,p[0])));
+  if(!d){$('topinfo').innerHTML=`<b>${esc(label)}</b> is not inside one of the 59 community districts.`;return}
+  const c=BNUM[d.properties.b.slice(0,2)]+d.properties.b.slice(2);
+  if(c!==CDN){const yy=TY,ii=TI;CDN=c;$('cdsel').value=c;await loadCD();await TP;if(CUR.ys.some(v=>v.year===yy)){TY=yy;TI=ii;TP=drawTop();await TP}}
+  ed=TG&&Object.keys(TG).find(k=>TG[k].some(r=>inRing(lon,lat,r)))}
+ if(ed&&TPICK[ed])TPICK[ed](label);else $('topinfo').innerHTML=`<b>${esc(label)}</b> is in ${nm(CDN)}, in a spot with no election district shape for ${TY}.`}
 let TM=null,TOV=[],TLB=[],TSHOWN=false,TY=0,TI=0,TK='';
 const tsty=(f,sel)=>new mapkit.Style({fillColor:f,fillOpacity:.8,strokeColor:sel?'#111827':'#fff',lineWidth:sel?3:1});
 async function drawTop(){if(!window.mapkit||!CUR)return;const c=CUR.c,o=CUR.ys.find(v=>v.year===TY);if(!o)return;const i=Math.min(TI,o.questions.length-1),info=$('topinfo'),name=nm(c),q=o.questions[i],mean=o.year===2026&&MEANS.find(m=>q.label==='City '+m.n);
@@ -262,18 +275,19 @@ async function drawTop(){if(!window.mapkit||!CUR)return;const c=CUR.c,o=CUR.ys.f
  info.textContent='Tap an election district for its count.';
  if(!MKI){mapkit.init({authorizationCallback:done=>done(TOKEN),language:'en'});MKI=true}
  const k=c+'-'+o.year,tok=k+'/'+i;TK=tok;let G;try{G=await (GEO[k]=GEO[k]||fetch('../cd/geo/'+k+'.json').then(r=>r.json()))}catch(e){info.textContent='The map could not be loaded.';return}
- if(TK!==tok)return;
+ if(TK!==tok)return;TG=G;TPICK={};
  if(!TM){TM=new mapkit.Map('topmap',{showsCompass:mapkit.FeatureVisibility.Hidden,showsZoomControl:true,showsMapTypeControl:false,isRotationEnabled:false,showsPointsOfInterest:false,mapType:mapkit.Map.MapTypes.MutedStandard});
+  if(!FIND)FIND=MapFind.attach({host:$('find'),map:()=>TM,tap:'single-tap',hint:'Search an address or a corner, or tap the map to drop a pin.',onPoint});FIND.hook();
   TM.addEventListener('region-change-end',()=>{const z=TM.region.span.latitudeDelta<.022;if(z&&!TSHOWN){TM.addAnnotations(TLB);TSHOWN=true}else if(!z&&TSHOWN){TM.removeAnnotations(TLB);TSHOWN=false}})}
  const same=TM._k===k;TM.removeOverlays(TOV);if(TSHOWN&&!same){TM.removeAnnotations(TLB);TSHOWN=false}
  TOV=[];const LB=[];let cur=null;
  o.eds.forEach(r=>{const g=G[r[0]];if(!g)return;const y=r[i+1][0],n=r[i+1][1],p=y+n&&y!==n?100*y/(y+n):null,f=col(p);
   const ov=new mapkit.PolygonOverlay(g.map(q=>q.map(v=>new mapkit.Coordinate(v[1],v[0]))),{style:tsty(f)});ov.data={f};
-  ov.addEventListener('select',()=>{if(cur)cur.style=tsty(cur.data.f);cur=ov;ov.style=tsty(f,true);info.innerHTML=`<b>Election district ${+r[0].slice(2)}, Assembly District ${+r[0].slice(0,2)}:</b> ${y+n?`${fmt(y)} yes, ${fmt(n)} no (${pc(100*y/(y+n))} yes)`:'no votes counted on this question'}`});
+  const pick=TPICK[r[0]]=lab=>{if(cur)cur.style=tsty(cur.data.f);cur=ov;ov.style=tsty(f,true);info.innerHTML=`${lab?`<b>${esc(lab)}</b> is in `:''}<b>Election district ${+r[0].slice(2)}, Assembly District ${+r[0].slice(0,2)}:</b> ${y+n?`${fmt(y)} yes, ${fmt(n)} no (${pc(100*y/(y+n))} yes)`:'no votes counted on this question'}`};ov.addEventListener('select',()=>pick());
   TOV.push(ov);if(!same){const m=ctr(g);LB.push(new mapkit.Annotation(new mapkit.Coordinate(m[1],m[0]),()=>{const d=document.createElement('div');d.className='edlab';d.textContent=(+r[0].slice(0,2))+'/'+(+r[0].slice(2));return d},{enabled:false,calloutEnabled:false,anchorOffset:new DOMPoint(0,8)}))}});
  TM.addOverlays(TOV);if(!same){TLB=LB;TM._k=k;TM.showItems(TOV,{animate:false,padding:new mapkit.Padding(14,14,14,14)})}}
 document.addEventListener('click',e=>{const y=e.target.closest('#ychips button'),q=e.target.closest('#qchips button'),m=e.target.closest('.mapbtn');
- if(y){TY=+y.dataset.y;TI=0;drawTop()}else if(q){TI=+q.dataset.q;drawTop()}else if(m){TY=+m.dataset.y;TI=+m.dataset.i;drawTop();$('tophead').scrollIntoView({behavior:'smooth',block:'start'})}});
+ if(y){TY=+y.dataset.y;TI=0;TP=drawTop()}else if(q){TI=+q.dataset.q;TP=drawTop()}else if(m){TY=+m.dataset.y;TI=+m.dataset.i;TP=drawTop();$('tophead').scrollIntoView({behavior:'smooth',block:'start'})}});
 function qRow(o,i,c,mean){const q=o.questions[i],name=nm(c);
  const eds=o.eds.map(r=>({ed:r[0],y:r[i+1][0],n:r[i+1][1]})).filter(e=>e.y+e.n>0).sort((a,b)=>b.y/(b.y+b.n)-a.y/(a.y+a.n));
  const yes=eds.filter(e=>e.y>e.n).length,no=eds.filter(e=>e.n>e.y).length,tie=eds.length-yes-no,cd=o.cd[i],p=100*cd[0]/(cd[0]+cd[1]),won=cd[0]>cd[1],B=o.boro[i],C=o.city[i];
@@ -288,7 +302,7 @@ function qRow(o,i,c,mean){const q=o.questions[i],name=nm(c);
 const howMany=(k,n)=>k===n?(n===1?'it':n===2?'both':'all '+words[n]):k===0?'none':k+' of '+n;
 async function loadCD(){const c=CDN,name=nm(c);$('hname').textContent=name;document.title=`Ballot Breakdown: ${name}`;
  let D;try{D=await fetch('../cd/'+c+'.json').then(r=>r.json())}catch(e){$('rows26').innerHTML='<div class="card">The election district counts could not be loaded.</div>';return}
- CUR={c,ys:D.years};TY=D.years[0].year;TI=0;drawTop();const ys=D.years,o26=ys.find(o=>o.year===2026),old=ys.filter(o=>o.year!==2026);
+ CUR={c,ys:D.years};TY=D.years[0].year;TI=0;TP=drawTop();const ys=D.years,o26=ys.find(o=>o.year===2026),old=ys.filter(o=>o.year!==2026);
  if(o26){const n=o26.questions.length,k=o26.cd.filter(a=>a[0]>a[1]).length,kc=o26.city.filter(a=>a[0]>a[1]).length;
   $('lead26').innerHTML=`${name} approved ${howMany(k,n)}. The city approved ${howMany(kc,n)}. Open a question for what it changes.`;
   $('rows26').innerHTML=o26.questions.map((q,i)=>qRow(o26,i,c,MEANS.find(m=>q.label==='City '+m.n))).join('')}
