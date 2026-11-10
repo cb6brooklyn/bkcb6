@@ -54,7 +54,7 @@ r26 = {int(c['k'][1:]): {k: e['v'][:2] for k, e in c['ed'].items()} for c in R['
 CAT = {e['id']: e for e in json.load(open('data/edhistory/catalog.json'))['elections']}
 X26 = json.load(open('app/data/civic/ed-crosswalk.json'))
 def ed2cd(y):
-    if y == 2026: m = {k: str(v[3]) for k, v in X26.items() if len(v) > 3}
+    if y == 2026: m = json.load(open('data/edhistory/geo/ed2cd26a1.json'))  # the 2026 district lines
     else:
         e = [v for k, v in CAT.items() if k.startswith(str(y) + '-11-') and k.endswith('general')][0]
         m = json.load(open('data/edhistory/geo/ed2cd%s.json' % e['release']))
