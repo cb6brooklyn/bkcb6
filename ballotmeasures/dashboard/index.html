@@ -83,7 +83,7 @@ svg.ch text{font-family:'DM Sans',sans-serif}
 .arealist{margin-top:10px}.arealist summary{cursor:pointer;font-weight:700;color:var(--navy);font-size:.95rem;padding:6px 0}
 .arealist h4{margin:14px 0 4px;color:var(--navy);font-size:.98rem}
 .arealist ul{margin:0;padding:0;list-style:none}
-.arealist li{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:8px;padding:4px 0;border-bottom:1px solid #f0ede7;font-size:.86rem;line-height:1.35}
+.arealist li{display:grid;grid-template-columns:58px minmax(0,1fr) auto;gap:8px;padding:4px 0;border-bottom:1px solid #f0ede7;font-size:.86rem;line-height:1.35}
 .arealist li span:first-child{font:500 .8rem 'DM Mono',monospace;color:var(--muted)}
 .arealist li em{font-style:normal;font-weight:700;white-space:nowrap}
 .foot{margin-top:22px;text-align:center;font-size:.8rem;color:var(--muted)}
@@ -176,6 +176,15 @@ svg.ch text{font-family:'DM Sans',sans-serif}
         <div class="scrollhint">Swipe sideways to see the whole chart.</div><div class="scroll half"><svg class="ch" id="d3" viewBox="0 0 500 300"></svg></div>
         <p class="take" id="dt3"></p>
       </div>
+    </div>
+
+    <div class="card" id="edsplitcard">
+      <h3>Election district by election district, year by year</h3>
+      <p class="what">Each bar is one year's ballot, counted in every New York City election district: the share of districts that approved every question on it, the share that approved some and turned down others, and the share that turned down every one. The number after the year is how many questions were on the ballot.</p>
+      <div class="legend"><span><span class="sw" style="background:var(--yes)"></span>Approved every question</span><span><span class="sw" style="background:var(--orange)"></span>Approved some, turned down others</span><span><span class="sw" style="background:var(--no)"></span>Turned down every question</span></div>
+      <div class="scrollhint">Swipe sideways to see the whole chart.</div><div class="scroll"><svg class="ch" id="d6" viewBox="0 0 1000 330"></svg></div>
+      <p class="take" id="dt6"></p>
+      <details class="arealist"><summary>The most common ways districts split, each year</summary><div id="d6l"></div></details>
     </div>
 
     <div class="card">
@@ -288,6 +297,7 @@ svg.ch text{font-family:'DM Sans',sans-serif}
 <script>
 (async function(){
 const [BD,CD,AR]=await Promise.all([fetch('../data.json').then(r=>r.json()),fetch('../1894/build/units.json').then(r=>r.json()),fetch('../areas.json').then(r=>r.json()).catch(()=>null)]);
+const ES=await fetch('../edsplit.json').then(r=>r.json()).catch(()=>null);
 const M=BD.measures;
 const fmt=n=>Math.round(n).toLocaleString('en-US');
 const pc=v=>(Math.round(v*10)/10).toFixed(1)+'%';
@@ -411,6 +421,16 @@ const by=decs.map(d=>({d,y:D.filter(m=>Math.floor(m.year/10)*10===d&&res(m)===1)
   const avg=sp.reduce((a,o)=>a+o.hi-o.lo,0)/sp.length,wide=sp.slice().sort((a,b)=>(b.hi-b.lo)-(a.hi-a.lo))[0],over20=sp.filter(o=>o.hi-o.lo>=20).length;
   $('dt4').innerHTML=`<b>On the average ballot, the most popular question beat the least popular by ${avg.toFixed(0)} points.</b> The gap was 20 points or more on ${over20} of ${sp.length} ballots. The widest was ${wide.d.slice(0,4)}: ${pc(wide.hi)} for one question and ${pc(wide.lo)} for another.`}
 }
+// ---------- election districts, year by year ----------
+if(ES&&ES.years.length){const ys=ES.years;const W=1000,l=120,r=70,rh=36,H=ys.length*rh+8;$('d6').setAttribute('viewBox',`0 0 ${W} ${H}`);let s='';const w=W-l-r;
+ ys.forEach((o,i)=>{const y=i*rh+4,pa=o.all/o.eds,ps=o.split/o.eds,pn=o.none/o.eds;
+  const tp=T(`<b>${o.year}${o.unofficial?' (unofficial)':''}</b>, ${o.n} questions, ${fmt(o.eds)} election districts<br>Approved every question: ${fmt(o.all)} (${pc(100*pa)})<br>Approved some, turned down others: ${fmt(o.split)} (${pc(100*ps)})<br>Turned down every question: ${fmt(o.none)} (${pc(100*pn)})`);
+  s+=`<g ${tp}><text x="${l-10}" y="${y+20}" text-anchor="end" font-size="14.5" fill="#1f2937"><tspan font-weight="700">${o.year}</tspan> · ${o.n}${o.unofficial?'*':''}</text><rect x="${l}" y="${y+3}" width="${w*pa}" height="24" fill="var(--yes)"/><rect x="${l+w*pa}" y="${y+3}" width="${w*ps}" height="24" fill="var(--orange)"/><rect x="${l+w*(pa+ps)}" y="${y+3}" width="${w*pn}" height="24" fill="var(--no)"/>${pa>.09?`<text x="${l+7}" y="${y+20}" font-size="13" font-weight="700" fill="#fff">${Math.round(100*pa)}%</text>`:''}${ps>.07?`<text x="${l+w*pa+w*ps/2}" y="${y+20}" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2937">${Math.round(100*ps)}% split</text>`:''}<text x="${W-r+8}" y="${y+20}" font-size="13" fill="#4b5563">${Math.round(100*ps)}%</text></g>`});
+ $('d6').innerHTML=s;
+ const top=ys.slice().sort((a,b)=>b.split/b.eds-a.split/a.eds),hi=top[0],lo=top[top.length-1],tot=ys.reduce((a,o)=>a+o.eds,0),sp=ys.reduce((a,o)=>a+o.split,0),no=ys.reduce((a,o)=>a+o.none,0);
+ $('dt6').innerHTML=`<b>In ${hi.year}, ${Math.round(100*hi.split/hi.eds)}% of election districts approved some questions and turned down others.</b> The least splitting was in ${lo.year} (${Math.round(100*lo.split/lo.eds)}%), when there were ${lo.n} questions. Across these ${ys.length} ballots, districts split ${fmt(sp)} times and turned down everything ${fmt(no)} times out of ${fmt(tot)}. Every year, some districts turned down the whole ballot.${ys.some(o=>o.unofficial)?' * Unofficial election night count.':''} 2020 had no questions. 2014 and 2017 are left out because each has one question whose district file link on the Board of Elections site is broken, and no district files were found for 2013 and earlier.`;
+ $('d6l').innerHTML=ys.map(o=>`<h4>${o.year}: ${o.questions.map(q=>esc(q.label)).join(', ')}</h4><ul>`+o.questions.map(q=>`<li><span>${esc(q.label.replace(/^(State|City) /,'$1 '))}</span><span>${esc(q.title)}</span><em style="color:${q.yes>q.no?'var(--yes)':'var(--no)'}">${pc(100*q.yes/(q.yes+q.no))} yes · ${fmt(q.edsYes)} districts yes, ${fmt(q.edsNo)} no</em></li>`).join('')+o.combos.map(([c,n])=>`<li><span>${fmt(n)}</span><span>districts voted ${c.split('').map((b,j)=>`${b==='Y'?'yes':'no'} on ${esc(o.questions[j].label)}`).join(', ')}</span><em>${pc(100*n/o.eds)}</em></li>`).join('')+'</ul>').join('')}
+else{const c=document.getElementById('edsplitcard');if(c)c.style.display='none'}
 // ---------- policy areas ----------
 if(AR){const K={};M.forEach(m=>{const a=AR.by[m.id]||'Other';const o=K[a]=K[a]||{a,y:0,n:0,u:0,ps:[],ms:[]};const r=res(m);o.ms.push(m);if(r==null)o.u++;else{o[r?'y':'n']++;if(m.state&&m.state.pctYes!=null)o.ps.push(m.state.pctYes)}});
  const ks=Object.values(K).filter(o=>o.y+o.n>0).sort((a,b)=>b.y/(b.y+b.n)-a.y/(a.y+a.n)||(b.y+b.n)-(a.y+a.n));
