@@ -37,7 +37,9 @@ for i, y in enumerate(YN):
         if not any(m['year'] == 2005 and m['label'] == lab for m in M):
             M.append(dict(year=2005, date='2005-11-08', level='city', label=lab, title=t[:1] + t[1:].lower(), type='City charter question',
                           result='Approved' if y['yes'] > y['no'] else 'Defeated', nyc=dict(yes=y['yes'], no=y['no'], pctYes=round(100 * y['yes'] / (y['yes'] + y['no']), 1)),
-                          src=['NYC Board of Elections results, November 8, 2005 general election']))
+                          src=['NYC Board of Elections results, November 8, 2005 general election', '2005 Charter Revision Commission, ballot questions and abstracts: https://www.nyc.gov/assets/charter/downloads/pdf/crc_ballot_questions.pdf'],
+                          what={'Question 3': 'Required the Mayor and the Chief Administrative Law Judge to issue a conduct code for the City\u2019s administrative law judges and hearing officers, who can be disciplined for breaking it.',
+                                'Question 4': 'Made permanent the rules from a 1975 state law that was set to expire: a budget balanced each year, a four-year financial plan, limits on short-term borrowing and a yearly audit.'}[lab]))
 # 2026 by community district from election night results
 eds = {f['properties']['id']: f['properties'] for f in json.load(open('electionexplainer/map/eds.geojson'))['features']}
 R26 = json.load(open('data/results/2026-general.json'))
