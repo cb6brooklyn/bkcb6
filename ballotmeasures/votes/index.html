@@ -191,7 +191,7 @@ details.sec>p{margin:0 0 12px;color:#374151;font-size:1rem;line-height:1.55;max-
   <div class="band" style="padding:14px 18px 12px">
     <h1 style="margin:0">Ballot <span>Breakdown</span></h1>
   </div>
-  <div class="pick" style="margin-top:12px"><label for="cdsel">Community district</label><select id="cdsel"></select></div>
+  <div class="pick" style="margin-top:12px"><label for="cdsel">Community district, borough or city</label><select id="cdsel"></select></div>
   <div class="card" style="padding:12px 14px;margin-top:12px">
     <div id="find"></div>
     <div id="tophead" class="tophead"></div>
@@ -234,7 +234,9 @@ details.sec>p{margin:0 0 12px;color:#374151;font-size:1rem;line-height:1.55;max-
 <script>
 (async function(){
 const BN={1:'MN',2:'BX',3:'BK',4:'QN',5:'SI'},BF={1:'Manhattan',2:'the Bronx',3:'Brooklyn',4:'Queens',5:'Staten Island'},BT={1:'Manhattan',2:'The Bronx',3:'Brooklyn',4:'Queens',5:'Staten Island'};
-const nm=c=>BN[c[0]]+'CB'+(+c.slice(1));
+const SCOPES=['NYC','B3','B1','B2','B4','B5'],isCity=c=>c==='NYC',isBoro=c=>c[0]==='B',wide=c=>isCity(c)||isBoro(c);
+const nm=c=>isCity(c)?'New York City':isBoro(c)?BT[c[1]]:BN[c[0]]+'CB'+(+c.slice(1));
+const nmIn=c=>isBoro(c)?BF[c[1]]:nm(c); // mid-sentence: the Bronx
 const fmt=n=>Math.round(n).toLocaleString('en-US');
 const pc=v=>(Math.round(v*10)/10).toFixed(1)+'%';
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -246,8 +248,8 @@ const T=s=>`data-tip="${esc(s)}"`;
 const words=['no','one','two','three','four','five','six','seven','eight','nine','ten'];
 // ---------- the community district ----------
 const all=[];for(const [b,n] of [[3,18],[1,12],[2,12],[4,14],[5,3]])for(let i=1;i<=n;i++)all.push(b+String(i).padStart(2,'0'));
-const want=(new URLSearchParams(location.search).get('cd')||'306');let CDN=all.includes(want)?want:'306';
-$('cdsel').innerHTML=[3,1,2,4,5].map(b=>`<optgroup label="${BT[b]}">`+all.filter(c=>+c[0]===b).map(c=>`<option value="${c}"${c===CDN?' selected':''}>${nm(c)}</option>`).join('')+'</optgroup>').join('');
+const want=(new URLSearchParams(location.search).get('cd')||'306');let CDN=all.includes(want)||SCOPES.includes(want)?want:'306';
+$('cdsel').innerHTML='<optgroup label="The city and each borough">'+SCOPES.map(c=>`<option value="${c}"${c===CDN?' selected':''}>${isCity(c)?'All of New York City':'All of '+BF[c[1]]}</option>`).join('')+'</optgroup>'+[3,1,2,4,5].map(b=>`<optgroup label="${BT[b]}">`+all.filter(c=>+c[0]===b).map(c=>`<option value="${c}"${c===CDN?' selected':''}>${nm(c)}</option>`).join('')+'</optgroup>').join('');
 $('cdsel').addEventListener('change',e=>{const u=new URL(location.href);u.searchParams.set('cd',e.target.value);history.replaceState(null,'',u);CDN=e.target.value;loadCD()});
 const bar=(p,w)=>`<span class="mini"><i style="width:${p}%"></i><u></u><em>${pc(p)}</em></span>`;
 const col=p=>p==null?'#d1d5db':p>=80?'#0d1b4b':p>=70?'#2f4699':p>=60?'#6f86cf':p>=50?'#b9c6ee':p>=40?'#fbd0a8':p>=30?'#f8a85e':'#f47920';
@@ -267,12 +269,12 @@ async function onPoint(lon,lat,label){await TP;let ed=TG&&Object.keys(TG).find(k
   ed=TG&&Object.keys(TG).find(k=>TG[k].some(r=>inRing(lon,lat,r)))}
  if(ed&&TPICK[ed])TPICK[ed](label);else $('topinfo').innerHTML=`<b>${esc(label)}</b> is in ${nm(CDN)}, in a spot with no election district shape for ${TY}.`}
 let TM=null,TOV=[],TLB=[],TSHOWN=false,TY=0,TI=0,TK='';
-const tsty=(f,sel)=>new mapkit.Style({fillColor:f,fillOpacity:.8,strokeColor:sel?'#111827':'#fff',lineWidth:sel?3:1});
+const tsty=(f,sel)=>new mapkit.Style({fillColor:f,fillOpacity:.8,strokeColor:sel?'#111827':'#fff',lineWidth:sel?3:wide(CDN)?.35:1});
 async function drawTop(){if(!window.mapkit||!CUR)return;const c=CUR.c,o=CUR.ys.find(v=>v.year===TY);if(!o)return;const i=Math.min(TI,o.questions.length-1),info=$('topinfo'),name=nm(c),q=o.questions[i],mean=o.year===2026&&MEANS.find(m=>q.label==='City '+m.n);
  $('ychips').innerHTML=CUR.ys.map(v=>`<button data-y="${v.year}"${v.year===TY?' class="on"':''}>${v.year}</button>`).join('');
  $('qchips').innerHTML=o.questions.map((x,j)=>`<button data-q="${j}"${j===i?' class="on"':''}>${esc(x.label.replace('State','State question').replace('City','Question'))}</button>`).join('');
- const E=o.eds.filter(r=>r[i+1][0]+r[i+1][1]>0),yes=E.filter(r=>r[i+1][0]>r[i+1][1]).length,cd=o.cd[i];
- $('tophead').innerHTML=`<b>${o.year} &middot; ${esc(mean?mean.title:q.title)}</b><br>${yes} of ${E.length} election districts in ${name} voted yes &middot; ${pc(100*cd[0]/(cd[0]+cd[1]))} yes`;
+ const E=o.eds.filter(r=>r[i+1][0]+r[i+1][1]>0),W=isCity(c)?o.city[i]:isBoro(c)?o.boro[i]:null,yes=W?W[2]:E.filter(r=>r[i+1][0]>r[i+1][1]).length,nE=W?W[3]:E.length,cd=o.cd[i];
+ $('tophead').innerHTML=`<b>${o.year} &middot; ${esc(mean?mean.title:q.title)}</b><br>${fmt(yes)} of ${fmt(nE)} election districts in ${nmIn(c)} voted yes &middot; ${pc(100*cd[0]/(cd[0]+cd[1]))} yes`;
  info.textContent='Tap an election district for its count.';
  if(!MKI){mapkit.init({authorizationCallback:done=>done(TOKEN),language:'en'});MKI=true}
  const k=c+'-'+o.year,tok=k+'/'+i;TK=tok;let G;try{G=await (GEO[k]=GEO[k]||fetch('../cd/geo/'+k+'.json').then(r=>r.json()))}catch(e){info.textContent='The map could not be loaded.';return}
@@ -285,27 +287,27 @@ async function drawTop(){if(!window.mapkit||!CUR)return;const c=CUR.c,o=CUR.ys.f
  o.eds.forEach(r=>{const g=G[r[0]];if(!g)return;const y=r[i+1][0],n=r[i+1][1],p=y+n&&y!==n?100*y/(y+n):null,f=col(p);
   const ov=new mapkit.PolygonOverlay(g.map(q=>q.map(v=>new mapkit.Coordinate(v[1],v[0]))),{style:tsty(f)});ov.data={f};
   const pick=TPICK[r[0]]=lab=>{if(cur)cur.style=tsty(cur.data.f);cur=ov;ov.style=tsty(f,true);info.innerHTML=`${lab?`<b>${esc(lab)}</b> is in `:''}<b>Election district ${+r[0].slice(2)}, Assembly District ${+r[0].slice(0,2)}:</b> ${y+n?`${fmt(y)} yes, ${fmt(n)} no (${pc(100*y/(y+n))} yes)`:'no votes counted on this question'}`};ov.addEventListener('select',()=>pick());
-  TOV.push(ov);if(!same){const m=ctr(g);LB.push(new mapkit.Annotation(new mapkit.Coordinate(m[1],m[0]),()=>{const d=document.createElement('div');d.className='edlab';d.textContent=(+r[0].slice(0,2))+'/'+(+r[0].slice(2));return d},{enabled:false,calloutEnabled:false,anchorOffset:new DOMPoint(0,8)}))}});
+  TOV.push(ov);if(!same&&!wide(c)){const m=ctr(g);LB.push(new mapkit.Annotation(new mapkit.Coordinate(m[1],m[0]),()=>{const d=document.createElement('div');d.className='edlab';d.textContent=(+r[0].slice(0,2))+'/'+(+r[0].slice(2));return d},{enabled:false,calloutEnabled:false,anchorOffset:new DOMPoint(0,8)}))}});
  TM.addOverlays(TOV);if(!same){TLB=LB;TM._k=k;TM.showItems(TOV,{animate:false,padding:new mapkit.Padding(14,14,14,14)})}}
 document.addEventListener('click',e=>{const y=e.target.closest('#ychips button'),q=e.target.closest('#qchips button'),m=e.target.closest('.mapbtn');
  if(y){TY=+y.dataset.y;TI=0;TP=drawTop()}else if(q){TI=+q.dataset.q;TP=drawTop()}else if(m){TY=+m.dataset.y;TI=+m.dataset.i;TP=drawTop();$('tophead').scrollIntoView({behavior:'smooth',block:'start'})}});
 function qRow(o,i,c,mean){const q=o.questions[i],name=nm(c);
  const eds=o.eds.map(r=>({ed:r[0],y:r[i+1][0],n:r[i+1][1]})).filter(e=>e.y+e.n>0).sort((a,b)=>b.y/(b.y+b.n)-a.y/(a.y+a.n));
- const yes=eds.filter(e=>e.y>e.n).length,no=eds.filter(e=>e.n>e.y).length,tie=eds.length-yes-no,cd=o.cd[i],p=100*cd[0]/(cd[0]+cd[1]),won=cd[0]>cd[1],B=o.boro[i],C=o.city[i];
+ const B=o.boro[i],C=o.city[i],W=isCity(c)?C:isBoro(c)?B:null,yes=W?W[2]:eds.filter(e=>e.y>e.n).length,nE=W?W[3]:eds.length,cd=o.cd[i],p=100*cd[0]/(cd[0]+cd[1]),won=cd[0]>cd[1];
  let h=`<details class="qr"><summary><div class="ql">${esc(q.label.replace('State','State question').replace('City','City question'))}</div><div class="qt">${esc(mean?mean.title:q.title)}</div>`+
-  `<div class="st"><b${won?'':' class="no"'}>${yes} of ${eds.length}</b> election districts in ${name} voted yes &middot; ${pc(p)} yes</div>${mean&&mean.chip?`<span class="chip">${esc(mean.chip)}</span>`:''}</summary><div class="bd">`;
+  `<div class="st"><b${won?'':' class="no"'}>${fmt(yes)} of ${fmt(nE)}</b> election districts in ${nmIn(c)} voted yes &middot; ${pc(p)} yes</div>${mean&&mean.chip?`<span class="chip">${esc(mean.chip)}</span>`:''}</summary><div class="bd">`;
  if(mean){h+=`<p>${esc(mean.summary)}</p>${mean.still?`<p class="still"><b>Still to be determined:</b> ${esc(mean.still)}</p>`:''}<details class="more"><summary>The details</summary><ul>${mean.changes.map(x=>`<li>${esc(x)}</li>`).join('')}${mean.when.map(w=>`<li><b>${esc(w[0])}:</b> ${esc(w[1])}</li>`).join('')}</ul>${mean.expects?`<p>${esc(mean.expects)}</p>`:''}</details>`}
- h+=`<button type="button" class="mapbtn" data-y="${o.year}" data-i="${i}">Show this question on the map</button><h4>${name}, ${BT[c[0]]} and the city</h4>`+
+ h+=`<button type="button" class="mapbtn" data-y="${o.year}" data-i="${i}">Show this question on the map</button><h4>${isCity(c)?'New York City':isBoro(c)?name+' and the city':name+', '+BT[c[0]]+' and the city'}</h4>`+
   `<div class="cmp"><span class="nm">${name}</span>${bar(p)}<span class="ct">${fmt(cd[0])} yes, ${fmt(cd[1])} no</span>`+
-  `<span class="nm">${BT[c[0]]}</span>${bar(100*B[0]/(B[0]+B[1]))}<span class="ct">${fmt(B[2])} of ${fmt(B[3])} districts yes</span>`+
-  `<span class="nm">New York City</span>${bar(100*C[0]/(C[0]+C[1]))}<span class="ct">${fmt(C[2])} of ${fmt(C[3])} districts yes</span></div></div></details>`;
+  (wide(c)?'':`<span class="nm">${BT[c[0]]}</span>${bar(100*B[0]/(B[0]+B[1]))}<span class="ct">${fmt(B[2])} of ${fmt(B[3])} districts yes</span>`)+
+  (isCity(c)?'':`<span class="nm">New York City</span>${bar(100*C[0]/(C[0]+C[1]))}<span class="ct">${fmt(C[2])} of ${fmt(C[3])} districts yes</span>`)+`</div></div></details>`;
  return h}
 const howMany=(k,n)=>k===n?(n===1?'it':n===2?'both':'all '+words[n]):k===0?'none':k+' of '+n;
 async function loadCD(){const c=CDN,name=nm(c);$('hname').textContent=name;document.title=`Ballot Breakdown: ${name}`;
  let D;try{D=await fetch('../cd/'+c+'.json').then(r=>r.json())}catch(e){$('rows26').innerHTML='<div class="card">The election district counts could not be loaded.</div>';return}
  CUR={c,ys:D.years};TY=D.years[0].year;TI=0;TP=drawTop();const ys=D.years,o26=ys.find(o=>o.year===2026),old=ys.filter(o=>o.year!==2026);
  if(o26){const n=o26.questions.length,k=o26.cd.filter(a=>a[0]>a[1]).length,kc=o26.city.filter(a=>a[0]>a[1]).length;
-  $('lead26').innerHTML=`${name} approved ${howMany(k,n)}. The city approved ${howMany(kc,n)}. Open a question for what it changes.`;
+  $('lead26').innerHTML=`${name} approved ${howMany(k,n)}. ${isCity(c)?'':`The city approved ${howMany(kc,n)}. `}Open a question for what it changes.`;
   $('rows26').innerHTML=o26.questions.map((q,i)=>qRow(o26,i,c,MEANS.find(m=>q.label==='City '+m.n))).join('')}
  $('earlierYears').innerHTML=old.map(o=>{const n=o.questions.length,k=o.cd.filter(a=>a[0]>a[1]).length;return `<details class="yr"><summary>${o.year}<span>${n} question${n===1?'':'s'}, ${name} approved ${howMany(k,n)}</span></summary>${o.questions.map((q,i)=>qRow(o,i,c)).join('')}</details>`}).join('');
  const tot=ys.reduce((a,o)=>a+o.questions.length,0),ap=ys.reduce((a,o)=>a+o.cd.filter(x=>x[0]>x[1]).length,0),split=ys.filter(o=>{const k=o.cd.filter(x=>x[0]>x[1]).length;return k>0&&k<o.questions.length});
