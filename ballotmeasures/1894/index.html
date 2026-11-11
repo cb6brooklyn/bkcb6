@@ -69,10 +69,11 @@ tr.me td{background:#fff3c4}
 .src{font-size:.74rem;color:var(--muted);line-height:1.5}
 .src a{color:var(--muted)}
 .foot{margin-top:22px;text-align:center;font-size:.78rem;color:var(--muted)}
-.ml{background:rgba(255,255,255,.94);border:1.5px solid #0d1b4b;border-radius:7px;padding:3px 7px;font:700 11px 'DM Sans',sans-serif;color:#1f2937;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.18);cursor:pointer;line-height:1.2;text-align:center}
-.ml small{display:block;font:500 9.5px 'DM Mono',monospace;color:#4b5563;text-transform:uppercase;letter-spacing:.03em}
-.ml.gone{border-style:dashed;border-color:#6b7280}
-.ml.hi{background:#0d1b4b;color:#fff}.ml.hi small{color:#d6dbef}
+.ml{display:flex;flex-direction:column;align-items:center;gap:1px;font:700 11.5px 'DM Sans',sans-serif;color:#0d1b4b;white-space:nowrap;cursor:pointer;line-height:1.15;padding:2px 6px;border-radius:10px;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff,0 0 2px #fff}
+.ml img{width:32px;height:32px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35);flex:none}
+.ml.noseal{padding-left:6px}
+.ml.gone{color:#4b5563}
+.ml.hi{background:#0d1b4b;color:#fff;text-shadow:none}
 .cta{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#fff3c4;border:1px solid #f1d27a;border-radius:14px;padding:12px 16px;margin-top:16px;font-size:.92rem;line-height:1.45}
 .cta a.btn{background:#0d1b4b;color:#fff;text-decoration:none;border-radius:999px;padding:9px 16px;font-weight:800;white-space:nowrap}
 </style>
@@ -99,7 +100,7 @@ tr.me td{background:#fff3c4}
       <button class="cast" id="cast" disabled>Cast your ballot</button>
       <div class="out" id="out"></div>
     </div>
-    <div class="mapcard"><div id="map"></div><div class="info" id="info"><b>Every shape is labeled.</b> The top line of each label is the place on the 1894 ballot; the small line is what it is today. Tap any place to see how it voted.</div><div class="legend" id="legend"></div></div>
+    <div class="mapcard"><div id="map"></div><div class="info" id="info"><b>Every place on the 1894 ballot is named on the map.</b> Tap any place to see how it voted.</div><div class="legend" id="legend"></div></div>
   </div>
 
   <div class="sec" id="act" style="border-left:5px solid #f47920"><h2>The act that made the city</h2><p style="margin:0">The 1894 vote was advisory. Only the State Legislature could consolidate the city, and it did: <b>the Greater New York Charter, Chapter 378 of the Laws of 1897</b>, approved May 4, 1897. The charter took effect on <b>January 1, 1898</b>, and that is the day the New York City we know began. Read the act: <a href="https://catalog.hathitrust.org/Record/001754392" target="_blank" rel="noopener">The Charter of the City of New York, Chapter 378 of the Laws of 1897</a> (HathiTrust) or <a href="https://books.google.com/books/about/The_Greater_New_York_Charter.html?id=OhRAAAAAYAAJ" target="_blank" rel="noopener">The Greater New York Charter</a> (Google Books).</p></div>
@@ -162,8 +163,10 @@ const OV=[];
 P.forEach(p=>{const o=new mapkit.PolygonOverlay(rings(p.g),{style:Sty(p,false,p.joined===false)});o.data={p,out:p.joined===false};OV.push(o);
   if(p.g2){const o2=new mapkit.PolygonOverlay(rings(p.g2),{style:Sty(p,false,true)});o2.data={p,out:true};OV.push(o2)}});
 map.addOverlays(OV);
+const SEAL={ny:'ny',kings:'kings',queens:'queens',richmond:'richmond'}; // the seals we have: City of New York, City of Brooklyn, and today's Queens and Staten Island
 const LB=[];
-P.forEach(p=>[[p.lab,p.joined===false],[p.lab2,true]].forEach(([l,o])=>{if(!l)return;const a=new mapkit.Annotation(new mapkit.Coordinate(l.c[0],l.c[1]),()=>{const el=document.createElement('div');el.className='ml'+(o?' gone':'');el.innerHTML=`${esc(l.t)}<small>${esc(l.s)}</small>`;el.addEventListener('click',ev=>{ev.stopPropagation();const b=document.querySelector(`#places button[data-p="${p.id}"]`);if(b)b.click()});el.dataset.p=p.id;LB.push(el);return el},{calloutEnabled:false,displayPriority:1000,collisionMode:(mapkit.Annotation.CollisionMode&&mapkit.Annotation.CollisionMode.None)||undefined});LB.push(a);map.addAnnotation(a)}));map.showItems(OV,{animate:false,padding:new mapkit.Padding(20,20,20,20)});
+const AT={ny:[40.765,-74.02],kings:[40.615,-73.945],queens:[40.735,-73.79],westchester:[40.855,-73.825]}; // where each seal and name sits so they do not cover each other
+P.forEach(p=>[[p.lab,p.joined===false],[p.lab2,true]].forEach(([l,o])=>{if(!l)return;const at=(l===p.lab&&AT[p.id])||l.c;const a=new mapkit.Annotation(new mapkit.Coordinate(at[0],at[1]),()=>{const el=document.createElement('div');el.className='ml'+(o?' gone':'');const sl=SEAL[p.id];el.className+=sl?'':' noseal';el.innerHTML=(sl?`<img src="seals/${sl}.png" alt="">`:'')+`<span>${esc(l.t)}</span>`;el.title=l.t+' \u00b7 '+l.s;el.addEventListener('click',ev=>{ev.stopPropagation();const b=document.querySelector(`#places button[data-p="${p.id}"]`);if(b)b.click()});el.dataset.p=p.id;LB.push(el);return el},{calloutEnabled:false,displayPriority:1000,collisionMode:(mapkit.Annotation.CollisionMode&&mapkit.Annotation.CollisionMode.None)||undefined});LB.push(a);map.addAnnotation(a)}));map.showItems(OV,{animate:false,padding:new mapkit.Padding(20,20,20,20)});
 document.getElementById('legend').innerHTML='<span><b>Share voting for</b>:</span>'+[[80,'80%+'],[70,'70 to 80'],[60,'60 to 70'],[50,'50 to 60'],[40,'40 to 50'],[30,'30 to 40'],[0,'under 30']].map(([v,t])=>`<span><span class="sw" style="background:${col(v)}"></span>${t}</span>`).join('')+'<span><span class="sw" style="background:#fff;border:1.5px dashed #6b7280"></span>Stayed out of the new city</span>';
 let hi=null;
 function select(p,fly){document.querySelectorAll('.ml').forEach(el=>el.classList.toggle('hi',el.dataset.p===p.id));OV.forEach(o=>o.style=Sty(o.data.p,o.data.p===p,o.data.out));
