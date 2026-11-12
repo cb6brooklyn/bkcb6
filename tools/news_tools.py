@@ -35,6 +35,10 @@ TOOLS={ # key: (path, title, graphic)
 'edresults':('edresults/','Election results by election district','https://bkcb6.app/press/edresults/og-edresults-v2.png'),
 'hudvspentagon':('hudvspentagon/','HUD vs the Pentagon',None),
 'visionzerocb6':('visionzerocb6/','Vision Zero in CB6',T+'tile-visionzerocb6.png'),
+'ballotmeasures':('ballotmeasures/','Ballot Measures in NYC','https://bkcb6.app/og-ballotmeasures-all.jpg'),
+'ballotmeasures-votes':('ballotmeasures/votes/','Ballot Breakdown','https://bkcb6.app/og-ballotmeasures-votes.jpg'),
+'ballotmeasures-1894':('ballotmeasures/1894/','The 1894 Consolidation Vote','https://bkcb6.app/og-ballotmeasures-1894.jpg'),
+'ballotmeasures-build':('ballotmeasures/1894/build/','Build Your Own New York City','https://bkcb6.app/og-ballotmeasures-build.jpg'),
 }
 LINK=re.compile(r'href="https?://(?:www\.)?bkcb6\.app/([a-z0-9_-]+)(?:\.html)?/?(?:index\.html)?["#?]')
 KW=[ # (regex on article text, tool key)
