@@ -592,6 +592,9 @@ for o in ORGS:
                   addrflat=(o.get('addr') or o.get('addr_note') or o['name']).replace('<br>', ', '))
     if o.get('route'):
         fields['wheresec'] = route_section(o)
+    elif o.get('nomap'):
+        # a website, not a place: no map of a block; the profile can carry its own section instead
+        fields['wheresec'] = o.get('wherehtml', '')
     else:
         ep = o.get('evpin')
         evpin = (' data-event-lat="%s" data-event-lng="%s" data-event-img="%s" data-event-href="%s" data-event-label="%s" data-event-until="%s"'
