@@ -243,8 +243,22 @@ function condense(rows) {
   }
   return kept;
 }
+// An official's profile in the apps lists the rows written under that official, so an event an official co-hosts is
+// also written once under each co-hosting official (with that official's key), besides the one card with also.
+const OFFICIAL_KEYS = new Set((readJSON('app/data/civic/orgs/orgs-profiles.json', { profiles: [] }).profiles || [])
+  .filter(p => p.kind === 'official' && p.cal).map(p => p.cal));
+function cohostCopies(rows) {
+  const extra = [];
+  for (const r of rows) for (const a of r.also || []) {
+    const key = Object.keys(typeMap).find(k => typeMap[k].ty === a.ty && (OFFICIAL_KEYS.has(k) || OFFICIAL_KEYS.has(a.ty)));
+    if (!key) continue;
+    const { also, ...rest } = r;
+    extra.push({ ...rest, ty: a.ty, k: key, org: a.org, cohost: r.ty });
+  }
+  return rows.concat(extra);
+}
 const order = (a, b) => (a.d + (a.g === 'cb6' ? '0' : '1')).localeCompare(b.d + (b.g === 'cb6' ? '0' : '1'));
-const bk = condense([...out, ...civic]).sort(order);
+const bk = cohostCopies(condense([...out, ...civic])).sort(order);
 
 // ---------- citywide file: the same CB6, Council and hearing events, plus every community board ----------
 const cityTypes = { ...oldCity.types };
@@ -277,7 +291,7 @@ for (const e of oldCity.events || []) {
   if (bkBoardsHaveData && String(e.cd || '').startsWith('3')) continue;
   boards.push(e);
 }
-const city = condense([...bk, ...boards, ...elsewhere]).sort(order);
+const city = cohostCopies(condense([...bk.filter(r => !r.cohost), ...boards, ...elsewhere])).sort(order);
 
 // ---------- write only when something changed ----------
 const write = (rel, obj) => {
