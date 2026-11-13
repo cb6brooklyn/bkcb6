@@ -4,7 +4,8 @@
 A question can be counted by community district only where the NYC Board of Elections publishes its votes election district
 by election district. That is 2014 onward: 2014 and 2017 from the site's election district archive (data/edhistory), 2018 to
 2026 from ballotmeasures/cd/<cd>.json (built by scripts/ballot_ed_split.py). Two questions have no district file on vote.nyc
-(2014 Proposal 1 and 2017 Proposal 2; the links 404) and are listed in "missing". An election district is counted in the
+(2014 Proposal 1 and 2017 Proposal 2; the links 404). Those two come from the Internet Archive's copies of the Board's own
+EDLevel files on vote.nyc.ny.us, added up by community district in data/ballots/cd-archive.txt. An election district is counted in the
 community district most of it sits in, on the district lines in force that year."""
 import json, os, re, glob, collections
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -42,6 +43,15 @@ for y, (eid, rel, keys) in ARCH.items():
                 boro[cd[0]][0] += yv; boro[cd[0]][1] += nv
         m = measure(y, n, 'state')
         out.append(dict(year=y, n=n, level='state', title=m['title'], result=m.get('result', ''), cds=dict(cds), boro=dict(boro), city=city))
+# 2014 Proposal 1 and 2017 Proposal 2 from the Internet Archive copies (data/ballots/cd-archive.txt)
+for line in open('data/ballots/cd-archive.txt'):
+    if not line.strip(): continue
+    yy, c, b, rows = line.strip().split('|'); y = 2000 + int(yy); n = 1 if y == 2014 else 2
+    city = [int(x) for x in c[1:].split(',')]
+    boro = {k: [int(x) for x in v.split(',')] for k, v in (t.split(':') for t in b[1:].split(';'))}
+    cds = {k: [int(x) for x in v.split(',')] for k, v in (t.split(':') for t in rows.split(';'))}
+    m = measure(y, n, 'state')
+    out.append(dict(year=y, n=n, level='state', title=m['title'], result=m.get('result', ''), cds=cds, boro=boro, city=city, archive=True))
 # 2018 to 2026 from the community district files
 per = collections.defaultdict(dict)
 for f in sorted(glob.glob('ballotmeasures/cd/[0-9][0-9][0-9].json')):
@@ -61,7 +71,7 @@ for key, q in per.items():
     if m: q['title'] = m['title']
     out.append(q)
 out.sort(key=lambda q: (q['year'], q['n']))
-missing = [dict(year=2014, n=1, title=measure(2014, 1)['title']), dict(year=2017, n=2, title=measure(2017, 2)['title'])]
+missing = []
 json.dump(dict(cds=CDS, questions=out, missing=missing), open('ballotmeasures/cdall.json', 'w'), separators=(',', ':'))
 print(len(out), 'questions;', collections.Counter(q['year'] for q in out))
 for q in out: print(q['year'], q['n'], q['title'][:40], 'city', q['city'][:2], 'cds', len(q['cds']))
