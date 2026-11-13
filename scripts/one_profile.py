@@ -184,6 +184,10 @@ EXTRA = {'nyc.gov/site/dot': '/nyc-dot/', 'nyc.gov/site/parks': '/nyc-parks-broo
          'governor.ny.gov/lt-governor-antonio-delgado': '/lieutenantgovernor/', 'nycgo.com': '/agencies/new-york-city-tourism-plus-conventions/'}
 for k, v in EXTRA.items():
     if v in idx['pages']: idx['urls'][k] = v
+# State Senators and Assembly Members outside the city (scripts/state_legislator_profiles.py): the apps open the site page
+for r in J('data/state-legislators.json'):
+    if r.get('vacant') or r.get('existing') or not os.path.isfile(os.path.join(ROOT, r['slug'], 'index.html')): continue
+    add('/%s/' % r['slug'], 'web:%s/index.html?app=1' % r['slug'], r.get('site', ''))
 import sys; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import directory_offline; directory_offline.add_index(idx)   # the directory's packed pages
 for p in ('data/profile-index.json', 'app/data/civic/profile-index.json'):
