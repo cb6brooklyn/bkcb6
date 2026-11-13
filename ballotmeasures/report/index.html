@@ -70,6 +70,7 @@ td.m{color:var(--muted)}
 .bolab{font:800 14px 'DM Sans',sans-serif;color:#0d1b4b;background:rgba(255,255,255,.92);border:2px solid #0d1b4b;border-radius:8px;padding:3px 9px;white-space:nowrap;pointer-events:none}
 .cdpin{display:flex;align-items:center;gap:6px;background:#fff;border:2px solid #111827;border-radius:10px;padding:4px 8px 4px 4px;box-shadow:0 3px 10px rgba(0,0,0,.25);pointer-events:none;white-space:nowrap;font:700 12px 'DM Sans',sans-serif;color:#111827}
 .cdpin img{width:30px;height:30px;border-radius:6px;object-fit:cover}
+.cdpin{pointer-events:none}
 .cdpin small{display:block;font:500 10px 'DM Sans',sans-serif;color:#4b5563;white-space:normal;max-width:190px;line-height:1.25}
 .note{font-size:.8rem;color:#555;line-height:1.5;padding:16px 20px 20px;margin:0;background:var(--off)}
 </style>
@@ -203,27 +204,45 @@ function charts(S,yrs){Object.values(CH).forEach(c=>c.destroy());CH={};
  CH.v=new Chart($('chVotes'),{type:'bar',data:{labels:yrs,datasets:[{data:vv,backgroundColor:'#6f86cf'}]},options:{...base,scales:{x:{grid:{display:false},ticks:{font:{family:'DM Mono',size:10}}},y:{grid:{color:'#eee'},ticks:{font:{family:'DM Mono',size:10},callback:v=>v>=1e6?(v/1e6)+'M':v>=1e3?(v/1e3)+'k':v}}},plugins:{legend:{display:false},tooltip:{callbacks:{label:it=>fmt(it.raw)+' votes per question'}}}}});}
 function table(S){let last=0;$('tbody').innerHTML=S.slice().reverse().map(s=>{const yr=s.q.year!==last?(last=s.q.year,`<td class="yr">${s.q.year}</td>`):'<td></td>',won=s.y>s.n;
  return `<tr>${yr}<td><span class="qn">${s.q.level==='state'?'State':'City'} ${ql(s.q)}</span> ${esc(s.q.title)}</td><td class="r">${fmt(s.y)}</td><td class="r">${fmt(s.n)}</td><td class="r"><span class="bar"><i style="width:${s.p}%;background:${col(s.p)}"></i></span>${pc(s.p)}</td><td class="r m">${pc(s.cp)}</td><td class="r m">${fmt(s.ey)} of ${fmt(s.e)}</td><td><span class="pill ${won?'y':'n'}">${won?'Yes':'No'}</span></td></tr>`}).join('')}
-let MAP=null,OV=[],BL=[],PIN=null;
-function drawMap(){if(!window.mapkit||!DIST)return;const Q=A.questions,q=Q[MQ];
+let MAP=null,OV=[],LB=[],PIN=null,MTOK=0;const FILES={};
+const getJ=u=>FILES[u]=FILES[u]||fetch(u).then(r=>r.json());
+async function drawMap(){if(!window.mapkit||!DIST)return;const Q=A.questions,q=Q[MQ],tok=++MTOK,k=key();
  $('mapq').innerHTML=Q.map((x,i)=>i).reverse().map(i=>`<option value="${i}"${i===MQ?' selected':''}>${Q[i].year} ${ql(Q[i])}: ${esc(Q[i].title)}</option>`).join('');
- $('mapkey').innerHTML=KEY.map(([p,t])=>`<span><i style="background:${col(p)}"></i>${t}</span>`).join('')+'<span><i style="background:#e5e7eb"></i>not in this report</span>';
- if(!MAP){mapkit.init({authorizationCallback:done=>done(TOKEN),language:'en'});MAP=new mapkit.Map('map',{showsCompass:mapkit.FeatureVisibility.Hidden,showsMapTypeControl:false,isRotationEnabled:false,showsPointsOfInterest:false,mapType:mapkit.Map.MapTypes.MutedStandard});
-  BL=[1,2,3,4,5].map(b=>{const pts=DIST.features.filter(f=>BNUM[f.properties.b.slice(0,2)]===b).map(f=>f.properties.c),la=pts.reduce((a,p)=>a+p[0],0)/pts.length,lo=pts.reduce((a,p)=>a+p[1],0)/pts.length;
-   return new mapkit.Annotation(new mapkit.Coordinate(la,lo),()=>{const d=document.createElement('div');d.className='bolab';d.textContent=BT[b].replace('The ','');return d},{enabled:false,calloutEnabled:false})});MAP.addAnnotations(BL)}
- MAP.removeOverlays(OV);OV=[];
- DIST.features.forEach(f=>{const cd=BNUM[f.properties.b.slice(0,2)]+f.properties.b.slice(2),on=SEL.includes(cd),v=q.cds[cd],p=v&&v[0]+v[1]&&v[0]!==v[1]?100*v[0]/(v[0]+v[1]):null;
+ $('mapkey').innerHTML=KEY.map(([p,t])=>`<span><i style="background:${col(p)}"></i>${t}</span>`).join('')+'<span><i style="background:#d1d5db"></i>tie or no votes</span>';
+ if(!MAP){mapkit.init({authorizationCallback:done=>done(TOKEN),language:'en'});MAP=new mapkit.Map('map',{showsCompass:mapkit.FeatureVisibility.Hidden,showsMapTypeControl:false,isRotationEnabled:false,showsPointsOfInterest:false,mapType:mapkit.Map.MapTypes.MutedStandard})}
+ $('mapinfo').textContent='Loading the election districts…';
+ // election districts of the districts in this report, for this question
+ const scopes=k==='NYC'||k[0]==='B'?[k]:SEL.slice();let parts;
+ try{parts=await Promise.all(scopes.map(async c=>[await getJ('../cd/'+c+'.json'),await getJ('../cd/geo/'+c+'-'+q.year+'.json').catch(()=>({}))]))}catch(e){$('mapinfo').textContent='The election districts could not be loaded.';return}
+ if(tok!==MTOK)return;
+ MAP.removeOverlays(OV);MAP.removeAnnotations(LB);if(PIN){MAP.removeAnnotation(PIN);PIN=null}OV=[];LB=[];let cur=null;
+ const st=(f,sel)=>new mapkit.Style({fillColor:f,fillOpacity:.85,strokeColor:sel?'#111827':'#fff',lineWidth:sel?3:SEL.length>3?.3:.8});
+ const seen=new Set();
+ parts.forEach(([D,G])=>{const o=D.years.find(y=>y.year===q.year);if(!o)return;const i=o.questions.findIndex(x=>x.level===q.level&&+x.label.replace(/\D/g,'')===q.n);if(i<0)return;
+  o.eds.forEach(r=>{if(seen.has(r[0]))return;seen.add(r[0]);const g=G[r[0]];if(!g)return;const y=r[i+1][0],n=r[i+1][1],p=y+n&&y!==n?100*y/(y+n):null,f=col(p);
+   const ov=new mapkit.PolygonOverlay(g.map(rr=>rr.map(v=>new mapkit.Coordinate(v[1],v[0]))),{style:st(f)});ov.data={f};
+   ov.addEventListener('select',()=>{if(cur)cur.style=st(cur.data.f);cur=ov;ov.style=st(f,true);
+    $('mapinfo').innerHTML=`<b>Election district ${+r[0].slice(2)}, Assembly District ${+r[0].slice(0,2)}</b>: ${y+n?`${fmt(y)} yes, ${fmt(n)} no (${pc(100*y/(y+n))} yes)`:'no votes counted on this question'}`});OV.push(ov)})});
+ // community district outlines: the ones in the report outlined; the rest light grey, tap to add
+ DIST.features.forEach(f=>{const cd=BNUM[f.properties.b.slice(0,2)]+f.properties.b.slice(2),on=SEL.includes(cd);
   (f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates).forEach(pg=>{
-   const ov=new mapkit.PolygonOverlay(pg.map(r=>r.map(x=>new mapkit.Coordinate(x[1],x[0]))),{style:new mapkit.Style({fillColor:on?col(p):'#e5e7eb',fillOpacity:on?.85:.55,strokeColor:on?'#111827':'#9ca3af',lineWidth:on?1.6:.8})});
-   ov.addEventListener('select',()=>{const [la,lo]=f.properties.c;if(PIN)MAP.removeAnnotation(PIN);
-    PIN=new mapkit.Annotation(new mapkit.Coordinate(la,lo),()=>{const d=document.createElement('div');d.className='cdpin';d.innerHTML=`<img src="${LOGO(cd)}" alt=""><span>${nm(cd)}<small>${esc(f.properties.st||'')}</small></span>`;return d},{enabled:false,calloutEnabled:false});MAP.addAnnotation(PIN);
-    const was=SEL.includes(cd);$('mapinfo').innerHTML=`<b>${nm(cd)}</b>: ${v?`${fmt(v[0])} yes, ${fmt(v[1])} no (${pc(100*v[0]/(v[0]+v[1]))} yes) on ${q.year} ${ql(q)}`:'no votes counted'}. ${was?'Taken out of':'Added to'} this report.`;
-    const k=key();setSel(was?SEL.filter(c=>c!==cd):(k==='NYC'||k[0]==='B'?[cd]:SEL.concat(cd)))});OV.push(ov)})});
- MAP.addOverlays(OV);if(!MAP._fit){MAP._fit=1;fit()}}
+   const ov=new mapkit.PolygonOverlay(pg.map(rr=>rr.map(v=>new mapkit.Coordinate(v[1],v[0]))),{enabled:!on,style:new mapkit.Style({fillColor:on?'#ffffff':'#9ca3af',fillOpacity:on?0:.18,strokeColor:on?'#111827':'#9ca3af',lineWidth:on?2:.8})});
+   if(!on)ov.addEventListener('select',()=>{const v=q.cds[cd];$('mapinfo').innerHTML=`<b>${nm(cd)}</b> added: ${v?`${fmt(v[0])} yes, ${fmt(v[1])} no (${pc(100*v[0]/(v[0]+v[1]))} yes)`:'no votes counted'}`;setSel(k==='NYC'||k[0]==='B'?SEL.concat(cd):SEL.concat(cd))});
+   OV.push(ov)})});
+ MAP.addOverlays(OV);
+ // labels: each district in the report (logo and name) when there are a few; borough names when it is a borough, the city or many districts
+ if(SEL.length<=6&&k!=='NYC'&&k[0]!=='B'){SEL.forEach(cd=>{const f=DIST.features.find(x=>BNUM[x.properties.b.slice(0,2)]+x.properties.b.slice(2)===cd);if(!f)return;const [la,lo]=f.properties.c;
+  LB.push(new mapkit.Annotation(new mapkit.Coordinate(la,lo),()=>{const d=document.createElement('div');d.className='cdpin';d.innerHTML=`<img src="${LOGO(cd)}" alt=""><span>${nm(cd)}</span>`;return d},{enabled:false,calloutEnabled:false}))})}
+ else{[...new Set(SEL.map(c=>c[0]))].forEach(b=>{const pts=DIST.features.filter(f=>String(BNUM[f.properties.b.slice(0,2)])===b&&SEL.includes(BNUM[f.properties.b.slice(0,2)]+f.properties.b.slice(2))).map(f=>f.properties.c);if(!pts.length)return;
+  const la=pts.reduce((a,p)=>a+p[0],0)/pts.length,lo=pts.reduce((a,p)=>a+p[1],0)/pts.length;
+  LB.push(new mapkit.Annotation(new mapkit.Coordinate(la,lo),()=>{const d=document.createElement('div');d.className='bolab';d.textContent=BT[b].replace('The ','');return d},{enabled:false,calloutEnabled:false}))})}
+ MAP.addAnnotations(LB);
+ const y=q.year,i=0;$('mapinfo').textContent=`Every shape inside the outline is one election district, colored by how it voted on ${q.year} ${ql(q)}. Tap one for its count. Tap a grey district to add it to this report.`;
+ if(MAP._k!==k){MAP._k=k;fit()}}
 function fit(){const pts=DIST.features.filter(f=>SEL.includes(BNUM[f.properties.b.slice(0,2)]+f.properties.b.slice(2))).flatMap(f=>(f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates).flatMap(p=>p[0]));
  let a=90,b=-90,c=180,d=-180;pts.forEach(([x,y])=>{a=Math.min(a,y);b=Math.max(b,y);c=Math.min(c,x);d=Math.max(d,x)});
  MAP.region=new mapkit.CoordinateRegion(new mapkit.Coordinate((a+b)/2,(c+d)/2),new mapkit.CoordinateSpan((b-a)*1.25+.01,(d-c)*1.25+.01))}
 $('mapq').addEventListener('change',e=>{MQ=+e.target.value;drawMap()});
-document.addEventListener('click',e=>{if(e.target.closest('#quick button'))setTimeout(()=>{if(MAP&&DIST)fit()},0)});
 (async()=>{try{[A,DIST]=await Promise.all([fetch('../cdall.json').then(r=>r.json()),fetch('../districts.geojson').then(r=>r.json())])}catch(e){$('kpis').innerHTML='<div class="kp">The ballot counts could not be loaded.</div>';return}
  DIST.features.forEach(f=>{HOODS[BNUM[f.properties.b.slice(0,2)]+f.properties.b.slice(2)]=f.properties.st||''});
  MQ=A.questions.length-1;SEL=parse().sort((a,b)=>ALL.indexOf(a)-ALL.indexOf(b));picker();render()})();
