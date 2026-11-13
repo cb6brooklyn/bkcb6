@@ -218,6 +218,11 @@ details.sec>p{margin:0 0 12px;color:#374151;font-size:1rem;line-height:1.55;max-
 .edhow{font-size:.84rem;color:#4b5563;line-height:1.45;margin:2px 0 8px}
 .edinfo{font-size:.95rem;line-height:1.45;background:#f4f6fb;border-left:4px solid var(--navy);border-radius:6px;padding:8px 12px;margin:0 0 12px}
 .edinfo b{color:var(--navy)}
+.bolab{font:800 15px 'DM Sans',sans-serif;color:#0d1b4b;background:rgba(255,255,255,.92);border:2px solid #0d1b4b;border-radius:8px;padding:3px 9px;white-space:nowrap;pointer-events:none;letter-spacing:.02em}
+.cdpin{display:flex;align-items:center;gap:6px;background:#fff;border:2px solid #111827;border-radius:10px;padding:4px 8px 4px 4px;box-shadow:0 3px 10px rgba(0,0,0,.25);pointer-events:none;white-space:nowrap;font:700 12px 'DM Sans',sans-serif;color:#111827}
+.cdpin img{width:30px;height:30px;border-radius:6px;object-fit:cover}
+.cdpin small{display:block;font:500 10px 'DM Sans',sans-serif;color:#4b5563}
+.cdinfo{display:flex;gap:10px;align-items:flex-start}.cdinfo img{width:44px;height:44px;border-radius:8px;object-fit:cover;flex:none}
 .cdlab{font:700 11px 'DM Sans',sans-serif;color:#111827;background:rgba(255,255,255,.9);border:1px solid #111827;border-radius:5px;padding:1px 4px;white-space:nowrap;pointer-events:none}
 .edlab{font:500 10px 'DM Mono',monospace;color:#0d1b4b;background:rgba(255,255,255,.82);border-radius:4px;padding:0 3px;white-space:nowrap;pointer-events:none}
 </style>
@@ -349,23 +354,32 @@ async function drawTop(){if(!window.mapkit||!CUR)return;const c=CUR.c,o=CUR.ys.f
   TOV.push(ov);if(!same&&!wide(c)){const m=ctr(g);LB.push(new mapkit.Annotation(new mapkit.Coordinate(m[1],m[0]),()=>{const d=document.createElement('div');d.className='edlab';d.textContent=(+r[0].slice(0,2))+'/'+(+r[0].slice(2));return d},{enabled:false,calloutEnabled:false,anchorOffset:new DOMPoint(0,8)}))}});
  TM.addOverlays(TOV);await cdLayer(c,o,i,tok);if(!same){TLB=LB;TM._k=k;TM.showItems(TOV,{animate:false,padding:new mapkit.Padding(14,14,14,14)})}}
 // ---------- borough and city view: community district outlines, labels and taps ----------
-let TCDO=[],TCDL=[],TCDK='',CDALL=null;
+let TCDO=[],TCDL=[],TCDK='',CDALL=null,TPIN=null;
+const LOGO=cd=>'/app/data/Logos/cb'+cd+'.png';
 async function cdLayer(c,o,i,tok){
- if(!wide(c)){if(TCDO.length){TM.removeOverlays(TCDO);TM.removeAnnotations(TCDL);TCDO=[];TCDL=[];TCDK=''}return}
+ if(!wide(c)){if(TCDO.length){TM.removeOverlays(TCDO);TM.removeAnnotations(TCDL);TCDO=[];TCDL=[];TCDK=''}if(TPIN){TM.removeAnnotation(TPIN);TPIN=null}return}
  try{DIST=DIST||await fetch('../districts.geojson').then(r=>r.json());CDALL=CDALL||await fetch('../cdall.json').then(r=>r.json())}catch(e){return}
  if(TK!==tok)return;
  const lev=o.questions[i].label.startsWith('State')?'state':'city',n=+o.questions[i].label.replace(/\D/g,''),Q=CDALL.questions.find(q=>q.year===o.year&&q.n===n&&q.level===lev);
- TM.removeOverlays(TCDO);if(TCDK!==c){TM.removeAnnotations(TCDL);TCDL=[]}TCDO=[];let cur=null;
+ TM.removeOverlays(TCDO);if(TPIN){TM.removeAnnotation(TPIN);TPIN=null}TCDO=[];let cur=null;
  const st=sel=>new mapkit.Style({fillColor:'#ffffff',fillOpacity:sel?.12:.01,strokeColor:'#111827',lineWidth:sel?3.5:1.6});
- DIST.features.forEach(f=>{const cd=BNUM[f.properties.b.slice(0,2)]+f.properties.b.slice(2);if(isBoro(c)&&cd[0]!==c[1])return;
-  const polys=f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates;
+ const feats=DIST.features.map(f=>[BNUM[f.properties.b.slice(0,2)]+f.properties.b.slice(2),f]).filter(([cd])=>!isBoro(c)||cd[0]===c[1]);
+ feats.forEach(([cd,f])=>{const polys=f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates;
   polys.forEach(pg=>{const ov=new mapkit.PolygonOverlay(pg.map(r=>r.map(v=>new mapkit.Coordinate(v[1],v[0]))),{style:st(false)});ov.data={cd};
-   ov.addEventListener('select',()=>{TCDO.forEach(x=>{if(x.data.cd===(cur&&cur))x.style=st(false)});cur=cd;TCDO.forEach(x=>{if(x.data.cd===cd)x.style=st(true)});
-    const v=Q&&Q.cds[cd];$('topinfo').innerHTML=`<b>${nm(cd)}</b>${f.properties.st?' &middot; '+esc(f.properties.st):''}<br>`+(v?`${fmt(v[0])} yes, ${fmt(v[1])} no (${pc(100*v[0]/(v[0]+v[1]))} yes) &middot; ${fmt(v[2])} of ${fmt(v[3])} election districts voted yes`:'No votes counted on this question')+` <button type="button" class="cdopen" data-cd="${cd}">See its election districts</button>`});
-   TCDO.push(ov)})
-  if(TCDK!==c){const [la,lo]=f.properties.c;TCDL.push(new mapkit.Annotation(new mapkit.Coordinate(la,lo),()=>{const d=document.createElement('div');d.className='cdlab';d.textContent=nm(cd);return d},{enabled:false,calloutEnabled:false}))}});
- TM.addOverlays(TCDO);if(TCDK!==c){TM.addAnnotations(TCDL);TCDK=c}
- $('topinfo').textContent='Each outlined area is a community district. Tap one for its count.'}
+   ov.addEventListener('select',()=>{TCDO.forEach(x=>{if(x.data.cd===cur)x.style=st(false)});cur=cd;TCDO.forEach(x=>{if(x.data.cd===cd)x.style=st(true)});
+    const [la,lo]=f.properties.c,hood=f.properties.st||'';
+    if(TPIN)TM.removeAnnotation(TPIN);
+    TPIN=new mapkit.Annotation(new mapkit.Coordinate(la,lo),()=>{const d=document.createElement('div');d.className='cdpin';d.innerHTML=`<img src="${LOGO(cd)}" alt=""><span>${nm(cd)}${hood?`<small>${esc(hood)}</small>`:''}</span>`;return d},{enabled:false,calloutEnabled:false});TM.addAnnotation(TPIN);
+    const v=Q&&Q.cds[cd];$('topinfo').innerHTML=`<div class="cdinfo"><img src="${LOGO(cd)}" alt="${nm(cd)}"><div><b>${nm(cd)}</b>${hood?' &middot; '+esc(hood):''}<br>`+(v?`${fmt(v[0])} yes, ${fmt(v[1])} no (${pc(100*v[0]/(v[0]+v[1]))} yes) &middot; ${fmt(v[2])} of ${fmt(v[3])} election districts voted yes`:'No votes counted on this question')+`<br><button type="button" class="cdopen" data-cd="${cd}">See its election districts</button></div></div>`});
+   TCDO.push(ov)})});
+ if(TCDK!==c){TM.removeAnnotations(TCDL);TCDL=[];
+  const bs=isBoro(c)?[c[1]]:['1','2','3','4','5'];
+  bs.forEach(b=>{const pts=feats.filter(([cd])=>cd[0]===b).map(([,f])=>f.properties.c);if(!pts.length)return;
+   const la=pts.reduce((a,p)=>a+p[0],0)/pts.length,lo=pts.reduce((a,p)=>a+p[1],0)/pts.length;
+   TCDL.push(new mapkit.Annotation(new mapkit.Coordinate(la,lo),()=>{const d=document.createElement('div');d.className='bolab';d.textContent=BT[b].replace('The ','');return d},{enabled:false,calloutEnabled:false}))});
+  TM.addAnnotations(TCDL);TCDK=c}
+ TM.addOverlays(TCDO);
+ $('topinfo').textContent='Each outlined area is a community district. Tap one to see which board it is and its count.'}
 document.addEventListener('click',async e=>{const b=e.target.closest('.cdopen');if(!b)return;const yy=TY,ii=TI;CDN=b.dataset.cd;$('cdsel').value=CDN;const u=new URL(location.href);u.searchParams.set('cd',CDN);history.replaceState(null,'',u);await loadCD();await TP;if(CUR.ys.some(v=>v.year===yy)){TY=yy;TI=ii;TP=drawTop()}});
 document.addEventListener('click',e=>{const y=e.target.closest('#ychips button'),q=e.target.closest('#qchips button'),m=e.target.closest('.mapbtn');
  if(y){TY=+y.dataset.y;TI=0;TP=drawTop()}else if(q){TI=+q.dataset.q;TP=drawTop()}else if(m){TY=+m.dataset.y;TI=+m.dataset.i;TP=drawTop();$('tophead').scrollIntoView({behavior:'smooth',block:'start'})}});
