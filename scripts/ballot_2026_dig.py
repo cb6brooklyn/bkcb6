@@ -13,7 +13,8 @@ Q = sorted([c for c in R['contests'] if c['k'].startswith('q')], key=lambda c: c
 G = [c for c in R['contests'] if c['k'] == 'gov'][0]
 eds = sorted(Q[0]['ed'])
 BORO = {'1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island'}
-M26 = json.load(open(os.path.join(ROOT, 'data/edhistory/geo/ed2cd26a1.json')))
+M26 = json.load(open(os.path.join(ROOT, 'data/edhistory/geo/ed2cd26c.json')))
+M26.update(json.load(open(os.path.join(ROOT, 'data/edhistory/geo/ed2cd-parks.json')))['26c'])
 def cd(k):
     c = str(M26.get(k, ''))  # community district from the 2026 district lines
     return c if len(c) == 3 and c[0] in BORO and 1 <= int(c[1:]) <= 18 else ''

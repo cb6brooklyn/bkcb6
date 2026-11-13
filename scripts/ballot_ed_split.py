@@ -51,13 +51,16 @@ R = json.load(open('data/results/2026-general.json'))
 r26 = {int(c['k'][1:]): {k: e['v'][:2] for k, e in c['ed'].items()} for c in R['contests'] if re.match(r'q\d+$', c['k'])}
 
 # election district -> community district, from the district lines in force at each election
+PARKS = json.load(open('data/edhistory/geo/ed2cd-parks.json'))
 CAT = {e['id']: e for e in json.load(open('data/edhistory/catalog.json'))['elections']}
 X26 = json.load(open('app/data/civic/ed-crosswalk.json'))
 def ed2cd(y):
-    if y == 2026: m = json.load(open('data/edhistory/geo/ed2cd26a1.json'))  # the 2026 district lines
-    else:
-        e = [v for k, v in CAT.items() if k.startswith(str(y) + '-11-') and k.endswith('general')][0]
-        m = json.load(open('data/edhistory/geo/ed2cd%s.json' % e['release']))
+    if y == 2026: rel = '26c'  # DCP's latest release before the 2026 general (Aug 2026); same assignments as 26a1
+    else: rel = [v for k, v in CAT.items() if k.startswith(str(y) + '-11-') and k.endswith('general')][0]['release']
+    m = json.load(open('data/edhistory/geo/ed2cd%s.json' % rel))
+    # an election district that sits mostly in a park, airport or other non-residential area is counted in the
+    # community district it overlaps most (or the nearest one), so its voters are not left out of every district
+    m.update(PARKS.get(rel, {}))
     global RAW
     RAW = {k: str(c) for k, c in m.items()}
     return {k: c for k, c in m.items() if len(str(c)) == 3 and str(c)[0] in '12345' and 1 <= int(str(c)[1:]) <= 18}

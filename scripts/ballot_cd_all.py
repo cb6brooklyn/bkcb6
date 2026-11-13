@@ -6,7 +6,9 @@ by election district. That is 2014 onward: 2014 and 2017 from the site's electio
 2026 from ballotmeasures/cd/<cd>.json (built by scripts/ballot_ed_split.py). Two questions have no district file on vote.nyc
 (2014 Proposal 1 and 2017 Proposal 2; the links 404). Those two come from the Internet Archive's copies of the Board's own
 EDLevel files on vote.nyc.ny.us, added up by community district in data/ballots/cd-archive.txt. An election district is counted in the
-community district most of it sits in, on the district lines in force that year."""
+community district most of it sits in, on the district lines in force that year (DCP's latest release before election day:
+14c, 17c, 18c, 19c, 21c, 22c, 23c, 24c1, 25c, 26c); one mostly in a park or airport goes to the district it borders
+(data/edhistory/geo/ed2cd-parks.json), so the community districts add up to the city."""
 import json, os, re, glob, collections
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
@@ -21,9 +23,10 @@ def measure(y, n, level=None):
 out = []   # each: year, n, level, title, result, cds {cd: [yes, no, edsYes, eds]}, boro {b: [yes,no]}, city [yes,no,edsYes,eds]
 # 2014 and 2017 from the archive
 ARCH = {2014: ('2014-11-04-general', '14c', {'electronic distribution': 2, 'smart schools': 3}),
-        2017: ('2017-11-07-general', '17b', {'constitutional convention': 1, 'forest preserve': 3})}
+        2017: ('2017-11-07-general', '17c', {'constitutional convention': 1, 'forest preserve': 3})}
 for y, (eid, rel, keys) in ARCH.items():
     e2c = {k: str(v) for k, v in json.load(open('data/edhistory/geo/ed2cd%s.json' % rel)).items()}
+    e2c.update(json.load(open('data/edhistory/geo/ed2cd-parks.json'))[rel])  # park and airport districts to their neighbor
     idx = json.load(open('data/edhistory/e/%s/index.json' % eid))
     for c in idx['contests']:
         d = json.load(open('data/edhistory/e/%s/%s.json' % (eid, c['id'])))
