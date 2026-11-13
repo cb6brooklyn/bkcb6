@@ -9,6 +9,14 @@ from datetime import datetime, timezone
 
 FEEDS = [
     {
+        # Nitehawk Prospect Park's film series: every screening in every series, one event per showtime.
+        "name": "Nitehawk Cinema",
+        "url": "https://nitehawkcinema.com/prospectpark/film-series-2/",
+        "kind": "nitehawk",
+        "type": "nitehawk",
+        "venue": "Nitehawk Cinema \u00b7 188 Prospect Park West",
+    },
+    {
         # Union Hall lists on Eventbrite; its organizer page carries the upcoming events as JSON.
         "name": "Union Hall",
         "url": "https://www.eventbrite.com/o/union-hall-17899496497",
@@ -827,6 +835,105 @@ def fetch_ldjson_events(url, venue):
     return out
 
 
+def fetch_nitehawk_events(url, venue):
+    """Every screening in Nitehawk Prospect Park's film series, one event per showtime, in parse_ics's shape.
+
+    url is the film series index (nitehawkcinema.com/prospectpark/film-series-2/). Each series page lists its films
+    with their showtimes (an <li data-date> per showtime, the date as a UTC midnight timestamp) and the series each
+    showtime belongs to (pills tagged series-showtime-<id>). The film's own page carries the full description."""
+    H = dict(BROWSER_HEADERS, Accept="text/html,*/*")
+    def get(u):
+        try:
+            r = requests.get(u, timeout=30, headers=H)
+            return r.text if r.ok else ""
+        except Exception as e:
+            print(f"  Unusable {u}: {type(e).__name__}: {e}")
+            return ""
+    def text(h):
+        h = re.sub(r"<[^>]+>", " ", h or "")
+        h = h.replace("&#8217;", "’").replace("&#8216;", "‘").replace("&#8220;", "“").replace("&#8221;", "”") \
+             .replace("&#8211;", "–").replace("&#8212;", "—").replace("&amp;", "&").replace("&#038;", "&").replace("&nbsp;", " ")
+        return re.sub(r"\s+", " ", h).strip()
+    idx = get(url)
+    if not idx:
+        return []
+    series = []
+    def nice(n):
+        # the index sets series names in capitals ("35mm SCREENINGS", "ADVENTURES IN BLACK CINEMA", "ICYMI")
+        out = []
+        for k, w in enumerate(n.split()):
+            if any(ch.isdigit() for ch in w) or w in ("ICYMI",):
+                out.append(w)
+            elif k and w.lower() in ("in", "on", "of", "the", "and", "a", "with"):
+                out.append(w.lower())
+            else:
+                out.append("-".join(p[:1].upper() + p[1:].lower() for p in w.split("-")))
+        return " ".join(out)
+    for href, inner in re.findall(r'<a[^>]+href="(https://nitehawkcinema\.com/prospectpark/film-series/[a-z0-9-]+/)"[^>]*>(.*?)</a>', idx, re.S):
+        t = re.search(r'class="series-title">(.*?)</div>', inner, re.S)
+        name = nice(text(t.group(1))) if t else ""
+        if name and href not in [s[0] for s in series]:
+            series.append((href, name))
+    if not series:
+        print("  No film series found on the index")
+        return []
+    names = {h: n for h, n in series}
+    films, desc_cache = {}, {}
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    for href, _ in series:
+        page = get(href)
+        for block in page.split('<div class="show-details">')[1:]:
+            m = re.search(r'<h1 class="show-title"><a class="title" href="([^"]+)">(.*?)</a>', block, re.S)
+            if not m:
+                continue
+            murl, title = m.group(1), text(m.group(2))
+            poster = re.search(r'<div class="show-poster-inner">\s*<a[^>]*>\s*<img[^>]+src="([^"]+)"', block, re.S)
+            specs = dict((text(k).rstrip(":"), text(v)) for k, v in re.findall(r'<span class="show-spec-label">(.*?)</span>(.*?)</span>', block, re.S))
+            for d, sid, clock in re.findall(r'<li data-date="(\d+)"[^>]*>\s*<a[^>]*data-showtime_id="(\d+)"[^>]*>\s*([^<]+?)\s*</a>', block, re.S):
+                date = datetime.fromtimestamp(int(d), timezone.utc).strftime("%Y-%m-%d")
+                if date < today:
+                    continue
+                pills = []
+                for ph, pn in re.findall(r'<a href="(https://nitehawkcinema\.com/prospectpark/film-series/[a-z0-9-]+/)" class="pill [^"]*series-showtime-%s"[^>]*>(.*?)</a>' % sid, block, re.S):
+                    n = names.get(ph) or text(pn).title()
+                    if n not in pills:
+                        pills.append(n)
+                pills.sort(key=lambda n: n.lower().startswith("brunch"))   # the brunch slot names the time, not the series
+                key = (date, sid)
+                if key in films:
+                    continue
+                t = clock.strip().upper().replace(".", "")
+                t = re.sub(r"^(\d{1,2})(?::(\d\d))?\s*(AM|PM)$", lambda x: "%d:%s %s" % (int(x.group(1)), x.group(2) or "00", x.group(3)), t)
+                films[key] = {"title": title, "murl": murl, "poster": poster.group(1) if poster else "", "specs": specs,
+                              "series": pills, "date": date, "time": t}
+    out = []
+    for (date, sid), f in sorted(films.items(), key=lambda kv: (kv[1]["date"], kv[1]["time"])):
+        if f["murl"] not in desc_cache:
+            mp = get(f["murl"])
+            c = re.search(r'<div class="show-content">(.*?)</div>', mp, re.S)
+            desc_cache[f["murl"]] = text(c.group(1)) if c else ""
+        sp = f["specs"]
+        facts = ", ".join(x for x in [("Directed by " + sp["Director"]) if sp.get("Director") else "", sp.get("Release Year", ""),
+                                      sp.get("Run Time", ""), sp.get("Format", ""), ("Rated " + sp["Rating"]) if sp.get("Rating") else ""] if x)
+        desc = desc_cache[f["murl"]]
+        if facts:
+            desc = (desc + " (" + facts + ".)").strip()
+        if f["series"]:
+            desc += " Film series: " + " / ".join(f["series"]) + "."
+        desc += " Tickets at nitehawkcinema.com."
+        out.append({
+            "date": date,
+            "summary": "Nitehawk: %s — %s" % (f["title"], f["series"][0]) if f["series"] else "Nitehawk: " + f["title"],
+            "url": f["murl"],
+            "cats": "",
+            "location": venue,
+            "desc": desc.strip(),
+            "time": f["time"],
+            "flyer": f["poster"],
+        })
+    return out
+
+
 def fetch_api(base_url, limit=2000):
     """Read events from The Events Calendar REST API and return them in the
     same shape parse_ics produces. Used when a site's ICS endpoint is blocked
@@ -897,8 +1004,8 @@ def main():
 
     for feed in FEEDS:
         print(f"Fetching {feed['name']}...")
-        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse", "bbp", "nycparks", "bkcm", "localist"):
-            raw = {"localist": fetch_localist_events, "bkcm": fetch_bkcm_events, "eventbrite_org": fetch_eventbrite_org, "ldjson": fetch_ldjson_events, "wfea": fetch_wfea_events, "powerhouse": fetch_powerhouse_events, "bbp": fetch_bbp_events, "nycparks": fetch_nycparks_events}[feed["kind"]](feed["url"], feed["venue"])
+        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse", "bbp", "nycparks", "bkcm", "localist", "nitehawk"):
+            raw = {"nitehawk": fetch_nitehawk_events, "localist": fetch_localist_events, "bkcm": fetch_bkcm_events, "eventbrite_org": fetch_eventbrite_org, "ldjson": fetch_ldjson_events, "wfea": fetch_wfea_events, "powerhouse": fetch_powerhouse_events, "bbp": fetch_bbp_events, "nycparks": fetch_nycparks_events}[feed["kind"]](feed["url"], feed["venue"])
             if not raw:
                 print(f"  FAILED \u2014 no data")
                 failed_types.append(feed["type"])
@@ -909,7 +1016,7 @@ def main():
             text = None
         else:
             text = fetch_feed(feed["url"], feed.get("fallback"))
-        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse", "bbp", "nycparks", "bkcm", "localist"):
+        if feed.get("kind") in ("eventbrite_org", "ldjson", "wfea", "powerhouse", "bbp", "nycparks", "bkcm", "localist", "nitehawk"):
             pass
         elif not text and not feed.get("api_url") and not feed.get("type"):
             # the CB6 feed (its events are classified by content): keep last run's board, committee and community events
