@@ -221,7 +221,7 @@ details.sec>p{margin:0 0 12px;color:#374151;font-size:1rem;line-height:1.55;max-
 .bolab{font:800 15px 'DM Sans',sans-serif;color:#0d1b4b;background:rgba(255,255,255,.92);border:2px solid #0d1b4b;border-radius:8px;padding:3px 9px;white-space:nowrap;pointer-events:none;letter-spacing:.02em}
 .cdpin{display:flex;align-items:center;gap:6px;background:#fff;border:2px solid #111827;border-radius:10px;padding:4px 8px 4px 4px;box-shadow:0 3px 10px rgba(0,0,0,.25);pointer-events:none;white-space:nowrap;font:700 12px 'DM Sans',sans-serif;color:#111827}
 .cdpin img{width:30px;height:30px;border-radius:6px;object-fit:cover}
-.cdpin small{display:block;font:500 10px 'DM Sans',sans-serif;color:#4b5563}
+.cdpin small{display:block;font:500 10px 'DM Sans',sans-serif;color:#4b5563;white-space:normal;max-width:190px;line-height:1.25}
 .cdinfo{display:flex;gap:10px;align-items:flex-start}.cdinfo img{width:44px;height:44px;border-radius:8px;object-fit:cover;flex:none}
 .cdlab{font:700 11px 'DM Sans',sans-serif;color:#111827;background:rgba(255,255,255,.9);border:1px solid #111827;border-radius:5px;padding:1px 4px;white-space:nowrap;pointer-events:none}
 .edlab{font:500 10px 'DM Mono',monospace;color:#0d1b4b;background:rgba(255,255,255,.82);border-radius:4px;padding:0 3px;white-space:nowrap;pointer-events:none}
@@ -324,7 +324,12 @@ function ctr(rs){let A=0,x=0,y=0,best=rs[0];rs.forEach(r=>{if(r.length>best.leng
 let FIND=null,TPICK={},TG=null,TP=null,DIST=null;
 const inRing=(x,y,r)=>{let c=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],b=r[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])c=!c}return c};
 const BNUM={BK:3,MN:1,BX:2,QN:4,SI:5};
-async function onPoint(lon,lat,label){await TP;let ed=TG&&Object.keys(TG).find(k=>TG[k].some(r=>inRing(lon,lat,r)));
+async function onPoint(lon,lat,label){await TP;
+ if(wide(CDN)){try{DIST=DIST||await fetch('../districts.geojson').then(r=>r.json())}catch(e){}
+  const d=DIST&&DIST.features.find(f=>(f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates).some(p=>inRing(lon,lat,p[0])));
+  const c=d&&BNUM[d.properties.b.slice(0,2)]+d.properties.b.slice(2);
+  if(c&&SELCD[c]){SELCD[c](label==='The pin'?null:label);return}
+  $('topinfo').innerHTML=c?`<b>${esc(label)}</b> is in ${nm(c)}, outside ${nmIn(CDN)}. <button type="button" class="cdopen" data-cd="${c}">See its election districts</button>`:`<b>${esc(label)}</b> is not inside one of the ${isCity(CDN)?59:'community'} community districts.`.replace('community community','community');return}let ed=TG&&Object.keys(TG).find(k=>TG[k].some(r=>inRing(lon,lat,r)));
  if(!ed){try{DIST=DIST||await fetch('../districts.geojson').then(r=>r.json())}catch(e){}
   const d=DIST&&DIST.features.find(f=>(f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates).some(p=>inRing(lon,lat,p[0])));
   if(!d){$('topinfo').innerHTML=`<b>${esc(label)}</b> is not inside one of the 59 community districts.`;return}
@@ -354,23 +359,23 @@ async function drawTop(){if(!window.mapkit||!CUR)return;const c=CUR.c,o=CUR.ys.f
   TOV.push(ov);if(!same&&!wide(c)){const m=ctr(g);LB.push(new mapkit.Annotation(new mapkit.Coordinate(m[1],m[0]),()=>{const d=document.createElement('div');d.className='edlab';d.textContent=(+r[0].slice(0,2))+'/'+(+r[0].slice(2));return d},{enabled:false,calloutEnabled:false,anchorOffset:new DOMPoint(0,8)}))}});
  TM.addOverlays(TOV);await cdLayer(c,o,i,tok);if(!same){TLB=LB;TM._k=k;TM.showItems(TOV,{animate:false,padding:new mapkit.Padding(14,14,14,14)})}}
 // ---------- borough and city view: community district outlines, labels and taps ----------
-let TCDO=[],TCDL=[],TCDK='',CDALL=null,TPIN=null;
+let TCDO=[],TCDL=[],TCDK='',CDALL=null,TPIN=null,SELCD={};
 const LOGO=cd=>'/app/data/Logos/cb'+cd+'.png';
 async function cdLayer(c,o,i,tok){
  if(!wide(c)){if(TCDO.length){TM.removeOverlays(TCDO);TM.removeAnnotations(TCDL);TCDO=[];TCDL=[];TCDK=''}if(TPIN){TM.removeAnnotation(TPIN);TPIN=null}return}
  try{DIST=DIST||await fetch('../districts.geojson').then(r=>r.json());CDALL=CDALL||await fetch('../cdall.json').then(r=>r.json())}catch(e){return}
  if(TK!==tok)return;
  const lev=o.questions[i].label.startsWith('State')?'state':'city',n=+o.questions[i].label.replace(/\D/g,''),Q=CDALL.questions.find(q=>q.year===o.year&&q.n===n&&q.level===lev);
- TM.removeOverlays(TCDO);if(TPIN){TM.removeAnnotation(TPIN);TPIN=null}TCDO=[];let cur=null;
+ TM.removeOverlays(TCDO);if(TPIN){TM.removeAnnotation(TPIN);TPIN=null}TCDO=[];SELCD={};let cur=null;
  const st=sel=>new mapkit.Style({fillColor:'#ffffff',fillOpacity:sel?.12:.01,strokeColor:'#111827',lineWidth:sel?3.5:1.6});
  const feats=DIST.features.map(f=>[BNUM[f.properties.b.slice(0,2)]+f.properties.b.slice(2),f]).filter(([cd])=>!isBoro(c)||cd[0]===c[1]);
  feats.forEach(([cd,f])=>{const polys=f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates;
   polys.forEach(pg=>{const ov=new mapkit.PolygonOverlay(pg.map(r=>r.map(v=>new mapkit.Coordinate(v[1],v[0]))),{style:st(false)});ov.data={cd};
-   ov.addEventListener('select',()=>{TCDO.forEach(x=>{if(x.data.cd===cur)x.style=st(false)});cur=cd;TCDO.forEach(x=>{if(x.data.cd===cd)x.style=st(true)});
+   const pick=SELCD[cd]=lab=>{TCDO.forEach(x=>{if(x.data.cd===cur)x.style=st(false)});cur=cd;TCDO.forEach(x=>{if(x.data.cd===cd)x.style=st(true)});
     const [la,lo]=f.properties.c,hood=f.properties.st||'';
     if(TPIN)TM.removeAnnotation(TPIN);
     TPIN=new mapkit.Annotation(new mapkit.Coordinate(la,lo),()=>{const d=document.createElement('div');d.className='cdpin';d.innerHTML=`<img src="${LOGO(cd)}" alt=""><span>${nm(cd)}${hood?`<small>${esc(hood)}</small>`:''}</span>`;return d},{enabled:false,calloutEnabled:false});TM.addAnnotation(TPIN);
-    const v=Q&&Q.cds[cd];$('topinfo').innerHTML=`<div class="cdinfo"><img src="${LOGO(cd)}" alt="${nm(cd)}"><div><b>${nm(cd)}</b>${hood?' &middot; '+esc(hood):''}<br>`+(v?`${fmt(v[0])} yes, ${fmt(v[1])} no (${pc(100*v[0]/(v[0]+v[1]))} yes) &middot; ${fmt(v[2])} of ${fmt(v[3])} election districts voted yes`:'No votes counted on this question')+`<br><button type="button" class="cdopen" data-cd="${cd}">See its election districts</button></div></div>`});
+    const v=Q&&Q.cds[cd];$('topinfo').innerHTML=`<div class="cdinfo"><img src="${LOGO(cd)}" alt="${nm(cd)}"><div><b>${nm(cd)}</b>${hood?' &middot; '+esc(hood):''}<br>`+(v?`${fmt(v[0])} yes, ${fmt(v[1])} no (${pc(100*v[0]/(v[0]+v[1]))} yes) &middot; ${fmt(v[2])} of ${fmt(v[3])} election districts voted yes`:'No votes counted on this question')+`<br><button type="button" class="cdopen" data-cd="${cd}">See its election districts</button></div></div>`;if(lab)$('topinfo').querySelector('b').insertAdjacentHTML('beforebegin',`<b>${esc(lab)}</b> is in `)};ov.addEventListener('select',()=>pick());
    TCDO.push(ov)})});
  if(TCDK!==c){TM.removeAnnotations(TCDL);TCDL=[];
   const bs=isBoro(c)?[c[1]]:['1','2','3','4','5'];
