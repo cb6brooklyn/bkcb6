@@ -161,6 +161,20 @@ details.sec>summary::after{content:"+";position:absolute;right:0;top:50%;transfo
 details.sec[open]>summary::after{content:"\2212"}
 details.sec[open]{padding-bottom:16px}
 details.sec>p{margin:0 0 12px;color:#374151;font-size:1rem;line-height:1.55;max-width:820px}
+.sc{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:12px}
+.sc table{border-collapse:collapse;width:100%;min-width:860px;font-size:.86rem}
+.sc th{font:500 .64rem 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;padding:8px 8px;border-bottom:1px solid var(--border);background:var(--off);position:sticky;top:0}
+.sc td{padding:7px 8px;border-bottom:1px solid #f0ede7;vertical-align:middle}
+.sc tr.yr td{background:#f4f6fb;font:700 .8rem 'DM Mono',monospace;color:var(--navy);padding:6px 8px}
+.sc td.q{min-width:200px;line-height:1.3}.sc td.q small{display:block;color:var(--muted);font:500 .7rem 'DM Mono',monospace}
+.sc .tl{font:700 .95rem 'DM Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sc .tl .y{color:var(--yes)}.sc .tl .n{color:var(--no)}
+.sc .sb{display:flex;height:6px;border-radius:3px;overflow:hidden;margin-top:3px;min-width:70px;background:#d1d5db}
+.sc .sb i{display:block;height:100%}
+.sc .pc{font-size:.74rem;color:#4b5563;white-space:nowrap}
+.sc td.city .pc b{color:var(--navy)}.sc td.city .pc b.no{color:var(--no)}
+.sckpi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 12px}
+@media(max-width:760px){.sckpi{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .tophead{font-size:.98rem;line-height:1.35;color:#374151;margin:0 0 8px}
 .tophead b{color:var(--navy)}
 .mine{margin:14px 0 4px}.mine p{margin:0 0 8px;font-size:1rem;line-height:1.55;color:#1f2937;max-width:820px}
@@ -238,6 +252,13 @@ details.sec>p{margin:0 0 12px;color:#374151;font-size:1rem;line-height:1.55;max-
   <details class="part sec" id="earlier"><summary><h2>Earlier years</h2></summary>
     <div id="earlierYears"></div>
     <p class="note" id="cdtake"></p>
+  </details>
+
+  <details class="part sec" id="scorecard"><summary><h2>Scorecard: community districts and boroughs</h2></summary>
+    <p id="sclead"></p>
+    <div class="sckpi" id="sckpi"></div>
+    <div class="sc"><table><thead><tr><th>Question</th><th>New York City</th><th>Community districts</th><th>Brooklyn</th><th>Manhattan</th><th>Bronx</th><th>Queens</th><th>Staten Island</th></tr></thead><tbody id="scrows"></tbody></table></div>
+    <p class="note" id="scnote"></p>
   </details>
 
   <details class="part sec" id="bycd"><summary><h2>Every question, by community district</h2></summary>
@@ -353,6 +374,20 @@ $('topkey').innerHTML=KEY.map(([p,t])=>`<span><i style="background:${col(p)}"></
 // ---------- every question by community district ----------
 (async()=>{let A;try{A=await fetch('../cdall.json').then(r=>r.json())}catch(e){return}
  const Q=A.questions,CDS=A.cds,P=(v)=>v&&v[0]+v[1]?100*v[0]/(v[0]+v[1]):null,yrs=[...new Set(Q.map(q=>q.year))];
+ {const ql=q=>(q.level==='state'?'Proposal ':'Question ')+q.n,BO=['3','1','2','4','5'];
+  const tally=(q,b)=>{let y=0,n=0,t=0;CDS.forEach(c=>{if(b&&c[0]!==b)return;const v=q.cds[c];if(!v||v[0]+v[1]===0)return;v[0]>v[1]?y++:v[0]<v[1]?n++:t++});return [y,n,t]};
+  const tl=([y,n,t])=>`<span class="tl"><span class="y">${y}</span>&ndash;<span class="n">${n}</span>${t?`<span style="color:var(--muted)"> (${t} tied)</span>`:''}</span><span class="sb"><i style="width:${100*y/(y+n+t)}%;background:var(--yes)"></i><i style="width:${100*n/(y+n+t)}%;background:var(--no)"></i></span>`;
+  let rows='',last=0,cityYes=0,unan=0,split=0;
+  Q.map((q,i)=>[q,i]).sort((a,b)=>b[0].year-a[0].year||a[1]-b[1]).map(x=>x[0]).forEach(q=>{
+   if(q.year!==last){last=q.year;rows+=`<tr class="yr"><td colspan="8">${q.year}</td></tr>`}
+   const cp=P(q.city),won=q.city[0]>q.city[1],t=tally(q);if(won)cityYes++;if(t[0]===0||t[1]===0)unan++;
+   const outv=CDS.filter(c=>{const v=q.cds[c];return v&&(v[0]>v[1])!==won&&v[0]!==v[1]}).length;if(outv)split++;
+   rows+=`<tr><td class="q">${esc(q.title)}<small>${q.level==='state'?'State':'City'} ${ql(q)}${q.level==='state'&&q.result?' &middot; statewide: '+esc(q.result.toLowerCase()):''}</small></td><td class="city"><span class="pc"><b${won?'':' class="no"'}>${won?'Yes won':'No won'}</b> ${pc(cp)} yes</span><span class="sb"><i style="width:${cp}%;background:var(--yes)"></i><i style="width:${100-cp}%;background:var(--no)"></i></span></td><td>${tl(t)}</td>`+
+    BO.map(b=>{const v=q.boro[b],bt=tally(q,b),p=P(v);return `<td ${T(`<b>${BT[b]}, ${q.year} ${ql(q)}</b><br>${bt[0]} community districts yes, ${bt[1]} no${bt[2]?', '+bt[2]+' tied':''}<br>${fmt(v[0])} yes, ${fmt(v[1])} no (${pc(p)} yes)`)}>${tl(bt)}<span class="pc">${pc(p)} yes</span></td>`}).join('')+'</tr>'});
+  $('scrows').innerHTML=rows;
+  $('sclead').innerHTML=`Each question since ${yrs[0]}: how many of the 59 community districts voted yes and how many voted no, then the same count inside each borough with the borough's own yes share. Blue is yes, orange is no.`;
+  $('sckpi').innerHTML=[[Q.length,'Questions',`${yrs.length} elections, ${yrs[0]} to ${yrs[yrs.length-1]}`],[cityYes,'Yes won in the city',`no won ${Q.length-cityYes}`],[unan,'Every district agreed','all 59 voted the same way'],[split,'Some districts went the other way','at least one community district voted against the city result']].map(([v,k,d])=>`<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('');
+  $('scnote').textContent='A community district is counted as voting yes when more of its votes were yes than no. Borough totals add up the community districts in each borough, so Marble Hill, which is in Manhattan by county, is counted with Bronx Community District 8. Election districts that sit mostly in a park or airport are counted in the community district they border.'+(Q.some(q=>q.unofficial)?' 2026 is the numbers so far from the Board of Elections.':'')}
  const ql=q=>(q.level==='state'?'Proposal ':'Question ')+q.n;
  $('bycdlead').innerHTML=`${Q.length} questions from ${yrs[0]} to ${yrs[yrs.length-1]}, in ${yrs.length} elections: every one the Board of Elections has counted election district by election district. The district files for 2014 Proposal 1 and 2017 Proposal 2 are gone from the Board of Elections site; those two come from the Internet Archive's copies of the Board's own files, and they add up to the Board's citywide totals. Before 2014 the Board of Elections only published borough and Assembly District totals.${Q.some(q=>q.unofficial)?' 2026 is the numbers so far from the Board of Elections.':''}`;
  $('bycdkey').innerHTML=KEY.map(([p,t])=>`<span><i style="background:${col(p)}"></i>${t}</span>`).join(' ');
