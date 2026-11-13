@@ -1,0 +1,32 @@
+name: Archive ballot files
+
+# One-time: copies the two Board of Elections EDLevel files that are gone from vote.nyc (2014 Proposal 1 and
+# 2017 Proposal 2) from the Internet Archive's copies into data/ballots/archive/.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download
+        run: |
+          set -e
+          mkdir -p data/ballots/archive
+          get() { for i in 1 2 3 4 5; do curl -fsSL --retry 3 -o "$1" "$2" && return 0; sleep 20; done; return 1; }
+          get data/ballots/archive/2014-01.csv "https://web.archive.org/web/20180919052614id_/http://vote.nyc.ny.us/downloads/csv/election_results/2014/20141104General%20Election/00050100000Citywide%20Revising%20State%E2%80%99s%20Redistricting%20Procedure%20Citywide%20EDLevel.csv"
+          get data/ballots/archive/2017-02.csv "https://web.archive.org/web/20180923005001id_/http://vote.nyc.ny.us/downloads/csv/election_results/2017/20171107General%20Election/00050200000Citywide%20Allowing%20the%20complete%20or%20partial%20forfeiture%20of%20a%20public%20officer's%20pension%20if%20he%20or%20she%20is%20convicted%20of%20a%20certain%20type%20of%20felony%20Citywide%20EDLevel.csv"
+          wc -c data/ballots/archive/*.csv; head -3 data/ballots/archive/2014-01.csv
+      - name: Commit
+        run: |
+          git config user.email "Mike@bkcb6.org"
+          git config user.name "Mike Racioppo"
+          git add data/ballots/archive
+          git diff --cached --quiet && exit 0
+          git commit -m "Board of Elections EDLevel files for 2014 Proposal 1 and 2017 Proposal 2, from the Internet Archive"
+          for i in 1 2 3; do git pull --rebase --autostash -q origin main && git push && exit 0; sleep 5; done; exit 1
