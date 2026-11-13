@@ -2,13 +2,8 @@
 """Every ballot question that can be counted by community district, in one file: ballotmeasures/cdall.json.
 
 A question can be counted by community district only where the NYC Board of Elections publishes its votes election district
-by election district. That is 2014 onward: 2014 and 2017 from the site's election district archive (data/edhistory), 2018 to
-2026 from ballotmeasures/cd/<cd>.json (built by scripts/ballot_ed_split.py). Two questions have no district file on vote.nyc
-(2014 Proposal 1 and 2017 Proposal 2; the links 404). Those two come from the Internet Archive's copies of the Board's own
-EDLevel files on vote.nyc.ny.us, added up by community district in data/ballots/cd-archive.txt. An election district is counted in the
-community district most of it sits in, on the district lines in force that year (DCP's latest release before election day:
-14c, 17c, 18c, 19c, 21c, 22c, 23c, 24c1, 25c, 26c); one mostly in a park or airport goes to the district it borders
-(data/edhistory/geo/ed2cd-parks.json), so the community districts add up to the city."""
+by election district: 2014 onward. Every year comes from ballotmeasures/cd/<cd>.json (built by scripts/ballot_ed_split.py, which
+says where each year's district files come from and which district lines it uses)."""
 import json, os, re, glob, collections
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
@@ -21,41 +16,7 @@ def measure(y, n, level=None):
     return ms[0] if ms else None
 
 out = []   # each: year, n, level, title, result, cds {cd: [yes, no, edsYes, eds]}, boro {b: [yes,no]}, city [yes,no,edsYes,eds]
-# 2014 and 2017 from the archive
-ARCH = {2014: ('2014-11-04-general', '14c', {'electronic distribution': 2, 'smart schools': 3}),
-        2017: ('2017-11-07-general', '17c', {'constitutional convention': 1, 'forest preserve': 3})}
-for y, (eid, rel, keys) in ARCH.items():
-    e2c = {k: str(v) for k, v in json.load(open('data/edhistory/geo/ed2cd%s.json' % rel)).items()}
-    e2c.update(json.load(open('data/edhistory/geo/ed2cd-parks.json'))[rel])  # park and airport districts to their neighbor
-    idx = json.load(open('data/edhistory/e/%s/index.json' % eid))
-    for c in idx['contests']:
-        d = json.load(open('data/edhistory/e/%s/%s.json' % (eid, c['id'])))
-        names = [x.strip().lower() for x in d['cands']]
-        if 'yes' not in names or 'no' not in names: continue
-        n = next((v for k, v in keys.items() if k in d['title'].lower()), None)
-        if not n: continue
-        iy, ino = names.index('yes') + 1, names.index('no') + 1
-        cds = collections.defaultdict(lambda: [0, 0, 0, 0]); city = [0, 0, 0, 0]; boro = collections.defaultdict(lambda: [0, 0])
-        for ed, v in d['eds'].items():
-            yv, nv = (v[iy] if iy < len(v) else 0), (v[ino] if ino < len(v) else 0)
-            if yv + nv == 0: continue
-            city[0] += yv; city[1] += nv; city[3] += 1; city[2] += yv > nv
-            cd = e2c.get(ed)
-            if cd and ok_cd(cd):
-                r = cds[cd]; r[0] += yv; r[1] += nv; r[3] += 1; r[2] += yv > nv
-                boro[cd[0]][0] += yv; boro[cd[0]][1] += nv
-        m = measure(y, n, 'state')
-        out.append(dict(year=y, n=n, level='state', title=m['title'], result=m.get('result', ''), cds=dict(cds), boro=dict(boro), city=city))
-# 2014 Proposal 1 and 2017 Proposal 2 from the Internet Archive copies (data/ballots/cd-archive.txt)
-for line in open('data/ballots/cd-archive.txt'):
-    if not line.strip(): continue
-    yy, c, b, rows = line.strip().split('|'); y = 2000 + int(yy); n = 1 if y == 2014 else 2
-    city = [int(x) for x in c[1:].split(',')]
-    boro = {k: [int(x) for x in v.split(',')] for k, v in (t.split(':') for t in b[1:].split(';'))}
-    cds = {k: [int(x) for x in v.split(',')] for k, v in (t.split(':') for t in rows.split(';'))}
-    m = measure(y, n, 'state')
-    out.append(dict(year=y, n=n, level='state', title=m['title'], result=m.get('result', ''), cds=cds, boro=boro, city=city, archive=True))
-# 2018 to 2026 from the community district files
+# 2014 to 2026 from the community district files
 per = collections.defaultdict(dict)
 for f in sorted(glob.glob('ballotmeasures/cd/[0-9][0-9][0-9].json')):
     D = json.load(open(f)); cd = os.path.basename(f)[:3]

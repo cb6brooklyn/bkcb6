@@ -5,7 +5,7 @@ data/ballots/ed/<year>.json   yes and no in every election district for every qu
 ballotmeasures/edsplit.json   per year: the questions, how many districts approved all, some or none, and the most
                               common combinations
 
-Sources: the NYC Board of Elections' EDLevel.csv for each question (2018 to 2024; pass the folder of downloaded files
+Sources: the NYC Board of Elections' EDLevel.csv for each question (2018 to 2024; 2014 and 2017 from data/edhistory and data/ballots/archive; pass the folder of downloaded files
 named <year>-<nn>.csv as the first argument to rebuild those years), the site's election district archive for 2025
 (data/edhistory), and the election night count for 2026 (data/results). A year is only included when every question on
 its ballot has a district file. Usage: python3 scripts/ballot_ed_split.py [folder of BOE csv files]"""
@@ -44,6 +44,26 @@ def from_archive(eid):
         qs[d['title']] = {k: [v[iy] if iy < len(v) else 0, v[in_] if in_ < len(v) else 0] for k, v in d['eds'].items()}
     return qs
 a25 = from_archive('2025-11-04-general')
+# 2014 and 2017: the site's election district archive, plus the two questions whose files are gone from vote.nyc, copied
+# from the Internet Archive (data/ballots/archive/<year>-<nn>.csv: AD, ED, County, EDAD Status, Event, Party, Office,
+# District Key, VoteFor, Unit Name, Tally)
+def old_csv(f):
+    eds = collections.defaultdict(lambda: [0, 0])
+    rd = csv.reader(open(f, encoding='utf-8-sig', errors='replace')); next(rd, None)
+    for r in rd:
+        if len(r) < 11: continue
+        u = r[9].strip().lower()
+        if u in ('yes', 'no') and r[0].strip().isdigit() and r[1].strip().isdigit():
+            eds['%02d%03d' % (int(r[0]), int(r[1]))][0 if u == 'yes' else 1] += int(r[10].strip().replace(',', '') or 0)
+    return dict(eds)
+OLD = {2014: ('2014-11-04-general', {2: 'electronic distribution', 3: 'smart schools'}),
+       2017: ('2017-11-07-general', {1: 'constitutional convention', 3: 'forest preserve'})}
+def pick_old(y, m):
+    n = num(m['label']); f = 'data/ballots/archive/%d-%02d.csv' % (y, n)
+    if os.path.exists(f): return old_csv(f)
+    a = from_archive(OLD[y][0]); key = OLD[y][1].get(n)
+    t = [k for k in a if key and key in k.lower()]
+    return a[t[0]] if len(t) == 1 else None
 def pick25(m):
     key = {'state': 'olympic', 2: 'fast track', 3: 'simplify', 4: 'appeals board', 5: 'digital city map', 6: 'move local elections'}[('state' if m['level'] == 'state' else num(m['label']))]
     t = [k for k in a25 if key in k.lower()]; assert len(t) == 1, (key, t); return a25[t[0]]
@@ -56,6 +76,7 @@ CAT = {e['id']: e for e in json.load(open('data/edhistory/catalog.json'))['elect
 X26 = json.load(open('app/data/civic/ed-crosswalk.json'))
 def ed2cd(y):
     if y == 2026: rel = '26c'  # DCP's latest release before the 2026 general (Aug 2026); same assignments as 26a1
+    elif y == 2017: rel = '17c'  # DCP's latest release before the 2017 general (Aug 2017); every district with votes is on it
     else: rel = [v for k, v in CAT.items() if k.startswith(str(y) + '-11-') and k.endswith('general')][0]['release']
     m = json.load(open('data/edhistory/geo/ed2cd%s.json' % rel))
     # an election district that sits mostly in a park, airport or other non-residential area is counted in the
@@ -72,11 +93,12 @@ def boro_of(k):
     ad = int(k[:2]); return '4' if ad <= 40 else '3' if ad <= 60 else '5' if ad <= 64 else '1' if ad <= 76 else '2'
 out = {'years': []}
 PER = collections.defaultdict(list)   # community district -> its election districts' votes, year by year (ballotmeasures/cd/<cd>.json)
-for y in range(2018, 2027):
+for y in range(2014, 2027):
     ms = measures(y)
     if not ms: continue
     qs = []
-    if y == 2025: qs = [(m, pick25(m)) for m in ms]
+    if y in OLD: qs = [(m, e) for m in ms for e in [pick_old(y, m)] if e]
+    elif y == 2025: qs = [(m, pick25(m)) for m in ms]
     elif y == 2026: qs = [(m, r26[num(m['label'])]) for m in ms if num(m['label']) in r26]
     elif os.path.exists('data/ballots/ed/%d.json' % y):
         d = json.load(open('data/ballots/ed/%d.json' % y))['questions']

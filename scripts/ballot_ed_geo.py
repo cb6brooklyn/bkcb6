@@ -8,6 +8,7 @@ os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 CAT = {e['id']: e for e in json.load(open('data/edhistory/catalog.json'))['elections']}
 def release(y):
     if y == 2026: return '26a1'
+    if y == 2017: return '17c'
     return [v for k, v in CAT.items() if k.startswith(str(y) + '-11-') and k.endswith('general')][0]['release']
 def shapes(rel):
     t = json.load(open('data/edhistory/geo/ed%s.topo.json' % rel))
