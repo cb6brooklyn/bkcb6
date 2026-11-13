@@ -173,6 +173,11 @@ for (const [d, list] of Object.entries(EVENTS)) {
     if (fl && packFile('civic/cal/flyers', fl)) row.f = fl;
     if (tm.ty === CB6.ty) row.cd = '306';
     row.org = tm.org;
+    // an event co-hosted by other organizations on the calendar (orgs: [...]) carries them too, so each one's profile has it
+    if (Array.isArray(e.orgs)) for (const o of e.orgs) {
+      const om = orgFor(d, { ...e, type: o });
+      if (om && om.ty && om.ty !== row.ty && om.ty !== COMMUNITY.ty && !(row.also || []).some(a => a.ty === om.ty)) (row.also ||= []).push({ ty: om.ty, org: om.org });
+    }
     if (Array.isArray(e.cds) && e.cds.length && !e.cds.includes('306')) {
       row.cd = String(e.cds[0]);
       if (e.cds.length > 1) row.cds = e.cds.map(String);
