@@ -239,7 +239,9 @@ for s in schools:
     t = t.replace('<a href="/govhub.html" style="color:inherit">Government</a>', '<a href="/eduhub.html" style="color:inherit">Schools</a>', 1)
     t = re.sub(r'profile-map\.js\?v=\w+', 'profile-map.js?v=' + MAPV, t)
     t = t.replace('its boundary, the office, overlaps, land use', 'its boundary, the school, overlaps, land use')
-    if r.get('cb6dir'): t = t.replace('  <div class="sec"><h2>Contact</h2>', '  ' + r['cb6dir'] + '\n  <div class="sec"><h2>Contact</h2>', 1)
+    if r.get('cb6dir'):   # its district, precinct and sector block; the page already has its map, so the block's own map comes off
+        blk = re.sub(r'\s*<div class="sec"><h2>Where it is</h2>.*?</details></div></div>', '', r['cb6dir'], count=1, flags=re.S)
+        t = t.replace('  <div class="sec"><h2>Contact</h2>', '  ' + blk + '\n  <div class="sec"><h2>Contact</h2>', 1)
     foot = r.get('foot') or ('From the NYC Department of City Planning Facilities Database (NYC Open Data ji82-xba5), schools K-12, which draws on the Department of Education and the New York State Education Department.<br>\n  <a href="/citywide-search.html">Search any address</a> &middot; <a href="/">bkcb6.app</a>')
     if w.get('checked'):
         bits = (["NYC Public Schools' page for the school (address, phone, school leader, grades), read %s" % w['checked']] if w.get('doe_url') else []) + \
