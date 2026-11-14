@@ -32,12 +32,13 @@ p = next(x for x in d['profiles'] if x['slug'] == 'crashcount')
 card = {'id': 'crashcount-citywide', 'img': 'crashcount-card.png', 'kicker': 'New York City · %s to %s' % (start, end),
         'title': '%s crashes, %s injuries and %s deaths so far in %s' % (vals['total_crashes'], vals['total_injuries'], vals['total_deaths'], year),
         'text': '%s serious and %s moderate injuries. From NYPD crash reports, highways excluded, as CrashCount counts them. '
-                'The button opens the citywide crash map and counter.' % (vals['serious_injuries'], vals['moderate_injuries']),
-        'until': '', 'btns': [['Open the citywide crash map', 'https://bkcb6.app/crashcount/citywide-nyc/', 'hot'],
-                              ['Brooklyn crash map', 'https://bkcb6.app/crashcount/borough-brooklyn/', '']]}
+                'The crash map shows this year's crashes by board and block by block, and every crash in which someone was killed.' % (vals['serious_injuries'], vals['moderate_injuries']),
+        'until': '', 'btns': [['Open the crash map', 'https://bkcb6.app/crashcount/map/', 'hot'],
+                              ['CrashCount citywide', 'https://bkcb6.app/crashcount/citywide-nyc/', ''],
+                              ['Brooklyn', 'https://bkcb6.app/crashcount/borough-brooklyn/', '']]}
 p['going'] = [card] + [g for g in (p.get('going') or []) if g.get('id') != 'crashcount-citywide']
 rows = [['%s, %s' % (label, year), vals[key]] for key, label in METRICS] + [['Counted', '%s to %s, from NYPD crash reports, highways excluded' % (start, end)]]
 keep = [r for r in p['kv'] if not re.match(r'(Crashes|Injuries|Moderate injuries|Serious injuries|Deaths), \d{4}$', r[0]) and r[0] != 'Counted']
-p['kv'] = rows + keep
+p['kv'] = [r for r in keep if r[0] == 'Crash map'] + rows + [r for r in keep if r[0] != 'Crash map']
 open(F, 'w', encoding='utf-8').write(json.dumps(d, ensure_ascii=False, indent=1) + '\n')
 print('CrashCount citywide:', vals, start, end)
