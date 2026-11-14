@@ -246,6 +246,8 @@ for s in schools:
          'intro': intro, 'does': [], 'does_title': 'What it does', 'kv': kv, 'links': links, 'addr': E(street), 'zip': (f or {}).get('zipcode', ''), 'cityline': E(city) or ' ',
          'addr_note': '', 'phone': phone, 'tel': re.sub(r'\D', '', phone), 'email': '', 'web': re.sub(r'^https?://(www\.)?', '', weburl).rstrip('/'), 'weburl': weburl, 'since': '', 'lat': '%.6f' % s['lat'], 'lng': '%.6f' % s['lng']}
     if sdnum: o['area'] = {'chamber': 'school', 'district': sdnum, 'noun': 'school district', 'caption': 'the school and School District %s' % sdnum}
+    if not s['lat']:   # a site outside the city with no coordinates on file (Long Island, Westchester): no map
+        o['nomap'] = True; o['wherehtml'] = ''
     if not lg: o['nologo'] = True
     G['ORGS'] = [o]
     exec(LOOP, G)
@@ -284,7 +286,7 @@ for s in schools:
         'intro': [html.unescape(re.sub(r'<[^>]+>', '', p)) for p in intro], 'does': [], 'kv': akv,
         'links': [[l, u if u.startswith('http') else 'https://bkcb6.app' + u] for l, u, hot in links if hot],
         'logo': logo, 'cal': '', 'n': 0, 'going': [], 'kind': 'org', 'official': '', 'group': 'Schools', 'topic': s['topic'], 'sort': 0,
-        'where': s['boro'], 'sd': sdnum, 'kvdest': kvdest,
+        'where': s['boro'] or 'Outside NYC', 'sd': sdnum, 'kvdest': kvdest,
         'scope': ' '.join(x for x, ok in (('cb6', s['cd'] == '306'), ('bk', s['boro'] == 'Brooklyn')) if ok)})
     entries += 1
 

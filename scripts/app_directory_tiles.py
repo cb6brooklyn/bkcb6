@@ -185,7 +185,7 @@ def school_sections(first):
     for n in order:
         ps = by_sd(n, CB6SCH)
         if ps: out.append(('Schools by school district', 'District %s schools (%s)' % (n, SDBORO[n]), 'dir-sd-' + n, ps))
-    bo = ['Brooklyn'] + [b for b in BORO if b != 'Brooklyn'] if '15' in first else BORO
+    bo = (['Brooklyn'] + [b for b in BORO if b != 'Brooklyn'] if '15' in first else list(BORO)) + ['Outside NYC']
     tops = next(x['topics'] for x in D['groups'] if x['name'] == 'Schools')
     for b in bo:
         for t in tops:
