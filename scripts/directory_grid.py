@@ -77,9 +77,9 @@ def main():
         g = p.get('group') or 'Other'
         t = p.get('topic') or ''
         if g == 'Government agencies': t = 'New York State' if p['slug'].startswith('nys-') else 'New York City'
-        nb = next((v for k, v in p.get('kv', []) if k == 'Neighborhood'), '')
-        # the directory's organizations, places and businesses are CB6's (and so Brooklyn's)
-        tiles.append([p['name'], href, logo, g, t or g, 1 if ext else 0, [nb] if nb else [], 0, '', 'cb6 bk'])
+        nb = p.get('where') or next((v for k, v in p.get('kv', []) if k == 'Neighborhood'), '')
+        # the directory's organizations, places and businesses are CB6's (and so Brooklyn's), except those that say where they are
+        tiles.append([p['name'], href, logo, g, t or g, 1 if ext else 0, [nb] if nb else [], 0, '', p['scope'] if 'scope' in p else 'cb6 bk'])
     BORO = {'1': 'Manhattan', '2': 'Bronx', '3': 'Brooklyn', '4': 'Queens', '5': 'Staten Island'}
     for o in J('app/data/civic/officials.json'):
         icon = OWN_LOGO.get(o['slug']) or o.get('icon') or ''

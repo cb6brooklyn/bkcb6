@@ -183,6 +183,8 @@ json.dump(idx, open(P('data/cbo/index.json'), 'w'), ensure_ascii=False, separato
 # the apps open every profile in the app
 for p in ('data/profile-index.json', 'app/data/civic/profile-index.json'):
     t = J(p)
+    t['pages'] = {k: v for k, v in t['pages'].items() if not k.startswith('/cbo/')}
+    t['urls'] = {k: v for k, v in t['urls'].items() if not str(v).startswith('/cbo/')}
     for o in orgs:
         if o.get('existing'): continue
         t['pages']['/cbo/%s/' % o['slug']] = 'web:cbo/%s/index.html?app=1' % o['slug']
@@ -193,31 +195,42 @@ for p in ('data/profile-index.json', 'app/data/civic/profile-index.json'):
     t['pages']['/cbo/'] = 'web:cbo/index.html?app=1'
     json.dump(t, open(P(p), 'w'), ensure_ascii=False, indent=0, sort_keys=True)
 
-# the ones inside CB6 go in the app Directory
+# every one goes in the Directory (the apps' and the site's /profiles/), under its category
+TOPIC = {'Arts & Culture': 'Arts and culture', 'Human & Social Services': 'Human and social services', 'Education': 'Education',
+         'Religious Organizations': 'Faith organizations', 'Community & Economic Development': 'Housing and community development',
+         'Health & Mental Health': 'Health and mental health', 'Youth Development': 'Youth, schools and libraries', 'Sports & Recreation': 'Sports',
+         'Housing & Shelter': 'Housing and community development', 'Environment & Animals': 'Parks, gardens and the environment',
+         'Philanthropy & Foundations': 'Philanthropy', 'Legal Services & Justice': 'Legal services and justice', 'Food & Nutrition': 'Food and mutual aid',
+         'Civil Rights & Advocacy': 'Civic and neighborhood groups', 'Public Safety & Emergency Services': 'Public safety',
+         'Public & Civic Benefit': 'Civic and neighborhood groups', 'Employment & Workforce': 'Jobs and workforce', 'International': 'International',
+         'Other': 'Community and support'}
 f = P('app/data/civic/orgs/orgs-profiles.json'); D = json.load(open(f, encoding='utf-8'))
-have = {p['slug'] for p in D['profiles']}
+D['profiles'] = [p for p in D['profiles'] if not p['slug'].startswith('cbo-')]
 nk = lambda n: re.sub(r'[^a-z0-9]', '', re.sub(r'\b(inc|incorporated|corp|corporation|ltd|llc|the)\b', '', n.lower().replace('&', 'and')))
 names = {nk(p['name']) for p in D['profiles']}
+for fn in os.listdir(P('app/data/civic/orgs/logos')):
+    if fn.startswith('cbo-'): os.remove(P('app/data/civic/orgs/logos', fn))
 added = 0
 for o in orgs:
-    if o.get('existing') or o.get('cd') != '306': continue
-    s = 'cbo-' + o['slug']
-    if s in have or nk(o['display']) in names: continue
+    if o.get('existing') or nk(o['display']) in names: continue
     logo = ''
     if o.get('logofile'):
         shutil.copy(P('cbo', 'logos', o['logofile']), P('app/data/civic/orgs/logos', 'cbo-' + o['logofile'])); logo = 'cbo-' + o['logofile']
     web = website(o.get('web')); mission = sentence(o.get('desc'))
+    boro = o['tab'] if o['tab'] in BOROS else ''
     city = ' '.join(x for x in ((o.get('city') or '').strip().title(), o.get('state'), o.get('zip')) if x)
-    D['profiles'].append({'slug': s, 'type': '', 'name': o['display'], 'seat': '%s · Brooklyn' % o['cat'],
+    kv = [['Category', o['cat']]] + ([['Borough', boro]] if boro else []) + [['Legal name', o['name'].strip()]]
+    D['profiles'].append({'slug': 'cbo-' + o['slug'], 'type': '', 'name': o['display'], 'seat': o['cat'] + ((' · ' + boro) if boro else ''),
         'desc': '%s, %s organization funded by the NYC Council.' % (o['display'], o['cat'].lower().replace('&', 'and')),
-        'lat': o['lat'], 'lng': o['lng'], 'addr': ', '.join(x for x in (o.get('a1'), o.get('a2')) if x and x != '0'), 'zip': o.get('zip') or '',
+        'lat': o.get('lat'), 'lng': o.get('lng'), 'addr': ', '.join(x for x in (o.get('a1'), o.get('a2')) if x and x != '0'), 'zip': o.get('zip') or '',
         'addr_note': '', 'cityline': city, 'phone': '', 'email': '', 'web': re.sub(r'^https?://(www\.)?', '', web).rstrip('/'), 'weburl': web, 'since': '',
-        'intro': ['%s is %s %s organization that the New York City Council has funded.' % (o['display'], 'an' if o['cat'][0] in 'AEIOU' else 'a', o['cat'].lower().replace('&', 'and'))]
+        'intro': ['%s is %s %s organization%s that the New York City Council has funded.' % (o['display'], 'an' if o['cat'][0] in 'AEIOU' else 'a', o['cat'].lower().replace('&', 'and'), (' in ' + boro) if boro else '')]
                  + (['In its own words, to the IRS: ' + mission] if mission else []),
-        'does': [], 'kv': [['Category', o['cat']], ['Legal name', o['name'].strip()]],
-        'links': ([['Their website', web]] if web else []) + [['Profile on bkcb6.app', 'https://bkcb6.app/cbo/%s/' % o['slug']]],
-        'logo': logo, 'cal': '', 'n': 0, 'kind': 'org', 'official': '', 'group': 'Community groups', 'topic': TOPIC.get(o['cat'], 'Community and support'), 'sort': 0})
+        'does': [], 'kv': kv,
+        'links': [['Full profile', 'https://bkcb6.app/cbo/%s/' % o['slug']]] + ([['Their website', web]] if web else []),
+        'logo': logo, 'cal': '', 'n': 0, 'kind': 'org', 'official': '', 'group': 'Community groups', 'topic': TOPIC.get(o['cat'], 'Community and support'), 'sort': 0,
+        'where': boro or ('Outside NYC' if o['tab'] == 'Outside NYC' else ''), 'scope': ' '.join(x for x, ok in (('cb6', o.get('cd') == '306'), ('bk', boro == 'Brooklyn')) if ok)})
     added += 1
 open(f, 'w', encoding='utf-8').write(json.dumps(D, ensure_ascii=False, indent=1) + '\n')
-print('profiles made:', made, '| already had a profile:', sum(1 for o in orgs if o.get('existing')), '| in the app Directory (inside CB6):', added,
+print('profiles made:', made, '| already had a profile:', sum(1 for o in orgs if o.get('existing')), '| in the Directory:', added,
       '| placed on the map:', sum(1 for o in orgs if o.get('lat')))
