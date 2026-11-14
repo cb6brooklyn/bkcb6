@@ -32,7 +32,7 @@ p = next(x for x in d['profiles'] if x['slug'] == 'crashcount')
 card = {'id': 'crashcount-citywide', 'img': 'crashcount-card.png', 'kicker': 'New York City · %s to %s' % (start, end),
         'title': '%s crashes, %s injuries and %s deaths so far in %s' % (vals['total_crashes'], vals['total_injuries'], vals['total_deaths'], year),
         'text': '%s serious and %s moderate injuries. From NYPD crash reports, highways excluded, as CrashCount counts them. '
-                'The crash map shows this year's crashes by board and block by block, and every crash in which someone was killed.' % (vals['serious_injuries'], vals['moderate_injuries']),
+                "The crash map shows this year's crashes by board and block by block, and every crash in which someone was killed." % (vals['serious_injuries'], vals['moderate_injuries']),
         'until': '', 'btns': [['Open the crash map', 'https://bkcb6.app/crashcount/map/', 'hot'],
                               ['CrashCount citywide', 'https://bkcb6.app/crashcount/citywide-nyc/', ''],
                               ['Brooklyn', 'https://bkcb6.app/crashcount/borough-brooklyn/', '']]}
