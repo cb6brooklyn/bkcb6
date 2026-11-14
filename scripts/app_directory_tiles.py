@@ -47,33 +47,64 @@ def okey(p):
     o = OFF.get(p.get('official'), {})
     return (CITYWIDE_ORDER.index(o['slug']) if o.get('slug') in CITYWIDE_ORDER else 99, o.get('district') or 0, p['name'])
 
-sections = []   # (header, title, list id, [profiles])
-offs = [p for p in D['profiles'] if p.get('kind') == 'official' and p.get('official') in OFF]
-cb6 = [p for p in offs if any(c.get('cd') == '306' and c.get('eds', 1) for c in OFF[p['official']].get('cbs', []))
-       or OFF[p['official']].get('type') in ('citywide', 'statewide', 'ussenate') or p['official'] in ('bpbrooklyn', 'dagonzalez')]
-order = {s: i for i, (_, f) in enumerate(LEVEL) for s in [None]}
 def lvl(p):
     o = OFF[p['official']]
     return next((i for i, (_, f) in enumerate(LEVEL) if f(o)), 99)
-sections.append(('Elected officials', "CB6's elected officials", 'dir-officials-cb6', sorted(cb6, key=lambda p: (lvl(p), okey(p)))))
+cat = lambda p: dict(p.get('kv') or []).get('Category', '')
+offs = [p for p in D['profiles'] if p.get('kind') == 'official' and p.get('official') in OFF]
+ag = [p for p in D['profiles'] if p['group'] == 'Government agencies']
+cbo = [p for p in D['profiles'] if p['slug'].startswith('cbo-')]
+local = lambda p: not p['slug'].startswith('cbo-')
+byname = lambda ps: sorted(ps, key=lambda p: re.sub(r'^the ', '', p['name'].lower()))
+def in_cd(o, cd): return any(c.get('cd') == cd and c.get('eds', 1) for c in o.get('cbs', []))
+BORO = ['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island']
+
+def area_sections(app):
+    """The app's own area first: BKCB6 is CB6's, BKCB is Brooklyn's; CBNYC is the whole city."""
+    out = []
+    if app == 'cb6':
+        H = 'BKCB6'
+        cb6o = [p for p in offs if in_cd(OFF[p['official']], '306') or OFF[p['official']].get('type') in ('citywide', 'statewide', 'ussenate') or p['official'] in ('bpbrooklyn', 'dagonzalez')]
+        out.append((H, "BKCB6's elected officials", 'dir-cb6-officials', sorted(cb6o, key=lambda p: (lvl(p), okey(p)))))
+        out.append((H, 'BKCB6 community groups', 'dir-cb6-groups', byname([p for p in D['profiles'] if p['group'] == 'Community groups' and local(p)]
+                                                                            + [p for p in cbo if 'cb6' in (p.get('scope') or '')])))
+        out.append((H, 'BKCB6 government offices', 'dir-cb6-agencies', byname([p for p in ag if os.path.exists(P(p['slug'], 'index.html'))])))
+        for g in ('Business improvement districts', 'Schools, parks and facilities', 'Local businesses'):
+            tops = next((x['topics'] for x in D.get('groups', []) if x['name'] == g), [])
+            ps = [p for p in D['profiles'] if p['group'] == g]
+            tops = [t for t in tops if any((p.get('topic') or '') == t for p in ps)] + sorted({p.get('topic') or '' for p in ps} - set(tops))
+            for t in tops:
+                tp = byname([p for p in ps if (p.get('topic') or '') == t])
+                if tp: out.append(('BKCB6 ' + g.lower() if g != 'Business improvement districts' else 'BKCB6 business improvement districts', t or g, 'dir-cb6-' + slug(g) + '-' + slug(t or 'all'), tp))
+    if app == 'bk':
+        H = 'Brooklyn'
+        bko = [p for p in offs if any(c.get('cd', '').startswith('3') and c.get('eds', 1) for c in OFF[p['official']].get('cbs', []))
+               or OFF[p['official']].get('type') in ('citywide', 'statewide', 'ussenate') or p['official'] in ('bpbrooklyn', 'dagonzalez')]
+        out.append((H, "Brooklyn's elected officials", 'dir-bk-officials', sorted(bko, key=lambda p: (lvl(p), okey(p)))))
+    return out
+
+common = []
 for i, (name, f) in enumerate(LEVEL):
     ps = sorted([p for p in offs if f(OFF[p['official']])], key=okey)
-    if ps: sections.append(('Elected officials', name, 'dir-officials-' + slug(name), ps))
-ag = [p for p in D['profiles'] if p['group'] == 'Government agencies']
-sections.append(('Government agencies', 'New York City', 'dir-agencies-nyc', sorted([p for p in ag if not p['slug'].startswith('nys-')], key=lambda p: p['name'])))
-sections.append(('Government agencies', 'New York State', 'dir-agencies-nys', sorted([p for p in ag if p['slug'].startswith('nys-')], key=lambda p: p['name'])))
-GROUPS = ['Community groups', 'Business improvement districts', 'Schools, parks and facilities', 'Local businesses']
-topics_order = {g['name']: g['topics'] for g in D.get('groups', [])}
-for g in GROUPS:
-    ps = [p for p in D['profiles'] if p['group'] == g]
-    tops = topics_order.get(g) or []
-    tops = [t for t in tops if any((p.get('topic') or '') == t for p in ps)] + sorted({p.get('topic') or '' for p in ps} - set(tops))
-    for t in tops:
-        tp = sorted([p for p in ps if (p.get('topic') or '') == t], key=lambda p: re.sub(r'^the ', '', p['name'].lower()))
-        if tp: sections.append((g, t or g, 'dir-' + slug(g) + '-' + slug(t or 'all'), tp))
-
-total = sum(len(s[3]) for s in sections)
+    if ps: common.append(('Elected officials', name, 'dir-officials-' + slug(name), ps))
+common.append(('Government agencies', 'New York City', 'dir-agencies-nyc', byname([p for p in ag if not p['slug'].startswith('nys-')])))
+common.append(('Government agencies', 'New York State', 'dir-agencies-nys', byname([p for p in ag if p['slug'].startswith('nys-')])))
+# the community-based organizations: by borough, then by policy area
+CATS = [c for c, _ in sorted(__import__('collections').Counter(cat(p) for p in cbo).items(), key=lambda kv: -kv[1]) if c]
+for b in BORO + ['Outside NYC', '']:
+    for c in CATS:
+        ps = byname([p for p in cbo if (p.get('where') or '') == b and cat(p) == c])
+        if ps: common.append(('Community-based organizations, ' + (b or 'no address listed'), c, 'dir-cbo-' + slug(b or 'no-address') + '-' + slug(c), ps))
+total = 0
 for app in ('cb6', 'bk', 'beyond'):
+    cm = common
+    if app in ('cb6', 'bk'):   # Brooklyn's community-based organizations first in the Brooklyn apps
+        bkc = [x for x in common if x[0] == 'Community-based organizations, Brooklyn']
+        rest = [x for x in common if x not in bkc]
+        k = next(i for i, x in enumerate(rest) if x[0].startswith('Community-based organizations'))
+        cm = rest[:k] + bkc + rest[k:]
+    sections = area_sections(app) + cm
+    total = max(total, sum(len(x[3]) for x in sections))
     tf = P('app/data/civic/ui', app, 'tools.json'); T = json.load(open(tf, encoding='utf-8'))
     T['lists'] = {k: v for k, v in T['lists'].items() if not k.startswith('dir-')}
     heads = []
@@ -101,4 +132,4 @@ for app in ('cb6', 'bk', 'beyond'):
     S['screens']['directory'] = parts[:i] + new + parts[i:]
     ind = len(re.match(r'\{\n( *)', raw).group(1)) if raw.startswith('{\n') else None
     open(sf, 'w', encoding='utf-8').write(json.dumps(S, ensure_ascii=False, indent=ind) + ('\n' if raw.endswith('\n') else ''))
-print('sections:', len(sections), '| tiles:', total, '| profiles in the Directory file:', len(D['profiles']))
+print('sections (CBNYC):', len(sections), '| tiles:', total, '| profiles in the Directory file:', len(D['profiles']))
