@@ -104,7 +104,7 @@ def kind_of(f):
     lvl = TYPE.get(base, 'school')
     if 'SPECIAL EDUCATION' in who: return ('Public ' if 'PUBLIC' in who else 'Charter ') + lvl + ' for special education', 'Special education schools'
     if who == 'CHARTER' or t == 'CHARTER SCHOOL': return ('Charter ' + lvl) if t != 'CHARTER SCHOOL' else 'Charter school', 'Charter schools'
-    if who == 'NON-PUBLIC': return 'Private or parochial ' + lvl, 'Private and parochial schools'
+    if who == 'NON-PUBLIC': return 'Private ' + lvl, 'Private and parochial schools'
     return 'Public ' + lvl, 'Public schools'
 def title_name(f):
     n = f.get('opname') if f.get('optype') == 'Non-public' and f.get('opname') and f['opname'].upper().replace('(THE)', '').strip(' ,') in f['facname'].upper() + ' THE' else ''
@@ -162,6 +162,16 @@ WEBLOGO = P('assets/school-logos/web')
 def grades(g):
     m = {'PK': 'Pre-K', '0K': 'K', 'SE': 'special education', '3K': '3-K'}
     return ', '.join(m.get(x, x.lstrip('0') or x) for x in g.split(',') if x)
+# the neighborhood a school is in: CB6's own six first, then the city's 388 neighborhoods (not the census NTA names)
+from shapely.geometry import shape as _shape, Point as _Point
+HOODS = [(n, _shape({'type': 'Polygon', 'coordinates': c})) for n, c in json.load(open(P('app/data/civic/hoods-cb6.json'))).items()]
+HOODS += [(ft['properties']['nb'], _shape(ft['geometry']).buffer(0)) for ft in json.load(open(P('data/city-neighborhoods.geojson')))['features']]
+def hood_of(lat, lng):
+    pt = _Point(lng, lat)
+    for n, g in HOODS:
+        if g.contains(pt): return n
+    best = min(HOODS, key=lambda x: x[1].distance(pt))
+    return best[0] if best[1].distance(pt) < 0.003 else ''
 SD = lambda n: '<a href="/school-district-%s/">District %s</a> &middot; <a href="/cec-district-%s/">CEC %s</a>' % (n, n, n, n)
 for s in schools:
     f = s['fac']; r = s['src'] or {}
@@ -200,16 +210,22 @@ for s in schools:
     elif f and f.get('capacity') not in (None, '', '0') and f.get('captype') == 'seats' and not any(k == 'Seats' for k, _ in kv):
         kv.append(['Seats', '{:,}'.format(int(float(f['capacity'])))])
     if s['dbn'] and not any(k == 'DBN' for k, _ in kv): kv.append(['DBN', s['dbn']])
-    hood = re.sub(r'<[^>]+>', '', next((v for k, v in kv if k == 'Neighborhood'), '')).strip()
+    hood = hood_of(s['lat'], s['lng']) or re.sub(r'<[^>]+>', '', next((v for k, v in kv if k == 'Neighborhood'), '')).strip()
+    kv = [x for x in kv if x[0] != 'Neighborhood'] + ([['Neighborhood', E(hood)]] if hood else [])
     sdnum = s['sd'] if s['sd'].isdigit() and int(s['sd']) <= 32 else ''
     a = 'an' if s['kind'][0].lower() in 'aeiou' else 'a'
     intro = ['<b>%s</b> is %s %s%s%s.' % (E(s['name']), a, E(s['kind'].lower() if not s['kind'].startswith(('K-', 'NYCHA')) else s['kind']),
              (' in ' + E(hood)) if hood else '', (', ' + s['boro']) if s['boro'] and hood else ((' in ' + s['boro']) if s['boro'] else ''))]
     if sdnum and s['topic'] in ('Public schools', 'Charter schools', 'Special education schools'): intro[0] = intro[0][:-1] + ', in Community School District %s.' % sdnum
-    intro += [re.sub(r'^An? [^.]*\.\s*', '', p) for p in (r.get('what') or []) if re.sub(r'^An? [^.]*\.\s*', '', p)]
-    if f and not s['src']:
-        intro.append('It is run by %s.' % E(f['opname']) if f.get('optype') != 'Non-public' else 'It is an independent school, overseen by the New York State Education Department.')
-    if w.get('desc') and re.search(r'admissions process|myschools|mascot|^["\u201c\u2018\']|click here|sign up', w['desc'], re.I): w['desc'] = ''
+    runby = ''
+    if s['dbn'] or (f and f.get('opabbrev') == 'NYCDOE'): runby = 'NYC Public Schools'
+    elif f and f.get('optype') != 'Non-public' and f.get('opname'): runby = f['opname']
+    if runby and s['topic'] != 'Charter schools': intro[0] = intro[0][:-1] + ', run by %s.' % E(runby)
+    elif s['topic'] == 'Charter schools': intro[0] = intro[0][:-1] + ', a public charter school run independently of NYC Public Schools.' if 'charter' not in s['kind'].lower() else intro[0]
+    elif f and f.get('optype') == 'Non-public': intro.append('It is an independent school, overseen by the New York State Education Department.')
+    if w.get('desc'): w['desc'] = re.sub(r'^(home|welcome)\s*[-|:\u2013]\s*', '', w['desc'], flags=re.I)
+    if w.get('desc') and (re.search(r'admissions process|myschools|mascot|policy of the DOE|equal educational opportunit|discriminat|visit our|new website|https?://|under construction|coming soon|\bPTA\b|PTO\b|merchandise|t-shirts|hoodies|fundrais|donat|raffle|registration|register now|deadline|covid|remote learning|calendar|upcoming|this week|tonight|tomorrow|bake sale|tickets|apply now|now enrolling|^["\u201c\u2018\']|click here|sign up|---|\bwelcome\W*$|is located in [^.]+, NY\.?$', w['desc'], re.I)
+                          or re.search(r'[a-z0-9][.!?][A-Z]', w['desc']) or len(re.findall(r'\b1\d{4}\b', w['desc'])) > 1): w['desc'] = ''
     if w.get('desc'): intro.append('In its own words: &ldquo;%s&rdquo;' % E(w['desc']))
     links = [('Its website', weburl, True)] if weburl else []
     if s['dbn'] and re.match(r'^\d\d[KMXQR]\d{3}$', s['dbn']):

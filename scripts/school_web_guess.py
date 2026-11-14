@@ -39,7 +39,7 @@ def guess(s):
             t = (w.T((re.search(r'<title[^>]*>(.*?)</title>', p.text, re.S | re.I) or [None, ''])[1]) + ' ' + w.meta(p.text, 'description') + ' ' + w.meta(p.text, 'og:site_name') + ' ' + w.meta(p.text, 'og:title')).lower()
             full = p.text
             street = re.sub(r'^\d+\S*\s+', '', (s.get('addr') or '').lower()).split(' ')[0] if s.get('addr') else ''
-            here = (s.get('zip') and s['zip'] in full) or re.search(r'new york|\bnyc\b|\bny\s+1\d{4}|%s' % re.escape((s.get('boro') or 'brooklyn').lower()), full, re.I) or (len(street) > 4 and street in full.lower())
+            here = (s.get('zip') and s['zip'] in full) or (len(street) > 4 and street in full.lower()) or ((s.get('boro') or '').lower() not in ('', 'manhattan') and s['boro'].lower() in full.lower())   # its own zip, street or borough on the page
             if here and sum(1 for x in words if x in t) >= need and w.SCHOOLWORD.search(t) and not re.search(r'for sale|domain|parked|godaddy|hugedomains', t):
                 return p.url
             break
