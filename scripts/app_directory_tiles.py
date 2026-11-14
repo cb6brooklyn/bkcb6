@@ -18,16 +18,66 @@ OFF = {o['slug']: o for o in json.load(open(P('app/data/civic/officials.json'), 
 LOGOS = set(os.listdir(P('app/data/civic/orgs/logos')))
 slug = lambda s: re.sub(r'[^a-z0-9]+', '-', s.lower()).strip('-')
 
-import shutil
+import hashlib
+from PIL import Image, ImageDraw, ImageFont
+ICONS = P('app/data/civic/icons')
+CW, CH = 360, 195   # the tile's picture box (about 1.85 to 1)
+try:
+    FONT = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 26)
+except Exception:
+    FONT = ImageFont.load_default()
+MADE = set()
+def cover_from(src, key):
+    """The organization's logo, whole, on a white tile (as the Gowanus community-based organizations grid draws it)."""
+    name = 'dir-' + key
+    out = os.path.join(ICONS, name + '.jpg')
+    if name not in MADE:
+        if not os.path.exists(out):
+            im = Image.open(src).convert('RGBA')
+            # trim the white or empty margin the logo file carries, so the logo fills the tile
+            bg = Image.new('RGBA', im.size, (255, 255, 255, 255)); flat = Image.alpha_composite(bg, im).convert('RGB')
+            from PIL import ImageChops
+            box = ImageChops.difference(flat, Image.new('RGB', im.size, (255, 255, 255))).convert('L').point(lambda v: 255 if v > 18 else 0).getbbox()
+            if box and (box[2] - box[0]) * (box[3] - box[1]) > 0.05 * im.width * im.height: im = im.crop(box)
+            c = Image.new('RGB', (CW, CH), (255, 255, 255))
+            s = min((CW - 24) / im.width, (CH - 24) / im.height)
+            im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.LANCZOS)
+            c.paste(im, ((CW - im.width) // 2, (CH - im.height) // 2), im)
+            c.save(out, quality=72, optimize=True)
+        MADE.add(name)
+    return name
+def cover_name(title, key):
+    """No logo: the name in the same white tile."""
+    name = 'dir-n-' + key
+    out = os.path.join(ICONS, name + '.png')
+    if name not in MADE:
+        if not os.path.exists(out):
+            c = Image.new('RGB', (CW, CH), (255, 255, 255)); d = ImageDraw.Draw(c)
+            words, lines, cur = title.split(), [], ''
+            for w in words:
+                t = (cur + ' ' + w).strip()
+                if d.textlength(t, font=FONT) <= CW - 40: cur = t
+                else: lines.append(cur); cur = w
+            lines.append(cur); lines = lines[:5]
+            y = (CH - 34 * len(lines)) // 2
+            for ln in lines:
+                d.text(((CW - d.textlength(ln, font=FONT)) / 2, y), ln, fill=(13, 27, 75), font=FONT); y += 34
+            c.quantize(colors=8).save(out, optimize=True)
+        MADE.add(name)
+    return name
 def tile(p):
     t = {'title': p['name'], 'symbol': 'building.2.fill'}
+    src = None
     if p.get('kind') == 'official' and p.get('official') in OFF:
-        # an official's own logo (civic/officials/<slug>.png), copied beside the org logos the tiles read
-        src = P('app/data/civic/officials', p['official'] + '.png'); dst = 'off-%s.png' % p['official']
-        if os.path.exists(src):
-            if dst not in LOGOS: shutil.copy(src, P('app/data/civic/orgs/logos', dst)); LOGOS.add(dst)
-            t['org'] = dst
-    elif p.get('logo') in LOGOS: t['org'] = p['logo']
+        f = P('app/data/civic/officials', p['official'] + '.png')
+        if os.path.exists(f): src = f
+    elif p.get('logo') in LOGOS:
+        src = P('app/data/civic/orgs/logos', p['logo'])
+    key = hashlib.sha1((p['slug'] + (os.path.basename(src) if src else '')).encode()).hexdigest()[:12]
+    try:
+        t['cover'] = cover_from(src, key) if src else cover_name(p['name'], key)
+    except Exception:
+        t['cover'] = cover_name(p['name'], key)
     t['dest'] = ('official:' + p['official']) if p.get('kind') == 'official' and p.get('official') in OFF else 'org:' + p['slug']
     return t
 
@@ -110,9 +160,9 @@ for app in ('cb6', 'bk', 'beyond'):
     heads = []
     for head, title, lid, ps in sections:
         T['lists'][lid] = [tile(p) for p in ps]
-        cover = next((tile(p)['org'] for p in ps if tile(p).get('org')), None)
+        cover = next((tile(p)['cover'] for p in ps if not tile(p)['cover'].startswith('dir-n-')), tile(ps[0])['cover'])
         sec = {'title': '%s · %s' % (title, '{:,}'.format(len(ps))), 'symbol': 'square.grid.2x2.fill', 'dest': 'screen:tools:' + lid}
-        if cover: sec['org'] = cover
+        sec['cover'] = cover
         hid = 'dir-sections-' + slug(head)
         T['lists'].setdefault(hid, []).append(sec)
         if hid not in heads: heads.append(hid)
@@ -132,4 +182,12 @@ for app in ('cb6', 'bk', 'beyond'):
     S['screens']['directory'] = parts[:i] + new + parts[i:]
     ind = len(re.match(r'\{\n( *)', raw).group(1)) if raw.startswith('{\n') else None
     open(sf, 'w', encoding='utf-8').write(json.dumps(S, ensure_ascii=False, indent=ind) + ('\n' if raw.endswith('\n') else ''))
+# covers no list uses any more come off
+used = set()
+for app in ('cb6', 'bk', 'beyond'):
+    for k, v in json.load(open(P('app/data/civic/ui', app, 'tools.json')))['lists'].items():
+        for b in v: used.add(b.get('cover'))
+for f in os.listdir(ICONS):
+    if f.startswith('dir-') and f.rsplit('.', 1)[0] not in used: os.remove(os.path.join(ICONS, f))
+print('covers:', len([f for f in os.listdir(ICONS) if f.startswith('dir-')]))
 print('sections (CBNYC):', len(sections), '| tiles:', total, '| profiles in the Directory file:', len(D['profiles']))
