@@ -37,6 +37,7 @@ SKIP_LINKS = ('/calendar', '/citywide-search', '/o/', '/park/rules', '/parks-pol
 idx = J('data/profile-index.json')
 
 def site_page(p):
+    if p['slug'].startswith('sch-'): return '/school/' + p['slug'][4:]   # every school's profile (scripts/school_directory.py)
     for t, u in p.get('links', []):
         if t in ('Full profile', 'Profile and map', 'Full park profile', 'Full page') and u.startswith('https://bkcb6.app'):
             return u.replace('https://bkcb6.app', '')
