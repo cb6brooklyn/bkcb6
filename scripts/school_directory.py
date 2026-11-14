@@ -156,6 +156,12 @@ D['profiles'] = [p for p in D['profiles'] if not p['slug'].startswith('sch-')]
 names_have = {nk(p['name']) for p in D['profiles'] if p.get('topic') == 'Schools'}
 made = new_pages = entries = 0
 nlogo = collections.Counter()
+WEBF = P('data/schools-web/web.json')
+WEB = json.load(open(WEBF)) if os.path.exists(WEBF) else {}
+WEBLOGO = P('assets/school-logos/web')
+def grades(g):
+    m = {'PK': 'Pre-K', '0K': 'K', 'SE': 'special education', '3K': '3-K'}
+    return ', '.join(m.get(x, x.lstrip('0') or x) for x in g.split(',') if x)
 SD = lambda n: '<a href="/school-district-%s/">District %s</a> &middot; <a href="/cec-district-%s/">CEC %s</a>' % (n, n, n, n)
 for s in schools:
     f = s['fac']; r = s['src'] or {}
@@ -169,6 +175,19 @@ for s in schools:
         city = '%s, NY %s' % (s['boro'] or BK.get((f.get('city') or '').upper(), (f.get('city') or '').title()), f.get('zipcode') or '')
     else:
         city = '%s, NY' % s['boro'] if s['boro'] else ''
+    w = WEB.get(s['slug']) or {}
+    if w.get('address'):
+        st, _, rest = w['address'].partition(', ')
+        street, city = st, rest or city
+    phone = w.get('phone') or phone
+    if w.get('doe_url'):
+        kv = [x for x in kv if x[0] not in ('Principal', 'Grades', 'DBN')]
+        if w.get('leader'): kv.append(['School leader', E(re.sub(r',\s*', ', ', w['leader']))])
+        if w.get('grades'): kv.append(['Grades', E(grades(w['grades']))])
+        if w.get('accessibility'): kv.append(['Accessibility', E(w['accessibility'])])
+        if w.get('space'): kv.append(['Building', E(w['space'])])
+        if w.get('dbn') and not s['dbn']: s['dbn'] = w['dbn']
+    weburl = w.get('website_final') or w.get('website') or ''
     if not any(k == 'Type' for k, _ in kv): kv.insert(0, ['Type', E(s['kind'])])
     if f and not s['src']:
         kv.append(['Run by', E(f.get('opname') if f.get('optype') != 'Non-public' else 'Independent (non-public)')])
@@ -190,7 +209,9 @@ for s in schools:
     intro += [re.sub(r'^An? [^.]*\.\s*', '', p) for p in (r.get('what') or []) if re.sub(r'^An? [^.]*\.\s*', '', p)]
     if f and not s['src']:
         intro.append('It is run by %s.' % E(f['opname']) if f.get('optype') != 'Non-public' else 'It is an independent school, overseen by the New York State Education Department.')
-    links = []
+    if w.get('desc') and re.search(r'admissions process|myschools|mascot|^["\u201c\u2018\']|click here|sign up', w['desc'], re.I): w['desc'] = ''
+    if w.get('desc'): intro.append('In its own words: &ldquo;%s&rdquo;' % E(w['desc']))
+    links = [('Its website', weburl, True)] if weburl else []
     if s['dbn'] and re.match(r'^\d\d[KMXQR]\d{3}$', s['dbn']):
         links += [('NYC Public Schools page', 'https://www.schools.nyc.gov/schools/' + s['dbn'][2:], True), ('InsideSchools', 'https://insideschools.org/school/' + s['dbn'], True)]
     if sdnum: links += [('School District %s' % sdnum, '/school-district-%s/' % sdnum, False), ('Community Education Council %s' % sdnum, '/cec-district-%s/' % sdnum, False)]
@@ -199,6 +220,7 @@ for s in schools:
     lg = LOGO.get(nk(s['name'])) or next((p for rx, p in LOGORX if rx.search(s['name'])), None)
     own = OWN.get(s['slug'])
     if not lg and own and own.get('logo') and os.path.exists(os.path.join(LOGOS_DIR, own['logo'])): lg = os.path.join(LOGOS_DIR, own['logo'])
+    if not lg and w.get('logo') and os.path.exists(os.path.join(WEBLOGO, s['slug'] + '.png')): lg = os.path.join(WEBLOGO, s['slug'] + '.png'); nlogo['from its website'] += 1
     if not lg and (s['dbn'] or (f.get('opabbrev') == 'NYCDOE' and s['topic'] in ('Public schools', 'Special education schools'))): lg = NYCPS
     nlogo['own' if lg and lg != NYCPS else 'nycps' if lg else 'none'] += 1
     weblogo = ('/' + os.path.relpath(lg, ROOT)) if lg else ''
@@ -206,7 +228,7 @@ for s in schools:
     o = {'slug': 'school-' + s['slug'], 'outfile': P('school', s['slug'] + '.html'), 'unsigned': True, 'name': E(s['name']), 'title': E(s['name']),
          'seat': E(s['kind']) + ((' &middot; ' + E(hood or s['boro'])) if (hood or s['boro']) else ''), 'desc': E('%s, %s %s%s.' % (s['name'], a, s['kind'].lower(), (' in ' + s['boro']) if s['boro'] else '')),
          'intro': intro, 'does': [], 'does_title': 'What it does', 'kv': kv, 'links': links, 'addr': E(street), 'zip': (f or {}).get('zipcode', ''), 'cityline': E(city) or ' ',
-         'addr_note': '', 'phone': phone, 'tel': re.sub(r'\D', '', phone), 'email': '', 'web': '', 'weburl': '', 'since': '', 'lat': '%.6f' % s['lat'], 'lng': '%.6f' % s['lng']}
+         'addr_note': '', 'phone': phone, 'tel': re.sub(r'\D', '', phone), 'email': '', 'web': re.sub(r'^https?://(www\.)?', '', weburl).rstrip('/'), 'weburl': weburl, 'since': '', 'lat': '%.6f' % s['lat'], 'lng': '%.6f' % s['lng']}
     if sdnum: o['area'] = {'chamber': 'school', 'district': sdnum, 'noun': 'school district', 'caption': 'the school and School District %s' % sdnum}
     if not lg: o['nologo'] = True
     G['ORGS'] = [o]
@@ -219,6 +241,10 @@ for s in schools:
     t = t.replace('its boundary, the office, overlaps, land use', 'its boundary, the school, overlaps, land use')
     if r.get('cb6dir'): t = t.replace('  <div class="sec"><h2>Contact</h2>', '  ' + r['cb6dir'] + '\n  <div class="sec"><h2>Contact</h2>', 1)
     foot = r.get('foot') or ('From the NYC Department of City Planning Facilities Database (NYC Open Data ji82-xba5), schools K-12, which draws on the Department of Education and the New York State Education Department.<br>\n  <a href="/citywide-search.html">Search any address</a> &middot; <a href="/">bkcb6.app</a>')
+    if w.get('checked'):
+        bits = (["NYC Public Schools' page for the school (address, phone, school leader, grades), read %s" % w['checked']] if w.get('doe_url') else []) + \
+               (['its description and logo from its own website, read %s' % w['checked']] if (w.get('desc') or w.get('logo')) and weburl else [])
+        if bits: foot = foot.replace('<br>', '. Also from ' + ' and '.join(bits) + '.<br>', 1) if '<br>' in foot else foot + ' Also from ' + ' and '.join(bits) + '.'
     t = re.sub(r'<div class="pfoot">.*?</div>', lambda m: '<div class="pfoot">' + foot + '</div>', t, count=1, flags=re.S)
     if r.get('beacon') and 'cloudflareinsights' not in t: t = t.replace('</body>', r['beacon'] + '\n</body>', 1)
     keep = r if s['src'] else {'new': True, 'slug': s['slug']}
@@ -236,7 +262,7 @@ for s in schools:
     D['profiles'].append({'slug': 'sch-' + s['slug'], 'type': 'school', 'name': s['name'], 'seat': s['kind'] + ((' · ' + (hood or s['boro'])) if (hood or s['boro']) else ''),
         'desc': '%s, %s %s%s.' % (s['name'], a, s['kind'].lower(), (' in ' + s['boro']) if s['boro'] else ''),
         'lat': round(s['lat'], 6), 'lng': round(s['lng'], 6), 'addr': street, 'zip': (f or {}).get('zipcode', ''), 'addr_note': '', 'cityline': city,
-        'phone': phone, 'email': '', 'web': '', 'weburl': '', 'since': '',
+        'phone': phone, 'email': '', 'web': re.sub(r'^https?://(www\.)?', '', weburl).rstrip('/'), 'weburl': weburl, 'since': '',
         'intro': [html.unescape(re.sub(r'<[^>]+>', '', p)) for p in intro], 'does': [], 'kv': akv,
         'links': [[l, u if u.startswith('http') else 'https://bkcb6.app' + u] for l, u, hot in links if hot],
         'logo': logo, 'cal': '', 'n': 0, 'going': [], 'kind': 'org', 'official': '', 'group': 'Schools', 'topic': s['topic'], 'sort': 0,
@@ -297,3 +323,7 @@ json.dump(T, open(pf, 'w', encoding='utf-8'), ensure_ascii=False, indent=0, sort
 print('school pages in the Directory format:', made, '| new pages:', new_pages, '| school entries in the apps Directory:', entries,
       '| CEC and school district entries added:', cecs, '| logos:', dict(nlogo))
 print('by kind:', dict(collections.Counter(s['topic'] for s in schools)))
+# the roster the web pass (scripts/school_web.py) works from
+json.dump([{'slug': s['slug'], 'name': s['name'], 'dbn': s['dbn'], 'boro': s['boro'], 'topic': s['topic'], 'lat': s['lat'], 'lng': s['lng'],
+            'addr': (s['fac'] or {}).get('address') or next((re.sub(r'<[^>]+>', '', v) for k, v in s['kv'] if k == 'Address'), ''),
+            'zip': (s['fac'] or {}).get('zipcode', '')} for s in schools], open(P('data/schools-web/roster.json'), 'w'), ensure_ascii=False, indent=0)
