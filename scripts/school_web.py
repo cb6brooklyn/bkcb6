@@ -181,8 +181,8 @@ def fetch_logo(slug, cands):
             # a white logo made for a dark header: keep it on the school site's own dark ground, our navy
             pad = max(8, im.width // 12); bgim = Image.new('RGBA', (im.width + 2 * pad, im.height + 2 * pad), (13, 27, 75, 255))
             bgim.alpha_composite(im, (pad, pad)); im = bgim
-        if max(im.size) > 600: im.thumbnail((600, 600), Image.LANCZOS)
-        im.save(os.path.join(LOGO, slug + '.png'), optimize=True)
+        if max(im.size) > 300: im.thumbnail((300, 300), Image.LANCZOS)
+        im.quantize(colors=128, method=Image.Quantize.FASTOCTREE).save(os.path.join(LOGO, slug + '.png'), optimize=True)
         return u, kind
     return '', ''
 
