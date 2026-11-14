@@ -33,7 +33,11 @@ def cover_from(src, key):
     out = os.path.join(ICONS, name + '.jpg')
     if name not in MADE:
         if not os.path.exists(out):
-            im = Image.open(src).convert('RGBA')
+            if src.lower().endswith('.svg'):
+                import cairosvg, io
+                im = Image.open(io.BytesIO(cairosvg.svg2png(url=src, output_width=720))).convert('RGBA')
+            else:
+                im = Image.open(src).convert('RGBA')
             # trim the white or empty margin the logo file carries, so the logo fills the tile
             bg = Image.new('RGBA', im.size, (255, 255, 255, 255)); flat = Image.alpha_composite(bg, im).convert('RGB')
             from PIL import ImageChops
@@ -65,14 +69,64 @@ def cover_name(title, key):
             c.quantize(colors=8).save(out, optimize=True)
         MADE.add(name)
     return name
+# The logos we already have, for the profiles that carry none: the liquor directories' business logos (by name,
+# store numbers dropped), the school, health, place, culture and Gowanus logo sets (by name), and for facilities the
+# logo of who runs them (MTA, Citi Bike, FDNY, BPL, Board of Elections, NYC Parks, GrowNYC, NYCHA, HPD, DOHMH, NYCPS).
+import glob as _glob, html as _html
+def _k(s):
+    s = _html.unescape(s or '').lower().replace('&', ' and ')
+    s = re.sub(r'#\s*\d+|\b(inc|llc|corp|corporation|co|ltd|the)\b|\d{2,}.*$', ' ', s)
+    return re.sub(r'[^a-z0-9]', '', s)
+_n = lambda s: re.sub(r'[^a-z0-9]', '', _html.unescape(s or '').lower().replace('&', 'and'))
+LQ = {}
+for _f in sorted(_glob.glob(P('liquor/*/liquor_directory.json'))):
+    for r in json.load(open(_f))['businesses']:
+        if r.get('logo') and os.path.exists(P(r['logo'].lstrip('/'))):
+            for n in (r.get('display_name'), r.get('dba'), r.get('legal_name')):
+                if n and len(_k(n)) >= 4: LQ.setdefault(_k(n), P(r['logo'].lstrip('/')))
+SETS = {}
+for _d, _pre in (('app/data/civic/orgs/logos', ''), ('site-icons', ''), ('site-icons/sq', ''), ('cbo', ''), ('assets/school-logos', 'school-')):
+    for _f in sorted(os.listdir(P(_d))):
+        if re.search(r'\.(png|jpe?g)$', _f, re.I):
+            b = re.sub(r'\.(png|jpe?g)$', '', _f, flags=re.I)
+            for x in (b, re.sub(r'^(place|health|school|culture|biz|org)-', '', b)):
+                SETS.setdefault(_n(x), P(_d, _f))
+for _sn, _f in json.load(open(P('assets/school-logos/logos.json'))).items():
+    if os.path.exists(P('assets/school-logos', _f)): SETS.setdefault(_n(_sn), P('assets/school-logos', _f))
+LG = lambda *a: P(*a) if os.path.exists(P(*a)) else None
+BRAND = {'mta': LG('assets/map-icons/mta.png') or LG('app/data/civic/mapicons/mta.png'), 'citibike': LG('assets/map-icons/citibike.png'),
+         'fdny': LG('app/data/civic/orgs/logos/agency-fdny.png'), 'bpl': LG('app/data/civic/orgs/logos/bpl.png'),
+         'boe': LG('app/data/civic/orgs/logos/agency-boe.png'), 'parks': LG('app/data/civic/orgs/logos/nycparks.png'),
+         'grownyc': LG('assets/map-icons/grownyc.png'), 'nycha': LG('assets/agency-logos/nycha.png'), 'hpd': LG('app/data/civic/orgs/logos/hpd.png'),
+         'dohmh': LG('app/data/civic/orgs/logos/agency-dohmh.png'), 'nycps': LG('assets/map-icons/schools-nycps.png'), 'hh': LG('app/data/civic/orgs/logos/agency-h-plus-h.png')}
+def have_logo(p):
+    nm, tp, ty = _html.unescape(p.get('name', '')), p.get('topic') or '', (p.get('type') or '').lower()
+    k = _k(nm)
+    for x in (_n(nm), _n(re.sub(r'^cbo-', '', p['slug']))):
+        if len(x) >= 4 and x in SETS: return SETS[x]
+    if len(k) >= 4 and k in LQ: return LQ[k]
+    low = nm.lower()
+    if tp == 'Subway stations and Citi Bike': return BRAND['citibike'] if ('citi' in low or '&' in nm or ' pl' in low or 'bike' in ty) else BRAND['mta']
+    if tp == 'Firehouses': return BRAND['fdny']
+    if tp == 'Libraries' or ('library' in low and tp == 'Culture and institutions'): return BRAND['bpl']
+    if tp == 'Poll sites': return BRAND['boe']
+    if tp == 'Farmers markets' and 'greenmarket' in low: return BRAND['grownyc']
+    if tp == 'Housing sites': return BRAND['nycha'] if 'nycha' in low else BRAND['hpd']
+    if tp == 'Child care and pre-K': return BRAND['nycps'] if re.search(r'\b(pre-?k|3-?k|p\.?s\.?\s*\d|nyc ?ps)\b', low) else BRAND['dohmh']
+    if 'nyc health + hospitals' in low or 'h+h' in low: return BRAND['hh']
+    if tp in ('Parks and playgrounds', 'Parks', 'Parks, playgrounds and gardens') or ty in ('park', 'playground', 'court', 'field'): return BRAND['parks']
+    return None
+
 def tile(p):
-    t = {'title': p['name'], 'symbol': 'building.2.fill'}
+    t = {'title': _html.unescape(p['name']), 'symbol': 'building.2.fill'}
     src = None
     if p.get('kind') == 'official' and p.get('official') in OFF:
         f = P('app/data/civic/officials', p['official'] + '.png')
         if os.path.exists(f): src = f
     elif p.get('logo') in LOGOS:
         src = P('app/data/civic/orgs/logos', p['logo'])
+    else:
+        src = have_logo(p)
     key = hashlib.sha1((p['slug'] + (os.path.basename(src) if src else '')).encode()).hexdigest()[:12]
     try:
         t['cover'] = cover_from(src, key) if src else cover_name(p['name'], key)
