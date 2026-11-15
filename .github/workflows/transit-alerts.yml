@@ -1,0 +1,39 @@
+name: Transit alerts
+
+# Subway and bus service alerts for the apps' notifications: app/data/civic/alerts/transit.json from the MTA's
+# public alerts feed. Commits only when the alerts change; the push runs App pack, which tells the apps.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: transit-alerts
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build the alerts
+        run: python scripts/build_transit_alerts.py
+      - name: Commit
+        run: |
+          git config user.email "Mike@bkcb6.org"
+          git config user.name "Mike Racioppo"
+          git add app/data/civic/alerts
+          git diff --cached --quiet && exit 0
+          git commit -m "Transit alerts $(date -u +%Y-%m-%dT%H:%M)"
+          for i in 1 2 3 4 5; do
+            git pull --rebase --autostash -q origin main && git push && exit 0
+            sleep 10
+          done
+          exit 1
