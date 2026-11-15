@@ -30,7 +30,7 @@ MADE = set()
 def cover_from(src, key):
     """The organization's logo, whole, on a white tile (as the Gowanus community-based organizations grid draws it)."""
     name = 'dir-' + key
-    out = os.path.join(ICONS, name + '.jpg')
+    out = os.path.join(ICONS, name + '.png')   # PNG: the apps' cover art reads civic/icons/<name>.png (the hub tiles are PNG)
     if name not in MADE:
         if not os.path.exists(out):
             if src.lower().endswith('.svg'):
@@ -47,7 +47,7 @@ def cover_from(src, key):
             s = min((CW - 24) / im.width, (CH - 24) / im.height)
             im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.LANCZOS)
             c.paste(im, ((CW - im.width) // 2, (CH - im.height) // 2), im)
-            c.save(out, quality=72, optimize=True)
+            c.quantize(colors=128, method=Image.Quantize.FASTOCTREE).save(out, optimize=True)
         MADE.add(name)
     return name
 def cover_name(title, key):
