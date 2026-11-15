@@ -172,12 +172,19 @@ from shapely.strtree import STRtree as _STR
 _HF = json.load(open(P('data/city-neighborhoods.geojson')))['features']
 _HG = [_shape(x['geometry']) for x in _HF]; _HT = _STR(_HG)
 BOROS5 = ('Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island')
+from shapely.geometry import Polygon as _Poly
+_CB6H = [(n, _Poly(rings[0])) for n, rings in json.load(open(P('app/data/civic/hoods-cb6.json'))).items()]
 def area_of(p):
     b = (p.get('culture_where') or p.get('where') or '')
     b = b if b in BOROS5 else ''
     h = ''
     try: lat, lng = float(p.get('lat') or 0), float(p.get('lng') or 0)
     except Exception: lat = lng = 0
+    if lat and lng and p.get('group') == 'Local businesses':
+        # BKCB6's businesses: the district's own six neighborhoods (hoods-cb6.json), the nearest one for a spot on an edge
+        pt = _Point(lng, lat)
+        h = next((n for n, g in _CB6H if g.contains(pt)), None) or min(_CB6H, key=lambda ng: ng[1].distance(pt))[0]
+        return b or 'Brooklyn', h
     if lat and lng:
         pt = _Point(lng, lat)
         for i in _HT.query(pt):
@@ -422,3 +429,5 @@ print('logo copies removed:', gone)
 print('sections (CBNYC):', len(sections), '| tiles:', total, '| profiles in the Directory file:', len(D['profiles']))
 # the screen's layout: dropdowns, compact logo grids and the map (app_directory_layout.py)
 import runpy; runpy.run_path(P('scripts/app_directory_layout.py'), run_name='__main__')
+# the Directory inside every board and legislative district (directory_in_district.py)
+runpy.run_path(P('scripts/directory_in_district.py'), run_name='__main__')
