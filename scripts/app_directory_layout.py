@@ -13,9 +13,15 @@ INLINE = 12          # a category this size or smaller shows its logos inside th
 COLS = 3
 GROUP = [('Schools by borough, ', 'Schools by borough'), ('Community-based organizations, ', 'Community-based organizations')]
 
-def grid(app, lid):
+NARROW = 48          # a category longer than this is narrowed: by borough, then by neighborhood
+NOCOUNT = {'Things to do in parks'}   # its categories overlap (a park has several courts), so no total
+BORDER = {'cb6': ['Brooklyn', 'Manhattan', 'Bronx', 'Queens', 'Staten Island'], 'bk': ['Brooklyn', 'Manhattan', 'Bronx', 'Queens', 'Staten Island'],
+          'beyond': ['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island']}
+sl = lambda x: re.sub(r'[^a-z0-9]+', '-', x.lower()).strip('-')
+
+def grid(app, lid, where=None):
     return {'type': 'each', 'columns': COLS, 'spacing': 8,
-            'data': {'file': 'civic/ui/%s/tools.json' % app, 'at': 'lists.' + lid},
+            'data': dict({'file': 'civic/ui/%s/tools.json' % app, 'at': 'lists.' + lid}, **({'where': where} if where else {})),
             'item': {'type': 'v', 'spacing': 4, 'dest': '{dest}', 'maxWidth': 'full', 'align': 'top',
                      'children': [
                          {'type': 'image', 'tile': '{cover}', 'height': 96, 'maxWidth': 'full', 'align': 'center',
@@ -50,11 +56,52 @@ def build(app):
     for k in [k for k, v in repl.items() if k.startswith('tools:dir-') and str(v).startswith('node:dirl-')]: del repl[k]
     titles = S.get('titles', {})
     # every dir-* list opens as the compact grid
+    import collections
+    def hoods(lid, t, items, b, name):
+        """Rows of the neighborhoods these entries are in, each opening its own grid."""
+        kids = []
+        hc = collections.Counter(x.get('h') or '' for x in items)
+        for h in sorted(k for k in hc if k):
+            nm = '%s--h-%s' % (name, sl(h))
+            nodes[nm] = {'type': 'v', 'spacing': 10, 'title': '%s, %s' % (t, h), 'children': [grid(app, lid, dict({'h': h}, **({'b': b} if b else {})))]}
+            kids.append(row('%s · %d' % (h, hc[h]), 'node:' + nm))
+        if hc.get(''):
+            nm = name + '--h-none'
+            nodes[nm] = {'type': 'v', 'spacing': 10, 'title': t, 'children': [grid(app, lid, dict({'h': ''}, **({'b': b} if b is not None else {})))]}
+            kids.append(row('No neighborhood on file · %d' % hc[''], 'node:' + nm))
+        return kids
     for lid, items in T.items():
         if not lid.startswith('dir-') or lid.startswith('dir-sections-'): continue
         t = titles.get(lid, {}).get('title') or lid
-        nodes['dirl-' + lid] = {'type': 'v', 'spacing': 10, 'title': t, 'children': [grid(app, lid)]}
-        repl['tools:' + lid] = 'node:dirl-' + lid
+        name = 'dirl-' + lid
+        repl['tools:' + lid] = 'node:' + name
+        if len(items) <= NARROW:
+            nodes[name] = {'type': 'v', 'spacing': 10, 'title': t, 'children': [grid(app, lid)]}
+            continue
+        nodes[name + '--all'] = {'type': 'v', 'spacing': 10, 'title': t, 'children': [grid(app, lid)]}
+        kids = [row('All %s, A to Z' % '{:,}'.format(len(items)), 'node:' + name + '--all')]
+        bc = collections.Counter(x.get('b') or '' for x in items)
+        real = [b for b in BORDER[app] if bc.get(b)]
+        if len(real) > 1:
+            kids.append(sub('Or pick a borough'))
+            for b in real:
+                sub_items = [x for x in items if (x.get('b') or '') == b]
+                nm = '%s--b-%s' % (name, sl(b))
+                if len(sub_items) <= NARROW:
+                    nodes[nm] = {'type': 'v', 'spacing': 10, 'title': '%s, %s' % (t, b), 'children': [grid(app, lid, {'b': b})]}
+                else:
+                    nodes[nm + '--all'] = {'type': 'v', 'spacing': 10, 'title': '%s, %s' % (t, b), 'children': [grid(app, lid, {'b': b})]}
+                    nodes[nm] = {'type': 'v', 'spacing': 8, 'title': '%s, %s' % (t, b), 'children':
+                                 [row('All %s in %s' % ('{:,}'.format(len(sub_items)), b), 'node:' + nm + '--all'), sub('Or pick a neighborhood')] + hoods(lid, t, sub_items, b, nm)}
+                kids.append(row('%s · %s' % (b, '{:,}'.format(len(sub_items))), 'node:' + nm))
+            if bc.get(''):
+                nm = name + '--b-none'
+                nodes[nm] = {'type': 'v', 'spacing': 10, 'title': t, 'children': [grid(app, lid, {'b': ''})]}
+                kids.append(row('No address on file · %s' % '{:,}'.format(bc['']), 'node:' + nm))
+        else:
+            kids.append(sub('Or pick a neighborhood'))
+            kids += hoods(lid, t, items, None, name)
+        nodes[name] = {'type': 'v', 'spacing': 8, 'title': t, 'children': kids}
 
     def content(sec):
         items = T[sec['list']]
@@ -90,13 +137,13 @@ def build(app):
         else:
             head, kids, n = v
         new.append({'gen': 'dir', 'kind': 'node', 'fold': True, 'open': False, 'id': 'dir-' + re.sub(r'[^a-z0-9]+', '-', head.lower()).strip('-'),
-                    'title': head if n == 1 else '%s · %s' % (head, '{:,}'.format(n)), **({'icon': 'logo:cb306'} if head == 'Brooklyn Community Board 6' else {}),
+                    'title': head if n == 1 or head in NOCOUNT else '%s · %s' % (head, '{:,}'.format(n)), **({'icon': 'logo:cb306'} if head == 'Brooklyn Community Board 6' else {}),
                     'node': {'type': 'v', 'spacing': 8, 'children': kids}})
     i = next((k + 1 for k, p in enumerate(keep) if p.get('id') == 'survey-button'), 0)
     S['screens']['directory'] = keep[:i] + new + keep[i:]
     nodes['dirmap'] = dirmap(app)
-    ind = len(re.match(r'\{\n( *)', raw).group(1)) if raw.startswith('{\n') else None
-    open(sf, 'w', encoding='utf-8').write(json.dumps(S, ensure_ascii=False, indent=ind) + ('\n' if raw.endswith('\n') else ''))
+    # written compact: the narrowing screens make this a big file, and every phone downloads it
+    open(sf, 'w', encoding='utf-8').write(json.dumps(S, ensure_ascii=False, separators=(',', ':')) + '\n')
     return len(new) - 1
 
 # ---- the map ----
@@ -125,7 +172,7 @@ def mapfile(app):
                  'Schools, parks and facilities': 'cb6-places', 'Business improvement districts': 'cb6-groups'}.get(g, 'cb6-gov')
         else:
             b = p.get('where') if p.get('where') in BORO else 'other'
-            k = {'Community boards': 'boards', 'Elected officials': 'officials', 'Government agencies': 'agencies', 'Culture': 'culture'}.get(g)
+            k = {'Community boards': 'boards', 'Elected officials': 'officials', 'Government agencies': 'agencies', 'Culture': 'culture', 'Parks': 'parks'}.get(g)
             if not k:
                 k = {'Schools': 'schools-', 'Community groups': 'groups-', 'Local businesses': 'biz-',
                      'Schools, parks and facilities': 'places-', 'Business improvement districts': 'groups-'}.get(g, 'groups-') + b
@@ -148,7 +195,8 @@ def dirmap(app):
               layer('cb6-schools', 'BKCB6 schools', False, 9000), layer('cb6-places', 'BKCB6 parks, libraries and facilities', False, 9000),
               layer('cb6-biz', 'BKCB6 local businesses', False, 4000, 30)]
     L += [layer('boards', 'Community boards', True), layer('officials', "Elected officials' offices", app != 'cb6'),
-          layer('agencies', 'Government agencies', False, 20000), layer('culture', 'Theatres, museums, stadiums and movie theaters', False)]
+          layer('agencies', 'Government agencies', False, 20000), layer('culture', 'Theatres, museums, stadiums and movie theaters', False),
+          layer('parks', 'Parks with courts and fields', False, 12000, 30)]
     for b in BORO + ['other']:
         for pre, t in (('schools-', 'Schools'), ('groups-', 'Community groups'), ('places-', 'Parks and facilities'), ('biz-', 'Businesses')):
             if pre + b in ks:

@@ -166,6 +166,25 @@ def have_logo(p):
     if tp in ('Parks and playgrounds', 'Parks', 'Parks, playgrounds and gardens') or ty in ('park', 'playground', 'court', 'field'): return BRAND['parks']
     return None
 
+# the borough and neighborhood of a profile (data/city-neighborhoods.geojson, the neighborhoods the site's maps use)
+from shapely.geometry import shape as _shape, Point as _Point
+from shapely.strtree import STRtree as _STR
+_HF = json.load(open(P('data/city-neighborhoods.geojson')))['features']
+_HG = [_shape(x['geometry']) for x in _HF]; _HT = _STR(_HG)
+BOROS5 = ('Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island')
+def area_of(p):
+    b = (p.get('culture_where') or p.get('where') or '')
+    b = b if b in BOROS5 else ''
+    h = ''
+    try: lat, lng = float(p.get('lat') or 0), float(p.get('lng') or 0)
+    except Exception: lat = lng = 0
+    if lat and lng:
+        pt = _Point(lng, lat)
+        for i in _HT.query(pt):
+            if _HG[i].contains(pt):
+                h = _HF[i]['properties']['nb']; b = b or _HF[i]['properties'].get('boro', '')
+                break
+    return b, h
 TILEMEMO = {}
 def tile(p):
     if p['slug'] in TILEMEMO: return dict(TILEMEMO[p['slug']])
@@ -201,6 +220,9 @@ def tile(p):
         if lg.startswith(('sch-', 'cbo-', 'cul-')) and src and not t['cover'].startswith('dir-k-'):
             p['logo'] = '../../icons/%s.png' % t['cover']
     t['dest'] = ('official:' + p['official']) if p.get('kind') == 'official' and p.get('official') in OFF else 'org:' + p['slug']
+    # where it is, so a long category can be narrowed to a borough and then a neighborhood
+    b, h = area_of(p)
+    t['b'] = b; t['h'] = h
     TILEMEMO[p['slug']] = dict(t)
     return t
 
@@ -321,6 +343,11 @@ for t in ('Museums', 'Movie theaters'):
     for b in BORO:
         ps = byname([p for p in CULT if ctop(p) == t and (p.get('culture_where') or p.get('where')) == b])
         if ps: common.append(('Theatres, museums, stadiums and movie theaters', '%s, %s' % (t, b), 'dir-cul-' + slug(t) + '-' + slug(b), ps))
+# things to do in parks: every activity, then (in the app) a borough, then a neighborhood (park_profiles.py)
+_ACT = json.load(open(P('data/park-activities.json'))) if os.path.exists(P('data/park-activities.json')) else {}
+for code, label in sorted(_ACT.items(), key=lambda kv: kv[1]):
+    ps = byname([p for p in D['profiles'] if code in (p.get('acts') or [])])
+    if ps: common.append(('Things to do in parks', label, 'dir-act-' + code.lower(), ps))
 # the community-based organizations: by borough, then by policy area
 CATS = [c for c, _ in sorted(__import__('collections').Counter(cat(p) for p in cbo).items(), key=lambda kv: -kv[1]) if c]
 for b in BORO + ['Outside NYC', '']:
