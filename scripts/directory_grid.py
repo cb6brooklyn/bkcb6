@@ -125,7 +125,7 @@ def main():
     json.dump(data, open(os.path.join(ROOT, 'profiles/tiles.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
     page = open(os.path.join(ROOT, 'scripts/directory_grid.html'), encoding='utf-8').read()
     page = page.replace('__N__', f'{len(tiles):,}').replace('__V__', str(abs(hash(json.dumps(data))) % 10**8))
-    open(os.path.join(ROOT, 'profiles/index.html'), 'w', encoding='utf-8').write(page)
+    # the page itself is now the interactive Directory (scripts/directory_web.py); this script keeps tiles.json
     print(len(tiles), 'tiles;', sum(1 for t in tiles if t[2]), 'with logos;', sum(t[5] for t in tiles), 'link out')
 
 if __name__ == '__main__':

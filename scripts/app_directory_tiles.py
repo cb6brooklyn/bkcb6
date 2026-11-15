@@ -431,3 +431,6 @@ print('sections (CBNYC):', len(sections), '| tiles:', total, '| profiles in the 
 import runpy; runpy.run_path(P('scripts/app_directory_layout.py'), run_name='__main__')
 # the Directory inside every board and legislative district (directory_in_district.py)
 runpy.run_path(P('scripts/directory_in_district.py'), run_name='__main__')
+# the Directory on the site, from the same entries (directory_web.py)
+import subprocess, sys
+subprocess.run([sys.executable, P('scripts/directory_web.py')], check=True)
