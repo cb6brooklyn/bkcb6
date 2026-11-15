@@ -27,6 +27,7 @@ def category(lid, title):
     if lid.startswith('dir-cul-'): return (4, title.split(', ')[0])
     if lid.startswith('dir-sch-'): return (3, title)
     if lid.startswith('dir-cbo-'): return (7, 'Community organizations: ' + title)
+    if lid.startswith('dir-hosp-'): return (4, 'Hospitals')
     if lid.startswith('dir-agencies-'): return (2, 'Government offices')
     if lid.startswith('dir-officials-'): return (1, "Elected officials' offices")
     if lid.startswith('dir-cb6-groups-'): return (6, 'Community groups: ' + title)

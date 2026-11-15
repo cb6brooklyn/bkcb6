@@ -175,7 +175,7 @@ def mapfile(app):
                  'Schools, parks and facilities': 'cb6-places', 'Business improvement districts': 'cb6-groups'}.get(g, 'cb6-gov')
         else:
             b = p.get('where') if p.get('where') in BORO else 'other'
-            k = {'Community boards': 'boards', 'Elected officials': 'officials', 'Government agencies': 'agencies', 'Culture': 'culture', 'Parks': 'parks'}.get(g)
+            k = {'Community boards': 'boards', 'Elected officials': 'officials', 'Government agencies': 'agencies', 'Culture': 'culture', 'Parks': 'parks', 'Health': 'hospitals'}.get(g)
             if not k:
                 k = {'Schools': 'schools-', 'Community groups': 'groups-', 'Local businesses': 'biz-',
                      'Schools, parks and facilities': 'places-', 'Business improvement districts': 'groups-'}.get(g, 'groups-') + b
@@ -199,7 +199,7 @@ def dirmap(app):
               layer('cb6-biz', 'BKCB6 local businesses', False, 4000, 30)]
     L += [layer('boards', 'Community boards', True), layer('officials', "Elected officials' offices", app != 'cb6'),
           layer('agencies', 'Government agencies', False, 20000), layer('culture', 'Theatres, museums, stadiums and movie theaters', False),
-          layer('parks', 'Parks with courts and fields', False, 12000, 30)]
+          layer('parks', 'Parks with courts and fields', False, 12000, 30), layer('hospitals', 'Hospitals', False)]
     for b in BORO + ['other']:
         for pre, t in (('schools-', 'Schools'), ('groups-', 'Community groups'), ('places-', 'Parks and facilities'), ('biz-', 'Businesses')):
             if pre + b in ks:
