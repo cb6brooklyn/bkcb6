@@ -348,7 +348,7 @@ for app in ('cb6', 'bk', 'beyond'):
     S.setdefault('titles', {})
     for head, title, lid, ps in sections:
         S['titles'][lid] = {'title': title, 'subtitle': '%s · %s on the Directory' % (head, '{:,}'.format(len(ps)))}
-    parts = [p for p in S['screens']['directory'] if not str(p.get('list', '')).startswith('dir-sections-')]
+    parts = [p for p in S['screens']['directory'] if not str(p.get('list', '')).startswith('dir-sections-') and p.get('gen') != 'dir']
     i = next((k + 1 for k, p in enumerate(parts) if p.get('id') == 'survey-button'), 0)
     new = []
     for hid in heads:
@@ -373,3 +373,5 @@ for f in os.listdir(P('app/data/civic/orgs/logos')):
     if (f.startswith('sch-') or f.startswith('cbo-')) and f not in keep: os.remove(P('app/data/civic/orgs/logos', f)); gone += 1
 print('logo copies removed:', gone)
 print('sections (CBNYC):', len(sections), '| tiles:', total, '| profiles in the Directory file:', len(D['profiles']))
+# the screen's layout: dropdowns, compact logo grids and the map (app_directory_layout.py)
+import runpy; runpy.run_path(P('scripts/app_directory_layout.py'), run_name='__main__')

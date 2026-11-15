@@ -11,7 +11,7 @@ OFF = json.load(open(P('app/data/civic/board-offices.json')))['boards']
 f = P('app/data/civic/orgs/orgs-profiles.json'); D = json.load(open(f, encoding='utf-8'))
 D['profiles'] = [p for p in D['profiles'] if not re.match(r'^cb-(bk|bx|mn|qn|si)-\d+$', p['slug'])]
 cb6 = next(p for p in D['profiles'] if p['slug'] == 'brooklyn-community-board-6')
-cb6.update({'group': 'Community boards', 'topic': 'Brooklyn', 'where': 'Brooklyn', 'cd': '306'})
+cb6.update({'group': 'Community boards', 'topic': 'Brooklyn', 'where': 'Brooklyn', 'cd': '306', 'logo': '../../../Logos/cb306.png'})   # the board's own logo
 n = 0
 for b in B:
     cd = b['borocd']
