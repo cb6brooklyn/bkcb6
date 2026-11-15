@@ -224,7 +224,7 @@ def tile(p):
             t['cover'] = cover_kind(p)
         # the schools' and Council-funded organizations' own logos: the profile reads its tile picture, so the
         # apps carry one file for both, not two
-        if lg.startswith(('sch-', 'cbo-', 'cul-', 'hosp-', 'rx-', 'mkt-')) and src and not t['cover'].startswith('dir-k-'):
+        if lg.startswith(('sch-', 'cbo-', 'cul-', 'hosp-')) and src and not t['cover'].startswith('dir-k-'):
             p['logo'] = '../../icons/%s.png' % t['cover']
     t['dest'] = ('official:' + p['official']) if p.get('kind') == 'official' and p.get('official') in OFF else 'org:' + p['slug']
     # where it is, so a long category can be narrowed to a borough and then a neighborhood
@@ -354,11 +354,6 @@ for t in ('Museums', 'Movie theaters'):
 for b in BORO:
     ps = byname([p for p in D['profiles'] if (p.get('group') == 'Health' and p.get('topic') == 'Hospitals' and p.get('where') == b) or (p.get('hospital') and p.get('hospital_where') == b)])
     if ps: common.append(('Hospitals', b, 'dir-hosp-' + slug(b), ps))
-# pharmacies and supermarkets, by borough (store_profiles.py)
-for head, g, pre in (('Pharmacies', 'Health', 'dir-rx-'), ('Supermarkets', 'Food', 'dir-mkt-')):
-    for b in BORO:
-        ps = byname([p for p in D['profiles'] if p.get('group') == g and p.get('topic') == head and p.get('where') == b])
-        if ps: common.append((head, b, pre + slug(b), ps))
 # things to do in parks: every activity, then (in the app) a borough, then a neighborhood (park_profiles.py)
 _ACT = json.load(open(P('data/park-activities.json'))) if os.path.exists(P('data/park-activities.json')) else {}
 for code, label in sorted(_ACT.items(), key=lambda kv: kv[1]):
@@ -433,7 +428,7 @@ open(P('app/data/civic/orgs/orgs-profiles.json'), 'w', encoding='utf-8').write(j
 keep = {p.get('logo') for p in D['profiles']}
 gone = 0
 for f in os.listdir(P('app/data/civic/orgs/logos')):
-    if f.startswith(('sch-', 'cbo-', 'cul-', 'hosp-', 'rx-', 'mkt-')) and f not in keep: os.remove(P('app/data/civic/orgs/logos', f)); gone += 1
+    if f.startswith(('sch-', 'cbo-', 'cul-', 'hosp-')) and f not in keep: os.remove(P('app/data/civic/orgs/logos', f)); gone += 1
 print('logo copies removed:', gone)
 print('sections (CBNYC):', len(sections), '| tiles:', total, '| profiles in the Directory file:', len(D['profiles']))
 # the screen's layout: dropdowns, compact logo grids and the map (app_directory_layout.py)
