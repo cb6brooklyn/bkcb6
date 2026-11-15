@@ -144,8 +144,8 @@ def dirmap(app):
         return l
     L = []
     if app == 'cb6':
-        L += [layer('cb6-gov', 'BKCB6: board, officials and government', True), layer('cb6-groups', 'BKCB6 community groups', True),
-              layer('cb6-schools', 'BKCB6 schools', True, 9000), layer('cb6-places', 'BKCB6 parks, libraries and facilities', True, 9000),
+        L += [layer('cb6-gov', 'BKCB6: board, officials and government', True), layer('cb6-groups', 'BKCB6 community groups', False),
+              layer('cb6-schools', 'BKCB6 schools', False, 9000), layer('cb6-places', 'BKCB6 parks, libraries and facilities', False, 9000),
               layer('cb6-biz', 'BKCB6 local businesses', False, 4000, 30)]
     L += [layer('boards', 'Community boards', True), layer('officials', "Elected officials' offices", app != 'cb6'),
           layer('agencies', 'Government agencies', False, 20000)]
@@ -155,9 +155,11 @@ def dirmap(app):
                 L.append(layer(pre + b, '%s, %s' % (t, b if b != 'other' else 'outside NYC'), False, 8000, 30))
     L = [l for l in L if l['id'] in ks]
     center = {'cb6': ([40.676, -73.995], 9000), 'bk': ([40.650, -73.950], 30000), 'beyond': ([40.705, -73.950], 60000)}[app]
-    return {'type': 'map', 'title': 'Map of the Directory', 'scroll': False, 'height': 'full', 'corner': 0,
-            'center': center[0], 'distance': center[1], 'search': True, 'searchScope': '306' if app == 'cb6' else ('3' if app == 'bk' else 'city'),
-            'toggles': True, 'layers': L}
+    m = {'type': 'map', 'height': 'full', 'corner': 0,
+         'center': center[0], 'distance': center[1], 'search': True, 'searchScope': '306' if app == 'cb6' else ('3' if app == 'bk' else 'city'),
+         'toggles': True, 'layers': L}
+    # the layer switches sit under the map, clear of the tab bar; only the main ones start on, people turn on the rest
+    return {'type': 'v', 'title': 'Map of the Directory', 'scroll': False, 'spacing': 0, 'children': [m, {'type': 'spacer', 'min': 96}]}
 
 MAPKS = {a: mapfile(a) for a in ('cb6', 'bk', 'beyond')}
 for a in ('cb6', 'bk', 'beyond'):
