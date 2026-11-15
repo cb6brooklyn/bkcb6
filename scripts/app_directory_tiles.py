@@ -198,7 +198,7 @@ def tile(p):
             t['cover'] = cover_kind(p)
         # the schools' and Council-funded organizations' own logos: the profile reads its tile picture, so the
         # apps carry one file for both, not two
-        if (lg.startswith('sch-') or lg.startswith('cbo-')) and src and not t['cover'].startswith('dir-k-'):
+        if lg.startswith(('sch-', 'cbo-', 'cul-')) and src and not t['cover'].startswith('dir-k-'):
             p['logo'] = '../../icons/%s.png' % t['cover']
     t['dest'] = ('official:' + p['official']) if p.get('kind') == 'official' and p.get('official') in OFF else 'org:' + p['slug']
     TILEMEMO[p['slug']] = dict(t)
@@ -282,6 +282,9 @@ def area_sections(app):
         for t in tops:
             tp = byname([p for p in grp if (p.get('topic') or '') == t])
             if tp: out.append(('BKCB6 community groups', t or 'Other groups', 'dir-cb6-groups-' + slug(t or 'other'), tp))
+        for t in ('Museums', 'Movie theaters'):
+            ps = byname([p for p in D['profiles'] if (p.get('culture') or (p.get('topic') if p.get('group') == 'Culture' else None)) == t and str(p.get('culture_cd') or p.get('cd') or '') == '306'])
+            if ps: out.append(('BKCB6 museums and movie theaters', t, 'dir-cb6-culture-' + slug(t), ps))
         for g in ('Business improvement districts', 'Schools, parks and facilities', 'Local businesses'):
             tops = next((x['topics'] for x in D.get('groups', []) if x['name'] == g), [])
             ps = [p for p in D['profiles'] if p['group'] == g]
@@ -308,6 +311,16 @@ for i, (name, f) in enumerate(LEVEL):
     if ps: common.append(('Elected officials', name, 'dir-officials-' + slug(name), ps))
 common.append(('Government agencies', 'New York City', 'dir-agencies-nyc', byname([p for p in ag if not p['slug'].startswith('nys-')])))
 common.append(('Government agencies', 'New York State', 'dir-agencies-nys', byname([p for p in ag if p['slug'].startswith('nys-')])))
+# culture: Broadway theatres, stadiums and arenas, museums and movie theaters (culture_profiles.py)
+CULT = [p for p in D['profiles'] if p.get('group') == 'Culture' or p.get('culture')]
+ctop = lambda p: p.get('culture') or p.get('topic')
+for t in ('Broadway theatres', 'Stadiums and arenas'):
+    ps = byname([p for p in CULT if ctop(p) == t])
+    if ps: common.append(('Theatres, museums, stadiums and movie theaters', t, 'dir-cul-' + slug(t), ps))
+for t in ('Museums', 'Movie theaters'):
+    for b in BORO:
+        ps = byname([p for p in CULT if ctop(p) == t and (p.get('culture_where') or p.get('where')) == b])
+        if ps: common.append(('Theatres, museums, stadiums and movie theaters', '%s, %s' % (t, b), 'dir-cul-' + slug(t) + '-' + slug(b), ps))
 # the community-based organizations: by borough, then by policy area
 CATS = [c for c, _ in sorted(__import__('collections').Counter(cat(p) for p in cbo).items(), key=lambda kv: -kv[1]) if c]
 for b in BORO + ['Outside NYC', '']:
@@ -377,7 +390,7 @@ open(P('app/data/civic/orgs/orgs-profiles.json'), 'w', encoding='utf-8').write(j
 keep = {p.get('logo') for p in D['profiles']}
 gone = 0
 for f in os.listdir(P('app/data/civic/orgs/logos')):
-    if (f.startswith('sch-') or f.startswith('cbo-')) and f not in keep: os.remove(P('app/data/civic/orgs/logos', f)); gone += 1
+    if f.startswith(('sch-', 'cbo-', 'cul-')) and f not in keep: os.remove(P('app/data/civic/orgs/logos', f)); gone += 1
 print('logo copies removed:', gone)
 print('sections (CBNYC):', len(sections), '| tiles:', total, '| profiles in the Directory file:', len(D['profiles']))
 # the screen's layout: dropdowns, compact logo grids and the map (app_directory_layout.py)
