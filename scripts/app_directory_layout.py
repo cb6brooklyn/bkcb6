@@ -41,7 +41,9 @@ def build(app):
     tf = P('app/data/civic/ui', app, 'tools.json'); T = json.load(open(tf, encoding='utf-8'))['lists']
     sf = P('app/data/civic/ui', app, 'screens.json'); raw = open(sf, encoding='utf-8').read(); S = json.loads(raw)
     parts = S['screens']['directory']
-    secs = [p for p in parts if str(p.get('list', '')).startswith('dir-sections-')]
+    secs = [{'list': p['list'], 'title': p.get('title', '')} for p in parts if str(p.get('list', '')).startswith('dir-sections-')]
+    if secs: S['dirSections'] = secs                      # kept so a rerun knows the sections and their order
+    else: secs = [x for x in S.get('dirSections', []) if x['list'] in T]
     keep = [p for p in parts if not str(p.get('list', '')).startswith('dir-sections-') and p.get('gen') != 'dir']
     nodes = S.setdefault('nodes', {}); repl = S.setdefault('replace', {})
     for k in [k for k in nodes if k.startswith('dirl-')]: del nodes[k]
