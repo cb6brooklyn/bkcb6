@@ -172,7 +172,10 @@ def tile(p):
     t = {'title': _html.unescape(p['name']), 'symbol': 'building.2.fill'}
     src = None
     lg = p.get('logo') or ''
-    if lg.startswith('../../icons/'):   # a logo that is its tile picture (see below)
+    if lg.startswith('../../../Logos/') and os.path.exists(P('app/data/Logos', lg[15:])):   # a community board's seal
+        try: t['cover'] = cover_from(P('app/data/Logos', lg[15:]))
+        except Exception: t['cover'] = cover_kind(p)
+    elif lg.startswith('../../icons/'):   # a logo that is its tile picture (see below)
         t['cover'] = lg[len('../../icons/'):].rsplit('.', 1)[0]
     else:
         if p.get('kind') == 'official' and p.get('official') in OFF:
@@ -257,6 +260,8 @@ def area_sections(app):
     out = []
     if app == 'cb6':
         H = 'BKCB6'
+        cb6b = [p for p in D['profiles'] if p['slug'] == 'brooklyn-community-board-6']
+        out.append(('Brooklyn Community Board 6', 'Brooklyn Community Board 6', 'dir-cb6-board', cb6b))
         cb6o = [p for p in offs if in_cd(OFF[p['official']], '306') or OFF[p['official']].get('type') in ('citywide', 'statewide', 'ussenate') or p['official'] in ('bpbrooklyn', 'dagonzalez')]
         for name, f in LEVEL:
             ps = sorted([p for p in cb6o if f(OFF[p['official']])], key=okey)
@@ -287,6 +292,10 @@ def area_sections(app):
     return out
 
 common = []
+BOARDS = [p for p in D['profiles'] if p.get('group') == 'Community boards']
+for b in BORO:
+    ps = sorted([p for p in BOARDS if p.get('where') == b], key=lambda p: p.get('sort') or int(str(p.get('cd', '0'))[1:] or 0))
+    if ps: common.append(('Community boards', b, 'dir-boards-' + slug(b), ps))
 for i, (name, f) in enumerate(LEVEL):
     ps = sorted([p for p in offs if f(OFF[p['official']])], key=okey)
     if ps: common.append(('Elected officials', name, 'dir-officials-' + slug(name), ps))
@@ -301,9 +310,12 @@ for b in BORO + ['Outside NYC', '']:
 total = 0
 for app in ('cb6', 'bk', 'beyond'):
     cm = common
-    if app in ('cb6', 'bk'):   # Brooklyn's community-based organizations first in the Brooklyn apps
-        bkc = [x for x in common if x[0] == 'Community-based organizations, Brooklyn']
-        rest = [x for x in common if x not in bkc]
+    if app in ('cb6', 'bk'):
+        bd = [x for x in cm if x[2].startswith('dir-boards-')]
+        bd = sorted(bd, key=lambda x: x[2] != 'dir-boards-brooklyn')
+        it = iter(bd); cm = [next(it) if x[2].startswith('dir-boards-') else x for x in cm]   # Brooklyn's community-based organizations first in the Brooklyn apps
+        bkc = [x for x in cm if x[0] == 'Community-based organizations, Brooklyn']
+        rest = [x for x in cm if x not in bkc]
         k = next(i for i, x in enumerate(rest) if x[0].startswith('Community-based organizations'))
         cm = rest[:k] + bkc + rest[k:]
     k = next(i for i, x in enumerate(cm) if x[0].startswith('Community-based organizations'))
@@ -315,10 +327,17 @@ for app in ('cb6', 'bk', 'beyond'):
     T['lists'] = {k: v for k, v in T['lists'].items() if not k.startswith('dir-')}
     heads = []
     for head, title, lid, ps in sections:
-        T['lists'][lid] = [tile(p) for p in ps]
-        cover = cover_cat(head, title)
-        sec = {'title': '%s · %s' % (title, '{:,}'.format(len(ps))), 'symbol': 'square.grid.2x2.fill', 'dest': 'screen:tools:' + lid}
-        sec['cover'] = cover
+        def tl(p):
+            t = tile(p)
+            cd = str(p.get('cd') or '')
+            if p.get('group') == 'Community boards' and cd and (app == 'beyond' or (app == 'bk' and cd.startswith('3'))):
+                t['dest'] = 'screen:board:' + cd   # the app's own board page
+            return t
+        T['lists'][lid] = [tl(p) for p in ps]
+        if len(ps) == 1 and title == ps[0]['name']:
+            sec = tl(ps[0])   # a heading with one member shows that member itself
+        else:
+            sec = {'title': '%s · %s' % (title, '{:,}'.format(len(ps))), 'symbol': 'square.grid.2x2.fill', 'dest': 'screen:tools:' + lid, 'cover': cover_cat(head, title)}
         hid = 'dir-sections-' + slug(head)
         T['lists'].setdefault(hid, []).append(sec)
         if hid not in heads: heads.append(hid)

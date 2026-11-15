@@ -67,7 +67,7 @@ def main():
     d = J('app/data/civic/orgs/orgs-profiles.json')
     tiles = []
     for p in d['profiles']:
-        if p.get('group') == 'Elected officials': continue
+        if p.get('group') in ('Elected officials', 'Community boards'): continue   # both drawn from their own files below
         href = site_page(p); ext = False
         if not href:
             href = p.get('weburl') or ''; ext = True
