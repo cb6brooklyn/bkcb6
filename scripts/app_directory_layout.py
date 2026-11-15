@@ -19,14 +19,17 @@ BORDER = {'cb6': ['Brooklyn', 'Manhattan', 'Bronx', 'Queens', 'Staten Island'], 
           'beyond': ['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island']}
 sl = lambda x: re.sub(r'[^a-z0-9]+', '-', x.lower()).strip('-')
 
-def grid(app, lid, where=None):
+def grid(app, lid, where=None, sort=None):
     return {'type': 'each', 'columns': COLS, 'spacing': 8,
-            'data': dict({'file': 'civic/ui/%s/tools.json' % app, 'at': 'lists.' + lid}, **({'where': where} if where else {})),
+            'data': dict({'file': 'civic/ui/%s/tools.json' % app, 'at': 'lists.' + lid}, **({'where': where} if where else {}), **({'sort': sort} if sort else {})),
             'item': {'type': 'v', 'spacing': 4, 'dest': '{dest}', 'maxWidth': 'full', 'align': 'top',
                      'children': [
                          {'type': 'image', 'tile': '{cover}', 'height': 96, 'maxWidth': 'full', 'align': 'center',
                           'bg': 'white', 'corner': 12, 'border': 'rule', 'borderWidth': 1, 'pad': 4},
                          {'type': 'text', 'text': '{title}', 'size': 10, 'weight': 'medium', 'lines': 2,
+                          'textAlign': 'center', 'maxWidth': 'full', 'align': 'center'},
+                         # its neighborhood, so a person can tell where each one is
+                         {'type': 'text', 'text': '{h}', 'size': 9, 'color': 'muted', 'lines': 1, 'when': {'has': 'h'},
                           'textAlign': 'center', 'maxWidth': 'full', 'align': 'center'}]}}
 
 def row(title, dest):
@@ -88,7 +91,7 @@ def build(app):
                 sub_items = [x for x in items if (x.get('b') or '') == b]
                 nm = '%s--b-%s' % (name, sl(b))
                 if len(sub_items) <= NARROW:
-                    nodes[nm] = {'type': 'v', 'spacing': 10, 'title': '%s, %s' % (t, b), 'children': [grid(app, lid, {'b': b})]}
+                    nodes[nm] = {'type': 'v', 'spacing': 10, 'title': '%s, %s' % (t, b), 'children': [grid(app, lid, {'b': b}, 'h')]}   # neighbors together
                 else:
                     nodes[nm + '--all'] = {'type': 'v', 'spacing': 10, 'title': '%s, %s' % (t, b), 'children': [grid(app, lid, {'b': b})]}
                     nodes[nm] = {'type': 'v', 'spacing': 8, 'title': '%s, %s' % (t, b), 'children':
