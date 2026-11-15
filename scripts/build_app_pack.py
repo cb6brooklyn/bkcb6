@@ -183,7 +183,8 @@ def minutes():
 # file by file in the manifest, as they always were.
 DIRS = ['Logos', 'site', 'civic/apps', 'civic/basemap', 'civic/blocks', 'civic/boardlogos', 'civic/bqe', 'civic/business',
         'civic/compplan', 'civic/directory', 'civic/dsny', 'civic/fhgs', 'civic/gowanus', 'civic/liquor-logos', 'civic/lots',
-        'civic/lotstiles', 'civic/orgchart', 'civic/precincts', 'civic/replogos', 'civic/tiles', 'civic/useofland', 'civic/zoning']
+        'civic/lotstiles', 'civic/orgchart', 'civic/precincts', 'civic/replogos', 'civic/tiles', 'civic/useofland', 'civic/zoning',
+        'civic/icons', 'civic/orgs/logos']   # the Directory's tile pictures and logos (Nov 14: 12,000 and 6,000 files)
 
 def manifest():
     """app/manifest.json: every file under app/data (the pack), plus the site's own files the apps carry
