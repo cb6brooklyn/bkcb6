@@ -55,6 +55,29 @@ def cover_from(src, key=None):
     if not os.path.exists(out): open(out, 'wb').write(data)
     MADE.add(name); SRCMEMO[src] = name
     return name
+def cover_cat(head, title):
+    """A section tile: the category itself (its heading and name on the app's navy), never one member's logo."""
+    from PIL import ImageFont as _F
+    big = _F.truetype(P('assets/fonts/DMSans-Bold.ttf'), 30); small = _F.truetype(P('assets/fonts/DMSans-Bold.ttf'), 15)
+    c = Image.new('RGB', (CW, CH), (6, 2, 77)); d = ImageDraw.Draw(c)
+    d.rectangle([0, 0, CW, 7], fill=(244, 121, 32))
+    d.text((40, 24), head.upper()[:34], fill=(244, 121, 32), font=small)
+    words, lines, cur = title.split(), [], ''
+    for w in words:
+        t = (cur + ' ' + w).strip()
+        if d.textlength(t, font=big) <= CW - 80: cur = t
+        else: lines.append(cur); cur = w
+    lines.append(cur); lines = lines[:4]
+    y = 52 + max(0, (CH - 52 - 38 * len(lines)) // 2 - 6)
+    for ln in lines:
+        d.text((40, y), ln, fill=(255, 255, 255), font=big); y += 38
+    import io
+    buf = io.BytesIO(); c.quantize(colors=16).save(buf, format='PNG', optimize=True); data = buf.getvalue()
+    name = 'dir-c-' + hashlib.sha1(data).hexdigest()[:12]
+    out = os.path.join(ICONS, name + '.png')
+    if not os.path.exists(out): open(out, 'wb').write(data)
+    MADE.add(name)
+    return name
 KINDS = {'cbo': 'Community-based organization', 'school': 'School', 'biz': 'Local business', 'place': 'Place', 'org': 'Organization'}
 def cover_kind(p):
     """No logo: one shared white tile per kind (the name is printed under every tile)."""
@@ -235,12 +258,18 @@ def area_sections(app):
     if app == 'cb6':
         H = 'BKCB6'
         cb6o = [p for p in offs if in_cd(OFF[p['official']], '306') or OFF[p['official']].get('type') in ('citywide', 'statewide', 'ussenate') or p['official'] in ('bpbrooklyn', 'dagonzalez')]
-        out.append((H, "BKCB6's elected officials", 'dir-cb6-officials', sorted(cb6o, key=lambda p: (lvl(p), okey(p)))))
+        for name, f in LEVEL:
+            ps = sorted([p for p in cb6o if f(OFF[p['official']])], key=okey)
+            if ps: out.append(("BKCB6's elected officials", name, 'dir-cb6-officials-' + slug(name), ps))
+        out.append(('BKCB6 government offices', 'Government offices serving BKCB6', 'dir-cb6-agencies', byname([p for p in ag if os.path.exists(P(p['slug'], 'index.html')) and (p.get('type') not in ('cec', 'school-district') or p.get('sd') in ('13', '15'))])))
         out.append(('BKCB6 schools', 'District 15 schools', 'dir-cb6-d15', by_sd('15', CB6SCH)))
         out.append(('BKCB6 schools', 'District 13 schools', 'dir-cb6-d13', by_sd('13', CB6SCH)))
-        out.append((H, 'BKCB6 community groups', 'dir-cb6-groups', byname([p for p in D['profiles'] if p['group'] == 'Community groups' and local(p)]
-                                                                            + [p for p in cbo if 'cb6' in (p.get('scope') or '')])))
-        out.append((H, 'BKCB6 government offices', 'dir-cb6-agencies', byname([p for p in ag if os.path.exists(P(p['slug'], 'index.html')) and (p.get('type') not in ('cec', 'school-district') or p.get('sd') in ('13', '15'))])))
+        grp = [p for p in D['profiles'] if p['group'] == 'Community groups' and local(p)] + [p for p in cbo if 'cb6' in (p.get('scope') or '')]
+        tops = next((x['topics'] for x in D.get('groups', []) if x['name'] == 'Community groups'), [])
+        tops = [t for t in tops if any((p.get('topic') or '') == t for p in grp)] + sorted({p.get('topic') or '' for p in grp} - set(tops))
+        for t in tops:
+            tp = byname([p for p in grp if (p.get('topic') or '') == t])
+            if tp: out.append(('BKCB6 community groups', t or 'Other groups', 'dir-cb6-groups-' + slug(t or 'other'), tp))
         for g in ('Business improvement districts', 'Schools, parks and facilities', 'Local businesses'):
             tops = next((x['topics'] for x in D.get('groups', []) if x['name'] == g), [])
             ps = [p for p in D['profiles'] if p['group'] == g]
@@ -252,7 +281,9 @@ def area_sections(app):
         H = 'Brooklyn'
         bko = [p for p in offs if any(c.get('cd', '').startswith('3') and c.get('eds', 1) for c in OFF[p['official']].get('cbs', []))
                or OFF[p['official']].get('type') in ('citywide', 'statewide', 'ussenate') or p['official'] in ('bpbrooklyn', 'dagonzalez')]
-        out.append((H, "Brooklyn's elected officials", 'dir-bk-officials', sorted(bko, key=lambda p: (lvl(p), okey(p)))))
+        for name, f in LEVEL:
+            ps = sorted([p for p in bko if f(OFF[p['official']])], key=okey)
+            if ps: out.append(("Brooklyn's elected officials", name, 'dir-bk-officials-' + slug(name), ps))
     return out
 
 common = []
@@ -285,7 +316,7 @@ for app in ('cb6', 'bk', 'beyond'):
     heads = []
     for head, title, lid, ps in sections:
         T['lists'][lid] = [tile(p) for p in ps]
-        cover = next((tile(p)['cover'] for p in ps if not tile(p)['cover'].startswith(('dir-n-', 'dir-k-'))), tile(ps[0])['cover'])
+        cover = cover_cat(head, title)
         sec = {'title': '%s · %s' % (title, '{:,}'.format(len(ps))), 'symbol': 'square.grid.2x2.fill', 'dest': 'screen:tools:' + lid}
         sec['cover'] = cover
         hid = 'dir-sections-' + slug(head)
