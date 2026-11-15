@@ -10,7 +10,7 @@ import json, os, re
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 P = lambda *a: os.path.join(ROOT, *a)
 INLINE = 12          # a category this size or smaller shows its logos inside the dropdown
-COLS = 4
+COLS = 3
 GROUP = [('Schools by borough, ', 'Schools by borough'), ('Community-based organizations, ', 'Community-based organizations')]
 
 def grid(app, lid):
@@ -18,8 +18,8 @@ def grid(app, lid):
             'data': {'file': 'civic/ui/%s/tools.json' % app, 'at': 'lists.' + lid},
             'item': {'type': 'v', 'spacing': 4, 'dest': '{dest}', 'maxWidth': 'full', 'align': 'top',
                      'children': [
-                         {'type': 'image', 'tile': '{cover}', 'height': 40, 'maxWidth': 'full', 'align': 'center',
-                          'bg': 'white', 'corner': 6, 'border': 'rule', 'borderWidth': 1, 'pad': 3},
+                         {'type': 'image', 'tile': '{cover}', 'height': 96, 'maxWidth': 'full', 'align': 'center',
+                          'bg': 'white', 'corner': 12, 'border': 'rule', 'borderWidth': 1, 'pad': 4},
                          {'type': 'text', 'text': '{title}', 'size': 10, 'weight': 'medium', 'lines': 2,
                           'textAlign': 'center', 'maxWidth': 'full', 'align': 'center'}]}}
 

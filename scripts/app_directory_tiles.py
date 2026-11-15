@@ -21,7 +21,7 @@ slug = lambda s: re.sub(r'[^a-z0-9]+', '-', s.lower()).strip('-')
 import hashlib
 from PIL import Image, ImageDraw, ImageFont
 ICONS = P('app/data/civic/icons')
-CW, CH = 360, 195   # the tile's picture box (about 1.85 to 1)
+CW, CH = 300, 300   # the tile's picture box: square, like the Gowanus community-based organizations grid
 try:
     FONT = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 26)
 except Exception:
@@ -45,7 +45,7 @@ def cover_from(src, key=None):
     box = ImageChops.difference(flat, Image.new('RGB', im.size, (255, 255, 255))).convert('L').point(lambda v: 255 if v > 18 else 0).getbbox()
     if box and (box[2] - box[0]) * (box[3] - box[1]) > 0.05 * im.width * im.height: im = im.crop(box)
     c = Image.new('RGB', (CW, CH), (255, 255, 255))
-    sc = min((CW - 24) / im.width, (CH - 24) / im.height)
+    sc = min((CW - 30) / im.width, (CH - 30) / im.height)
     im = im.resize((max(1, round(im.width * sc)), max(1, round(im.height * sc))), Image.LANCZOS)
     c.paste(im, ((CW - im.width) // 2, (CH - im.height) // 2), im)
     buf = io.BytesIO(); c.quantize(colors=128, method=Image.Quantize.FASTOCTREE).save(buf, format='PNG', optimize=True)
@@ -175,8 +175,15 @@ def tile(p):
     if lg.startswith('../../../Logos/') and os.path.exists(P('app/data/Logos', lg[15:])):   # a community board's seal
         try: t['cover'] = cover_from(P('app/data/Logos', lg[15:]))
         except Exception: t['cover'] = cover_kind(p)
-    elif lg.startswith('../../icons/'):   # a logo that is its tile picture (see below)
-        t['cover'] = lg[len('../../icons/'):].rsplit('.', 1)[0]
+    elif lg.startswith('../../icons/'):   # a logo that is its tile picture (see below): redrawn, so a change of tile shape reaches it
+        old = lg[len('../../icons/'):].rsplit('.', 1)[0]
+        f = os.path.join(ICONS, old + '.png')
+        if old.startswith('dir-k-') or not os.path.exists(f): t['cover'] = cover_kind(p)
+        elif old in MADE: t['cover'] = old
+        else:
+            try: t['cover'] = cover_from(f)
+            except Exception: t['cover'] = cover_kind(p)
+        if not t['cover'].startswith('dir-k-'): p['logo'] = '../../icons/%s.png' % t['cover']
     else:
         if p.get('kind') == 'official' and p.get('official') in OFF:
             f = P('app/data/civic/officials', p['official'] + '.png')
