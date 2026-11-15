@@ -159,7 +159,7 @@ def dirmap(app):
          'center': center[0], 'distance': center[1], 'search': True, 'searchScope': '306' if app == 'cb6' else ('3' if app == 'bk' else 'city'),
          'toggles': True, 'layers': L}
     # the layer switches sit under the map, clear of the tab bar; only the main ones start on, people turn on the rest
-    return {'type': 'v', 'title': 'Map of the Directory', 'scroll': False, 'spacing': 0, 'children': [m, {'type': 'spacer', 'min': 96}]}
+    return {'type': 'v', 'title': 'Map of the Directory', 'scroll': False, 'spacing': 0, 'children': [m, {'type': 'v', 'height': 96, 'children': []}]}
 
 MAPKS = {a: mapfile(a) for a in ('cb6', 'bk', 'beyond')}
 for a in ('cb6', 'bk', 'beyond'):
