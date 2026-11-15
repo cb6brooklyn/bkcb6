@@ -47,7 +47,7 @@ def add(head, title, lid, items):
         d = it['dest']
         if d.startswith('screen:board:'): d = 'board:' + d.rsplit(':', 1)[1]
         elif d.startswith('org:') and BY.get(d[4:], {}).get('group') == 'Community boards': d = 'board:' + str(BY[d[4:]].get('cd'))
-        e = E.setdefault(d, {'name': it['title'], 'cover': it['cover'], 'b': it.get('b', ''), 'h': it.get('h', ''), 'cats': []})
+        e = E.setdefault(d, {'name': it['title'], 'cover': it.get('cover') or it.get('tile'), 'b': it.get('b', ''), 'h': it.get('h', ''), 'cats': []})
         if (s, c) not in e['cats']: e['cats'].append((s, c))
 for head, title, lid, items in lists('cb6'):
     if lid.startswith('dir-cb6-'): add(head, title, lid, items)

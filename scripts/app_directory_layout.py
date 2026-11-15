@@ -159,7 +159,7 @@ def mapfile(app):
     for lid, items in T.items():
         if not lid.startswith('dir-') or lid.startswith('dir-sections-'): continue
         for it in items:
-            cover.setdefault(it['dest'], it['cover'])
+            cover.setdefault(it['dest'], it.get('cover') or it.get('tile'))
             if lid.startswith('dir-cb6-') and app == 'cb6': cb6.add(it['dest'])
     feats = []
     for p in D:

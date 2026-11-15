@@ -49,7 +49,7 @@ for app in ('beyond', 'cb6'):
         order[c[1]] = c[0]
         for it in items:
             d = it['dest'] if not it['dest'].startswith('screen:board:') else it['dest']
-            tiles.setdefault((d, c[1]), {'title': it['title'], 'cover': it['cover'], 'dest': d, 'k': c[1], 'h': it.get('h', '')})
+            tiles.setdefault((d, c[1]), {'title': it['title'], 'cover': it.get('cover') or it.get('tile'), 'dest': d, 'k': c[1], 'h': it.get('h', '')})
 spot = {}
 for p in D:
     try: lat, lng = float(p.get('lat') or 0), float(p.get('lng') or 0)

@@ -424,7 +424,7 @@ for app in ('cb6', 'bk', 'beyond'):
 used = set()
 for app in ('cb6', 'bk', 'beyond'):
     for k, v in json.load(open(P('app/data/civic/ui', app, 'tools.json')))['lists'].items():
-        for b in v: used.add(b.get('cover'))
+        for b in v: used.add(b.get('cover')); used.add(b.get('tile'))
 for f in os.listdir(ICONS):
     if f.startswith('dir-') and f.rsplit('.', 1)[0] not in used: os.remove(os.path.join(ICONS, f))
 print('covers:', len([f for f in os.listdir(ICONS) if f.startswith('dir-')]))
@@ -443,3 +443,5 @@ runpy.run_path(P('scripts/directory_in_district.py'), run_name='__main__')
 # the Directory on the site, from the same entries (directory_web.py)
 import subprocess, sys
 subprocess.run([sys.executable, P('scripts/directory_web.py')], check=True)
+# the logos as small tiles in the approved app builds (app_directory_tilekey.py)
+subprocess.run([sys.executable, P('scripts/app_directory_tilekey.py')], check=True)
