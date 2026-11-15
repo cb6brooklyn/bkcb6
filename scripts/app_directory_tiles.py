@@ -27,46 +27,53 @@ try:
 except Exception:
     FONT = ImageFont.load_default()
 MADE = set()
-def cover_from(src, key):
-    """The organization's logo, whole, on a white tile (as the Gowanus community-based organizations grid draws it)."""
-    name = 'dir-' + key
-    out = os.path.join(ICONS, name + '.png')   # PNG: the apps' cover art reads civic/icons/<name>.png (the hub tiles are PNG)
-    if name not in MADE:
-        if not os.path.exists(out):
-            if src.lower().endswith('.svg'):
-                import cairosvg, io
-                im = Image.open(io.BytesIO(cairosvg.svg2png(url=src, output_width=720))).convert('RGBA')
-            else:
-                im = Image.open(src).convert('RGBA')
-            # trim the white or empty margin the logo file carries, so the logo fills the tile
-            bg = Image.new('RGBA', im.size, (255, 255, 255, 255)); flat = Image.alpha_composite(bg, im).convert('RGB')
-            from PIL import ImageChops
-            box = ImageChops.difference(flat, Image.new('RGB', im.size, (255, 255, 255))).convert('L').point(lambda v: 255 if v > 18 else 0).getbbox()
-            if box and (box[2] - box[0]) * (box[3] - box[1]) > 0.05 * im.width * im.height: im = im.crop(box)
-            c = Image.new('RGB', (CW, CH), (255, 255, 255))
-            s = min((CW - 24) / im.width, (CH - 24) / im.height)
-            im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.LANCZOS)
-            c.paste(im, ((CW - im.width) // 2, (CH - im.height) // 2), im)
-            c.quantize(colors=128, method=Image.Quantize.FASTOCTREE).save(out, optimize=True)
-        MADE.add(name)
+SRCMEMO = {}
+def cover_from(src, key=None):
+    """The organization's logo, whole, on a white tile (as the Gowanus community-based organizations grid draws it).
+    Named by the picture itself, so tiles that show the same logo share one file: the apps download every file one
+    by one, so the fewer files, the sooner the Directory shows."""
+    if src in SRCMEMO: return SRCMEMO[src]
+    import io
+    if src.lower().endswith('.svg'):
+        import cairosvg
+        im = Image.open(io.BytesIO(cairosvg.svg2png(url=src, output_width=720))).convert('RGBA')
+    else:
+        im = Image.open(src).convert('RGBA')
+    # trim the white or empty margin the logo file carries, so the logo fills the tile
+    bg = Image.new('RGBA', im.size, (255, 255, 255, 255)); flat = Image.alpha_composite(bg, im).convert('RGB')
+    from PIL import ImageChops
+    box = ImageChops.difference(flat, Image.new('RGB', im.size, (255, 255, 255))).convert('L').point(lambda v: 255 if v > 18 else 0).getbbox()
+    if box and (box[2] - box[0]) * (box[3] - box[1]) > 0.05 * im.width * im.height: im = im.crop(box)
+    c = Image.new('RGB', (CW, CH), (255, 255, 255))
+    sc = min((CW - 24) / im.width, (CH - 24) / im.height)
+    im = im.resize((max(1, round(im.width * sc)), max(1, round(im.height * sc))), Image.LANCZOS)
+    c.paste(im, ((CW - im.width) // 2, (CH - im.height) // 2), im)
+    buf = io.BytesIO(); c.quantize(colors=128, method=Image.Quantize.FASTOCTREE).save(buf, format='PNG', optimize=True)
+    data = buf.getvalue()
+    name = 'dir-' + hashlib.sha1(data).hexdigest()[:12]
+    out = os.path.join(ICONS, name + '.png')   # PNG: the apps' cover art reads civic/icons/<name>.png
+    if not os.path.exists(out): open(out, 'wb').write(data)
+    MADE.add(name); SRCMEMO[src] = name
     return name
-def cover_name(title, key):
-    """No logo: the name in the same white tile."""
-    name = 'dir-n-' + key
+KINDS = {'cbo': 'Community-based organization', 'school': 'School', 'biz': 'Local business', 'place': 'Place', 'org': 'Organization'}
+def cover_kind(p):
+    """No logo: one shared white tile per kind (the name is printed under every tile)."""
+    k = 'cbo' if p['slug'].startswith('cbo-') else 'school' if p.get('group') == 'Schools' or p.get('topic') == 'Schools' else \
+        'biz' if p.get('group') == 'Local businesses' else 'place' if p.get('group') == 'Schools, parks and facilities' else 'org'
+    name = 'dir-k-' + k
     out = os.path.join(ICONS, name + '.png')
     if name not in MADE:
-        if not os.path.exists(out):
-            c = Image.new('RGB', (CW, CH), (255, 255, 255)); d = ImageDraw.Draw(c)
-            words, lines, cur = title.split(), [], ''
-            for w in words:
-                t = (cur + ' ' + w).strip()
-                if d.textlength(t, font=FONT) <= CW - 40: cur = t
-                else: lines.append(cur); cur = w
-            lines.append(cur); lines = lines[:5]
-            y = (CH - 34 * len(lines)) // 2
-            for ln in lines:
-                d.text(((CW - d.textlength(ln, font=FONT)) / 2, y), ln, fill=(13, 27, 75), font=FONT); y += 34
-            c.quantize(colors=8).save(out, optimize=True)
+        c = Image.new('RGB', (CW, CH), (255, 255, 255)); d = ImageDraw.Draw(c)
+        words, lines, cur = KINDS[k].split(), [], ''
+        for w in words:
+            t = (cur + ' ' + w).strip()
+            if d.textlength(t, font=FONT) <= CW - 40: cur = t
+            else: lines.append(cur); cur = w
+        lines.append(cur)
+        y = (CH - 34 * len(lines)) // 2
+        for ln in lines:
+            d.text(((CW - d.textlength(ln, font=FONT)) / 2, y), ln, fill=(13, 27, 75), font=FONT); y += 34
+        c.quantize(colors=8).save(out, optimize=True)
         MADE.add(name)
     return name
 # The logos we already have, for the profiles that carry none: the liquor directories' business logos (by name,
@@ -136,22 +143,32 @@ def have_logo(p):
     if tp in ('Parks and playgrounds', 'Parks', 'Parks, playgrounds and gardens') or ty in ('park', 'playground', 'court', 'field'): return BRAND['parks']
     return None
 
+TILEMEMO = {}
 def tile(p):
+    if p['slug'] in TILEMEMO: return dict(TILEMEMO[p['slug']])
     t = {'title': _html.unescape(p['name']), 'symbol': 'building.2.fill'}
     src = None
-    if p.get('kind') == 'official' and p.get('official') in OFF:
-        f = P('app/data/civic/officials', p['official'] + '.png')
-        if os.path.exists(f): src = f
-    elif p.get('logo') in LOGOS:
-        src = P('app/data/civic/orgs/logos', p['logo'])
+    lg = p.get('logo') or ''
+    if lg.startswith('../../icons/'):   # a logo that is its tile picture (see below)
+        t['cover'] = lg[len('../../icons/'):].rsplit('.', 1)[0]
     else:
-        src = have_logo(p)
-    key = hashlib.sha1((p['slug'] + (os.path.basename(src) if src else '')).encode()).hexdigest()[:12]
-    try:
-        t['cover'] = cover_from(src, key) if src else cover_name(p['name'], key)
-    except Exception:
-        t['cover'] = cover_name(p['name'], key)
+        if p.get('kind') == 'official' and p.get('official') in OFF:
+            f = P('app/data/civic/officials', p['official'] + '.png')
+            if os.path.exists(f): src = f
+        elif lg in LOGOS:
+            src = P('app/data/civic/orgs/logos', lg)
+        else:
+            src = have_logo(p)
+        try:
+            t['cover'] = cover_from(src) if src else cover_kind(p)
+        except Exception:
+            t['cover'] = cover_kind(p)
+        # the schools' and Council-funded organizations' own logos: the profile reads its tile picture, so the
+        # apps carry one file for both, not two
+        if (lg.startswith('sch-') or lg.startswith('cbo-')) and src and not t['cover'].startswith('dir-k-'):
+            p['logo'] = '../../icons/%s.png' % t['cover']
     t['dest'] = ('official:' + p['official']) if p.get('kind') == 'official' and p.get('official') in OFF else 'org:' + p['slug']
+    TILEMEMO[p['slug']] = dict(t)
     return t
 
 # elected officials, local first (Council, Borough President, Assembly, State Senate, Congress, District Attorney,
@@ -298,4 +315,11 @@ for app in ('cb6', 'bk', 'beyond'):
 for f in os.listdir(ICONS):
     if f.startswith('dir-') and f.rsplit('.', 1)[0] not in used: os.remove(os.path.join(ICONS, f))
 print('covers:', len([f for f in os.listdir(ICONS) if f.startswith('dir-')]))
+# the profiles now pointing at their tile pictures; the logo copies they no longer use come off
+open(P('app/data/civic/orgs/orgs-profiles.json'), 'w', encoding='utf-8').write(json.dumps(D, ensure_ascii=False, indent=1) + '\n')
+keep = {p.get('logo') for p in D['profiles']}
+gone = 0
+for f in os.listdir(P('app/data/civic/orgs/logos')):
+    if (f.startswith('sch-') or f.startswith('cbo-')) and f not in keep: os.remove(P('app/data/civic/orgs/logos', f)); gone += 1
+print('logo copies removed:', gone)
 print('sections (CBNYC):', len(sections), '| tiles:', total, '| profiles in the Directory file:', len(D['profiles']))
