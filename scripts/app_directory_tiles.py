@@ -285,7 +285,7 @@ for app in ('cb6', 'bk', 'beyond'):
     heads = []
     for head, title, lid, ps in sections:
         T['lists'][lid] = [tile(p) for p in ps]
-        cover = next((tile(p)['cover'] for p in ps if not tile(p)['cover'].startswith('dir-n-')), tile(ps[0])['cover'])
+        cover = next((tile(p)['cover'] for p in ps if not tile(p)['cover'].startswith(('dir-n-', 'dir-k-'))), tile(ps[0])['cover'])
         sec = {'title': '%s · %s' % (title, '{:,}'.format(len(ps))), 'symbol': 'square.grid.2x2.fill', 'dest': 'screen:tools:' + lid}
         sec['cover'] = cover
         hid = 'dir-sections-' + slug(head)
