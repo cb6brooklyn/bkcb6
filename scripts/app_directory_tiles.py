@@ -93,6 +93,18 @@ for _d, _pre in (('app/data/civic/orgs/logos', ''), ('site-icons', ''), ('site-i
                 SETS.setdefault(_n(x), P(_d, _f))
 for _sn, _f in json.load(open(P('assets/school-logos/logos.json'))).items():
     if os.path.exists(P('assets/school-logos', _f)): SETS.setdefault(_n(_sn), P('assets/school-logos', _f))
+# CB6's business directory logos (app/data/civic/business/business-cb6.json, 1,091 with a logo), by name and street
+BIZ = {}
+_bd = json.load(open(P('app/data/civic/business/business-cb6.json')))
+_ci = {c: i for i, c in enumerate(_bd['cols'])}
+for _r in _bd['rows']:
+    _l = _r[_ci['logo']]
+    if not _l: continue
+    _f = next((P('app/data/civic/business/logos', _l + e) for e in ('.png', '.jpg', '.jpeg', '.webp', '.svg', '') if os.path.isfile(P('app/data/civic/business/logos', _l + e))), None)
+    if not _f: continue
+    for _bn in (_r[_ci['name']], _r[_ci['legal']]):
+        if _bn and len(re.sub(r'[^a-z0-9]', '', _bn.lower())) >= 4:
+            BIZ.setdefault(re.sub(r'[^a-z0-9]', '', _html.unescape(_bn).lower().replace('&', 'and')), []).append((_f, (_r[_ci['address']] or '').lower().split(' ')[:2]))
 LG = lambda *a: P(*a) if os.path.exists(P(*a)) else None
 BRAND = {'mta': LG('assets/map-icons/mta.png') or LG('app/data/civic/mapicons/mta.png'), 'citibike': LG('assets/map-icons/citibike.png'),
          'fdny': LG('app/data/civic/orgs/logos/agency-fdny.png'), 'bpl': LG('app/data/civic/orgs/logos/bpl.png'),
@@ -105,6 +117,13 @@ def have_logo(p):
     for x in (_n(nm), _n(re.sub(r'^cbo-', '', p['slug']))):
         if len(x) >= 4 and x in SETS: return SETS[x]
     if len(k) >= 4 and k in LQ: return LQ[k]
+    bk = _n(nm)
+    if len(bk) >= 4 and bk in BIZ:
+        c = BIZ[bk]
+        if len(c) == 1: return c[0][0]
+        st = (p.get('addr') or '').lower().split(' ')[:2]
+        hit = next((f for f, a in c if a == st), None)
+        if hit: return hit
     low = nm.lower()
     if tp == 'Subway stations and Citi Bike': return BRAND['citibike'] if ('citi' in low or '&' in nm or ' pl' in low or 'bike' in ty) else BRAND['mta']
     if tp == 'Firehouses': return BRAND['fdny']
