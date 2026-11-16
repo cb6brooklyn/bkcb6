@@ -12,6 +12,8 @@ import json, os, re
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 P = lambda *a: os.path.join(ROOT, *a)
 OUT = P('app/data/civic/districtmaps'); os.makedirs(OUT, exist_ok=True)
+OFF = {o['slug']: o for o in json.load(open(P('app/data/civic/officials.json')))}
+DSNY = json.load(open(P('data/dsny-sections-lite.geojson')))['features']
 PCT = {f['properties']['precinct']: f['geometry'] for f in json.load(open(P('data/police-precincts-lite.geojson')))['features']}
 BORO = {'manhattan': 1, 'bronx': 2, 'brooklyn': 3, 'queens': 4, 'staten-island': 5}
 BID = {'atlantic-avenue-bid': 'bid-atlantic-avenue', 'north-flatbush-bid': 'bid-north-flatbush',
@@ -30,6 +32,31 @@ def target(p):
         return '%s%s Precinct' % (n, suf), [{'type': 'Feature', 'geometry': PCT[n], 'properties': {}}]
     m = re.match(r'^(manhattan|bronx|brooklyn|queens|staten-island)-district-attorneys-office$', s)
     if m: return m.group(1).replace('-', ' ').title(), geo_file(P('data/districts/borough-%d.geojson' % BORO[m.group(1)]))
+    if p.get('group') == 'Community boards' and p.get('cd') and os.path.exists(P('data/districts/cb-%s.geojson' % p['cd'])):
+        return p['name'], geo_file(P('data/districts/cb-%s.geojson' % p['cd']))
+    m = re.match(r'^nypd-sector-(\d+[a-z])$', s)
+    if m and os.path.exists(P('data/districts/sector-%s.geojson' % m.group(1).upper())):
+        return 'Sector ' + m.group(1).upper(), geo_file(P('data/districts/sector-%s.geojson' % m.group(1).upper()))
+    m = re.match(r'^dsny-(brooklyn|manhattan|bronx|queens|staten-island)-(\d+)$', s)
+    if m:
+        pre = {'brooklyn': 'BK', 'manhattan': 'MN', 'bronx': 'BX', 'queens': 'Q', 'staten-island': 'SI'}[m.group(1)]
+        secs = [x for x in DSNY if x['properties']['district'][:2] == pre[:2] and x['properties']['district'][-2:] == '%02d' % int(m.group(2))]
+        if secs:
+            from shapely.geometry import shape, mapping
+            from shapely.ops import unary_union
+            u = unary_union([shape(x['geometry']).buffer(0) for x in secs]).buffer(0.00005).buffer(-0.00005)
+            return 'Sanitation district %s %s' % (m.group(1).replace('-', ' ').title(), m.group(2)), [{'type': 'Feature', 'geometry': mapping(u), 'properties': {}}]
+    if p.get('kind') == 'official' and p.get('official') in OFF:
+        o = OFF[p['official']]; c, n, sl = o.get('chamber'), o.get('district'), o['slug']
+        if c and n and os.path.exists(P('data/districts/%s-%s.geojson' % (c, n))):
+            return {'council': 'Council District %s', 'assembly': 'Assembly District %s', 'senate': 'State Senate District %s', 'congress': 'Congressional District NY-%s'}[c] % n, geo_file(P('data/districts/%s-%s.geojson' % (c, n)))
+        bo = {'bronx': 2, 'brooklyn': 3, 'manhattan': 1, 'queens': 4, 'statenisland': 5}
+        if sl.startswith('bp') and sl[2:] in bo: return o.get('boro') or sl[2:].title(), geo_file(P('data/districts/borough-%d.geojson' % bo[sl[2:]]))
+        if sl.startswith('da') and o.get('boro'):
+            k = o['boro'].lower().replace(' ', '')
+            if k in bo: return o['boro'], geo_file(P('data/districts/borough-%d.geojson' % bo[k]))
+        if sl in ('mayor', 'publicadvocate', 'comptroller'): return 'New York City', geo_file(P('data/districts/city-nyc.geojson'))
+        if sl in ('governor', 'lieutenantgovernor', 'attorneygeneral', 'statecomptroller') or sl.startswith('ussen'): return 'New York State', geo_file(P('data/districts/state-ny.geojson'))
     if s in BID and os.path.exists(P('data/districts', BID[s] + '.geojson')):
         return p['name'], geo_file(P('data/districts', BID[s] + '.geojson'))
     return None
