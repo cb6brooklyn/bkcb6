@@ -12,9 +12,10 @@ only BIDs that reach into Community District 6.
 Businesses: the Directory's entries (profiles/dir.json, one per business after directory_dedupe.py) inside the boundary,
 each linked to its profile page. The parts of each BID outside District 6 are filled from the official registers by
 bid_audit.py and bid_register_profiles.py; the Park Slope Fifth Avenue BID's own directory is in the Directory the same way.
-Properties: every tax lot inside the boundary, from PLUTO (64uk-42ks), with its shape from MapPLUTO.
+Properties: every tax lot inside the boundary, from PLUTO (64uk-42ks), with its shape from MapPLUTO, and its storefronts, occupied or
+vacant, from the city's storefront registry (92iy-9c3n).
 Run after app_directory_tiles.py: python3 scripts/bid_maps.py"""
-import json, os, re, sys, html, urllib.request, urllib.parse, time
+import json, os, re, sys, html, urllib.request, urllib.parse, time, collections
 from shapely.geometry import shape, Point, mapping
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 P = lambda *a: os.path.join(ROOT, *a)
@@ -42,6 +43,7 @@ def get(u, data=None):
             if i == 3: raise
             time.sleep(4)
 def esc(s): return html.escape(str(s), quote=True)
+def tc_(s): return re.sub(r'^No Business Activity Identified$', '', s.strip().capitalize()) if s else ''
 TPL = open(P('gowanusbid/index.html'), encoding='utf-8').read()
 # the Directory, one entry per business, and the profile behind each entry
 DIR = json.load(open(P('profiles/dir.json')))
@@ -94,6 +96,20 @@ def lots(g):
         n = lambda k: int(float(r[k])) if r.get(k) not in (None, '') else 0
         out.append([r.get('address', ''), b, lu, z, r.get('ownername', ''), n('yearbuilt'), round(float(r['numfloors']), 1) if r.get('numfloors') else 0, n('unitsres'), n('lotarea'),
                     round(float(r['latitude']), 6), round(float(r['longitude']), 6), rings])
+    # the city's storefront registry (Local Law 157): each ground and second floor storefront, occupied or vacant, by its latest filing
+    SF = collections.defaultdict(list)
+    for i in range(0, len(bbls), 200):
+        for r in get('https://data.cityofnewyork.us/resource/92iy-9c3n.json?' + urllib.parse.urlencode({'$where': 'bbl in(%s)' % ','.join("'%s'" % b for b in bbls[i:i + 200]), '$limit': 50000})):
+            SF[r['bbl']].append(r)
+    for l in out:
+        rs = SF.get(l[1])
+        if not rs: l.append(''); continue
+        yr = max(r['reporting_year'] for r in rs); cur = [r for r in rs if r['reporting_year'] == yr]
+        occ = collections.Counter(tc_(r.get('primary_business_activity', '')) for r in cur if r.get('vacant_on_12_31') == 'NO')
+        vac = sum(1 for r in cur if r.get('vacant_on_12_31') == 'YES')
+        parts = ['%s in use%s' % (('%d storefronts' % sum(occ.values())) if sum(occ.values()) > 1 else 'Storefront', ' (%s)' % ', '.join(occ) if occ and any(occ) else '')] if occ else []
+        if vac: parts.append('%s vacant' % ('%d storefronts' % vac if vac > 1 else 'storefront' if occ else 'Storefront'))
+        l.append('%s, as the owner reported to the city for %s' % ('; '.join(parts), yr))
     out.sort(key=lambda l: (re.sub(r'^[\d\-]+\s+', '', l[0] or 'zzz'), int(re.match(r'\d*', l[0] or '').group() or 0)))
     return out
 CD6 = shape(json.load(open(P('data/cb6-audit/cd306.geojson'))))
@@ -123,13 +139,15 @@ for B in BIDS:
     s = s.replace('<button class="tab" data-t="h">New housing</button>', '')
     src = ('Boundary: the city\'s file of business improvement districts (NYC Department of Small Business Services), Nov 16, 2026. The district spans Community Boards %s. '
            'Businesses: the bkcb6.app Directory, which draws on NYC Health Department restaurant inspections, NYC Department of Consumer and Worker Protection licenses, '
-           'New York State food store, liquor and salon licenses, the federal health provider and bank branch registers, OpenStreetMap%s. '
-           'Properties: every tax lot inside the boundary, from the Department of City Planning\'s PLUTO file.' % (cbs, ', and ' + B['own'] if B['own'] else ''))
+           'New York State food store, liquor and salon licenses, the federal health provider and bank branch registers, and OpenStreetMap (read Nov 16, 2026)%s. '
+           'Properties: every tax lot inside the boundary, from the Department of City Planning\'s PLUTO file, with its storefronts, occupied or vacant, from the city\'s storefront registry.' % (cbs, ', and ' + B['own'] if B['own'] else ''))
     s = re.sub(r'<p class="src">.*?</p>', '<p class="src">%s</p>' % esc(src), s, flags=re.S)
     s = re.sub(r'var RING=\[.*?\];\n', 'var RING=%s;\n' % json.dumps(ring, separators=(',', ':')), s, flags=re.S)
     s = re.sub(r'var ROWS=\[.*?\];\n', lambda m: 'var ROWS=%s;\n' % json.dumps(rows, ensure_ascii=False, separators=(',', ':')), s, flags=re.S)
     s = re.sub(r'var LOTS=\[.*?\];\n', lambda m: 'var LOTS=%s;\n' % json.dumps(L, ensure_ascii=False, separators=(',', ':')), s, flags=re.S)
     s = re.sub(r'var HOUSING=\[.*?\];\n', 'var HOUSING=[];\n', s, flags=re.S)
+    s = s.replace("(l[8]?'<div>Lot area '", "(l[12]?'<div>'+esc(l[12])+'</div>':'')+(l[8]?'<div>Lot area '", 1)
+    assert "l[12]?'<div>'" in s
     s = s.replace("var CAT={", "var CAT=" + json.dumps(CAT_EXTRA, ensure_ascii=False)[:-1] + ",", 1)
     s = s.replace("function icon(r){return r[8]?'<img src=\"/app/data/civic/business/logos/'+esc(r[8])+'.png\" alt=\"\" loading=\"lazy\">':glyph(r)}",
                   "function icon(r){return r[8]?'<img src=\"'+esc(r[8])+'\" alt=\"\" loading=\"lazy\">':glyph(r)}")
