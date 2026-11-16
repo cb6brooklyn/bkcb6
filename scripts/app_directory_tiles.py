@@ -11,6 +11,7 @@ Writes app/data/civic/ui/{cb6,bk,beyond}/tools.json (lists dir-*) and screens.js
 """
 import json, os, re
 
+import collections
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 P = lambda *a: os.path.join(ROOT, *a)
 D = json.load(open(P('app/data/civic/orgs/orgs-profiles.json'), encoding='utf-8'))
@@ -314,6 +315,13 @@ def area_sections(app):
         for t in ('Museums', 'Movie theaters'):
             ps = byname([p for p in D['profiles'] if (p.get('culture') or (p.get('topic') if p.get('group') == 'Culture' else None)) == t and str(p.get('culture_cd') or p.get('cd') or '') == '306'])
             if ps: out.append(('BKCB6 museums and movie theaters', t, 'dir-cb6-culture-' + slug(t), ps))
+        # restaurants by style of food (DOHMH cuisine, set by cb6_register_profiles.py), then bars and the makers of drinks
+        cu = collections.Counter(p['cuisine'] for p in D['profiles'] if p.get('cuisine') and p.get('group') == 'Local businesses')
+        for c_, n_ in sorted(cu.items(), key=lambda kv: (-kv[1], kv[0])):
+            out.append(('BKCB6 restaurants by cuisine', c_, 'dir-cb6-cuisine-' + slug(c_), byname([p for p in D['profiles'] if p.get('cuisine') == c_ and p.get('group') == 'Local businesses'])))
+        for lab, cats in (('Bars and nightlife', ('Bars and nightlife',)), ('Breweries, distilleries and wineries', ('Brewery, distillery, winery',))):
+            ps = byname([p for p in D['profiles'] if p.get('group') == 'Local businesses' and any(kv[0] == 'Category' and kv[1] in cats for kv in p.get('kv', []))])
+            if ps: out.append(('BKCB6 bars and drinks', lab, 'dir-cb6-drinks-' + slug(lab), ps))
         for g in ('Business improvement districts', 'Schools, parks and facilities', 'Local businesses'):
             tops = next((x['topics'] for x in D.get('groups', []) if x['name'] == g), [])
             ps = [p for p in D['profiles'] if p['group'] == g]
