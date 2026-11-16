@@ -26,14 +26,14 @@ TOKEN = 'HvFoIfzodzpRML7a1104Ca2tM'
 EDGE = 0.00012
 BIDS = [
     {'slug': 'park-slope-5th-avenue', 'dir': 'parkslopefifthavebid', 'name': 'Park Slope Fifth Avenue BID', 'long': 'Park Slope Fifth Avenue Business Improvement District',
-     'year': 2008, 'profile': '/bid-park-slope-5th-avenue/', 'web': 'https://parkslopefifthavenuebid.com/', 'office': '157 13th Street, Brooklyn, NY 11215',
+     'year': 2008, 'profile': '/bid-park-slope-5th-avenue/', 'logo': '/site-icons/bid-park-slope-fifth-ave.png', 'web': 'https://parkslopefifthavenuebid.com/', 'office': '157 13th Street, Brooklyn, NY 11215',
      'phone': '718-551-5545', 'email': 'info@parkslopefifthavenuebid.com', 'cbs': [6, 7],
      'where': 'Fifth Avenue from Dean Street to 18th Street', 'own': 'the BID\'s own business directory (parkslopefifthavenuebid.com, read Aug 27, 2026)'},
     {'slug': 'north-flatbush', 'dir': 'northflatbushbid', 'name': 'North Flatbush BID', 'long': 'North Flatbush Avenue Business Improvement District',
-     'year': 1986, 'profile': '/bid-north-flatbush/', 'web': 'https://northflatbushbid.nyc/', 'office': '282 Flatbush Avenue, Brooklyn, NY 11217',
+     'year': 1986, 'profile': '/bid-north-flatbush/', 'logo': '/site-icons/bid-north-flatbush.png', 'web': 'https://northflatbushbid.nyc/', 'office': '282 Flatbush Avenue, Brooklyn, NY 11217',
      'phone': '718-783-1685', 'email': 'info@northflatbushbid.nyc', 'cbs': [2, 6, 8], 'where': 'Flatbush Avenue from Atlantic Avenue to Grand Army Plaza', 'own': ''},
     {'slug': 'atlantic-avenue', 'dir': 'atlanticavebid', 'name': 'Atlantic Avenue BID', 'long': 'Atlantic Avenue Business Improvement District',
-     'year': 2011, 'profile': '/bid-atlantic-avenue/', 'web': 'https://www.atlanticavebid.org/', 'office': '306 Atlantic Avenue, Brooklyn, NY 11201',
+     'year': 2011, 'profile': '/bid-atlantic-avenue/', 'logo': '/site-icons/bid-atlantic-avenue.png', 'web': 'https://www.atlanticavebid.org/', 'office': '306 Atlantic Avenue, Brooklyn, NY 11201',
      'phone': '929-283-5989', 'email': 'info@atlanticavebid.org', 'cbs': [2, 6], 'where': 'Atlantic Avenue from Fourth Avenue to the Brooklyn-Queens Expressway', 'own': ''},
 ]
 def get(u, data=None):
@@ -131,10 +131,10 @@ for B in BIDS:
     s = TPL
     s = s.replace('<meta name="robots" content="noindex,nofollow">\n', '')
     s = re.sub(r'<title>.*?</title>', '<title>%s: map, businesses and properties</title>' % esc(B['name']), s)
-    s = re.sub(r'<header>.*?</header>', '<header><div class="k">Business improvement district · Established %d</div><h1>%s</h1><p>%s. The boundary, every business listing and every property inside it.</p>'
+    s = re.sub(r'<header>.*?</header>', '<header><div class="hb"><img class="hlogo" src="%s" alt="%s logo"><div><div class="k">Business improvement district · Established %d</div><h1>%s</h1></div></div><p>%s. The boundary, every business listing and every property inside it.</p>'
                '<p class="hl"><a href="%s">BID profile</a> · <a href="%s" target="_blank" rel="noopener">Their website</a> · %s · <a href="tel:%s">%s</a> · <a href="mailto:%s">%s</a></p></header>'
-               % (B['year'], esc(B['long']), esc(B['where']), B['profile'], B['web'], esc(B['office']), B['phone'], B['phone'], B['email'], B['email']), s, flags=re.S)
-    s = s.replace('header p{margin:6px 0 0;font-size:.9rem;opacity:.9}', 'header p{margin:6px 0 0;font-size:.9rem;opacity:.9}\nheader .hl{font-size:.8rem;line-height:1.6}header .hl a{color:#fff}')
+               % (B['logo'], esc(B['name']), B['year'], esc(B['long']), esc(B['where']), B['profile'], B['web'], esc(B['office']), B['phone'], B['phone'], B['email'], B['email']), s, flags=re.S)
+    s = s.replace('header p{margin:6px 0 0;font-size:.9rem;opacity:.9}', 'header p{margin:6px 0 0;font-size:.9rem;opacity:.9}\nheader .hl{font-size:.8rem;line-height:1.6}header .hl a{color:#fff}\n.hb{display:flex;gap:14px;align-items:center}.hlogo{flex:0 0 84px;width:84px;height:84px;object-fit:contain;background:#fff;border-radius:12px;padding:6px}')
     s = s.replace('<button class="pill on" id="th">New housing on the map</button>', '')
     s = s.replace('<button class="tab" data-t="h">New housing</button>', '')
     src = ('Boundary: the city\'s file of business improvement districts (NYC Department of Small Business Services), Nov 16, 2026. The district spans Community Boards %s. '
