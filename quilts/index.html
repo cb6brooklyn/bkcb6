@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Quilts &mdash; bkcb6.app</title>
+<meta name="description" content="Pick what you want to find and where, and the Directory's logos stitch into a quilt of it. Tap a square to open its profile.">
+<link rel="canonical" href="https://bkcb6.app/quilts/">
+<meta property="og:title" content="The Quilts &mdash; bkcb6.app"><meta property="og:url" content="https://bkcb6.app/quilts/"><meta property="og:image" content="https://bkcb6.app/og-image.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@500&family=DM+Sans:wght@500;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#fff}
+/* the question above the quilt */
+.ask{position:relative;z-index:50;background:#0d1b4b;color:#fff;padding:12px 14px 10px;font-family:'DM Sans',sans-serif;border-bottom:3px solid #f47920}
+.ask .q{font-size:1.15rem;font-weight:800;line-height:1.9}
+.ask select{font:inherit;font-size:1rem;font-weight:800;color:#0d1b4b;background:#fff;border:0;border-radius:8px;padding:4px 8px;margin:0 2px;max-width:100%}
+.ask .chips{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;margin-top:6px;scrollbar-width:none}.ask .chips::-webkit-scrollbar{display:none}.ask .chip{flex:0 0 auto}
+.ask .chip{font:inherit;font-size:.8rem;font-weight:700;color:#fff;background:transparent;border:1px solid rgba(255,255,255,.55);border-radius:999px;padding:4px 10px;cursor:pointer}
+.ask .chip.on{background:#f47920;border-color:#f47920}
+.ask .n{font-family:'DM Mono',monospace;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-top:6px}
+.empty{padding:40px 16px;text-align:center;font-family:'DM Sans',sans-serif;color:#6b6760}
+/* the quilt, as on /quilt/ */
+.quilt{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:0}
+@media (max-width:640px){.quilt{grid-template-columns:repeat(4,1fr)}.ask .q{font-size:1rem}}
+.sq{container-type:size;display:block;width:100%;min-width:0;aspect-ratio:1;padding:0;margin:0;border:0;background:#fff;cursor:pointer;overflow:hidden;position:relative}
+.sq img{position:absolute;left:-5.3%;top:-5.3%;width:110.6%;height:110.6%;object-fit:cover;display:block}
+.sq.cap img{left:14%;top:4%;width:72%;height:58%;object-fit:contain}
+.sq .nm{position:absolute;left:5%;right:5%;bottom:4%;height:35%;display:flex;align-items:flex-start;justify-content:center;text-align:center;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-weight:700;font-size:9.6cqw;line-height:1.08;letter-spacing:-.01em;overflow:hidden;color:#333}
+.sq .nm span{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.veil{position:fixed;inset:0;background:rgba(13,27,75,.55);z-index:100000;opacity:0;transition:opacity .25s ease;pointer-events:none}
+.veil.on{opacity:1;pointer-events:auto}
+.fly{position:fixed;z-index:100001;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.4);overflow:hidden;transition:all .35s cubic-bezier(.2,.8,.2,1)}
+.fly img{position:absolute;left:-5.3%;top:-5.3%;width:110.6%;height:110.6%;object-fit:cover;display:block}
+.card{position:fixed;z-index:100002;left:50%;top:50%;transform:translate(-50%,-50%);width:min(980px,94vw);height:min(88vh,900px);background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.4);display:none;overflow:hidden}
+.card.on{display:block}
+.card iframe{border:0;width:100%;height:100%}
+.x{position:absolute;top:8px;right:8px;z-index:2;width:36px;height:36px;border-radius:50%;border:0;background:rgba(13,27,75,.85);color:#fff;font:700 20px/36px sans-serif;cursor:pointer}
+</style>
+</head><body>
+<div class="ask">
+ <div class="q">I want to find <select id="topic"></select><span id="polw"> about <select id="pol"></select></span> in <select id="place"></select><select id="num" style="display:none"></select></div>
+ <div class="chips" id="chips"></div>
+ <div class="n" id="n"></div>
+</div>
+<div class="quilt" id="quilt"></div>
+<div class="veil" id="veil"></div>
+<div class="card" id="card" role="dialog" aria-modal="true"><button class="x" id="x" type="button" aria-label="Close">&times;</button><iframe id="frame" title="Profile"></iframe></div>
+<script>
+const $=id=>document.getElementById(id);
+const ICON=c=>'/app/data/civic/icons/'+c+'.png';
+let D,ALL=[],E=[];
+// what you can look for: each is the Directory's sections (and categories) it draws from
+const TOPICS=[
+ ['everything','everything',null],
+ ['elected','elected officials',s=>/elected officials/i.test(s)],
+ ['government','government offices and boards',s=>/government|community boards/i.test(s)],
+ ['schools','schools',(s,c)=>/schools/i.test(s)&&!/child care/i.test(s)||/child care by age/i.test(s)&&/school/i.test(c)&&!/preschool/i.test(c)],
+ ['childcare','child care and Pre-K',(s,c)=>/child care by age/i.test(s)&&/infant|preschool|pre-k|camp/i.test(c)],
+ ['libraries','libraries',s=>/^libraries$/i.test(s)],
+ ['parks','parks and things to do in them',(s,c)=>/parks/i.test(s)||/parks/i.test(c)],
+ ['culture','museums, theatres and stadiums',s=>/museums|theatres/i.test(s)],
+ ['hospitals','hospitals',s=>/^hospitals$/i.test(s)],
+ ['pharmacies','pharmacies',s=>/^pharmacies$/i.test(s)],
+ ['supermarkets','supermarkets',s=>/^supermarkets$/i.test(s)],
+ ['orgs','community organizations',s=>/community-based organizations|community groups/i.test(s)],
+ ['business','local businesses',s=>/businesses|business improvement/i.test(s)]];
+// where: the city, a borough, BKCB6, or any district
+const BOROS=['Brooklyn','Manhattan','Bronx','Queens','Staten Island'];
+const PLACES=[['nyc','all of New York City'],['bkcb6','BKCB6']].concat(BOROS.map((b,i)=>['b'+i,b==='Bronx'?'the Bronx':b]),
+ [['cd','a community board'],['cc','a City Council district'],['ad','an Assembly district'],['sd','a State Senate district'],['cg','a congressional district']]);
+const DCOL={cd:6,cc:7,ad:8,sd:9,cg:10};
+const CDNAME=n=>({1:'Manhattan',2:'Bronx',3:'Brooklyn',4:'Queens',5:'Staten Island'}[String(n)[0]]+' CB '+(n%100));
+const CHIPS=[['BKCB6','everything','bkcb6'],['Brooklyn','everything','b0'],['Manhattan','everything','b1'],['The Bronx','everything','b2'],['Queens','everything','b3'],['Staten Island','everything','b4'],
+ ['Schools in BKCB6','schools','bkcb6'],['Child care in BKCB6','childcare','bkcb6'],['Who represents BKCB6','elected','bkcb6'],['Every library','libraries','nyc'],['Every hospital','hospitals','nyc']];
+function opt(sel,list){sel.innerHTML=list.map(([v,t])=>'<option value="'+v+'">'+esc(t)+'</option>').join('')}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function label(n){return n.replace(/: courts and fields$/,'').replace(/ (Public )?Library$/,' Branch').replace(/^Bklyn /,'')}
+const COL={};
+function colorOf(img){const c=img.dataset.c;if(COL[c])return COL[c];
+ try{const k=document.createElement('canvas');k.width=k.height=24;const x=k.getContext('2d');x.drawImage(img,0,0,24,24);const d=x.getImageData(0,0,24,24).data;let best=null,bs=-1;
+  for(let i=0;i<d.length;i+=4){const r=d[i],g=d[i+1],b=d[i+2],a=d[i+3];if(a<200)continue;const mx=Math.max(r,g,b),mn=Math.min(r,g,b);if(mx>235&&mn>235)continue;const s=(mx-mn)+(255-mx)*.35;if(s>bs){bs=s;best=[r,g,b]}}
+  COL[c]=best?'rgb('+best.join(',')+')':'#333'}catch(e){COL[c]='#333'}return COL[c]}
+// the policy areas: the community organizations' categories
+function polOptions(){const set=new Set();D.sections.forEach(s=>{if(/community-based organizations|community groups/i.test(s.n))s.cats.forEach(c=>set.add(c.replace(/^Community organizations: /,'')))});
+ return [['','every policy area']].concat([...set].sort().map(c=>[c,c.toLowerCase()]))}
+function numOptions(t){return D.districts[t].map(n=>[n,t==='cd'?CDNAME(n):(t==='cc'?'Council ':t==='ad'?'Assembly ':t==='sd'?'Senate ':'NY-')+n])}
+function draw(){
+ const t=$('topic').value,p=$('place').value,pol=$('pol').value;
+ $('polw').style.display=t==='orgs'?'':'none';
+ const isD=DCOL[p]!==undefined;$('num').style.display=isD?'':'none';
+ if(isD&&$('num').dataset.t!==p){opt($('num'),numOptions(p));$('num').dataset.t=p;if(p==='cd')$('num').value='306'}
+ const tf=TOPICS.find(x=>x[0]===t)[2];
+ E=ALL.filter(e=>{
+  if(tf&&!e.cats.some(([s,c])=>tf(s,c)))return false;
+  if(t==='orgs'&&pol&&!e.cats.some(([s,c])=>c.replace(/^Community organizations: /,'')===pol))return false;
+  if(p==='bkcb6')return e.r[6]===306||e.cats.some(([s])=>/^BKCB6/.test(s));
+  if(p[0]==='b'&&p!=='bkcb6')return e.r[4]===+p.slice(1);
+  if(isD)return e.r[DCOL[p]]===+$('num').value;
+  return true});
+ const k=E.findIndex(e=>e.h==='/cb-bk-6.html');if(k>0)E.unshift(E.splice(k,1)[0]);
+ const n={};ALL.forEach(e=>n[e.c]=(n[e.c]||0)+1);
+ $('quilt').innerHTML=E.length?E.map((e,i)=>n[e.c]>1
+  ?'<button class="sq cap" type="button" data-i="'+i+'" title="'+esc(e.n)+'"><img loading="lazy" decoding="async" src="'+ICON(e.c)+'" alt="" data-c="'+e.c+'"><span class="nm"><span>'+esc(label(e.n))+'</span></span></button>'
+  :'<button class="sq" type="button" data-i="'+i+'" title="'+esc(e.n)+'"><img loading="lazy" decoding="async" src="'+ICON(e.c)+'" alt="'+esc(e.n)+'"></button>').join('')
+  :'<div class="empty" style="grid-column:1/-1">Nothing with a logo matches that yet. Try another place or topic.</div>';
+ document.querySelectorAll('.sq.cap img').forEach(img=>{const nm=img.nextElementSibling,paint=()=>{nm.style.color=colorOf(img)};if(img.complete&&img.naturalWidth)paint();else img.addEventListener('load',paint,{once:true})});
+ $('n').textContent=E.length.toLocaleString()+' squares';
+ document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c.dataset.t===t&&c.dataset.p===p));
+ history.replaceState(null,'','#'+[t,p,isD?$('num').value:'',t==='orgs'?pol:''].map(encodeURIComponent).join('/'));
+ window.scrollTo(0,0)}
+function pop(b){
+ const e=E[+b.dataset.i],r=b.getBoundingClientRect(),fly=document.createElement('div');fly.className='fly';
+ Object.assign(fly.style,{left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px'});
+ fly.innerHTML=b.innerHTML;if(b.classList.contains('cap'))fly.classList.add('sq','cap');document.body.appendChild(fly);$('veil').classList.add('on');
+ const big=Math.min(280,innerWidth*.6);
+ requestAnimationFrame(()=>requestAnimationFrame(()=>Object.assign(fly.style,{left:(innerWidth-big)/2+'px',top:(innerHeight-big)/2+'px',width:big+'px',height:big+'px',borderRadius:'14px'})));
+ setTimeout(()=>{$('frame').src=e.h+(e.h.includes('?')?'&':'?')+'app=1';$('card').classList.add('on');fly.style.opacity='0';setTimeout(()=>fly.remove(),250)},420)}
+function close(){$('card').classList.remove('on');$('veil').classList.remove('on');$('frame').src='about:blank'}
+$('quilt').addEventListener('click',ev=>{const b=ev.target.closest('.sq');if(b)pop(b)});
+$('veil').onclick=close;$('x').onclick=close;document.addEventListener('keydown',ev=>{if(ev.key==='Escape')close()});
+fetch('/profiles/dir.json').then(r=>r.json()).then(d=>{D=d;
+ const seen=new Set();
+ d.E.forEach(r=>{if(String(r[2]).startsWith('dir-k-')||seen.has(r[1]))return;seen.add(r[1]);
+  ALL.push({n:r[0],h:r[1],c:r[2],r,cats:r[3].map(v=>{const s=d.sections[Math.floor(v/1000)];return [s.n,s.cats[v%1000]||'']})})});
+ opt($('topic'),TOPICS.map(x=>[x[0],x[1]]));opt($('place'),PLACES);opt($('pol'),polOptions());
+ $('chips').innerHTML=CHIPS.map(([l,t,p])=>'<button class="chip" type="button" data-t="'+t+'" data-p="'+p+'">'+esc(l)+'</button>').join('');
+ $('chips').onclick=ev=>{const c=ev.target.closest('.chip');if(!c)return;$('topic').value=c.dataset.t;$('place').value=c.dataset.p;draw()};
+ ['topic','place','num','pol'].forEach(id=>$(id).onchange=draw);
+ const h=location.hash.slice(1).split('/').map(decodeURIComponent);
+ $('topic').value=h[0]||'everything';$('place').value=h[1]||'bkcb6';
+ if(DCOL[$('place').value]!==undefined){opt($('num'),numOptions($('place').value));$('num').dataset.t=$('place').value;if(h[2])$('num').value=h[2]}
+ if(h[3])$('pol').value=h[3];
+ draw();
+ addEventListener('hashchange',()=>{const h=location.hash.slice(1).split('/').map(decodeURIComponent);if(h[0])$('topic').value=h[0];if(h[1])$('place').value=h[1];draw()})});
+</script>
+</body></html>
