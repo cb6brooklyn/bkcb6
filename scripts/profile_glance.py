@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Mike's guide (Google Doc "NYC Agencies and Precincts: What They Do and Why You May Need to Know", Nov 15, 2026,
-saved as data/guide/what-it-does-2026-11-15.md) at the top of every matching Directory profile, in the apps and on the
+"""Mike's guide (Google Doc "NYC Agencies and Precincts: What They Do and Why You May Need to Know", Nov 15, 2026, updated Nov 16,
+saved as data/guide/what-it-does-2026-11-16.md) at the top of every matching Directory profile, in the apps and on the
 site. Agencies: what it does and why you may need to know. Precincts and precinct councils: neighborhoods and when the
 council meets. School districts and CECs, community boards, and every elected official in the guide.
 Writes 'glance' on each profile in orgs-profiles.json (and puts it first in the profile's intro, for the apps) and
@@ -10,7 +10,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 P = lambda *a: os.path.join(ROOT, *a)
 sys.path.insert(0, P('scripts'))
 import directory_grid as G
-src = open(P('data/guide/what-it-does-2026-11-15.md'), encoding='utf-8').read()
+src = open(P('data/guide/what-it-does-2026-11-16.md'), encoding='utf-8').read()
 def cells(l): return [re.sub(r'\\([\[\]])', r'\1', c.strip()) for c in l.strip().strip('|').split('|')]
 S = {}; sec = None
 for l in src.split('\n'):
@@ -34,7 +34,10 @@ byname = collections.defaultdict(list)
 for p in city: byname[strip_city(norm(p['name']))].append(p)
 CBG = None
 ALIAS = {'department of housing preservation and development': 'housing preservation and development', 'department of parks and recreation': 'parks',
-         'fire department pension fund': 'fire department pension fund and related funds', 'queens county public administrator': 'public administrator of queens county'}
+         'fire department pension fund': 'fire department pension fund and related funds', 'queens county public administrator': 'public administrator of queens county',
+         'bronx borough president': 'office of the borough president of the bronx', 'brooklyn borough president': 'office of the borough president of brooklyn',
+         'manhattan borough president': 'office of the borough president of manhattan', 'queens borough president': 'office of the borough president of queens',
+         'staten island borough president': 'office of the borough president of staten island'}
 miss = []
 for k in [k for k in S if k.startswith('City agencies')]:
     for r in S[k]:
@@ -42,6 +45,7 @@ for k in [k for k in S if k.startswith('City agencies')]:
         ab = (re.search(r'\(([^)]+)\)\s*$', name) or [None, ''])[1]
         cand = byname.get(strip_city(norm(name)), []) or byname.get(ALIAS.get(strip_city(norm(name)), '-'), [])
         if name.startswith('Community Boards (CB)'): CBG = r; continue
+        if not cand and name.startswith('Brooklyn Public Library'): cand = [p for p in PR if p['slug'] == 'brooklyn-public-library-cb6']
         if not cand and ab:
             cand = [p for p in city if p['slug'] == ab.lower() or (p.get('seat') or '').endswith('· ' + ab)]
         if not cand: miss.append(name); continue
