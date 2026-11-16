@@ -33,7 +33,7 @@ for pre, folder, crumb in KINDS:
         lgpath = ('/app/data/civic/icons/' + lg.split('/')[-1]) if lg.startswith('../../icons/') else ('/app/data/civic/orgs/logos/' + lg) if lg else ''
         if pre == 'park-' and not lgpath: lgpath = '/app/data/civic/orgs/logos/nycparks.png'
         o = {'slug': folder + '-' + page, 'outfile': P(folder, page + '.html'), 'unsigned': True, 'name': E(p['name']), 'title': E(p['name']),
-             'seat': E(p.get('seat', '')).replace(' · ', ' &middot; '), 'desc': E(p.get('desc', '')), 'intro': [E(x) for x in p.get('intro', [])], 'does': [],
+             'seat': E(p.get('seat', '')).replace(' · ', ' &middot; '), 'desc': E(p.get('desc', '')), 'intro': [E(x) for x in p.get('intro', []) if not any(x.startswith(g[0] + ': ') for g in p.get('glance') or [])], 'does': [],
              'does_title': 'What it does', 'kv': [[E(k), E(v)] for k, v in p.get('kv', [])], 'links': [[E(a), b, False] for a, b in p['links']],
              'addr': E(street), 'zip': p.get('zip', ''), 'cityline': E(city) or ' ', 'addr_note': '', 'phone': p.get('phone', ''), 'tel': re.sub(r'\D', '', p.get('phone', '')),
              'email': '', 'web': p.get('web', ''), 'weburl': p.get('weburl', ''), 'since': ''}

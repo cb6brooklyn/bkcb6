@@ -266,4 +266,6 @@
   }
 
   if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
+  // the guide at the top of Directory profiles
+  try { var g = document.createElement('script'); g.src = '/assets/glance.js?v=1'; g.defer = true; (document.head || document.documentElement).appendChild(g); } catch (e) {}
 })();

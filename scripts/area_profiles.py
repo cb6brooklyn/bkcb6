@@ -114,7 +114,7 @@ for kind, key in (('precinct', 'precinct'), ('school', 'school')):
         g, cbs, cdrows, dists, groups = build(kind, n, slug)
         noun = 'precinct' if kind == 'precinct' else 'school district'
         boards = ', '.join('Brooklyn %d' % (int(b['cd']) - 300) for b in sorted(cbs, key=lambda b: int(b['cd'])))
-        bio = [plain(p) for p in r['intro']]
+        bio = [plain(p) for p in r['intro'] if not any(p.startswith(g[0] + ': ') for g in r.get('glance') or [])]
         bio.append('The %s overlaps community board%s %s.' % (noun, '' if len(cbs) == 1 else 's', re.sub(r', ([^,]*)$', r' and \1', boards)))
         about = [plain(p) for p in r['does']]
         site = r.get('weburl', '')

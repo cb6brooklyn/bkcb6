@@ -146,7 +146,7 @@ def app_profile(r, key, group, logo):
             'desc': plain(r.get('desc', '')), 'lat': float(r['lat']) if r.get('lat') else None, 'lng': float(r['lng']) if r.get('lng') else None,
             'addr': r.get('addr', ''), 'zip': r.get('zip', ''), 'addr_note': plain(r.get('addr_note', '')), 'phone': r.get('phone', ''),
             'email': r.get('email', ''), 'web': r.get('web', ''), 'weburl': r.get('weburl', ''), 'since': r.get('since', ''),
-            'intro': [plain(p) for p in r.get('intro', [])], 'does': [plain(p) for p in r.get('does', [])], 'kv': kv,
+            'intro': [plain(p) for p in r.get('intro', []) if not any(p.startswith(g[0] + ': ') for g in r.get('glance') or [])], 'does': [plain(p) for p in r.get('does', [])], 'kv': kv,
             'links': [[plain(t), absu(u)] for t, u, *_ in r.get('links', []) if not u.startswith('/citywide-search')],
             'logo': logo or '', 'cal': key, 'n': 0, 'going': [], 'kind': 'org', 'official': '',
             'group': group[0], 'topic': group[1], 'sort': 0}
