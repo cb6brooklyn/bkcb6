@@ -315,10 +315,28 @@ def area_sections(app):
         for t in ('Museums', 'Movie theaters'):
             ps = byname([p for p in D['profiles'] if (p.get('culture') or (p.get('topic') if p.get('group') == 'Culture' else None)) == t and str(p.get('culture_cd') or p.get('cd') or '') == '306'])
             if ps: out.append(('BKCB6 museums and movie theaters', t, 'dir-cb6-culture-' + slug(t), ps))
-        # restaurants by style of food (DOHMH cuisine, set by cb6_register_profiles.py), then bars and the makers of drinks
-        cu = collections.Counter(p['cuisine'] for p in D['profiles'] if p.get('cuisine') and p.get('group') == 'Local businesses')
-        for c_, n_ in sorted(cu.items(), key=lambda kv: (-kv[1], kv[0])):
-            out.append(('BKCB6 restaurants by cuisine', c_, 'dir-cb6-cuisine-' + slug(c_), byname([p for p in D['profiles'] if p.get('cuisine') == c_ and p.get('group') == 'Local businesses'])))
+        # restaurants and food spots by kind of food: the Health Department's cuisine (cb6_register_profiles.py) under plainer
+        # names, and, where a place has no Health Department cuisine, what its own name says (pizza, bagels, bakery, coffee...)
+        FOODLAB = {'Bagels/Pretzels': 'Bagels', 'Bakery Products/Desserts': 'Bakeries and desserts', 'Coffee/Tea': 'Coffee and tea', 'Frozen Desserts': 'Ice cream and frozen desserts',
+                   'Juice, Smoothies, Fruit Salads': 'Juice and smoothies', 'Hamburgers': 'Burgers', 'Chicken': 'Chicken', 'Donuts': 'Donuts', 'Sandwiches/Salads/Mixed Buffet': 'Sandwiches',
+                   'Soups/Salads/Sandwiches': 'Sandwiches', 'Asian/Asian Fusion': 'Asian fusion', 'Jewish/Kosher': 'Jewish and kosher', 'Bottled Beverages': 'Drinks', 'Soups': 'Soups', 'Salads': 'Salads'}
+        BYNAME = [(r"pizz", 'Pizza'), (r"\bbagel", 'Bagels'), (r"baker|patisserie|p[aâ]tisserie|pastry|pastries|cupcake|\bcakes?\b|donut|doughnut", 'Bakeries and desserts'),
+                  (r"coffee|espresso|\bcaf[eé]\b|roaster|\btea\b", 'Coffee and tea'), (r"ice cream|gelat|froyo|frozen yogurt", 'Ice cream and frozen desserts'), (r"sushi|ramen|izakaya", 'Japanese'),
+                  (r"taco|taqueria|burrito", 'Mexican'), (r"juice|smoothie", 'Juice and smoothies'), (r"burger", 'Burgers'), (r"\bthai\b", 'Thai'), (r"\bdiner\b", 'American'), (r"\bbbq\b|barbecue", 'Barbecue')]
+        def foodtype(p):
+            if p.get('group') != 'Local businesses': return None
+            if p.get('cuisine'): return FOODLAB.get(p['cuisine'], p['cuisine'])
+            if p.get('topic') != 'Restaurants, cafes and food': return None
+            for rx, lab in BYNAME:
+                if re.search(rx, p['name'], re.I): return lab
+            return None
+        ft = collections.defaultdict(list)
+        for p in D['profiles']:
+            t_ = foodtype(p)
+            if t_: ft[t_].append(p); p['foodtype'] = t_
+            else: p.pop('foodtype', None)
+        for c_, ps in sorted(ft.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+            out.append(('BKCB6 restaurants and food spots by kind', c_, 'dir-cb6-cuisine-' + slug(c_), byname(ps)))
         for lab, cats in (('Bars and nightlife', ('Bars and nightlife',)), ('Breweries, distilleries and wineries', ('Brewery, distillery, winery',))):
             ps = byname([p for p in D['profiles'] if p.get('group') == 'Local businesses' and any(kv[0] == 'Category' and kv[1] in cats for kv in p.get('kv', []))])
             if ps: out.append(('BKCB6 bars and drinks', lab, 'dir-cb6-drinks-' + slug(lab), ps))

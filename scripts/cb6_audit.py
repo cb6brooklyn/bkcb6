@@ -5,6 +5,8 @@ against the Directory. data/cb6-audit/{restaurants,dcwp,agmarkets,sla}.json (pul
   dcwp         DCWP active business licenses (w7w3-xahh), community board 306
   agmarkets    NYS Ag & Markets retail food stores (9a8c-vfzj), inside the district boundary
   sla          NYS Liquor Authority active licenses (9s3h-dpkz), inside the district boundary
+  npi, salons, fdic, irs   health practices (NPI registry), salons and barber shops (NYS DOS), bank branches (FDIC) and
+               tax-exempt organizations (IRS), pulled by ZIP code; cb6_register_profiles.py keeps the ones inside the district
 match(rows) -> (matched {register id: profile slug}, missing rows). Prints the coverage; writes data/cb6-audit/missing.json."""
 import json, os, re, math, difflib, collections, importlib.util as iu
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -30,6 +32,35 @@ def rows():
         c = r['georeference']['coordinates']
         out.append({'src': 'sla', 'id': 'sla-' + r['licensepermitid'], 'name': r.get('dba') or r.get('legalname', ''), 'alt': r.get('legalname', ''), 'addr': r.get('actualaddressofpremises', ''),
                     'zip': r.get('zipcode', ''), 'lat': c[1], 'lng': c[0], 'cat': r.get('description', ''), 'expires': r.get('expirationdate', '')})
+    E = lambda f: os.path.exists(P('data/cb6-audit', f))
+    if E('npi2.json'):   # NPI registry (CMS NPPES): organizations (practices, clinics, labs) with a practice location in the district's ZIP codes, active, updated since 2021
+        for r in A('npi2.json'):
+            b = r.get('basic', {}); loc = next((a for a in r.get('addresses', []) if a.get('address_purpose') == 'LOCATION'), None)
+            if not loc or b.get('status') != 'A' or (b.get('last_updated') or '') < '2021-01-01': continue
+            dba = next((o.get('organization_name') for o in r.get('other_names', []) if o.get('type') == 'Doing Business As'), '')
+            tx = next((t.get('desc') for t in r.get('taxonomies', []) if t.get('primary')), '') or next((t.get('desc') for t in r.get('taxonomies', [])), '')
+            out.append({'src': 'npi', 'id': 'npi-' + str(r['number']), 'name': dba or b.get('organization_name', ''), 'alt': b.get('organization_name', ''), 'addr': loc.get('address_1', ''),
+                        'zip': (loc.get('postal_code') or '')[:5], 'lat': None, 'lng': None, 'phone': loc.get('telephone_number', ''), 'cat': tx})
+    if E('appearance.json'):   # NYS Department of State: active appearance enhancement and barber shop business licenses (y3u4-jbgh)
+        for r in A('appearance.json'):
+            if r.get('license_type') == 'DOSAERENTER': continue
+            out.append({'src': 'salons', 'id': 'dos-' + r['license_number'], 'name': r.get('business_name') or r.get('license_holder_name', ''), 'alt': r.get('license_holder_name', ''),
+                        'addr': r.get('business_address_1', ''), 'zip': (r.get('business_zip') or '')[:5], 'lat': None, 'lng': None,
+                        'cat': 'Barber shop' if r.get('license_type') == 'DOSBARSHOPOWNER' else 'Appearance enhancement business', 'expires': r.get('license_expiration_date', '')})
+    for z in ('11201', '11215', '11217', '11231'):   # FDIC: bank branches
+        if E('fdic-%s.json' % z):
+            for r in A('fdic-%s.json' % z)['data']:
+                r = r['data']
+                out.append({'src': 'fdic', 'id': 'fdic-' + str(r['ID']), 'name': re.sub(r',? National Association$|,? N\.?A\.?$', '', r['NAME']), 'alt': r.get('OFFNAME', ''), 'addr': r.get('ADDRESS', ''), 'zip': str(r.get('ZIP', '')),
+                            'lat': None, 'lng': None, 'cat': r.get('SERVTYPE_DESC', ''), 'branch': r.get('OFFNAME', '')})
+    if E('irs.json'):   # IRS Exempt Organizations Business Master File: public charities and other tax-exempt organizations (not private foundations) at a street address that filed since 2023, and churches
+        for r in A('irs.json'):
+            st = r['STREET'].upper()
+            if re.match(r'^(P\.? ?O\.? ?BOX|BOX )', st) or ' BOX ' in st or not re.match(r'^\d', st): continue
+            if not (r['TAX_PERIOD'] >= '202301' or r['FOUNDATION'] == '10'): continue
+            if r['FOUNDATION'] in ('02', '03', '04'): continue   # private foundations, mostly at home addresses
+            out.append({'src': 'irs', 'id': 'ein-' + r['EIN'], 'name': re.sub(r'\s+(C ?/? ?O|%)\s+.*$', '', r['NAME']), 'alt': r.get('SORT_NAME', ''), 'addr': re.sub(r'\s+(APT|STE|SUITE|UNIT|FL|RM|#).*$', '', r['STREET'], flags=re.I), 'zip': r['ZIP'][:5],
+                        'lat': None, 'lng': None, 'cat': r.get('NTEE_CD', ''), 'church': r['FOUNDATION'] == '10', 'ruling': r.get('RULING', '')})
     return out
 def nn(s): return re.sub(r'[^a-z0-9]', '', re.sub(r'\b(the|inc|llc|corp|ltd|co)\b', '', (s or '').lower().replace('&', 'and')))
 def sim(a, b):

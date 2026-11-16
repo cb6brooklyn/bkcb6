@@ -51,7 +51,7 @@ for r in R:
 # state records: on the district's side of its boundary streets?
 keep = []; out_of = 0
 for r in miss:
-    if r['src'] in ('agmarkets', 'sla'):
+    if r['src'] in ('agmarkets', 'sla', 'npi', 'salons', 'fdic', 'irs'):
         g = geo(r['addr'], r['zip'])
         if g: r['lat'], r['lng'] = g
         if not (r.get('lat') and POLY.contains(Point(r['lng'], r['lat']))): out_of += 1; continue
@@ -74,10 +74,14 @@ DCWP_TOPIC = {'Home Improvement Contractor': 'Trades, workshops and industrial',
               'Secondhand Dealer - Auto': 'Auto and transportation', 'Car Wash': 'Auto and transportation', 'Hotel': 'Hotels and tourism', 'Scrap Metal Processor': 'Trades, workshops and industrial',
               'Construction Labor Provider': 'Trades, workshops and industrial', 'Self-Storage Facility': 'Services and offices', 'Storage Warehouse': 'Services and offices',
               'Process Serving Agency': 'Services and offices', 'Scale Dealer/Repairer': 'Services and offices'}
-SRCNAME = {'restaurants': 'NYC Health Department restaurant inspections', 'dcwp': 'NYC Department of Consumer and Worker Protection licenses',
+SRCNAME = {'npi': 'National Provider Identifier registry (CMS)', 'salons': 'NYS Department of State licenses', 'fdic': 'FDIC bank branch list', 'irs': 'IRS list of tax-exempt organizations', 'restaurants': 'NYC Health Department restaurant inspections', 'dcwp': 'NYC Department of Consumer and Worker Protection licenses',
            'agmarkets': 'NYS Agriculture and Markets retail food stores', 'sla': 'NYS Liquor Authority licenses'}
 def topic(rows, name):
     srcs = {r['src'] for r in rows}
+    if 'npi' in srcs: return 'Health and medical'
+    if 'salons' in srcs: return 'Hair, beauty and personal care'
+    if 'fdic' in srcs: return 'Services and offices'
+    if srcs == {'irs'}: return 'Community organizations'
     if SUPERMARKET.search(name): return 'Supermarkets'
     if 'restaurants' in srcs: return 'Restaurants, cafes and food'
     for r in rows:
@@ -90,7 +94,7 @@ def topic(rows, name):
     return 'Trades, workshops and industrial' if 'sla' in srcs else 'Other businesses'
 made = collections.Counter()
 for c in cl:
-    rows = c['rows']; first = sorted(rows, key=lambda r: ['restaurants', 'sla', 'agmarkets', 'dcwp'].index(r['src']))[0]
+    rows = c['rows']; first = sorted(rows, key=lambda r: ['restaurants', 'sla', 'agmarkets', 'dcwp', 'fdic', 'salons', 'npi', 'irs'].index(r['src']))[0]
     name = tc(re.sub(r'\s+\d{4,}$', '', first['name'])); addr = addr_tc(first['addr']); zip_ = first.get('zip') or ''
     t = topic(rows, name); lat = next((r['lat'] for r in rows if r.get('lat')), None); lng = next((r['lng'] for r in rows if r.get('lng')), None)
     cuisine = next((r['cuisine'] for r in rows if r.get('cuisine') and r['cuisine'] != 'Other'), '')
@@ -100,17 +104,23 @@ for c in cl:
         if r['src'] == 'restaurants': kv.append(['Health Department record', 'Restaurant permit %s' % r['id'][6:] + ('. On the register, not yet inspected.' if r.get('last', '').startswith('1900') else '. Last inspected %s.' % r['last'][:10])])
         if r['src'] == 'dcwp': kv.append(['City license', '%s, %s' % (r['cat'], r['id'][5:])])
         if r['src'] == 'sla': kv.append(['Liquor license', '%s, %s%s' % (r['cat'], r['id'][4:], ', expires %s' % r['expires'][:10] if r.get('expires') else '')])
+        if r['src'] == 'npi': kv.append(['Health practice', '%sNPI %s' % (r['cat'] + ', ' if r.get('cat') else '', r['id'][4:])])
+        if r['src'] == 'salons': kv.append(['State license', '%s, %s%s' % (r['cat'], r['id'][4:], ', expires %s' % r['expires'][:10] if r.get('expires') else '')])
+        if r['src'] == 'fdic': kv.append(['Bank branch', '%s (FDIC)' % tc(r.get('branch') or '')])
+        if r['src'] == 'irs': kv.append(['Tax-exempt organization', 'EIN %s%s' % (r['id'][4:], ', a church' if r.get('church') else '')])
         if r['src'] == 'agmarkets': kv.append(['Food store license', 'NYS Agriculture and Markets, %s' % r['id'][3:]])
         if r.get('alt') and A.nn(r['alt']) != A.nn(first['name']) and ['Legal name', tc(r['alt'])] not in kv: kv.append(['Legal name', tc(r['alt'])])
     kv.append(['Source', '; '.join(sorted({SRCNAME[r['src']] for r in rows}))])
     what = {'Restaurants, cafes and food': 'a restaurant, cafe or bar', 'Supermarkets': 'a supermarket', 'Delis and bodegas': 'a deli or bodega', 'Groceries and food stores': 'a food store',
             'Trades, workshops and industrial': 'a trades business', 'Auto and transportation': 'an auto and transportation business', 'Hotels and tourism': 'a hotel',
-            'Stores': 'a store', 'Services and offices': 'a services business', 'Smoke, vape and cannabis shops': 'a smoke or vape shop', 'Health and medical': 'a pharmacy'}.get(t, 'a business')
+            'Stores': 'a store', 'Services and offices': 'a services business', 'Smoke, vape and cannabis shops': 'a smoke or vape shop', 'Health and medical': 'a health practice' if any(r['src'] == 'npi' for r in rows) else 'a pharmacy',
+            'Hair, beauty and personal care': 'a salon or barber shop', 'Community organizations': 'a tax-exempt organization'}.get(t, 'a business')
+    if any(r['src'] == 'fdic' for r in rows): what = 'a bank branch'
     intro = ['%s is %s at %s in Brooklyn Community District 6.' % (name, what, addr)]
     slug = 'reg-' + hashlib.md5('|'.join(sorted(r['id'] for r in rows)).encode()).hexdigest()[:10]
     p = {'slug': slug, 'type': slug, 'kind': 'org', 'official': '', 'name': name, 'seat': '%s · Brooklyn' % t.split(',')[0], 'desc': intro[0], 'lat': lat, 'lng': lng,
          'addr': addr, 'zip': zip_, 'addr_note': '', 'phone': phone, 'email': '', 'web': '', 'weburl': '', 'since': '', 'intro': intro, 'does': [], 'kv': kv, 'links': [], 'logo': '',
-         'cal': None, 'n': 0, 'going': [], 'group': 'Local businesses', 'topic': t, 'sort': 0, 'registers': sorted(r['id'] for r in rows)}
+         'cal': None, 'n': 0, 'going': [], 'group': 'Schools, parks and facilities' if t == 'Community organizations' else 'Local businesses', 'topic': t, 'sort': 0, 'registers': sorted(r['id'] for r in rows)}
     if cuisine: p['cuisine'] = cuisine
     D['profiles'].append(p); made[t] += 1
 # each new business's page on the site (/biz/<name-and-address>.html, the Directory's business page)
