@@ -337,6 +337,10 @@ def area_sections(app):
             else: p.pop('foodtype', None)
         for c_, ps in sorted(ft.items(), key=lambda kv: (-len(kv[1]), kv[0])):
             out.append(('BKCB6 restaurants and food spots by kind', c_, 'dir-cb6-cuisine-' + slug(c_), byname(ps)))
+        from shapely.geometry import shape as _sh, Point as _Pt
+        _cd = _sh(json.load(open(P('data/cb6-audit/cd306.geojson'))))
+        hw = byname([p for p in D['profiles'] if p.get('worship') and p.get('lat') and p.get('lng') and _cd.contains(_Pt(p['lng'], p['lat']))])
+        if hw: out.append(('BKCB6 houses of worship', 'Houses of worship', 'dir-cb6-worship', hw))
         for lab, cats in (('Bars and nightlife', ('Bars and nightlife',)), ('Breweries, distilleries and wineries', ('Brewery, distillery, winery',))):
             ps = byname([p for p in D['profiles'] if p.get('group') == 'Local businesses' and any(kv[0] == 'Category' and kv[1] in cats for kv in p.get('kv', []))])
             if ps: out.append(('BKCB6 bars and drinks', lab, 'dir-cb6-drinks-' + slug(lab), ps))

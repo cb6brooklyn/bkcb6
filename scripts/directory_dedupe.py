@@ -33,6 +33,7 @@ def _ak(p):
     return (m.group(1), ' '.join(w[:2]))
 def same(a, b):
     ka, kb = _ak(a), _ak(b); d = _d(a, b)
+    if a.get('worship') and b.get('worship') and d is not None and d <= 150: return True   # a church listed by its corner or its rectory's address
     if ka and kb: return ka == kb
     return d is not None and d <= 400
 def groups(profiles):

@@ -74,14 +74,14 @@ DCWP_TOPIC = {'Home Improvement Contractor': 'Trades, workshops and industrial',
               'Secondhand Dealer - Auto': 'Auto and transportation', 'Car Wash': 'Auto and transportation', 'Hotel': 'Hotels and tourism', 'Scrap Metal Processor': 'Trades, workshops and industrial',
               'Construction Labor Provider': 'Trades, workshops and industrial', 'Self-Storage Facility': 'Services and offices', 'Storage Warehouse': 'Services and offices',
               'Process Serving Agency': 'Services and offices', 'Scale Dealer/Repairer': 'Services and offices'}
-SRCNAME = {'npi': 'National Provider Identifier registry (CMS)', 'salons': 'NYS Department of State licenses', 'fdic': 'FDIC bank branch list', 'irs': 'IRS list of tax-exempt organizations', 'restaurants': 'NYC Health Department restaurant inspections', 'dcwp': 'NYC Department of Consumer and Worker Protection licenses',
+SRCNAME = {'npi': 'National Provider Identifier registry (CMS)', 'salons': 'NYS Department of State licenses', 'fdic': 'FDIC bank branch list', 'irs': 'IRS list of nonprofits', 'restaurants': 'NYC Health Department restaurant inspections', 'dcwp': 'NYC Department of Consumer and Worker Protection licenses',
            'agmarkets': 'NYS Agriculture and Markets retail food stores', 'sla': 'NYS Liquor Authority licenses'}
 def topic(rows, name):
     srcs = {r['src'] for r in rows}
     if 'npi' in srcs: return 'Health and medical'
     if 'salons' in srcs: return 'Hair, beauty and personal care'
     if 'fdic' in srcs: return 'Services and offices'
-    if srcs == {'irs'}: return 'Community organizations'
+    if srcs == {'irs'}: return 'Nonprofits'
     if SUPERMARKET.search(name): return 'Supermarkets'
     if 'restaurants' in srcs: return 'Restaurants, cafes and food'
     for r in rows:
@@ -107,20 +107,20 @@ for c in cl:
         if r['src'] == 'npi': kv.append(['Health practice', '%sNPI %s' % (r['cat'] + ', ' if r.get('cat') else '', r['id'][4:])])
         if r['src'] == 'salons': kv.append(['State license', '%s, %s%s' % (r['cat'], r['id'][4:], ', expires %s' % r['expires'][:10] if r.get('expires') else '')])
         if r['src'] == 'fdic': kv.append(['Bank branch', '%s (FDIC)' % tc(r.get('branch') or '')])
-        if r['src'] == 'irs': kv.append(['Tax-exempt organization', 'EIN %s%s' % (r['id'][4:], ', a church' if r.get('church') else '')])
+        if r['src'] == 'irs': kv.append(['Nonprofit', 'EIN %s%s' % (r['id'][4:], ', a church' if r.get('church') else '')])
         if r['src'] == 'agmarkets': kv.append(['Food store license', 'NYS Agriculture and Markets, %s' % r['id'][3:]])
         if r.get('alt') and A.nn(r['alt']) != A.nn(first['name']) and ['Legal name', tc(r['alt'])] not in kv: kv.append(['Legal name', tc(r['alt'])])
     kv.append(['Source', '; '.join(sorted({SRCNAME[r['src']] for r in rows}))])
     what = {'Restaurants, cafes and food': 'a restaurant, cafe or bar', 'Supermarkets': 'a supermarket', 'Delis and bodegas': 'a deli or bodega', 'Groceries and food stores': 'a food store',
             'Trades, workshops and industrial': 'a trades business', 'Auto and transportation': 'an auto and transportation business', 'Hotels and tourism': 'a hotel',
             'Stores': 'a store', 'Services and offices': 'a services business', 'Smoke, vape and cannabis shops': 'a smoke or vape shop', 'Health and medical': 'a health practice' if any(r['src'] == 'npi' for r in rows) else 'a pharmacy',
-            'Hair, beauty and personal care': 'a salon or barber shop', 'Community organizations': 'a tax-exempt organization'}.get(t, 'a business')
+            'Hair, beauty and personal care': 'a salon or barber shop', 'Nonprofits': 'a nonprofit'}.get(t, 'a business')
     if any(r['src'] == 'fdic' for r in rows): what = 'a bank branch'
     intro = ['%s is %s at %s in Brooklyn Community District 6.' % (name, what, addr)]
     slug = 'reg-' + hashlib.md5('|'.join(sorted(r['id'] for r in rows)).encode()).hexdigest()[:10]
     p = {'slug': slug, 'type': slug, 'kind': 'org', 'official': '', 'name': name, 'seat': '%s · Brooklyn' % t.split(',')[0], 'desc': intro[0], 'lat': lat, 'lng': lng,
          'addr': addr, 'zip': zip_, 'addr_note': '', 'phone': phone, 'email': '', 'web': '', 'weburl': '', 'since': '', 'intro': intro, 'does': [], 'kv': kv, 'links': [], 'logo': '',
-         'cal': None, 'n': 0, 'going': [], 'group': 'Schools, parks and facilities' if t == 'Community organizations' else 'Local businesses', 'topic': t, 'sort': 0, 'registers': sorted(r['id'] for r in rows)}
+         'cal': None, 'n': 0, 'going': [], 'group': 'Schools, parks and facilities' if t == 'Nonprofits' else 'Local businesses', 'topic': t, 'sort': 0, 'registers': sorted(r['id'] for r in rows)}
     if cuisine: p['cuisine'] = cuisine
     D['profiles'].append(p); made[t] += 1
 # each new business's page on the site (/biz/<name-and-address>.html, the Directory's business page)
@@ -139,6 +139,8 @@ for p in D['profiles']:
     open(path[1:], 'w').write(BSP.page(p, None, path)); pages[p['slug']] = path
     p['links'] = [['Profile and map', 'https://bkcb6.app' + path]]
 json.dump(pages, open(OLD_F, 'w'), indent=0)
+for g in D['groups']:
+    if g['name'] == 'Schools, parks and facilities' and 'Nonprofits' not in g['topics']: g['topics'].append('Nonprofits')
 open(f, 'w', encoding='utf-8').write(json.dumps(D, ensure_ascii=False, indent=1) + '\n')
 print('cuisine set on restaurants already there:', n_c)
 print('register records with no profile:', len(miss), '| outside the district on the city address points:', out_of, '| profiles made:', sum(made.values()), dict(made))
