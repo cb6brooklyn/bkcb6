@@ -23,7 +23,7 @@ sys.path.insert(0, P('scripts'))
 os.chdir(ROOT)
 import directory_grid as G
 TOKEN = 'HvFoIfzodzpRML7a1104Ca2tM'
-EDGE = 0.00012
+EDGE = 0.00022   # about 20 meters: a storefront's map point often sits in the street in front of its lot
 BIDS = [
     {'slug': 'park-slope-5th-avenue', 'dir': 'parkslopefifthavebid', 'name': 'Park Slope Fifth Avenue BID', 'long': 'Park Slope Fifth Avenue Business Improvement District',
      'year': 2008, 'profile': '/bid-park-slope-5th-avenue/', 'logo': '/site-icons/bid-park-slope-fifth-ave.png', 'web': 'https://parkslopefifthavenuebid.com/', 'office': '157 13th Street, Brooklyn, NY 11215',
@@ -115,11 +115,14 @@ def lots(g):
 CD6 = shape(json.load(open(P('data/cb6-audit/cd306.geojson'))))
 for B in BIDS:
     g = shape(json.load(open(P('data/bids/%s-boundary.geojson' % B['slug'])))['features'][0]['geometry'])
-    near = g.buffer(EDGE)
+    near = g.buffer(EDGE); close = g.buffer(0.00012)
+    MAIN = {'park-slope-5th-avenue': r'\b(5th|fifth|5)\s+av', 'north-flatbush': r'flatbush', 'atlantic-avenue': r'atlantic'}[B['slug']]
     rows, seen = [], set()
     for e in DIR['E']:
         if e[1] not in BYHREF or e[1] in seen: continue
-        if not near.contains(Point(e[12], e[11])): continue
+        pt = Point(e[12], e[11])
+        if not near.contains(pt): continue
+        if not close.contains(pt) and not re.search(MAIN, BYHREF[e[1]].get('addr') or '', re.I): continue   # past the lot line: only a storefront on the BID's own avenue
         p = BYHREF[e[1]]; seen.add(e[1])
         t = TOPIC.get(p.get('topic'), p.get('topic') or 'Other businesses')
         rows.append([e[0], t, kind(p), p.get('addr') or '', e[11], e[12], p.get('weburl') or '', e[1], logo(p), 0, nb(p)])
