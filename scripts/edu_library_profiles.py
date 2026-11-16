@@ -80,7 +80,7 @@ for r in SRC('dohmh-childcare.json'):
     add(slug='cc-' + r['dc_id'].lower(), type='childcare', name=name, seat='%s · %s' % (kind, boro), desc=' '.join(intro), intro=intro,
         lat=g[0] if g else None, lng=g[1] if g else None, addr=addr, zip=r.get('zipcode', ''), phone=phone_of(r.get('phone')),
         kv=[x for x in kv if x], links=[['Child care inspections (NYC Health)', 'https://a816-healthpsi.nyc.gov/ChildCare/SearchAction2.do']],
-        logo='', group='Child care', topic=kind, where=boro,
+        logo='nyc-child-care.png', group='Child care', topic=kind, where=boro,
         ages=a, cckind=kind)
     made['child care centers'] += 1
 
@@ -101,7 +101,7 @@ for r in SRC('facdb-daycare-prek.json'):
         lat=float(r['latitude']) if r.get('latitude') else None, lng=float(r['longitude']) if r.get('longitude') else None,
         addr=addr, zip=r.get('zipcode', ''), kv=[x for x in [['Type', kind], ['Program', tc(r.get('factype', ''))], ['Overseen by', who] if who else None,
         ['Address', addr], ['Borough', boro], ['School district', 'District ' + r['schooldist']] if r.get('schooldist') else None] if x],
-        links=[['NYC Facilities Database', 'https://capitalplanning.nyc.gov/facilities']], logo='', group='Child care', topic=kind, where=boro, cckind=kind)
+        links=[['NYC Facilities Database', 'https://capitalplanning.nyc.gov/facilities']], logo='pre-k-for-all.png' if pre == 'pk-' else '', group='Child care', topic=kind, where=boro, cckind=kind)
     made[kind] += 1
 
 for g, ts in (('Libraries', ['Brooklyn Public Library', 'New York Public Library', 'Queens Public Library']),
