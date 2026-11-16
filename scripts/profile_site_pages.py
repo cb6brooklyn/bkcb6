@@ -15,7 +15,7 @@ LOOP = SRC[SRC.index('for o in ORGS:'):SRC.index('# One page per official')]
 LOOP = LOOP.replace("d = os.path.join(ROOT, o['slug'])\n    os.makedirs(d, exist_ok=True)\n    open(os.path.join(d, 'index.html'), 'w', encoding='utf-8').write(html)",
                     "open(o['outfile'], 'w', encoding='utf-8').write(html)")
 assert "o['outfile']" in LOOP
-KINDS = [('hosp-', 'hospital', 'Health'), ('park-', 'park-place', 'Parks'), ('rx-', 'pharmacy', 'Health'), ('mkt-', 'supermarket', 'Food')]
+KINDS = [('hosp-', 'hospital', 'Health'), ('park-', 'park-place', 'Parks'), ('rx-', 'pharmacy', 'Health'), ('mkt-', 'supermarket', 'Food'), ('lib-', 'library-branch', 'Libraries'), ('cc-', 'child-care', 'Child care'), ('pk-', 'pre-k', 'Child care'), ('swdpre-', 'preschool-swd', 'Child care')]
 f = P('app/data/civic/orgs/orgs-profiles.json'); D = json.load(open(f, encoding='utf-8'))
 made = 0
 for pre, folder, crumb in KINDS:
@@ -25,7 +25,7 @@ for pre, folder, crumb in KINDS:
     for p in D['profiles']:
         if not p['slug'].startswith(pre): continue
         name = re.sub(r'[^a-z0-9]+', '-', html.unescape(p['name']).lower()).strip('-')[:60]
-        page = '%s-%s' % (name, p['slug'][len(pre):].lower()) if pre in ('hosp-', 'rx-', 'mkt-') else p['slug'][len(pre):]
+        page = '%s-%s' % (name, p['slug'][len(pre):].lower()) if pre in ('hosp-', 'rx-', 'mkt-', 'cc-', 'pk-', 'swdpre-') else p['slug'][len(pre):]
         url = 'https://bkcb6.app/%s/%s' % (folder, page)
         p['links'] = [l for l in p.get('links', []) if l[0] != 'Full page']
         street, _, city = (p.get('addr') or '').partition(', ')

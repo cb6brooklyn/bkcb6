@@ -224,7 +224,7 @@ def tile(p):
             t['cover'] = cover_kind(p)
         # the schools' and Council-funded organizations' own logos: the profile reads its tile picture, so the
         # apps carry one file for both, not two
-        if lg.startswith(('sch-', 'cbo-', 'cul-', 'hosp-', 'rx-', 'mkt-')) and src and not t['cover'].startswith('dir-k-'):
+        if lg.startswith(('sch-', 'cbo-', 'cul-', 'hosp-', 'rx-', 'mkt-', 'lib-')) and src and not t['cover'].startswith('dir-k-'):
             p['logo'] = '../../icons/%s.png' % t['cover']
     t['dest'] = ('official:' + p['official']) if p.get('kind') == 'official' and p.get('official') in OFF else 'org:' + p['slug']
     # where it is, so a long category can be narrowed to a borough and then a neighborhood
@@ -359,6 +359,43 @@ for head, g, pre in (('Pharmacies', 'Health', 'dir-rx-'), ('Supermarkets', 'Food
     for b in BORO:
         ps = byname([p for p in D['profiles'] if p.get('group') == g and p.get('topic') == head and p.get('where') == b])
         if ps: common.append((head, b, pre + slug(b), ps))
+# libraries, by system (edu_library_profiles.py)
+for t in ('Brooklyn Public Library', 'New York Public Library', 'Queens Public Library'):
+    ps = byname([p for p in D['profiles'] if p.get('group') == 'Libraries' and p.get('topic') == t])
+    if ps: common.append(('Libraries', t, 'dir-lib-' + slug(t), ps))
+# the school and child care finder: by age and level, citywide; the app narrows each to a borough, then a neighborhood
+def _levels(p):
+    """the levels a school teaches, from its grades, else its type"""
+    kv = dict(p.get('kv') or []); g = kv.get('Grades', ''); t = (kv.get('Type', '') + ' ' + (p.get('topic') or '')).lower()
+    gs = set(x.strip() for x in g.split(','))
+    out = set()
+    if gs & {'Pre-K'}: out.add('pk')
+    if gs & {'K', '1', '2', '3', '4', '5'}: out.add('el')
+    if gs & {'6', '7', '8'}: out.add('ms')
+    if gs & {'9', '10', '11', '12'}: out.add('hs')
+    if not (gs - {'', 'special education'}):
+        if 'elementary' in t or 'k-8' in t or 'k-12' in t: out.add('el')
+        if 'middle' in t or 'k-8' in t or 'secondary' in t or 'k-12' in t: out.add('ms')
+        if 'high school' in t and 'equivalency' not in t or 'secondary' in t or 'k-12' in t: out.add('hs')
+        if 'early childhood' in t: out.add('pk')
+    if 'special education' in t or 'disabilities' in t: out.add('sped')
+    if 'equivalency' in t: out.add('hse')
+    return out
+_SCH = [p for p in D['profiles'] if p.get('group') == 'Schools']
+_LV = {p['slug']: _levels(p) for p in _SCH}
+_CC = lambda k: [p for p in D['profiles'] if p.get('group') == 'Child care' and p.get('cckind') == k]
+FINDER = [('Infants and toddlers, ages 0 to 2 (child care)', 'infants', _CC('Infants and toddlers')),
+          ('Preschool child care, ages 2 to 5', 'preschool', _CC('Preschool child care')),
+          ('Pre-K, age 4 (schools and Pre-K sites)', 'prek', _CC('Pre-K site') + [p for p in _SCH if 'pk' in _LV[p['slug']]]),
+          ('Preschools for students with disabilities', 'swd-preschool', _CC('Preschool for students with disabilities')),
+          ('Elementary school, K to 5', 'elementary', [p for p in _SCH if 'el' in _LV[p['slug']]]),
+          ('Middle school, 6 to 8', 'middle', [p for p in _SCH if 'ms' in _LV[p['slug']]]),
+          ('High school, 9 to 12', 'high', [p for p in _SCH if 'hs' in _LV[p['slug']]]),
+          ('Special education schools', 'special-education', [p for p in _SCH if 'sped' in _LV[p['slug']]]),
+          ('High school equivalency programs', 'hse', [p for p in _SCH if 'hse' in _LV[p['slug']]]),
+          ('Day camps (child care permits)', 'day-camps', _CC('Day camp'))]
+for label, key, ps in FINDER:
+    if ps: common.append(('Schools and child care by age', label, 'dir-edu-' + key, byname(ps)))
 # things to do in parks: every activity, then (in the app) a borough, then a neighborhood (park_profiles.py)
 _ACT = json.load(open(P('data/park-activities.json'))) if os.path.exists(P('data/park-activities.json')) else {}
 for code, label in sorted(_ACT.items(), key=lambda kv: kv[1]):

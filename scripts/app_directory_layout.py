@@ -175,7 +175,7 @@ def mapfile(app):
                  'Schools, parks and facilities': 'cb6-places', 'Business improvement districts': 'cb6-groups'}.get(g, 'cb6-gov')
         else:
             b = p.get('where') if p.get('where') in BORO else 'other'
-            k = {'Community boards': 'boards', 'Elected officials': 'officials', 'Government agencies': 'agencies', 'Culture': 'culture', 'Parks': 'parks', 'Health': {'Pharmacies': 'pharmacies'}.get(p.get('topic'), 'hospitals'), 'Food': 'supermarkets'}.get(g)
+            k = {'Community boards': 'boards', 'Elected officials': 'officials', 'Government agencies': 'agencies', 'Culture': 'culture', 'Parks': 'parks', 'Health': {'Pharmacies': 'pharmacies'}.get(p.get('topic'), 'hospitals'), 'Food': 'supermarkets', 'Libraries': 'libraries', 'Child care': 'childcare'}.get(g)
             if not k:
                 k = {'Schools': 'schools-', 'Community groups': 'groups-', 'Local businesses': 'biz-',
                      'Schools, parks and facilities': 'places-', 'Business improvement districts': 'groups-'}.get(g, 'groups-') + b
@@ -200,7 +200,8 @@ def dirmap(app):
     L += [layer('boards', 'Community boards', True), layer('officials', "Elected officials' offices", app != 'cb6'),
           layer('agencies', 'Government agencies', False, 20000), layer('culture', 'Theatres, museums, stadiums and movie theaters', False),
           layer('parks', 'Parks with courts and fields', False, 12000, 30), layer('hospitals', 'Hospitals', False),
-          layer('pharmacies', 'Pharmacies', False, 8000, 30), layer('supermarkets', 'Supermarkets', False, 8000, 30)]
+          layer('pharmacies', 'Pharmacies', False, 8000, 30), layer('supermarkets', 'Supermarkets', False, 8000, 30),
+          layer('libraries', 'Libraries', False, 20000, 30), layer('childcare', 'Child care and Pre-K sites', False, 6000, 28)]
     for b in BORO + ['other']:
         for pre, t in (('schools-', 'Schools'), ('groups-', 'Community groups'), ('places-', 'Parks and facilities'), ('biz-', 'Businesses')):
             if pre + b in ks:
