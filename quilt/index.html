@@ -9,9 +9,12 @@
 html,body{margin:0;padding:0;background:#fff}
 .quilt{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:0}
 @media (max-width:640px){.quilt{grid-template-columns:repeat(4,1fr)}}
-.sq{display:block;width:100%;min-width:0;aspect-ratio:1;padding:0;margin:0;border:0;background:#fff;cursor:pointer;overflow:hidden;position:relative}
+.sq{container-type:size;display:block;width:100%;min-width:0;aspect-ratio:1;padding:0;margin:0;border:0;background:#fff;cursor:pointer;overflow:hidden;position:relative}
 /* each tile picture has a white margin around its frame: cropped off so the frames touch */
 .sq img{position:absolute;left:-5.3%;top:-5.3%;width:110.6%;height:110.6%;object-fit:cover;display:block}
+.sq.cap img{left:14%;top:4%;width:72%;height:58%;object-fit:contain}
+.sq .nm{position:absolute;left:5%;right:5%;bottom:4%;height:35%;display:flex;align-items:flex-start;justify-content:center;text-align:center;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-weight:700;font-size:9.6cqw;line-height:1.08;letter-spacing:-.01em;overflow:hidden;color:#333}
+.sq .nm span{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .veil{position:fixed;inset:0;background:rgba(13,27,75,.55);z-index:100000;opacity:0;transition:opacity .25s ease;pointer-events:none}
 .veil.on{opacity:1;pointer-events:auto}
 .fly{position:fixed;z-index:100001;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.4);overflow:hidden;transition:all .35s cubic-bezier(.2,.8,.2,1)}
@@ -29,11 +32,22 @@ html,body{margin:0;padding:0;background:#fff}
 const $=id=>document.getElementById(id);
 const ICON=c=>'/app/data/civic/icons/'+c+'.png';
 const E=[];
+function label(n){return n.replace(/: courts and fields$/,'').replace(/ (Public )?Library$/,' Branch').replace(/^Bklyn /,'')}
+// the caption's color: the logo's own strongest color
+const COL={};
+function colorOf(img){
+ const c=img.dataset.c;if(COL[c])return COL[c];
+ try{const k=document.createElement('canvas');k.width=k.height=24;const x=k.getContext('2d');x.drawImage(img,0,0,24,24);const d=x.getImageData(0,0,24,24).data;
+  let best=null,bs=-1;for(let i=0;i<d.length;i+=4){const r=d[i],g=d[i+1],b=d[i+2],a=d[i+3];if(a<200)continue;const mx=Math.max(r,g,b),mn=Math.min(r,g,b);if(mx>235&&mn>235)continue;const s=(mx-mn)+(255-mx)*.35;if(s>bs){bs=s;best=[r,g,b]}}
+  COL[c]=best?'rgb('+best.join(',')+')':'#333'}catch(e){COL[c]='#333'}
+ return COL[c]}
+function fit(){
+ document.querySelectorAll('.sq.cap img').forEach(img=>{const nm=img.nextElementSibling,paint=()=>{nm.style.color=colorOf(img)};if(img.complete&&img.naturalWidth)paint();else img.addEventListener('load',paint,{once:true})})}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function pop(b){
  const e=E[+b.dataset.i],r=b.getBoundingClientRect(),fly=document.createElement('div');fly.className='fly';
  Object.assign(fly.style,{left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px'});
- fly.innerHTML='<img src="'+ICON(e.c)+'" alt="">';document.body.appendChild(fly);$('veil').classList.add('on');
+ fly.innerHTML=b.innerHTML;if(b.classList.contains('cap'))fly.classList.add('sq','cap');document.body.appendChild(fly);$('veil').classList.add('on');
  const big=Math.min(280,window.innerWidth*.6);
  requestAnimationFrame(()=>requestAnimationFrame(()=>Object.assign(fly.style,{left:(innerWidth-big)/2+'px',top:(innerHeight-big)/2+'px',width:big+'px',height:big+'px',borderRadius:'14px'})));
  setTimeout(()=>{$('frame').src=e.h+(e.h.includes('?')?'&':'?')+'app=1';$('card').classList.add('on');fly.style.opacity='0';setTimeout(()=>fly.remove(),250)},420)}
@@ -43,7 +57,12 @@ $('veil').onclick=close;$('x').onclick=close;document.addEventListener('keydown'
 fetch('/profiles/dir.json').then(r=>r.json()).then(d=>{
  const seen=new Set();
  d.E.forEach(x=>{if(String(x[2]).startsWith('dir-k-')||seen.has(x[1]))return;seen.add(x[1]);E.push({n:x[0],h:x[1],c:x[2]})});
- $('quilt').innerHTML=E.map((e,i)=>'<button class="sq" type="button" data-i="'+i+'" title="'+esc(e.n)+'"><img loading="lazy" decoding="async" src="'+ICON(e.c)+'" alt="'+esc(e.n)+'"></button>').join('');
+ // a logo several places share (NYC Parks, a library system, a chain) says which one it is, underneath, in the logo's color
+ const n={};E.forEach(e=>n[e.c]=(n[e.c]||0)+1);
+ $('quilt').innerHTML=E.map((e,i)=>n[e.c]>1
+  ?'<button class="sq cap" type="button" data-i="'+i+'" title="'+esc(e.n)+'"><img loading="lazy" decoding="async" src="'+ICON(e.c)+'" alt="" data-c="'+e.c+'"><span class="nm"><span>'+esc(label(e.n))+'</span></span></button>'
+  :'<button class="sq" type="button" data-i="'+i+'" title="'+esc(e.n)+'"><img loading="lazy" decoding="async" src="'+ICON(e.c)+'" alt="'+esc(e.n)+'"></button>').join('');
+ fit();
 });
 </script>
 </body></html>
