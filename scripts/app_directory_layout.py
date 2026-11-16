@@ -50,7 +50,7 @@ def build(app):
     tf = P('app/data/civic/ui', app, 'tools.json'); T = json.load(open(tf, encoding='utf-8'))['lists']
     sf = P('app/data/civic/ui', app, 'screens.json'); raw = open(sf, encoding='utf-8').read(); S = json.loads(raw)
     parts = S['screens']['directory']
-    secs = [{'list': p['list'], 'title': p.get('title', '')} for p in parts if str(p.get('list', '')).startswith('dir-sections-')]
+    secs = [{'list': p['list'], 'title': p.get('title', ''), 'scope': p.get('scope', ''), 'scopeTitle': p.get('scopeTitle', '')} for p in parts if str(p.get('list', '')).startswith('dir-sections-')]
     if secs: S['dirSections'] = secs                      # kept so a rerun knows the sections and their order
     else: secs = [x for x in S.get('dirSections', []) if x['list'] in T]
     keep = [p for p in parts if not str(p.get('list', '')).startswith('dir-sections-') and p.get('gen') != 'dir']
@@ -120,26 +120,33 @@ def build(app):
             else: kids.append(row(it['title'], 'node:dirl-' + lid))
         return kids, n
 
-    folds, grouped = [], {}
+    folds, grouped, last_sk = [], {}, None
     for sec in secs:
-        head = sec.get('title', '')
+        head = sec.get('title', ''); sk = sec.get('scope', '')
         g = next((g for pre, g in GROUP if head.startswith(pre)), None)
         kids, n = content(sec)
+        if sk and sk != last_sk:
+            folds.append(('scope', sec.get('scopeTitle', ''), sk)); last_sk = sk
         if g:
-            if g not in grouped:
-                grouped[g] = {'kids': [], 'n': 0}
-                folds.append(('group', g))
-            grouped[g]['kids'] += [sub(head.split(', ', 1)[1])] + kids
-            grouped[g]['n'] += n
+            gk = (sk, g)
+            if gk not in grouped:
+                grouped[gk] = {'kids': [], 'n': 0, 'sk': sk}
+                folds.append(('group', gk))
+            grouped[gk]['kids'] += [sub(head.split(', ', 1)[1])] + kids
+            grouped[gk]['n'] += n
         else:
-            folds.append(('one', (head, kids, n)))
+            folds.append(('one', (head, kids, n, sk)))
     new = [{'gen': 'dir', 'kind': 'button', 'title': 'Map of the Directory', 'dest': 'node:dirmap', 'color': '#06024d', 'id': 'dir-map-button'}]
-    for kind, v in folds:
+    for f_ in folds:
+        kind = f_[0]
+        if kind == 'scope':
+            new.append({'gen': 'dir', 'kind': 'header', 'title': f_[1], 'id': 'dir-scope-' + f_[2]}); continue
+        v = f_[1]
         if kind == 'group':
-            head, kids, n = v, grouped[v]['kids'], grouped[v]['n']
+            (sk, head), kids, n = v, grouped[v]['kids'], grouped[v]['n']
         else:
-            head, kids, n = v
-        new.append({'gen': 'dir', 'kind': 'node', 'fold': True, 'open': False, 'id': 'dir-' + re.sub(r'[^a-z0-9]+', '-', head.lower()).strip('-'),
+            head, kids, n, sk = v
+        new.append({'gen': 'dir', 'kind': 'node', 'fold': True, 'open': False, 'id': 'dir-' + (sk + '-' if sk else '') + re.sub(r'[^a-z0-9]+', '-', head.lower()).strip('-'),
                     'title': head if n == 1 or head in NOCOUNT else '%s · %s' % (head, '{:,}'.format(n)), **({'icon': 'logo:cb306'} if head == 'Brooklyn Community Board 6' else {}),
                     'node': {'type': 'v', 'spacing': 8, 'children': kids}})
     i = next((k + 1 for k, p in enumerate(keep) if p.get('id') == 'survey-button'), 0)

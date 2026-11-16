@@ -20,11 +20,12 @@ BOARDS = {b['borocd']: b for b in json.load(open(P('app/data/civic/boards.json')
 BOROS = ['Brooklyn', 'Manhattan', 'Bronx', 'Queens', 'Staten Island']
 MERGE = [('Schools by borough, ', 'Schools'), ('Community-based organizations, ', 'Community-based organizations')]
 
-def lists(app):
+def lists(app, scope=None):
     T = json.load(open(P('app/data/civic/ui', app, 'tools.json'), encoding='utf-8'))['lists']
     S = json.load(open(P('app/data/civic/ui', app, 'screens.json'), encoding='utf-8'))
     out = []
     for sec in S.get('dirSections', []):
+        if scope and sec.get('scope') and sec['scope'] != scope: continue
         for it in T.get(sec['list'], []):
             d = it.get('dest', '')
             if d.startswith('screen:tools:'):
@@ -49,9 +50,10 @@ def add(head, title, lid, items):
         elif d.startswith('org:') and BY.get(d[4:], {}).get('group') == 'Community boards': d = 'board:' + str(BY[d[4:]].get('cd'))
         e = E.setdefault(d, {'name': it['title'], 'cover': it.get('cover') or it.get('tile'), 'b': it.get('b', ''), 'h': it.get('h', ''), 'cats': []})
         if (s, c) not in e['cats']: e['cats'].append((s, c))
-for head, title, lid, items in lists('cb6'):
+for head, title, lid, items in lists('cb6', 'bkcb6'):
     if lid.startswith('dir-cb6-'): add(head, title, lid, items)
-for head, title, lid, items in lists('beyond'): add(head, title, lid, items)
+for head, title, lid, items in lists('beyond'):
+    if not lid.startswith('dir-cb6-'): add(head, title, lid, items)   # BKCB6's own lists come in once, above
 # ---- where each one is, its page, and the words it answers to ----
 LAYERS = [('cd', 'data/community-districts.geojson', 'boro_cd'), ('cc', 'data/council-districts.geojson', 'cc'), ('ad', 'data/assembly-districts.geojson', 'ad'),
           ('sd', 'data/senate-districts.geojson', 'sd'), ('cg', 'data/congressional-districts.geojson', 'cong_dist')]

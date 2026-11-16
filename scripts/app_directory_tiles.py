@@ -448,6 +448,16 @@ def dedupe(ps):
         if q['slug'] in seen: continue
         seen.add(q['slug']); out.append(q)
     return out
+from shapely.geometry import shape as _shp, Point as _Pnt
+_CD306 = _shp(json.load(open(P('data/cb6-audit/cd306.geojson'))))
+def in306(p):
+    try: return bool(p.get('lat') and p.get('lng') and _CD306.contains(_Pnt(float(p['lng']), float(p['lat']))))
+    except Exception: return False
+def inBK(p): return area_of(p)[0] == 'Brooklyn'
+BIZ_HEADS = {'BKCB6 restaurants and food spots by kind', 'BKCB6 houses of worship', 'BKCB6 bars and drinks', 'BKCB6 business improvement districts',
+             'BKCB6 schools, parks and facilities', 'BKCB6 local businesses', 'BKCB6 community groups'}
+AREA6 = [(h, t, l, dedupe(ps)) for h, t, l, ps in area_sections('cb6')]
+AREABK = [(h, t, l, dedupe(ps)) for h, t, l, ps in area_sections('bk')]
 total = 0
 for app in ('cb6', 'bk', 'beyond'):
     cm = common
@@ -462,41 +472,59 @@ for app in ('cb6', 'bk', 'beyond'):
     k = next(i for i, x in enumerate(cm) if x[0].startswith('Community-based organizations'))
     first = ['15', '13', '14', '16', '17', '18', '19', '20', '21', '22', '23', '32'] if app in ('cb6', 'bk') else []
     cm = cm[:k] + school_sections(first) + cm[k:]
-    sections = [(h, t, l, dedupe(ps)) for h, t, l, ps in area_sections(app) + cm]
-    sections = [x for x in sections if x[3]]
-    total = max(total, sum(len(x[3]) for x in sections))
+    # three Directories: BKCB6 (in the district, and BKCB6's own lists), Brooklyn, and the whole city.
+    # The BKCB6 app has all three, the Brooklyn app Brooklyn and the city, CBNYC the city.
+    com = [(h, t, l, dedupe(ps)) for h, t, l, ps in cm]
+    def filt(secs, f, key):
+        out_ = []
+        for h, t, l, ps in secs:
+            ps2 = [p for p in ps if f(p)]
+            if ps2: out_.append((h, t, l + '--' + key, ps2))
+        return out_
+    biz6 = [(re.sub(r'^BKCB6 (\w)', lambda m: m.group(1).upper(), h), t, l, ps) for h, t, l, ps in AREA6 if h in BIZ_HEADS]
+    if app == 'cb6':
+        scopes = [('bkcb6', 'The BKCB6 Directory', AREA6 + filt(com, in306, 'b6')),
+                  ('brooklyn', 'The Brooklyn Directory', AREABK + biz6 + filt(com, inBK, 'bk')),
+                  ('city', 'The Citywide Directory', biz6 + com)]
+    elif app == 'bk':
+        scopes = [('brooklyn', 'The Brooklyn Directory', AREABK + biz6 + filt(com, inBK, 'bk')),
+                  ('city', 'The Citywide Directory', biz6 + com)]
+    else:
+        scopes = [('city', 'The Citywide Directory', biz6 + com)]
+    scopes = [(k, n, [x for x in secs if x[3]]) for k, n, secs in scopes]
+    total = max(total, max(sum(len(x[3]) for x in secs) for k, n, secs in scopes))
     tf = P('app/data/civic/ui', app, 'tools.json'); T = json.load(open(tf, encoding='utf-8'))
     T['lists'] = {k: v for k, v in T['lists'].items() if not k.startswith('dir-')}
-    heads = []
-    for head, title, lid, ps in sections:
-        def tl(p):
-            t = tile(p)
-            cd = str(p.get('cd') or '')
-            if p.get('group') == 'Community boards' and cd and (app == 'beyond' or (app == 'bk' and cd.startswith('3'))):
-                t['dest'] = 'screen:board:' + cd   # the app's own board page
-            return t
-        T['lists'][lid] = [tl(p) for p in ps]
-        if len(ps) == 1 and title == ps[0]['name']:
-            sec = tl(ps[0])   # a heading with one member shows that member itself
-        else:
-            sec = {'title': '%s · %s' % (title, '{:,}'.format(len(ps))), 'symbol': 'square.grid.2x2.fill', 'dest': 'screen:tools:' + lid, 'cover': cover_cat(head, title)}
-        hid = 'dir-sections-' + slug(head)
-        T['lists'].setdefault(hid, []).append(sec)
-        if hid not in heads: heads.append(hid)
+    heads = []   # (scope, scope title, heading list id, heading)
+    def tl(p):
+        t = tile(p)
+        cd = str(p.get('cd') or '')
+        if p.get('group') == 'Community boards' and cd and (app == 'beyond' or (app == 'bk' and cd.startswith('3'))):
+            t['dest'] = 'screen:board:' + cd   # the app's own board page
+        return t
+    for sk, sn, sections in scopes:
+        for head, title, lid, ps in sections:
+            T['lists'][lid] = [tl(p) for p in ps]
+            if len(ps) == 1 and title == ps[0]['name']:
+                sec = tl(ps[0])   # a heading with one member shows that member itself
+            else:
+                sec = {'title': '%s · %s' % (title, '{:,}'.format(len(ps))), 'symbol': 'square.grid.2x2.fill', 'dest': 'screen:tools:' + lid, 'cover': cover_cat(head, title)}
+            hid = 'dir-sections-' + (sk + '-' if len(scopes) > 1 else '') + slug(head)
+            T['lists'].setdefault(hid, []).append(sec)
+            if hid not in [x[2] for x in heads]: heads.append((sk, sn, hid, head))
     traw = open(tf, encoding='utf-8').read()
     tind = len(re.match(r'\{\n( *)', traw).group(1)) if traw.startswith('{\n') else None
     open(tf, 'w', encoding='utf-8').write(json.dumps(T, ensure_ascii=False, indent=tind) + ('\n' if traw.endswith('\n') else ''))
     sf = P('app/data/civic/ui', app, 'screens.json'); raw = open(sf, encoding='utf-8').read(); S = json.loads(raw)
     S.setdefault('titles', {})
-    for head, title, lid, ps in sections:
-        S['titles'][lid] = {'title': title, 'subtitle': '%s · %s on the Directory' % (head, '{:,}'.format(len(ps)))}
+    for sk, sn, sections in scopes:
+        for head, title, lid, ps in sections:
+            S['titles'][lid] = {'title': title, 'subtitle': '%s · %s on the Directory' % (head, '{:,}'.format(len(ps)))}
     parts = [p for p in S['screens']['directory'] if not str(p.get('list', '')).startswith('dir-sections-') and p.get('gen') != 'dir']
     i = next((k + 1 for k, p in enumerate(parts) if p.get('id') == 'survey-button'), 0)
-    new = []
-    for hid in heads:
-        head = next(h for h, t, l, ps in sections if 'dir-sections-' + slug(h) == hid)
-        new.append({'kind': 'tools', 'list': hid, 'title': head})
+    new = [dict({'kind': 'tools', 'list': hid, 'title': head}, **({'scope': sk, 'scopeTitle': sn} if len(scopes) > 1 else {})) for sk, sn, hid, head in heads]
     S['screens']['directory'] = parts[:i] + new + parts[i:]
+    S.pop('dirSections', None)
     ind = len(re.match(r'\{\n( *)', raw).group(1)) if raw.startswith('{\n') else None
     open(sf, 'w', encoding='utf-8').write(json.dumps(S, ensure_ascii=False, indent=ind) + ('\n' if raw.endswith('\n') else ''))
 # covers no list uses any more come off
