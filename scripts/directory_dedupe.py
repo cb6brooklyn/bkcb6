@@ -12,7 +12,7 @@ def _nm(s): return re.sub(r'[^a-z0-9]', '', re.sub(r'\b(the|inc|llc|corp)\b', ''
 def _d(a, b):
     if not (a.get('lat') and b.get('lat') and a.get('lng') and b.get('lng')): return None
     return math.hypot((a['lat'] - b['lat']) * 111000, (a['lng'] - b['lng']) * 84000)
-ORDER = [('sch-', 1), ('lib-', 2), ('hosp-', 2), ('health-', 2), ('place-', 3), ('rx-', 4), ('mkt-', 4), ('cbo-', 5), ('cc-', 6), ('pk-', 7), ('swdpre-', 8), ('biz-', 9), ('map-', 10)]
+ORDER = [('sch-', 1), ('lib-', 2), ('hosp-', 2), ('health-', 2), ('place-', 3), ('rx-', 4), ('mkt-', 4), ('cbo-', 5), ('cc-', 6), ('pk-', 7), ('swdpre-', 8), ('biz-', 9), ('liquor-', 9), ('map-', 10)]
 def _rank(p):
     if p.get('kind') in ('official', 'agency') or p.get('group') in ('Community boards', 'Government agencies'): r = 0
     else: r = next((v for k, v in ORDER if p['slug'].startswith(k)), 3)
@@ -90,6 +90,9 @@ def canon(profiles):
         best = min(cl, key=_rank)
         for p in cl:
             if p is not best: m[p['slug']] = best['slug']
+    for k in list(m):   # a folded profile points at the one that is shown
+        seen = {k}
+        while m[k] in m and m[k] not in seen: seen.add(m[k]); m[k] = m[m[k]]
     return m
 if __name__ == '__main__':
     D = json.load(open(os.path.join(ROOT, 'app/data/civic/orgs/orgs-profiles.json'), encoding='utf-8'))['profiles']
