@@ -407,6 +407,17 @@ for b in BORO + ['Outside NYC', '']:
     for c in CATS:
         ps = byname([p for p in cbo if (p.get('where') or '') == b and cat(p) == c])
         if ps: common.append(('Community-based organizations, ' + (b or 'no address listed'), c, 'dir-cbo-' + slug(b or 'no-address') + '-' + slug(c), ps))
+# one tile per place: the same place listed by more than one source shows once, as its fullest profile (directory_dedupe.py)
+import importlib.util as _iu
+_sp = _iu.spec_from_file_location('directory_dedupe', P('scripts/directory_dedupe.py')); _dd = _iu.module_from_spec(_sp); _sp.loader.exec_module(_dd)
+CANON = _dd.canon(D['profiles']); _BYS = {p['slug']: p for p in D['profiles']}
+def dedupe(ps):
+    seen, out = set(), []
+    for p in ps:
+        q = _BYS.get(CANON.get(p['slug'], p['slug']), p)
+        if q['slug'] in seen: continue
+        seen.add(q['slug']); out.append(q)
+    return out
 total = 0
 for app in ('cb6', 'bk', 'beyond'):
     cm = common
@@ -421,7 +432,8 @@ for app in ('cb6', 'bk', 'beyond'):
     k = next(i for i, x in enumerate(cm) if x[0].startswith('Community-based organizations'))
     first = ['15', '13', '14', '16', '17', '18', '19', '20', '21', '22', '23', '32'] if app in ('cb6', 'bk') else []
     cm = cm[:k] + school_sections(first) + cm[k:]
-    sections = area_sections(app) + cm
+    sections = [(h, t, l, dedupe(ps)) for h, t, l, ps in area_sections(app) + cm]
+    sections = [x for x in sections if x[3]]
     total = max(total, sum(len(x[3]) for x in sections))
     tf = P('app/data/civic/ui', app, 'tools.json'); T = json.load(open(tf, encoding='utf-8'))
     T['lists'] = {k: v for k, v in T['lists'].items() if not k.startswith('dir-')}
