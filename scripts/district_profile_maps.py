@@ -12,6 +12,7 @@ import json, os, re
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 P = lambda *a: os.path.join(ROOT, *a)
 OUT = P('app/data/civic/districtmaps'); os.makedirs(OUT, exist_ok=True)
+BOARDS = [b['borocd'] for b in json.load(open(P('app/data/civic/boards.json')))]
 OFF = {o['slug']: o for o in json.load(open(P('app/data/civic/officials.json')))}
 DSNY = json.load(open(P('data/dsny-sections-lite.geojson')))['features']
 PCT = {f['properties']['precinct']: f['geometry'] for f in json.load(open(P('data/police-precincts-lite.geojson')))['features']}
@@ -51,7 +52,12 @@ def target(p):
         if c and n and os.path.exists(P('data/districts/%s-%s.geojson' % (c, n))):
             return {'council': 'Council District %s', 'assembly': 'Assembly District %s', 'senate': 'State Senate District %s', 'congress': 'Congressional District NY-%s'}[c] % n, geo_file(P('data/districts/%s-%s.geojson' % (c, n)))
         bo = {'bronx': 2, 'brooklyn': 3, 'manhattan': 1, 'queens': 4, 'statenisland': 5}
-        if sl.startswith('bp') and sl[2:] in bo: return o.get('boro') or sl[2:].title(), geo_file(P('data/districts/borough-%d.geojson' % bo[sl[2:]]))
+        if sl.startswith('bp') and sl[2:] in bo:
+            # the borough as its community boards, since the Borough President appoints their members
+            d = bo[sl[2:]]
+            cds = sorted(c for c in BOARDS if c[0] == str(d) and int(c[1:]) < 20 and os.path.exists(P('data/districts/cb-%s.geojson' % c)))
+            fs = [x for c in cds for x in geo_file(P('data/districts/cb-%s.geojson' % c))]
+            return (o.get('boro') or sl[2:].title()) + ' and its community boards', fs or geo_file(P('data/districts/borough-%d.geojson' % d))
         if sl.startswith('da') and o.get('boro'):
             k = o['boro'].lower().replace(' ', '')
             if k in bo: return o['boro'], geo_file(P('data/districts/borough-%d.geojson' % bo[k]))
