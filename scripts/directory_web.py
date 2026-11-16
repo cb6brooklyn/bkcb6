@@ -112,8 +112,20 @@ os.makedirs(P('profiles'), exist_ok=True)
 body = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
 open(P('profiles/dir.json'), 'w', encoding='utf-8').write(body)
 import hashlib
-page = open(P('scripts/directory_web.html'), encoding='utf-8').read().replace('__N__', '{:,}'.format(len(rows))).replace('__V__', hashlib.sha1(body.encode()).hexdigest()[:10])
-open(P('profiles/index.html'), 'w', encoding='utf-8').write(page)
+# three Directories from one file: BKCB6 (in the district, or on a BKCB6 list), Brooklyn, and the whole city
+b6 = [x['n'].startswith('BKCB6') for x in sections]; bk = [bool(re.match(r"^BKCB6('s elected officials| government offices| schools$| museums)", x['n'])) for x in sections]; gov = [bool(re.match(r'^(Elected officials|Government agencies|Community boards)', x['n'])) for x in sections]
+BR = BOROS.index('Brooklyn')
+def nb6(r): return [x for x in r[3] if not bk[x // 1000]]
+SC = [('bkcb6', 'bkcb6/', 'The BKCB6 Directory', ' in Brooklyn Community Board 6', sum(1 for r in rows if r[6] == 306 or any(b6[x // 1000] for x in r[3]))),
+      ('brooklyn', 'brooklyn/', 'The Brooklyn Directory', ' in Brooklyn', sum(1 for r in rows if nb6(r) and (r[4] == BR or (r[4] == -1 and any(gov[x // 1000] for x in r[3]))))),
+      ('city', '', 'The Citywide Directory', ' across New York City', sum(1 for r in rows if nb6(r)))]
+tpl = open(P('scripts/directory_web.html'), encoding='utf-8').read(); V = hashlib.sha1(body.encode()).hexdigest()[:10]
+for key, path, h1, where, n in SC:
+    tabs = ''.join('<a href="/profiles/%s"%s>%s</a>' % (p2, ' class="on"' if k2 == key else '', {'bkcb6': 'BKCB6', 'brooklyn': 'Brooklyn', 'city': 'Citywide'}[k2]) for k2, p2, *_ in SC)
+    page = (tpl.replace('__N__', '{:,}'.format(n)).replace('__V__', V).replace('__SCOPE__', key).replace('__DIR__', '../' if path else '').replace('__H1__', h1)
+            .replace('__WHERE__', where).replace('__TABS__', tabs).replace('__PATH__', path))
+    if path: os.makedirs(P('profiles', path), exist_ok=True)
+    open(P('profiles', path, 'index.html'), 'w', encoding='utf-8').write(page)
 # the Directory inside one district: its own address, which opens the Directory on it
 import shutil
 if os.path.isdir(P('directory-in')): shutil.rmtree(P('directory-in'))
