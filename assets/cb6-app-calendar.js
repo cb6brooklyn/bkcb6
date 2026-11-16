@@ -4,7 +4,7 @@
    Preferences (mode, hidden organizations, last search) are saved in this browser. */
 (function () {
   // this week's meetings banner, above the calendar
-  if (!document.querySelector('script[src*="week-banner.js"]')) { var wb = document.createElement('script'); wb.src = 'https://bkcb6.app/assets/week-banner.js?v=1'; document.head.appendChild(wb); }
+  if (!document.querySelector('script[src*="week-banner.js"]')) { var wb = document.createElement('script'); wb.src = 'https://bkcb6.app/assets/week-banner.js?v=2'; document.head.appendChild(wb); }
 })();
 (function () {
   var BASE = 'https://bkcb6.app/app/data/civic/cal/';

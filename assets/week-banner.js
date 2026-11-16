@@ -2,7 +2,8 @@
    Mount: <div id="week-banner"></div><script src="https://bkcb6.app/assets/week-banner.js"></script>
    On the app page (press/week-banner.html) the squares fill the frame's height and links open in place. */
 (function () {
-  var app = /[?&]app=1/.test(location.search) || document.documentElement.hasAttribute('data-app');
+  var framed = /[?&]web=1/.test(location.search);
+  var app = !framed && (/[?&]app=1/.test(location.search) || document.documentElement.hasAttribute('data-app'));
   function mount() {
     var el = document.getElementById('week-banner');
     if (!el) { el = document.createElement('div'); el.id = 'week-banner'; var c = document.getElementById('cb6-app-calendar'); if (!c) return; c.parentNode.insertBefore(el, c); }
@@ -17,10 +18,11 @@
     }
     fetch('https://bkcb6.app/data/week-banner.json?_=' + Math.floor(Date.now() / 600000), { cache: 'no-cache' })
       .then(function (r) { return r.json(); }).then(function (d) {
-        var now = new Date(), today = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '-' + ('0' + now.getDate()).slice(-2);
-        if (!d.items || !d.items.length || (d.until && today > d.until)) { el.style.display = 'none'; return; }
+        var now = Date.now();
+        d.items = (d.items || []).filter(function (x) { return !x.ends || new Date(x.ends).getTime() > now; });
+        if (!d.items.length) { el.style.display = 'none'; return; }
         var n = d.items.length;
-        el.innerHTML = '<div class="wb" style="grid-template-columns:' + (app ? 'repeat(' + n + ',min(calc((100vw - 20px - ' + (6 * (n - 1)) + 'px) / ' + n + '),calc(100vh - 8px)))' : 'repeat(' + n + ',minmax(0,1fr))') + '">' + d.items.map(function (x) {
+        el.innerHTML = '<div class="wb" style="grid-template-columns:' + ((app || framed) ? 'repeat(' + n + ',min(calc((100vw - 20px - ' + (6 * (n - 1)) + 'px) / ' + n + '),calc(100vh - 8px)))' : 'repeat(' + n + ',minmax(0,1fr))') + '">' + d.items.map(function (x) {
           return '<a href="' + x.href + '"' + (app ? '' : ' target="_blank" rel="noopener"') + ' title="' + x.alt.replace(/"/g, '&quot;') + '"><img src="' + x.img + '" alt="' + x.alt.replace(/"/g, '&quot;') + '" loading="lazy" decoding="async"></a>';
         }).join('') + '</div>';
       }).catch(function () { el.style.display = 'none'; });
