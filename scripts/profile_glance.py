@@ -11,6 +11,7 @@ P = lambda *a: os.path.join(ROOT, *a)
 sys.path.insert(0, P('scripts'))
 import directory_grid as G
 src = open(P('data/guide/what-it-does-2026-11-16.md'), encoding='utf-8').read()
+src += '\n' + open(P('data/guide/additions-2026-11-16.md'), encoding='utf-8').read()   # rows Mike sent after the document
 def cells(l): return [re.sub(r'\\([\[\]])', r'\1', c.strip()) for c in l.strip().strip('|').split('|')]
 S = {}; sec = None
 for l in src.split('\n'):
