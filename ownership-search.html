@@ -93,6 +93,15 @@ footer{max-width:1180px;margin:0 auto;padding:18px;color:var(--muted);font-size:
 .popsrow .c{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
 .popsrow .c i{font-style:normal;font-family:'DM Mono',monospace;font-size:.64rem;font-weight:700;padding:3px 8px;border-radius:11px;background:#f8f7f4;color:#0d1b4b}
 .popsrow .c i.sf{background:#0d1b4b;color:#fff}
+td.sl{min-width:170px;font-size:.84rem}td.sl summary{cursor:pointer}td.sl summary span{color:#6b7391}
+.sli{padding:6px 0;border-top:1px solid #eee9de;font-size:.84rem;line-height:1.35}.sli span{display:block;color:#6b7391;font-size:.78rem}
+.blkhead{cursor:pointer;font-weight:700;font-size:1.02rem;color:#0d1b4b}.blkhead span{display:block;font-weight:400;font-size:.84rem;color:#6b7391;margin-top:3px}
+.blkn{font-size:.82rem;color:#6b7391;line-height:1.45;margin:6px 0}#blkSum b{color:#0d1b4b;font-size:1.25rem}
+#blkQ{width:100%;font:500 1rem 'DM Sans',sans-serif;padding:10px 12px;border:1.5px solid #0d1b4b;border-radius:10px}
+details.blk{border:1px solid #e2dfd6;border-radius:10px;padding:10px 12px;margin:6px 0;background:#fff}
+details.blk summary{cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:baseline}
+details.blk .bn{font-weight:700;color:#0d1b4b}details.blk .bv{font-family:'DM Mono',monospace;font-weight:500;text-align:right;color:#0d1b4b}
+details.blk .bs{font-size:.8rem;color:#6b7391}details.blk .bc{font-size:.76rem;color:#6b7391;text-align:right}
 </style>
 <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b6e9b47ba0cf416388d72db8edaf4198"}'></script><!-- End Cloudflare Web Analytics -->
 </head>
@@ -178,6 +187,7 @@ footer{max-width:1180px;margin:0 auto;padding:18px;color:var(--muted);font-size:
     <div class="big" id="sum-count"></div>
     <div class="who" id="sum-who"></div>
     <div class="sub" id="sum-sub"></div>
+    <div class="sub" id="sum-sales"></div>
   </section>
 
   <div id="map" hidden></div>
@@ -185,12 +195,22 @@ footer{max-width:1180px;margin:0 auto;padding:18px;color:var(--muted);font-size:
   <section class="tablewrap" id="tablewrap" hidden>
     <div style="overflow-x:auto">
       <table>
-        <thead><tr><th>Address</th><th>Borough</th><th>Block</th><th>Lot</th><th>Land use</th><th>Map</th></tr></thead>
+        <thead><tr><th>Address</th><th>Borough</th><th>Block</th><th>Lot</th><th>Land use</th><th>Sales, 2016 to 2025</th><th>Map</th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
     <div class="cap-note" id="cap-note" hidden></div>
   </section>
+
+  <details class="search-card" id="blkWrap" style="margin-top:14px">
+    <summary class="blkhead">What each block in Brooklyn Community Board 6 sold for<span>Every lot's most recent sale price, 2016 to 2025, added up block by block.</span></summary>
+    <p class="blkn" id="blkSum" style="margin-top:12px"></p>
+    <p class="blkn">Each lot or apartment is counted once, at its most recent sale price of $10,000 or more. Lots that did not sell in these years are not counted, so a block's total is what sold there, not what the whole block is worth. When several lots sell in one deal, the Department of Finance may record the full price on each of them.</p>
+    <input id="blkQ" type="search" placeholder="Search by block number, street or address" autocomplete="off" style="margin:8px 0">
+    <div class="blkn" id="blkCnt"></div>
+    <div id="blkList"></div>
+    <p class="blkn">Source: NYC Department of Finance, Citywide Annualized Calendar Sales, Brooklyn Community District 6.</p>
+  </details>
 </main>
 <footer>CB6 &amp; Beyond · Ownership search · Source: NYC Department of City Planning, city lot records (data.cityofnewyork.us)</footer>
 
@@ -384,6 +404,7 @@ function done(label, total, rows){
   document.getElementById('sum-who').textContent='owned by '+label+' in '+scopeLabel()+'.';
   document.getElementById('sum-sub').textContent='Source: NYC PLUTO (Dept. of City Planning).';
   renderTable(rows, total);
+  loadSales(rows);
   renderMap(rows);
 }
 
@@ -394,7 +415,7 @@ function renderTable(rows, total){
     var lu=LU[r.landuse]||'—';
     var maplink=(r.latitude&&r.longitude)?'<a href="https://www.google.com/maps/search/?api=1&query='+r.latitude+','+r.longitude+'" target="_blank" rel="noopener">View ↗</a>':'—';
     var tr=document.createElement('tr');
-    tr.innerHTML='<td>'+esc(addr)+'</td><td>'+esc(BORO[r.borough]||r.borough||'')+'</td><td>'+esc(r.block||'')+'</td><td>'+esc(r.lot||'')+'</td><td>'+esc(lu)+'</td><td>'+maplink+'</td>';
+    tr.innerHTML='<td>'+esc(addr)+'</td><td>'+esc(BORO[r.borough]||r.borough||'')+'</td><td>'+esc(r.block||'')+'</td><td>'+esc(r.lot||'')+'</td><td>'+esc(lu)+'</td><td class="sl" data-bbl="'+esc(bblOf(r))+'">Checking…</td><td>'+maplink+'</td>';
     tb.appendChild(tr);
   });
   document.getElementById('tablewrap').hidden=false;
@@ -425,6 +446,70 @@ function renderMap(rows){
 }
 
 function setStatus(t){document.getElementById('status').textContent=t;}
+
+// ---- sale records (NYC Department of Finance) ----
+var SALES='https://data.cityofnewyork.us/resource/w2pb-icbu.json';
+var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function bblOf(r){return String(r.bbl||'').split('.')[0];}
+function fdate(s){var p=String(s).slice(0,10).split('-');return MON[+p[1]-1]+' '+(+p[2])+', '+p[0];}
+function money(v){return '$'+Math.round(v).toLocaleString();}
+function saleLine(s){var p=parseFloat(s.sale_price||0);return '<div class="sli"><b>'+(p>=10000?money(p):'Transfer, no sale price')+'</b> · '+fdate(s.sale_date)+(s.address?'<span>'+esc(titleCase(String(s.address).replace(/\s+/g,' ').trim()))+'</span>':'')+'</div>';}
+var salesRun=0;
+function loadSales(rows){
+  var run=++salesRun, bbls=[], seen={};
+  rows.forEach(function(r){var b=bblOf(r);if(b&&!seen[b]){seen[b]=1;bbls.push(b);}});
+  var by={}, i=0, failed=false;
+  function paint(){
+    if(run!==salesRun)return;
+    var sold=0,n=0,sum=0;
+    [].forEach.call(document.querySelectorAll('#tbody td.sl'),function(td){
+      var b=td.getAttribute('data-bbl'), list=(by[b]||[]).slice().sort(function(x,y){return x.sale_date<y.sale_date?1:-1;});
+      var real=list.filter(function(s){return parseFloat(s.sale_price||0)>=10000;});
+      if(failed&&!list.length){td.textContent='Could not load';return;}
+      if(!list.length){td.textContent='No sale recorded';return;}
+      if(real.length){sold++;n+=real.length;real.forEach(function(s){sum+=parseFloat(s.sale_price);});}
+      var head=real.length?money(parseFloat(real[0].sale_price))+' · '+fdate(real[0].sale_date):'Transfer only, no sale price';
+      td.innerHTML='<details><summary>'+head+(list.length>1?' <span>('+list.length+' records)</span>':'')+'</summary>'+list.map(saleLine).join('')+'</details>';
+    });
+    var el=document.getElementById('sum-sales');
+    if(el)el.textContent=failed?'Sale records could not be loaded for some of these properties.':(sold?sold.toLocaleString()+(sold===1?' of these properties has':' of these properties have')+' a sale on record from 2016 to 2025: '+n.toLocaleString()+(n===1?' sale':' sales')+' totaling '+money(sum)+'.':'None of these properties has a sale on record from 2016 to 2025.')+' Source: NYC Department of Finance.';
+  }
+  function next(){
+    if(run!==salesRun)return;
+    if(i>=bbls.length){paint();return;}
+    var chunk=bbls.slice(i,i+120); i+=120;
+    var where="bbl in('"+chunk.join("','")+"')";
+    fetch(SALES+'?$where='+encodeURIComponent(where)+'&$select=bbl,sale_date,sale_price,address&$limit=50000')
+      .then(function(r){return r.json();}).then(function(d){d.forEach(function(s){var b=String(s.bbl||'').split('.')[0];(by[b]=by[b]||[]).push(s);});next();})
+      .catch(function(){failed=true;next();});
+  }
+  if(!bbls.length){paint();return;}
+  next();
+}
+
+// ---- what each block sold for, Brooklyn Community Board 6 ----
+var BLK=null;
+function blkLoad(){
+  if(BLK)return;BLK=[];
+  document.getElementById('blkList').innerHTML='<p class="blkn">Loading…</p>';
+  fetch('/data/cb6-block-sales.json').then(function(r){return r.json();}).then(function(d){BLK=d;
+    var tv=0,ls=0,lt=0;d.blocks.forEach(function(b){tv+=b.v;ls+=b.sold;lt+=b.lots;});
+    document.getElementById('blkSum').innerHTML='<b>'+money(tv)+'</b> across '+d.blocks.length.toLocaleString()+' blocks. '+ls.toLocaleString()+' of '+lt.toLocaleString()+' lots sold at least once from '+d.first.slice(0,4)+' to '+d.last.slice(0,4)+'. '+d.sales.toLocaleString()+' sales of $10,000 or more, out of '+d.records.toLocaleString()+' records.';
+    blkPaint();}).catch(function(){document.getElementById('blkList').innerHTML='<p class="blkn">Could not load the block totals.</p>';BLK=null;});
+}
+function blkPaint(){
+  if(!BLK||!BLK.blocks)return;
+  var q=document.getElementById('blkQ').value.trim().toLowerCase();
+  var rows=BLK.blocks.filter(function(b){if(!q)return true;var hay=('block '+b.b+' '+b.st.join(' ')+' '+b.items.map(function(i){return i[0];}).join(' ')).toLowerCase();return hay.indexOf(q)>=0;}).sort(function(a,b){return b.v-a.v||a.b-b.b;});
+  document.getElementById('blkCnt').textContent=rows.length.toLocaleString()+(rows.length===1?' block':' blocks');
+  document.getElementById('blkList').innerHTML=rows.map(function(b){
+    var it=b.items.map(function(i){return '<div class="sli"><b>'+money(i[3])+'</b> · '+esc(i[0])+'<span>'+(i[4]>1?i[4]+' apartments or units sold, latest ':'Sold ')+fdate(i[2])+'</span></div>';}).join('');
+    if(b.other.length)it+='<div class="blkn" style="margin-top:8px">Sales under lot numbers that have since changed:</div>'+b.other.map(function(i){return '<div class="sli"><b>'+money(i[3])+'</b> · '+esc(i[0])+'<span>Sold '+fdate(i[2])+'</span></div>';}).join('');
+    return '<details class="blk"><summary><span class="bn">Block '+b.b+'</span><span class="bs">'+esc(b.st.join(', ')||'No street on file')+'</span><span class="bv">'+(b.v?money(b.v):'No sales')+'</span><span class="bc">'+b.sold+' of '+b.lots+' lots sold</span></summary>'+(it||'<div class="blkn">No sale of $10,000 or more on record for this block.</div>')+'</details>';
+  }).join('')||'<p class="blkn">No block matches.</p>';
+}
+document.getElementById('blkWrap').addEventListener('toggle',function(){if(this.open)blkLoad();});
+document.getElementById('blkQ').addEventListener('input',blkPaint);
 
 // deep link: ?owner=...&scope=cb6|bk|city
 (function(){
