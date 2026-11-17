@@ -145,6 +145,11 @@ function drawMap(r,any){
  const note=$('mapnote');
  if(!map){mapkit.init({authorizationCallback:done=>done(TOKEN),language:'en'});
   map=new mapkit.Map('map',{showsCompass:mapkit.FeatureVisibility.Hidden,showsZoomControl:true,showsMapTypeControl:false,isRotationEnabled:false,showsPointsOfInterest:false,mapType:mapkit.Map.MapTypes.MutedStandard});
+  // a group of nearby listings: a navy bubble with its count, no names; tap it to zoom in
+  map.annotationForCluster=c=>{const n=c.memberAnnotations.length,d=n>999?54:n>99?46:n>9?38:32;
+   return new mapkit.Annotation(c.coordinate,()=>{const el=document.createElement('div');el.textContent=n.toLocaleString();
+    el.style.cssText='width:'+d+'px;height:'+d+'px;border-radius:50%;background:#0d1b4b;color:#fff;border:3px solid #f47920;display:flex;align-items:center;justify-content:center;font:800 '+(d>40?13:12)+'px DM Sans,sans-serif;box-shadow:0 2px 6px rgba(0,0,0,.25);cursor:pointer';return el},
+    {size:{width:d,height:d},anchorOffset:new DOMPoint(0,0),calloutEnabled:false,data:{cluster:c.memberAnnotations}})};
   map.region=SCOPE==='bkcb6'?new mapkit.CoordinateRegion(new mapkit.Coordinate(40.6768,-73.9952),new mapkit.CoordinateSpan(.036,.056)):new mapkit.CoordinateRegion(new mapkit.Coordinate(40.705,-73.95),new mapkit.CoordinateSpan(.45,.55));
   if(SCOPE==='bkcb6')fetch('/data/cb6-audit/cd306.geojson').then(r=>r.json()).then(g=>{const st=new mapkit.Style({strokeColor:'#0d1b4b',lineWidth:2.5,fillColor:'#f47920',fillOpacity:.06});map.addOverlays(g.coordinates.map(poly=>new mapkit.PolygonOverlay(poly.map(ring=>ring.map(c=>new mapkit.Coordinate(c[1],c[0]))),{style:st})))})}
  map.removeAnnotations(anns);anns=[];
@@ -155,7 +160,7 @@ function drawMap(r,any){
  anns=pts.map(e=>{const a=new mapkit.ImageAnnotation(new mapkit.Coordinate(e[11],e[12]),{url:{1:'/app/data/civic/icons/'+e[2]+'.png'},size:{width:38,height:38},title:e[0],subtitle:D.hoods[e[5]]||'',clusteringIdentifier:'dir',anchorOffset:new DOMPoint(0,0)});a.data=e;return a});
  map.addAnnotations(anns);if(anns.length&&(any||SCOPE!=='bkcb6'))map.showItems(anns,{animate:false,padding:new mapkit.Padding(50,50,50,50)});
  if(here){const me=new mapkit.MarkerAnnotation(new mapkit.Coordinate(here[0],here[1]),{color:'#f47920',title:'You'});anns.push(me);map.addAnnotation(me)}
- if(!map._sel){map._sel=1;map.addEventListener('select',ev=>{const e=ev.annotation&&ev.annotation.data;if(e&&e[1]){ev.annotation.callout={calloutRightAccessoryForAnnotation:()=>{const a=document.createElement('a');a.href=e[1];a.textContent='Open ›';a.style.cssText='font:800 14px DM Sans,sans-serif;color:#f47920;text-decoration:none;padding:0 6px';if(e[13]){a.target='_blank';a.rel='noopener'}return a}}}})}}
+ if(!map._sel){map._sel=1;map.addEventListener('select',ev=>{if(ev.annotation&&ev.annotation.data&&ev.annotation.data.cluster){map.showItems(ev.annotation.data.cluster,{animate:true,padding:new mapkit.Padding(40,40,40,40)});map.selectedAnnotation=null;return}const e=ev.annotation&&ev.annotation.data;if(e&&e[1]){ev.annotation.callout={calloutRightAccessoryForAnnotation:()=>{const a=document.createElement('a');a.href=e[1];a.textContent='Open ›';a.style.cssText='font:800 14px DM Sans,sans-serif;color:#f47920;text-decoration:none;padding:0 6px';if(e[13]){a.target='_blank';a.rel='noopener'}return a}}}})}}
 function set(k,v){S[k]=v;if(k==='s')S.c='';shown=PAGE;draw()}
 $('q').addEventListener('input',e=>set('q',e.target.value.trim()));
 $('fs').onchange=e=>set('s',e.target.value);$('fc').onchange=e=>set('c',e.target.value);$('fb').onchange=e=>{S.h='';set('b',e.target.value)};$('fh').onchange=e=>set('h',e.target.value);$('fd').onchange=e=>set('d',e.target.value);
