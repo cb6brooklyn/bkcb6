@@ -56,6 +56,7 @@ a.cell:hover .cbo-tile,a.cell:focus-visible .cbo-tile{transform:translateY(-2px)
 .sec{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;text-align:left;font:inherit;color:var(--navy)}
 .sec b{display:block;font-size:1rem;font-weight:800}.sec span{font-family:'DM Mono',monospace;font-size:.7rem;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
 .sec:hover{border-color:var(--orange)}
+.layers{flex-wrap:wrap;gap:8px;margin:12px 0 0}.layers button{display:flex;align-items:center;gap:8px;font:700 .86rem 'DM Sans',sans-serif;border:1px solid var(--border);background:#fff;color:var(--navy);border-radius:999px;padding:6px 14px 6px 6px;cursor:pointer}.layers button.on{background:var(--navy);color:#fff}.layers img{width:26px;height:26px;object-fit:contain;background:#fff;border-radius:50%}
 .others{margin-top:30px;text-align:center;font-size:.9rem;color:#4b5563}.others a{color:var(--navy);font-weight:700;margin:0 8px}
 .credit{margin-top:26px;text-align:center;font-family:'DM Mono',monospace;font-size:.7rem;letter-spacing:.04em;color:#8a8a99}
 </style>
@@ -80,6 +81,7 @@ a.cell:hover .cbo-tile,a.cell:focus-visible .cbo-tile{transform:translateY(-2px)
 <div id="browse" class="browse"></div>
 <div class="mapnote" id="mapnote"></div>
 <div id="map"></div>
+<div id="layers" class="layers" style="display:none"></div>
 <div id="grid" class="cbo-grid"></div>
 <button class="btn more" id="more" type="button" style="display:none"></button>
 <nav class="others">Also: __TABS__</nav>
@@ -137,7 +139,7 @@ function draw(){
  $('vg').classList.toggle('on',S.v==='g');$('vm').classList.toggle('on',S.v==='m');
  const g=$('grid'),m=$('more'),mp=$('map'),note=$('mapnote');
  if(S.v==='m'){g.innerHTML='';m.style.display='none';mp.style.display='block';drawMap(any||SCOPE==='bkcb6'?(any?r:D.E.filter(e=>e[6]===306)):[],any);return}
- mp.style.display='none';note.style.display='none';
+ mp.style.display='none';note.style.display='none';if($('layers'))$('layers').style.display='none';
  if(!any){g.innerHTML='';m.style.display='none';return}
  g.innerHTML=r.length?r.slice(0,shown).map(tile).join(''):'<div class="empty" style="grid-column:1/-1">Nothing here. Try fewer filters.</div>';
  if(r.length>shown){m.style.display='block';m.textContent='Show '+Math.min(PAGE,r.length-shown)+' more ('+(r.length-shown).toLocaleString()+' left)'}else m.style.display='none'}
@@ -162,6 +164,28 @@ function renderMap(){
  for(const [e,a] of shownAnns)if(!want.has(e)){rem.push(a);shownAnns.delete(e)}
  for(const e of want)if(!shownAnns.has(e)){const a=annFor(e);add.push(a);shownAnns.set(e,a)}
  if(rem.length)map.removeAnnotations(rem);if(add.length)map.addAnnotations(add)}
+// BKCB6: the districts that overlap the district, each kind off until turned on (City Council, Assembly, State Senate,
+// Congress, police precincts, school districts); the part inside BKCB6 is shaded, the rest of the district outlined
+const LAYERICON={council:'/site-icons/new-york-city-council.png',assembly:'/assets/agency-logos/nys/new-york-assembly.png',senate:'/assets/agency-logos/nys/new-york-state-senate.png',congress:'/site-icons/congress/cd10.png',precinct:'/site-icons/agencies/nypd.png',school:'/site-icons/agencies/nycps.png'};
+const DCOL=['#0d1b4b','#f47920','#1f7a8c','#8e44ad','#2e7d32','#c62828'];
+let DL=null,layerOn={},layerObjs={};
+function drawLayers(){
+ if(SCOPE!=='bkcb6')return;const box=$('layers');
+ if(!DL){fetch('/profiles/cb6-districts.json?v=__V__').then(r=>r.json()).then(d=>{DL=d;drawLayers()});return}
+ box.style.display=S.v==='m'?'flex':'none';
+ box.innerHTML=DL.map(l=>'<button type="button" class="'+(layerOn[l.key]?'on':'')+'" data-k="'+l.key+'"><img src="'+LAYERICON[l.key]+'" alt="">'+esc(l.title)+'</button>').join('');
+ if(!map)return;
+ for(const l of DL){const want=!!layerOn[l.key],have=layerObjs[l.key];
+  if(want&&!have){const ov=[],an=[];
+   l.districts.forEach((d,i)=>{const c=DCOL[i%DCOL.length];
+    const ring=p=>p.map(r=>r.map(x=>new mapkit.Coordinate(x[1],x[0])));
+    d.full.forEach(p=>ov.push(new mapkit.PolygonOverlay(ring(p),{style:new mapkit.Style({strokeColor:c,lineWidth:2,lineDash:[6,4],fillOpacity:0,strokeOpacity:.9})})));
+    d.part.forEach(p=>ov.push(new mapkit.PolygonOverlay(ring(p),{style:new mapkit.Style({strokeColor:c,lineWidth:1,fillColor:c,fillOpacity:.22})})));
+    const a=new mapkit.ImageAnnotation(new mapkit.Coordinate(d.at[0],d.at[1]),{url:{1:d.icon},size:{width:52,height:52},title:d.who?d.who+' · '+d.label:d.label,subtitle:d.share+'% of BKCB6',anchorOffset:new DOMPoint(0,0),displayPriority:mapkit.Annotation.DisplayPriority.Required});
+    a.data=[d.who||d.label,d.href];an.push(a)});
+   map.addOverlays(ov);map.addAnnotations(an);layerObjs[l.key]={ov,an}}
+  else if(!want&&have){map.removeOverlays(have.ov);map.removeAnnotations(have.an);delete layerObjs[l.key]}}}
+$('layers').onclick=e=>{const b=e.target.closest('button');if(!b)return;layerOn[b.dataset.k]=!layerOn[b.dataset.k];drawLayers()};
 function drawMap(r,any){
  const note=$('mapnote');
  if(!map){mapkit.init({authorizationCallback:done=>done(TOKEN),language:'en'});
@@ -177,10 +201,11 @@ function drawMap(r,any){
   else if(mpts.length){let a0=90,a1=-90,o0=180,o1=-180;for(const e of mpts){a0=Math.min(a0,e[11]);a1=Math.max(a1,e[11]);o0=Math.min(o0,e[12]);o1=Math.max(o1,e[12])}
    map.region=new mapkit.CoordinateRegion(new mapkit.Coordinate((a0+a1)/2,(o0+o1)/2),new mapkit.CoordinateSpan(Math.max(.006,(a1-a0)*1.25),Math.max(.008,(o1-o0)*1.25)))}
   renderMap()};
- fit();setTimeout(fit,400);
+ fit();setTimeout(fit,400);drawLayers();
  if(here){const me=new mapkit.MarkerAnnotation(new mapkit.Coordinate(here[0],here[1]),{color:'#f47920',title:'You'});anns.push(me);map.addAnnotation(me)}
  if(!map._sel){map._sel=1;map.addEventListener('select',ev=>{const e=ev.annotation&&ev.annotation.data;if(e&&e[1]){ev.annotation.callout={calloutRightAccessoryForAnnotation:()=>{const a=document.createElement('a');a.href=e[1];a.textContent='Open ›';a.style.cssText='font:800 14px DM Sans,sans-serif;color:#f47920;text-decoration:none;padding:0 6px';if(e[13]){a.target='_blank';a.rel='noopener'}return a}}}})}}
-function set(k,v){S[k]=v;if(k==='s')S.c='';shown=PAGE;draw()}
+function autoLayers(){if(SCOPE!=='bkcb6'||S.s==='')return;const n=D.sections[+S.s].n,c=S.c!==''?D.sections[+S.s].cats[+S.c]:'';if(n==='Elected officials'){const m={'City Council':'council','State Assembly':'assembly','State Senate':'senate','Congress':'congress'};if(m[c])layerOn={[m[c]]:true};else if(!c)layerOn={council:true,assembly:true,senate:true,congress:true}}}
+function set(k,v){S[k]=v;if(k==='s')S.c='';if(k==='s'||k==='c')autoLayers();shown=PAGE;draw()}
 $('q').addEventListener('input',e=>set('q',e.target.value.trim()));
 $('fs').onchange=e=>set('s',e.target.value);$('fc').onchange=e=>set('c',e.target.value);$('fb').onchange=e=>{S.h='';set('b',e.target.value)};$('fh').onchange=e=>set('h',e.target.value);$('fd').onchange=e=>set('d',e.target.value);
 $('vg').onclick=()=>set('v','g');$('vm').onclick=()=>set('v','m');

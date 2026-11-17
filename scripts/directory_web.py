@@ -162,3 +162,49 @@ for t, ks in dk.items():
             '<body><p><a href="/profiles/#d=%s-%s">The Directory in %s</a></p></body></html>\n' % (nm, t, k, t, k, t, k, nm))
 print('web directory:', len(rows), 'profiles |', len(sections), 'sections |', sum(len(s['cats']) for s in sections), 'categories |', len(hoods), 'neighborhoods |',
       'no page to open:', nolink, '| dir.json %.1f MB' % (len(body) / 1e6), '| district pages:', sum(len(v) for v in dk.values()))
+# the districts that overlap BKCB6, for the toggles on the BKCB6 Directory map: each one's whole outline, the part
+# inside BKCB6, and who holds it (their logo and profile)
+def _cb6_districts():
+    from shapely.geometry import mapping
+    cb6 = shape(json.load(open(P('data/cb6-audit/cd306.geojson'))))
+    def coords(g):
+        g = g.simplify(0.00015, preserve_topology=True)
+        polys = [g] if g.geom_type == 'Polygon' else [x for x in getattr(g, 'geoms', []) if x.geom_type == 'Polygon']
+        return [[[[round(x, 5), round(y, 5)] for x, y in ring.coords] for ring in [p.exterior]] for p in polys]
+    byoff = {(o.get('type'), str(o.get('district'))): o for o in OFF.values()}
+    i6 = next(i for i, x in enumerate(sections) if x['n'] == "BKCB6's elected officials")
+    B6OFF = {r[1] for r in rows if any(x // 1000 == i6 for x in r[3])}
+    def ordinal(n): return '%d%s' % (n, 'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th'))
+    L = [('council', 'City Council', 'data/council-districts.geojson', 'cc', 'Council District %s'),
+         ('assembly', 'State Assembly', 'data/assembly-districts.geojson', 'ad', 'Assembly District %s'),
+         ('senate', 'State Senate', 'data/senate-districts.geojson', 'sd', 'State Senate District %s'),
+         ('congress', 'Congress', 'data/congressional-districts.geojson', 'cong_dist', 'Congressional District %s'),
+         ('precinct', 'Police precincts', 'data/police-precincts-citywide.geojson', 'precinct', '%s Precinct'),
+         ('school', 'School districts', 'data/school-districts-brooklyn.geojson', 'schooldist', 'School District %s')]
+    out = []
+    for key, title, f, prop, lab in L:
+        ds = []
+        for ft in json.load(open(P(f)))['features']:
+            g = shape(ft['geometry'])
+            if not g.is_valid: g = g.buffer(0)
+            part = g.intersection(cb6)
+            if part.is_empty or part.area < cb6.area * 0.002: continue
+            n = int(float(ft['properties'][prop]))
+            d = {'n': n, 'label': lab % (ordinal(n) if key == 'precinct' else n), 'share': round(part.area / cb6.area * 100), 'full': coords(g), 'part': coords(part)}
+            rp = part.representative_point(); d['at'] = [round(rp.y, 5), round(rp.x, 5)]
+            o = byoff.get((key, str(n))) if key in ('council', 'assembly', 'senate', 'congress') else None
+            if o: d.update(who=o['name'], href='/%s/' % o['slug'], icon=o.get('icon') or '')
+            elif key == 'precinct':
+                sl = '%s-precinct' % ordinal(n)
+                d.update(href='/%s/' % sl if os.path.isdir(P(sl)) else '', icon='/site-icons/%s.png' % sl if os.path.exists(P('site-icons', sl + '.png')) else '/site-icons/agencies/nypd.png')
+            elif key == 'school':
+                d.update(href='/school-district-%d/' % n if os.path.isdir(P('school-district-%d' % n)) else '', icon='/site-icons/agencies/nycps.png')
+            # BKCB6's own officials only (the BKCB6 list), and no water-only slivers for the other kinds
+            if key in ('council', 'assembly', 'senate', 'congress'):
+                if not o or d['href'] not in B6OFF: continue
+            elif d['share'] < 2: continue
+            ds.append(d)
+        out.append({'key': key, 'title': title, 'districts': sorted(ds, key=lambda d: -d['share'])})
+    json.dump(out, open(P('profiles/cb6-districts.json'), 'w'), separators=(',', ':'))
+    print('BKCB6 districts:', {l['key']: [d['n'] for d in l['districts']] for l in out})
+_cb6_districts()
