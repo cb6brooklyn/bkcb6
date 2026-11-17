@@ -4,7 +4,11 @@
 a map pin and a profile), are folded into one: the Directory shows the fullest profile, in every category any of
 them was in. Same name means the same letters and digits, ignoring case, punctuation, "the", "inc", "llc";
 same place means the same house number and street, or, where a profile has no street address, within 400 meters. Also the same agency listed by both the city and the state.
-canon(profiles) -> {slug: canonical slug}. Run as a script, it writes data/directory-duplicates.json (the groups)."""
+Also the pairs in data/directory-same-place.json: one place listed under two names (e.g. "Katsuei" and "Sushi Katsuei Inc" at
+210 7th Avenue, "Lundy's" and "Lundy Bros." at 44 Beard Street), checked by hand, Nov 16, 2026.
+canon(profiles) -> {slug: canonical slug}. Run as a script, it first takes the listings in data/directory-removed.json (closed,
+not in the district: checked one by one) out of orgs-profiles.json and deletes their /biz/ pages, then writes
+data/directory-duplicates.json (the groups)."""
 import json, math, os, re, collections
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SAME_AGENCY = [('mta', 'nys-metropolitan-transportation-authority'), ('cuny', 'nys-city-university-of-new-york'), ('311', 'nys-nyc-311')]
@@ -81,6 +85,21 @@ def store_groups(profiles, folded):
                 if wa and wb and (wa <= wb or wb <= wa) and (d is None or d <= 60): cl.append(b); used.add(j)
             if len(cl) > 1: out.append(cl)
     return out
+SAME_F = os.path.join(ROOT, 'data/directory-same-place.json')
+SAME = json.load(open(SAME_F)) if os.path.exists(SAME_F) else []
+REMOVED_F = os.path.join(ROOT, 'data/directory-removed.json')
+REMOVED = json.load(open(REMOVED_F, encoding='utf-8')) if os.path.exists(REMOVED_F) else {}
+def same_groups(profiles):
+    """the hand-checked pairs, joined into groups (a place listed three ways is one group)"""
+    S = {p['slug']: p for p in profiles}; up = {}
+    def f(x):
+        while up.get(x, x) != x: x = up[x]
+        return x
+    for a, b in SAME:
+        if a in S and b in S: up[f(a)] = f(b)
+    g = collections.defaultdict(list)
+    for s in {x for pr in SAME for x in pr if x in S}: g[f(s)].append(S[s])
+    return [v for v in g.values() if len(v) > 1]
 def canon(profiles):
     m = {}
     for cl in groups(profiles):
@@ -91,13 +110,34 @@ def canon(profiles):
         best = min(cl, key=_rank)
         for p in cl:
             if p is not best: m[p['slug']] = best['slug']
+    # the hand-checked pairs: each group (with whatever its members were already folded with) shows its fullest profile
+    S = {p['slug']: p for p in profiles}
+    for cl in same_groups(profiles):
+        top = {m.get(p['slug'], p['slug']) for p in cl}
+        members = {s for s in top} | {k for k, v in m.items() if v in top} | {p['slug'] for p in cl}
+        best = min((S[s] for s in members if s in S), key=_rank)['slug']
+        for s in members:
+            if s != best: m[s] = best
+        m.pop(best, None)
     for k in list(m):   # a folded profile points at the one that is shown
         seen = {k}
         while m[k] in m and m[k] not in seen: seen.add(m[k]); m[k] = m[m[k]]
     return m
 if __name__ == '__main__':
-    D = json.load(open(os.path.join(ROOT, 'app/data/civic/orgs/orgs-profiles.json'), encoding='utf-8'))['profiles']
-    G = groups(D); _m = {p['slug']: 1 for cl in G for p in cl if p is not min(cl, key=_rank)}; G += store_groups(D, _m)
+    pf = os.path.join(ROOT, 'app/data/civic/orgs/orgs-profiles.json'); DD = json.load(open(pf, encoding='utf-8'))
+    gone = [p for p in DD['profiles'] if p['slug'] in REMOVED]
+    if gone:
+        for p in gone:
+            for _, u in p.get('links') or []:
+                if u.startswith('https://bkcb6.app/biz/') and os.path.exists(os.path.join(ROOT, u[len('https://bkcb6.app/'):])): os.remove(os.path.join(ROOT, u[len('https://bkcb6.app/'):]))
+        DD['profiles'] = [p for p in DD['profiles'] if p['slug'] not in REMOVED]
+        open(pf, 'w', encoding='utf-8').write(json.dumps(DD, ensure_ascii=False, indent=1) + '\n')
+        rp = os.path.join(ROOT, 'data/cb6-audit/reg-pages.json')
+        if os.path.exists(rp):
+            RP = json.load(open(rp)); json.dump({k: v for k, v in RP.items() if k not in REMOVED}, open(rp, 'w'), indent=0)
+    print('removed', len(gone), [p['name'] for p in gone])
+    D = DD['profiles']
+    G = groups(D); _m = {p['slug']: 1 for cl in G for p in cl if p is not min(cl, key=_rank)}; G += store_groups(D, _m); G += same_groups(D)
     rows = [{'shown': min(cl, key=_rank)['slug'], 'folded': sorted(p['slug'] for p in cl if p is not min(cl, key=_rank)), 'name': cl[0]['name']} for cl in G]
     json.dump(rows, open(os.path.join(ROOT, 'data/directory-duplicates.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=0)
-    print('groups', len(G), '| tiles folded', sum(len(r['folded']) for r in rows))
+    print('groups', len(G), '| tiles folded', len(canon(D)))

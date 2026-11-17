@@ -9,6 +9,7 @@ from shapely.geometry import shape, Point
 C = 'app/data/civic'
 P = f'{C}/orgs/orgs-profiles.json'
 d = json.load(open(P))
+REMOVED = json.load(open('data/directory-removed.json')) if os.path.exists('data/directory-removed.json') else {}
 rows = json.load(open(f'{C}/business/business-cb6.json'))['rows']  # name, category, kind, address, nb, lat, lng, web, logo, dark, new, newdate, legal, license, source
 
 # the districts
@@ -58,6 +59,7 @@ for r in rows:
     if key in seen: continue
     seen.add(key)
     slug = 'biz-' + hashlib.sha1(f'{name}|{addr}'.encode()).hexdigest()[:10]
+    if slug in REMOVED: continue   # closed or not in the district (data/directory-removed.json)
     bid = district(lat, lng)
     where = nb or ''
     label = kind or SHORT.get(cat, cat)

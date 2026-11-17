@@ -96,7 +96,9 @@ made = collections.Counter()
 for c in cl:
     rows = c['rows']
     # a restaurant permit the Health Department has never inspected is a place not open yet (e.g. Ali Balci, 257A 3rd Avenue): left out
-    if all(r['src'] == 'restaurants' and (r.get('last') or '').startswith('1900') for r in rows): continue; first = sorted(rows, key=lambda r: ['restaurants', 'sla', 'agmarkets', 'dcwp', 'fdic', 'salons', 'npi', 'irs'].index(r['src']))[0]
+    if all(r['src'] == 'restaurants' and (r.get('last') or '').startswith('1900') for r in rows): continue
+    if 'reg-' + hashlib.md5('|'.join(sorted(r['id'] for r in rows)).encode()).hexdigest()[:10] in dd.REMOVED: continue   # closed or not in the district (data/directory-removed.json)
+    first = sorted(rows, key=lambda r: ['restaurants', 'sla', 'agmarkets', 'dcwp', 'fdic', 'salons', 'npi', 'irs'].index(r['src']))[0]
     name = tc(re.sub(r'\s+\d{4,}$', '', first['name'])); addr = addr_tc(first['addr']); zip_ = first.get('zip') or ''
     t = topic(rows, name); lat = next((r['lat'] for r in rows if r.get('lat')), None); lng = next((r['lng'] for r in rows if r.get('lng')), None)
     cuisine = next((r['cuisine'] for r in rows if r.get('cuisine') and r['cuisine'] != 'Other'), '')
