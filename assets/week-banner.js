@@ -22,8 +22,8 @@
         var now = Date.now();
         d.items = (d.items || []).filter(function (x) { return !x.ends || new Date(x.ends).getTime() > now; });
         // a meeting already shown in the page's own banner is not repeated as a square
-        var shown = [].map.call(document.querySelectorAll('.cb6-fb-banner a[href]'), function (x) { return x.href.replace(/\/+$/, ''); });
-        d.items = d.items.filter(function (x) { return shown.indexOf(String(x.href || '').replace(/\/+$/, '')) < 0; });
+        var fb = [].some.call(document.querySelectorAll('.cb6-fb-banner img'), function (x) { return /full board/i.test(x.alt || ''); });
+        if (fb) d.items = d.items.filter(function (x) { return !/full board/i.test(x.alt || ''); });
         if (!d.items.length) { el.style.display = 'none'; return; }
         var n = d.items.length;
         el.innerHTML = '<div class="wb' + ((app || framed) ? '' : ' wb-web') + '" style="--wbm:' + Math.min(n, 3) + ';grid-template-columns:' + ((app || framed) ? 'repeat(' + n + ',min(calc((100vw - 20px - ' + (6 * (n - 1)) + 'px) / ' + n + '),calc(100vh - 8px)))' : 'repeat(' + n + ',minmax(0,1fr))') + '">' + d.items.map(function (x) {
