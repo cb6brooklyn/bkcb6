@@ -97,16 +97,31 @@ for d, e in E.items():
         except Exception: lat = lng = 0
     e.update(href=href, ext=ext, keys=keys.lower(), lat=round(lat, 5), lng=round(lng, 5), dist=districts(lat, lng) if lat and lng else {})
     if kind == 'board' and key.isdigit(): e['dist']['cd'] = int(key)
+# BKCB6 places that sit only on a citywide list get the matching BKCB6 heading, so the BKCB6 Directory can show BKCB6 headings only
+B6MAP = {'Pharmacies': ('BKCB6 local businesses', 'Health and medical'), 'Supermarkets': ('BKCB6 local businesses', 'Supermarkets'),
+         'Government agencies': ('BKCB6 government offices', 'Government offices serving BKCB6'), 'Community boards': ('BKCB6 government offices', 'Government offices serving BKCB6'),
+         'Schools and child care by age': ('BKCB6 schools, parks and facilities', 'Child care and pre-K'), 'Things to do in parks': ('BKCB6 schools, parks and facilities', 'Parks, playgrounds and gardens')}
+for e in E.values():
+    if e['dist'].get('cd') != 306 or any(s.startswith('BKCB6') for s, c in e['cats']): continue
+    for s, c in list(e['cats']):
+        t = B6MAP.get(s)
+        if t and t[1] in pairs.get(t[0], {}) and t not in e['cats']: e['cats'].append(t)
+# BKCB6's own six neighborhoods (hoods-cb6.json) for everything inside the district, the nearest one for a spot on an edge
+_H6 = [(n, shape({'type': 'Polygon', 'coordinates': r})) for n, r in json.load(open(P('app/data/civic/hoods-cb6.json'))).items()]
+def hood6(lat, lng):
+    pt = Point(lng, lat)
+    return next((n for n, g in _H6 if g.contains(pt)), None) or min(_H6, key=lambda ng: ng[1].distance(pt))[0]
+for e in E.values(): e['h6'] = hood6(e['lat'], e['lng']) if e['dist'].get('cd') == 306 and e['lat'] else ''
 sections = [{'n': s, 'cats': list(cs)} for s, cs in pairs.items()]
 sidx = {s['n']: i for i, s in enumerate(sections)}
-hoods = sorted({e['h'] for e in E.values() if e['h']})
+hoods = sorted({e['h'] for e in E.values() if e['h']} | {e['h6'] for e in E.values() if e['h6']})
 hidx = {h: i for i, h in enumerate(hoods)}
 rows = []
 for e in E.values():
     cats = [sidx[s] * 1000 + sections[sidx[s]]['cats'].index(c) for s, c in e['cats']]
     dd = e['dist']
     rows.append([e['name'], e['href'], e['cover'], cats, BOROS.index(e['b']) if e['b'] in BOROS else -1, hidx.get(e['h'], -1),
-                 dd.get('cd', 0), dd.get('cc', 0), dd.get('ad', 0), dd.get('sd', 0), dd.get('cg', 0), e['lat'], e['lng'], e['ext'], e['keys']])
+                 dd.get('cd', 0), dd.get('cc', 0), dd.get('ad', 0), dd.get('sd', 0), dd.get('cg', 0), e['lat'], e['lng'], e['ext'], e['keys'], hidx.get(e['h6'], -1)])
 for i, s in enumerate(sections): s['count'] = sum(1 for r in rows if any(x // 1000 == i for x in r[3]))
 dk = {t: sorted({r[6 + j] for r in rows if r[6 + j]}) for j, t in enumerate(('cd', 'cc', 'ad', 'sd', 'cg'))}
 data = {'sections': sections, 'boros': BOROS, 'hoods': hoods, 'districts': dk, 'E': rows}
@@ -118,14 +133,18 @@ import hashlib
 b6 = [x['n'].startswith('BKCB6') for x in sections]; bk = [bool(re.match(r"^BKCB6('s elected officials| government offices| schools$| museums)", x['n'])) for x in sections]; gov = [bool(re.match(r'^(Elected officials|Government agencies|Community boards)', x['n'])) for x in sections]
 BR = BOROS.index('Brooklyn')
 def nb6(r): return [x for x in r[3] if not bk[x // 1000]]
-SC = [('bkcb6', 'bkcb6/', 'The BKCB6 Directory', ' in Brooklyn Community Board 6', sum(1 for r in rows if r[6] == 306 or any(b6[x // 1000] for x in r[3]))),
-      ('brooklyn', 'brooklyn/', 'The Brooklyn Directory', ' in Brooklyn', sum(1 for r in rows if nb6(r) and (r[4] == BR or (r[4] == -1 and any(gov[x // 1000] for x in r[3]))))),
-      ('city', '', 'The Citywide Directory', ' across New York City', sum(1 for r in rows if nb6(r)))]
+SC = [('bkcb6', 'bkcb6/', 'The BKCB6 Directory', sum(1 for r in rows if r[6] == 306 or any(b6[x // 1000] for x in r[3])),
+       'Everything in BKCB6: Park Slope, Carroll Gardens, Cobble Hill, Red Hook, Gowanus and the Columbia Street Waterfront District. Businesses, restaurants, schools, parks, community groups, houses of worship and your elected officials.'),
+      ('brooklyn', 'brooklyn/', 'The Brooklyn Directory', sum(1 for r in rows if nb6(r) and (r[4] == BR or (r[4] == -1 and any(gov[x // 1000] for x in r[3])))),
+       'Everything across Brooklyn: community boards, elected officials, agencies, schools, parks, museums and community organizations.'),
+      ('city', '', 'The Citywide Directory', sum(1 for r in rows if nb6(r)),
+       'Everything across New York City: community boards, elected officials, agencies, schools, parks, museums, theatres, stadiums and community organizations.')]
 tpl = open(P('scripts/directory_web.html'), encoding='utf-8').read(); V = hashlib.sha1(body.encode()).hexdigest()[:10]
-for key, path, h1, where, n in SC:
-    tabs = ''.join('<a href="/profiles/%s"%s>%s</a>' % (p2, ' class="on"' if k2 == key else '', {'bkcb6': 'BKCB6', 'brooklyn': 'Brooklyn', 'city': 'Citywide'}[k2]) for k2, p2, *_ in SC)
+for key, path, h1, n, lede in SC:
+    others = [(p2, h2) for k2, p2, h2, *_ in SC if k2 != key]
+    tabs = ''.join('<a href="/profiles/%s">%s</a>' % (p2, h2) for p2, h2 in others)
     page = (tpl.replace('__N__', '{:,}'.format(n)).replace('__V__', V).replace('__SCOPE__', key).replace('__DIR__', '../' if path else '').replace('__H1__', h1)
-            .replace('__WHERE__', where).replace('__TABS__', tabs).replace('__PATH__', path))
+            .replace('__LEDE__', lede).replace('__TABS__', tabs).replace('__PATH__', path))
     if path: os.makedirs(P('profiles', path), exist_ok=True)
     open(P('profiles', path, 'index.html'), 'w', encoding='utf-8').write(page)
 # the Directory inside one district: its own address, which opens the Directory on it
