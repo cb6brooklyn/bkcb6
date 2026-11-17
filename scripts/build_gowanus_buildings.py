@@ -453,7 +453,7 @@ d = f'''<!DOCTYPE html>
 {SRC}
 </div>
 <script>(function(){{try{{if(/[?&]app=1\\b/.test(location.search)||sessionStorage.getItem('bkapp')==='1')document.querySelectorAll('a[data-app]').forEach(function(a){{a.href+='?app=1'}})}}catch(e){{}}}})();</script>
-</body>
+<script src="/gowanusbuildings/dirx.js?v=1" defer></script></body>
 </html>
 '''
 os.makedirs(os.path.join(OUT, 'directory'), exist_ok=True)
