@@ -160,6 +160,28 @@ s = s.replace("chips();draw();\n</script>", """chips();draw();
 fetch('lots.json').then(function(r){return r.json()}).then(function(d){LOTS=d;buildLots();countLots();chips();draw()});
 </script>""")
 assert "fetch('lots.json')" in s
+# the whole district is too many shapes to draw at once (13,700 lots, 3,200 pins): the map opens on the district and draws
+# the lots and pins in view once you zoom in to street level, and redraws them as you move
+s = s.replace("setView([40.6778,-73.9886],15);", "setView([40.6785,-73.9985],innerWidth<700?13:14);", 1)
+s = s.replace("try{map.fitBounds(poly.getBounds(),{padding:[10,10]})}catch(e){}", "", 1)
+old_m = """  ROWS.forEach(function(r,i){var ok=showB&&mB(r);if(ok){if(!map.hasLayer(markers[i]))markers[i].addTo(map)}else if(map.hasLayer(markers[i]))map.removeLayer(markers[i])});
+  LOTS.forEach(function(l,i){var p=lotLayers[i];if(!p)return;var ok=showL&&mL(l);if(ok){if(!map.hasLayer(p))p.addTo(map)}else if(map.hasLayer(p))map.removeLayer(p)});"""
+assert old_m in s
+s = s.replace(old_m, "  drawMap();")
+s = s.replace("var LIM=60,openG={};", """var LIM=60,openG={};
+function inView(la,lo,b){return la>=b.getSouth()&&la<=b.getNorth()&&lo>=b.getWest()&&lo<=b.getEast()}
+function drawMap(){var z=map.getZoom(),b=map.getBounds().pad(.25),near=z>=16,pins=z>=15||!!term||!!active.b;
+  document.getElementById('zhint').style.display=(near&&pins)?'none':'block';
+  ROWS.forEach(function(r,i){var ok=showB&&mB(r)&&(pins&&inView(r[4],r[5],b));if(ok){if(!map.hasLayer(markers[i]))markers[i].addTo(map)}else if(map.hasLayer(markers[i]))map.removeLayer(markers[i])});
+  LOTS.forEach(function(l,i){var p=lotLayers[i];if(!p)return;var ok=showL&&mL(l)&&near&&inView(l[9],l[10],b);if(ok){if(!map.hasLayer(p))p.addTo(map)}else if(map.hasLayer(p))map.removeLayer(p)})}
+map.on('moveend',function(){drawMap()});""",1)
+s = s.replace('<div id="map"></div>', '<div style="position:relative"><div id="map"></div><div id="zhint" style="position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:600;background:#06024D;color:#fff;font:700 .8rem \'DM Sans\',sans-serif;padding:8px 12px;border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,.3);pointer-events:none;white-space:nowrap">Zoom in to see every lot and business</div></div>', 1)
+s = s.replace("e.classList.toggle('zvlo',z<15);", "", 1)
+
+s = s.replace("map.setView([r[4],r[5]],18);markers[i].openPopup()", "map.setView([r[4],r[5]],18,{animate:false});drawMap();markers[i].openPopup()", 1)
+s = s.replace("map.setView([l[9],l[10]],18);if(lotLayers[i])lotLayers[i].openPopup()", "map.setView([l[9],l[10]],18,{animate:false});drawMap();if(lotLayers[i])lotLayers[i].openPopup()", 1)
+assert s.count("animate:false});drawMap()") == 2
+
 open(P('cb6map/index.html'), 'w', encoding='utf-8').write(s)
 print('businesses %d (with logo or photo %d) | lots %d (with shapes %d, storefronts on file %d, with businesses %d)' % (
     len(rows), sum(1 for r in rows if r[8]), len(LOTS), sum(1 for l in LOTS if l[11]), sum(1 for l in LOTS if l[12]), sum(1 for l in LOTS if l[13])))

@@ -57,7 +57,7 @@ h2 .n{font-family:'DM Mono',monospace;font-size:.78rem;font-weight:400}
 .leaflet-popup-content{margin:12px 14px}
 </style></head><body>
 <header><div class="hb"><img class="hlogo" src="/site-icons/brooklyn-community-board-6.png" alt="Brooklyn Community Board 6 logo"><div><div class="k">Brooklyn Community Board 6</div><h1>Every business and every property in the district</h1></div></div><p>Carroll Gardens, Cobble Hill, Columbia Street Waterfront, Gowanus, Park Slope and Red Hook. Every business listing and every tax lot, with the storefronts on it, occupied or vacant.</p><p class="hl"><a href="/profiles/bkcb6/">The BKCB6 Directory</a> · <a href="/cb6lots/">Homes built and lost, lot by lot</a> · BID maps: <a href="/parkslopefifthavebid/">Park Slope Fifth Avenue</a>, <a href="/northflatbushbid/">North Flatbush</a>, <a href="/atlanticavebid/">Atlantic Avenue</a>, <a href="/gowanusbid/">Gowanus (proposed)</a></p></header>
-<div id="map"></div>
+<div style="position:relative"><div id="map"></div><div id="zhint" style="position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:600;background:#06024D;color:#fff;font:700 .8rem 'DM Sans',sans-serif;padding:8px 12px;border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,.3);pointer-events:none;white-space:nowrap">Zoom in to see every lot and business</div></div>
 <div class="tog"><button class="pill on" id="tb">Businesses on the map</button><button class="pill on" id="tl">Properties on the map</button></div>
 <div class="key" id="key"></div>
 <div class="wrap">
@@ -98,9 +98,9 @@ function fl(l){var f=Math.round(l[6]||0);return f?f+(f===1?' floor':' floors'):'
 function glyph(r){return KIND[r[2]]||CAT[r[1]]||'🏪'}
 function icon(r){return r[8]?'<img src="'+esc(r[8])+'" alt="" loading="lazy">':glyph(r)}
 function what(r){return r[2]||r[1]}
-var map=L.map('map',{scrollWheelZoom:false,preferCanvas:true}).setView([40.6778,-73.9886],15);
+var map=L.map('map',{scrollWheelZoom:false,preferCanvas:true}).setView([40.6785,-73.9985],innerWidth<700?13:14);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2hyw_1_9cda1572a3817275ed412c0e',{subdomains:'abcd',maxZoom:20,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
-function zc(){var z=map.getZoom(),e=document.getElementById('map');e.classList.toggle('zvlo',z<15);e.classList.toggle('zlo',z<16);e.classList.toggle('zmid',z>=16&&z<17.5)}
+function zc(){var z=map.getZoom(),e=document.getElementById('map');e.classList.toggle('zlo',z<16);e.classList.toggle('zmid',z>=16&&z<17.5)}
 map.on('zoomend',zc);map.on('moveend',zc);
 var LG={'One & Two Family':'🏠','Multi-Family Walkup':'🏘️','Multi-Family Elevator':'🏬','Mixed Residential/Commercial':'🏪','Commercial/Office':'🏢','Industrial/Manufacturing':'🏭','Transportation/Utility':'🚇','Public Facilities/Institutions':'🏛️','Parks/Open Space':'🌳','Parking':'🅿️','Vacant Land':'🚧','No land use on file':'❔'};
 var lotLayers=[];
@@ -108,7 +108,7 @@ function buildLots(){lotLayers=[];LOTS.forEach(function(l,i){if(!l[11]){lotLayer
   var p=L.polygon(l[11],{color:'#0d1b4b',weight:.4,opacity:.45,fillColor:LU[l[2]]||'#ececec',fillOpacity:.55});
   p.bindPopup(function(){return lotPop(l)});lotLayers.push(p)})}
 var poly=L.polygon(RING,{color:'#f47920',weight:3,fill:false}).addTo(map);
-try{map.fitBounds(poly.getBounds(),{padding:[10,10]})}catch(e){}
+
 setTimeout(zc,600);setTimeout(zc,2500);
 function lotPop(l){var f=[];if(l[5])f.push('Built '+l[5]);if(l[6])f.push(l[6]+(l[6]==1?' floor':' floors'));if(l[7])f.push(l[7]+(l[7]==1?' home':' homes'));
   return '<div class="pop"><b>'+esc(ln(l))+'</b><div>'+esc(l[2])+' · Zoned '+esc(l[3])+'</div>'+(l[4]?'<div>Owner: '+esc(tc(l[4]))+'</div>':'')+(f.length?'<div>'+f.join(' · ')+'</div>':'')+(l[12]?'<div>'+esc(l[12])+'</div>':'')+(l[13]&&l[13].length?'<div class="biz"><b style="font-size:.8rem">Businesses here</b>'+l[13].map(function(j){var r=ROWS[j];return '<a href="'+esc(r[7])+'">'+esc(r[0])+'</a>'}).join('')+'</div>':'')+(l[8]?'<div>Lot area '+Number(l[8]).toLocaleString()+' sq ft</div>':'')+'<div>BBL '+esc(l[1])+'</div>'+(l[0]?'<a class="go" href="/citywide-search.html?address='+encodeURIComponent(tc(l[0])+', Brooklyn')+'">Address card</a>':'')+'</div>'}
@@ -137,9 +137,14 @@ function chips(){if(tab==='h')return chipsH();var cats=tab==='b'?bcats:lcats,c=t
   document.getElementById('chips').innerHTML=h;
   document.getElementById('q').placeholder=tab==='b'?'Search businesses by name, address or type':'Search properties by address, owner, zoning or BBL'}
 var LIM=60,openG={};
+function inView(la,lo,b){return la>=b.getSouth()&&la<=b.getNorth()&&lo>=b.getWest()&&lo<=b.getEast()}
+function drawMap(){var z=map.getZoom(),b=map.getBounds().pad(.25),near=z>=16,pins=z>=15||!!term||!!active.b;
+  document.getElementById('zhint').style.display=(near&&pins)?'none':'block';
+  ROWS.forEach(function(r,i){var ok=showB&&mB(r)&&(pins&&inView(r[4],r[5],b));if(ok){if(!map.hasLayer(markers[i]))markers[i].addTo(map)}else if(map.hasLayer(markers[i]))map.removeLayer(markers[i])});
+  LOTS.forEach(function(l,i){var p=lotLayers[i];if(!p)return;var ok=showL&&mL(l)&&near&&inView(l[9],l[10],b);if(ok){if(!map.hasLayer(p))p.addTo(map)}else if(map.hasLayer(p))map.removeLayer(p)})}
+map.on('moveend',function(){drawMap()});
 function draw(){var shown=0,by={},h='';
-  ROWS.forEach(function(r,i){var ok=showB&&mB(r);if(ok){if(!map.hasLayer(markers[i]))markers[i].addTo(map)}else if(map.hasLayer(markers[i]))map.removeLayer(markers[i])});
-  LOTS.forEach(function(l,i){var p=lotLayers[i];if(!p)return;var ok=showL&&mL(l);if(ok){if(!map.hasLayer(p))p.addTo(map)}else if(map.hasLayer(p))map.removeLayer(p)});
+  drawMap();
   HOUSING.forEach(function(x,i){var ok=showH&&mH(x);[hShapes[i],hPins[i]].forEach(function(o){if(ok){if(!map.hasLayer(o))o.addTo(map)}else if(map.hasLayer(o))map.removeLayer(o)})});
   if(tab==='h'){var grp=[[],[]];HOUSING.forEach(function(x,i){if(mH(x)){shown++;grp[x[12]?0:1].push(i)}});
     ['On the canal, with a public esplanade','Elsewhere in the proposed district'].forEach(function(t,g){if(!grp[g].length)return;h+='<h2><span>'+t+'</span></h2>';
@@ -162,8 +167,8 @@ document.getElementById('tl').addEventListener('click',function(){showL=!showL;t
 if(document.getElementById('th'))document.getElementById('th').addEventListener('click',function(){showH=!showH;this.classList.toggle('on',showH);draw()});
 document.getElementById('list').addEventListener('click',function(e){var mo=e.target.closest('.more');if(mo){openG[mo.getAttribute('data-g')]=1;draw();return}if(e.target.closest('a'))return;var b=e.target.closest('.row');if(!b)return;var i=+b.getAttribute('data-i');
   if(tab==='h'){var x=HOUSING[i];if(!showH){showH=true;document.getElementById('th').classList.add('on');draw()}map.setView([x[9],x[10]],17);hPins[i].openPopup()}
-  else if(tab==='b'){var r=ROWS[i];if(!showB){showB=true;document.getElementById('tb').classList.add('on');draw()}map.setView([r[4],r[5]],18);markers[i].openPopup()}
-  else{var l=LOTS[i];if(!showL){showL=true;document.getElementById('tl').classList.add('on');draw()}map.setView([l[9],l[10]],18);if(lotLayers[i])lotLayers[i].openPopup()}
+  else if(tab==='b'){var r=ROWS[i];if(!showB){showB=true;document.getElementById('tb').classList.add('on');draw()}map.setView([r[4],r[5]],18,{animate:false});drawMap();markers[i].openPopup()}
+  else{var l=LOTS[i];if(!showL){showL=true;document.getElementById('tl').classList.add('on');draw()}map.setView([l[9],l[10]],18,{animate:false});drawMap();if(lotLayers[i])lotLayers[i].openPopup()}
   document.getElementById('map').scrollIntoView({behavior:'smooth'})});
 chips();draw();
 fetch('lots.json').then(function(r){return r.json()}).then(function(d){LOTS=d;buildLots();countLots();chips();draw()});
