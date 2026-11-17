@@ -141,26 +141,45 @@ function draw(){
  if(!any){g.innerHTML='';m.style.display='none';return}
  g.innerHTML=r.length?r.slice(0,shown).map(tile).join(''):'<div class="empty" style="grid-column:1/-1">Nothing here. Try fewer filters.</div>';
  if(r.length>shown){m.style.display='block';m.textContent='Show '+Math.min(PAGE,r.length-shown)+' more ('+(r.length-shown).toLocaleString()+' left)'}else m.style.display='none'}
+function tierOf(e){
+ if(e._tier!=null)return e._tier;
+ const h=e[1]||'',cs=e[3].map(x=>D.sections[x/1000|0].cats[x%1000]),ss=e[3].map(x=>D.sections[x/1000|0].n);let t=3;
+ // what people look for first: the board, the precincts, the libraries, the firehouses
+ if(/^\/cb-bk-6\.html|^\/7[68]th-precinct\/|^\/library-branch\//.test(h)||cs.includes('Firehouses'))t=1;
+ // then, closer in: schools, parks and the city offices
+ else if(ss.includes('Schools')||cs.includes('Parks, playgrounds and gardens')||(ss.includes('Government offices')&&!/^\/nypd-sector\//.test(h)))t=2;
+ return e._tier=t}
+let mpts=[],many=false,shownAnns=new Map;
+function annFor(e){let a=e._a;if(a)return a;const t=tierOf(e),sz=t===1?46:t===2?38:32;
+ a=new mapkit.ImageAnnotation(new mapkit.Coordinate(e[11],e[12]),{url:{1:'/app/data/civic/icons/'+e[2]+'.png'},size:{width:sz,height:sz},title:e[0],subtitle:D.hoods[e[5]]||'',anchorOffset:new DOMPoint(0,0),
+  displayPriority:t===1?mapkit.Feature.DisplayPriority.Required:t===2?mapkit.Feature.DisplayPriority.High:mapkit.Feature.DisplayPriority.Low});a.data=e;return e._a=a}
+function renderMap(){
+ if(!map)return;const R=map.region,c=R.center,sp=R.span,la0=c.latitude-sp.latitudeDelta/2,la1=c.latitude+sp.latitudeDelta/2,lo0=c.longitude-sp.longitudeDelta/2,lo1=c.longitude+sp.longitudeDelta/2,z=sp.latitudeDelta;
+ // the whole district shows the main places; schools and parks join closer in; everything else when you are down to a few blocks
+ const maxT=many?(z<.012?3:z<.03?2:1):3;
+ const want=new Set(mpts.filter(e=>e[11]>=la0&&e[11]<=la1&&e[12]>=lo0&&e[12]<=lo1&&tierOf(e)<=maxT));
+ const add=[],rem=[];
+ for(const [e,a] of shownAnns)if(!want.has(e)){rem.push(a);shownAnns.delete(e)}
+ for(const e of want)if(!shownAnns.has(e)){const a=annFor(e);add.push(a);shownAnns.set(e,a)}
+ if(rem.length)map.removeAnnotations(rem);if(add.length)map.addAnnotations(add)}
 function drawMap(r,any){
  const note=$('mapnote');
  if(!map){mapkit.init({authorizationCallback:done=>done(TOKEN),language:'en'});
   map=new mapkit.Map('map',{showsCompass:mapkit.FeatureVisibility.Hidden,showsZoomControl:true,showsMapTypeControl:false,isRotationEnabled:false,showsPointsOfInterest:false,mapType:mapkit.Map.MapTypes.MutedStandard});
-  // a group of nearby listings: a navy bubble with its count, no names; tap it to zoom in
-  map.annotationForCluster=c=>{const n=c.memberAnnotations.length,d=n>999?54:n>99?46:n>9?38:32;
-   return new mapkit.Annotation(c.coordinate,()=>{const el=document.createElement('div');el.textContent=n.toLocaleString();
-    el.style.cssText='width:'+d+'px;height:'+d+'px;border-radius:50%;background:#0d1b4b;color:#fff;border:3px solid #f47920;display:flex;align-items:center;justify-content:center;font:800 '+(d>40?13:12)+'px DM Sans,sans-serif;box-shadow:0 2px 6px rgba(0,0,0,.25);cursor:pointer';return el},
-    {size:{width:d,height:d},anchorOffset:new DOMPoint(0,0),calloutEnabled:false,data:{cluster:c.memberAnnotations}})};
-  map.region=SCOPE==='bkcb6'?new mapkit.CoordinateRegion(new mapkit.Coordinate(40.6768,-73.9952),new mapkit.CoordinateSpan(.036,.056)):new mapkit.CoordinateRegion(new mapkit.Coordinate(40.705,-73.95),new mapkit.CoordinateSpan(.45,.55));
-  if(SCOPE==='bkcb6')fetch('/data/cb6-audit/cd306.geojson').then(r=>r.json()).then(g=>{const st=new mapkit.Style({strokeColor:'#0d1b4b',lineWidth:2.5,fillColor:'#f47920',fillOpacity:.06});const ov=g.coordinates.map(poly=>new mapkit.PolygonOverlay(poly.map(ring=>ring.map(c=>new mapkit.Coordinate(c[1],c[0]))),{style:st}));map.addOverlays(ov);if(!(S.q||S.s!==''||S.h!==''||S.d||here))map.showItems(ov,{animate:false,padding:new mapkit.Padding(16,16,16,16)})})}
- map.removeAnnotations(anns);anns=[];
- const pts=r.filter(e=>e[11]);
+  map.region=SCOPE==='bkcb6'?new mapkit.CoordinateRegion(new mapkit.Coordinate(40.6768,-73.9952),new mapkit.CoordinateSpan(.034,.052)):new mapkit.CoordinateRegion(new mapkit.Coordinate(40.705,-73.95),new mapkit.CoordinateSpan(.45,.55));
+  map.addEventListener('region-change-end',renderMap);
+  if(SCOPE==='bkcb6')fetch('/data/cb6-audit/cd306.geojson').then(r=>r.json()).then(g=>{const st=new mapkit.Style({strokeColor:'#0d1b4b',lineWidth:2.5,fillColor:'#f47920',fillOpacity:.06});map.addOverlays(g.coordinates.map(poly=>new mapkit.PolygonOverlay(poly.map(ring=>ring.map(c=>new mapkit.Coordinate(c[1],c[0]))),{style:st})))})}
+ for(const a of shownAnns.values())map.removeAnnotation(a);shownAnns.clear();for(const a of anns)map.removeAnnotation(a);anns=[];
+ mpts=r.filter(e=>e[11]);many=!any&&SCOPE==='bkcb6';
  if(!any&&SCOPE!=='bkcb6'){note.style.display='block';note.textContent='Choose what you are looking for, or search, to see it on the map.';return}
- if(pts.length>MAPMAX){note.style.display='block';note.textContent='That is too many to show on the map at once. Pick a kind or a neighborhood.';return}
- note.style.display=r.length>pts.length?'block':'none';note.textContent=(r.length-pts.length).toLocaleString()+' of these have no address, so they are not on the map.';
- anns=pts.map(e=>{const a=new mapkit.ImageAnnotation(new mapkit.Coordinate(e[11],e[12]),{url:{1:'/app/data/civic/icons/'+e[2]+'.png'},size:{width:38,height:38},title:e[0],subtitle:D.hoods[e[5]]||'',clusteringIdentifier:'dir',anchorOffset:new DOMPoint(0,0)});a.data=e;return a});
- map.addAnnotations(anns);if(anns.length){const pad=any?50:12,fit=()=>map.showItems(anns.filter(x=>x.data),{animate:false,padding:new mapkit.Padding(pad,pad,pad,pad)});fit();setTimeout(fit,500);setTimeout(fit,1500)};
+ note.style.display=r.length>mpts.length?'block':'none';note.textContent=(r.length-mpts.length).toLocaleString()+' of these have no address, so they are not on the map.';
+ const fit=()=>{if(many)map.region=new mapkit.CoordinateRegion(new mapkit.Coordinate(40.6768,-73.9952),new mapkit.CoordinateSpan(.034,.052));
+  else if(mpts.length){let a0=90,a1=-90,o0=180,o1=-180;for(const e of mpts){a0=Math.min(a0,e[11]);a1=Math.max(a1,e[11]);o0=Math.min(o0,e[12]);o1=Math.max(o1,e[12])}
+   map.region=new mapkit.CoordinateRegion(new mapkit.Coordinate((a0+a1)/2,(o0+o1)/2),new mapkit.CoordinateSpan(Math.max(.006,(a1-a0)*1.25),Math.max(.008,(o1-o0)*1.25)))}
+  renderMap()};
+ fit();setTimeout(fit,400);
  if(here){const me=new mapkit.MarkerAnnotation(new mapkit.Coordinate(here[0],here[1]),{color:'#f47920',title:'You'});anns.push(me);map.addAnnotation(me)}
- if(!map._sel){map._sel=1;map.addEventListener('select',ev=>{if(ev.annotation&&ev.annotation.data&&ev.annotation.data.cluster){map.showItems(ev.annotation.data.cluster,{animate:true,padding:new mapkit.Padding(40,40,40,40)});map.selectedAnnotation=null;return}const e=ev.annotation&&ev.annotation.data;if(e&&e[1]){ev.annotation.callout={calloutRightAccessoryForAnnotation:()=>{const a=document.createElement('a');a.href=e[1];a.textContent='Open ›';a.style.cssText='font:800 14px DM Sans,sans-serif;color:#f47920;text-decoration:none;padding:0 6px';if(e[13]){a.target='_blank';a.rel='noopener'}return a}}}})}}
+ if(!map._sel){map._sel=1;map.addEventListener('select',ev=>{const e=ev.annotation&&ev.annotation.data;if(e&&e[1]){ev.annotation.callout={calloutRightAccessoryForAnnotation:()=>{const a=document.createElement('a');a.href=e[1];a.textContent='Open ›';a.style.cssText='font:800 14px DM Sans,sans-serif;color:#f47920;text-decoration:none;padding:0 6px';if(e[13]){a.target='_blank';a.rel='noopener'}return a}}}})}}
 function set(k,v){S[k]=v;if(k==='s')S.c='';shown=PAGE;draw()}
 $('q').addEventListener('input',e=>set('q',e.target.value.trim()));
 $('fs').onchange=e=>set('s',e.target.value);$('fc').onchange=e=>set('c',e.target.value);$('fb').onchange=e=>{S.h='';set('b',e.target.value)};$('fh').onchange=e=>set('h',e.target.value);$('fd').onchange=e=>set('d',e.target.value);
