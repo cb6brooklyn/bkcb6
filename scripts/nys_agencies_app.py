@@ -10,7 +10,9 @@ P = 'app/data/civic/orgs/orgs-profiles.json'
 d = json.load(open(P))
 U = lambda s: html.unescape(re.sub(r'<[^>]+>', '', s)).strip()
 made = []
+HAND = {'department-of-motor-vehicles'}   # has its own profile (/dmv/, data/gov-profiles.json): one listing, not two
 for slug in sorted(os.listdir('agencies/nys')):
+    if slug in HAND: continue
     f = f'agencies/nys/{slug}/index.html'
     if not os.path.isfile(f): continue
     s = open(f).read()

@@ -1,9 +1,5 @@
 // CB6 & Beyond — Service Worker
-<<<<<<< HEAD
-const CACHE_VERSION = 'cb6-v-7120309628171539361-1794951069';
-=======
-const CACHE_VERSION = 'cb6-v-7120309628171539361-1794951069';
->>>>>>> 62e87009c2 (App pack refresh 2026-11-17)
+const CACHE_VERSION = 'cb6-v-7120309628171539361-1794951321';
 const CORE_ASSETS = [
   '/',
   '/index.html',

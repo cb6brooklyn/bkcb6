@@ -368,8 +368,10 @@ for b in BORO:
 for i, (name, f) in enumerate(LEVEL):
     ps = sorted([p for p in offs if f(OFF[p['official']])], key=okey)
     if ps: common.append(('Elected officials', name, 'dir-officials-' + slug(name), ps))
-common.append(('Government agencies', 'New York City', 'dir-agencies-nyc', byname([p for p in ag if not p['slug'].startswith('nys-')])))
-common.append(('Government agencies', 'New York State', 'dir-agencies-nys', byname([p for p in ag if p['slug'].startswith('nys-')])))
+STATE = {'dmv'}   # state agencies with a profile of their own (data/gov-profiles.json), not from the ny.gov list
+is_state = lambda p: p['slug'].startswith('nys-') or p['slug'] in STATE
+common.append(('Government agencies', 'New York City', 'dir-agencies-nyc', byname([p for p in ag if not is_state(p)])))
+common.append(('Government agencies', 'New York State', 'dir-agencies-nys', byname([p for p in ag if is_state(p)])))
 # culture: Broadway theatres, stadiums and arenas, museums and movie theaters (culture_profiles.py)
 CULT = [p for p in D['profiles'] if p.get('group') == 'Culture' or p.get('culture')]
 ctop = lambda p: p.get('culture') or p.get('topic')
