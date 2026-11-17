@@ -115,7 +115,8 @@ def canon(profiles):
     for cl in same_groups(profiles):
         top = {m.get(p['slug'], p['slug']) for p in cl}
         members = {s for s in top} | {k for k, v in m.items() if v in top} | {p['slug'] for p in cl}
-        best = min((S[s] for s in members if s in S), key=_rank)['slug']
+        # a map listing of a public place (a firehouse, a school) shows over the same place's business-directory entry
+        best = min((S[s] for s in members if s in S), key=lambda p: (p['slug'].startswith('biz-') and p.get('group') == 'Local businesses', _rank(p)))['slug']
         for s in members:
             if s != best: m[s] = best
         m.pop(best, None)
