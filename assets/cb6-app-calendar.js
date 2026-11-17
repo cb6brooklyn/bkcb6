@@ -208,6 +208,7 @@
     var label = week.length ? 'CB6 meeting this week' : 'Next CB6 meeting';
     var leadEl = document.getElementById('cb6-app-calendar-lead') || $('.cc-lead');
     if (leadEl.id === 'cb6-app-calendar-lead') leadEl.className = 'cc-lead';
+    if (root.getAttribute('data-nolead')) { leadEl.innerHTML = ''; leadEl.style.display = 'none'; return; }
     leadEl.innerHTML = show.map(function (e) {
       var time = e.t || (/(\d{1,2}:\d{2}\s*[ap]m)/i.exec(e.l) || [])[1] || '';
       var when = longDate(e.d) + (time ? ' at ' + time.toUpperCase().replace(/(\d)([AP]M)/, '$1 $2') : '') + (cleanLoc(e.loc) ? ' · ' + cleanLoc(e.loc).replace(/, United States$/, '') : '');
