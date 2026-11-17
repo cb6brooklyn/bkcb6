@@ -156,9 +156,9 @@ assert s.count('class="more"') == 2
 s = s.replace("document.getElementById('list').addEventListener('click',function(e){if(e.target.closest('a'))return;",
               "document.getElementById('list').addEventListener('click',function(e){var mo=e.target.closest('.more');if(mo){openG[mo.getAttribute('data-g')]=1;draw();return}if(e.target.closest('a'))return;")
 assert "openG[mo.getAttribute" in s
-s = s.replace("chips();draw();\n</script>", """chips();draw();
+s = s.replace("chips();draw();\n", """chips();draw();
 fetch('lots.json').then(function(r){return r.json()}).then(function(d){LOTS=d;buildLots();countLots();chips();draw()});
-</script>""")
+""", 1)
 assert "fetch('lots.json')" in s
 # the whole district is too many shapes to draw at once (13,700 lots, 3,200 pins): the map opens on the district and draws
 # the lots and pins in view once you zoom in to street level, and redraws them as you move
