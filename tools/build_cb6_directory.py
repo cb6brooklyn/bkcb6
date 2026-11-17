@@ -45,7 +45,7 @@ C = {
  'park-slope-farmers-market': 'food', 'park-slope-fifth-avenue-bid': 'business streets', 'park-slope-food-coop': 'food',
  'park-slope-open-streets': 'streets', 'pioneer-works': 'arts', 'porch-stomp': 'arts', 'portside-newyork': 'water arts',
  'powerhouse-arts': 'arts', 'principles-gi-coffee-house': 'civic food', 'prospect-park-alliance': 'parks',
- 'record-shop': 'arts business', 'red-hook-art-project': 'arts youth', 'red-hook-business-alliance': 'business',
+ 'record-shop': 'arts business', 'red-hook-art-project': 'arts youth', 'red-hook-business-alliance': 'business', 'merchants-of-smith-street': 'business',
  'red-hook-initiative': 'youth health', 'red-hook-lobster-pound': 'food business', 'resilient-red-hook': 'civic water',
  'rooftop-films': 'arts', 'sbidc': 'business', 'the-secret-garden': 'parks', 'smith-street-stage': 'arts',
  'south-brooklyn-dsa': 'civic', 'south-brooklyn-soccer': 'parks youth', 'southwest-brooklyn-tenant-union': 'housing',
@@ -54,7 +54,7 @@ C = {
  'brooklyn-community-board-6': 'gov civic', '76th-precinct': 'safety gov', '78th-precinct': 'safety gov',
  'dsny-brooklyn-6': 'gov streets', 'nyc-dot': 'gov streets', 'nyc-dep': 'gov water', 'nyc-hpd': 'gov housing',
  'nyc-parks-brooklyn': 'gov parks', 'nyc-planning': 'gov business', 'landmarks-preservation-commission': 'gov',
- 'mta': 'gov streets', 'brooklyn-marine-terminal-development-corporation': 'gov water business',
+ 'mta': 'gov streets', 'dmv': 'gov streets', 'brooklyn-marine-terminal-development-corporation': 'gov water business',
  'cec-district-15': 'gov schools', 'rent-guidelines-board': 'gov housing', 'nycha-cb6': 'gov housing',
  'red-hook-community-justice-center': 'safety gov', 'new-york-city-council': 'gov elected', 'nyc-votes': 'gov civic',
  'nyc-public-schools-cb6': 'gov schools', 'eric-gonzalez': 'elected safety', 'letitia-james': 'elected safety',
@@ -95,7 +95,7 @@ CAL = {r['slug'] for r in json.load(open(os.path.join(ROOT, 'data', 'org-profile
 CAL |= {m.group(1) for m in re.finditer(r"\{\n 'slug':'([^']+)'", src)} | {'oldstonehouse'}
 
 # places with no fixed spot: CB6 calendar groups that stay in the directory but off the map
-NOPIN = {'cobble-hill-association', 'red-hook-business-alliance', 'resilient-red-hook', 'atlantic-avenue-ldc',
+NOPIN = {'cobble-hill-association', 'red-hook-business-alliance', 'merchants-of-smith-street', 'resilient-red-hook', 'atlantic-avenue-ldc',
          'forth-on-fourth-avenue', 'park-slope-fifth-avenue-bid', 'park-slope-open-streets', 'bergen-bike-bus',
          'house-pepper', 'porch-stomp', 'pacemakers-dance-team', 'street-lab', 'south-brooklyn-dsa',
          'bird-collective', 'artichoke-dance-company', 'brooklyn-pride'}
