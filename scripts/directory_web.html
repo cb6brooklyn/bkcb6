@@ -83,11 +83,10 @@ a.cell:hover .cbo-tile,a.cell:focus-visible .cbo-tile{transform:translateY(-2px)
 <div id="grid" class="cbo-grid"></div>
 <button class="btn more" id="more" type="button" style="display:none"></button>
 <nav class="others">Also: __TABS__</nav>
-<div class="credit">Designed and developed by Mike Racioppo</div>
 </div>
 <script>
 const TOKEN='eyJraWQiOiI0SjZVQlRDRFpEIiwidHlwIjoiSldUIiwiYWxnIjoiRVMyNTYifQ.eyJpc3MiOiJGN0hGR1Y1UVIyIiwiaWF0IjoxNzkzNzQ5OTEyLCJvcmlnaW4iOiJia2NiNi5hcHAiLCJzY29wZSI6Im1hcGtpdF9qcyJ9.LpYs4ZPhfyWiHXBTv_qniPsZ-ciCJhQ-aCjQOuWsfIpQ6HFKgQGNGYlFEoci3dSys9c4oh5Te8dbp3N1R9vMyw';
-const PAGE=60,MAPMAX=1500;
+const PAGE=60;let MAPMAX=1500;
 let D,S={q:'',s:'',c:'',b:'',h:'',d:'',v:'g'},shown=PAGE,here=null,map=null,anns=[];
 const $=id=>document.getElementById(id),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const DT={cd:6,cc:7,ad:8,sd:9,cg:10};
@@ -137,7 +136,7 @@ function draw(){
  $('count').textContent=any?r.length.toLocaleString()+(r.length===1?' listing':' listings'):D.E.length.toLocaleString()+' listings';
  $('vg').classList.toggle('on',S.v==='g');$('vm').classList.toggle('on',S.v==='m');
  const g=$('grid'),m=$('more'),mp=$('map'),note=$('mapnote');
- if(S.v==='m'){g.innerHTML='';m.style.display='none';mp.style.display='block';drawMap(any?r:[],any);return}
+ if(S.v==='m'){g.innerHTML='';m.style.display='none';mp.style.display='block';drawMap(any||SCOPE==='bkcb6'?(any?r:D.E):[],any);return}
  mp.style.display='none';note.style.display='none';
  if(!any){g.innerHTML='';m.style.display='none';return}
  g.innerHTML=r.length?r.slice(0,shown).map(tile).join(''):'<div class="empty" style="grid-column:1/-1">Nothing here. Try fewer filters.</div>';
@@ -146,14 +145,15 @@ function drawMap(r,any){
  const note=$('mapnote');
  if(!map){mapkit.init({authorizationCallback:done=>done(TOKEN),language:'en'});
   map=new mapkit.Map('map',{showsCompass:mapkit.FeatureVisibility.Hidden,showsZoomControl:true,showsMapTypeControl:false,isRotationEnabled:false,showsPointsOfInterest:false,mapType:mapkit.Map.MapTypes.MutedStandard});
-  map.region=new mapkit.CoordinateRegion(new mapkit.Coordinate(40.705,-73.95),new mapkit.CoordinateSpan(.45,.55))}
+  map.region=SCOPE==='bkcb6'?new mapkit.CoordinateRegion(new mapkit.Coordinate(40.6768,-73.9952),new mapkit.CoordinateSpan(.036,.056)):new mapkit.CoordinateRegion(new mapkit.Coordinate(40.705,-73.95),new mapkit.CoordinateSpan(.45,.55));
+  if(SCOPE==='bkcb6')fetch('/data/cb6-audit/cd306.geojson').then(r=>r.json()).then(g=>{const st=new mapkit.Style({strokeColor:'#0d1b4b',lineWidth:2.5,fillColor:'#f47920',fillOpacity:.06});map.addOverlays(g.coordinates.map(poly=>new mapkit.PolygonOverlay(poly.map(ring=>ring.map(c=>new mapkit.Coordinate(c[1],c[0]))),{style:st})))})}
  map.removeAnnotations(anns);anns=[];
  const pts=r.filter(e=>e[11]);
- if(!any){note.style.display='block';note.textContent='Choose what you are looking for, or search, to see it on the map.';return}
+ if(!any&&SCOPE!=='bkcb6'){note.style.display='block';note.textContent='Choose what you are looking for, or search, to see it on the map.';return}
  if(pts.length>MAPMAX){note.style.display='block';note.textContent='That is too many to show on the map at once. Pick a kind or a neighborhood.';return}
  note.style.display=r.length>pts.length?'block':'none';note.textContent=(r.length-pts.length).toLocaleString()+' of these have no address, so they are not on the map.';
  anns=pts.map(e=>{const a=new mapkit.ImageAnnotation(new mapkit.Coordinate(e[11],e[12]),{url:{1:'/app/data/civic/icons/'+e[2]+'.png'},size:{width:38,height:38},title:e[0],subtitle:D.hoods[e[5]]||'',clusteringIdentifier:'dir',anchorOffset:new DOMPoint(0,0)});a.data=e;return a});
- map.addAnnotations(anns);if(anns.length)map.showItems(anns,{animate:false,padding:new mapkit.Padding(50,50,50,50)});
+ map.addAnnotations(anns);if(anns.length&&(any||SCOPE!=='bkcb6'))map.showItems(anns,{animate:false,padding:new mapkit.Padding(50,50,50,50)});
  if(here){const me=new mapkit.MarkerAnnotation(new mapkit.Coordinate(here[0],here[1]),{color:'#f47920',title:'You'});anns.push(me);map.addAnnotation(me)}
  if(!map._sel){map._sel=1;map.addEventListener('select',ev=>{const e=ev.annotation&&ev.annotation.data;if(e&&e[1]){ev.annotation.callout={calloutRightAccessoryForAnnotation:()=>{const a=document.createElement('a');a.href=e[1];a.textContent='Open ›';a.style.cssText='font:800 14px DM Sans,sans-serif;color:#f47920;text-decoration:none;padding:0 6px';if(e[13]){a.target='_blank';a.rel='noopener'}return a}}}})}}
 function set(k,v){S[k]=v;if(k==='s')S.c='';shown=PAGE;draw()}
@@ -185,7 +185,7 @@ function scoped(d){
  d.sections.forEach(x=>{x.n=LABEL[x.n]||x.n.replace(/^BKCB6 (\w)/,(m,c)=>c.toUpperCase());x.cats=x.cats.map(c=>CLABEL[c]||c)});
  d.sections.forEach((x,i)=>{x.count=d.E.filter(e=>e[3].some(y=>(y/1000|0)===i)).length});
  return d}
-fetch('__DIR__dir.json?v=__V__').then(r=>r.json()).then(d=>{D=scoped(d);readHash();$('q').value=S.q;draw()});
+fetch('__DIR__dir.json?v=__V__').then(r=>r.json()).then(d=>{D=scoped(d);if(SCOPE==='bkcb6')MAPMAX=1e9;readHash();$('q').value=S.q;draw()});
 window.addEventListener('hashchange',()=>{readHash();$('q').value=S.q;draw()});
 </script>
 </body></html>
