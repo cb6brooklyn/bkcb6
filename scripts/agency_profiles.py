@@ -79,6 +79,24 @@ def secs(s):
             'foot': (re.search(r'<div class="pfoot">(.*?)</div>', s, re.S) or [None, ''])[1]}
     return {'head': head, 'secs': out}
 
+# Agencies whose profile carries a live "Coming up" card from the CB6 calendar: the calendar type and the
+# event titles it also takes in. NYCEDC: its BMT Community Workshops (Nov 2026).
+AGENCY_EVENTS = {
+    'nycedc': {'org': 'nycedc', 'also': ['BMT Community Workshop', 'BMT Public Workshop'],
+               'title': 'Coming up with NYCEDC', 'name': 'The CB6 calendar', 'href': '/calendar.html'},
+}
+EV_JS = open(P('scripts/oneprofile/ev_script.js'), encoding='utf-8').read()
+EV_CSS = open(P('scripts/oneprofile/ev.css'), encoding='utf-8').read()
+
+def agency_events(slug, logo):
+    e = AGENCY_EVENTS.get(slug)
+    if not e: return ''
+    js = lambda v: json.dumps(v, ensure_ascii=False)
+    script = (EV_JS.replace('__ORG__', js(e['org'])).replace('__HREF__', js(e['href'])).replace('__NAME__', js(e['name']))
+              .replace('__LOGO__', js(logo)).replace('ALSO=[]', 'ALSO=' + js(e['also'])))
+    return ('<style>\n%s\n</style>\n  <div class="sec evsec"><h2>%s</h2><div id="orgEvents"><div class="evcard"><div class="evline">Loading from the CB6 calendar\u2026</div></div></div>'
+            '<div id="orgMore"></div></div>\n%s\n') % (EV_CSS, e['title'], script)
+
 made = skipped = 0
 for f in sorted(glob.glob(P('agencies/*/index.html')) + glob.glob(P('agencies/nys/*/index.html'))):
     rel = os.path.relpath(os.path.dirname(f), ROOT)
@@ -120,6 +138,9 @@ for f in sorted(glob.glob(P('agencies/*/index.html')) + glob.glob(P('agencies/ny
     if loc and loc.get('lat'):
         cd = cd_of(loc['lat'], loc['lng'])
         t = t.replace('data-bid-slug="park-slope-5th-avenue" ', ('data-chamber="cb" data-district="%s" data-start-zoning="1" ' % cd) if cd else '', 1)
+    evb = agency_events(slug, h['logo'])
+    if evb:
+        t = t.replace('  <div class="sec"><h2>Contact</h2>', evb + '  <div class="sec"><h2>Contact</h2>', 1)
     if extra:   # the page's other sections (the offices that report to it, the members lists), before Contact
         t = t.replace('  <div class="sec"><h2>Contact</h2>', extra + '  <div class="sec"><h2>Contact</h2>', 1)
     t = re.sub(r'profile-map\.js\?v=\w+', 'profile-map.js?v=' + MAPV, t)

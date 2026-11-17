@@ -164,6 +164,11 @@ OVERRIDES = [
      "set": {"flyer": "https://bkcb6.app/flyer-cb6-full-board-2026-11-18.png",
              "href": "https://zoom.us/webinar/register/WN_QoUatvEQT6OeKhVfJhp3jw", "linkText": "Register on Zoom \u2197",
              "desc": "At Van Alen Institute, 303 Bond Street, and on Zoom. Register for the webinar to attend virtually: https://zoom.us/webinar/register/WN_QoUatvEQT6OeKhVfJhp3jw"}},
+    # Nov 24, 2026 78th Precinct Community Council meeting: the flyer Mike sent.
+    {"date": "2026-11-24", "label_contains": "78th Precinct Community Council",
+     "set": {"flyer": "https://bkcb6.app/flyer-78pct-community-council-2026-11-24.jpg", "time": "6:30 PM",
+             "location": "78th Precinct, 65 Sixth Avenue, 4th Floor, Brooklyn, NY 11217",
+             "desc": "The November 2026 Precinct Council Meeting. Ask questions and raise concerns with the Precinct Commanding Officer and officers. If you cannot attend, email your questions or concerns to 78pctcommcouncil@gmail.com. Instagram: @78pctcouncil."}},
     # Transportation, Parks and Public Infrastructure meets the third WEDNESDAY.
     # The official feed has published these on Thursdays. These move them to the
     # correct date; once the feed carries the right date they simply stop matching.
