@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Photo tiles for BKCB6 listings that show a photo of the place in place of a logo.
+"""Photo tiles for Directory listings that show a photo of the place in place of a logo.
 
 Each photo (Street View, or a search photo that is not a logo) gets a round badge in the corner with an
 emoji for the kind of place, so the tile reads like the other icons. Real logos are left alone.
@@ -23,7 +23,10 @@ EM = {'Nonprofits': '🤝', 'Restaurants, cafes and food': '🍽', 'Health and m
       'Community services': '🤝', 'Sports': '⚽', 'Culture and institutions': '🎭', 'Food pantries': '🥫',
       'High school equivalency programs': '🎓', 'Schools': '🏫', 'Philanthropy': '💝',
       'Legal services and justice': '⚖', 'Venues': '🎤', 'Faith organizations': '⛪', 'Health and mental health': '🩺',
-      'Farmers markets': '🥕'}
+      'Farmers markets': '🥕', 'Private and parochial schools': '🏫', 'Charter schools': '🏫', 'Special education schools': '🏫',
+      'Public schools': '🏫', 'Preschool for students with disabilities': '🧸', 'Parks, gardens and the environment': '🌳',
+      'Food and mutual aid': '🥫', 'Public safety': '🚨', 'International': '🌍', 'Jobs and workforce': '🧰',
+      'Community and support': '🤝', 'Museums': '🏛'}
 DEFAULT = '📍'
 _f = ImageFont.truetype(FONT, 109)
 _g = {}
