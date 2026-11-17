@@ -4,7 +4,8 @@
 Reads a list of profile slugs (JSON) and the Street View Static API key from the file named in SV_KEY_FILE.
 For each: the free metadata call first; where Google has an outdoor panorama, the picture is saved as
 logos/sv-<slug>.jpg and recorded in data/cb6-audit/street-view.json. Listings Google has nothing for are
-recorded in data/cb6-audit/street-view-none.json with the status it returned."""
+recorded in data/cb6-audit/street-view-none.json with the status it returned. Addresses on residential lots
+(street-view-residential.json) are never photographed: a street photo of a home could read as personal information."""
 import json, os, sys, io, urllib.parse, urllib.request, concurrent.futures as cf
 from PIL import Image
 
@@ -51,7 +52,7 @@ def main():
     todo = set(json.load(open(sys.argv[1])))
     SVF = os.path.join(A, 'street-view.json'); NF = os.path.join(A, 'street-view-none.json')
     SV = json.load(open(SVF)); NONE = json.load(open(NF)) if os.path.exists(NF) else {}
-    P = [p for p in json.load(open(PROF))['profiles'] if p['slug'] in todo and p['slug'] not in SV and not str(NONE.get(p['slug'], 'ERROR')).startswith(('ZERO', 'NOT_FOUND', 'NO_ADDRESS'))]
+    P = [p for p in json.load(open(PROF))['profiles'] if p['slug'] in todo and p['slug'] not in SV and not str(NONE.get(p['slug'], 'ERROR')).startswith(('ZERO', 'NOT_FOUND', 'NO_ADDRESS', 'RESIDENTIAL'))]
     print(len(P), 'to ask', flush=True); n = 0
     with cf.ThreadPoolExecutor(12) as ex:
         for s, v, st in ex.map(one, P):
