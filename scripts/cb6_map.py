@@ -96,7 +96,7 @@ ring = [[[[round(y, 6), round(x, 6)] for x, y in poly.exterior.coords]] for poly
 s = TPL
 s = s.replace('<meta name="robots" content="noindex,nofollow">\n', '')
 s = re.sub(r'<title>.*?</title>', '<title>Every business and property in Brooklyn Community Board 6</title>', s)
-s = re.sub(r'<header>.*?</header>', '<header><div class="hb"><img class="hlogo" src="/site-icons/brooklyn-community-board-6.png" alt="Brooklyn Community Board 6 logo"><div><div class="k">Brooklyn Community Board 6</div>'
+s = re.sub(r'<header>.*?</header>', '<header><div class="hb"><img class="hlogo" src="/app/data/Logos/cb306.png" alt="Brooklyn Community Board 6 logo"><div><div class="k">Brooklyn Community Board 6</div>'
            '<h1>Every business and every property in the district</h1></div></div><p>Carroll Gardens, Cobble Hill, Columbia Street Waterfront, Gowanus, Park Slope and Red Hook. '
            'Every business listing and every tax lot, with the storefronts on it, occupied or vacant.</p>'
            '<p class="hl"><a href="/profiles/bkcb6/">The BKCB6 Directory</a> · <a href="/cb6lots/">Homes built and lost, lot by lot</a> · BID maps: <a href="/parkslopefifthavebid/">Park Slope Fifth Avenue</a>, '
