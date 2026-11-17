@@ -4,9 +4,10 @@
 Reads a list of profile slugs (JSON) and the Street View Static API key from the file named in SV_KEY_FILE.
 For each: the free metadata call first; where Google has an outdoor panorama, the picture is saved as
 logos/sv-<slug>.jpg and recorded in data/cb6-audit/street-view.json. Listings Google has nothing for are
-recorded in data/cb6-audit/street-view-none.json with the status it returned. Addresses on residential lots
-(street-view-residential.json) are never photographed: a street photo of a home could read as personal information."""
-import json, os, sys, io, urllib.parse, urllib.request, concurrent.futures as cf
+recorded in data/cb6-audit/street-view-none.json with the status it returned. Only Google's own street photos are used, never a contributor's. A photo is kept only where the city's PLUTO
+records show the lot has no housing, or has retail space under the housing; every other address
+(street-view-residential.json) is never photographed: a street photo of a home could read as personal information."""
+import json, os, re, sys, io, urllib.parse, urllib.request, concurrent.futures as cf
 from PIL import Image
 
 A = 'data/cb6-audit'; LOGOS = 'app/data/civic/orgs/logos'; PROF = 'app/data/civic/orgs/orgs-profiles.json'
@@ -39,6 +40,7 @@ def one(p):
     try:
         m = json.loads(get(B + '/metadata?' + q))
         if m.get('status') != 'OK': return p['slug'], None, m.get('status')
+        if not re.fullmatch(r'© (\d{4} )?Google', m.get('copyright') or ''): return p['slug'], None, 'NOT_GOOGLE'   # contributor photos: interiors, people
         q = urllib.parse.urlencode({'size': '640x640', 'fov': 70, 'pitch': 5, 'location': loc, 'source': 'outdoor', 'key': KEY})
         im = Image.open(io.BytesIO(get(B + '?' + q))).convert('RGB').resize((256, 256), Image.LANCZOS)
         fn = 'sv-%s.jpg' % p['slug']
@@ -52,7 +54,7 @@ def main():
     todo = set(json.load(open(sys.argv[1])))
     SVF = os.path.join(A, 'street-view.json'); NF = os.path.join(A, 'street-view-none.json')
     SV = json.load(open(SVF)); NONE = json.load(open(NF)) if os.path.exists(NF) else {}
-    P = [p for p in json.load(open(PROF))['profiles'] if p['slug'] in todo and p['slug'] not in SV and not str(NONE.get(p['slug'], 'ERROR')).startswith(('ZERO', 'NOT_FOUND', 'NO_ADDRESS', 'RESIDENTIAL'))]
+    P = [p for p in json.load(open(PROF))['profiles'] if p['slug'] in todo and p['slug'] not in SV and not str(NONE.get(p['slug'], 'ERROR')).startswith(('ZERO', 'NOT_FOUND', 'NO_ADDRESS', 'RESIDENTIAL', 'NOT_GOOGLE'))]
     print(len(P), 'to ask', flush=True); n = 0
     with cf.ThreadPoolExecutor(12) as ex:
         for s, v, st in ex.map(one, P):
