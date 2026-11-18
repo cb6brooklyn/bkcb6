@@ -149,6 +149,10 @@ def main():
                                  'kv': [[k, html.unescape(re.sub(r'<[^>]+>', '', v))] for k, v in rows] + [['Community board', 'Brooklyn Community Board 6'], ['Source', f'CB6 block maps, {LBY[kind]["label"]}']],
                                  'links': [['Profile and map', f'https://bkcb6.app{path}']] + ([[e2[0], e2[1]]] if e2 else []),
                                  'logo': '', 'cal': None, 'n': 0, 'going': [], 'kind': 'org', 'official': '', 'group': 'Local businesses' if seat == 'Supermarket' else GROUP, 'topic': 'Supermarkets' if seat == 'Supermarket' else topic, 'sort': 0})
+    # a place with a logo of its own keeps it (the BRIC Celebrate Brooklyn! mark for the Bandshell shows)
+    OWN_LOGO = {'map-culture-place-bric-celebrate-brooklyn-at-the-prospect-park-bandshell': 'bric-celebrate-brooklyn.png'}
+    for m_ in made_app:
+        if m_['slug'] in OWN_LOGO: m_['logo'] = OWN_LOGO[m_['slug']]
     # parks pins: the park's own profile
     PKP = json.load(open('parks-policy/profiles.json')); PK = json.load(open('parks-policy/cb6.json'))['parks']
     PG = [(p['id'], shape(p['g']).buffer(0.0002)) for p in PK]

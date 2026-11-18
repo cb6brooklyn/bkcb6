@@ -54,7 +54,7 @@ def main():
     todo = set(json.load(open(sys.argv[1])))
     SVF = os.path.join(A, 'street-view.json'); NF = os.path.join(A, 'street-view-none.json')
     SV = json.load(open(SVF)); NONE = json.load(open(NF)) if os.path.exists(NF) else {}
-    P = [p for p in json.load(open(PROF))['profiles'] if p['slug'] in todo and p['slug'] not in SV and not str(NONE.get(p['slug'], 'ERROR')).startswith(('ZERO', 'NOT_FOUND', 'NO_ADDRESS', 'RESIDENTIAL', 'NOT_GOOGLE'))]
+    P = [p for p in json.load(open(PROF))['profiles'] if p['slug'] in todo and p['slug'] not in SV and not str(NONE.get(p['slug'], 'ERROR')).startswith(('ZERO', 'NOT_FOUND', 'NO_ADDRESS', 'RESIDENTIAL', 'NOT_GOOGLE', 'HAS_LOGO'))]
     print(len(P), 'to ask', flush=True); n = 0
     with cf.ThreadPoolExecutor(12) as ex:
         for s, v, st in ex.map(one, P):
