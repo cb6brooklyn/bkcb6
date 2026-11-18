@@ -11,7 +11,7 @@ Sources, all fetched fresh on each run:
   PLUTO (64uk-42ks) and MapPLUTO (ArcGIS) for zoning, land use and lot shapes
 Run: python3 scripts/build_gowanus_buildings.py
 """
-import json, os, re, html, urllib.request, urllib.parse, datetime
+import json, time, os, re, html, urllib.request, urllib.parse, datetime
 from shapely.geometry import shape, Point, mapping
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -273,7 +273,10 @@ for j in J:
           (STAT[j['k']], dmy(j['co_first'] or j['permit'] or j['filed']))]
     k = ''.join(f'<div class="kp"><div class="v">{v}</div><div class="k">{t}</div></div>' for v, t in kp)
     logo = f'<div class="blogo"><img src="{j["logo"]}" alt="{esc(j["name"] or j["addr"])}"></div>' if j['logo'] else ''
-    body = logo + f'<section class="sec"><h2>The building</h2></section><div class="pts">{j["d"]}</div>' + table(facts(j)) + lotteries(j)
+    e = EXTRA.get(j['slug'], {}).get('event')
+    evb = (f'<a class="bevent" href="{e["href"]}" style="display:block;max-width:420px;margin:14px auto 4px;text-decoration:none;color:inherit;text-align:center"><img src="{e["flyer"]}" alt="{e["label"]} flyer" style="width:100%;border-radius:12px;display:block"><div style="font-weight:700;margin-top:8px">{e["label"]}</div><div style="font-size:13px;opacity:.75">{e["when"]} &middot; {e["where"]}</div></a>'
+           if e and e.get('until', '9999') >= time.strftime('%Y-%m-%d') else '')
+    body = evb + logo + f'<section class="sec"><h2>The building</h2></section><div class="pts">{j["d"]}</div>' + table(facts(j)) + lotteries(j)
     if j['desc']: body += f'<section class="sec"><h2>What was filed</h2><div class="lede">{esc(j["desc"])}</div></section>'
     if j['bands']:
         body += f'<section class="sec"><h2>Who the affordable apartments are for</h2><div class="lede">By household income, as counted in <a href="{HPD}" target="_blank" rel="noopener">HPD&rsquo;s production data</a>.</div></section>' + bars(j['bands'])
