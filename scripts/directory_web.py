@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""bkcb6.app/profiles/: the Directory on the site, fully interactive. The same entries, categories and square logo
+"""bkcb6.app/directory/ (and /profiles/ for the apps): the Directory on the site, fully interactive. The same entries, categories and square logo
 tiles as the apps' Directory (read from the apps' tools.json dir-* lists), with a search that works inside whatever is
 picked, dropdowns for section, category, borough, neighborhood and district (community board, Council, Assembly, State
 Senate, Congress), Near me, and a map of the results with each entry's logo.
@@ -142,11 +142,13 @@ SC = [('bkcb6', 'bkcb6/', 'The BKCB6 Directory', sum(1 for r in rows if r[6] == 
 tpl = open(P('scripts/directory_web.html'), encoding='utf-8').read(); V = hashlib.sha1(body.encode()).hexdigest()[:10]
 for key, path, h1, n, lede in SC:
     others = [(p2, h2) for k2, p2, h2, *_ in SC if k2 != key]
-    tabs = ''.join('<a href="/profiles/%s">%s</a>' % (p2, h2) for p2, h2 in others)
+    tabs = ''.join('<a href="/directory/%s">%s</a>' % (p2, h2) for p2, h2 in others) + '<a href="/directory/government/">The Address Directory</a>'
     page = (tpl.replace('__N__', '{:,}'.format(n)).replace('__V__', V).replace('__SCOPE__', key).replace('__DIR__', '../' if path else '').replace('__H1__', h1)
             .replace('__LEDE__', lede).replace('__TABS__', tabs).replace('__PATH__', path))
-    if path: os.makedirs(P('profiles', path), exist_ok=True)
-    open(P('profiles', path, 'index.html'), 'w', encoding='utf-8').write(page)
+    # the Directory's address on the site is /directory/; /profiles/ is the same page, which the apps open (it forwards everyone else)
+    for top in ('profiles', 'directory'):
+        os.makedirs(P(top, path), exist_ok=True)
+        open(P(top, path, 'index.html'), 'w', encoding='utf-8').write(page)
 # the Directory inside one district: its own address, which opens the Directory on it
 import shutil
 if os.path.isdir(P('directory-in')): shutil.rmtree(P('directory-in'))
@@ -158,8 +160,8 @@ for t, ks in dk.items():
         nm = dname(t, k)
         open(P('directory-in', '%s-%s' % (t, k), 'index.html'), 'w').write(
             '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="apple-itunes-app" content="app-id=6813967208"><title>The Directory in %s &mdash; bkcb6.app</title>'
-            '<link rel="canonical" href="https://bkcb6.app/profiles/#d=%s-%s"><meta http-equiv="refresh" content="0;url=/profiles/#d=%s-%s"></head>'
-            '<body><p><a href="/profiles/#d=%s-%s">The Directory in %s</a></p></body></html>\n' % (nm, t, k, t, k, t, k, nm))
+            '<link rel="canonical" href="https://bkcb6.app/directory/#d=%s-%s"><meta http-equiv="refresh" content="0;url=/directory/#d=%s-%s"></head>'
+            '<body><p><a href="/directory/#d=%s-%s">The Directory in %s</a></p></body></html>\n' % (nm, t, k, t, k, t, k, nm))
 print('web directory:', len(rows), 'profiles |', len(sections), 'sections |', sum(len(s['cats']) for s in sections), 'categories |', len(hoods), 'neighborhoods |',
       'no page to open:', nolink, '| dir.json %.1f MB' % (len(body) / 1e6), '| district pages:', sum(len(v) for v in dk.values()))
 # the districts that overlap BKCB6, for the toggles on the BKCB6 Directory map: each one's whole outline, the part

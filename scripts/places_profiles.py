@@ -156,6 +156,7 @@ LIBS_LIST = [
 for l in json.load(open(f'{C}/libraries.json')):
     LIBS_LIST.append({'name': l['name'], 'address': l['address'], 'lat': l['lat'], 'lng': l['lon'], 'web': l.get('website', ''), 'type': 'Brooklyn Public Library branch'})
 for f in fac:
+    if f['facname'] == 'CARROLL GARDENS POP-UP LIBRARY': continue   # closed; Carroll Gardens Library reopens at 396 Clinton Street December 1, 2026
     if f['facgroup'] == 'LIBRARIES' and 'POP-UP' in f['facname']:
         LIBS_LIST.append({'name': title(f['facname']).replace('Pop-Up', 'pop-up'), 'address': addr(f.get('address')), 'lat': float(f['latitude']),
                           'lng': float(f['longitude']), 'web': '', 'type': 'Brooklyn Public Library pop-up library'})
