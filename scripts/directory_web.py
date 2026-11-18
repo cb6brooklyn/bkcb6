@@ -100,7 +100,7 @@ for d, e in E.items():
 # BKCB6 places that sit only on a citywide list get the matching BKCB6 heading, so the BKCB6 Directory can show BKCB6 headings only
 B6MAP = {'Pharmacies': ('BKCB6 local businesses', 'Health and medical'), 'Supermarkets': ('BKCB6 local businesses', 'Supermarkets'),
          'Government agencies': ('BKCB6 government offices', 'Government offices serving BKCB6'), 'Community boards': ('BKCB6 government offices', 'Government offices serving BKCB6'),
-         'Schools and child care by age': ('BKCB6 schools, parks and facilities', 'Child care and pre-K'), 'Things to do in parks': ('BKCB6 schools, parks and facilities', 'Parks, playgrounds and gardens')}
+         'Schools and child care by age': ('BKCB6 child care', 'Child care and pre-K'), 'Things to do in parks': ('BKCB6 parks', 'Parks')}
 for e in E.values():
     if e['dist'].get('cd') != 306 or any(s.startswith('BKCB6') for s, c in e['cats']): continue
     for s, c in list(e['cats']):

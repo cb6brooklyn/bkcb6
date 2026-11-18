@@ -180,6 +180,11 @@ def mapfile(app):
         if dest in cb6:
             k = {'Local businesses': 'cb6-biz', 'Community groups': 'cb6-groups', 'Schools': 'cb6-schools',
                  'Schools, parks and facilities': 'cb6-places', 'Business improvement districts': 'cb6-groups'}.get(g, 'cb6-gov')
+            # schools, parks and libraries are each their own layer, never merged
+            if g == 'Schools, parks and facilities':
+                k = {'Schools': 'cb6-schools', 'Libraries': 'cb6-libraries', 'Parks, playgrounds and gardens': 'cb6-parks',
+                     'Courts, fields, pools and recreation centers': 'cb6-parks'}.get(p.get('topic') or '', 'cb6-places')
+            elif g == 'Libraries': k = 'cb6-libraries'
         else:
             b = p.get('where') if p.get('where') in BORO else 'other'
             k = {'Community boards': 'boards', 'Elected officials': 'officials', 'Government agencies': 'agencies', 'Culture': 'culture', 'Parks': 'parks', 'Health': {'Pharmacies': 'pharmacies'}.get(p.get('topic'), 'hospitals'), 'Food': 'supermarkets', 'Libraries': 'libraries', 'Child care': 'childcare'}.get(g)
@@ -202,7 +207,8 @@ def dirmap(app):
     L = []
     if app == 'cb6':
         L += [layer('cb6-gov', 'BKCB6: board, officials and government', True), layer('cb6-groups', 'BKCB6 community groups', False),
-              layer('cb6-schools', 'BKCB6 schools', False, 9000), layer('cb6-places', 'BKCB6 parks, libraries and facilities', False, 9000),
+              layer('cb6-schools', 'BKCB6 schools', False, 9000), layer('cb6-parks', 'BKCB6 parks', False, 9000), layer('cb6-libraries', 'BKCB6 libraries', False, 9000),
+              layer('cb6-places', 'BKCB6 other places', False, 9000),
               layer('cb6-biz', 'BKCB6 local businesses', False, 4000, 30)]
     L += [layer('boards', 'Community boards', True), layer('officials', "Elected officials' offices", app != 'cb6'),
           layer('agencies', 'Government agencies', False, 20000), layer('culture', 'Theatres, museums, stadiums and movie theaters', False),

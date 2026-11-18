@@ -277,6 +277,46 @@ SDBORO = {'1': 'Manhattan', '2': 'Manhattan', '3': 'Manhattan', '4': 'Manhattan'
           '9': 'Bronx', '10': 'Bronx', '11': 'Bronx', '12': 'Bronx', '13': 'Brooklyn', '14': 'Brooklyn', '15': 'Brooklyn', '16': 'Brooklyn',
           '17': 'Brooklyn', '18': 'Brooklyn', '19': 'Brooklyn', '20': 'Brooklyn', '21': 'Brooklyn', '22': 'Brooklyn', '23': 'Brooklyn',
           '24': 'Queens', '25': 'Queens', '26': 'Queens', '27': 'Queens', '28': 'Queens', '29': 'Queens', '30': 'Queens', '31': 'Staten Island', '32': 'Brooklyn'}
+_GORD = ['Pre-K', 'K'] + [str(n) for n in range(1, 13)]
+CB6LEVELS = [('Elementary schools', 'el'), ('Middle schools', 'ms'), ('High schools', 'hs'), ('Special education schools', 'sped'),
+             ('Private and parochial schools', 'private'), ('High school equivalency programs', 'hse')]
+def cb6_levels(p):
+    """The levels a BKCB6 school teaches: from its grades ("Pre-K to 5", "6 to 12") where the record has them, else what its type
+    says (elementary, middle, high, secondary). A private school whose record gives no level is under Private and parochial schools."""
+    kv = dict(p.get('kv') or []); t = (kv.get('Type', '') + ' ' + (p.get('seat') or '')).lower(); out = set()
+    m = re.match(r'^(Pre-K|K|\d+) to (\d+)$', kv.get('Grades', '') or '')
+    if m and m.group(1) in _GORD and m.group(2) in _GORD:
+        gs = set(_GORD[_GORD.index(m.group(1)):_GORD.index(m.group(2)) + 1])
+        if gs & {'K', '1', '2', '3', '4', '5'}: out.add('el')
+        if gs & {'6', '7', '8'}: out.add('ms')
+        if gs & {'9', '10', '11', '12'}: out.add('hs')
+    elif 'equivalency' not in t:
+        if 'elementary' in t: out.add('el')
+        if 'middle' in t or 'secondary' in t: out.add('ms')
+        if 'high school' in t or 'secondary' in t: out.add('hs')
+    if 'special education' in t or 'disabilities' in t: out.add('sped')
+    if 'equivalency' in t: out.add('hse')
+    if 'private' in t and not (out & {'el', 'ms', 'hs'}): out.add('private')
+    return out
+def cb6_park_kind(p):
+    s = (p.get('seat') or '').split('\u00b7')[0].strip().lower()
+    if 'courts and fields in the park' in s or 'court or field in the park' in s: return 'Courts and fields'
+    if 'pool' in s or 'recreation center' in s: return 'Pools and recreation centers'
+    if 'community garden' in s: return 'Community gardens'
+    if 'playground' in s: return 'Playgrounds'
+    if 'plaza' in s or 'triangle' in s: return 'Plazas and triangles'
+    return 'Parks'
+CB6PARKS = ['Parks', 'Playgrounds', 'Community gardens', 'Plazas and triangles', 'Courts and fields', 'Pools and recreation centers']
+# each kind of place under the heading it belongs to, not one catch-all of "public places"
+CB6HEAD = {'Nonprofits': 'BKCB6 community groups', 'Community organizations': 'BKCB6 community groups', 'Community services': 'BKCB6 community groups',
+           'Food pantries': 'BKCB6 community groups', 'Senior centers and services': 'BKCB6 community groups', 'NYCHA community centers': 'BKCB6 community groups',
+           'After-school and youth programs': 'BKCB6 community groups',
+           'Child care and pre-K': 'BKCB6 child care', 'Day camps': 'BKCB6 child care',
+           'Hospitals and health care': 'BKCB6 health care', 'Gyms, yoga, Pilates and fitness': 'BKCB6 local businesses',
+           'Subway stations and Citi Bike': 'BKCB6 transit',
+           'Culture and institutions': 'BKCB6 culture and historic places', 'Arts and cultural organizations': 'BKCB6 culture and historic places',
+           'Historic places': 'BKCB6 culture and historic places'}
+CB6LIBS_NEAR = ('lib-bpl-brooklyn-central-library', 'lib-bpl-brooklyn-heights')   # just outside the district; people in the district use them
 def school_sections(first):
     out = [('Schools by school district', 'Community Education Councils', 'dir-cecs',
             sorted([p for p in D['profiles'] if re.match(r'^cec-district-\d+$', p['slug'])], key=lambda p: (str(sdof(p)) not in first, first.index(sdof(p)) if sdof(p) in first else 0, int(sdof(p)))))]
@@ -304,8 +344,10 @@ def area_sections(app):
             ps = sorted([p for p in cb6o if f(OFF[p['official']])], key=okey)
             if ps: out.append(("BKCB6's elected officials", name, 'dir-cb6-officials-' + slug(name), ps))
         out.append(('BKCB6 government offices', 'Government offices serving BKCB6', 'dir-cb6-agencies', byname([p for p in ag if os.path.exists(P(p['slug'], 'index.html')) and (p.get('type') not in ('cec', 'school-district') or p.get('sd') in ('13', '15'))])))
-        out.append(('BKCB6 schools', 'District 15 schools', 'dir-cb6-d15', by_sd('15', CB6SCH)))
-        out.append(('BKCB6 schools', 'District 13 schools', 'dir-cb6-d13', by_sd('13', CB6SCH)))
+        # BKCB6 schools, by level: a school that spans levels (6 to 12, K to 8) is under each one it teaches
+        for lab, key in CB6LEVELS:
+            ps = byname([p for p in CB6SCH if key in cb6_levels(p)])
+            if ps: out.append(('BKCB6 schools', lab, 'dir-cb6-schools-' + slug(lab), ps))
         grp = [p for p in D['profiles'] if p['group'] == 'Community groups' and local(p)] + [p for p in cbo if 'cb6' in (p.get('scope') or '')]
         tops = next((x['topics'] for x in D.get('groups', []) if x['name'] == 'Community groups'), [])
         tops = [t for t in tops if any((p.get('topic') or '') == t for p in grp)] + sorted({p.get('topic') or '' for p in grp} - set(tops))
@@ -348,9 +390,22 @@ def area_sections(app):
             tops = next((x['topics'] for x in D.get('groups', []) if x['name'] == g), [])
             ps = [p for p in D['profiles'] if p['group'] == g]
             tops = [t for t in tops if any((p.get('topic') or '') == t for p in ps)] + sorted({p.get('topic') or '' for p in ps} - set(tops))
+            if g == 'Schools, parks and facilities':
+                # parks and libraries are each their own heading, never merged with each other or with schools (schools are above, by level)
+                PK = ('Parks, playgrounds and gardens', 'Courts, fields, pools and recreation centers')
+                pk = [p for p in ps if (p.get('topic') or '') in PK]
+                for c_ in CB6PARKS:
+                    tp = byname([p for p in pk if cb6_park_kind(p) == c_])
+                    if tp: out.append(('BKCB6 parks', c_, 'dir-cb6-parks-' + slug(c_), tp))
+                lb = byname([p for p in ps if (p.get('topic') or '') == 'Libraries' and p['slug'] != 'place-central-library'] + [p for p in D['profiles'] if p['slug'] in CB6LIBS_NEAR])   # the Central Library's full branch profile, once
+                if lb: out.append(('BKCB6 libraries', 'Libraries', 'dir-cb6-libraries', lb))
+                # houses of worship have their own heading above (every one in the district), so they are not repeated here
+                tops = [t for t in tops if t not in PK + ('Schools', 'Libraries', 'Houses of worship')]
+            tops = [t for t in tops if t != 'Houses of worship']   # under BKCB6 houses of worship, not under businesses or places
             for t in tops:
                 tp = byname([p for p in ps if (p.get('topic') or '') == t])
-                if tp: out.append(('BKCB6 ' + g.lower() if g != 'Business improvement districts' else 'BKCB6 business improvement districts', t or g, 'dir-cb6-' + slug(g) + '-' + slug(t or 'all'), tp))
+                head = CB6HEAD.get(t, 'BKCB6 public facilities') if g == 'Schools, parks and facilities' else 'BKCB6 ' + g.lower() if g != 'Business improvement districts' else 'BKCB6 business improvement districts'
+                if tp: out.append((head, t or g, 'dir-cb6-' + slug(g) + '-' + slug(t or 'all'), tp))
     if app == 'bk':
         H = 'Brooklyn'
         bko = [p for p in offs if any(c.get('cd', '').startswith('3') and c.get('eds', 1) for c in OFF[p['official']].get('cbs', []))
@@ -457,7 +512,8 @@ def in306(p):
     except Exception: return False
 def inBK(p): return area_of(p)[0] == 'Brooklyn'
 BIZ_HEADS = {'BKCB6 restaurants and food spots by kind', 'BKCB6 houses of worship', 'BKCB6 bars and drinks', 'BKCB6 business improvement districts',
-             'BKCB6 schools, parks and facilities', 'BKCB6 local businesses', 'BKCB6 community groups'}
+             'BKCB6 parks', 'BKCB6 libraries', 'BKCB6 child care', 'BKCB6 health care', 'BKCB6 transit', 'BKCB6 culture and historic places',
+             'BKCB6 public facilities', 'BKCB6 local businesses', 'BKCB6 community groups'}
 AREA6 = [(h, t, l, dedupe(ps)) for h, t, l, ps in area_sections('cb6')]
 AREABK = [(h, t, l, dedupe(ps)) for h, t, l, ps in area_sections('bk')]
 total = 0

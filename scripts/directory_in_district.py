@@ -37,6 +37,9 @@ def category(lid, title):
     if lid.startswith('dir-cb6-groups-'): return (6, 'Community groups: ' + title)
     if lid.startswith('dir-cb6-business-improvement-districts'): return (6, 'Business improvement districts')
     if lid.startswith('dir-cb6-schools-parks-and-facilities-'): return (4, title)
+    if lid.startswith('dir-cb6-schools-'): return (3, 'Schools: ' + title)
+    if lid.startswith('dir-cb6-parks-'): return (4, 'Parks: ' + title)
+    if lid == 'dir-cb6-libraries': return (4, 'Libraries')
     if lid.startswith('dir-cb6-local-businesses-'): return (8, title)
     return None
 tiles = collections.OrderedDict()   # (dest, category) -> tile
