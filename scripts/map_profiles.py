@@ -150,7 +150,8 @@ def main():
                                  'links': [['Profile and map', f'https://bkcb6.app{path}']] + ([[e2[0], e2[1]]] if e2 else []),
                                  'logo': '', 'cal': None, 'n': 0, 'going': [], 'kind': 'org', 'official': '', 'group': 'Local businesses' if seat == 'Supermarket' else GROUP, 'topic': 'Supermarkets' if seat == 'Supermarket' else topic, 'sort': 0})
     # a place with a logo of its own keeps it (the BRIC Celebrate Brooklyn! mark for the Bandshell shows)
-    OWN_LOGO = {'map-culture-place-bric-celebrate-brooklyn-at-the-prospect-park-bandshell': 'bric-celebrate-brooklyn.png'}
+    OWN_LOGO = {'map-culture-place-bric-celebrate-brooklyn-at-the-prospect-park-bandshell': 'bric-celebrate-brooklyn.png',
+                'map-culture-place-hudson-waterfront-museum-and-showboat-barge': 'waterfront-museum.png'}
     for m_ in made_app:
         if m_['slug'] in OWN_LOGO: m_['logo'] = OWN_LOGO[m_['slug']]
     # parks pins: the park's own profile
