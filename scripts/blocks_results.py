@@ -28,16 +28,49 @@ def name(c, n):
     if c['k'].startswith('q'): return n.capitalize()
     return n
 contests = sorted([c for c in R['contests'] if KEEP.match(c['k'])], key=lambda c: ORDER(c['k']))
+PROPS = {q['n']: q['t'] for q in json.load(open(os.path.join(ROOT, 'app/data/civic/nov-props.json')))['q']}
+def short(c, n):
+    """The name used in the count lines: the candidate for Governor for the ticket, Yes/No for a proposal."""
+    return name(c, n)
+def ticket(c, n):
+    """The name as it was on the ballot: the Governor ticket reads 'Kathy C. Hochul and Adrienne E. Adams'."""
+    if c['k'] == 'gov':
+        g = name(c, n)
+        if g != n and n.startswith(g): return '%s and %s' % (g, n[len(g):].strip())
+    return n
+def count(c, v):
+    tot = sum(v)
+    return ', '.join('%s %s (%d%%)' % (short(c, c['c'][i]['n']), format(v[i], ','), round(100 * v[i] / tot))
+                     for i in range(min(len(v), len(c['c']))) if not (c['c'][i]['n'] == 'Write-in' and v[i] == 0))
+CITY = {}
+for c in R['contests']:
+    if not KEEP.match(c['k']): continue
+    t = [0] * len(c['c'])
+    for e in c['ed'].values():
+        for i, x in enumerate((e.get('v') or [])[:len(t)]): t[i] += x
+    CITY[c['k']] = t
 def lines(key):
+    """One paragraph per contest: what it was, who was on the ballot, how this election district voted, and the count
+    across every New York City election district in the race."""
     out = []
     for c in contests:
         e = c['ed'].get(key)
         if not e: continue
         v = e.get('v') or []; tot = sum(v)
         if not tot: continue
-        parts = ['%s %s (%d%%)' % (name(c, c['c'][i]['n']), format(v[i], ','), round(100 * v[i] / tot))
-                 for i in range(min(len(v), len(c['c']))) if not (c['c'][i]['n'] == 'Write-in' and v[i] == 0)]
-        out.append('%s: %s' % (label(c), ', '.join(parts)))
+        k = c['k']
+        if k.startswith('q'):
+            n = int(re.sub(r'\D', '', k))
+            head = 'Proposal %d: %s' % (n, PROPS.get(n, '')) if PROPS.get(n) else label(c)
+            who = ''
+        else:
+            head = 'Governor and Lieutenant Governor' if k == 'gov' else label(c)
+            who = 'On the ballot: ' + '; '.join('%s (%s)' % (ticket(c, x['n']), x['p']) for x in c['c'] if x['n'] != 'Write-in' and x['p'])
+        para = [head]
+        if who: para.append(who)
+        para.append('This election district: ' + count(c, v))
+        if sum(CITY[k]): para.append(('Citywide: ' if k.startswith('q') else 'All New York City election districts in this race: ') + count(c, CITY[k]))
+        out.append('\n'.join(para))
     return out
 nb = nw = 0
 for f in sorted(glob.glob(os.path.join(ROOT, 'app/data/civic/blocks/*.json.gz'))):
@@ -48,7 +81,7 @@ for f in sorted(glob.glob(os.path.join(ROOT, 'app/data/civic/blocks/*.json.gz'))
             key = '%02d%03d' % (e.get('ad', 0), e.get('ed', 0))
             if key in seen: continue
             seen.append(key); ls = lines(key)
-            if ls: txt.append(('Election District %d in Assembly District %d\n' % (e['ed'], e['ad'])) + '\n'.join(ls))
+            if ls: txt.append(('Election District %d in Assembly District %d. General election, November 3, 2026. %s count from the NYC Board of Elections.\n\n' % (e['ed'], e['ad'], 'Certified' if R.get('final') else 'Unofficial election night')) + '\n\n'.join(ls))
         new = '\n\n'.join(txt)
         nb += 1; nw += bool(new)
         # the election is over: the sample ballot lines come off the block cards
