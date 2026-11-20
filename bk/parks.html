@@ -304,6 +304,37 @@ function flyRec(i){
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
+function parkAreaDistFt(geometry, lat, lng) {
+  if (!geometry || (geometry.type !== 'Polygon' && geometry.type !== 'MultiPolygon')) return null;
+  var polys = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+  var ky = 365223, kx = 365223 * Math.cos(lat * Math.PI / 180), best = Infinity;
+  function inRing(ring) {
+    var inside = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      var xi = +ring[i][0], yi = +ring[i][1], xj = +ring[j][0], yj = +ring[j][1];
+      if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) inside = !inside;
+    }
+    return inside;
+  }
+  for (var p = 0; p < polys.length; p++) {
+    var rings = polys[p] || [];
+    if (!rings.length) continue;
+    var inside = inRing(rings[0]);
+    for (var h = 1; inside && h < rings.length; h++) { if (inRing(rings[h])) inside = false; }
+    if (inside) return 0;
+    for (var r = 0; r < rings.length; r++) {
+      var ring = rings[r];
+      for (var k = 1; k < ring.length; k++) {
+        var ax = (+ring[k-1][0] - lng) * kx, ay = (+ring[k-1][1] - lat) * ky, bx = (+ring[k][0] - lng) * kx, by = (+ring[k][1] - lat) * ky;
+        var dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+        var t = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+        var d = Math.sqrt(Math.pow(ax + t * dx, 2) + Math.pow(ay + t * dy, 2));
+        if (d < best) best = d;
+      }
+    }
+  }
+  return Number.isFinite(best) ? best : null;
+}
 function getBoundsCenter(feature){try{return L.geoJSON(feature).getBounds().getCenter();}catch(e){return null;}}
 
 function buildLabels(){
@@ -467,9 +498,9 @@ function doSearch(){
       var nearest=null,minD=Infinity;
       var src=allData.features.filter(function(f){return f.properties.layer==='park';});
       src.forEach(function(f){
-        var c=getBoundsCenter(f);
-        if(!c)return;
-        var d=Math.sqrt(Math.pow(c.lat-lat,2)+Math.pow(c.lng-lng,2));
+        var d=parkAreaDistFt(f.geometry,lat,lng);
+        if(d==null)return;
+        d=d*0.3048;
         if(d<minD){minD=d;nearest=f;}
       });
       var msg='<strong>'+escH(feat.properties.label||q)+'</strong>';
@@ -501,16 +532,16 @@ function findNearest(){
     var nearest=null,minD=Infinity;
     var src=allData.features.filter(function(f){return f.properties.layer==='park';});
     src.forEach(function(f){
-      var c=getBoundsCenter(f);
-      if(!c)return;
-      var d=Math.sqrt(Math.pow(c.lat-lat,2)+Math.pow(c.lng-lng,2));
+      var d=parkAreaDistFt(f.geometry,lat,lng);
+      if(d==null)return;
+      d=d*0.3048;
       if(d<minD){minD=d;nearest=f;}
     });
     if(nearest){
       var p=nearest.properties;
       try{map.fitBounds(L.geoJSON(nearest).getBounds(),{padding:[60,60]});}catch(e){}
       highlight(nearest);
-      var dist=Math.round(minD*111000);
+      var dist=Math.round(minD);
       showResult('Nearest park: <strong>'+escH(p.name||p.sign_name||'')+'</strong> (~'+dist+'m away)');
     } else {
       showResult('No matching facilities found.');
