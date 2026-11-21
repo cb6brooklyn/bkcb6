@@ -14,9 +14,9 @@ A = 'data/cb6-audit'; LOGOS = 'app/data/civic/orgs/logos'; PROF = 'app/data/civi
 SRC = sys.argv[1] if len(sys.argv) > 1 else '/home/claude/work/real-logo-src'
 
 
-def square(im):
+def square(im, dark=False):
     im = im.convert('RGBA')
-    bg = Image.new('RGBA', im.size, (255, 255, 255, 255)); bg.alpha_composite(im); im = bg.convert('RGB')
+    bg = Image.new('RGBA', im.size, (13, 27, 75, 255) if dark else (255, 255, 255, 255)); bg.alpha_composite(im); im = bg.convert('RGB')
     w, h = im.size; c = im.getpixel((2, 2))
     diff = Image.new('L', im.size, 0); px = im.load(); dp = diff.load()
     for y in range(h):
@@ -43,17 +43,21 @@ def main():
     PT = json.load(open(os.path.join(A, 'photo-tiles.json'))); RL = json.load(open(os.path.join(A, 'real-logos.json')))
     D = json.load(open(PROF)); BY = {p['slug']: p for p in D['profiles']}
     n_logo = n_kind = 0; res = {}
-    for s, v in sorted(PT.items()):
+    todo = dict(PT); todo.update({s: {} for s in RL if s not in PT})   # listings beyond the photo tiles that had no logo at all
+    for s, v in sorted(todo.items()):
         p = BY.get(s)
         if not p: continue
+        if s in RL and os.path.exists(os.path.join(LOGOS, 'kind-%s.png' % s)): os.remove(os.path.join(LOGOS, 'kind-%s.png' % s))
         for f in (v.get('file'), v.get('photo')):
             if f and os.path.exists(os.path.join(LOGOS, f)): os.remove(os.path.join(LOGOS, f))
         if s in RL:
             fn = 'logo-%s.png' % s
-            square(Image.open(os.path.join(SRC, s + '.png'))).save(os.path.join(LOGOS, fn), optimize=True)
+            if not os.path.exists(os.path.join(LOGOS, fn)):
+                square(Image.open(os.path.join(SRC, s + '.png')), RL[s].get('dark')).save(os.path.join(LOGOS, fn), optimize=True)
             n_logo += 1; res[s] = {'file': fn, **RL[s]}
         else:
             fn = 'kind-%s.png' % s
+            if os.path.exists(os.path.join(LOGOS, fn)): p['logo'] = fn; res[s] = {'file': fn, 'via': 'kind icon', 'kind': p.get('topic')}; n_kind += 1; continue
             kind(EM.get(p.get('topic'), DEFAULT)).quantize(colors=96).save(os.path.join(LOGOS, fn), optimize=True)
             n_kind += 1; res[s] = {'file': fn, 'via': 'kind icon', 'kind': p.get('topic')}
         p['logo'] = fn
