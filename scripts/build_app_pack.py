@@ -181,7 +181,9 @@ def minutes():
 # sha of its own index under app/index/, so a phone fetches a tree's index only when something in it changed.
 # Folders other jobs write into (civic/cal, civic/feeds, civic/ui, civic/officials, civic/transport...) stay listed
 # file by file in the manifest, as they always were.
-DIRS = ['Logos', 'site', 'civic/apps', 'civic/basemap', 'civic/blocks', 'civic/boardlogos', 'civic/bqe', 'civic/business',
+# civic/blocks is listed file by file: the block files feed the Your block card, so they come down with the data files
+# at the start of a refresh, not after the pictures.
+DIRS = ['Logos', 'site', 'civic/apps', 'civic/basemap', 'civic/boardlogos', 'civic/bqe', 'civic/business',
         'civic/compplan', 'civic/directory', 'civic/dsny', 'civic/fhgs', 'civic/gowanus', 'civic/liquor-logos', 'civic/lots',
         'civic/lotstiles', 'civic/orgchart', 'civic/precincts', 'civic/replogos', 'civic/tiles', 'civic/useofland', 'civic/zoning']
 
