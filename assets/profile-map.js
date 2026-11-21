@@ -1180,7 +1180,8 @@
       if (!bidSlug && k === chamber) return;
       addToggle('overlap-' + k, OVNAME[k]);
     });
-    addToggle('schooldistricts', 'School districts');
+    // which school district a shop or restaurant sits in means nothing to anyone looking at it: businesses leave it out
+    if (!/^\/(biz|pharmacy|supermarket|liquor)\//.test(location.pathname)) addToggle('schooldistricts', 'School districts');
     addToggle('nypd', 'NYPD precincts');
     addToggle('fire', 'Fire battalions');
 
