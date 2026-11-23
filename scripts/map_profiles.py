@@ -27,6 +27,7 @@ cb6 = DSS.cb6
 GROUP = 'Schools, parks and facilities'
 KINDS = {  # layer id: (dir, kind label, app topic, about line, outside link)
  'subway': ('subway', 'Subway station', 'Subway stations and Citi Bike', 'A New York City subway station.', ('MTA', 'https://new.mta.info/')),
+ 'bus': ('bus-stop', 'Bus stop', 'Bus stops', 'A New York City bus stop.', ('MTA Bus Time', 'https://bustime.mta.info/')),
  'citibike': ('citibike', 'Citi Bike dock', 'Subway stations and Citi Bike', 'A Citi Bike bike-share dock.', ('Citi Bike station map', 'https://citibikenyc.com/explore')),
  'library': ('library', 'Library', 'Libraries', 'A Brooklyn Public Library location.', None),
  'fdny': ('firehouse', 'FDNY firehouse', 'Firehouses', 'A New York City Fire Department firehouse.', ('FDNY', 'https://www.nyc.gov/site/fdny/index.page')),
@@ -37,7 +38,7 @@ KINDS = {  # layer id: (dir, kind label, app topic, about line, outside link)
  'childcare': ('childcare', 'Child care and pre-K', 'Child care and pre-K', '', ('NYC child care search', 'https://www.nyc.gov/site/doh/services/child-care.page')),
  'vaccines': ('vaccine-site', 'Vaccine site', 'Hospitals and health care', 'A vaccine site on the NYC Health Map.', ('NYC Health Map', 'https://a816-health.nyc.gov/NYCHealthMap/ServiceCategory/Vaccines')),
 }
-NEW_TOPICS = ['Subway stations and Citi Bike', 'Firehouses', 'Farmers markets', 'Culture and institutions', 'Poll sites', 'Housing sites']
+NEW_TOPICS = ['Subway stations and Citi Bike', 'Bus stops', 'Firehouses', 'Farmers markets', 'Culture and institutions', 'Poll sites', 'Housing sites']
 
 def slugify(s): return re.sub(r'-+', '-', re.sub(r'[^a-z0-9]+', '-', html.unescape(s).lower().replace("'", ''))).strip('-')[:80]
 def nn(s): return ' '.join(re.sub(r'[^a-z0-9 ]', ' ', s.lower().replace('&', 'and')).split())
@@ -107,6 +108,8 @@ def main():
             rows, about = [], [about1] if about1 else []
             if kind == 'subway':
                 seat = f'Subway station · {s} trains'; rows = [('Trains', E(s))]
+            elif kind == 'bus':
+                seat = 'Bus stop · ' + ' '.join(it.get('r', [])); rows = [('Routes', E(s)), ('Stop number', E(it.get('id', '')))]
             elif kind == 'citibike':
                 seat = 'Citi Bike dock'; rows = [('Corner', E(title))]
             elif kind == 'library':
@@ -155,6 +158,16 @@ def main():
                 'map-culture-place-museum-of-contemporary-african-diasporan-arts-mocada': 'mocada.png'}
     for m_ in made_app:
         if m_['slug'] in OWN_LOGO: m_['logo'] = OWN_LOGO[m_['slug']]
+    # transit: a subway station shows its route bullets, a bus stop its routes (scripts/transit_logos.py)
+    import transit_logos as TL
+    LOGOS = 'app/data/civic/orgs/logos'
+    for f in os.listdir(LOGOS):
+        if f.startswith('transit-'): os.remove(os.path.join(LOGOS, f))
+    for m_ in made_app:
+        if m_['slug'].startswith('map-subway-'):
+            fn = 'transit-' + m_['slug'][4:] + '.png'; TL.subway(next((v for k, v in m_['kv'] if k == 'Trains'), '').split(), os.path.join(LOGOS, fn)); m_['logo'] = fn
+        elif m_['slug'].startswith('map-bus-stop-'):
+            fn = 'transit-' + m_['slug'][4:] + '.png'; TL.bus(m_['seat'].split(' · ')[1].split(), os.path.join(LOGOS, fn)); m_['logo'] = fn
     # parks pins: the park's own profile
     PKP = json.load(open('parks-policy/profiles.json')); PK = json.load(open('parks-policy/cb6.json'))['parks']
     PG = [(p['id'], shape(p['g']).buffer(0.0002)) for p in PK]

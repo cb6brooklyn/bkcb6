@@ -313,7 +313,7 @@ CB6HEAD = {'Nonprofits': 'BKCB6 community groups', 'Community organizations': 'B
            'After-school and youth programs': 'BKCB6 community groups',
            'Child care and pre-K': 'BKCB6 child care', 'Day camps': 'BKCB6 child care',
            'Hospitals and health care': 'BKCB6 health care', 'Gyms, yoga, Pilates and fitness': 'BKCB6 local businesses',
-           'Subway stations and Citi Bike': 'BKCB6 transit',
+           'Subway stations and Citi Bike': 'BKCB6 transit', 'Bus stops': 'BKCB6 transit',
            'Culture and institutions': 'BKCB6 culture and historic places', 'Arts and cultural organizations': 'BKCB6 culture and historic places',
            'Historic places': 'BKCB6 culture and historic places'}
 CB6LIBS_NEAR = ('lib-bpl-brooklyn-central-library', 'lib-bpl-brooklyn-heights')   # just outside the district; people in the district use them
