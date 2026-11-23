@@ -115,12 +115,12 @@ def page(o):
     if o.get('lat'):
         mapsec = ('<div class="sec"><h2>Where it is</h2><div class="pmap" id="map" data-cbo-map data-lat="%s" data-lng="%s" data-cd="%s" data-label="%s" data-logo="%s"></div>'
                   '<div class="mhint">%s</div></div>') % (o['lat'], o['lng'], cd or '', E(name), logo, E(addr + (', ' + cityline if cityline else '')))
-    intro = ('<p><b>%s</b> is %s %s organization%s that the New York City Council has funded.</p>' %
-             (E(name), 'an' if o['cat'][0] in 'AEIOU' else 'a', E(o['cat'].lower().replace('&', 'and')), (' in ' + E(boro)) if boro else ''))
+    intro = ('<p><b>%s</b> is a community-based organization%s: %s.</p>' %
+             (E(name), (' in ' + E(boro)) if boro else '', E(o['cat'].lower().replace('&', 'and'))))
     if mission: intro += '<p class="mission"><span class="ml">In its own words, to the IRS</span>%s</p>' % E(mission)
     btns = ''
     if web: btns += '<a class="btn hot" href="%s" target="_blank" rel="noopener">Their website &#8599;</a>' % E(web)
-    btns += '<a class="btn" href="/cbo/">Every Council-funded organization &rarr;</a>'
+    btns += '<a class="btn" href="/cbo/">Every community-based organization &rarr;</a>'
     return f'''<!DOCTYPE html>
 <html lang="en"><head><meta name="apple-itunes-app" content="app-id=6813967208"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{E(name)} &mdash; {E(o['cat'])}{(' &middot; ' + E(boro)) if boro else ''} &mdash; bkcb6.app</title>
@@ -138,14 +138,14 @@ def page(o):
 <body>{ASB}
 <div class="pwrap">
 <div class="phead"><span class="pmark"><img src="{logo}" alt=""></span><span>
-<div class="pcrumb"><a href="/" style="color:inherit">bkcb6.app</a> &middot; <a href="/cbo/" style="color:inherit">Council-funded organizations</a></div>
+<div class="pcrumb"><a href="/" style="color:inherit">bkcb6.app</a> &middot; <a href="/cbo/" style="color:inherit">Community-based organizations</a></div>
 <h1>{E(name)}</h1><div class="pseat">{E(o['cat'])}{(' &middot; ' + E(boro)) if boro else ''}</div></span></div>
 <div class="sec"><h2>In brief</h2><div class="bio">{intro}</div></div>
 {mapsec}
 <div class="sec"><h2>Details</h2><ul class="kv">{kvh}</ul></div>
 <div class="sec"><h2>Go on</h2><div class="btns">{btns}</div></div>
 <div class="pfoot">Funding from the <a href="https://rnd.council.nyc.gov/expense_funding/" target="_blank" rel="noopener">New York City Council&rsquo;s expense funding data</a>, fiscal years 2013 to 2027. Category, website and mission from the organization&rsquo;s most recent IRS filing where one exists. Address placed by NYC Planning&rsquo;s geosearch.<br>
-<a href="/cbo/">Every Council-funded organization</a> &middot; <a href="/orgs/">The CB6 Directory</a></div>
+<a href="/cbo/">Every community-based organization</a> &middot; <a href="/orgs/">The CB6 Directory</a></div>
 </div>
 <script src="/assets/cbo-map.js?v=20261114"></script>
 </body></html>
@@ -221,10 +221,10 @@ for o in orgs:
     city = ' '.join(x for x in ((o.get('city') or '').strip().title(), o.get('state'), o.get('zip')) if x)
     kv = [['Category', o['cat']]] + ([['Borough', boro]] if boro else []) + [['Legal name', o['name'].strip()]]
     D['profiles'].append({'slug': 'cbo-' + o['slug'], 'type': '', 'name': o['display'], 'seat': o['cat'] + ((' · ' + boro) if boro else ''),
-        'desc': '%s, %s organization funded by the NYC Council.' % (o['display'], o['cat'].lower().replace('&', 'and')),
+        'desc': '%s, a community-based organization: %s.' % (o['display'], o['cat'].lower().replace('&', 'and')),
         'lat': o.get('lat'), 'lng': o.get('lng'), 'addr': ', '.join(x for x in (o.get('a1'), o.get('a2')) if x and x != '0'), 'zip': o.get('zip') or '',
         'addr_note': '', 'cityline': city, 'phone': '', 'email': '', 'web': re.sub(r'^https?://(www\.)?', '', web).rstrip('/'), 'weburl': web, 'since': '',
-        'intro': ['%s is %s %s organization%s that the New York City Council has funded.' % (o['display'], 'an' if o['cat'][0] in 'AEIOU' else 'a', o['cat'].lower().replace('&', 'and'), (' in ' + boro) if boro else '')]
+        'intro': ['%s is a community-based organization%s: %s.' % (o['display'], (' in ' + boro) if boro else '', o['cat'].lower().replace('&', 'and'))]
                  + (['In its own words, to the IRS: ' + mission] if mission else []),
         'does': [], 'kv': kv,
         'links': [['Full profile', 'https://bkcb6.app/cbo/%s/' % o['slug']]] + ([['Their website', web]] if web else []),
