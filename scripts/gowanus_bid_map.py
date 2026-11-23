@@ -72,6 +72,7 @@ def boundary():
 LUN = {'01': 'One & Two Family', '02': 'Multi-Family Walkup', '03': 'Multi-Family Elevator', '04': 'Mixed Residential/Commercial', '05': 'Commercial/Office', '06': 'Industrial/Manufacturing',
        '07': 'Transportation/Utility', '08': 'Public Facilities/Institutions', '09': 'Parks/Open Space', '10': 'Parking', '11': 'Vacant Land'}
 # a lot the city's file lists under its side-street address, shown under the address the building goes by
+ALT = {}      # filled by lots(): the city's address for each lot renamed below, still searchable
 ADDR = {'3003997502': '450 WARREN STREET'}      # PLUTO: 193 Bond Street; Geoclient puts 450 Warren Street on this lot
 def lots(g):
     x0, y0, x1, y1 = g.bounds
@@ -95,7 +96,8 @@ def lots(g):
         n = lambda k: int(float(r[k])) if r.get(k) not in (None, '') else 0
         out.append([r.get('address', ''), b, lu, z, r.get('ownername', ''), n('yearbuilt'), round(float(r['numfloors']), 1) if r.get('numfloors') else 0, n('unitsres'), n('lotarea'),
                     round(float(r['latitude']), 6), round(float(r['longitude']), 6), rings])
-    for l in out: l[0] = ADDR.get(l[1], l[0])
+    for l in out:
+        if l[1] in ADDR: ALT[l[1]] = l[0]; l[0] = ADDR[l[1]]
     out.sort(key=lambda l: (re.sub(r'^[\d\-]+\s+', '', l[0] or 'zzz'), int(re.match(r'\d*', l[0] or '').group() or 0)))
     return out
 
@@ -203,6 +205,22 @@ if __name__ == '__main__':
                  ("""</span></div><a class="go" href="'+esc(r[7])+'">Profile</a></div>'})})""", """</span></div>'+(r[7]?'<a class="go" href="'+esc(r[7])+'">Profile</a>':'')+'</div>'})})""")):
         if b not in s:
             assert a in s; s = s.replace(a, b, 1)
+    # search reads an address the way people type it ("450 Warren St", "193 3rd Ave") and, when a typed address matches no
+    # business but does match a property, shows the property
+    NQ = """function nq(s){return (' '+String(s||'').toLowerCase().replace(/[.,#]/g,' ')+' ').replace(/(\\d)(st|nd|rd|th)\\b/g,'$1').replace(/ (st|str) /g,' street ').replace(/ (ave|av) /g,' avenue ').replace(/ pl /g,' place ').replace(/ (blvd) /g,' boulevard ').replace(/\\s+/g,' ').trim()}
+function hit(a,t){a=a.toLowerCase();return a.indexOf(t)>=0||nq(a).indexOf(nq(t))>=0}
+""" + 'var ALT=%s;\n' % json.dumps(ALT)
+    if 'function nq(s)' not in s:
+        a = "function mB(r){if(active.b&&r[1]!==active.b)return false;if(tab!=='b'||!term)return true;return (r[0]+' '+r[1]+' '+r[2]+' '+r[3]).toLowerCase().indexOf(term)>=0}"
+        b = "function mL(l){if(active.l&&l[2]!==active.l)return false;if(tab!=='l'||!term)return true;return (l[0]+' '+l[1]+' '+l[2]+' '+l[3]+' '+l[4]).toLowerCase().indexOf(term)>=0}"
+        c = "document.getElementById('q').addEventListener('input',function(e){term=e.target.value.trim().toLowerCase();draw()});"
+        assert s.count(a) == 1 and s.count(b) == 1 and s.count(c) == 1
+        s = s.replace(a, NQ + "function mB(r){if(active.b&&r[1]!==active.b)return false;if(tab!=='b'||!term)return true;return hit(r[0]+' '+r[1]+' '+r[2]+' '+r[3],term)}")
+        s = s.replace(b, "function mL(l){if(active.l&&l[2]!==active.l)return false;if(tab!=='l'||!term)return true;return hit(l[0]+' '+(ALT[l[1]]||'')+' '+l[1]+' '+l[2]+' '+l[3]+' '+l[4],term)}")
+        s = s.replace(c, "document.getElementById('q').addEventListener('input',function(e){term=e.target.value.trim().toLowerCase();"
+                         "if(term.length>3&&tab==='b'&&!ROWS.some(function(r){return hit(r[0]+' '+r[1]+' '+r[2]+' '+r[3],term)})&&LOTS.some(function(l){return hit(l[0]+' '+(ALT[l[1]]||'')+' '+l[1]+' '+l[4],term)})){"
+                         "tab='l';active.l=null;[].forEach.call(document.querySelectorAll('.tab'),function(x){x.classList.toggle('on',x.getAttribute('data-t')==='l')});chips()}draw()});")
+    assert 'function nq(s)' in s
     open(PAGE, 'w', encoding='utf-8').write(s)
     old_b = {l[1] for l in old_lots}; new_b = {l[1] for l in L}
     print('fit: worst street corner %.1f m' % worst)
