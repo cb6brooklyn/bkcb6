@@ -13,6 +13,8 @@ listings on Nov 17, 2026) that fall inside the boundary, plus the bkcb6.app busi
 (app/data/civic/business/business-cb6.json) for the parts of the boundary neither page covered.
 Properties: every tax lot inside the boundary, from PLUTO (64uk-42ks), with its shape from MapPLUTO.
 New housing is left as it is (the new buildings of the rezoning area).
+Named sites: the six places the committee's map labels (Heyward Park, CSO Tank Site, Thomas Greene Park, Gowanus Green,
+CSO Tank Site + Salt Lot, Transit Plaza), drawn from the city's park properties and tax lots under each label.
 Run: python3 scripts/gowanus_bid_map.py     then scripts/bid_maps.py and scripts/cb6_map.py are unaffected (they only
 read this page as their template)."""
 import json, os, re, html, math, urllib.request, urllib.parse, time
@@ -94,6 +96,35 @@ def lots(g):
     out.sort(key=lambda l: (re.sub(r'^[\d\-]+\s+', '', l[0] or 'zzz'), int(re.match(r'\d*', l[0] or '').group() or 0)))
     return out
 
+# the places the committee's map names: (label, what it is, park property numbers, tax lots)
+SITES = [('Heyward Park', 'Nicholas Naquan Heyward Jr. Park · NYC Parks', ['B230'], []),
+         ('CSO Tank Site', '242 Nevins Street · NYC Department of Environmental Protection', [], ['3004180001']),
+         ('Thomas Greene Park', 'Thomas Greene Playground · NYC Parks', ['B145'], []),
+         ('Gowanus Green', 'Hoyt Street and 5th Street · NYC Housing Preservation and Development', [], ['3004710001', '3004710100']),
+         ('CSO Tank Site + Salt Lot', '2nd Avenue and 5th Street · NYC Department of Environmental Protection and Department of Sanitation', [],
+          ['3009770003', '3009770001', '3009900001', '3009900016', '3009900021']),
+         ('Transit Plaza', '9th Street at the canal · NYC Parks', ['B607'], [])]
+def sites(L):
+    from shapely.geometry import shape
+    from shapely.ops import unary_union
+    parks = {f['properties'].get('gispropnum'): shape(f['geometry']) for f in json.load(open('Parks_Properties_20260414.geojson'))['features']}
+    lot = {l[1]: l[11] for l in L}
+    out = []
+    for name, what, pk, bbls in SITES:
+        gs = [parks[k] for k in pk]
+        for b in bbls:
+            assert lot.get(b), b
+            gs += [Polygon([(lo, la) for la, lo in ring[0]]) for ring in (lot[b] if isinstance(lot[b][0][0][0], list) else [lot[b]])]
+        u = unary_union([x.buffer(0) for x in gs]).buffer(0.00003).buffer(-0.00003)      # lots of one site drawn as one shape
+        polys = [u] if u.geom_type == 'Polygon' else list(u.geoms)
+        c = max(polys, key=lambda q: q.area).representative_point()
+        out.append([name, what, round(c.y, 6), round(c.x, 6), [[[[round(y, 6), round(x, 6)] for x, y in q.exterior.coords]] for q in polys]])
+    return out
+SITE_CSS = ".sitel{transform:translate(-50%,-50%);width:max-content;max-width:118px;text-align:center;font:800 11px/1.15 'DM Sans',sans-serif;letter-spacing:.03em;text-transform:uppercase;color:#fff;background:#1f6b2a;border-radius:5px;padding:3px 7px;box-shadow:0 1px 3px rgba(0,0,0,.4);pointer-events:none}\n#map.zlo .sitel{font-size:8.5px;padding:2px 5px;max-width:92px}\n"
+SITE_JS = """<!--sites--><script>(function(){try{var S=[];SITES.forEach(function(x){var p=L.polygon(x[4],{color:'#1f6b2a',weight:2,fillColor:'#4c9a2a',fillOpacity:.4}).addTo(map);p.bindPopup('<div class="pop"><b>'+esc(x[0])+'</b><div>'+esc(x[1])+'</div></div>');
+var m=L.marker([x[2],x[3]],{icon:L.divIcon({className:'',html:'<div class="sitel">'+esc(x[0])+'</div>',iconSize:[0,0],iconAnchor:[0,0]}),interactive:false}).addTo(map);S.push(p,m)});
+function f(){S.forEach(function(l){try{l.bringToFront()}catch(x){}})}setTimeout(f,500);setTimeout(f,1800);map.on('zoomend',function(){setTimeout(f,250)});map.on('moveend',function(){setTimeout(f,250)});
+[].forEach.call(document.querySelectorAll('.tog .pill'),function(b){b.addEventListener('click',function(){setTimeout(f,250)})})}catch(x){}})();</script><!--/sites-->"""
 def slugify(s): return re.sub(r'-+', '-', re.sub(r'[^a-z0-9]+', '-', html.unescape(s).lower().replace("'", '').replace('&', ' and '))).strip('-')[:70]
 def var(s, name):
     m = re.search(r'\b%s=' % name, s); return json.JSONDecoder().raw_decode(s, m.end())[0]
@@ -154,6 +185,14 @@ if __name__ == '__main__':
     s, n = re.subn(r'Boundary: .*? Businesses: ', "Boundary: the Gowanus BID Formation Steering Committee's draft boundary, traced from the committee's own map: "
                    'Wyckoff Street and St. Marks Place down to 3rd, 6th and 9th Streets, from Smith, Hoyt and Bond Streets to 4th Avenue. Businesses: ', s, count=1, flags=re.S)
     assert n == 1
+    ST = 'var SITES=%s;\n' % json.dumps(sites(L), ensure_ascii=False, separators=(',', ':'))
+    if re.search(r'var SITES=\[', s): s = re.sub(r'var SITES=\[.*?\];\n', lambda m: ST, s, count=1, flags=re.S)
+    else: s = re.sub(r'(var HOUSING=\[.*?\];\n)', lambda m: m.group(1) + ST, s, count=1, flags=re.S)
+    assert 'var SITES=[[' in s
+    if '.sitel{' not in s: s = s.replace('.gwlbl{', SITE_CSS + '.gwlbl{', 1)
+    s = re.sub(r'<!--sites-->.*?<!--/sites-->', '', s, flags=re.S)
+    s = s.replace('</body>', SITE_JS + '</body>', 1)
+    assert '.sitel{' in s and '<!--sites-->' in s
     # a listing with no profile page gets no Profile link (instead of a link to nowhere)
     for a, b in (("""'<a class="go" href="'+esc(r[7])+'">Profile</a>'+(r[6]?""", """(r[7]?'<a class="go" href="'+esc(r[7])+'">Profile</a>':'')+(r[6]?"""),
                  ("""</span></div><a class="go" href="'+esc(r[7])+'">Profile</a></div>'})})""", """</span></div>'+(r[7]?'<a class="go" href="'+esc(r[7])+'">Profile</a>':'')+'</div>'})})""")):

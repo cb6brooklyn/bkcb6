@@ -149,6 +149,7 @@ for B in BIDS:
     s = re.sub(r'var ROWS=\[.*?\];\n', lambda m: 'var ROWS=%s;\n' % json.dumps(rows, ensure_ascii=False, separators=(',', ':')), s, flags=re.S)
     s = re.sub(r'var LOTS=\[.*?\];\n', lambda m: 'var LOTS=%s;\n' % json.dumps(L, ensure_ascii=False, separators=(',', ':')), s, flags=re.S)
     s = re.sub(r'var HOUSING=\[.*?\];\n', 'var HOUSING=[];\n', s, flags=re.S)
+    s = re.sub(r'var SITES=\[.*?\];\n', 'var SITES=[];\n', s, flags=re.S)
     s = s.replace("(l[8]?'<div>Lot area '", "(l[12]?'<div>'+esc(l[12])+'</div>':'')+(l[8]?'<div>Lot area '", 1)
     assert "l[12]?'<div>'" in s
     s = s.replace("var CAT={", "var CAT=" + json.dumps(CAT_EXTRA, ensure_ascii=False)[:-1] + ",", 1)
