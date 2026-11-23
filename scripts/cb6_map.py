@@ -147,7 +147,7 @@ s = s.replace("function draw(){var shown=0,by={},h='';", "var LIM=60,openG={};\n
 old_b = """      by[c].forEach(function(i){var r=ROWS[i];h+='<div class="row\""""
 assert old_b in s
 s = s.replace(old_b, """      by[c].forEach(function(i,j){if(j>=LIM&&!openG['b'+c]&&!term)return;var r=ROWS[i];h+='<div class="row\"""")
-s = s.replace("""<a class="go" href="'+esc(r[7])+'">Profile</a></div>'})});""", """<a class="go" href="'+esc(r[7])+'">Profile</a></div>'});if(by[c].length>LIM&&!openG['b'+c]&&!term)h+='<button class="more" data-g="b'+esc(c)+'">Show all '+by[c].length.toLocaleString()+'</button>'});""")
+s = s.replace("""(r[7]?'<a class="go" href="'+esc(r[7])+'">Profile</a>':'')+'</div>'})});""", """(r[7]?'<a class="go" href="'+esc(r[7])+'">Profile</a>':'')+'</div>'});if(by[c].length>LIM&&!openG['b'+c]&&!term)h+='<button class="more" data-g="b'+esc(c)+'">Show all '+by[c].length.toLocaleString()+'</button>'});""")
 old_l = """      by[c].forEach(function(i){var l=LOTS[i];h+='<div class="row\""""
 assert old_l in s
 s = s.replace(old_l, """      by[c].forEach(function(i,j){if(j>=LIM&&!openG['l'+c]&&!term)return;var l=LOTS[i];h+='<div class="row\"""")
