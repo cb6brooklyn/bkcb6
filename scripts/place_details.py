@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """More about each place, so people can tell what it is: its menu (the menu link on its own website) and the food it
-serves (the kind of food the Health Department lists for it). data/cb6-audit/place-details.json {slug: {menu, food}}.
+serves (the kind of food the Health Department lists for it), and from its public map listing (Bing Places, where the
+address matches): what kind of place it is, its hours and phone. data/cb6-audit/place-details.json {slug: {menu, food}}.
 Adds them to the app profile (Food in its details, Menu in its links) and to its site page (Contact and Details).
 Rerunnable; run after the Directory rebuild, before og_logos.py."""
 import json, os, re, math, html
@@ -10,10 +11,13 @@ def main():
     X = json.load(open('data/cb6-audit/place-details.json'))
     f = 'app/data/civic/orgs/orgs-profiles.json'; D = json.load(open(f, encoding='utf-8'))
     for p in D['profiles']:
-        p['kv'] = [k for k in p.get('kv') or [] if k[0] != 'Food']; p['links'] = [l for l in p.get('links') or [] if l[0] != 'Menu']
+        p['kv'] = [k for k in p.get('kv') or [] if k[0] not in ('Food', 'What it is', 'Hours', 'Phone (listed)')]; p['links'] = [l for l in p.get('links') or [] if l[0] != 'Menu']
         x = X.get(p['slug'])
         if not x: continue
+        if x.get('hours'): p['kv'] = [['Hours', x['hours']]] + p['kv']
+        if x.get('phone') and not p.get('phone'): p['kv'] = [['Phone (listed)', x['phone']]] + p['kv']
         if x.get('food'): p['kv'] = [['Food', x['food']]] + p['kv']
+        if x.get('kind'): p['kv'] = [['What it is', x['kind']]] + p['kv']
         if x.get('menu'): p['links'] = [['Menu', x['menu']]] + p['links']
     open(f, 'w', encoding='utf-8').write(json.dumps(D, ensure_ascii=False, indent=1) + '\n')
     # the site pages: the Directory row for the place (same name, nearest)
@@ -32,6 +36,16 @@ def main():
             li = '<li data-pd><span class="k">Menu</span><span class="v"><a href="%s" target="_blank" rel="noopener">See the menu &#8599;</a></span></li>' % E(x['menu'])
             if '<h2>Contact</h2><div class="bio"><ul class="kv">' in u: u = u.replace('<h2>Contact</h2><div class="bio"><ul class="kv">', '<h2>Contact</h2><div class="bio"><ul class="kv">' + li, 1)
             elif '<h2>Details</h2><div class="bio"><ul class="kv">' in u: u = u.replace('<h2>Details</h2><div class="bio"><ul class="kv">', '<h2>Details</h2><div class="bio"><ul class="kv">' + li, 1)
+            elif '<ul class="kv">' in u: u = u.replace('<ul class="kv">', '<ul class="kv">' + li, 1)
+        for key, lab in (('hours', 'Hours'), ('phone', 'Phone')):
+            if x.get(key) and ('>%s</span>' % lab) not in u:
+                v = E(x[key]).replace('; ', '<br>') if key == 'hours' else '<a href="tel:%s">%s</a>' % (re.sub(r'\D', '', x[key]), E(x[key]))
+                li = '<li data-pd><span class="k">%s</span><span class="v">%s</span></li>' % (lab, v)
+                if '<h2>Contact</h2><div class="bio"><ul class="kv">' in u: u = u.replace('<h2>Contact</h2><div class="bio"><ul class="kv">', '<h2>Contact</h2><div class="bio"><ul class="kv">' + li, 1)
+                elif '<ul class="kv">' in u: u = u.replace('<ul class="kv">', '<ul class="kv">' + li, 1)
+        if x.get('kind'):
+            li = '<li data-pd><span class="k">What it is</span><span class="v">%s</span></li>' % E(x['kind'])
+            if '<h2>Details</h2><div class="bio"><ul class="kv">' in u: u = u.replace('<h2>Details</h2><div class="bio"><ul class="kv">', '<h2>Details</h2><div class="bio"><ul class="kv">' + li, 1)
             elif '<ul class="kv">' in u: u = u.replace('<ul class="kv">', '<ul class="kv">' + li, 1)
         if x.get('food'):
             li = '<li data-pd><span class="k">Food</span><span class="v">%s</span></li>' % E(x['food'])
