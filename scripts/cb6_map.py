@@ -116,6 +116,7 @@ s = re.sub(r'var ROWS=\[.*?\];\n', lambda m: 'var ROWS=%s;\n' % json.dumps(rows,
 s = re.sub(r'var LOTS=\[.*?\];\n', 'var LOTS=[];\n', s, flags=re.S)   # loaded from lots.json
 s = re.sub(r'var HOUSING=\[.*?\];\n', 'var HOUSING=[];\n', s, flags=re.S)
 s = re.sub(r'var SITES=\[.*?\];\n', 'var SITES=[];\n', s, flags=re.S)
+s = re.sub(r'<!--og-->.*?<!--/og-->\n?', '', s, flags=re.S)
 s = s.replace("var CAT={", "var CAT=" + json.dumps(CAT_EXTRA, ensure_ascii=False)[:-1] + ",", 1)
 s = s.replace("function icon(r){return r[8]?'<img src=\"/app/data/civic/business/logos/'+esc(r[8])+'.png\" alt=\"\" loading=\"lazy\">':glyph(r)}",
               "function icon(r){return r[8]?'<img src=\"'+esc(r[8])+'\" alt=\"\" loading=\"lazy\">':glyph(r)}")

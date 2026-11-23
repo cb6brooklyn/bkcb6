@@ -226,6 +226,14 @@ if __name__ == '__main__':
     ia = "function icon(r){return r[8]?'<img src=\"/app/data/civic/business/logos/'+esc(r[8])+'.png\" alt=\"\" loading=\"lazy\">':glyph(r)}"
     ib = "function icon(r){return r[8]?'<img src=\"'+esc(r[8])+'\" alt=\"\" loading=\"lazy\">':glyph(r)}"
     s = s.replace(ia, ib); assert ib in s
+    # share card: the map with the Gowanus BID Formation Effort logo (gowanusbid/og.jpg, from Mike's screenshot of the map)
+    OG = ('<!--og--><meta property="og:type" content="website"><meta property="og:url" content="https://bkcb6.app/gowanusbid/">'
+          '<meta property="og:title" content="Proposed Gowanus BID: map, businesses and properties">'
+          '<meta property="og:description" content="The proposed boundary, every business listing, every property and the new housing inside it.">'
+          '<meta property="og:image" content="https://bkcb6.app/gowanusbid/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
+          '<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://bkcb6.app/gowanusbid/og.jpg"><!--/og-->')
+    s = re.sub(r'<!--og-->.*?<!--/og-->', '', s, flags=re.S)
+    s = s.replace('</title>', '</title>\n' + OG, 1); assert s.count('<!--og-->') == 1
     # a listing with no profile page gets no Profile link (instead of a link to nowhere)
     for a, b in (("""'<a class="go" href="'+esc(r[7])+'">Profile</a>'+(r[6]?""", """(r[7]?'<a class="go" href="'+esc(r[7])+'">Profile</a>':'')+(r[6]?"""),
                  ("""</span></div><a class="go" href="'+esc(r[7])+'">Profile</a></div>'})})""", """</span></div>'+(r[7]?'<a class="go" href="'+esc(r[7])+'">Profile</a>':'')+'</div>'})})""")):
