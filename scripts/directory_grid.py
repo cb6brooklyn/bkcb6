@@ -130,3 +130,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+    # then each place's menu and food (place_details.py), and every listing's page shares with its own logo (og_logos.py)
+    import subprocess, sys as _s
+    for _x in ('place_details.py', 'og_logos.py'): subprocess.run([_s.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), _x)], check=True)
