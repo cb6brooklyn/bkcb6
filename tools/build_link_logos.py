@@ -40,7 +40,7 @@ def main():
     for fn in glob.glob('*.html') + glob.glob('*/index.html'):
         base = '/' + os.path.dirname(fn) + '/' if os.path.dirname(fn) else '/'
         for h, s in rx.findall(open(fn, encoding='utf-8', errors='ignore').read()):
-            if re.match(r'(data:|https?:)', s) or re.search(r'app-?store|badge|google-?play|play-store|arrow|chevron|spinner|qr', s, re.I): continue
+            if '?' in h or re.match(r'(data:|https?:)', s) or re.search(r'app-?store|badge|google-?play|play-store|arrow|chevron|spinner|qr', s, re.I): continue
             h = h if h.startswith('/') else base + h; s = os.path.normpath(s if s.startswith('/') else base + s)
             if not os.path.isfile(s[1:]): continue
             pics.setdefault(norm(os.path.normpath(h) + ('/' if h.endswith('/') else '')), {}).setdefault(s, 0); pics[norm(os.path.normpath(h))][s] = pics[norm(os.path.normpath(h))].get(s, 0) + 1 if norm(os.path.normpath(h)) in pics else 1

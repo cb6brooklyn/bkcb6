@@ -269,5 +269,5 @@
   // the guide at the top of Directory profiles
   try { var g = document.createElement('script'); g.src = '/assets/glance.js?v=1'; g.defer = true; (document.head || document.documentElement).appendChild(g); } catch (e) {}
   // the logo beside every link
-  try { var ll = document.createElement('script'); ll.src = '/assets/link-logos.js?v=1'; ll.defer = true; (document.head || document.documentElement).appendChild(ll); } catch (e) {}
+  try { var ll = document.createElement('script'); ll.src = '/assets/link-logos.js?v=2'; ll.defer = true; (document.head || document.documentElement).appendChild(ll); } catch (e) {}
 })();
