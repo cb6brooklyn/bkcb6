@@ -71,6 +71,8 @@ def boundary():
 
 LUN = {'01': 'One & Two Family', '02': 'Multi-Family Walkup', '03': 'Multi-Family Elevator', '04': 'Mixed Residential/Commercial', '05': 'Commercial/Office', '06': 'Industrial/Manufacturing',
        '07': 'Transportation/Utility', '08': 'Public Facilities/Institutions', '09': 'Parks/Open Space', '10': 'Parking', '11': 'Vacant Land'}
+# a lot the city's file lists under its side-street address, shown under the address the building goes by
+ADDR = {'3003997502': '450 WARREN STREET'}      # PLUTO: 193 Bond Street; Geoclient puts 450 Warren Street on this lot
 def lots(g):
     x0, y0, x1, y1 = g.bounds
     pl = get('https://data.cityofnewyork.us/resource/64uk-42ks.json?' + urllib.parse.urlencode({'$where': "borough='BK' AND latitude between %f and %f AND longitude between %f and %f" % (y0 - .002, y1 + .002, x0 - .002, x1 + .002), '$limit': 50000}))
@@ -93,6 +95,7 @@ def lots(g):
         n = lambda k: int(float(r[k])) if r.get(k) not in (None, '') else 0
         out.append([r.get('address', ''), b, lu, z, r.get('ownername', ''), n('yearbuilt'), round(float(r['numfloors']), 1) if r.get('numfloors') else 0, n('unitsres'), n('lotarea'),
                     round(float(r['latitude']), 6), round(float(r['longitude']), 6), rings])
+    for l in out: l[0] = ADDR.get(l[1], l[0])
     out.sort(key=lambda l: (re.sub(r'^[\d\-]+\s+', '', l[0] or 'zzz'), int(re.match(r'\d*', l[0] or '').group() or 0)))
     return out
 
