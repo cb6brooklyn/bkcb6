@@ -96,21 +96,22 @@ def lots(g):
     out.sort(key=lambda l: (re.sub(r'^[\d\-]+\s+', '', l[0] or 'zzz'), int(re.match(r'\d*', l[0] or '').group() or 0)))
     return out
 
-# the places the committee's map names: (label, what it is, park property numbers, tax lots)
-SITES = [('Heyward Park', 'Nicholas Naquan Heyward Jr. Park · NYC Parks', ['B230'], []),
-         ('CSO Tank Site', '242 Nevins Street · NYC Department of Environmental Protection', [], ['3004180001']),
-         ('Thomas Greene Park', 'Thomas Greene Playground · NYC Parks', ['B145'], []),
-         ('Gowanus Green', 'Hoyt Street and 5th Street · NYC Housing Preservation and Development', [], ['3004710001', '3004710100']),
+# the places the committee's map names: (label, what it is, park property numbers, tax lots, its profile page on the site)
+SITES = [('Heyward Park', 'Nicholas Naquan Heyward Jr. Park · NYC Parks', ['B230'], [], '/park/nicholas-naquan-heyward-jr-park.html'),
+         ('CSO Tank Site', '242 Nevins Street · NYC Department of Environmental Protection', [], ['3004180001'], ''),
+         ('Thomas Greene Park', 'Thomas Greene Playground · NYC Parks', ['B145'], [], '/park/thomas-greene-playground.html'),
+         ('Gowanus Green', 'Hoyt Street and 5th Street · NYC Housing Preservation and Development', [], ['3004710001', '3004710100'], '/lift-site/gowanus-building-d-fac-gowanus-green.html'),
          ('CSO Tank Site + Salt Lot', '2nd Avenue and 5th Street · NYC Department of Environmental Protection and Department of Sanitation', [],
-          ['3009770003', '3009770001', '3009900001', '3009900016', '3009900021']),
-         ('Transit Plaza', '9th Street at the canal · NYC Parks', ['B607'], [])]
+          ['3009770003', '3009770001', '3009900001', '3009900016', '3009900021'], '/biz/salt-lot.html'),
+         ('Transit Plaza', '9th Street at the canal · NYC Parks', ['B607'], [], '/park/park-b607.html')]
 def sites(L):
     from shapely.geometry import shape
     from shapely.ops import unary_union
     parks = {f['properties'].get('gispropnum'): shape(f['geometry']) for f in json.load(open('Parks_Properties_20260414.geojson'))['features']}
     lot = {l[1]: l[11] for l in L}
     out = []
-    for name, what, pk, bbls in SITES:
+    for name, what, pk, bbls, href in SITES:
+        assert not href or os.path.exists(href[1:]), href
         gs = [parks[k] for k in pk]
         for b in bbls:
             assert lot.get(b), b
@@ -118,11 +119,11 @@ def sites(L):
         u = unary_union([x.buffer(0) for x in gs]).buffer(0.00003).buffer(-0.00003)      # lots of one site drawn as one shape
         polys = [u] if u.geom_type == 'Polygon' else list(u.geoms)
         c = max(polys, key=lambda q: q.area).representative_point()
-        out.append([name, what, round(c.y, 6), round(c.x, 6), [[[[round(y, 6), round(x, 6)] for x, y in q.exterior.coords]] for q in polys]])
+        out.append([name, what, round(c.y, 6), round(c.x, 6), [[[[round(y, 6), round(x, 6)] for x, y in q.exterior.coords]] for q in polys], href])
     return out
-SITE_CSS = ".sitel{transform:translate(-50%,-50%);width:max-content;max-width:118px;text-align:center;font:800 11px/1.15 'DM Sans',sans-serif;letter-spacing:.03em;text-transform:uppercase;color:#fff;background:#1f6b2a;border-radius:5px;padding:3px 7px;box-shadow:0 1px 3px rgba(0,0,0,.4);pointer-events:none}\n#map.zlo .sitel{font-size:8.5px;padding:2px 5px;max-width:92px}\n"
-SITE_JS = """<!--sites--><script>(function(){try{var S=[];SITES.forEach(function(x){var p=L.polygon(x[4],{color:'#1f6b2a',weight:2,fillColor:'#4c9a2a',fillOpacity:.4}).addTo(map);p.bindPopup('<div class="pop"><b>'+esc(x[0])+'</b><div>'+esc(x[1])+'</div></div>');
-var m=L.marker([x[2],x[3]],{icon:L.divIcon({className:'',html:'<div class="sitel">'+esc(x[0])+'</div>',iconSize:[0,0],iconAnchor:[0,0]}),interactive:false}).addTo(map);S.push(p,m)});
+SITE_CSS = ".sitel{transform:translate(-50%,-50%);width:max-content;max-width:118px;text-align:center;font:800 11px/1.15 'DM Sans',sans-serif;letter-spacing:.03em;text-transform:uppercase;color:#fff;background:#1f6b2a;border-radius:5px;padding:3px 7px;box-shadow:0 1px 3px rgba(0,0,0,.4);cursor:pointer}\n#map.zlo .sitel{font-size:8.5px;padding:2px 5px;max-width:92px}\n"
+SITE_JS = """<!--sites--><script>(function(){try{var S=[];SITES.forEach(function(x){var pop='<div class="pop"><b>'+esc(x[0])+'</b><div>'+esc(x[1])+'</div>'+(x[5]?'<a class="go" href="'+esc(x[5])+'">Profile</a>':'')+'</div>';var p=L.polygon(x[4],{color:'#1f6b2a',weight:2,fillColor:'#4c9a2a',fillOpacity:.4}).addTo(map);p.bindPopup(pop);
+var m=L.marker([x[2],x[3]],{icon:L.divIcon({className:'',html:'<div class="sitel">'+esc(x[0])+'</div>',iconSize:[0,0],iconAnchor:[0,0]})}).addTo(map);m.bindPopup(pop);S.push(p,m)});
 function f(){S.forEach(function(l){try{l.bringToFront()}catch(x){}})}setTimeout(f,500);setTimeout(f,1800);map.on('zoomend',function(){setTimeout(f,250)});map.on('moveend',function(){setTimeout(f,250)});
 [].forEach.call(document.querySelectorAll('.tog .pill'),function(b){b.addEventListener('click',function(){setTimeout(f,250)})})}catch(x){}})();</script><!--/sites-->"""
 def slugify(s): return re.sub(r'-+', '-', re.sub(r'[^a-z0-9]+', '-', html.unescape(s).lower().replace("'", '').replace('&', ' and '))).strip('-')[:70]
@@ -189,7 +190,8 @@ if __name__ == '__main__':
     if re.search(r'var SITES=\[', s): s = re.sub(r'var SITES=\[.*?\];\n', lambda m: ST, s, count=1, flags=re.S)
     else: s = re.sub(r'(var HOUSING=\[.*?\];\n)', lambda m: m.group(1) + ST, s, count=1, flags=re.S)
     assert 'var SITES=[[' in s
-    if '.sitel{' not in s: s = s.replace('.gwlbl{', SITE_CSS + '.gwlbl{', 1)
+    s = re.sub(r'\.sitel\{[^}]*\}\n#map\.zlo \.sitel\{[^}]*\}\n', '', s)
+    s = s.replace('.gwlbl{', SITE_CSS + '.gwlbl{', 1)
     s = re.sub(r'<!--sites-->.*?<!--/sites-->', '', s, flags=re.S)
     s = s.replace('</body>', SITE_JS + '</body>', 1)
     assert '.sitel{' in s and '<!--sites-->' in s
