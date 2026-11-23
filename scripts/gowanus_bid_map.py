@@ -102,21 +102,22 @@ def lots(g):
     return out
 
 # the places the committee's map names: (label, what it is, park property numbers, tax lots, its profile page on the site)
-SITES = [('Heyward Park', 'Nicholas Naquan Heyward Jr. Park · NYC Parks', ['B230'], [], '/park/nicholas-naquan-heyward-jr-park.html'),
-         ('CSO Tank Site', '242 Nevins Street · NYC Department of Environmental Protection', [], ['3004180001'], ''),
-         ('Thomas Greene Park', 'Thomas Greene Playground · NYC Parks', ['B145'], [], '/park/thomas-greene-playground.html'),
-         ('Gowanus Green', 'Hoyt Street and 5th Street · NYC Housing Preservation and Development', [], ['3004710001', '3004710100'], '/lift-site/gowanus-building-d-fac-gowanus-green.html'),
+SITES = [('Heyward Park', 'Nicholas Naquan Heyward Jr. Park · NYC Parks', ['B230'], [], '/park/nicholas-naquan-heyward-jr-park.html', '/app/data/civic/orgs/logos/place-sign-nicholas-naquan-heyward-jr-park.png'),
+         ('CSO Tank Site', '242 Nevins Street · NYC Department of Environmental Protection', [], ['3004180001'], '', '/assets/agency-logos/dep.png'),
+         ('Thomas Greene Park', 'Thomas Greene Playground · NYC Parks', ['B145'], [], '/park/thomas-greene-playground.html', '/app/data/civic/orgs/logos/place-sign-thomas-greene-playground.png'),
+         ('Gowanus Green', 'Hoyt Street and 5th Street · NYC Housing Preservation and Development', [], ['3004710001', '3004710100'], '/lift-site/gowanus-building-d-fac-gowanus-green.html', ''),
          ('CSO Tank Site + Salt Lot', '2nd Avenue and 5th Street · NYC Department of Environmental Protection and Department of Sanitation', [],
-          ['3009770003', '3009770001', '3009900001', '3009900016', '3009900021'], '/biz/salt-lot.html'),
-         ('Transit Plaza', '9th Street at the canal · NYC Parks', ['B607'], [], '/park/park-b607.html')]
+          ['3009770003', '3009770001', '3009900001', '3009900016', '3009900021'], '/biz/salt-lot.html', '/app/data/civic/orgs/logos/cb6logo-e340dfc05e2c.png'),
+         ('Transit Plaza', '9th Street at the canal · NYC Parks', ['B607'], [], '/park/park-b607.html', '/assets/agency-logos/dpr.png')]
 def sites(L):
     from shapely.geometry import shape
     from shapely.ops import unary_union
     parks = {f['properties'].get('gispropnum'): shape(f['geometry']) for f in json.load(open('Parks_Properties_20260414.geojson'))['features']}
     lot = {l[1]: l[11] for l in L}
     out = []
-    for name, what, pk, bbls, href in SITES:
+    for name, what, pk, bbls, href, lg in SITES:
         assert not href or os.path.exists(href[1:]), href
+        assert not lg or os.path.exists(lg[1:]), lg
         gs = [parks[k] for k in pk]
         for b in bbls:
             assert lot.get(b), b
@@ -124,13 +125,34 @@ def sites(L):
         u = unary_union([x.buffer(0) for x in gs]).buffer(0.00003).buffer(-0.00003)      # lots of one site drawn as one shape
         polys = [u] if u.geom_type == 'Polygon' else list(u.geoms)
         c = max(polys, key=lambda q: q.area).representative_point()
-        out.append([name, what, round(c.y, 6), round(c.x, 6), [[[[round(y, 6), round(x, 6)] for x, y in q.exterior.coords]] for q in polys], href])
+        out.append([name, what, round(c.y, 6), round(c.x, 6), [[[[round(y, 6), round(x, 6)] for x, y in q.exterior.coords]] for q in polys], href, lg])
     return out
-SITE_CSS = ".sitel{transform:translate(-50%,-50%);width:max-content;max-width:118px;text-align:center;font:800 11px/1.15 'DM Sans',sans-serif;letter-spacing:.03em;text-transform:uppercase;color:#fff;background:#1f6b2a;border-radius:5px;padding:3px 7px;box-shadow:0 1px 3px rgba(0,0,0,.4);cursor:pointer}\n#map.zlo .sitel{font-size:8.5px;padding:2px 5px;max-width:92px}\n"
-SITE_JS = """<!--sites--><script>(function(){try{var S=[];SITES.forEach(function(x){var pop='<div class="pop"><b>'+esc(x[0])+'</b><div>'+esc(x[1])+'</div>'+(x[5]?'<a class="go" href="'+esc(x[5])+'">Profile</a>':'')+'</div>';var p=L.polygon(x[4],{color:'#1f6b2a',weight:2,fillColor:'#4c9a2a',fillOpacity:.4}).addTo(map);p.bindPopup(pop);
-var m=L.marker([x[2],x[3]],{icon:L.divIcon({className:'',html:'<div class="sitel">'+esc(x[0])+'</div>',iconSize:[0,0],iconAnchor:[0,0]})}).addTo(map);m.bindPopup(pop);S.push(p,m)});
+SITE_CSS = ".sitel{transform:translate(-50%,-50%);width:max-content;max-width:118px;text-align:center;font:800 11px/1.15 'DM Sans',sans-serif;letter-spacing:.03em;text-transform:uppercase;color:#fff;background:#1f6b2a;border-radius:5px;padding:3px 7px;box-shadow:0 1px 3px rgba(0,0,0,.4);cursor:pointer;display:flex;align-items:center;gap:5px}\n.sitel img{flex:0 0 22px;width:22px;height:22px;object-fit:contain;background:#fff;border-radius:4px}\n#map.zlo .sitel img{flex-basis:15px;width:15px;height:15px}\n#map.zlo .sitel{font-size:8.5px;padding:2px 5px;max-width:92px}\n"
+SITE_JS = """<!--sites--><script>(function(){try{var S=[];SITES.forEach(function(x){var pop='<div class="pop">'+(x[6]?'<img src="'+esc(x[6])+'" alt="" style="display:block;width:56px;height:56px;object-fit:contain;margin-bottom:6px">':'')+'<b>'+esc(x[0])+'</b><div>'+esc(x[1])+'</div>'+(x[5]?'<a class="go" href="'+esc(x[5])+'">Profile</a>':'')+'</div>';var p=L.polygon(x[4],{color:'#1f6b2a',weight:2,fillColor:'#4c9a2a',fillOpacity:.4}).addTo(map);p.bindPopup(pop);
+var m=L.marker([x[2],x[3]],{icon:L.divIcon({className:'',html:'<div class="sitel">'+(x[6]?'<img src="'+esc(x[6])+'" alt="">':'')+'<span>'+esc(x[0])+'</span></div>',iconSize:[0,0],iconAnchor:[0,0]})}).addTo(map);m.bindPopup(pop);S.push(p,m)});
 function f(){S.forEach(function(l){try{l.bringToFront()}catch(x){}})}setTimeout(f,500);setTimeout(f,1800);map.on('zoomend',function(){setTimeout(f,250)});map.on('moveend',function(){setTimeout(f,250)});
 [].forEach.call(document.querySelectorAll('.tog .pill'),function(b){b.addEventListener('click',function(){setTimeout(f,250)})})}catch(x){}})();</script><!--/sites-->"""
+# logos already in the repo for a business's own profile, used where the page had none. Not used: generated icons
+# (kind-...), letter tiles, and these files, which show some other business or a brand the business sells
+NOT_THEIRS = {'web-biz-5d7b2af8f1.png', 'web-biz-ee7cd51c05.png', 'cb6logo-06efc399991d.png', '../../icons/dir-deaa8849e2fe.png',
+              'logo-biz-0232e73981.png', 'logo-biz-284bc47ccf.png', 'logo-biz-13181e59f6.png', 'logo-biz-ebe0bbad00.png',
+              'logo-biz-c4c7db9689.png', 'logo-biz-f2759cffdb.png', 'logo-biz-47188f7e6e.png', 'logo-biz-bf2315fb20.png', 'logo-biz-f6301b2cc2.png'}
+def add_logos(rows):
+    nn = lambda x: re.sub(r'[^a-z0-9]', '', x.lower().replace('&', 'and'))
+    by = {}
+    for q in json.load(open('app/data/civic/orgs/orgs-profiles.json', encoding='utf-8'))['profiles']:
+        if q.get('logo'): by.setdefault(nn(q['name']), []).append(q)
+    n = 0
+    for r in rows:
+        if r[8] and not r[8].startswith('/'): r[8] = '/app/data/civic/business/logos/%s.png' % r[8]
+        if r[8]: continue
+        for q in by.get(nn(r[0]), []):
+            l = q['logo']
+            if l.startswith('kind-') or l in NOT_THEIRS or not q.get('lat'): continue
+            if math.hypot((q['lat'] - r[4]) * 111320, (q['lng'] - r[5]) * 84400) > 110: continue
+            f = os.path.normpath(os.path.join('app/data/civic/orgs/logos', l))
+            if os.path.exists(f): r[8] = '/' + f; n += 1; break
+    return n
 def slugify(s): return re.sub(r'-+', '-', re.sub(r'[^a-z0-9]+', '-', html.unescape(s).lower().replace("'", '').replace('&', ' and '))).strip('-')[:70]
 def var(s, name):
     m = re.search(r'\b%s=' % name, s); return json.JSONDecoder().raw_decode(s, m.end())[0]
@@ -185,6 +207,7 @@ if __name__ == '__main__':
         if not os.path.exists(href[1:]) or href in taken: href = ''
         seen.add(k); taken.add(href); rows.append([b[0], b[1], b[2], b[3], b[5], b[6], b[7], href, b[8], b[9], b[4]]); src['directory'] += 1
     rows.sort(key=lambda r: (r[1], r[0].lower()))
+    nlogo = add_logos(rows)
     s = re.sub(r'var RING=\[.*?\];\n', lambda m: 'var RING=%s;\n' % json.dumps(ring), s, count=1, flags=re.S)
     s = re.sub(r'var ROWS=\[.*?\];\n', lambda m: 'var ROWS=%s;\n' % json.dumps(rows, ensure_ascii=False, separators=(',', ':')), s, count=1, flags=re.S)
     s = re.sub(r'var LOTS=\[.*?\];\n', lambda m: 'var LOTS=%s;\n' % json.dumps(L, ensure_ascii=False, separators=(',', ':')), s, count=1, flags=re.S)
@@ -195,11 +218,14 @@ if __name__ == '__main__':
     if re.search(r'var SITES=\[', s): s = re.sub(r'var SITES=\[.*?\];\n', lambda m: ST, s, count=1, flags=re.S)
     else: s = re.sub(r'(var HOUSING=\[.*?\];\n)', lambda m: m.group(1) + ST, s, count=1, flags=re.S)
     assert 'var SITES=[[' in s
-    s = re.sub(r'\.sitel\{[^}]*\}\n#map\.zlo \.sitel\{[^}]*\}\n', '', s)
+    s = re.sub(r'\.sitel\{[^}]*\}\n(?:\.sitel img\{[^}]*\}\n#map\.zlo \.sitel img\{[^}]*\}\n)?#map\.zlo \.sitel\{[^}]*\}\n', '', s)
     s = s.replace('.gwlbl{', SITE_CSS + '.gwlbl{', 1)
     s = re.sub(r'<!--sites-->.*?<!--/sites-->', '', s, flags=re.S)
     s = s.replace('</body>', SITE_JS + '</body>', 1)
     assert '.sitel{' in s and '<!--sites-->' in s
+    ia = "function icon(r){return r[8]?'<img src=\"/app/data/civic/business/logos/'+esc(r[8])+'.png\" alt=\"\" loading=\"lazy\">':glyph(r)}"
+    ib = "function icon(r){return r[8]?'<img src=\"'+esc(r[8])+'\" alt=\"\" loading=\"lazy\">':glyph(r)}"
+    s = s.replace(ia, ib); assert ib in s
     # a listing with no profile page gets no Profile link (instead of a link to nowhere)
     for a, b in (("""'<a class="go" href="'+esc(r[7])+'">Profile</a>'+(r[6]?""", """(r[7]?'<a class="go" href="'+esc(r[7])+'">Profile</a>':'')+(r[6]?"""),
                  ("""</span></div><a class="go" href="'+esc(r[7])+'">Profile</a></div>'})})""", """</span></div>'+(r[7]?'<a class="go" href="'+esc(r[7])+'">Profile</a>':'')+'</div>'})})""")):
@@ -224,7 +250,7 @@ function hit(a,t){a=a.toLowerCase();return a.indexOf(t)>=0||nq(a).indexOf(nq(t))
     open(PAGE, 'w', encoding='utf-8').write(s)
     old_b = {l[1] for l in old_lots}; new_b = {l[1] for l in L}
     print('fit: worst street corner %.1f m' % worst)
-    print('businesses %d (was %d): %s' % (len(rows), len(old_rows), src))
+    print('businesses %d (was %d): %s; logos added from profiles %d, with a logo %d' % (len(rows), len(old_rows), src, nlogo, sum(1 for r in rows if r[8])))
     kept = {key(r) for r in rows}
     print('  dropped from the page:', len([r for r in old_rows if key(r) not in kept]), '| without a profile page:', sum(1 for r in rows if not r[7]))
     print('  side of the street settled by tax lot:', flips)
