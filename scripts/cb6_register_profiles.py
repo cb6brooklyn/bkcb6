@@ -81,7 +81,10 @@ def topic(rows, name):
     if 'npi' in srcs: return 'Health and medical'
     if 'salons' in srcs: return 'Hair, beauty and personal care'
     if 'fdic' in srcs: return 'Services and offices'
-    if srcs == {'irs'}: return 'Nonprofits'
+    if srcs == {'irs'}:
+        if re.search(r'block assoc|street assoc', name, re.I): return 'Civic and neighborhood groups'   # block associations are neighborhood groups, not nonprofits
+        if re.search(r'(resident|tenant)s? assoc', name, re.I): return 'Housing and tenants'
+        return 'Nonprofits'
     if SUPERMARKET.search(name): return 'Supermarkets'
     if 'restaurants' in srcs: return 'Restaurants, cafes and food'
     for r in rows:
@@ -124,7 +127,7 @@ for c in cl:
     slug = 'reg-' + hashlib.md5('|'.join(sorted(r['id'] for r in rows)).encode()).hexdigest()[:10]
     p = {'slug': slug, 'type': slug, 'kind': 'org', 'official': '', 'name': name, 'seat': '%s · Brooklyn' % t.split(',')[0], 'desc': intro[0], 'lat': lat, 'lng': lng,
          'addr': addr, 'zip': zip_, 'addr_note': '', 'phone': phone, 'email': '', 'web': '', 'weburl': '', 'since': '', 'intro': intro, 'does': [], 'kv': kv, 'links': [], 'logo': '',
-         'cal': None, 'n': 0, 'going': [], 'group': 'Schools, parks and facilities' if t == 'Nonprofits' else 'Local businesses', 'topic': t, 'sort': 0, 'registers': sorted(r['id'] for r in rows)}
+         'cal': None, 'n': 0, 'going': [], 'group': 'Schools, parks and facilities' if t == 'Nonprofits' else 'Community groups' if t in ('Civic and neighborhood groups', 'Housing and tenants') else 'Local businesses', 'topic': t, 'sort': 0, 'registers': sorted(r['id'] for r in rows)}
     if cuisine: p['cuisine'] = cuisine
     D['profiles'].append(p); made[t] += 1
 # each new business's page on the site (/biz/<name-and-address>.html, the Directory's business page)
