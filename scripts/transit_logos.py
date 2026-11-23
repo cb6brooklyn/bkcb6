@@ -18,14 +18,61 @@ def subway(lines, out):
             d.ellipse((x, y, x + D, y + D), fill=SUB[l]); f = _f(int(D * 0.68)); b = d.textbbox((0, 0), l, font=f)
             d.text((x + (D - (b[2] - b[0])) / 2 - b[0], y + (D - (b[3] - b[1])) / 2 - b[1]), l, font=f, fill='#000' if l in DARKTEXT else '#fff'); x += D + gap
     im.resize((256, 256), Image.LANCZOS).save(out, optimize=True)
-def bus(routes, out):
-    S = 1024; BLUE = '#0039A6'; im = Image.new('RGB', (S, S), 'white'); d = ImageDraw.Draw(im)
-    d.rounded_rectangle((60, 60, S - 60, S - 60), 70, fill=BLUE)
-    f = _f(110); b = d.textbbox((0, 0), 'BUS STOP', font=f); d.text(((S - (b[2] - b[0])) / 2 - b[0], 130 - b[1]), 'BUS STOP', font=f, fill='white')
-    d.line((140, 290, S - 140, 290), fill='white', width=8)
-    routes = routes[:4]; n = len(routes); fs = 230 if n == 1 else 190 if n == 2 else 140
-    f = _f(fs); hs = [d.textbbox((0, 0), r, font=f) for r in routes]; H = sum(b[3] - b[1] for b in hs) + 50 * (n - 1)
-    y = 330 + (S - 120 - 330 - H) / 2
-    for r, b in zip(routes, hs):
-        d.text(((S - (b[2] - b[0])) / 2 - b[0], y - b[1]), r, font=f, fill='white'); y += b[3] - b[1] + 50
-    im.resize((256, 256), Image.LANCZOS).save(out, optimize=True)
+def _fit(d, text, maxw, size, minsize=28):
+    while size > minsize and d.textbbox((0, 0), text, font=_f(size))[2] > maxw: size -= 2
+    return _f(size)
+def _bus_icon(d, cx, cy, w):
+    """White bus front with the arrow, as on the NYC DOT bus stop sign."""
+    h = w * 1.12; x0, y0 = cx - w / 2, cy - h / 2; W = 'white'; B = '#1f3f8f'
+    d.rounded_rectangle((x0, y0, x0 + w, y0 + h * .86), w * .14, fill=W)
+    d.rounded_rectangle((x0 + w * .1, y0 + h * .08, x0 + w * .9, y0 + h * .17), w * .04, fill=B)
+    d.rounded_rectangle((x0 + w * .08, y0 + h * .24, x0 + w * .92, y0 + h * .56), w * .06, fill=B)
+    for ex in (x0 + w * .2, x0 + w * .8): d.ellipse((ex - w * .07, y0 + h * .66, ex + w * .07, y0 + h * .78), fill=B)
+    for wx in (x0 + w * .1, x0 + w * .72): d.rectangle((wx, y0 + h * .86, wx + w * .18, y0 + h * .98), fill=W)
+def _chair(d, cx, cy, r):
+    W = 'white'; lw = max(4, int(r * .16))
+    d.ellipse((cx - r * .15, cy - r * 1.15, cx + r * .15, cy - r * .85), fill=W)
+    d.line((cx, cy - r * .7, cx, cy + r * .05, cx + r * .7, cy + r * .05, cx + r * 1.0, cy + r * .6), fill=W, width=lw, joint='curve')
+    d.arc((cx - r * .85, cy - r * .35, cx + r * .45, cy + r * .95), 100, 330, fill=W, width=lw)
+_WORD = None
+def bus(stop, legs, out):
+    """A bus stop's logo, laid out like the NYC DOT bus stop sign: the round blue head with the bus and the MTA Bus
+    mark (in place of NO STANDING), then a blue panel per route (where it goes | route), then the white panel naming the stop.
+    legs: [(route, destination)]."""
+    global _WORD
+    S = 1024; BLUE = '#1f3f8f'; im = Image.new('RGB', (S, S), 'white'); d = ImageDraw.Draw(im)
+    if _WORD is None: _WORD = Image.open('assets/map-icons/mta-bus-wordmark.png').convert('RGB')
+    legs = legs[:4]; n = len(legs)
+    # head
+    R = 190; cx = S // 2; cy = 24 + R
+    d.ellipse((cx - R - 12, cy - R - 12, cx + R + 12, cy + R + 12), fill='#2f6b4f')
+    d.ellipse((cx - R, cy - R, cx + R, cy + R), fill=BLUE)
+    _bus_icon(d, cx + 30, cy - 62, 150); _chair(d, cx - 110, cy - 80, 44)
+    d.polygon([(cx - 60, cy + 58), (cx - 20, cy + 38), (cx - 20, cy + 51), (cx + 110, cy + 51), (cx + 110, cy + 65), (cx - 20, cy + 65), (cx - 20, cy + 78)], fill='white')
+    # MTA Bus mark where NO STANDING was: a banner across the bottom of the disc
+    by0 = cy + R - 78; by1 = cy + R + 52; bx0, bx1 = cx - 200, cx + 200
+    d.rounded_rectangle((bx0 - 10, by0 - 10, bx1 + 10, by1 + 10), 40, fill='#2f6b4f'); d.rounded_rectangle((bx0, by0, bx1, by1), 32, fill='white')
+    wh = by1 - by0 - 22; ww = int(_WORD.width * wh / _WORD.height); im.paste(_WORD.resize((ww, wh), Image.LANCZOS), (cx - ww // 2, by0 + 11))
+    # pole
+    top = by1 + 30; d.rectangle((cx - 22, by1 + 10, cx + 22, S), fill='#2f6b4f')
+    # route panels
+    PH = {1: 130, 2: 112, 3: 92, 4: 78}[max(n, 1)]; gap = 10; L0, L1, R0, R1 = 70, cx - 28, cx + 28, S - 70
+    y = top
+    for r, dest in legs:
+        d.rectangle((L0, y, L1, y + PH), fill=BLUE); d.rectangle((R0, y, R1, y + PH), fill=BLUE)
+        f = _fit(d, dest, L1 - L0 - 36, int(PH * .42)); b = d.textbbox((0, 0), dest, font=f)
+        d.text((L0 + 18 - b[0], y + (PH - (b[3] - b[1])) / 2 - b[1]), dest, font=f, fill='white')
+        f = _fit(d, r, R1 - R0 - 36, int(PH * .72)); b = d.textbbox((0, 0), r, font=f)
+        d.text((R0 + 18 - b[0], y + (PH - (b[3] - b[1])) / 2 - b[1]), r, font=f, fill='white')
+        y += PH + gap
+    # the stop
+    lines = [l.strip() for l in (stop.split(' & ', 1)[0] + ' &|' + stop.split(' & ', 1)[1] if ' & ' in stop else stop).split('|')]
+    H = S - 24 - y
+    if H > 60:
+        d.rectangle((L0, y, L1, S - 24), fill='white', outline='#9aa0a6', width=4)
+        fs = min(int(H / len(lines) * .62), 74); f = _f(fs)
+        fs = min(_fit(d, l, L1 - L0 - 36, fs).size for l in lines); f = _f(fs)
+        for k, l in enumerate(lines):
+            b = d.textbbox((0, 0), l, font=f)
+            d.text((L0 + 18 - b[0], y + (H - len(lines) * fs * 1.15) / 2 + k * fs * 1.15 - b[1] + 4), l, font=f, fill='#111')
+    im.resize((512, 512), Image.LANCZOS).save(out, optimize=True)

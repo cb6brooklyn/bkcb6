@@ -167,7 +167,10 @@ def main():
         if m_['slug'].startswith('map-subway-'):
             fn = 'transit-' + m_['slug'][4:] + '.png'; TL.subway(next((v for k, v in m_['kv'] if k == 'Trains'), '').split(), os.path.join(LOGOS, fn)); m_['logo'] = fn
         elif m_['slug'].startswith('map-bus-stop-'):
-            fn = 'transit-' + m_['slug'][4:] + '.png'; TL.bus(m_['seat'].split(' · ')[1].split(), os.path.join(LOGOS, fn)); m_['logo'] = fn
+            fn = 'transit-' + m_['slug'][4:] + '.png'; rt = next((v for k, v in m_['kv'] if k == 'Routes'), ''); legs = []
+            for part in html.unescape(rt).split('; '):
+                if ' to ' in part: r_, d_ = part.split(' to ', 1); legs += [(r_, x) for x in d_.split(' / ')]
+            TL.bus(re.sub(r' \(to .*\)$', '', m_['name']), legs, os.path.join(LOGOS, fn)); m_['logo'] = fn
     # parks pins: the park's own profile
     PKP = json.load(open('parks-policy/profiles.json')); PK = json.load(open('parks-policy/cb6.json'))['parks']
     PG = [(p['id'], shape(p['g']).buffer(0.0002)) for p in PK]
