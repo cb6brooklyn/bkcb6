@@ -122,6 +122,13 @@ for e in E.values():
     dd = e['dist']
     rows.append([e['name'], e['href'], e['cover'], cats, BOROS.index(e['b']) if e['b'] in BOROS else -1, hidx.get(e['h'], -1),
                  dd.get('cd', 0), dd.get('cc', 0), dd.get('ad', 0), dd.get('sd', 0), dd.get('cg', 0), e['lat'], e['lng'], e['ext'], e['keys'], hidx.get(e['h6'], -1)])
+# one listing per name and page: branches that share one page (a chain's) show once, under every heading any of them has
+_one = {}
+for r in rows:
+    k = (r[0], r[1])
+    if k in _one and r[1]: _one[k][3] = sorted(set(_one[k][3]) | set(r[3]))
+    else: _one[k if r[1] else (r[0], id(r))] = r
+rows = list(_one.values())
 for i, s in enumerate(sections): s['count'] = sum(1 for r in rows if any(x // 1000 == i for x in r[3]))
 dk = {t: sorted({r[6 + j] for r in rows if r[6 + j]}) for j, t in enumerate(('cd', 'cc', 'ad', 'sd', 'cg'))}
 data = {'sections': sections, 'boros': BOROS, 'hoods': hoods, 'districts': dk, 'E': rows}
