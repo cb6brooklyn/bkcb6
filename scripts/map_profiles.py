@@ -87,7 +87,25 @@ def page(kind, it, title, seat, rows, about, ext, path):
     return h
 
 USED = set()
+# poll sites are listed in the Directory only in the weeks before an election (they still show on the block maps)
+ELECTION_DAYS = ['2026-11-03']
+def election_soon():
+    import datetime
+    t = datetime.date.today()
+    return any(0 <= (datetime.date.fromisoformat(d) - t).days <= 45 for d in ELECTION_DAYS)
+# Gowanus Green is one place with one page: the LIFT list's Gowanus Buildings A to E are its buildings
+GG_ABOUT = ['Gowanus Green is a mixed-use development on a former manufactured gas plant site on the Gowanus Canal, a publicly owned site in the Gowanus Neighborhood Rezoning. The plan has affordable housing in six residential buildings, retail and community space, a public school site and a 1.5-acre park, designed to Passive House standards.',
+            'Developed by The Hudson Companies with the City (HPD); designed by Marvel.']
+GG_LINK = ('Gowanus Green at Marvel', 'https://marveldesigns.com/project/gowanus-green/')
+def merge_gowanus_green():
+    it_ = LBY['lift']['items']; gg = [x for x in it_ if x['t'].startswith('Gowanus Building')]
+    if not gg: return
+    homes = {re.sub(r' /.*', '', x['t']).replace('Gowanus ', ''): int(re.search(r'(\d+) homes', x['s']).group(1)) for x in gg}
+    one = dict(gg[0]); one['t'] = 'Gowanus Green'; one['s'] = f"435 HOYT STREET, HPD, {sum(homes.values())} homes"
+    one['b'] = [[k, v] for k, v in sorted(homes.items())]
+    LBY['lift']['items'] = [x for x in it_ if x not in gg] + [one]
 def main():
+    merge_gowanus_green()
     made_app = []; pages = 0; linked = 0; n_items = 0
     for kind, (dr, klabel, topic, about1, ext) in KINDS.items():
         os.makedirs(dr, exist_ok=True)
@@ -133,6 +151,9 @@ def main():
             elif kind == 'lift':
                 parts = [x.strip() for x in s.split(',')]
                 seat = 'LIFT housing site'; rows = [('Address', E(parts[0].title())), ('Agency', E(parts[1] if len(parts) > 1 else '')), ('Planned homes', E(parts[2] if len(parts) > 2 else ''))]
+                if title == 'Gowanus Green':
+                    seat = 'Affordable housing, park and school site on the Gowanus Canal'; about = GG_ABOUT; ext = GG_LINK
+                    rows += [('Buildings (planned homes)', E(', '.join(f'{k}: {v}' for k, v in it.get('b', []))))]
             elif kind == 'childcare':
                 k0, rest = (s.split(', ', 1) + [''])[:2]
                 seat = k0; rows = [('Kind', E(k0)), ('Address', E(rest))]
@@ -142,10 +163,13 @@ def main():
                 seat = 'Vaccine site'; rows = [('Vaccines', E(v)), ('Address', E(a.title() if a.isupper() else a))]
             rows = [r for r in rows if r[1]]
             e2 = ext2 if kind == 'library' else ext
-            open(path[1:], 'w').write(page(kind, it, title, seat, rows, [a for a in about if a], e2, path))
+            pg = page(kind, it, title, seat, rows, [a for a in about if a], e2, path)
+            if title == 'Gowanus Green' and kind == 'lift':   # the plan's own drawings
+                pg = pg.replace('  <div class="sec"><h2>Details', '  <div class="sec"><h2>The plan</h2><div class="bio"><img src="/assets/gowanus-green/site-plan.jpg" alt="Gowanus Green site plan: the buildings, streets and the canal" style="width:100%;height:auto"><img src="/assets/gowanus-green/sections.jpg" alt="Gowanus Green sections: Buildings A, C, D, E and G with their heights" style="width:100%;height:auto;margin-top:12px"></div></div>\n  <div class="sec"><h2>Details', 1)
+            open(path[1:], 'w').write(pg)
             pages += 1; it['u'] = path
             # the apps: a Directory profile for places in or at the edge of CB6 that the apps don't have yet
-            if not ap and cb6.buffer(0.004).contains(Point(it['x'], it['y'])) and kind != 'vaccines':
+            if not ap and cb6.buffer(0.004).contains(Point(it['x'], it['y'])) and kind != 'vaccines' and (kind != 'polls' or election_soon()):
                 made_app.append({'slug': f'map-{dr}-{slug}', 'type': f'map-{dr}-{slug}', 'name': title, 'seat': seat, 'desc': f'{title}. {seat}.',
                                  'lat': it['y'], 'lng': it['x'], 'addr': next((r[1] for r in rows if r[0] == 'Address'), ''), 'zip': '', 'addr_note': '', 'phone': '', 'email': '',
                                  'web': f'bkcb6.app{path}', 'weburl': f'https://bkcb6.app{path}', 'since': '', 'intro': [a for a in about if a], 'does': [],
@@ -155,7 +179,10 @@ def main():
     # a place with a logo of its own keeps it (the BRIC Celebrate Brooklyn! mark for the Bandshell shows)
     OWN_LOGO = {'map-culture-place-bric-celebrate-brooklyn-at-the-prospect-park-bandshell': 'bric-celebrate-brooklyn.png',
                 'map-culture-place-hudson-waterfront-museum-and-showboat-barge': 'waterfront-museum.png',
-                'map-culture-place-museum-of-contemporary-african-diasporan-arts-mocada': 'mocada.png'}
+                'map-culture-place-museum-of-contemporary-african-diasporan-arts-mocada': 'mocada.png',
+                'map-food-place-grand-army-plaza-greenmarket': 'cb6logo-0f90d21b5940.png',   # GrowNYC Greenmarket
+                'map-food-place-down-to-earth-park-slope-farmers-market': 'downtoearthmarkets.png',
+                'map-lift-site-gowanus-green': 'gowanus-green.png'}
     for m_ in made_app:
         if m_['slug'] in OWN_LOGO: m_['logo'] = OWN_LOGO[m_['slug']]
     # transit: a subway station shows its route bullets, a bus stop its routes (scripts/transit_logos.py)
