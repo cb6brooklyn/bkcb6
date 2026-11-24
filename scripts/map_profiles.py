@@ -166,6 +166,10 @@ def main():
     for m_ in made_app:
         if m_['slug'].startswith('map-subway-'):
             fn = 'transit-' + m_['slug'][4:] + '.png'; TL.subway(next((v for k, v in m_['kv'] if k == 'Trains'), '').split(), os.path.join(LOGOS, fn)); m_['logo'] = fn
+        elif m_['slug'].startswith('map-citibike-'):
+            fn = 'transit-' + m_['slug'][4:] + '.png'
+            hood = next((n for n, g in DSS.HOODS.items() if g.buffer(0.0003).contains(Point(m_['lng'], m_['lat']))), '') if m_.get('lat') else ''
+            TL.citibike(m_['name'], hood, os.path.join(LOGOS, fn)); m_['logo'] = fn
         elif m_['slug'].startswith('map-bus-stop-'):
             fn = 'transit-' + m_['slug'][4:] + '.png'; rt = next((v for k, v in m_['kv'] if k == 'Routes'), ''); legs = []
             for part in html.unescape(rt).split('; '):

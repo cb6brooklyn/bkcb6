@@ -76,3 +76,39 @@ def bus(stop, legs, out):
             b = d.textbbox((0, 0), l, font=f)
             d.text((L0 + 18 - b[0], y + (H - len(lines) * fs * 1.15) / 2 + k * fs * 1.15 - b[1] + 4), l, font=f, fill='#111')
     im.resize((512, 512), Image.LANCZOS).save(out, optimize=True)
+
+_CB = None
+WORDS = {'St': 'Street', 'Ave': 'Avenue', 'Av': 'Avenue', 'Pl': 'Place', 'Blvd': 'Boulevard', 'Pkwy': 'Parkway', 'Rd': 'Road', 'Sq': 'Square', 'Dr': 'Drive'}
+def citibike(name, hood, out):
+    """A Citi Bike dock's logo, laid out like the Citi Bike station sign: the dark panel with the corner on one row and the
+    neighborhood on the next, then the blue Citi Bike band."""
+    global _CB
+    if _CB is None: _CB = Image.open('assets/map-icons/citibike-wordmark-white.png').convert('RGBA')
+    import re
+    name = re.sub(r'\b(St|Ave|Av|Pl|Blvd|Pkwy|Rd|Sq|Dr)\b\.?', lambda m: WORDS[m.group(1)], name)
+    S = 1024; im = Image.new('RGB', (S, S), '#b8bec2'); d = ImageDraw.Draw(im)
+    d.rectangle((40, 40, S - 40, S - 40), fill='#5d6468')
+    x0, x1 = 90, S - 90; rows = [(name, 230), (hood, 230)]; y = 140
+    for txt, h in rows:
+        d.rectangle((x0, y, x1, y + h), fill='#2b2f31')
+        if txt:
+            f = _fit(d, txt, x1 - x0 - 70, 96); b = d.textbbox((0, 0), txt, font=f)
+            if f.size < 84 and ' & ' in txt:
+                a, c = txt.split(' & ', 1); txt = a + ' &\n' + c; f = _fit(d, max(a + ' &', c, key=len), x1 - x0 - 70, 80)
+                b = d.multiline_textbbox((0, 0), txt, font=f, spacing=8)
+                d.multiline_text((x0 + 36 - b[0], y + (h - (b[3] - b[1])) / 2 - b[1]), txt, font=f, fill='#f2f2f2', spacing=8)
+            else:
+                d.text((x0 + 36 - b[0], y + (h - (b[3] - b[1])) / 2 - b[1]), txt, font=f, fill='#f2f2f2')
+        y += h + 14
+    # the blue band, darker to lighter as on the sign
+    bh = S - 140 - y
+    band = Image.new('RGB', (x1 - x0, bh)); bd = ImageDraw.Draw(band)
+    for i in range(x1 - x0):
+        t = i / (x1 - x0); c = tuple(int(a + (b - a) * t) for a, b in ((0x1b, 0x3f), (0x3c, 0xa9), (0xc8, 0xe6)))
+        bd.line((i, 0, i, bh), fill=c)
+    im.paste(band, (x0, y))
+    ww = int((x1 - x0) * 0.62); wh = int(_CB.height * ww / _CB.width)
+    im.paste(_CB.resize((ww, wh), Image.LANCZOS), (x0 + 36, y + (bh - wh) // 2), _CB.resize((ww, wh), Image.LANCZOS))
+    ax = x1 - 90; ay = y + bh // 2
+    d.polygon([(ax - 30, ay - 22), (ax + 10, ay - 22), (ax + 10, ay - 40), (ax + 46, ay), (ax + 10, ay + 40), (ax + 10, ay + 22), (ax - 30, ay + 22)], fill='white')
+    im.resize((512, 512), Image.LANCZOS).save(out, optimize=True)
