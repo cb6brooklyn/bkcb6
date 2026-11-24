@@ -367,6 +367,8 @@ def area_sections(app):
                   (r"taco|taqueria|burrito", 'Mexican'), (r"juice|smoothie", 'Juice and smoothies'), (r"burger", 'Burgers'), (r"\bthai\b", 'Thai'), (r"\bdiner\b", 'American'), (r"\bbbq\b|barbecue", 'Barbecue')]
         def foodtype(p):
             if p.get('group') != 'Local businesses': return None
+            # only places that sell food are food spots: a hotel's breakfast or a store's cafe does not make it one
+            if p.get('topic') not in ('Restaurants, cafes and food', 'Groceries and food stores', 'Delis and bodegas', 'Markets'): return None
             if p.get('cuisine'): return FOODLAB.get(p['cuisine'], p['cuisine'])
             if p.get('topic') != 'Restaurants, cafes and food': return None
             for rx, lab in BYNAME:
