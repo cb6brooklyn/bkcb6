@@ -53,7 +53,7 @@ def add(head, title, lid, items):
 for head, title, lid, items in lists('cb6', 'bkcb6'):
     if lid.startswith('dir-cb6-'): add(head, title, lid, items)
 for head, title, lid, items in lists('beyond'):
-    if not lid.startswith('dir-cb6-'): add(head, title, lid, items)   # BKCB6's own lists come in once, above
+    if not lid.startswith('dir-cb6-') or lid.endswith('-all'): add(head, title, lid, items)   # BKCB6's own lists come in once, above; their '-all' twins hold the places just outside CB6 too
 # ---- where each one is, its page, and the words it answers to ----
 LAYERS = [('cd', 'data/community-districts.geojson', 'boro_cd'), ('cc', 'data/council-districts.geojson', 'cc'), ('ad', 'data/assembly-districts.geojson', 'ad'),
           ('sd', 'data/senate-districts.geojson', 'sd'), ('cg', 'data/congressional-districts.geojson', 'cong_dist')]
