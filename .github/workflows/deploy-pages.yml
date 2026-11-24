@@ -54,7 +54,8 @@ jobs:
         with:
           script: |
             const { owner, repo } = context.repo;
-            const version = '${{ steps.new.outputs.sha }}';
+            // each try its own build version: a try that hung on one version leaves that version stuck in Pages
+            const sha = '${{ steps.new.outputs.sha }}';
             const artifactId = Number('${{ steps.artifact.outputs.artifact_id }}');
             const H = { 'X-GitHub-Api-Version': '2022-11-28' };
             const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -63,9 +64,15 @@ jobs:
               catch (e) { core.info(`cancel ${id}: ${e.message}`); }
             };
             const bad = ['deployment_failed', 'deployment_content_failed', 'deployment_cancelled', 'deployment_lost', 'deployment_perms_error', 'deployment_attempt_error'];
-            core.info(`artifact ${artifactId}, version ${version}`);
+            core.info(`artifact ${artifactId}, commit ${sha}`);
+            // clear any deployment an earlier run left hanging (recent commits on main), so it cannot hold up this one
+            try {
+              const recent = (await github.request('GET /repos/{owner}/{repo}/commits', { owner, repo, sha: 'main', per_page: 8, headers: H })).data.map(c => c.sha).filter(x => x !== sha);
+              for (const c of recent) await cancel(c);
+            } catch (e) { core.info(`could not list recent commits: ${e.message}`); }
             for (let attempt = 1; attempt <= 5; attempt++) {
               let id;
+              const version = `${sha}-${context.runId}-${context.runAttempt}-${attempt}`;
               try {
                 const oidc = await core.getIDToken();
                 const created = await github.request('POST /repos/{owner}/{repo}/pages/deployments', {
