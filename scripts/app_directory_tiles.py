@@ -522,7 +522,10 @@ BIZ_HEADS = {'BKCB6 restaurants and food spots by kind', 'BKCB6 houses of worshi
 # Labs' geosearch and checked against the CB6 tax lots and boundary (data/cb6-audit/outside-cb6.json lists those outside)
 _OUT6 = json.load(open(P('data/cb6-audit/outside-cb6.json'))) if os.path.exists(P('data/cb6-audit/outside-cb6.json')) else {}
 _BIG = set(json.load(open(P('data/cb6-audit/big-parks.json')))['names'])
-def _in6(p): return p['name'] in _BIG or (p['slug'] not in _OUT6 and ('name:' + p['name']) not in _OUT6)
+# a group known only from the IRS list is at its mailing address; when the City's tax lot records show that address is a home,
+# an apartment, a mailbox or apartments over a store, it is not a place in CB6 (data/cb6-audit/irs-mailing-only.json)
+_IRSM = json.load(open(P('data/cb6-audit/irs-mailing-only.json'))) if os.path.exists(P('data/cb6-audit/irs-mailing-only.json')) else {}
+def _in6(p): return p['name'] in _BIG or (p['slug'] not in _OUT6 and ('name:' + p['name']) not in _OUT6 and p['slug'] not in _IRSM)
 AREA6_ALL = [(h, t, l, dedupe(ps)) for h, t, l, ps in area_sections('cb6')]
 AREA6 = [(h, t, l, [p for p in ps if h in ("BKCB6's elected officials", 'BKCB6 government offices', 'BKCB6 business improvement districts', 'Brooklyn Community Board 6') or _in6(p)]) for h, t, l, ps in AREA6_ALL]
 AREABK = [(h, t, l, dedupe(ps)) for h, t, l, ps in area_sections('bk')]
