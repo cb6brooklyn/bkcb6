@@ -144,6 +144,20 @@ for r in rows:
     t = _MOVE.get(r[0])
     if t and t[0] in sidx and t[1] in sections[sidx[t[0]]]['cats']:
         r[3] = sorted({x for x in r[3] if x // 1000 not in _BIZ} | {sidx[t[0]] * 1000 + sections[sidx[t[0]]]['cats'].index(t[1])})
+# hand-checked classifications (data/cb6-audit/reclass.json): a BKCB6 listing named there sits under exactly those BKCB6 headings
+_RC = json.load(open(P('data/cb6-audit/reclass.json')))
+_B6 = {i for i, x in enumerate(sections) if x['n'].startswith('BKCB6')}
+_CW = sidx.get('Local businesses')
+for r in rows:
+    t = _RC.get(r[0])
+    if not t or not any(x // 1000 in _B6 for x in r[3]): continue
+    new = {sidx[a] * 1000 + sections[sidx[a]]['cats'].index(b) for a, b in t if a in sidx and b in sections[sidx[a]]['cats']}
+    if not new: continue
+    keep = {x for x in r[3] if x // 1000 not in _B6 and x // 1000 != _CW}
+    if _CW is not None:
+        for a, b in t:
+            if a == 'BKCB6 local businesses' and b in sections[_CW]['cats']: keep.add(_CW * 1000 + sections[_CW]['cats'].index(b))
+    r[3] = sorted(keep | new)
 for i, s in enumerate(sections): s['count'] = sum(1 for r in rows if any(x // 1000 == i for x in r[3]))
 dk = {t: sorted({r[6 + j] for r in rows if r[6 + j]}) for j, t in enumerate(('cd', 'cc', 'ad', 'sd', 'cg'))}
 data = {'sections': sections, 'boros': BOROS, 'hoods': hoods, 'districts': dk, 'E': rows}
