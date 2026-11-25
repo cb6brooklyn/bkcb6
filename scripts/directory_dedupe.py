@@ -35,7 +35,10 @@ def _ak(p):
     w = w[:4]
     if not w: return None
     return (m.group(1), ' '.join(w[:2]))
+# a synagogue and the child care center it runs are two listings
+NOT_SAME = [{'biz-ae227f8f89', 'place-congregation-beth-elohim-ecc'}]
 def same(a, b):
+    if {a.get('slug'), b.get('slug')} in NOT_SAME: return False
     ka, kb = _ak(a), _ak(b); d = _d(a, b)
     if a.get('worship') and b.get('worship') and d is not None and d <= 150: return True   # a church listed by its corner or its rectory's address
     if ka and kb: return ka == kb
@@ -123,6 +126,9 @@ def canon(profiles):
     for k in list(m):   # a folded profile points at the one that is shown
         seen = {k}
         while m[k] in m and m[k] not in seen: seen.add(m[k]); m[k] = m[m[k]]
+    for pr in NOT_SAME:
+        for x in pr:
+            if m.get(x) in pr: m.pop(x)
     return m
 if __name__ == '__main__':
     pf = os.path.join(ROOT, 'app/data/civic/orgs/orgs-profiles.json'); DD = json.load(open(pf, encoding='utf-8'))
