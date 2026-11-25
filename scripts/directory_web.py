@@ -129,6 +129,21 @@ for r in rows:
     if k in _one and r[1]: _one[k][3] = sorted(set(_one[k][3]) | set(r[3]))
     else: _one[k if r[1] else (r[0], id(r))] = r
 rows = list(_one.values())
+# a school, office, park, library, child care center, community group, clinic or public facility is not a local business:
+# it keeps its own heading and leaves the business headings (BKCB6, Brooklyn and citywide)
+_NOTBIZ = {i for i, x in enumerate(sections) if re.match(r"^BKCB6('s elected officials| government offices| schools| community groups| museums| parks| libraries| child care| health care| transit| public facilities| culture)", x['n'])}
+_BIZ = {i for i, x in enumerate(sections) if re.search(r'local businesses$', x['n'], re.I) or x['n'] == 'Local businesses'}
+for r in rows:
+    if any(x // 1000 in _NOTBIZ for x in r[3]): r[3] = [x for x in r[3] if x // 1000 not in _BIZ]
+# schools, preschools and a senior center that came in on business lists go under their own heading, not local businesses
+_MOVE = {'Berkeley Carroll School': ('BKCB6 schools', 'Private and parochial schools'), 'Park Slope Christian Academy': ('BKCB6 schools', 'Private and parochial schools'),
+         'P.S. 676 - The Harbor Middle School': ('BKCB6 schools', 'Middle schools'), 'La Maternelle de Park Slope': ('BKCB6 child care', 'Child care and pre-K'),
+         'Smith Street Maternelle': ('BKCB6 child care', 'Child care and pre-K'), 'Park Slope Little Learners': ('BKCB6 child care', 'Child care and pre-K'),
+         'Brooklyn Apple Academy': ('BKCB6 child care', 'Child care and pre-K'), 'Park Slope Center for Successful Aging': ('BKCB6 community groups', 'Senior centers and services')}
+for r in rows:
+    t = _MOVE.get(r[0])
+    if t and t[0] in sidx and t[1] in sections[sidx[t[0]]]['cats']:
+        r[3] = sorted({x for x in r[3] if x // 1000 not in _BIZ} | {sidx[t[0]] * 1000 + sections[sidx[t[0]]]['cats'].index(t[1])})
 for i, s in enumerate(sections): s['count'] = sum(1 for r in rows if any(x // 1000 == i for x in r[3]))
 dk = {t: sorted({r[6 + j] for r in rows if r[6 + j]}) for j, t in enumerate(('cd', 'cc', 'ad', 'sd', 'cg'))}
 data = {'sections': sections, 'boros': BOROS, 'hoods': hoods, 'districts': dk, 'E': rows}
