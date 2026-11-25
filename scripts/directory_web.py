@@ -158,6 +158,19 @@ for r in rows:
         for a, b in t:
             if a == 'BKCB6 local businesses' and b in sections[_CW]['cats']: keep.add(_CW * 1000 + sections[_CW]['cats'].index(b))
     r[3] = sorted(keep | new)
+# the same name within about 60 m is one place listed twice: one listing, under every heading either had
+_seen = {}; _keep = []
+for r in rows:
+    hit = None
+    if r[11]:
+        for q in _seen.get(r[0], []):
+            if abs(q[11] - r[11]) < 0.00055 and abs(q[12] - r[12]) < 0.0007: hit = q; break
+    if hit is not None:
+        hit[3] = sorted(set(hit[3]) | set(r[3]))
+        if hit[2].startswith('dir-k-') and not r[2].startswith('dir-k-'): hit[2] = r[2]
+        continue
+    _seen.setdefault(r[0], []).append(r); _keep.append(r)
+rows = _keep
 for i, s in enumerate(sections): s['count'] = sum(1 for r in rows if any(x // 1000 == i for x in r[3]))
 dk = {t: sorted({r[6 + j] for r in rows if r[6 + j]}) for j, t in enumerate(('cd', 'cc', 'ad', 'sd', 'cg'))}
 data = {'sections': sections, 'boros': BOROS, 'hoods': hoods, 'districts': dk, 'E': rows}
