@@ -274,6 +274,21 @@ ADDITIONS.append({
 })
 
 
+# Nov 26, 2026 Thanksgiving Day: coastal storm warnings and closures (the banner Mike made), also on the official calendar.
+_TG_STORM = {
+    "date": "2026-11-26",
+    "type": "community",
+    "label": "Thanksgiving Day: Coastal Storm Warnings & Closures",
+    "time": "All day",
+    "location": "Citywide",
+    "desc": "High Wind & Coastal Flood Warnings for NYC: A coastal storm will bring winds of 30 to 40 mph with gusts up to 65 mph, heavy rain and coastal flooding on Thanksgiving Day, Thursday (11/26). The worst is expected Thursday afternoon into late evening. Avoid travel then if you can.\n\nHigh Wind Warning: 10 AM Thursday (11/26) to 1 AM Friday (11/27).\nCoastal Flood Warning: 7 AM Thursday (11/26) into Friday (11/27).\n\nThursday, November 26, Thanksgiving Day: Alternate Side & meters suspended. NO trash collections. No mail/ post offices closed. Schools are closed. Gov offices closed.",
+    "href": "https://www.nyc.gov/site/weatherupdates/index.page",
+    "linkText": "nyc.gov weather updates \u2197",
+    "flyer": "https://bkcb6.app/flyer-cb6-thanksgiving-coastal-storm-2026-11-26.png"
+}
+ADDITIONS.append(_TG_STORM)
+OVERRIDES.append({"date": "2026-11-26", "label_contains": "Coastal Storm Warnings", "set": {k: _TG_STORM[k] for k in ("type", "label", "time", "location", "desc", "href", "linkText", "flyer")}})
+
 def apply_manual_layer(events):
     kept = []
     for ev in events:
