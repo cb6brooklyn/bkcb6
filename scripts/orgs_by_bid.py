@@ -68,7 +68,7 @@ gw = base('gowanus-bid-formation-effort', 'gowanusbid', 'Gowanus BID Formation E
           email='gowanusimprovementdistrict@gmail.com', phone='718-541-4378', logo='gcc.png',
           intro=['A steering committee of local stakeholders, facilitated by the Gowanus Canal Conservancy and working with the Department of Small Business Services, is forming a business improvement district in Gowanus, covering the Gowanus rezoning area. Its co-chairs are Andrea Parker, Chris Papamichael, Lisa Lightbody and Sam Alison-Mayne.',
                  'The effort began outreach in fall 2024 and is collecting ballots from property owners and commercial tenants; the BID needs 51 percent support before it goes to the city for approval. Public meetings: October 14 (virtual) and November 4 at Wyckoff Gardens Community Center.'],
-          links=[['Their site', 'https://gowanusimprovementdistrict.org'], ['About', 'https://gowanusimprovementdistrict.org/about'], ['Questions and answers', 'https://gowanusimprovementdistrict.org/faq']])
+          links=[['Map of businesses and properties', 'https://bkcb6.app/gowanusbid/'], ['Their site', 'https://gowanusimprovementdistrict.org'], ['About', 'https://gowanusimprovementdistrict.org/about'], ['Questions and answers', 'https://gowanusimprovementdistrict.org/faq']])
 gw['cal'] = 'gowanusbid'; gw.update(group=BIDS, topic='Being formed', sort=2)
 prof += [aa, nf, gw]
 d['profiles'] = prof
